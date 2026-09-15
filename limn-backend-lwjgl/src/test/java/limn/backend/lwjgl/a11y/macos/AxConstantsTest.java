@@ -111,7 +111,11 @@ class AxConstantsTest {
             // -accessibilityDisclosedRows @16@0:8, -isAccessibilityExpanded B16@0:8, each from
             // NSAccessibilityElement. OWED_SHAPES below holds each against its closure.
             "isAccessibilityDisclosed", "accessibilityDisclosedByRow", "accessibilityDisclosedRows",
-            "isAccessibilityExpanded");
+            "isAccessibilityExpanded",
+            // MACOS-NEW-11, the same reading: -setAccessibilityDisclosed: v20@0:8B16,
+            // -setAccessibilityExpanded: v20@0:8B16, -setAccessibilityValue: v24@0:8@16, each from
+            // NSAccessibilityElement.
+            "setAccessibilityDisclosed:", "setAccessibilityExpanded:", "setAccessibilityValue:");
 
     /**
      * The encoding the 2026-09-13 guest reading gave each owed selector, copied from
@@ -124,7 +128,10 @@ class AxConstantsTest {
             "isAccessibilityDisclosed", "B16@0:8",
             "accessibilityDisclosedByRow", "@16@0:8",
             "accessibilityDisclosedRows", "@16@0:8",
-            "isAccessibilityExpanded", "B16@0:8");
+            "isAccessibilityExpanded", "B16@0:8",
+            "setAccessibilityDisclosed:", "v20@0:8B16",
+            "setAccessibilityExpanded:", "v20@0:8B16",
+            "setAccessibilityValue:", "v24@0:8@16");
 
     @Test
     void everyOwedSelectorIsReadAndItsReadEncodingIsTheShapeOfItsClosure() {
@@ -171,7 +178,9 @@ class AxConstantsTest {
             AxSelectors.Kind.ID_OF_ID, "@24@0:8@16",
             AxSelectors.Kind.BOOL_OF_SELECTOR, "B24@0:8:16",
             AxSelectors.Kind.ID_OF_TWO_INTEGERS, "@32@0:8q16q24",
-            AxSelectors.Kind.ID_OF_POINT, "@32@0:8{CGPoint=dd}16");
+            AxSelectors.Kind.ID_OF_POINT, "@32@0:8{CGPoint=dd}16",
+            AxSelectors.Kind.VOID_OF_BOOL, "v20@0:8B16",
+            AxSelectors.Kind.VOID_OF_ID, "v24@0:8@16");
 
     /**
      * The review of MACOS-NEW-6: tying a selector to the dump by name says it exists, not that the

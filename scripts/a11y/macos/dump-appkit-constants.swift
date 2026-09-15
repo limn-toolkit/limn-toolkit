@@ -201,6 +201,10 @@ let installedByTheBridge: [(String, String)] = [
     ("isAccessibilityDisclosed", "element"), ("accessibilityDisclosureLevel", "element"),
     ("accessibilityDisclosedByRow", "element"), ("accessibilityDisclosedRows", "element"),
     ("isAccessibilityExpanded", "element"),
+    // The setter half (MACOS-NEW-11).
+    ("setAccessibilityFocused:", "element"), ("setAccessibilitySelected:", "element"),
+    ("setAccessibilityDisclosed:", "element"), ("setAccessibilityExpanded:", "element"),
+    ("setAccessibilityValue:", "element"),
 ]
 
 // Fragments searched for across the class chains and the protocols below, so a name is read rather

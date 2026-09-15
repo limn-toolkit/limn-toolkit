@@ -64,7 +64,11 @@ final class AxSelectors {
         /** {@code (id, SEL, NSInteger, NSInteger) -> id}. */
         ID_OF_TWO_INTEGERS,
         /** {@code (id, SEL, CGPoint) -> id}. */
-        ID_OF_POINT
+        ID_OF_POINT,
+        /** {@code (id, SEL, BOOL) -> void}. */
+        VOID_OF_BOOL,
+        /** {@code (id, SEL, id) -> void}. */
+        VOID_OF_ID
     }
 
     /** Installed on the element class every node is vended as, in the order they are installed. */
@@ -92,6 +96,8 @@ final class AxSelectors {
         kinds.put("accessibilityFocusedUIElement", Kind.ID);
         for (String action : AxActions.selectors()) kinds.put(action, Kind.BOOL);
         kinds.put("isAccessibilitySelectorAllowed:", Kind.BOOL_OF_SELECTOR);
+        for (String setter : AxSetters.BOOL_SETTERS) kinds.put(setter, Kind.VOID_OF_BOOL);
+        kinds.put(AxSetters.VALUE, Kind.VOID_OF_ID);
         for (String selector : List.of("accessibilityRows", "accessibilityVisibleRows",
                 "accessibilitySelectedRows", "accessibilitySelectedChildren",
                 "accessibilitySelectedCells", "accessibilityColumns", "accessibilityHeader",
@@ -167,6 +173,11 @@ final class AxSelectors {
         Map<String, List<String>> requires = new LinkedHashMap<>();
         for (String action : AxActions.selectors()) {
             requires.put(action, List.of("isAccessibilitySelectorAllowed:"));
+        }
+        // A setter without the gate is settable on every element (read 2026-09-13: settable is the
+        // gate's answer for the setter), which is worse than no setter.
+        for (String setter : AxSetters.selectors()) {
+            requires.put(setter, List.of("isAccessibilitySelectorAllowed:"));
         }
         requires.put("accessibilityAttributeValue:", List.of("accessibilityAttributeNames"));
         requires.put("accessibilityAttributeNames", List.of("accessibilityAttributeValue:"));

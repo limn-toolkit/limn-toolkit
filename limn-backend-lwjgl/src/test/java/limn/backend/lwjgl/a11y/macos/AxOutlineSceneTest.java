@@ -194,6 +194,59 @@ class AxOutlineSceneTest {
         assertEquals(6, grid.index(bridge.nodeFor(after[6])), "and Readme moved down to 6");
     }
 
+    /** A reader's write through the setter half, as the closure makes it: mapped, then performed. */
+    private boolean write(AxSetters.Setting setting, long element) {
+        if (setting == null) return false;
+        boolean accepted = bridge.perform(bridge.nodeFor(element).id(), setting.action(), setting.argument());
+        ui.runtime().drain();
+        frame();
+        return accepted;
+    }
+
+    @Test
+    void aReaderOpensARowByWritingAXDisclosingAndMovesTheCursorByWritingAXFocused() {
+        Tree<Node> tree = bindTree();
+        scene.requestFocus(tree);
+        frame();
+        AxGrid grid = new AxGrid(bridge);
+        long[] rows = grid.rows(only(Accessible.Role.TREE));
+        long picturesRow = rows[4];
+        long readmeRow = rows[5];
+        assertTrue(AxSetters.offers(grid, bridge.nodeFor(picturesRow), AxSetters.DISCLOSED),
+                "a closed branch's AXDisclosing is settable, as a native outline's is");
+        assertTrue(!AxSetters.offers(grid, bridge.nodeFor(readmeRow), AxSetters.DISCLOSED),
+                "and a leaf's is not, as the native outline answered for Q1, Notes and Readme");
+        assertTrue(write(AxSetters.forBool(grid, bridge.nodeFor(picturesRow), AxSetters.DISCLOSED, true),
+                picturesRow));
+        assertTrue(tree.isExpanded(pictures), "the write opened Pictures");
+        assertEquals(7, grid.rows(only(Accessible.Role.TREE)).length);
+
+        long notesRow = grid.rows(only(Accessible.Role.TREE))[3];
+        assertTrue(AxSetters.offers(grid, bridge.nodeFor(notesRow), AxSetters.FOCUSED));
+        assertTrue(write(AxSetters.forBool(grid, bridge.nodeFor(notesRow), AxSetters.FOCUSED, true), notesRow));
+        assertEquals("Notes", bridge.nodeFor(bridge.focusedElement()).name(),
+                "VoiceOver's cursor sync writes AXFocused, and the tree's cursor follows it");
+        assertTrue(tree.selectedNodes().isEmpty(), "without selecting (decision 11)");
+    }
+
+    @Test
+    void aReaderWritesAFieldsTextAndASlidersValueThroughAXValue() {
+        limn.components.TextField field = new limn.components.TextField();
+        limn.components.Slider slider = new limn.components.Slider(0, 100);
+        Column column = new Column();
+        column.add(new SizedBox(200, 30, field));
+        column.add(new SizedBox(200, 30, slider));
+        bind(column);
+        AccessibleNode fieldNode = only(Accessible.Role.TEXT_FIELD);
+        AccessibleNode sliderNode = only(Accessible.Role.SLIDER);
+        long fieldElement = bridge.elementFor(fieldNode.id());
+        long sliderElement = bridge.elementFor(sliderNode.id());
+        assertTrue(write(AxSetters.forValue(fieldNode, "hello", null), fieldElement));
+        assertEquals("hello", field.text());
+        assertTrue(write(AxSetters.forValue(sliderNode, null, 40.0), sliderElement));
+        assertEquals(40f, slider.value(), 0.001f);
+    }
+
     @Test
     void theFocusedElementIsTheCursorRowAndACursorMoveIsToldAsAFocusChange() {
         Tree<Node> tree = bindTree();

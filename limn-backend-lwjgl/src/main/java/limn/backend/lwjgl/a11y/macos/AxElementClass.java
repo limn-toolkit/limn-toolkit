@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.lwjgl.system.MemoryUtil.NULL;
+import static org.lwjgl.system.MemoryUtil.memGetByte;
 import static org.lwjgl.system.MemoryUtil.memGetDouble;
 import static org.lwjgl.system.MemoryUtil.memPutLong;
 
@@ -104,6 +105,17 @@ final class AxElementClass {
          * @return whether the scene took it
          */
         boolean perform(long nodeId, limn.accessibility.Accessible.Action action);
+
+        /**
+         * Performs one parameterised verb on one node, through the scene, as {@link #perform(long,
+         * Accessible.Action)} does: checked, posted, never waited for.
+         *
+         * @param nodeId   the node the message was sent to
+         * @param action   the verb
+         * @param argument what it carries
+         * @return whether the scene took it
+         */
+        boolean perform(long nodeId, Accessible.Action action, Accessible.Argument argument);
 
         /** @return the published tree every answer is read from; never {@code null} */
         limn.accessibility.AccessibleTree tree();
@@ -296,11 +308,9 @@ final class AxElementClass {
         addId("accessibilityRoleDescription", get(node ->
                 objc.string(RoleNames.of(node.role(), node.locale()))));
 
-        // Read only: setAccessibilityValue: is not installed, so no setter reaches the toolkit from
-        // here yet. Phase 3, when it installs it, owes it the refusal fix round 2e settled: nothing
-        // posted to a node AccessibleNode#accepts refuses, a node without ENABLED included, while
-        // whether the value is settable stays the facet's own answer, never a read-only flag the
-        // node does not have (semantics 5, amended 2026-09-15).
+        // Written through setAccessibilityValue: (installSetters), which posts nothing to a node
+        // AccessibleNode#accepts refuses, a node without ENABLED included (semantics 5, amended
+        // 2026-09-15); the value itself is the facet's, never a read-only flag the node lacks.
         addId("accessibilityValue", get(this::valueOf));
         addId("accessibilityIdentifier", get(node -> objc.string(Long.toString(node.id()))));
 
@@ -337,6 +347,7 @@ final class AxElementClass {
         installHitTest();
         installFocusedElement();
         installActions();
+        installSetters();
         installTable();
         installBusy();
     }
@@ -524,6 +535,51 @@ final class AxElementClass {
             }
         };
         addMethod(elementClass, "isAccessibilitySelectorAllowed:", gate);
+    }
+
+    /**
+     * The setter half (MACOS-NEW-11): a reader's write to AXFocused, AXSelected, AXDisclosing,
+     * AXExpanded or AXValue, posted as the verb it means where the node accepts that verb, and
+     * nothing anywhere else. Whether each is settable is the gate's answer for the setter selector,
+     * which is {@link AxSetters#offers}; the write checks again, because a client need not ask first.
+     * Each installed only with the gate ({@link AxSelectors#REQUIRES}), or every element would report
+     * every one of them settable.
+     */
+    private void installSetters() {
+        for (String selector : AxSetters.BOOL_SETTERS) {
+            addMethod(elementClass, selector, new BoolSetter() {
+                @Override public void invoke(long self, long cmd, boolean on) {
+                    source.entered();
+                    AccessibleNode node = source.nodeFor(self);
+                    if (node == null) return;
+                    AxSetters.Setting setting = AxSetters.forBool(grid, node, selector, on);
+                    if (setting != null) source.perform(node.id(), setting.action(), setting.argument());
+                }
+            });
+        }
+        IdSetter valueSetter = new IdSetter() {
+            @Override public void invoke(long self, long cmd, long written) {
+                source.entered();
+                AccessibleNode node = source.nodeFor(self);
+                if (node == null || written == NULL) return;
+                String text = isKindOf(written, "NSString") ? objc.javaString(written) : null;
+                Double number = null;
+                if (text == null && isKindOf(written, "NSNumber")) {
+                    try {
+                        number = Double.valueOf(objc.javaString(ObjC.msg(written, "stringValue")));
+                    } catch (NumberFormatException | NullPointerException unreadable) {
+                        return;
+                    }
+                }
+                AxSetters.Setting setting = AxSetters.forValue(node, text, number);
+                if (setting != null) source.perform(node.id(), setting.action(), setting.argument());
+            }
+        };
+        addMethod(elementClass, "setAccessibilityValue:", valueSetter);
+    }
+
+    private static boolean isKindOf(long object, String className) {
+        return (ObjC.msg(object, "isKindOfClass:", ObjC.cls(className)) & 0xFF) != 0;
     }
 
     /**
@@ -759,6 +815,42 @@ final class AxElementClass {
     private abstract static class BoolGetter extends Callback implements BoolGetterI, Shaped {
         protected BoolGetter() { super(BoolGetterI.DESCRIPTOR); }
         @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.BOOL; }
+    }
+
+    /** {@code (id self, SEL _cmd, BOOL) -> void}, encoding {@code v20@0:8B16}. */
+    private interface BoolSetterI extends CallbackI {
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(BoolSetterI.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_void, LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_pointer, LibFFI.ffi_type_uint8));
+        @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
+        @Override default void callback(long ret, long args) {
+            // The BOOL is one byte in its slot; the rest of the slot is not the caller's to promise.
+            invoke(ClosureArgs.pointer(args, 0), ClosureArgs.pointer(args, 1),
+                    memGetByte(ClosureArgs.slot(args, 2)) != 0);
+        }
+        void invoke(long self, long cmd, boolean on);
+    }
+
+    private abstract static class BoolSetter extends Callback implements BoolSetterI, Shaped {
+        protected BoolSetter() { super(BoolSetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.VOID_OF_BOOL; }
+    }
+
+    /** {@code (id self, SEL _cmd, id) -> void}, encoding {@code v24@0:8@16}. */
+    private interface IdSetterI extends CallbackI {
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(IdSetterI.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_void, LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
+        @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
+        @Override default void callback(long ret, long args) {
+            invoke(ClosureArgs.pointer(args, 0), ClosureArgs.pointer(args, 1), ClosureArgs.pointer(args, 2));
+        }
+        void invoke(long self, long cmd, long written);
+    }
+
+    private abstract static class IdSetter extends Callback implements IdSetterI, Shaped {
+        protected IdSetter() { super(IdSetterI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.VOID_OF_ID; }
     }
 
     /** {@code (id self, SEL _cmd, SEL) -> BOOL}, encoding {@code B24@0:8:16}. */

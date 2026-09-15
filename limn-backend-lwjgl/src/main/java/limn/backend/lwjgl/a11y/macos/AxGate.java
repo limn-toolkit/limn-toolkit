@@ -31,6 +31,10 @@ final class AxGate {
      */
     static boolean allows(AxGrid grid, AccessibleNode node, String selector) {
         if (AxActions.isActionSelector(selector)) return AxActions.verbFor(node, selector) != null;
+        if (AxSetters.selectors().contains(selector)) return AxSetters.offers(grid, node, selector);
+        // Every other setter is NSAccessibilityElement's stored one: settable to a client and read by
+        // nothing of ours, AXRole included (read 2026-09-13). Refused everywhere.
+        if (selector.startsWith("setAccessibility")) return false;
         return switch (selector) {
             // A table, an outline or a list: the containers whose items are rows (M2). A native
             // NSOutlineView answers AXRows, AXVisibleRows and AXSelectedRows, and no AXRowCount

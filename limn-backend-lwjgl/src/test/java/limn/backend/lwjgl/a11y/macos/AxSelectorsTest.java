@@ -43,7 +43,9 @@ class AxSelectorsTest {
             "AttributeGetter", AxSelectors.Kind.ID_OF_ID,
             "SelectorGate", AxSelectors.Kind.BOOL_OF_SELECTOR,
             "CellAt", AxSelectors.Kind.ID_OF_TWO_INTEGERS,
-            "HitTest", AxSelectors.Kind.ID_OF_POINT);
+            "HitTest", AxSelectors.Kind.ID_OF_POINT,
+            "BoolSetter", AxSelectors.Kind.VOID_OF_BOOL,
+            "IdSetter", AxSelectors.Kind.VOID_OF_ID);
 
     /**
      * What {@code AxElementClass}'s source installs, selector to closure shape, read off the source.
@@ -73,6 +75,16 @@ class AxSelectorsTest {
             for (String action : AxActions.selectors()) {
                 installed.put(action, HELPERS.get(loop.group(2)));
             }
+        }
+        // The one loop over AxSetters.BOOL_SETTERS, whose body hands its loop variable and a closure
+        // it constructs in place to addMethod.
+        Matcher setterLoop = Pattern.compile("for \\(String (\\w+) : AxSetters\\.BOOL_SETTERS\\) \\{\\s*"
+                + "(addMethod)\\(\\w+, \\1, new (\\w+)\\(\\)").matcher(sites);
+        while (setterLoop.find()) {
+            AxSelectors.Kind kind = CLOSURES.get(setterLoop.group(3));
+            if (kind == null) continue;   // an unknown closure: the call below stays unread and fails
+            loopSites.add(setterLoop.start(2));
+            for (String setter : AxSetters.BOOL_SETTERS) installed.put(setter, kind);
         }
         while (call.find()) {
             String method = call.group(1);
@@ -235,9 +247,12 @@ class AxSelectorsTest {
         assertEquals(List.of(gate), resolution.missing());
         List<String> actions = new java.util.ArrayList<>();
         AxActions.selectors().forEach(actions::add);
-        assertEquals(actions, resolution.withheld(),
-                "every action goes with the gate, or a button advertises increment");
-        for (String action : actions) assertNull(resolution.encodingOf(action), action);
+        List<String> gated = new java.util.ArrayList<>(actions);
+        gated.addAll(AxSetters.selectors());
+        assertEquals(gated, resolution.withheld(),
+                "every action goes with the gate, or a button advertises increment; and every setter, "
+                        + "or every element reports AXFocused and AXValue settable (restated 2026-09-15)");
+        for (String action : gated) assertNull(resolution.encodingOf(action), action);
         assertEquals("B16@0:8", resolution.encodingOf("isAccessibilityFocused"),
                 "and nothing that is not an action goes with it");
         String warning = resolution.warning();
@@ -272,6 +287,10 @@ class AxSelectorsTest {
         for (String action : AxActions.selectors()) {
             assertEquals(List.of("isAccessibilitySelectorAllowed:"), AxSelectors.REQUIRES.get(action),
                     action);
+        }
+        for (String setter : AxSetters.selectors()) {
+            assertEquals(List.of("isAccessibilitySelectorAllowed:"), AxSelectors.REQUIRES.get(setter),
+                    setter + ": settable is the gate's answer for the setter");
         }
         for (String selector : AxSelectors.REQUIRES.keySet()) {
             assertTrue(AxSelectors.isListed(selector), selector);

@@ -303,11 +303,15 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
 
     @Override
     public boolean perform(long nodeId, Accessible.Action action) {
+        return perform(nodeId, action, Accessible.Argument.NONE);
+    }
+
+    @Override
+    public boolean perform(long nodeId, Accessible.Action action, Accessible.Argument argument) {
         Host current = host();
         // Between a detach and an attach there is nobody to ask, and refusing is the only honest
         // answer: the scene that owned the widget is gone.
-        return current != null
-                && current.perform(nodeId, action, Accessible.Argument.NONE);
+        return current != null && current.perform(nodeId, action, argument);
     }
 
     /**

@@ -2178,7 +2178,17 @@ the level getter (semantics 6). *Press and confirm* (MACOS-NEW-5; semantics 5): 
 candidates `PRESS`, `TOGGLE`, `SELECT`, `EXPAND`, `COLLAPSE` in that order, the first the node accepts
 (`AccessibleNode#accepts`) posted, so a combo box, a menu title or a date field that publishes only the
 one of `EXPAND`/`COLLAPSE` its state allows is pressed open or shut, and a node publishing no verb is
-offered no press whatever facet it carries; `…Pick` stays absent (AxActions says why).
+offered no press whatever facet it carries; `…Pick` stays absent (AxActions says why). *The setter
+half* (MACOS-NEW-11; semantics 5): `setAccessibilityFocused:` YES posts `FOCUS`;
+`setAccessibilitySelected:` YES `SELECT`, NO `DESELECT`; `setAccessibilityDisclosed:` (an outline row)
+and `setAccessibilityExpanded:` (anything else that opens) YES `EXPAND`, NO `COLLAPSE`;
+`setAccessibilityValue:` a string as `SET_TEXT` to a text, a number as `SET_VALUE` and a string as
+`SET_VALUE` of text to a writable value — each posted only where `AccessibleNode#accepts` holds for
+that verb, never waited for. **Settable is the gate's answer for the setter** (read on the guest
+2026-09-13), so each of these is offered exactly where its write would post, AXDisclosing only on a
+row that can open as the native outline's is, and every other `setAccessibility…` selector —
+`NSAccessibilityElement`'s stored setters, which a client read as settable on every element, `AXRole`
+included — is refused on every node. The setters are installed only together with the gate.
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a
