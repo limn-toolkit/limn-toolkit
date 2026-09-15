@@ -205,6 +205,48 @@ class AtspiApplicationTest {
         assertFalse(closed[0]);
     }
 
+    /**
+     * The last window leaving while its join is being published still leaves the application off the
+     * bus. The joiner asks "is anything still here" <b>after</b> it has published the joined state,
+     * and the detach writes the window table before it reads that state: one of the two always sees
+     * the other, and an application with no frame is what the registry must not read.
+     *
+     * <p>The seam is the clock the joined state is stamped with, which is read on the joiner's thread
+     * in the step before the state is published; a detach driven from there lands in the gap and sees
+     * a join of {@code null}, so nothing but the joiner's own read can let the connection go. The
+     * deleted {@code aSwitchTurnedOffBetweenTheJoinsLastLookAndItsPublicationStillLeaves} pinned this
+     * ordering through the switch's half of the same condition, which decision 67 removed; the
+     * {@code windows.isEmpty()} half is what is left of it and this is its test. (A sabotage that
+     * moves the read into the gap itself — between the state's construction and its publication —
+     * cannot be driven from a test, because there is no call there to hook: what covers that
+     * interleaving is {@code detached()} reading the joined state again after it removes the window,
+     * not this ordering.)
+     */
+    @Test
+    void aWindowThatLeavesWhileItsJoinIsPublishedDoesNotLeaveAnApplicationJoinedWithNoWindow() {
+        FakeBus bus = new FakeBus();
+        AtspiBridge[] main = new AtspiBridge[1];
+        boolean[] inTheGap = {false};
+        AtspiApplication app = new AtspiApplication(bus, AtspiApplication.Starter.ON_THE_CALLER,
+                () -> {
+                    if (inTheGap[0]) {
+                        inTheGap[0] = false;
+                        main[0].detach();  // the window closes on its own thread, here
+                    }
+                    return 1_000_000_000L;
+                });
+        app.enabled(true);
+        main[0] = app.window();
+        inTheGap[0] = true;
+
+        main[0].publish(aWindow("Main", 0).tree(), false);
+
+        assertEquals(1, bus.joins, "the join ran: the window had a tree when it published");
+        assertFalse(app.isJoined(), "and the application did not stay joined with no window: the "
+                + "registry would read an application with no frame, and then never list it");
+        assertTrue(bus.closed, "the connection went with the window");
+    }
+
     private static String path(long id) {
         return "/org/a11y/atspi/accessible/" + id;
     }
