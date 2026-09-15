@@ -32,7 +32,7 @@ public final class Main {
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
             "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
-            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reader", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
+            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
             "newcontrols", "newcontrols-light", "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
@@ -97,6 +97,14 @@ public final class Main {
     }
 
     public static void main(String[] args) {
+        // A reader run (decision 24) is the accessibility gallery's driver and not a scene: one
+        // entry alone in its window, its steps on a timer. `--scene tree-reader`, the spelling the
+        // 2026-09-13 guest recipes use, is the same run over the tree entry.
+        String[] reader = limn.demo.a11y.ReaderDriver.readerArguments(args);
+        if (reader != null) {
+            limn.demo.a11y.ReaderDriver.main(reader);
+            return;
+        }
         if (args.length > 0 && args[0].equals("--gl-info")) {
             // Diagnostic: no scene and no frame, and it exits non-zero where the
             // machine gives no context, so a script can tell without parsing.
@@ -216,7 +224,6 @@ public final class Main {
             Runnable loadTrigger = null;
             Runnable afterLayout = null;
             Runnable treeScroll = null;
-            boolean treeReader = false;
             MenuScene.Built menuBuilt = null;
             if (scene.equals("widgets")) {
                 widgetScene = WidgetsScene.create();
@@ -236,13 +243,6 @@ public final class Main {
                 // takes the scroll on a timer instead (see treeScrollCapture below).
                 afterLayout = screenshotMode ? null : built.afterLayout();
                 treeScroll = built.afterLayout();
-            } else if (scene.equals("tree-reader")) {
-                // ADR 044 §4's live runs: the focus goes into the tree after the first layout,
-                // and the arrows are scheduled below once the window exists to be brought forward.
-                TreeScene.Built built = TreeScene.reader();
-                widgetScene = built.scene();
-                afterLayout = built.afterLayout();
-                treeReader = true;
             } else if (scene.equals("tree-reserved")) {
                 widgetScene = TreeScene.reserved();
             } else if (scene.equals("tree-deep")) {
@@ -710,37 +710,6 @@ public final class Main {
                     }
                 }, 450);
                 Ui.postDelayed(window::requestClose, 650);
-            }
-
-            if (treeReader && boundScene != null && !screenshotMode) {
-                // The arrows a person would press, three seconds apart so a reader finishes each
-                // announcement before the next event: land on Documents, step onto an open row,
-                // close it and open it again, walk the leaves, open a closed branch and step into
-                // it, come back out, close it, and last open the branch that has to load first.
-                // The window is brought forward on every step, because a reader announces the
-                // window in front and whatever launched this keeps taking the foreground back.
-                limn.scene.Scene rs = boundScene;
-                int[] keys = {
-                        limn.input.Keys.DOWN, limn.input.Keys.DOWN, limn.input.Keys.LEFT,
-                        limn.input.Keys.RIGHT, limn.input.Keys.DOWN, limn.input.Keys.DOWN,
-                        limn.input.Keys.DOWN, limn.input.Keys.DOWN, limn.input.Keys.RIGHT,
-                        limn.input.Keys.DOWN, limn.input.Keys.LEFT, limn.input.Keys.LEFT,
-                        limn.input.Keys.DOWN, limn.input.Keys.RIGHT, limn.input.Keys.DOWN};
-                String[] names = {"DOWN", "DOWN", "LEFT", "RIGHT", "DOWN", "DOWN", "DOWN", "DOWN",
-                        "RIGHT", "DOWN", "LEFT", "LEFT", "DOWN", "RIGHT", "DOWN"};
-                for (int i = 0; i < keys.length; i++) {
-                    int key = keys[i];
-                    String label = "--- step " + (i + 1) + " " + names[i];
-                    Ui.postDelayed(() -> {
-                        window.focus();
-                        rs.keyEvent(key, true, false, 0);
-                        rs.keyEvent(key, false, false, 0);
-                        rs.inputBatchEnded();
-                        limn.scene.Widget focused = rs.focusedWidget();
-                        System.out.println(label + " focus="
-                                + (focused == null ? "none" : focused.getClass().getSimpleName()));
-                    }, 5000L + i * 3000L);
-                }
             }
 
             if (treeScrollCapture && treeScrollNow != null) {

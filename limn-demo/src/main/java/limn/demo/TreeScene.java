@@ -116,19 +116,6 @@ final class TreeScene {
     }
 
     /**
-     * The same tree with the keyboard focus in it, for a screen reader to listen to.
-     *
-     * <p>A reader speaks what happens to the focus, and nothing injected from outside reaches a
-     * Wayland session the same way it reaches the other two desktops, so the demo drives its own
-     * arrows through the scene's key path — the path a person's keys take — and every platform
-     * hears the same sequence. {@code Main} schedules the steps; this only puts the focus there.
-     */
-    static Built reader() {
-        Parts parts = parts();
-        return new Built(parts.scene(), () -> parts.tree().requestFocus());
-    }
-
-    /**
      * The same tree with its bars in strips of their own, shown always.
      *
      * <p>The rows here end in a count or a button against the trailing edge, which is what an
@@ -216,8 +203,8 @@ final class TreeScene {
         for (int i = 13; i >= 1; i--) {
             deep = Node.of("level-" + String.format("%02d", i), deep);
         }
-        // The two rows that hold nothing come after the chain, so the reader recipe's arrows
-        // (Main's `tree-reader` steps) land on the rows they always did.
+        // The two rows that hold nothing come after the chain, where the capture variants put
+        // them. (The reader run drives the accessibility gallery's own tree since 2026-09-15.)
         List<Node> roots = new java.util.ArrayList<>(
                 List.of(docs, media, remote, deep, trash, emptyFolder));
         // Enough rows that the outline is taller than its box: a bar with nothing to scroll
