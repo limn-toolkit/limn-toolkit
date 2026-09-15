@@ -3114,6 +3114,23 @@ the reader, one raise after the last sweep says it, and each raise waits for the
 `theModelsInvalidatedSweepsOncePerEmitAndReannouncesTheFocus` was restated to follow each collapse
 with a tail event, as the model's own always is.
 
+**What that leaves open, and what a live run should listen for (recorded 2026-09-15, the fix round's
+review).** The second of the two flush points — "when nothing more is waiting" — is a queue-emptiness
+test made on the drain thread while the user-interface thread is still offering the tail one event
+at a time. A drain that reaches the top of its loop between the collapse and the first tail
+`STRUCTURE_CHANGED` sees an empty queue and re-announces early: the very order this amendment
+fixes, in the one case where the drain outruns the producer. The ordering is guaranteed whenever the
+tail is already queued, which is how a publish hands it over, and the debt is never dropped either
+way, so what remains is a race and not a lost re-announcement. **Phase 5 hears it as the focus
+spoken before the shape of a large publish's tail**, after an expand or a sort that collapses the
+queue. The fix if it is heard is to flush on a publish boundary instead of on emptiness: the model
+already marks one — `AccessibilityBridge#frameEnded`, which the scene calls once per frame after
+every event of that frame has been emitted, and which this bridge does not override (macOS posts
+its whole frame there). Its cost is the reason it was not taken blind: a marker offered into the
+same bounded queue can be swallowed by that queue's own collapse, and a bridge whose scene then runs
+no further frame would owe the re-announcement with nothing left to flush it — a dropped debt traded
+for a race. Whichever is worse is a question for a reader and not for a test.
+
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-6's remainder): `CARET_MOVED` and
 `BOUNDS_CHANGED` as built.** `CARET_MOVED` is `Text_TextSelectionChanged`, as its row says, handled
 together with `TEXT_SELECTION_CHANGED` (the settled unmapped-and-window-level-events item): the model

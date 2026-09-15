@@ -440,6 +440,21 @@ public final class UiaBridge extends PlatformBridge {
      * pays for is the element the sweep may have released under the reader, and one raise after the
      * last sweep says it. Each raise waits for the reader's handler (§13.28), so a second one is a
      * frame's budget spent saying what has just been said.
+     *
+     * <p><b>The second flush point in {@link #drainLoop} — nothing more waiting — is a race the
+     * reader decides.</b> It tests the queue on this thread while the user-interface thread is
+     * still offering the tail one event at a time, so a drain that outruns the producer can flush
+     * between the collapse and the first tail {@code STRUCTURE_CHANGED} and re-announce early,
+     * which is the order this whole paragraph is about. Whenever the tail is already queued — how a
+     * publish hands it over — the order holds, and the debt is never dropped either way. <b>What
+     * phase 5 listens for</b> is the focus spoken before the shape of a large publish's tail, after
+     * an expand or a sort wide enough to collapse the queue. <b>The fix if it is heard</b> is to
+     * flush on a publish boundary rather than on emptiness: the model marks one already, {@code
+     * AccessibilityBridge#frameEnded}, called once per frame after every event of that frame has
+     * been emitted and not overridden here. It was not taken blind because it trades this race for
+     * a worse failure in one case: a marker offered into this same bounded queue can be swallowed
+     * by the queue's own collapse, and a scene that then runs no further frame would owe a
+     * re-announcement with nothing left to flush it. ADR 039 §2.4, 2026-09-15.
      */
     private void reannounce() {
         String cause = reannounceOwed;
