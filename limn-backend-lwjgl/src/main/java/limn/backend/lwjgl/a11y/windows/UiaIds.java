@@ -252,6 +252,37 @@ final class UiaIds {
     static final int NAVIGATE_DIRECTION_FIRST_CHILD = 3;
     static final int NAVIGATE_DIRECTION_LAST_CHILD = 4;
 
+    /**
+     * {@code ScrollAmount}, the two arguments of {@code IScrollProvider::Scroll}. Read on the
+     * Windows 11 ARM64 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9278) on 2026-09-13 by
+     * {@code scripts/a11y/windows/dump-uia-constants.ps1}
+     * (readings/windows-dump-uia-constants.txt: {@code System.Windows.Automation.ScrollAmount} in
+     * UIAutomationTypes 4.8.9347) and by {@code dump-uia-typelib.ps1}
+     * (readings/windows-dump-uia-typelib.txt: {@code ScrollAmount_*} in the type libraries
+     * {@code UIAutomationClient} and {@code UIA}), which agree.
+     */
+    static final int SCROLL_AMOUNT_LARGE_DECREMENT = 0;
+    /** @see #SCROLL_AMOUNT_LARGE_DECREMENT */
+    static final int SCROLL_AMOUNT_SMALL_DECREMENT = 1;
+    /** @see #SCROLL_AMOUNT_LARGE_DECREMENT */
+    static final int SCROLL_AMOUNT_NO_AMOUNT = 2;
+    /** @see #SCROLL_AMOUNT_LARGE_DECREMENT */
+    static final int SCROLL_AMOUNT_LARGE_INCREMENT = 3;
+    /** @see #SCROLL_AMOUNT_LARGE_DECREMENT */
+    static final int SCROLL_AMOUNT_SMALL_INCREMENT = 4;
+
+    /**
+     * {@code UIA_ScrollPatternNoScroll}: the percent a scroll getter answers for an axis that
+     * cannot scroll, and the percent {@code SetScrollPercent} is given for an axis to leave alone.
+     * Read on the Windows 11 ARM64 guest on 2026-09-13: {@code -1} ({@code VT_R8}) in the
+     * {@code UIA} type library's {@code UIA_OtherConstants} (readings/windows-dump-uia-typelib.txt)
+     * and {@code ScrollPatternIdentifiers.NoScroll} = -1 in UIAutomationTypes
+     * (readings/windows-dump-uia-constants.txt). How the platform's own provider uses it, both ways,
+     * was read on 2026-09-15 by {@code dump-uia-provider-conventions.ps1}
+     * (readings/windows-dump-uia-provider-conventions.txt §1, {@code ScrollViewerAutomationPeer}).
+     */
+    static final double SCROLL_NO_SCROLL = -1.0;
+
     // ---- read from the managed side, not from the interop assembly's identifier tables; each
     // names its reading. The header spellings (UiaAppendRuntimeId, UIA_E_ELEMENTNOTAVAILABLE,
     // UIA_E_INVALIDOPERATION) need a Windows SDK the guest does not carry and are NOT read.
@@ -352,4 +383,38 @@ final class UiaIds {
      * managed one.
      */
     static final int E_INVALID_OPERATION = 0x80131509;
+
+    /**
+     * {@code UIA_E_ELEMENTNOTENABLED}: what a provider answers for a verb or a setter on an element
+     * that is not enabled, before it looks at anything else.
+     *
+     * <p>Read on the Windows 11 ARM64 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9278) on
+     * 2026-09-13 by {@code scripts/a11y/windows/dump-uia-hresults.ps1}
+     * (readings/windows-dump-uia-hresults.txt): the internal constants
+     * {@code MS.Internal.Automation.UiaCoreTypesApi.UIA_E_ELEMENTNOTENABLED} and
+     * {@code UiaCoreApi.UIA_E_ELEMENTNOTENABLED}, both 0x80040200 in the 4.8.9347 assemblies; the
+     * HResult of {@code ElementNotEnabledException}; and, measured, what a managed
+     * {@code IInvokeProvider.Invoke} throwing that exception returned through its COM wrapper. The
+     * header spelling is not read (no SDK on the guest); the name here is the managed constant's.
+     * Where the platform's own provider answers it first, before any other refusal, was read on
+     * 2026-09-15 (readings/windows-dump-uia-provider-conventions.txt §1:
+     * {@code ScrollViewerAutomationPeer}'s {@code Scroll} and {@code SetScrollPercent} both begin
+     * {@code call AutomationPeer::IsEnabled(); brtrue; newobj ElementNotEnabledException; throw}).
+     */
+    static final int E_ELEMENT_NOT_ENABLED = 0x80040200;
+
+    /**
+     * What a provider answers for an argument outside the range the call accepts: the HRESULT of
+     * the managed {@code System.ArgumentOutOfRangeException}, {@code SetScrollPercent}'s answer to
+     * a percent outside 0..100 that is not {@link #SCROLL_NO_SCROLL}.
+     *
+     * <p>Read on the Windows 11 ARM64 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9457) on
+     * 2026-09-15 by {@code scripts/a11y/windows/dump-uia-provider-conventions.ps1}
+     * (readings/windows-dump-uia-provider-conventions.txt §2:
+     * {@code new ArgumentOutOfRangeException().HResult} = 0x80131502 from mscorlib; §1:
+     * {@code ScrollViewerAutomationPeer.SetScrollPercent} tests {@code blt 0} and
+     * {@code ble.un 100} and throws {@code ArgumentOutOfRangeException}). No UIA header name is
+     * claimed for it: the number is the managed one a managed provider returns.
+     */
+    static final int E_ARGUMENT_OUT_OF_RANGE = 0x80131502;
 }

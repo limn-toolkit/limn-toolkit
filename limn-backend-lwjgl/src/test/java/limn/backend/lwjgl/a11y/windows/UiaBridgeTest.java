@@ -1435,4 +1435,42 @@ class UiaBridgeTest {
             bridge.detach();
         }
     }
+
+    /**
+     * W1's Scroll half: a node with a scroll facet serves IScrollProvider on the element a client
+     * holds, through the object's varying set like every other pattern, and a node that loses the
+     * facet stops serving it. Until 2026-09-15 the pattern was claimed and GetPatternProvider
+     * answered it with a null.
+     */
+    @Test
+    void aScrollingNodeServesScrollOnTheElementAClientHolds() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        try {
+            bridge.publish(aList(false, false), false);
+            UiaObject list = bridge.objectFor(1001);
+            assertEquals(0L, list.pointerFor(UiaInterfaces.SCROLL_PROVIDER),
+                    "a list that does not scroll serves no IScrollProvider");
+
+            Accessibility a = new Accessibility();
+            a.beginWalk(400, 300, Locale.ENGLISH);
+            a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            a.role(Accessible.Role.WINDOW);
+            a.inherited(true, true, true, false, false);
+            a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+            a.role(Accessible.Role.LIST);
+            a.selection(false, false);
+            a.scroll(0, 0.5, 1, 0.25, false, true);
+            a.inherited(true, true, true, true, false);
+            a.end();
+            a.end();
+            bridge.publish(a.publish(0, 0, 0, 1f, true), false);
+
+            assertNotEquals(0L, list.pointerFor(UiaInterfaces.SCROLL_PROVIDER),
+                    "the same element serves it once the list scrolls");
+            assertNotEquals(0L,
+                    bridge.contextForTests().patternProviderFor(1001, UiaIds.SCROLL_PATTERN));
+        } finally {
+            bridge.detach();
+        }
+    }
 }

@@ -574,6 +574,11 @@ the Selection or the Scroll pattern, so no container — the table included — 
 null provider. A Windows client reads the table's selection through the rows' SelectionItem
 pattern and its scroll not at all. A shared bridge defect the bridges lanes own, not this
 record's promise fulfilled; the row stands as the intent.
+**Amended 2026-09-15 (phase 3, Windows; W1).** Both are now served: `ISelectionProvider` since
+b5d5f59 and `IScrollProvider` since the Windows lane's scroll commit, and `UiaPatterns.supports`
+claims no pattern `interfaceFor` cannot serve (`UiaPatternsTest.everyPatternANodeCanClaimIsOneThisBridgeServes`).
+The table's scroll reads its scroll facet and scrolls through its own scroll bar's published verbs
+(ADR 039 §2.1, amended the same day).
 
 ### 7.1 What the live clients found
 

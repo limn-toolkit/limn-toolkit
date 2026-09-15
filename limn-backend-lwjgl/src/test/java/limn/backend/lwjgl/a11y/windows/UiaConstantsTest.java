@@ -143,6 +143,25 @@ class UiaConstantsTest {
     }
 
     /**
+     * What IScrollProvider takes and answers (decision 39), each read on the guest: ScrollAmount and
+     * NoScroll on 2026-09-13 (readings/windows-dump-uia-constants.txt and -typelib.txt), the managed
+     * HResult of ArgumentOutOfRangeException on 2026-09-15
+     * (readings/windows-dump-uia-provider-conventions.txt §2), UIA_E_ELEMENTNOTENABLED on 2026-09-13
+     * (readings/windows-dump-uia-hresults.txt).
+     */
+    @Test
+    void theScrollPatternsNumbersAreTheOnesTheGuestGave() {
+        assertEquals(0, UiaIds.SCROLL_AMOUNT_LARGE_DECREMENT);
+        assertEquals(1, UiaIds.SCROLL_AMOUNT_SMALL_DECREMENT);
+        assertEquals(2, UiaIds.SCROLL_AMOUNT_NO_AMOUNT);
+        assertEquals(3, UiaIds.SCROLL_AMOUNT_LARGE_INCREMENT);
+        assertEquals(4, UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT);
+        assertEquals(-1.0, UiaIds.SCROLL_NO_SCROLL, "UIA_ScrollPatternNoScroll, VT_R8");
+        assertEquals(0x80040200, UiaIds.E_ELEMENT_NOT_ENABLED);
+        assertEquals(0x80131502, UiaIds.E_ARGUMENT_OUT_OF_RANGE);
+    }
+
+    /**
      * A handful of readings spot-checked against what §2.1 says the bridge answers with, so that a
      * re-run of the dump script that renamed or renumbered something fails here rather than in a
      * guest three commits later.

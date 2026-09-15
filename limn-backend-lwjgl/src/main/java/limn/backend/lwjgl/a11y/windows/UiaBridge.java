@@ -1290,7 +1290,7 @@ public final class UiaBridge extends PlatformBridge {
         private final long nodeId;
 
         /**
-         * The node as the last snapshot asked about has it, so that the twelve candidates a mint
+         * The node as the last snapshot asked about has it, so that the thirteen candidates a mint
          * asks, and every later query against the same snapshot, find the node once rather than
          * once per candidate: {@link AccessibleTree#find} is linear in the tree. Replaced whole
          * when the snapshot is a different one; any RPC thread may write it, and a lost write
@@ -1333,7 +1333,8 @@ public final class UiaBridge extends PlatformBridge {
     private static final int[] PATTERNS = {
             UiaIds.INVOKE_PATTERN, UiaIds.TOGGLE_PATTERN, UiaIds.VALUE_PATTERN,
             UiaIds.RANGE_VALUE_PATTERN, UiaIds.EXPAND_COLLAPSE_PATTERN,
-            UiaIds.SELECTION_PATTERN, UiaIds.SELECTION_ITEM_PATTERN, UiaIds.SCROLL_ITEM_PATTERN,
+            UiaIds.SELECTION_PATTERN, UiaIds.SELECTION_ITEM_PATTERN, UiaIds.SCROLL_PATTERN,
+            UiaIds.SCROLL_ITEM_PATTERN,
             UiaIds.GRID_PATTERN, UiaIds.TABLE_PATTERN, UiaIds.GRID_ITEM_PATTERN,
             UiaIds.TABLE_ITEM_PATTERN,
     };

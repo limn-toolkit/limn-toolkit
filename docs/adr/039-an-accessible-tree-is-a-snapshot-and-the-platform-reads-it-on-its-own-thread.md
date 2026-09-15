@@ -2137,6 +2137,39 @@ both of the first two, whatever the node published). Every `BOOL*` getter writes
 or `0`, read on the guest (readings/windows-dump-uia-marshalling.txt); it had written a
 `VARIANT_BOOL`'s two.
 
+**Amended 2026-09-15 (phase 3, Windows; decision 39, semantics 5; W1's Scroll half,
+WINDOWS-NEW-7): `IScrollProvider` is served, `ScrollItem` is the node's verb, and no node claims
+`Window` or `Transform`.** The pattern row above says "Scroll ← `ScrollFacet`; ScrollItem ← a
+scrollable ancestor; Window and Transform ← `WindowFacet`", and the interface row lists
+`IScrollProvider` and `IWindowProvider` as "to be built"; the Scroll, Window and Transform patterns
+were claimed and a client's `GetPatternProvider` got a null for each. As built:
+- **Scroll's getters** answer the scroll facet as the platform's own `ScrollViewerAutomationPeer`
+  does, read as IL on the guest (readings/windows-dump-uia-provider-conventions.txt §1): a percent is
+  the facet's times 100 on an axis that scrolls and `UIA_ScrollPatternNoScroll` (−1, read 2026-09-13)
+  on one that does not; a view size is a percent on either axis (100 for nothing to scroll); the two
+  `BOOL*` flags are four bytes.
+- **`Scroll(h, v)`** maps each `ScrollAmount` (read 2026-09-13) to that axis's `SCROLL_BAR` child's
+  published stepping verb, posted on the bar: `SmallIncrement`/`SmallDecrement` →
+  `INCREMENT`/`DECREMENT`; `LargeIncrement`/`LargeDecrement` → the page verbs decision 39 names "if
+  published", which the model does not have, so a large step is refused; `NoAmount` leaves the axis.
+  **`SetScrollPercent(h, v)`** posts `SET_VALUE` on the axis's bar, its own range scaled by the percent,
+  where the bar accepts one (`AccessibleNode#accepts`); `NoScroll` leaves the axis. The refusals come in
+  the peer's order: `UIA_E_ELEMENTNOTENABLED` (0x80040200, read 2026-09-13) for a node that is not
+  `ENABLED`, then `0x80131509` for an axis asked to move that cannot scroll, then (percent only)
+  `0x80131502`, the managed `ArgumentOutOfRangeException` (read 2026-09-15), for a percent outside
+  0..100 or not a number, then `0x80131509` for an axis with no bar or a bar that does not publish the
+  verb or take the value. Both axes pass every check before either is posted. The scroll bar's own
+  step is one viewport (`ScrollBar`), so a client's small step moves a page; that is decision 39 as
+  written, recorded for phase 5's client runs.
+- **`ScrollItem`** is vended only on a node publishing `SCROLL_INTO_VIEW`, and `ScrollIntoView` posts
+  it through the same candidate gate (semantics 5); it had been vended on any node with a scrollable
+  ancestor and posted whatever the node published.
+- **`Window` and `Transform`** are claimed by no node: the root answers `get_HostRawElementProvider`
+  with the provider UI Automation made for the HWND, which serves both for the real window (the
+  probe's `[Window,Transform]` came from it), and this bridge serves neither interface. An in-scene
+  dialog still says `IsDialog`. `UiaPatternsTest.everyPatternANodeCanClaimIsOneThisBridgeServes` now
+  fails for any claim with no interface behind it.
+
 ### 2.2 macOS: NSAccessibility
 
 | Attribute / action / notification | Answered from | Note |

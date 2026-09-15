@@ -78,6 +78,9 @@ class UiaPatternProvidersTest {
         COVERED.put("ISelectionItemProvider", List.of("Select", "AddToSelection",
                 "RemoveFromSelection", "get_IsSelected", "get_SelectionContainer"));
         COVERED.put("IScrollItemProvider", List.of("ScrollIntoView"));
+        COVERED.put("IScrollProvider", List.of("Scroll", "SetScrollPercent",
+                "get_HorizontalScrollPercent", "get_VerticalScrollPercent", "get_HorizontalViewSize",
+                "get_VerticalViewSize", "get_HorizontallyScrollable", "get_VerticallyScrollable"));
         COVERED.put("IGridProvider", List.of("GetItem", "get_RowCount", "get_ColumnCount"));
         COVERED.put("ITableProvider", List.of("GetRowHeaders", "GetColumnHeaders",
                 "get_RowOrColumnMajor"));
@@ -198,8 +201,14 @@ class UiaPatternProvidersTest {
      *     1027 ROW 2/2             1028 CELL (1,0)            1029 CELL (1,1)
      *   1030 TABLE 1x1, calendar-shaped: its ROW carries no position
      *     1031 ROW                 1032 CELL (0,0)
-     *   1040 SCROLL_PANE
-     *     1041 BUTTON
+     *   1040 SCROLL_PANE v 25% of 50%, scrolls vertically only
+     *     1041 BUTTON [scroll into view]
+     *     1042 SCROLL_BAR vertical 75 [0..300] [increment, decrement]
+     *     1046 BUTTON (no verb)
+     *   1043 SCROLL_PANE h 50% of 40%, v 0% of 20%: both axes scroll
+     *     1044 SCROLL_BAR horizontal, read-only, no verb (and no vertical bar at all)
+     *   1045 SCROLL_PANE disabled, scrolls vertically
+     *     1047 SCROLL_BAR vertical, disabled
      * </pre>
      */
     private static AccessibleTree fixture() {
@@ -291,6 +300,30 @@ class UiaPatternProvidersTest {
         int pane = node(a, 1040, window, Accessible.Role.SCROLL_PANE);
         a.scroll(0, 0.25, 1, 0.5, false, true);
         node(a, 1041, pane, Accessible.Role.BUTTON);
+        a.action(Accessible.Action.SCROLL_INTO_VIEW);
+        a.end();
+        node(a, 1042, pane, Accessible.Role.SCROLL_BAR);
+        a.state(Accessible.State.VERTICAL);
+        a.value(75, 0, 300, 100);
+        a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+        a.end();
+        node(a, 1046, pane, Accessible.Role.BUTTON);
+        a.end();
+        a.end();
+        int wide = node(a, 1043, window, Accessible.Role.SCROLL_PANE);
+        a.scroll(0.5, 0, 0.4, 0.2, true, true);
+        node(a, 1044, wide, Accessible.Role.SCROLL_BAR);
+        a.state(Accessible.State.HORIZONTAL);
+        a.value(10, 0, 20, 5, true);
+        a.end();
+        a.end();
+        int disabled = node(a, 1045, window, Accessible.Role.SCROLL_PANE);
+        a.scroll(0, 0.5, 1, 0.5, false, true);
+        a.inherited(false, true, true, false, false);
+        node(a, 1047, disabled, Accessible.Role.SCROLL_BAR);
+        a.state(Accessible.State.VERTICAL);
+        a.value(0, 0, 100, 10);
+        a.inherited(false, true, true, false, false);
         a.end();
         a.end();
         a.end();
@@ -695,10 +728,160 @@ class UiaPatternProvidersTest {
 
     // ---- ScrollItem
 
+    /**
+     * Semantics 5 (WINDOWS-NEW-7): posted where the node publishes the verb, refused where it does
+     * not. Until 2026-09-15 it was posted for any node, the one under a scroll pane with no verb
+     * included, and the client was told S_OK for a reveal its widget refused.
+     */
     @Test
-    void scrollIntoViewIsPosted() {
+    void scrollIntoViewIsPostedOnlyWhereTheNodePublishesIt() {
         assertEquals(UiaIds.S_OK, verb(UiaIds.SCROLL_ITEM_PATTERN, 1041, "ScrollIntoView"));
         assertEquals(List.of("1041 SCROLL_INTO_VIEW None[]"), posted);
+
+        posted.clear();
+        assertEquals(UiaIds.E_INVALID_OPERATION,
+                verb(UiaIds.SCROLL_ITEM_PATTERN, 1046, "ScrollIntoView"));
+        assertEquals(List.of(), posted);
+        goneFromTheTree();
+        assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
+                verb(UiaIds.SCROLL_ITEM_PATTERN, 1041, "ScrollIntoView"));
+    }
+
+    // ---- Scroll
+
+    private double number(int patternId, long nodeId, String name) {
+        long out = buffer();
+        assertEquals(UiaIds.S_OK, get(patternId, nodeId, name, out), name);
+        return MemoryUtil.memGetDouble(out);
+    }
+
+    private int scroll(long nodeId, int horizontal, int vertical) {
+        return ((UiaCom.PII) slot(UiaIds.SCROLL_PATTERN, nodeId, "Scroll"))
+                .invoke(0, horizontal, vertical);
+    }
+
+    private int scrollPercent(long nodeId, double horizontal, double vertical) {
+        return ((UiaCom.PDD) slot(UiaIds.SCROLL_PATTERN, nodeId, "SetScrollPercent"))
+                .invoke(0, horizontal, vertical);
+    }
+
+    /**
+     * W1's Scroll half: the getters are the facet's, as percents, and NoScroll (-1, read
+     * 2026-09-13) on an axis that cannot scroll, which is what the platform's own
+     * ScrollViewerAutomationPeer answers (read as IL 2026-09-15); a view size is a percent on
+     * either axis. Until 2026-09-15 the interface was claimed and never served.
+     */
+    @Test
+    void theScrollGettersArePercentsAndNoScrollWhereAnAxisCannotScroll() {
+        assertEquals(-1.0, number(UiaIds.SCROLL_PATTERN, 1040, "get_HorizontalScrollPercent"),
+                "NoScroll: the pane does not scroll sideways");
+        assertEquals(25.0, number(UiaIds.SCROLL_PATTERN, 1040, "get_VerticalScrollPercent"));
+        assertEquals(100.0, number(UiaIds.SCROLL_PATTERN, 1040, "get_HorizontalViewSize"),
+                "all of the width is shown");
+        assertEquals(50.0, number(UiaIds.SCROLL_PATTERN, 1040, "get_VerticalViewSize"));
+        assertEquals(50.0, number(UiaIds.SCROLL_PATTERN, 1043, "get_HorizontalScrollPercent"));
+        assertEquals(0.0, number(UiaIds.SCROLL_PATTERN, 1043, "get_VerticalScrollPercent"),
+                "an axis that scrolls and sits at its start is 0, not NoScroll");
+        assertEquals(40.0, number(UiaIds.SCROLL_PATTERN, 1043, "get_HorizontalViewSize"), 1e-9);
+
+        long horizontally = buffer();
+        long vertically = buffer();
+        assertEquals(UiaIds.S_OK,
+                get(UiaIds.SCROLL_PATTERN, 1040, "get_HorizontallyScrollable", horizontally));
+        assertEquals(UiaIds.S_OK,
+                get(UiaIds.SCROLL_PATTERN, 1040, "get_VerticallyScrollable", vertically));
+        assertBool(false, horizontally);
+        assertBool(true, vertically);
+
+        assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
+                get(UiaIds.SCROLL_PATTERN, 1001, "get_VerticalScrollPercent", buffer()),
+                "a node with no scroll facet");
+        goneFromTheTree();
+        for (String name : List.of("get_HorizontalScrollPercent", "get_VerticalScrollPercent",
+                "get_HorizontalViewSize", "get_VerticalViewSize", "get_HorizontallyScrollable",
+                "get_VerticallyScrollable")) {
+            assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
+                    get(UiaIds.SCROLL_PATTERN, 1040, name, buffer()), name);
+        }
+    }
+
+    /**
+     * Decision 39: a small step is the axis's scroll bar's INCREMENT or DECREMENT, posted on the
+     * bar; a large step has no page verb to go to and is refused; NoAmount leaves the axis; an
+     * axis with no bar, or a bar publishing no such verb, is refused with 0x80131509 and nothing
+     * is posted for either axis; a pane that is not enabled answers UIA_E_ELEMENTNOTENABLED first.
+     */
+    @Test
+    void scrollPostsTheBarsSteppingVerbAndRefusesWhatNoBarPublishes() {
+        assertEquals(UiaIds.S_OK, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT,
+                UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT));
+        assertEquals(UiaIds.S_OK, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT,
+                UiaIds.SCROLL_AMOUNT_SMALL_DECREMENT));
+        assertEquals(UiaIds.S_OK, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT,
+                UiaIds.SCROLL_AMOUNT_NO_AMOUNT));
+        assertEquals(List.of("1042 INCREMENT None[]", "1042 DECREMENT None[]"), posted,
+                "on the vertical bar, and nothing at all for NoAmount");
+
+        posted.clear();
+        assertEquals(UiaIds.E_INVALID_OPERATION, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT,
+                UiaIds.SCROLL_AMOUNT_LARGE_INCREMENT), "no page verb exists to route a large step to");
+        assertEquals(UiaIds.E_INVALID_OPERATION, scroll(1040, UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT,
+                UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT), "the pane cannot scroll sideways");
+        assertEquals(UiaIds.E_INVALID_OPERATION, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT, 9),
+                "not an amount");
+        assertEquals(UiaIds.E_INVALID_OPERATION, scroll(1043, UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT,
+                UiaIds.SCROLL_AMOUNT_NO_AMOUNT), "the horizontal bar publishes no verb");
+        assertEquals(UiaIds.E_INVALID_OPERATION, scroll(1043, UiaIds.SCROLL_AMOUNT_NO_AMOUNT,
+                UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT), "no vertical bar at all");
+        assertEquals(UiaIds.E_ELEMENT_NOT_ENABLED, scroll(1045, UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT,
+                UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT), "not enabled comes before every other refusal");
+        assertEquals(List.of(), posted, "a refused call posts nothing for either axis");
+
+        accepting = false;
+        assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT,
+                UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT), "a refusal from the scene");
+        goneFromTheTree();
+        assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE, scroll(1040, UiaIds.SCROLL_AMOUNT_NO_AMOUNT,
+                UiaIds.SCROLL_AMOUNT_SMALL_INCREMENT));
+    }
+
+    /**
+     * Decision 39: a percent is a SET_VALUE on the axis's bar, its own range scaled; NoScroll leaves
+     * the axis; the refusals come in the platform provider's order (read as IL 2026-09-15): not
+     * enabled, an axis that cannot scroll, a percent outside 0..100 (0x80131502), then no bar or a
+     * bar that accepts no value.
+     */
+    @Test
+    void setScrollPercentPostsTheBarsValueAndRefusesInThePlatformsOrder() {
+        assertEquals(UiaIds.S_OK, scrollPercent(1040, UiaIds.SCROLL_NO_SCROLL, 50));
+        assertEquals(UiaIds.S_OK, scrollPercent(1040, UiaIds.SCROLL_NO_SCROLL, 100));
+        assertEquals(List.of("1042 SET_VALUE OfValue[value=150.0]",
+                "1042 SET_VALUE OfValue[value=300.0]"), posted, "half and all of 0..300");
+
+        posted.clear();
+        assertEquals(UiaIds.S_OK, scrollPercent(1040, UiaIds.SCROLL_NO_SCROLL,
+                UiaIds.SCROLL_NO_SCROLL), "NoScroll on both is nothing to do");
+        assertEquals(UiaIds.E_INVALID_OPERATION, scrollPercent(1040, 10, 10),
+                "the pane cannot scroll sideways");
+        assertEquals(UiaIds.E_INVALID_OPERATION, scrollPercent(1040, 10, 200),
+                "an axis that cannot scroll is refused before a percent out of range");
+        assertEquals(UiaIds.E_ARGUMENT_OUT_OF_RANGE,
+                scrollPercent(1040, UiaIds.SCROLL_NO_SCROLL, 100.5));
+        assertEquals(UiaIds.E_ARGUMENT_OUT_OF_RANGE,
+                scrollPercent(1040, UiaIds.SCROLL_NO_SCROLL, -0.5));
+        assertEquals(UiaIds.E_ARGUMENT_OUT_OF_RANGE,
+                scrollPercent(1040, UiaIds.SCROLL_NO_SCROLL, Double.NaN));
+        assertEquals(UiaIds.E_INVALID_OPERATION, scrollPercent(1043, 50, UiaIds.SCROLL_NO_SCROLL),
+                "the horizontal bar's value is read-only");
+        assertEquals(UiaIds.E_INVALID_OPERATION, scrollPercent(1043, UiaIds.SCROLL_NO_SCROLL, 50),
+                "no vertical bar at all");
+        assertEquals(UiaIds.E_ELEMENT_NOT_ENABLED, scrollPercent(1045, 500, 50),
+                "not enabled comes first");
+        assertEquals(List.of(), posted, "a refused call posts nothing for either axis");
+
+        goneFromTheTree();
+        assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
+                scrollPercent(1040, UiaIds.SCROLL_NO_SCROLL, 50));
     }
 
     // ---- Grid and Table

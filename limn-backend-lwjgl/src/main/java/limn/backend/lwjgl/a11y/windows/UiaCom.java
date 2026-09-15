@@ -20,7 +20,8 @@ import java.util.List;
  * ours. So this allocates the two — an array of closures, and a structure holding its address —
  * and a client calling slot 5 of the interface it thinks it has reaches a Java method here.
  *
- * <p><b>Four call interfaces cover every slot this bridge serves</b>, which is the whole reason the
+ * <p><b>A handful of call interfaces cover every slot this bridge serves</b> (nine COM shapes and
+ * the window procedure since IScrollProvider's two setters, 2026-09-15), which is the whole reason the
  * slot order was read off a guest rather than guessed: the signatures repeat, so the compiler
  * cannot tell one slot from another and a vtable in the wrong order is a silent misdispatch. They
  * are named by their arguments after the object itself, and every one returns an {@code HRESULT}.
@@ -119,6 +120,53 @@ final class UiaCom {
         }
 
         int invoke(long self, double value);
+    }
+
+    /**
+     * {@code HRESULT f(void* this, ScrollAmount horizontal, ScrollAmount vertical)} —
+     * IScrollProvider's Scroll: two enumerations by value, four bytes each (read on the guest
+     * 2026-09-13, readings/windows-summary.md §2: "IScrollProvider.Scroll takes two ScrollAmount
+     * (enum, 4 bytes) by value").
+     */
+    interface PII extends CallbackI {
+
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PII.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_sint32, LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_sint32, LibFFI.ffi_type_sint32));
+
+        @Override
+        default Callback.Descriptor getDescriptor() {
+            return DESCRIPTOR;
+        }
+
+        @Override
+        default void callback(long ret, long args) {
+            APIUtil.apiClosureRet(ret, invoke(ClosureArgs.pointer(args, 0),
+                    ClosureArgs.int32(args, 1), ClosureArgs.int32(args, 2)));
+        }
+
+        int invoke(long self, int first, int second);
+    }
+
+    /** {@code HRESULT f(void* this, double horizontal, double vertical)} — SetScrollPercent. */
+    interface PDD extends CallbackI {
+
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(PDD.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_sint32, LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_double, LibFFI.ffi_type_double));
+
+        @Override
+        default Callback.Descriptor getDescriptor() {
+            return DESCRIPTOR;
+        }
+
+        @Override
+        default void callback(long ret, long args) {
+            APIUtil.apiClosureRet(ret, invoke(ClosureArgs.pointer(args, 0),
+                    ClosureArgs.float64(args, 1), ClosureArgs.float64(args, 2)));
+        }
+
+        int invoke(long self, double first, double second);
     }
 
     /** {@code HRESULT f(void* this, REFIID riid, void** out)} — QueryInterface, and only it. */
