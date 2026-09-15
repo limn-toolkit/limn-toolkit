@@ -224,6 +224,19 @@ refusing a delegated verb on a row that is not showing (ADR 039 §1.5's amendmen
 mounted row whose box does not overlap the viewport is now revealed from the anchor's estimate,
 as an unmounted row is. Pinned by `TreeAccessibilityTest.aRevealOfTheKeptCursorRowBringsItBackIntoTheBox`.
 
+**Amendment, 2026-09-15 (review of the above): the reveal of a row outside the box is settled by
+the next pass, from measured heights.** "Revealed from the anchor's estimate" is superseded: the
+estimate counts the rows between the anchor and the row in average rows, and the average is taken
+over the rows in the box, so over rows of uneven height the scroll stopped short and the row stayed
+out (ten rows of eighty points between two runs of twenty left row 2 out above the box). A row
+whose box does not overlap the viewport, mounted or not, is now handed to the next layout pass,
+which sets the anchor on the row itself — its top on the box's top when it lies above, its bottom on
+the box's bottom when it lies below (its top on the top when it is taller than the box) — so the
+distance is exact whatever the rows between measure. Nothing moves until that pass, so a later
+reveal of a row in the box, or a scroll, replaces an unsettled one: End then Home in one input batch
+ends on the first row. Pinned by `TreeAccessibilityTest.aRevealOverRowsOfUnevenHeightLandsTheKeptRowAtTheEdgeItComesInFrom`
+and `theLaterOfTwoRevealsInOneBatchIsTheOneThatLands`.
+
 ## 4. Accessibility: two new roles, and what they cost
 
 A tree publishes `TREE`, with one `TREE_ITEM` per realized row carrying `ExpandFacet`, its depth,

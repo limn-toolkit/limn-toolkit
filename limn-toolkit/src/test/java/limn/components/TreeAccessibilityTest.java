@@ -89,9 +89,14 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
     private static final class Outline implements Tree.Model<Node> {
         private final List<Node> roots;
-        private final float rowHeight;
+        private final ToDoubleFunction<Node> rowHeight;
 
         Outline(float rowHeight, List<Node> roots) {
+            this(node -> rowHeight, roots);
+        }
+
+        /** An outline whose rows each measure the height {@code rowHeight} gives their node. */
+        Outline(ToDoubleFunction<Node> rowHeight, List<Node> roots) {
             this.roots = roots;
             this.rowHeight = rowHeight;
         }
@@ -108,7 +113,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
         @Override
         public Widget cellFor(Node node) {
-            return new Cell(rowHeight);
+            return new Cell((float) rowHeight.applyAsDouble(node));
         }
 
         @Override
@@ -701,6 +706,112 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of(), tree.selectedNodes(), "Space toggled the cursor row off");
         assertTrue(node("row 2").has(Accessible.State.SHOWING),
                 "and revealed it, as the toggle it is: " + describe(tree()));
+    }
+
+    /**
+     * The reveal of a row outside the viewport lands it exactly at the edge it comes in from, over
+     * rows of uneven height: the kept cursor row wheeled out above the box comes back with its top
+     * on the box's top, and wheeled out below, with its bottom on the box's bottom. The reveal
+     * scrolled by the anchor's estimate — the row's distance from the anchor counted in average
+     * rows — and the average is taken over the rows at hand, so with taller rows between the two
+     * the scroll stopped short and the row stayed out of the box (the fixtree review, 2026-09-15).
+     */
+    @Test
+    void aRevealOverRowsOfUnevenHeightLandsTheKeptRowAtTheEdgeItComesInFrom() throws Exception {
+        List<Node> roots = leaves(40);
+        // Twenty-point rows at either end, where the average is taken, and ten of eighty between.
+        tree = new Tree<>(new Outline(node -> {
+            int n = Integer.parseInt(node.name().toString().substring("row ".length()));
+            return n >= 16 && n <= 25 ? 80 : ROW_H;
+        }, roots));
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.requestFocus(tree);
+
+        for (Accessible.Action verb : List.of(Accessible.Action.SCROLL_INTO_VIEW,
+                Accessible.Action.SELECT)) {
+            tree.setSelected(Node.leaf("row 2"));
+            frame();
+            wheelUntilShowing("row 40", -20);
+            assertFalse(node("row 2").has(Accessible.State.SHOWING),
+                    "the wheel carried row 2 out above the box: " + describe(tree()));
+            assertTrue(perform(node("row 2").id(), verb, Accessible.Argument.NONE));
+            frame();
+            AccessibleNode above = node("row 2");
+            assertTrue(above.has(Accessible.State.SHOWING),
+                    verb + " brought row 2 back from above: " + describe(tree()));
+            assertEquals(treeNode().y(), above.y(), 0.01f,
+                    "with its top on the box's top, the least scroll that shows it");
+
+            tree.setSelected(Node.leaf("row 39"));
+            frame();
+            wheelUntilShowing("row 1", 20);
+            assertFalse(node("row 39").has(Accessible.State.SHOWING),
+                    "the wheel carried row 39 out below the box: " + describe(tree()));
+            assertTrue(perform(node("row 39").id(), verb, Accessible.Argument.NONE));
+            frame();
+            AccessibleNode below = node("row 39");
+            assertTrue(below.has(Accessible.State.SHOWING),
+                    verb + " brought row 39 back from below: " + describe(tree()));
+            assertEquals(treeNode().y() + BOX_H, below.y() + below.height(), 0.01f,
+                    "with its bottom on the box's bottom: " + describe(tree()));
+        }
+    }
+
+    /**
+     * Two reveals before a frame keep the later one. A reveal of a row outside the box is settled
+     * by the next pass, and nothing moves until then; End and then Home in one input batch end
+     * with the first row in the box and the cursor on it, not with the last row's reveal settled
+     * over the first row's; and End then a wheel notch end one notch from the top, the scroll
+     * moving from where the rows stand.
+     */
+    @Test
+    void theLaterOfTwoRevealsInOneBatchIsTheOneThatLands() {
+        bindTree(ROW_H, leaves(40));
+        scene.requestFocus(tree);
+        tree.setSelected(Node.leaf("row 1"));
+        frame();
+
+        for (int key : new int[] {limn.input.Keys.END, limn.input.Keys.HOME}) {
+            scene.keyEvent(key, true, false, 0);
+            scene.keyEvent(key, false, false, 0);
+        }
+        scene.inputBatchEnded();
+        frame();
+
+        assertEquals(List.of(Node.leaf("row 1")), tree.selectedNodes(), "Home selected the first row");
+        assertTrue(showing("row 1"), "and the first row is in the box: " + describe(tree()));
+        assertFalse(showing("row 40"), "not the last: " + describe(tree()));
+
+        // And a scroll after a reveal the pass has not settled moves from where the rows stand.
+        scene.keyEvent(limn.input.Keys.END, true, false, 0);
+        scene.keyEvent(limn.input.Keys.END, false, false, 0);
+        scene.scrolled(0, -1, tree.localToSceneX() + tree.width() / 2,
+                tree.localToSceneY() + tree.height() / 2);
+        scene.inputBatchEnded();
+        frame();
+        assertFalse(showing("row 1"), "the notch scrolled from the top: " + describe(tree()));
+        assertTrue(showing("row 4"), "by one notch: " + describe(tree()));
+        assertFalse(showing("row 40"), "and End's reveal gave way to it: " + describe(tree()));
+    }
+
+    /** Wheels {@code notches} at a time, up to ten times, until the named row is in the box. */
+    private void wheelUntilShowing(String name, int notches) {
+        float x = tree.localToSceneX() + tree.width() / 2;
+        float y = tree.localToSceneY() + tree.height() / 2;
+        for (int i = 0; i < 10 && !showing(name); i++) {
+            scene.scrolled(0, notches, x, y);
+            scene.inputBatchEnded();
+            frame();
+        }
+        assertTrue(showing(name), "wheeled to " + name + ": " + describe(tree()));
+    }
+
+    /** Whether a row of that name is published and in the box; a row not mounted is not. */
+    private boolean showing(String name) {
+        AccessibleNode row = limn.testing.AccessibleTrees.named(tree(), name);
+        return row != null && row.has(Accessible.State.SHOWING);
     }
 
     /** Twenty wheel notches over the tree: past the box, clamped to the end. */

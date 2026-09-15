@@ -383,6 +383,12 @@ public class Tree<T> extends Widget implements Scrollable {
     /** Mean measured row height, or 0 until a pass has measured one; the step's seed stands in. */
     private float measuredRowHeight;
     /**
+     * The node {@link #revealNode} left for the next pass to bring into the box, or null: a row
+     * outside the viewport is revealed where the pass can measure the rows between, see
+     * {@link #settleReveal}.
+     */
+    private T revealPending;
+    /**
      * How far the outline is scrolled sideways, in points from its leading edge.
      *
      * <p>Depth is what makes this necessary and a list never needs it: every level charges an
@@ -1609,6 +1615,9 @@ public class Tree<T> extends Widget implements Scrollable {
         // out at, which past the clamp is wider than the box.
         normalizeUp(contentWidth);
         normalizeDown(count, contentWidth);
+        if (revealPending != null) {
+            settleReveal(count, viewH);
+        }
         float bottom = placeDown(count, rowX, w, viewH);
         if (bottom < viewH && !(anchorIndex == 0 && anchorTop >= 0)) {
             anchorTop += viewH - bottom;
@@ -1622,6 +1631,39 @@ public class Tree<T> extends Widget implements Scrollable {
         updateAverageHeight();
         vBar.refresh();
         hBar.refresh();
+    }
+
+    /**
+     * Brings the row {@link #revealNode} deferred into the viewport by the least scroll, from the
+     * rows' measured heights: a row above the box, or cut by its top, is placed with its top on
+     * the box's top; a row below it, or cut by its foot, with its bottom on the box's bottom — or
+     * its top on the top, when it is taller than the box, which is {@link #revealVertically}'s
+     * rule. The anchor is set to the row itself, so the distance is exact whatever the rows between
+     * measure; only the rows from the anchor to the box's foot are measured to see whether the row
+     * is already in it, and those the pass places anyway. A node no longer visible is dropped.
+     */
+    private void settleReveal(int count, float viewH) {
+        int index = indexOf(revealPending);
+        revealPending = null;
+        if (index < 0 || index >= count) {
+            return;
+        }
+        if (index < anchorIndex || (index == anchorIndex && anchorTop < 0)) {
+            anchorIndex = index;
+            anchorTop = 0;
+            return;
+        }
+        float top = anchorTop;
+        for (int i = anchorIndex; i < index && top < viewH; i++) {
+            top += measuredHeight(i, contentWidth);
+        }
+        float rowH = measuredHeight(index, contentWidth);
+        if (top < viewH && top + rowH <= viewH) {
+            return;
+        }
+        anchorIndex = index;
+        anchorTop = Math.max(0, viewH - rowH);
+        normalizeUp(contentWidth);
     }
 
     private void normalizeUp(float w) {
@@ -1880,6 +1922,7 @@ public class Tree<T> extends Widget implements Scrollable {
     /** Scrolls by a delta in logical points (positive = toward the end). UI thread only. */
     public void scrollBy(float dy) {
         Ui.checkUiThread();
+        revealPending = null; // a scroll after a reveal the pass has not settled moves from here
         SizeTokens t = tokens();
         float offset = estimatedOffset(t);
         float max = Math.max(0, estimatedContentHeight(t) - viewportHeight());
@@ -1992,17 +2035,24 @@ public class Tree<T> extends Widget implements Scrollable {
             return;
         }
         SizeTokens t = tokens();
-        float rowH = avgRowHeight(t);
         Widget cell = cellFor(index);
-        if (cell != null && (cell.y() + cell.height() <= 0 || cell.y() >= viewportHeight())) {
-            // A row kept mounted outside the viewport — the cursor row while the tree holds the
+        if (cell != null && cell.y() + cell.height() > 0 && cell.y() < viewportHeight()) {
+            // Nothing moves until a pass settles a deferred reveal, so this box is where the row
+            // stands; the later reveal is the one kept (End then Home in one batch ends on top).
+            revealPending = null;
+            revealVertically(cell.y(), cell.height());
+        } else {
+            // A row outside the viewport has no box that says how far to scroll: one not mounted
+            // has none, and one kept mounted there — the cursor row while the tree holds the
             // keyboard (decision 22), or a cell holding the focus — is laid out at the viewport's
-            // edge and not where it stands in the outline, so its box is no measure of how far
-            // to scroll; the anchor's estimate is, as for any row not mounted.
-            cell = null;
+            // edge and not where it stands in the outline. The anchor's estimate counted the
+            // rows between in average rows and stopped short over rows of uneven height, so the
+            // pass settles it from their measured heights instead (settleReveal).
+            revealPending = node;
+            markNeedsContainedLayout();
+            invalidate();
+            vBar.onScrolled();
         }
-        float top = cell != null ? cell.y() : (index - anchorIndex) * rowH + anchorTop;
-        revealVertically(top, cell != null ? cell.height() : rowH);
         if (pointerPress) {
             return;
         }
