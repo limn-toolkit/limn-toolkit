@@ -562,6 +562,45 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * One bound for the table's {@code PRESS}, published and performed (review of phase 2,
+     * 2026-09-15): a cursor row past the end of a list the application shortened and has not
+     * refreshed yet is no row to open, so the verb is neither offered nor performed, and
+     * {@code onActivate} never hears an index the list does not hold; the refresh brings the
+     * cursor back inside and the verb with it.
+     */
+    @Test
+    void aPressIsOfferedAndPerformedOnTheSameCursorRowBound() throws InterruptedException {
+        Table<Person> table = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.numeric("Age", Person::age).width(60)));
+        List<Person> rows = new ArrayList<>(people(10));
+        table.setRows(rows);
+        bind(table);
+        List<Integer> opened = new ArrayList<>();
+        table.onActivate(opened::add);
+        table.setSelectedRow(8);
+        frame();
+        assertTrue(tableNode().actions().actions().contains(Accessible.Action.PRESS));
+
+        rows.subList(5, 10).clear(); // shortened, not yet refreshed
+        frame();
+        assertFalse(tableNode().actions() != null
+                        && tableNode().actions().actions().contains(Accessible.Action.PRESS),
+                "no row 8 to open in a list of five: " + describe(tree()));
+        // The host answers from membership alone (semantics 5 puts the published-list refusal in
+        // the bridges), so the call is taken; what matters is that the table performs nothing.
+        perform(tableNode().id(), Accessible.Action.PRESS, null);
+        assertEquals(List.of(), opened, "nothing opened past the end");
+
+        table.refresh();
+        frame();
+        assertEquals(4, table.focusRow(), "the refresh clamped the cursor");
+        assertTrue(tableNode().actions().actions().contains(Accessible.Action.PRESS));
+        assertTrue(perform(tableNode().id(), Accessible.Action.PRESS, null));
+        assertEquals(List.of(4), opened);
+    }
+
+    /**
      * Decision 36 of 2026-09-14 from the reader's side: while the header holds the keyboard the
      * table is still the focused node and its cursor is a header cell, so a reader that follows
      * the effective focus hears the column title; a sortable header publishes {@code PRESS},

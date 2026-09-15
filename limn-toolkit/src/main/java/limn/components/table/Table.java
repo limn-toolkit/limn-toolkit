@@ -1284,10 +1284,20 @@ public class Table<T> extends Widget implements Scrollable {
      * or a Shift range, and in {@code NONE} is the only row there is.
      */
     private void activate(Change.Origin origin) {
-        if (focusRow >= 0 && focusRow < rows.size()) {
+        if (hasCursorRow()) {
             activated = modelOf(focusRow);
             notifyChange(Change.of(Change.Aspect.INVOKED, origin));
         }
+    }
+
+    /**
+     * Whether there is a cursor row to open: the one bound the table's {@code PRESS} is published
+     * on, performed on, and that Enter and a double click open through (review of phase 2,
+     * 2026-09-15: the publish read the row count of the describe and the perform the list's size
+     * then, two bounds for one verb).
+     */
+    private boolean hasCursorRow() {
+        return focusRow >= 0 && focusRow < rows.size();
     }
 
     /** The focus cell moved with a selection or a key: {@code ACTIVE}, the active descendant. */
@@ -3453,7 +3463,7 @@ public class Table<T> extends Widget implements Scrollable {
         a.selection(selectionMode == SelectionMode.MULTI, false);
         a.scrollFrom(offsetX, Math.max(0, contentWidth - w), w, contentWidth,
                 estimatedOffset(t), Math.max(0, contentH - viewH), viewH, contentH);
-        if (focusRow >= 0 && focusRow < describedRowCount) {
+        if (hasCursorRow()) {
             // Whenever there is a cursor, in every mode: a press opens the cursor row, as Enter
             // and a double click do (decision 32 of 2026-09-14).
             a.action(Accessible.Action.PRESS);
@@ -3645,7 +3655,7 @@ public class Table<T> extends Widget implements Scrollable {
 
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        if (action == Accessible.Action.PRESS && focusRow >= 0 && focusRow < rows.size()) {
+        if (action == Accessible.Action.PRESS && hasCursorRow()) {
             activate(Change.Origin.USER);
             return true;
         }
