@@ -2290,6 +2290,27 @@ included), null for a negative row or an unrealized one; `GetColumnHeaders` answ
 every `CellFacet(-1, c)` child of the table's direct `GROUP` children, a footer's `-2` cells never; and
 `GetColumnHeaderItems` answers the header whose `CellFacet` column is the cell's.
 
+**Amended 2026-09-15 (phase 3, Windows; decision 36): how the platform's own headers carry a sort
+direction, read, and not yet carried.** UI Automation has no sort-direction property (none in
+UIAutomationCore.dll's type library, read 2026-09-13), so it was read off native headers on the
+Windows 11 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9457, .NET 4.8.9347; 2026-09-15,
+`scripts/a11y/windows/read-native-sort-direction.ps1`, readings/windows-read-native-sort-direction.txt):
+one column sorted each way and one not, every property id 30000-30200 read through the COM client. **File
+Explorer's details view carries it in `ItemStatus` (30026)** of the sorted column's header — a
+`SplitButton` (50031) of class `UIColumnHeader` under a `Header` — as a localized phrase ("Classificado
+(Crescente)", "Classificado (Descrescente)" on that pt-BR guest, switching with `SortColumns` and
+nothing else changing), and answers no `ItemStatus` on the others. **A WPF `DataGrid` (`SortDirection`),
+a WinForms `DataGridView` (`SortGlyphDirection`) and a Win32 list view (header format flags) carry
+nothing**: no property differs between their sorted and unsorted headers, and the managed peers' and
+proxies' IL (same reading, part 1) reads no direction. So the platform's carrier is Explorer's, a
+status phrase on the header. Not carried by this bridge yet: a Table header says its direction only in
+its description (`TableStrings`, ADR 041), which `HelpText` answers, and the model publishes no
+direction a bridge could turn into `ItemStatus` without reading meaning into a description; decision
+36's "give the model a facet or state then" is owed first. NVDA 2024.4.2 reads `ItemStatus` as a
+description only for an element of class `UIColumnHeader` (readings/nvda-2024.4.2-uia.md), while it
+reads `HelpText` as every element's description, so the description is what it speaks today, and a
+move to `ItemStatus` alone would silence it on Limn's headers.
+
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `UiaRaiseNotificationEvent` and
 `UiaRaiseStructureChangedEvent` are bound and raised.** The event-flush row lists both; neither was
 bound, an `ANNOUNCEMENT` (node `0`) was mapped to the notification event id and then dropped at the
