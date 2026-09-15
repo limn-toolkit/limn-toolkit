@@ -1638,12 +1638,17 @@ public class ComboBox extends Widget {
                 // The two-argument form; the variable-argument one allocates an array per call.
                 // Both verbs, because choosing an option in a combo is one gesture.
                 a.action(Accessible.Action.SELECT, Accessible.Action.PRESS);
+                // And FOCUS, which moves the highlight here without choosing (decision 11,
+                // 2026-09-15): the cursor and the selection are separate fields in this widget, so
+                // a reader can walk the options as the arrows do and commit with SELECT.
+                a.action(Accessible.Action.FOCUS);
                 a.endChild();
             }
         }
 
         /**
-         * Chooses an option, through the same private path a click on it takes.
+         * Chooses an option, through the same private path a click on it takes, or moves the
+         * highlight onto it, through the path the arrow keys take.
          *
          * <p>{@code commit} keeps its own guard against a click landing during the fade-out,
          * clamps the index, closes the list and notifies the application only when the selection
@@ -1673,6 +1678,13 @@ public class ComboBox extends Widget {
             return switch (action) {
                 case SELECT, PRESS -> {
                     commit(index);
+                    yield true;
+                }
+                case FOCUS -> {
+                    if (!open) {
+                        yield false; // the list is fading out; nothing is left to walk
+                    }
+                    setHighlight(index); // the arrows' path: announced, damaged, revealed
                     yield true;
                 }
                 default -> false;

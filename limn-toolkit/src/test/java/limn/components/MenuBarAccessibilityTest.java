@@ -20,6 +20,7 @@ import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -161,6 +162,16 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
         }
     }
 
+    /** A window that cannot place a popup until it is told it can. */
+    private static final class LateDisplayWindow extends StubWindow {
+        boolean canHost;
+
+        @Override
+        public Display display() {
+            return canHost ? super.display() : null;
+        }
+    }
+
     /** @return the bar's own node */
     private AccessibleNode barNode() {
         return node(Accessible.Role.MENU_BAR);
@@ -276,8 +287,10 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
             assertFalse(empty.has(Accessible.State.HAS_POPUP),
                     "PopupMenu refuses an empty menu on every platform, every time");
             assertNull(empty.expand(), describe(tree()));
-            assertNull(empty.actions(),
-                    "a verb refused every time is worse than an absent verb" + describe(tree()));
+            assertEquals(java.util.Set.of(Accessible.Action.FOCUS), empty.actions().actions(),
+                    "a verb refused every time is worse than an absent verb, so nothing that "
+                            + "opens; the cursor move opens nothing and the arrows land here too "
+                            + "(decision 11)" + describe(tree()));
         }
         assertTrue(found.get(0).has(Accessible.State.HAS_POPUP),
                 "and the filled one still offers everything" + describe(tree()));
@@ -310,38 +323,48 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(found.get(2).expand().expanded(), describe(tree()));
     }
 
+    // A title already down refusing SHOW_MENU, and COLLAPSE closing the open title and nothing
+    // else, are pinned in limn-demo's MenuBarNativePopupTest (moved 2026-09-15): both need a
+    // cascade on screen, and the in-scene overlay's input gate refuses every verb on the bar
+    // beneath it before the hook runs, so only a window of its own reaches the hook there.
+
+    /**
+     * The expanded bit and the verbs are keyed on one fact (decision 2: "by state"): whether a
+     * cascade is on screen. {@link MenuBar#isOpen} is the bar's belief, recorded before the popup
+     * is asked to show, and the ask is refused over a window that cannot host one; until
+     * 2026-09-15 the bit read the popup and the verbs read the belief, so a refused title
+     * published {@code collapsed} with {@code {COLLAPSE}} — a closed control whose only verb was
+     * the one a closed control refuses, and not the one that opens it.
+     */
     @Test
-    void aTitleAlreadyDownIsNotTornDownAndBuiltAgain() throws Exception {
-        bindBar(new NoPopupWindow());
+    void aTitleWhoseCascadeWasRefusedPublishesTheVerbsOfAClosedTitle() throws Exception {
+        LateDisplayWindow late = new LateDisplayWindow();
+        bindBar(late);
         clickTitle(0);
         assertTrue(bar.isOpen(), "the bar believes a menu is down; nothing is on screen");
-        int published = bridge.published.size();
-        bridge.events.clear();
 
-        perform(titles().get(0).id(), Accessible.Action.SHOW_MENU, Accessible.Argument.NONE);
-        frame();
-
-        assertTrue(bar.isOpen());
-        assertEquals(published, bridge.published.size(),
-                "the hook refuses what it is already doing: reopening tears the cascade down and "
-                        + "builds another one with new identifiers, which the pointer never does"
+        AccessibleNode refused = titles().get(0);
+        assertFalse(refused.expand().expanded(), describe(tree()));
+        assertEquals(java.util.Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND),
+                refused.actions().actions(),
+                "collapsed, so the verbs of a collapsed title, read off the same fact"
                         + describe(tree()));
-        assertTrue(bridge.events.isEmpty(), bridge.events.toString());
-    }
 
-    @Test
-    void collapseClosesTheOpenTitleAndNothingElse() throws Exception {
-        bindBar(new NoPopupWindow());
-        clickTitle(0);
-        assertTrue(bar.isOpen());
-
-        perform(titles().get(1).id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE);
+        perform(refused.id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE);
         frame();
-        assertTrue(bar.isOpen(), "a collapse addressed elsewhere closes nothing");
+        assertTrue(bar.isOpen(),
+                "and the collapse it no longer publishes is refused by the hook as well: the "
+                        + "published list is what the title accepts" + describe(tree()));
 
-        perform(titles().get(0).id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE);
+        late.canHost = true;
+        perform(refused.id(), Accessible.Action.EXPAND, Accessible.Argument.NONE);
         frame();
-        assertFalse(bar.isOpen(), describe(tree()));
+        assertTrue(titles().get(0).expand().expanded(),
+                "the published EXPAND is performed, not refused as a title already down: the "
+                        + "open is asked again, and this time the window can host it"
+                        + describe(tree()));
+        assertEquals(java.util.Set.of(Accessible.Action.COLLAPSE),
+                titles().get(0).actions().actions(), describe(tree()));
     }
 
     /**
@@ -356,10 +379,11 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
     void aTitlePublishesTheVerbsItAcceptsAndNoOtherByState() throws Exception {
         bindBar();
 
-        assertEquals(java.util.Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND),
+        assertEquals(java.util.Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND,
+                        Accessible.Action.FOCUS),
                 titles().get(1).actions().actions(),
-                "closed: the verb and the synonym that both open it, and not the collapse it "
-                        + "would refuse" + describe(tree()));
+                "closed: the verb and the synonym that both open it, the cursor move, and not the "
+                        + "collapse it would refuse" + describe(tree()));
 
         perform(titles().get(1).id(), Accessible.Action.EXPAND, Accessible.Argument.NONE);
         frame();
@@ -372,7 +396,8 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
                         + describe(tree()));
         assertEquals(java.util.Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND),
                 titles().get(0).actions().actions(),
-                "the other titles are still closed" + describe(tree()));
+                "the other titles are still closed, and while a menu is down the open title is "
+                        + "the cursor, so none of them takes FOCUS" + describe(tree()));
     }
 
     @Test
@@ -391,6 +416,56 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     // ------------------------------------------------------------------------ the cursor
+
+    /**
+     * Decision 11's positive half (2026-09-15): the bar's cursor is not its choice — choosing a
+     * title opens its menu — so every title publishes {@code FOCUS} while no menu is down, and
+     * performing it takes the keyboard and puts the cursor on that title as Left and Right do,
+     * opening nothing.
+     */
+    @Test
+    void focusPutsTheBarsCursorOnATitleAndOpensNothing() throws Exception {
+        bindBar();
+        for (AccessibleNode title : titles()) {
+            assertTrue(title.actions().actions().contains(Accessible.Action.FOCUS),
+                    "published on every title while nothing is open" + describe(tree()));
+        }
+        assertNotEquals(barNode().id(), tree().focused(), "the bar starts without the keyboard");
+
+        assertTrue(perform(titles().get(2).id(), Accessible.Action.FOCUS,
+                Accessible.Argument.NONE));
+        frame();
+
+        assertEquals(barNode().id(), tree().focused(),
+                "the keyboard first, because the cursor is published only while the bar holds it"
+                        + describe(tree()));
+        assertEquals(List.of("View"), activeNames(), describe(tree()));
+        assertEquals(titles().get(2).id(), tree().activeDescendant(), describe(tree()));
+        assertFalse(bar.isOpen(), "a cursor move opens nothing");
+
+        scene.keyEvent(Keys.LEFT, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(List.of("Edit"), activeNames(),
+                "and it is the field the arrows move, not a copy of it" + describe(tree()));
+    }
+
+    @Test
+    void whileAMenuIsDownNoTitleTakesFocus() throws Exception {
+        bindBar(new NoPopupWindow());
+        clickTitle(0);
+        assertTrue(bar.isOpen(), "the bar's own open index, which is the cursor's fact");
+        for (AccessibleNode title : titles()) {
+            assertFalse(title.actions().actions().contains(Accessible.Action.FOCUS),
+                    "the open title is the cursor, and moving it is opening another"
+                            + describe(tree()));
+        }
+
+        perform(titles().get(2).id(), Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        frame();
+        assertEquals(List.of("File"), activeNames(),
+                "sent anyway, the hook refuses it" + describe(tree()));
+    }
 
     @Test
     void theKeyboardCursorIsPublishedAndAPointerHoverIsNot() {

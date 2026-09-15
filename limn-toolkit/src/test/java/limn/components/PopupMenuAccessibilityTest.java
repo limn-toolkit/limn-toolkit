@@ -338,9 +338,11 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode disabled = rows.get(5);
 
         assertNull(rule.actions(), describe(tree()));
-        assertNull(empty.actions(),
+        assertEquals(Set.of(Accessible.Action.FOCUS), empty.actions().actions(),
                 "hasSubmenu() is false for a submenu with nothing in it while isSelectable() "
-                        + "stays true and activate() is a no-op" + describe(tree()));
+                        + "stays true and activate() is a no-op, so nothing that chooses; the "
+                        + "arrows land on it, so the cursor move stays (decision 11)"
+                        + describe(tree()));
         assertFalse(empty.has(Accessible.State.HAS_POPUP), describe(tree()));
         assertNull(empty.expand(), describe(tree()));
         assertNull(disabled.actions(), describe(tree()));
@@ -460,7 +462,8 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode export = rowsOf(rootColumn()).get(3);
         assertTrue(export.has(Accessible.State.HAS_POPUP), describe(tree()));
         assertFalse(export.expand().expanded(), describe(tree()));
-        assertEquals(Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND),
+        assertEquals(Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND,
+                        Accessible.Action.FOCUS),
                 export.actions().actions(),
                 "closed: the verb and the synonym that both open it, and no other (ADR 039 "
                         + "§1.5, amended 2026-09-14; decision 2)" + describe(tree()));
@@ -471,7 +474,8 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode opener = node(export.id());
         assertTrue(opener.expand().expanded(), describe(tree()));
-        assertEquals(Set.of(Accessible.Action.COLLAPSE), opener.actions().actions(),
+        assertEquals(Set.of(Accessible.Action.COLLAPSE, Accessible.Action.FOCUS),
+                opener.actions().actions(),
                 "open: the one verb it accepts now, and neither of the two it would refuse"
                         + describe(tree()));
         AccessibleNode submenu = columnUnder(opener);
@@ -533,6 +537,51 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
                 "Down in a menu is the event a reader follows: " + bridge.events);
         assertEquals(before, moved.get(0).oldValue());
         assertEquals(now, moved.get(0).newValue());
+    }
+
+    /**
+     * Decision 11's positive half (2026-09-15): the highlight is the cursor and choosing is a
+     * separate gesture, so every row the arrows can land on publishes {@code FOCUS}, and
+     * performing it moves the highlight there without choosing the row or opening its submenu;
+     * a row in a parent column becomes the cursor the way the leading arrow makes it one, by
+     * closing the column below it.
+     */
+    @Test
+    void focusMovesTheHighlightWithoutChoosingOrOpening() throws Exception {
+        open(everyShape());
+        List<AccessibleNode> rows = rowsOf(rootColumn());
+        for (int i : new int[] {0, 1, 3, 4, 6}) {
+            assertTrue(rows.get(i).actions().actions().contains(Accessible.Action.FOCUS),
+                    rows.get(i).name() + " is a row the arrows reach" + describe(tree()));
+        }
+        assertNull(rows.get(2).actions(), "a rule is skipped" + describe(tree()));
+        assertNull(rows.get(5).actions(), "and so is a disabled row" + describe(tree()));
+
+        long export = rows.get(3).id();
+        assertTrue(perform(export, Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        frame();
+        assertEquals(export, tree().activeDescendant(), describe(tree()));
+        assertEquals(1, popup.columnCountForTest(), "the submenu row is the cursor, not opened");
+        assertFalse(node(export).expand().expanded(), describe(tree()));
+
+        perform(export, Accessible.Action.SHOW_MENU, Accessible.Argument.NONE);
+        frame();
+        assertEquals(2, popup.columnCountForTest());
+        long quit = rowsOf(rootColumn()).get(6).id();
+        bridge.events.clear();
+
+        assertTrue(perform(quit, Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        frame();
+
+        assertEquals(quit, tree().activeDescendant(),
+                "a root row becomes the cursor from inside a submenu" + describe(tree()));
+        assertEquals(1, popup.columnCountForTest(),
+                "by closing the column below it, as the leading arrow does: the cursor is the "
+                        + "deepest column's");
+        assertEquals(List.of(), chosen, "and nothing was chosen");
+        assertTrue(popup.isOpen());
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
+                bridge.events.toString());
     }
 
     @Test
@@ -784,12 +833,13 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
     void aCheckRowPublishesToggleBesidePressAndACommandRowRefusesIt() throws Exception {
         open(everyShape());
 
-        assertEquals(Set.of(Accessible.Action.PRESS, Accessible.Action.TOGGLE),
+        assertEquals(Set.of(Accessible.Action.PRESS, Accessible.Action.TOGGLE,
+                        Accessible.Action.FOCUS),
                 rowsOf(rootColumn()).get(1).actions().actions(),
                 "choosing a check row in a menu is one gesture, and a platform that routes its "
                         + "toggle pattern by the facet needs the verb it sends to be published"
                         + describe(tree()));
-        assertEquals(Set.of(Accessible.Action.PRESS),
+        assertEquals(Set.of(Accessible.Action.PRESS, Accessible.Action.FOCUS),
                 rowsOf(rootColumn()).get(0).actions().actions(),
                 "a command row has nothing to toggle" + describe(tree()));
 

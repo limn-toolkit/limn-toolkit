@@ -765,8 +765,9 @@ public final class MenuBar extends Widget {
      *
      * <p><b>A title whose menu is empty carries no operation.</b> {@link PopupMenu} refuses to
      * show an empty menu on every platform, every time, so the popup state, the expanded facet,
-     * the verb and the key binding are all gated on the menu having items — an absent verb rather
-     * than one that is always refused. The emptiness is read live from a model this bar never
+     * the opening verbs and the key binding are all gated on the menu having items — an absent
+     * verb rather than one that is always refused. It keeps {@code FOCUS}, which opens nothing:
+     * the arrows walk onto it, so a reader may too. The emptiness is read live from a model this bar never
      * hears about, so a menu filled after the bar was drawn is republished on the next frame that
      * walks, and on a quiet window not at all.
      *
@@ -801,6 +802,14 @@ public final class MenuBar extends Widget {
             // per frame.
             a.name(entry.title(), Accessible.NameFrom.CONTENT);
             a.selectionItem(i == current, i + 1, entries.size());
+            if (openIndex < 0) {
+                // FOCUS moves the bar's cursor onto this title and opens nothing (decision 11):
+                // the cursor is not the choice here, because choosing a title opens its menu, so a
+                // reader can walk the strip as Left and Right do. Every title, empty menus
+                // included, because the arrows land on those too. Not while a menu is down: the
+                // open title is then the cursor, and moving the cursor is opening another.
+                a.action(Accessible.Action.FOCUS);
+            }
             if (i == current) {
                 // Selection and cursor are one thing here, so the current title is both. The
                 // active bit is what the tree resolves into the bar's cursor: the bar is the
@@ -811,8 +820,12 @@ public final class MenuBar extends Widget {
             if (!entry.menu().isEmpty()) {
                 a.state(Accessible.State.HAS_POPUP);
                 // From the popup and not from openIndex: the index is set before the popup is
-                // asked to show, and the ask is routinely refused.
-                a.expand(i == openIndex && showing);
+                // asked to show, and the ask is routinely refused. The verbs below read the same
+                // boolean and onSyntheticAction asks the same question (decision 2, "by state";
+                // until 2026-09-15 the verbs read openIndex, so a refused title published
+                // collapsed with COLLAPSE, the one verb a collapsed control refuses).
+                boolean down = i == openIndex && showing;
+                a.expand(down);
                 // The verbs the title accepts, by its state, and no other (ADR 039 §1.5,
                 // amended 2026-09-14; decision 2): a closed title opens on SHOW_MENU and on its
                 // synonym EXPAND, and the open one closes on COLLAPSE alone, which is exactly
@@ -822,7 +835,7 @@ public final class MenuBar extends Widget {
                 // was a control one platform invoked through its expand pattern and another
                 // could not see; PRESS was accepted the same way and is refused now. The two-
                 // argument form; the variable-argument one allocates an array per call.
-                if (i == openIndex) {
+                if (down) {
                     a.action(Accessible.Action.COLLAPSE);
                 } else {
                     a.action(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND);
@@ -857,9 +870,16 @@ public final class MenuBar extends Widget {
      * cascade down and builds another one, which the pointer never does. And a collapse addressed
      * to a title that is not the open one is refused rather than quietly closing whatever is.
      *
+     * <p>"Down" is the fact the describe hook publishes: this title is the open one <em>and</em> a
+     * cascade is on screen. A title whose show was refused is published collapsed with the verbs
+     * that open it, so its {@code EXPAND} asks for the open again and its {@code COLLAPSE} is
+     * refused (decision 2; until 2026-09-15 this hook and the verbs read the index alone, and the
+     * refused title published {@code COLLAPSE} beside {@code collapsed}).
+     *
      * <p>The verbs answered are exactly the verbs {@link #onAccessibility} publishes for the
      * title's state: {@code SHOW_MENU} and {@code EXPAND} open a closed title, {@code COLLAPSE}
-     * closes the open one, and {@code PRESS} — accepted here as a third synonym until 2026-09-14
+     * closes the open one, {@code FOCUS} takes the keyboard and puts the bar's cursor on any title
+     * while no menu is down, without opening it (decision 11, 2026-09-15), and {@code PRESS} — accepted here as a third synonym until 2026-09-14
      * — is refused, because a verb a node performs without publishing is one a reader cannot see
      * and one platform invokes by accident (ADR 039 §1.5, amended that day; decision 2).
      *
@@ -876,19 +896,37 @@ public final class MenuBar extends Widget {
     protected boolean onSyntheticAction(long key, Accessible.Action action,
                                         Accessible.Argument arg) {
         int i = (int) key;
-        if (i < 0 || i >= entries.size() || entries.get(i).menu().isEmpty()) {
+        if (i < 0 || i >= entries.size()) {
             return false;
         }
+        if (action == Accessible.Action.FOCUS) {
+            // The keyboard first, so the cursor is published (the current title is gated on it),
+            // then the cursor, which is the field Left and Right move; nothing opens.
+            if (openIndex >= 0 || scene() == null) {
+                return false;
+            }
+            scene().requestFocus(this);
+            if (!isFocused()) {
+                return false;
+            }
+            hoverIndex = i;
+            invalidate();
+            return true;
+        }
+        if (entries.get(i).menu().isEmpty()) {
+            return false;
+        }
+        boolean down = i == openIndex && isShowingDropdown();
         switch (action) {
             case SHOW_MENU, EXPAND -> {
-                if (i == openIndex) {
+                if (down) {
                     return false;
                 }
                 openMenu(i);
                 return isShowingDropdown();
             }
             case COLLAPSE -> {
-                if (i != openIndex) {
+                if (!down) {
                     return false;
                 }
                 closeMenu();

@@ -748,16 +748,16 @@ public class SegmentedControl extends Widget {
      * the gutter reading starts from, so the two swap ends right to left while the tree order
      * above does not move.
      *
-     * <p><b>A dead side is published disabled, and keeps its verb</b> — the shape the tabbed
-     * pane's chevrons have, which are real buttons its layout disables, and the shape every
-     * disabled {@code Button} in the toolkit has: {@code PRESS} stays in the list and
-     * {@code ENABLED} says no. Until 2026-09-14 the dead side dropped the verb instead, because
-     * a widget could not say "disabled" of a synthetic child — the walk overwrote every
-     * synthetic node's enabled bit with its owner's — and a verb that came and went with the
-     * scroll was a pattern one platform froze on first read (W2). {@link Accessibility#disabled()}
-     * (decision 30) is the route that was missing: narrowing only, so the arrow can be less
-     * enabled than the strip and never more. {@link #onSyntheticAction} still answers a press
-     * on a dead side by whether the scroll moved, which on that side is not at all.
+     * <p><b>A dead side is published disabled, with no verb</b> — the shape of a refused
+     * calendar day, which semantics 5 names for every disabled synthetic item: not
+     * {@code ENABLED} through {@link Accessibility#disabled()} (decision 30, narrowing only, so
+     * the arrow can be less enabled than the strip and never more), and no {@code PRESS}. Until
+     * 2026-09-14 the dead side dropped the verb without the state, because a widget could not say
+     * "disabled" of a synthetic child; from that day to 2026-09-15 it carried the state and kept
+     * the verb, so that a pattern set Windows froze on first read (W2) would not lose Invoke when
+     * the side came alive. Phase 3 rebuilds pattern sets on a change, and the verb goes.
+     * {@link #onSyntheticAction} still answers a press that arrives on a dead side anyway by
+     * whether the scroll moved, which on that side is not at all.
      *
      * @param a    the node being described
      * @param key  {@link #CHEVRON_BACK} or {@link #CHEVRON_FORWARD}
@@ -777,12 +777,16 @@ public class SegmentedControl extends Widget {
         a.role(Accessible.Role.BUTTON);
         a.name(back ? ComponentStrings.SEGMENT_PREVIOUS : ComponentStrings.SEGMENT_NEXT,
                 Accessible.NameFrom.CONTENT);
-        if (!live) {
+        if (live) {
+            a.action(Accessible.Action.PRESS);
+        } else {
+            // Disabled and with no verb (decision 30; semantics 5, 2026-09-15): a disabled
+            // synthetic item carries no verb, as a refused day carries no SELECT, and a bridge
+            // reads the absence. The verb was kept here on 2026-09-14 so that Windows' frozen
+            // pattern set would not lose Invoke when the side came alive (W2); phase 3 rebuilds
+            // pattern sets on a change, so the verb goes.
             a.disabled();
         }
-        // Unconditional, as a disabled Button's is: the state carries the dead side, so the
-        // verb does not come and go with the scroll.
-        a.action(Accessible.Action.PRESS);
         a.endChild();
     }
 
@@ -798,9 +802,9 @@ public class SegmentedControl extends Widget {
      *
      * <p>A press on an arrow scrolls by the same expression the click branch uses, where the sign
      * is the arrow's logical identity and the offset is logical too, so it needs no mirroring.
-     * The answer is whether the offset moved: a dead arrow is published disabled above and its
-     * scroll clamps to nothing here, so a press that arrived on it anyway is refused rather than
-     * reported done, as a disabled button's would be.
+     * The answer is whether the offset moved: a dead arrow is published disabled and without the
+     * verb above, and its scroll clamps to nothing here, so a press that arrived on it anyway is
+     * refused rather than reported done.
      *
      * <p>A segment answers {@code SELECT} alone and never {@code FOCUS}: the selection is the
      * cursor here, so a focus that did not select would be a lie and one that did would be
