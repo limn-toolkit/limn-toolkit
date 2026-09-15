@@ -5,7 +5,6 @@ import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.system.Pointer;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -111,8 +110,8 @@ final class UiaObject {
 
     /** Every interface built so far, fixed and varying, by IID; written under {@code this}. */
     private final Map<String, Long> byIid = new ConcurrentHashMap<>();
-    /** The fixed interfaces' IIDs, answered to every query whatever the snapshot says. */
-    private final List<String> fixed = new ArrayList<>();
+    /** The fixed interfaces, answered to every query whatever the snapshot says. */
+    private final List<UiaInterfaces.Vtable> fixed = new ArrayList<>();
     private final List<Long> vtables = new ArrayList<>();
     private final List<Long> closures = new ArrayList<>();
     private final long block;
@@ -145,7 +144,7 @@ final class UiaObject {
         synchronized (this) {
             for (Served one : served) {
                 build(one.iface(), one.ownSlots());
-                fixed.add(one.iface().iid());
+                fixed.add(one.iface());
             }
             // What the snapshot says now is built now, so an object answers from its first ask
             // the set a client would read, and a hand-over later builds only what was gained.
@@ -228,7 +227,7 @@ final class UiaObject {
      *         been wanted before; {@code 0} if the object does not serve it at this moment
      */
     long pointerFor(UiaInterfaces.Vtable iface) {
-        if (fixed.contains(iface.iid())) {
+        if (fixed.contains(iface)) {
             return byIid.get(iface.iid());
         }
         return varying.candidates().contains(iface) ? varyingPointer(iface) : 0L;
@@ -282,25 +281,26 @@ final class UiaObject {
             // matters is not dereferencing zero.
             return UiaIds.E_NO_INTERFACE;
         }
-        byte[] asked = new byte[16];
-        for (int i = 0; i < asked.length; i++) {
-            asked[i] = MemoryUtil.memGetByte(riid + i);
-        }
+        // Compared in place against bytes parsed once per identifier: UI Automation probes for
+        // many interfaces this bridge never serves, and a miss allocates nothing.
         long answer = 0;
-        if (Arrays.equals(asked, UiaInterfaces.UNKNOWN.iidBytes())) {
+        if (UiaInterfaces.UNKNOWN.isIidAt(riid)) {
             answer = primary;
         } else {
-            for (String iid : fixed) {
-                if (Arrays.equals(asked, UiaInterfaces.iidBytes(iid))) {
-                    answer = byIid.get(iid);
+            // Indexed, not for-each: an iterator per list per query is the allocation this avoids.
+            for (int i = 0; i < fixed.size(); i++) {
+                UiaInterfaces.Vtable iface = fixed.get(i);
+                if (iface.isIidAt(riid)) {
+                    answer = byIid.get(iface.iid());
                     break;
                 }
             }
             if (answer == 0) {
-                // Only an IID that names a candidate asks the snapshot anything: UI Automation
-                // queries for interfaces this bridge never serves, and those cost a comparison.
-                for (UiaInterfaces.Vtable candidate : varying.candidates()) {
-                    if (Arrays.equals(asked, candidate.iidBytes())) {
+                // Only an IID that names a candidate asks the snapshot anything.
+                List<UiaInterfaces.Vtable> candidates = varying.candidates();
+                for (int i = 0; i < candidates.size(); i++) {
+                    UiaInterfaces.Vtable candidate = candidates.get(i);
+                    if (candidate.isIidAt(riid)) {
                         answer = varyingPointer(candidate);
                         break;
                     }

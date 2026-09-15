@@ -47,7 +47,13 @@ public final class UiaBridge extends PlatformBridge {
     /** Node identifier to element, and interface pointer back to it. */
     private final UiaElements elements = new UiaElements();
 
-    /** Interface pointer to the object behind it, for every pointer an element publishes. */
+    /**
+     * Interface pointer to the object behind it, for the pointers an element's object built when
+     * it was minted: its identity pointer, which every reader here goes by (a hand-over, the
+     * disconnect's liveness check, the whole-registry empty, which frees by object identity), and
+     * the fixed and pattern interfaces built with it. A pattern interface built later, when the
+     * snapshot first serves it (W2), is not entered: nothing looks an object up by that pointer.
+     */
     private final Map<Long, UiaObject> objects = new ConcurrentHashMap<>();
 
     /** The window this tree is drawn in. */
@@ -1283,6 +1289,15 @@ public final class UiaBridge extends PlatformBridge {
 
         private final long nodeId;
 
+        /**
+         * The node as the last snapshot asked about has it, so that the twelve candidates a mint
+         * asks, and every later query against the same snapshot, find the node once rather than
+         * once per candidate: {@link AccessibleTree#find} is linear in the tree. Replaced whole
+         * when the snapshot is a different one; any RPC thread may write it, and a lost write
+         * costs one more search.
+         */
+        private volatile Resolved resolved;
+
         PatternsOf(long nodeId) {
             this.nodeId = nodeId;
         }
@@ -1295,8 +1310,12 @@ public final class UiaBridge extends PlatformBridge {
         @Override
         public boolean servesNow(UiaInterfaces.Vtable iface) {
             AccessibleTree tree = tree();
-            AccessibleNode node = tree.find(nodeId);
-            return node != null && UiaPatterns.supports(tree, node, patternOf(iface));
+            Resolved last = resolved;
+            if (last == null || last.tree() != tree) {
+                last = new Resolved(tree, tree.find(nodeId));
+                resolved = last;
+            }
+            return last.node() != null && UiaPatterns.supports(tree, last.node(), patternOf(iface));
         }
 
         @Override
@@ -1304,6 +1323,10 @@ public final class UiaBridge extends PlatformBridge {
                 UiaInterfaces.Vtable iface) {
             return UiaPatternProviders.slotsFor(patternOf(iface), nodeId, context);
         }
+    }
+
+    /** One node found in one snapshot, or not found there ({@code node} null). */
+    private record Resolved(AccessibleTree tree, AccessibleNode node) {
     }
 
     /** The patterns a node may vend, asked in a fixed order so an element is built the same way. */
@@ -1321,7 +1344,13 @@ public final class UiaBridge extends PlatformBridge {
 
     /** @return the pattern an interface of {@link #PATTERN_INTERFACES} serves */
     private static int patternOf(UiaInterfaces.Vtable iface) {
-        return PATTERNS[PATTERN_INTERFACES.indexOf(iface)];
+        // By identity: the tables are constants, and a record's equals compares the slot lists.
+        for (int i = 0; i < PATTERNS.length; i++) {
+            if (PATTERN_INTERFACES.get(i) == iface) {
+                return PATTERNS[i];
+            }
+        }
+        throw new IllegalArgumentException(iface.name() + " serves no pattern of this bridge");
     }
 
     /** One node's COM object, as the registry sees it. */

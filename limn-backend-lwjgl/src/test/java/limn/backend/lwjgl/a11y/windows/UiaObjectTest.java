@@ -100,6 +100,74 @@ class UiaObjectTest {
     }
 
     /**
+     * Review of windows-A: UI Automation probes an element for many interfaces it does not serve,
+     * and since W2 each probe compared the asked identifier against every fixed and candidate one by
+     * parsing their canonical strings into fresh arrays (2.1 us a miss, 3.1 us a candidate hit, over
+     * a 1802-node table on the host). The comparison now reads the asked bytes in place against
+     * bytes parsed once, so a miss, and a candidate the snapshot does not serve, allocate nothing.
+     */
+    @Test
+    void aQueryForAnInterfaceNotServedAllocatesNothing() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(limn.testing.AllocationProbe.isSupported(),
+                "this virtual machine does not count allocation");
+        boolean[] on = {false};
+        UiaObject element = UiaObject.create(
+                List.of(new UiaObject.Served(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE,
+                                fillerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE)),
+                        new UiaObject.Served(UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT,
+                                fillerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT))),
+                // The bridge's candidate list is a constant, so this one is too: List.of per call
+                // would be the fake's allocation, not the object's.
+                new UiaObject.Varying() {
+                    private final List<UiaInterfaces.Vtable> candidates =
+                            List.of(UiaInterfaces.INVOKE_PROVIDER);
+
+                    @Override
+                    public List<UiaInterfaces.Vtable> candidates() {
+                        return candidates;
+                    }
+
+                    @Override
+                    public boolean servesNow(UiaInterfaces.Vtable iface) {
+                        return on[0];
+                    }
+
+                    @Override
+                    public Map<String, ? extends CallbackI> slotsFor(UiaInterfaces.Vtable iface) {
+                        return fillerFor(iface);
+                    }
+                }, () -> { });
+        long out = MemoryUtil.nmemAllocChecked(8);
+        long transform = MemoryUtil.nmemAllocChecked(16);
+        long invoke = MemoryUtil.nmemAllocChecked(16);
+        try {
+            byte[] bytes = UiaInterfaces.TRANSFORM_PROVIDER.iidBytes();
+            byte[] invokeBytes = UiaInterfaces.INVOKE_PROVIDER.iidBytes();
+            for (int i = 0; i < 16; i++) {
+                MemoryUtil.memPutByte(transform + i, bytes[i]);
+                MemoryUtil.memPutByte(invoke + i, invokeBytes[i]);
+            }
+            long on0 = element.pointer();
+            long query = UiaCom.slotOf(on0, SLOT_QUERY_INTERFACE);
+            assertEquals(UiaIds.E_NO_INTERFACE, JNI.invokePPPI(on0, transform, out, query));
+            assertEquals(UiaIds.E_NO_INTERFACE, JNI.invokePPPI(on0, invoke, out, query));
+            long allocated = limn.testing.AllocationProbe.leastAllocatedBy(() -> {
+                for (int i = 0; i < 1_000; i++) {
+                    JNI.invokePPPI(on0, transform, out, query);
+                    JNI.invokePPPI(on0, invoke, out, query);
+                }
+            }, 5);
+            assertEquals(0, allocated,
+                    "a thousand misses and a thousand unserved candidates allocate nothing");
+        } finally {
+            MemoryUtil.nmemFree(invoke);
+            MemoryUtil.nmemFree(transform);
+            MemoryUtil.nmemFree(out);
+            element.free();
+        }
+    }
+
+    /**
      * W2: an interface the snapshot starts serving after the object was made is answered to a
      * query from then on, on the same object: the identity pointer is unchanged, and the query
      * counts a reference like any other while the change itself counts none.
