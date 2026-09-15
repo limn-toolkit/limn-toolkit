@@ -146,18 +146,9 @@ public final class AccessibilityGallery {
     private static final Image BLANK_PICTURE = new Image(16, 16, new byte[16 * 16 * 4]);
 
     /**
-     * The day every date entry is built on (settled reader-scene-clock; LAB-NEW-13): noon of
-     * 2026-09-09 in UTC, the site gallery's own documentation day. A calendar names its today
-     * cell ", today" and a field steps an empty segment from today, so an entry on the real clock
-     * spoke differently on each guest (the Fedora guest's clock ran days behind) and on each
-     * day, and no step label could be written against it.
-     */
-    static final java.time.Clock READER_TODAY = java.time.Clock.fixed(
-            java.time.Instant.parse("2026-09-09T12:00:00Z"), java.time.ZoneOffset.UTC);
-
-    /**
-     * The language every date entry is built in, for the same reason: a cell's name, a segment's
-     * name and the week's first day are the locale's, and a guest's process locale is not the
+     * The language every date entry is built in (settled reader-scene-clock; LAB-NEW-13), as its
+     * today is {@link limn.demo.DocumentationDay}'s: a cell's name, a segment's name and the
+     * week's first day are the locale's, and a guest's process locale is not the
      * host's. English (United States), because the captions these entries carry are English.
      */
     static final java.util.Locale READER_LOCALE = java.util.Locale.US;
@@ -605,7 +596,9 @@ public final class AccessibilityGallery {
     }
 
     /**
-     * Pins {@link #READER_TODAY} on every date widget under {@code root} and declares
+     * Pins {@link limn.demo.DocumentationDay} on every date widget under {@code root} (a calendar
+     * names its today cell ", today" and a field steps an empty segment from today, so an entry on
+     * the real clock spoke differently on each guest and each day) and declares
      * {@link #READER_LOCALE} on {@code root} itself, which every descendant inherits. In the
      * entries rather than in whatever runs them, so the gallery window a reader is pointed at,
      * the headless tests and a driver all build the same tree; these scenes are not published as
@@ -613,22 +606,8 @@ public final class AccessibilityGallery {
      */
     private static Widget pinnedForReaders(Widget root) {
         root.setLocale(READER_LOCALE);
-        pinToday(root);
+        limn.demo.DocumentationDay.pin(root);
         return root;
-    }
-
-    private static void pinToday(Widget widget) {
-        if (widget instanceof CalendarView calendar) {
-            calendar.setClock(READER_TODAY);
-        } else if (widget instanceof DatePicker picker) {
-            picker.setClock(READER_TODAY); // its fields, its time row and its calendar
-            return;
-        } else if (widget instanceof DateField field) {
-            field.setClock(READER_TODAY);
-        }
-        for (Widget child : widget.children()) {
-            pinToday(child);
-        }
     }
 
     private static Built tabbedPane() {
