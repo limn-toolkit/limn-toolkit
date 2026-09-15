@@ -511,9 +511,12 @@ class AxBridgeTest {
         // last thing that happened. The frame's end is where it goes out now.
         AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = traced(bridge);
-        AccessibleTree tree = aNestedWindow(1);
+        // The button holds the keyboard, because semantics 4's memory answers a focus event from
+        // the tree's own effective focus: a tree that says nothing is focused has nowhere to send
+        // a reader, whatever an event names.
+        AccessibleTree tree = aNestedWindowWithFocus(1002);
         bridge.publish(tree, false);
-        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1002));
         assertEquals(1, bridge.queuedEvents(),
                 "every post is a cross-process call; emit is not the place to make one");
         assertTrue(posted(trace).isEmpty());
@@ -545,9 +548,9 @@ class AxBridgeTest {
     void aReentrantPublishPostsNothingAndKeepsTheEvents() {
         AxBridge bridge = PlatformFreeBridges.make();
         List<String> trace = traced(bridge);
-        AccessibleTree tree = aNestedWindow(1);
+        AccessibleTree tree = aNestedWindowWithFocus(1002);
         bridge.publish(tree, false);
-        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1002));
         bridge.publish(tree, true);
         assertTrue(posted(trace).isEmpty(),
                 "a post from inside an AX callback re-enters the platform on our own objects (§3.2)");

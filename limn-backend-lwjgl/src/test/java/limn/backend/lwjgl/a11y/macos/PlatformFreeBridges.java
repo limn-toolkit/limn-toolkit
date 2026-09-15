@@ -35,5 +35,10 @@ final class PlatformFreeBridges implements AfterEachCallback {
         MADE.clear();
         assertEquals(0, AxBridge.openBridgeCount(),
                 "a bridge was left in the process's open windows by a test that did not make it here");
+        // The last-announced focus is process-wide too (semantics 4), and a detach forgets what its
+        // own bridge announced; a memory surviving here would make the next test's first focus post
+        // depend on the one before it.
+        assertEquals(0, AxBridge.announcedFocusNode(),
+                "a test left the process's last-announced focus pointing at a node of its own");
     }
 }

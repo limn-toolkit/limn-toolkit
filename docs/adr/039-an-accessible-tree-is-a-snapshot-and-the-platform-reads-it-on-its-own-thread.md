@@ -3386,6 +3386,28 @@ returns: neither is an accessibility callback, so no pool of AppKit's is on the 
 were still alive 120 polled frames later, about five blocks a frame, and none with the pool (read on the
 macOS 26.6.2 guest, 25G83, 2026-09-15, `scripts/a11y/macos/AutoreleaseProbe.java`; the macos-C review).
 
+**Amendment, 2026-09-15 (semantics 4, one shape on all three bridges): the macOS bridge keeps the
+memory too.** Phase 3 left three readings of "each bridge remembers the last effective focus it
+announced": Windows one memory per process, Linux one per window sending only differences, and macOS
+none at all — it posted one `FocusedUIElementChanged` per frame that drained a focus or cursor event,
+and again after every sweep. The lane argued that as not a defect, because the post names no element
+and the client asks `accessibilityFocusedUIElement`, which is answered live. The orchestrator settled
+one shape instead, and this bridge now holds it: **one memory for the whole process**, because the
+platform focus is one; a focus or cursor event resolving to the node already announced posts nothing;
+the model's `INVALIDATED` and the bridge's own queue collapse re-announce whatever they name, because
+the sweep may have released the element the reader stood on; and the memory is forgotten when nothing
+is focused in any open window, on `WINDOW_DEACTIVATED` (which still posts nothing of ours) and when
+the bridge that owns it detaches, so that a return is announced however little moved while away.
+
+Two consequences worth stating. The answer is resolved exactly as `focusedElement()` resolves it, so
+a cursor that lives in another window's tree is remembered as **that** window's node and a second
+window asking about the same cursor does not announce it twice. And a focus event over a tree that
+stamps no focus now posts nothing, where before it posted: there is nowhere to send a reader, and
+Windows' `raiseFocus` has always behaved this way. Pinned by
+`AxFocusTest.anEffectiveFocusAlreadyAnnouncedIsNotAnnouncedAgainUntilASweepAsksForIt` and
+`aDeactivatedWindowAndAnEmptyFocusBothForgetWhatWasAnnounced`. The tail's order is unchanged and is
+semantics 7's: structure first, focus last in the frame.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

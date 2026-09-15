@@ -120,6 +120,92 @@ class AxFocusTest {
                 "one move for a reader, told once and after what else the frame said");
     }
 
+    /**
+     * Semantics 4, settled across the three bridges on 2026-09-15: one process-wide memory of the
+     * last effective focus announced. A focus event naming what was announced already posts nothing;
+     * the model's {@code INVALIDATED} re-announces it whatever it names, because the sweep may have
+     * released the element the reader stood on. Before this the bridge kept no memory and posted once
+     * per frame that drained a focus event.
+     */
+    @Test
+    void anEffectiveFocusAlreadyAnnouncedIsNotAnnouncedAgainUntilASweepAsksForIt() {
+        AxBridge bridge = PlatformFreeBridges.make();
+        List<String> trace = new ArrayList<>();
+        bridge.trace(trace::add);
+        AccessibleTree tree = aFocusedListWithACursor(1003);
+        bridge.publish(tree, false);
+        bridge.childElementsOf(tree.find(1001));
+
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+        bridge.frameEnded();
+        assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
+                "the first frame says where the user is");
+        assertEquals(1003L, AxBridge.announcedFocusNode(), "and the process remembers the cursor item");
+
+        trace.clear();
+        bridge.publish(tree, false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+        bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED, 1001,
+                1003L, 1003L));
+        bridge.frameEnded();
+        assertTrue(posted(trace).isEmpty(),
+                "a focus event naming the node already announced says nothing new: " + trace);
+
+        trace.clear();
+        bridge.publish(tree, false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+        bridge.frameEnded();
+        assertEquals(List.of("NSAccessibilityLayoutChangedNotification on the window",
+                        "NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
+                "the sweep re-announces it though nothing moved: it may have released what the reader held");
+
+        trace.clear();
+        bridge.publish(aFocusedListWithACursor(1002), false);
+        bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED, 1001,
+                1003L, 1002L));
+        bridge.frameEnded();
+        assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
+                "and a cursor that really moved is announced");
+        assertEquals(1002L, AxBridge.announcedFocusNode());
+    }
+
+    /**
+     * The memory is forgotten when the window loses activation, so that coming back is announced
+     * however little moved while it was away — and when nothing is focused anywhere at all.
+     */
+    @Test
+    void aDeactivatedWindowAndAnEmptyFocusBothForgetWhatWasAnnounced() {
+        AxBridge bridge = PlatformFreeBridges.make();
+        List<String> trace = new ArrayList<>();
+        bridge.trace(trace::add);
+        AccessibleTree tree = aFocusedListWithACursor(1003);
+        bridge.publish(tree, false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+        bridge.frameEnded();
+        assertEquals(1003L, AxBridge.announcedFocusNode());
+
+        trace.clear();
+        bridge.publish(tree, false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_DEACTIVATED, 1000));
+        bridge.frameEnded();
+        assertTrue(posted(trace).isEmpty(), "AppKit speaks for the window; nothing of ours is posted");
+        assertEquals(0L, AxBridge.announcedFocusNode(), "but the memory goes");
+
+        trace.clear();
+        bridge.publish(tree, false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+        bridge.frameEnded();
+        assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
+                "so the return to this window is announced again");
+
+        trace.clear();
+        bridge.publish(AccessibleTree.EMPTY, false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 0));
+        bridge.frameEnded();
+        assertTrue(posted(trace).isEmpty(), "with nothing focused there is nowhere to send a reader");
+        assertEquals(0L, AxBridge.announcedFocusNode());
+    }
+
     @Test
     void theModelsInvalidatedSweepsTheRegistryAndTellsWhereTheUserIsAgain() {
         AxBridge bridge = PlatformFreeBridges.make();

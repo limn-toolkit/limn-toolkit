@@ -356,6 +356,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     @Override
     public void detach() {
         close(this);
+        forgetAnnouncedFocusOf(this);
         teardown.clear();
         detaching = true;
         try {
@@ -511,6 +512,88 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             if (open == this) return true;
         }
         return false;
+    }
+
+    // ---- the last effective focus this process announced (semantics 4) -------------------------
+
+    /**
+     * Which bridge announced which node. A node of one window is never a node of another (§1.3), so
+     * the pair is what identifies an announcement; the bridge half is there because a window that
+     * closes and a window that detaches must not leave a stale memory matching a later window's node.
+     */
+    private record Announced(AxBridge bridge, long nodeId) {
+    }
+
+    /**
+     * The last effective focus this <em>process</em> announced, or {@code null} for none.
+     *
+     * <p>Semantics 4, settled across the three bridges on 2026-09-15: one memory for the whole
+     * process, because the platform focus is one. A frame whose focus or cursor event names what was
+     * announced already posts nothing — VoiceOver is told "where the user is changed", and saying it
+     * again of the same node is a move a reader has no reason to re-read. A re-announcement after
+     * the model's {@code INVALIDATED} or after this bridge's own queue collapse goes out whatever it
+     * names, because the sweep may have released the element the reader was standing on. Forgotten
+     * when nothing is focused in any open window, on {@code WINDOW_DEACTIVATED} and when the bridge
+     * that owns it detaches, so that coming back is announced however little moved while away.
+     *
+     * <p>Before this the bridge kept no memory and posted once per frame that drained a focus event,
+     * and after every sweep; the lane argued it was not a defect because the post names no element
+     * and the client asks. The settlement is that the three bridges hold one shape, and it is this.
+     */
+    private static final java.util.concurrent.atomic.AtomicReference<Announced> ANNOUNCED =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
+    private static void forgetAnnouncedFocusOf(AxBridge bridge) {
+        Announced last = ANNOUNCED.get();
+        if (last != null && last.bridge() == bridge) ANNOUNCED.set(null);
+    }
+
+    /** @return the memory, for the tests that pin what it holds; {@code null} for none */
+    static long announcedFocusNode() {
+        Announced last = ANNOUNCED.get();
+        return last == null ? 0 : last.nodeId();
+    }
+
+    /**
+     * Where this bridge would say the user is right now: the same resolution
+     * {@link #focusedElement()} makes, as a pair rather than as an element, so that asking it costs
+     * no mint.
+     *
+     * @return the owning bridge and node, or {@code null} when there is nowhere to send a reader
+     */
+    private Announced effectiveFocusNow() {
+        AccessibleTree tree = tree();
+        long effective = tree.effectiveFocus();
+        if (effective != 0) {
+            if (tree.indexOf(effective) >= 0) return new Announced(this, effective);
+            AxBridge holder = openBridgeHolding(effective);
+            return holder == null ? null : new Announced(holder, effective);
+        }
+        long cursor = cursorFromAnotherWindow();
+        return cursor == 0 ? null : new Announced(this, cursor);
+    }
+
+    /**
+     * Says where the user is, unless the process has already said exactly that.
+     *
+     * @param reannouncement whether a sweep is asking, which posts whatever it names
+     * @return whether a notification went out
+     */
+    private boolean announceFocus(boolean reannouncement) {
+        Announced now = effectiveFocusNow();
+        Consumer<String> to = trace;
+        if (now == null) {
+            ANNOUNCED.set(null);
+            if (to != null) to.accept("no focus to announce");
+            return false;
+        }
+        if (!reannouncement && now.equals(ANNOUNCED.get())) {
+            if (to != null) to.accept("focus on node " + now.nodeId() + " already announced");
+            return false;
+        }
+        ANNOUNCED.set(now);
+        post(applicationElement(), FOCUS_POSTING);
+        return true;
     }
 
     /** @return another open bridge whose published tree holds the node, or {@code null} */
@@ -766,7 +849,12 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * one; and after a sweep — the queue's collapse or the model's {@code INVALIDATED} — it is posted
      * whether or not an event said so, because the sweep may have released the element a reader
      * stood on and nothing else would send it back (semantics 4). Last, so that a reader told of a
-     * selection or an expansion in the same frame lands on the cursor after hearing it.
+     * selection or an expansion in the same frame lands on the cursor after hearing it — which is
+     * the collapse tail's order too, structure first and focus after.
+     *
+     * <p>And it goes out only when it says something new: {@link #ANNOUNCED} is the process's memory
+     * of the last effective focus announced, and a frame whose focus event names it again posts
+     * nothing. A sweep's re-announcement ignores the memory, for the reason above.
      */
     private boolean drain() {
         // Timed, because §13.19's macOS half is "what does one frame's drain cost with a reader
@@ -789,6 +877,13 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             if (event.type() == AccessibleEvent.Type.INVALIDATED) swept = true;
             if (event.type() == AccessibleEvent.Type.NODE_DESTROYED) {
                 noteDestroyed(event.nodeId());
+                continue;
+            }
+            if (event.type() == AccessibleEvent.Type.WINDOW_DEACTIVATED) {
+                // Nothing is posted — AppKit speaks for the window it vends (§2.2) — and what
+                // changes is the memory: the focus has gone to some other window, so a return to
+                // this one is announced again however little moved while it was away.
+                ANNOUNCED.set(null);
                 continue;
             }
             AxNotifications.Posting posting = AxNotifications.of(event);
@@ -853,14 +948,11 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             // The pushed array may name elements that were just released, and comparing it against
             // a fresh list would then hand AppKit a freed pointer. Forgetting it forces a re-push.
             pushed = new long[0];
-            if (tree().effectiveFocus() != 0 || cursorFromAnotherWindow() != 0) {
-                focusOwed = true;
-            }
+            // Whatever it names, and whether or not an event said so (semantics 4): the sweep may
+            // have released the element the reader stood on.
+            focusOwed = true;
         }
-        if (focusOwed) {
-            post(applicationElement(), FOCUS_POSTING);
-            postedNow++;
-        }
+        if (focusOwed && announceFocus(swept)) postedNow++;
         lastDrainNanos = System.nanoTime() - started;
         lastDrainDrained = drained.size();
         lastDrainPosted = postedNow;
