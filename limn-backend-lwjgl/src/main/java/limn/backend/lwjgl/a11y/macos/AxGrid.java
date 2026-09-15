@@ -14,11 +14,17 @@ import limn.accessibility.AccessibleTree;
  * lookup here takes a {@link AxElementClass.Source} — which the platform-free bridge implements —
  * and hands back element pointers, numbers and {@code null}, so a test can pin it.
  *
- * <p>A table's rows are its {@code ROW} children and the header is its first group child, so the
- * elements handed back are the ones AppKit already holds for those nodes. Columns are none: the
- * toolkit has no column node, and a column index range on every cell is what VoiceOver reads
- * "column 2 of 3" from. A cell asked for by column and row is answered only for a row the walk
- * published, which is the degradation ADR 039 §4.1 accepts.
+ * <p>A table's rows are its {@code ROW} children, so the elements handed back are the ones AppKit
+ * already holds for those nodes. <b>A cell is found by its own cell facet</b> (decision 8; semantics
+ * 2): cell (r, c) of table T is the node under one of T's {@code ROW} children whose {@code CellFacet}
+ * is (r, c) and whose nearest table ancestor is T — a widget cell included, since it hangs under its
+ * row (decision 3) — and a row's index is its cells' row, never its selection position, so a calendar
+ * week that carries no selection item is found and numbered like any table row (MACOS-NEW-4,
+ * MACOS-NEW-10). <b>The header is matched by column, not by position</b> (semantics 3): the header cell
+ * of column c is the child with {@code CellFacet(−1, c)} of one of T's direct group children, a footer
+ * cell (row −2) never is, and a table with no such child has no header rather than its footer
+ * (MACOS-NEW-9). A cell asked for by column and row is answered only for a row the walk published,
+ * which is the degradation ADR 039 §4.1 accepts.
  *
  * <p><b>An outline and a list are tables of rows too</b> (M2; semantics 1 and 2): their rows are the
  * realized members of their selection — the children whose selection container is the outline or
@@ -30,10 +36,10 @@ import limn.accessibility.AccessibleTree;
  * answers {@code NSNotFound}. An outline answers no row count, as the native one answers none.
  *
  * <p>This is the 2026-09-15 extraction of those answers out of the element class, and it changed
- * none of them; the outline and list rows came after it. The table lookups it inherited still have
- * the defects the audit recorded — the first group as the header (MACOS-NEW-9), a row located by its
- * selection position (MACOS-NEW-4), no columns (M4) — and {@code AxGridTest} pins today's answers so
- * that each of those fixes turns a named case red on purpose.
+ * none of them; the outline and list rows came after it, and the cell, row and header lookups were
+ * rewritten to the settled semantics after that, the same day. The columns the audit found missing
+ * (M4) are still none here; {@code AxGridTest} pins that answer so that its fix turns a named case red
+ * on purpose.
  */
 final class AxGrid {
 
@@ -332,29 +338,55 @@ final class AxGrid {
 
     /**
      * @param node the node asked
-     * @return {@code accessibilityHeader}: a table's header group, or zero
+     * @return {@code accessibilityHeader}: the group holding a table's header cells, or zero for
+     *         anything else and for a table that has none, a native headerless table answering no
+     *         header (read on the macOS 26.6.2 guest, 2026-09-15, {@code scripts/a11y/macos/table-probe.swift})
      */
     long header(AccessibleNode node) {
-        return node.table() == null ? 0 : headerOf(node);
+        int group = headerGroupOf(node);
+        return group == AccessibleNode.NONE ? 0 : source.elementFor(source.tree().node(group).id());
     }
 
     /**
      * @param node the node asked
-     * @return {@code accessibilityColumnHeaderUIElements}: for a table, the header group's children;
-     *         for a cell in a data row, the one header cell above it; otherwise, or when there is no
-     *         header to name, {@code null}
+     * @return whether {@link #header} has an answer; allocates nothing, because the gate asks it
+     */
+    boolean hasHeader(AccessibleNode node) {
+        return headerGroupOf(node) != AccessibleNode.NONE;
+    }
+
+    /**
+     * @param node the node asked
+     * @return {@code accessibilityColumnHeaderUIElements}: for a table, its header cells in order;
+     *         for a cell in a data row, the one header cell of its column; otherwise, or when there is
+     *         no header to name, {@code null}
      */
     long[] columnHeaderElements(AccessibleNode node) {
+        AccessibleTree tree = source.tree();
         if (node.table() != null) {
-            long header = headerOf(node);
-            AccessibleNode group = header == 0 ? null : source.nodeFor(header);
-            return group == null ? null : childrenOf(group, child -> true);
+            int group = headerGroupOf(node);
+            if (group == AccessibleNode.NONE) return null;
+            long[] found = new long[0];
+            for (int child = tree.node(group).firstChild(); child != AccessibleNode.NONE;
+                    child = tree.node(child).nextSibling()) {
+                AccessibleNode cell = tree.node(child);
+                if (cell.cell() == null || cell.cell().row() != HEADER_ROW) continue;
+                found = java.util.Arrays.copyOf(found, found.length + 1);
+                found[found.length - 1] = source.elementFor(cell.id());
+            }
+            return found;
         }
-        if (node.cell() != null && node.cell().row() >= 0) {
-            long header = columnHeaderOf(node);
-            return header == 0 ? null : new long[] {header};
-        }
-        return null;
+        int header = headerCellOf(node);
+        return header == AccessibleNode.NONE ? null : new long[] {source.elementFor(tree.node(header).id())};
+    }
+
+    /**
+     * @param node the node asked
+     * @return whether {@link #columnHeaderElements} has an answer; allocates nothing
+     */
+    boolean hasColumnHeaders(AccessibleNode node) {
+        return node.table() != null ? headerGroupOf(node) != AccessibleNode.NONE
+                : headerCellOf(node) != AccessibleNode.NONE;
     }
 
     /**
@@ -375,18 +407,26 @@ final class AxGrid {
 
     /**
      * NSAccessibilityRow's index: the row's place among the rows, from the facet the walk numbered it
-     * with, so an unrealized row above it still counts. A table's row by its position in the set; an
-     * outline's by the hierarchy facet's flat row (decision 4), never its place among its siblings; a
-     * list's by its position in the set (semantics 2). Zero-based, as a native outline's rows are.
+     * with, so an unrealized row above it still counts. A table's row by its cells' row (semantics 2),
+     * never its selection position, which a calendar week does not carry; an outline's by the hierarchy
+     * facet's flat row (decision 4), never its place among its siblings; a list's by its position in the
+     * set. Zero-based, as a native outline's and a native table's rows are (AXIndex 0, 1, 2…, read on
+     * the macOS 26.6.2 guest, 2026-09-15).
      *
      * @param node the node asked
-     * @return {@code accessibilityIndex}; {@code NSNotFound} for an outline or list row whose number
-     *         is unknown; {@code -1} for anything that is not a row, and for a table row with no
-     *         selection item
+     * @return {@code accessibilityIndex}; {@code NSNotFound} for a row whose number is unknown — a
+     *         table row with no data cell, an outline or list row with no number; {@code -1} for
+     *         anything that is not a row
      */
     long index(AccessibleNode node) {
         if (node.role() == Accessible.Role.ROW) {
-            return node.selectionItem() != null ? node.selectionItem().positionInSet() - 1 : -1;
+            AccessibleTree tree = source.tree();
+            for (int child = node.firstChild(); child != AccessibleNode.NONE;
+                    child = tree.node(child).nextSibling()) {
+                AccessibleNode cell = tree.node(child);
+                if (cell.cell() != null && cell.cell().row() >= 0) return cell.cell().row();
+            }
+            return NOT_FOUND[0];
         }
         AccessibleNode container = containerOf(node);
         if (container == null || !isOutlineOrList(container)) return -1;
@@ -398,70 +438,125 @@ final class AxGrid {
 
     /**
      * @param node the node asked
-     * @return {@code accessibilityRowIndexRange}: a range of one at a data cell's row, or
-     *         {@link #NOT_FOUND}
+     * @return whether it is a cell of a data row, which is what answers the two index ranges: a native
+     *         table's header buttons answer neither (read on the guest, 2026-09-15), and a footer cell
+     *         is in no data row
      */
-    long[] rowIndexRange(AccessibleNode node) {
-        return node.cell() == null || node.cell().row() < 0
-                ? NOT_FOUND : new long[] {node.cell().row(), 1};
+    static boolean isDataCell(AccessibleNode node) {
+        return node.cell() != null && node.cell().row() >= 0;
     }
 
     /**
      * @param node the node asked
-     * @return {@code accessibilityColumnIndexRange}: a range of one at a cell's column, or
+     * @return {@code accessibilityRowIndexRange}: a range of one at a data cell's row, or
      *         {@link #NOT_FOUND}
      */
-    long[] columnIndexRange(AccessibleNode node) {
-        return node.cell() == null ? NOT_FOUND : new long[] {node.cell().column(), 1};
+    long[] rowIndexRange(AccessibleNode node) {
+        return isDataCell(node) ? new long[] {node.cell().row(), 1} : NOT_FOUND;
     }
 
     /**
-     * {@code accessibilityCellForColumn:row:}.
+     * @param node the node asked
+     * @return {@code accessibilityColumnIndexRange}: a range of one at a data cell's column, or
+     *         {@link #NOT_FOUND}
+     */
+    long[] columnIndexRange(AccessibleNode node) {
+        return isDataCell(node) ? new long[] {node.cell().column(), 1} : NOT_FOUND;
+    }
+
+    /**
+     * {@code accessibilityCellForColumn:row:} (semantics 2): the node whose cell facet is (row, column)
+     * under one of this table's {@code ROW} children, whose nearest table ancestor is this table.
      *
      * @param node   the node asked
-     * @param column the column
-     * @param row    the data row, from zero
-     * @return the element of the cell at that column in the realized {@code ROW} whose position is
-     *         {@code row + 1}, or zero
+     * @param column the shown column, from zero
+     * @param row    the data row as shown, from zero
+     * @return its element, or zero: for a row the walk did not publish, a column the table does not
+     *         show, and anything that is not a table
      */
     long cellAt(AccessibleNode node, long column, long row) {
-        if (node.table() == null) return 0;
-        for (long rowElement : source.childElementsOf(node)) {
-            AccessibleNode rowNode = source.nodeFor(rowElement);
-            if (rowNode == null || rowNode.role() != Accessible.Role.ROW
-                    || rowNode.selectionItem() == null
-                    || rowNode.selectionItem().positionInSet() != row + 1) continue;
-            for (long cell : source.childElementsOf(rowNode)) {
-                AccessibleNode cellNode = source.nodeFor(cell);
-                if (cellNode != null && cellNode.cell() != null
-                        && cellNode.cell().column() == column) return cell;
+        if (node.table() == null || row < 0 || column < 0) return 0;
+        AccessibleTree tree = source.tree();
+        for (int child = node.firstChild(); child != AccessibleNode.NONE; child = tree.node(child).nextSibling()) {
+            if (tree.node(child).role() != Accessible.Role.ROW) continue;
+            // The nearest table above the row is the cell's too; a row that carried a table facet of
+            // its own would make its cells another table's.
+            int owner = tableAtOrAbove(tree, child);
+            if (owner == AccessibleNode.NONE || tree.node(owner).id() != node.id()) continue;
+            for (int at = tree.node(child).firstChild(); at != AccessibleNode.NONE; at = tree.node(at).nextSibling()) {
+                AccessibleNode cell = tree.node(at);
+                if (cell.cell() != null && cell.cell().row() == row && cell.cell().column() == column) {
+                    return source.elementFor(cell.id());
+                }
             }
-            return 0;
         }
         return 0;
     }
 
-    /** The element of the table's header group: its first child with the group role, or zero. */
-    private long headerOf(AccessibleNode table) {
-        for (long child : source.childElementsOf(table)) {
-            AccessibleNode childNode = source.nodeFor(child);
-            if (childNode != null && childNode.role() == Accessible.Role.GROUP) return child;
+    /** A header cell's row in its cell facet (ADR 041 §7); a footer cell's is {@code -2}. */
+    static final int HEADER_ROW = -1;
+
+    /**
+     * The index of the direct group child of a table that holds its header cells: the first one with a
+     * child whose cell facet's row is {@link #HEADER_ROW}. Allocates nothing.
+     *
+     * @return the index, or {@code NONE} for a node that is no table and a table with no header cell
+     */
+    private int headerGroupOf(AccessibleNode table) {
+        if (table.table() == null) return AccessibleNode.NONE;
+        AccessibleTree tree = source.tree();
+        for (int child = table.firstChild(); child != AccessibleNode.NONE; child = tree.node(child).nextSibling()) {
+            if (tree.node(child).role() != Accessible.Role.GROUP) continue;
+            for (int at = tree.node(child).firstChild(); at != AccessibleNode.NONE; at = tree.node(at).nextSibling()) {
+                AccessibleNode cell = tree.node(at);
+                if (cell.cell() != null && cell.cell().row() == HEADER_ROW) return child;
+            }
         }
-        return 0;
+        return AccessibleNode.NONE;
     }
 
-    /** The element of the header cell above {@code cell}, found by structure, or zero. */
-    private long columnHeaderOf(AccessibleNode cell) {
-        long parent = source.parentElementOf(cell);              // the row
-        AccessibleNode row = parent == 0 ? null : source.nodeFor(parent);
-        long tableElement = row == null ? 0 : source.parentElementOf(row);
-        AccessibleNode table = tableElement == 0 ? null : source.nodeFor(tableElement);
-        if (table == null || table.table() == null) return 0;
-        long header = headerOf(table);
-        AccessibleNode group = header == 0 ? null : source.nodeFor(header);
-        if (group == null) return 0;
-        long[] headers = source.childElementsOf(group);
-        int column = cell.cell().column();
-        return column >= 0 && column < headers.length ? headers[column] : 0;
+    /**
+     * The index of a data cell's header cell (semantics 3): under its nearest table ancestor, the child
+     * with {@code CellFacet(−1, c)} of one of the table's direct group children, c being the cell's
+     * column. Matched by column, never by place, so a column with no header cell has none and a footer
+     * cell is never one. Allocates nothing.
+     *
+     * @return the index, or {@code NONE}
+     */
+    int headerCellOf(AccessibleNode cell) {
+        if (!isDataCell(cell)) return AccessibleNode.NONE;
+        AccessibleTree tree = source.tree();
+        int at = tableAtOrAbove(tree, cell.parent());
+        if (at == AccessibleNode.NONE) return AccessibleNode.NONE;
+        return headerCellInColumn(tree, at, cell.cell().column());
+    }
+
+    /**
+     * @return the index of the child with {@code CellFacet(−1, column)} of one of the direct group
+     *         children of the table at {@code table}, or {@code NONE}
+     */
+    static int headerCellInColumn(AccessibleTree tree, int table, int column) {
+        for (int child = tree.node(table).firstChild(); child != AccessibleNode.NONE;
+                child = tree.node(child).nextSibling()) {
+            if (tree.node(child).role() != Accessible.Role.GROUP) continue;
+            for (int at = tree.node(child).firstChild(); at != AccessibleNode.NONE; at = tree.node(at).nextSibling()) {
+                AccessibleNode header = tree.node(at);
+                if (header.cell() != null && header.cell().row() == HEADER_ROW
+                        && header.cell().column() == column) return at;
+            }
+        }
+        return AccessibleNode.NONE;
+    }
+
+    /**
+     * @param from where to start, inclusive; {@code NONE} answers {@code NONE}
+     * @return the index of the nearest node at or above {@code from} carrying a table facet, or
+     *         {@code NONE}
+     */
+    static int tableAtOrAbove(AccessibleTree tree, int from) {
+        for (int at = from; at != AccessibleNode.NONE; at = tree.node(at).parent()) {
+            if (tree.node(at).table() != null) return at;
+        }
+        return AccessibleNode.NONE;
     }
 }

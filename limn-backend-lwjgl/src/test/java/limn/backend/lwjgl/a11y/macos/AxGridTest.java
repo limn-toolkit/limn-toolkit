@@ -29,12 +29,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * What the table, row and cell selectors answer, pinned as they stood when the answers were moved out
  * of {@link AxElementClass}'s closures into {@link AxGrid} (2026-09-15, behaviour-preserving).
  *
- * <p><b>These are characterization cases, not a specification.</b> Several of them pin answers the
- * audit found wrong, and say so by name: the header is the table's first group child whatever it holds
- * (MACOS-NEW-9), a row is found by its selection position (MACOS-NEW-4), a table has no columns while
- * its column count says otherwise (M4). The fix for each is meant to turn its case red on purpose and
- * restate it; everything else here is meant to stay green. M2's (an outline and a list had no rows)
- * was restated when outline and list rows landed, 2026-09-15.
+ * <p><b>These began as characterization cases, not a specification.</b> Several of them pinned answers
+ * the audit found wrong, and said so by name, so that each fix turned its case red on purpose and
+ * restated it: M2's (an outline and a list had no rows), MACOS-NEW-9's (the header was the table's
+ * first group child whatever it held), MACOS-NEW-4's (a row was found by its selection position) were
+ * restated when those fixes landed, 2026-09-15. One still pins a wrong answer: a table has no columns
+ * while its column count says otherwise (M4).
  */
 @ExtendWith(PlatformFreeBridges.class)
 class AxGridTest {
@@ -175,7 +175,7 @@ class AxGridTest {
     }
 
     @Test
-    void theHeaderIsTheTablesFirstGroupChildAndItsChildrenAreTheColumnHeaders() {
+    void theHeaderIsTheGroupHoldingTheHeaderCellsAndItsHeaderCellsAreTheColumnHeaders() {
         Fixture f = over(aTable());
         AccessibleNode table = f.node(1001);
         assertEquals(f.element(1002), f.grid().header(table));
@@ -194,7 +194,9 @@ class AxGridTest {
     }
 
     @Test
-    void aRowsIndexIsItsPositionLessOneAndAnythingElseAnswersMinusOne() {
+    void aRowsIndexIsItsCellsRowAndAnythingElseAnswersMinusOne() {
+        // Restated 2026-09-15 (semantics 2): the cells' row, where it was the selection position less
+        // one; this fixture's rows carry both, and they agree.
         Fixture f = over(aTable());
         assertEquals(0, f.grid().index(f.node(1010)));
         assertEquals(1, f.grid().index(f.node(1020)));
@@ -205,23 +207,26 @@ class AxGridTest {
     }
 
     @Test
-    void aCellsRangesAreOneWideAtItsRowAndColumn() {
+    void aDataCellsRangesAreOneWideAtItsRowAndColumnAndAHeaderOrFooterCellHasNone() {
+        // Restated 2026-09-15: a header cell answered its column's range, and a footer cell its own;
+        // a native NSTableView's header buttons answer no AXColumnIndexRange (read on the macOS
+        // 26.6.2 guest, table-probe.swift), and a footer is in no data row.
         Fixture f = over(aTable());
         assertArrayEquals(new long[] {1, 1}, f.grid().rowIndexRange(f.node(1023)));
         assertArrayEquals(new long[] {2, 1}, f.grid().columnIndexRange(f.node(1023)));
         assertArrayEquals(AxGrid.NOT_FOUND, f.grid().rowIndexRange(f.node(1005)),
                 "a header cell is in no data row");
-        assertArrayEquals(new long[] {2, 1}, f.grid().columnIndexRange(f.node(1005)),
-                "but it is in its column");
+        assertArrayEquals(AxGrid.NOT_FOUND, f.grid().columnIndexRange(f.node(1005)),
+                "and answers no column range, as a native header button answers none");
         assertArrayEquals(AxGrid.NOT_FOUND, f.grid().rowIndexRange(f.node(1041)));
-        assertArrayEquals(new long[] {0, 1}, f.grid().columnIndexRange(f.node(1041)));
+        assertArrayEquals(AxGrid.NOT_FOUND, f.grid().columnIndexRange(f.node(1041)));
         assertArrayEquals(AxGrid.NOT_FOUND, f.grid().rowIndexRange(f.node(1050)));
         assertArrayEquals(AxGrid.NOT_FOUND, f.grid().columnIndexRange(f.node(1050)));
         assertEquals(Long.MAX_VALUE, AxGrid.NOT_FOUND[0], "NSNotFound");
     }
 
     @Test
-    void aCellIsFoundByTheRealizedRowAtThatPositionAndItsColumn() {
+    void aCellIsFoundByItsRowAndColumnInARealizedRow() {
         Fixture f = over(aTable());
         AccessibleNode table = f.node(1001);
         assertEquals(f.element(1023), f.grid().cellAt(table, 2, 1));
@@ -232,11 +237,11 @@ class AxGridTest {
     }
 
     @Test
-    void withNoHeaderTheFooterGroupIsAnsweredAsTheHeaderToday() {
-        // MACOS-NEW-9 pinned (the settled header-group rule changes it): TABLE > ROW > CELL (0,0),
-        // CELL (0,1), then a footer GROUP > CELL (−2, 1). The footer is the first group child, so
-        // it is the header, and the data cell in column 0 is told the footer's only cell as its
-        // column header, which is column 1's.
+    void aTableWithoutAHeaderAnswersNoHeaderEvenWithAFooter() {
+        // MACOS-NEW-9, restated 2026-09-15 (semantics 3): this case was
+        // withNoHeaderTheFooterGroupIsAnsweredAsTheHeaderToday, which pinned the footer group as the
+        // header and the footer's only cell (column 1's) as column 0's header. TABLE > ROW > CELL
+        // (0,0), CELL (0,1), then a footer GROUP > CELL (-2, 1).
         Shape s = new Shape();
         Accessibility a = s.a;
         int table = s.open(1001, 0, Accessible.Role.TABLE, true);
@@ -256,16 +261,50 @@ class AxGridTest {
         a.end();
         a.end();
         Fixture f = over(s.publish());
-        assertEquals(f.element(1040), f.grid().header(f.node(1001)));
-        assertArrayEquals(f.elements(1041), f.grid().columnHeaderElements(f.node(1011)));
+        assertEquals(0, f.grid().header(f.node(1001)), "a footer is not a header");
+        assertTrue(!f.grid().hasHeader(f.node(1001)));
+        assertNull(f.grid().columnHeaderElements(f.node(1001)));
+        assertNull(f.grid().columnHeaderElements(f.node(1011)));
         assertNull(f.grid().columnHeaderElements(f.node(1012)),
-                "column 1 has no header: the footer group has only one child, at position 0");
+                "the footer's cell in column 1 is never column 1's header");
     }
 
     @Test
-    void aRowWithNoSelectionItemHasNoIndexAndItsCellsCannotBeFoundToday() {
-        // MACOS-NEW-4 pinned (semantics 2 changes it): a calendar week is a ROW with no selection
-        // item, and its cells carry their own CellFacet.
+    void aHeaderCellIsMatchedByItsColumnAndNeverByItsPlace() {
+        // A header group whose cells are for columns 0 and 2 only: column 2's data cell is told the
+        // second header cell, and column 1's has none, where a match by place told column 1 the
+        // header of column 2 and column 2 nothing.
+        Shape s = new Shape();
+        Accessibility a = s.a;
+        int table = s.open(1001, 0, Accessible.Role.TABLE, true);
+        a.table(1, 3);
+        int header = s.open(1002, table, Accessible.Role.GROUP, true);
+        for (int c : new int[] {0, 2}) {
+            s.open(1003 + c, header, Accessible.Role.COLUMN_HEADER, true);
+            a.cell(-1, c);
+            a.end();
+        }
+        a.end();
+        int row = s.open(1010, table, Accessible.Role.ROW, true);
+        for (int c = 0; c < 3; c++) {
+            s.open(1011 + c, row, Accessible.Role.CELL, true);
+            a.cell(0, c);
+            a.end();
+        }
+        a.end();
+        a.end();
+        Fixture f = over(s.publish());
+        assertArrayEquals(f.elements(1005), f.grid().columnHeaderElements(f.node(1013)));
+        assertNull(f.grid().columnHeaderElements(f.node(1012)), "column 1 has no header cell");
+        assertArrayEquals(f.elements(1003), f.grid().columnHeaderElements(f.node(1011)));
+    }
+
+    @Test
+    void aCalendarWeekIsFoundAndNumberedByItsCellsThoughItCarriesNoSelectionItem() {
+        // MACOS-NEW-4, restated 2026-09-15 (semantics 2): this case was
+        // aRowWithNoSelectionItemHasNoIndexAndItsCellsCannotBeFoundToday, which pinned an index of -1
+        // and no cell. A calendar week is a ROW with no selection item, and its cells carry their own
+        // CellFacet.
         Shape s = new Shape();
         Accessibility a = s.a;
         int table = s.open(1001, 0, Accessible.Role.TABLE, true);
@@ -277,10 +316,75 @@ class AxGridTest {
         a.end();
         a.end();
         Fixture f = over(s.publish());
-        assertEquals(-1, f.grid().index(f.node(1010)));
-        assertEquals(0, f.grid().cellAt(f.node(1001), 3, 2));
-        assertArrayEquals(new long[] {2, 1}, f.grid().rowIndexRange(f.node(1013)),
-                "while the cell itself says where it is");
+        assertEquals(2, f.grid().index(f.node(1010)), "the week's cells say which row it is");
+        assertEquals(f.element(1013), f.grid().cellAt(f.node(1001), 3, 2));
+        assertArrayEquals(new long[] {2, 1}, f.grid().rowIndexRange(f.node(1013)));
+    }
+
+    @Test
+    void aWidgetCellUnderItsRowIsFoundAndToldItsColumnsHeaderAndANestedTablesCellsAreNot() {
+        // MACOS-NEW-10 (decision 3): a widget cell hangs under its synthetic ROW keeping its own role,
+        // so it is found by its facet among the row's children; and a table inside a widget cell is
+        // another table, whose cells are never this one's (the nearest table ancestor, semantics 2).
+        Shape s = new Shape();
+        Accessibility a = s.a;
+        int table = s.open(1001, 0, Accessible.Role.TABLE, true);
+        a.table(1, 2);
+        int header = s.open(1002, table, Accessible.Role.GROUP, true);
+        for (int c = 0; c < 2; c++) {
+            s.open(1003 + c, header, Accessible.Role.COLUMN_HEADER, true);
+            a.cell(-1, c);
+            a.end();
+        }
+        a.end();
+        int row = s.open(1010, table, Accessible.Role.ROW, true);
+        s.open(1011, row, Accessible.Role.CELL, true);
+        a.cell(0, 0);
+        a.end();
+        s.open(1012, row, Accessible.Role.CHECK_BOX, true);
+        a.cell(0, 1);
+        a.end();
+        a.end();
+        // A row that is a table of its own: its cells' nearest table is the row, not this table.
+        int grid = s.open(1030, table, Accessible.Role.ROW, true);
+        a.table(1, 1);
+        s.open(1031, grid, Accessible.Role.CELL, true);
+        a.cell(7, 0);
+        a.end();
+        a.end();
+        int other = s.open(1020, 0, Accessible.Role.TABLE, true);
+        a.table(1, 1);
+        int otherRow = s.open(1021, other, Accessible.Role.ROW, true);
+        s.open(1022, otherRow, Accessible.Role.CELL, true);
+        a.cell(0, 0);
+        a.end();
+        a.end();
+        a.end();
+        Fixture f = over(s.publish());
+        assertEquals(f.element(1012), f.grid().cellAt(f.node(1001), 1, 0), "the check box in column 1");
+        assertArrayEquals(f.elements(1004), f.grid().columnHeaderElements(f.node(1012)));
+        assertEquals(0, f.grid().index(f.node(1010)));
+        assertEquals(f.element(1022), f.grid().cellAt(f.node(1020), 0, 0));
+        assertEquals(f.element(1011), f.grid().cellAt(f.node(1001), 0, 0),
+                "and each table finds only its own cell at (0, 0)");
+        assertNull(f.grid().columnHeaderElements(f.node(1022)), "the other table has no header");
+        assertEquals(0, f.grid().cellAt(f.node(1001), 0, 7),
+                "a cell whose nearest table ancestor is not this table is not this table's (semantics 2)");
+    }
+
+    @Test
+    void aTableRowWithNoDataCellHasNoNumber() {
+        Shape s = new Shape();
+        Accessibility a = s.a;
+        int table = s.open(1001, 0, Accessible.Role.TABLE, true);
+        a.table(3, 0);
+        s.open(1010, table, Accessible.Role.ROW, true);
+        a.selectionItem(false, 2, 3);
+        a.end();
+        a.end();
+        Fixture f = over(s.publish());
+        assertEquals(AxGrid.NOT_FOUND[0], f.grid().index(f.node(1010)),
+                "NSNotFound, and never the selection position a calendar week would not have");
     }
 
     /**

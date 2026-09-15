@@ -2214,6 +2214,18 @@ the legacy `accessibilityActionNames` has its perform of that name delivered to
 list. So the bridge answers `accessibilityActionNames` with every action the node offers plus
 scroll-to-visible where it accepts `SCROLL_INTO_VIEW`, and `accessibilityPerformAction:` posts the verb
 a listed name means; the pair is installed together, and only with the gate.
+*Table cells, rows and headers (MACOS-NEW-4, MACOS-NEW-9, MACOS-NEW-10; semantics 2 and 3; the
+same day):* `accessibilityCellForColumn:row:` answers the node whose `CellFacet` is (row, column)
+under one of the table's `ROW` children and whose nearest table ancestor is the table — a widget cell
+under its row included — and never reads a selection position; a table row's `accessibilityIndex` is
+its cells' row, so a calendar week, which carries no selection item, is found and numbered like any
+row; the header of column c is the child with `CellFacet(−1, c)` of one of the table's direct group
+children, matched by column, and a table with no such child — its header hidden, its footer shown —
+has no `accessibilityHeader` and no column headers at all, where the row above said "the table's
+first group child". A native `NSTableView` read on the guest (2026-09-15,
+`scripts/a11y/macos/table-probe.swift`) answered no `AXHeader` without its header view and no
+`AXColumnIndexRange` on its header buttons, so both are refused there, and the two index ranges are
+answered on data cells only.
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a

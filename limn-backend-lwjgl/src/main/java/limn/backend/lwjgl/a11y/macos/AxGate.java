@@ -13,7 +13,8 @@ import limn.accessibility.AccessibleNode;
  * overridden, and an overridden one is then never entered. So a selector installed class-wide for
  * the nodes that have an answer is refused here on every node that has none, instead of answering a
  * sentinel — a button with an {@code AXRows} of nil and an {@code AXRowCount} of zero, a table cell
- * with an {@code AXIndex} of −1.
+ * with an {@code AXIndex} of −1, a headerless table with an {@code AXHeader} of nil, a button with an
+ * {@code AXColumnIndexRange} of {@code NSNotFound}.
  *
  * <p>Separate from {@link AxElementClass} for the reason {@link AxGrid} is: the closure that asks this
  * needs AppKit, and the answer does not.
@@ -55,6 +56,15 @@ final class AxGate {
             case "accessibilitySelectedCells" -> node.selection() != null
                     && grid.selectionShape(node) == AxGrid.SelectionShape.CELLS;
             case "accessibilityIndex" -> grid.isRow(node);
+            // A table's header, and a header to name, only where there is one (semantics 3): a native
+            // headerless table answers no AXHeader (read on the macOS 26.6.2 guest, 2026-09-15,
+            // table-probe.swift), and a table whose only group is its footer has no header at all.
+            case "accessibilityHeader" -> grid.hasHeader(node);
+            case "accessibilityColumnHeaderUIElements" -> grid.hasColumnHeaders(node);
+            case "accessibilityCellForColumn:row:" -> node.table() != null;
+            // A cell of a data row: the native table's header buttons answer neither range (read the
+            // same day), and a footer cell is in no data row.
+            case "accessibilityRowIndexRange", "accessibilityColumnIndexRange" -> AxGrid.isDataCell(node);
             // An outline row's disclosure, and nobody else's: a native outline row lists all four,
             // leaves included, and no AXExpanded (read on the guest 2026-09-15). A level of zero
             // publishes nothing (semantics 6), which here is the getter refused.

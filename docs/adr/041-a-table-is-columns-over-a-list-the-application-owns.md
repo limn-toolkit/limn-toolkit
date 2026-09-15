@@ -575,6 +575,15 @@ null provider. A Windows client reads the table's selection through the rows' Se
 pattern and its scroll not at all. A shared bridge defect the bridges lanes own, not this
 record's promise fulfilled; the row stands as the intent.
 
+**Amended 2026-09-15 (phase 3, the macOS row; MACOS-NEW-4, MACOS-NEW-9, MACOS-NEW-10).** The macOS
+bridge's lookups follow the header-group rule and ADR 039's semantics 2: a cell is found by its own
+`CellFacet` under the table's rows (the widget cell under its row included), a row's `AXIndex` is its
+cells' row, and the header of column *c* is matched by `CellFacet(-1, c)` among the table's direct
+groups, so a headerless table answers no `accessibilityHeader`. The row's "header cell" column is
+still what the bridge vends as written: `COLUMN_HEADER` is `NSAccessibilityButtonRole` with the
+sort-button subrole, which is what a native `NSTableView` read on the guest vends for its header
+cells (2026-09-15, `scripts/a11y/macos/table-probe.swift`), not `NSAccessibilityCellRole`.
+
 ### 7.1 What the live clients found
 
 Two defects, both invisible to the headless tests because both are about what the platform's
