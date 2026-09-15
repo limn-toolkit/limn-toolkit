@@ -187,7 +187,10 @@ final class AtspiApplication {
      */
     private final AtomicBoolean joining = new AtomicBoolean();
     private volatile String name = "";
-    /** The desktop's accessibility switch, as the watch last read it. Watch thread writes. */
+    /**
+     * Whether the desktop has ever said assistive technology is running. Watch thread writes, and
+     * only ever from false to true (decision 67; {@link #enabled(boolean)}).
+     */
     private volatile boolean enabled;
     private final AtomicBoolean watching = new AtomicBoolean();
     /**
@@ -195,7 +198,7 @@ final class AtspiApplication {
      * held. Written only by a thread holding {@code joining}.
      */
     private volatile int failures;
-    /** The thread waiting out a back-off, so the switch turning off can end the wait. */
+    /** The thread waiting out a back-off, so the last window leaving can end the wait. */
     private volatile Thread waiting;
     private volatile int generations;
     /** The join whose frames the windows' bookkeeping describes. User-interface thread. */
@@ -245,7 +248,7 @@ final class AtspiApplication {
         return objects;
     }
 
-    /** @return whether the desktop says assistive technology is running, as last read */
+    /** @return whether the desktop has said assistive technology is running (and never unsaid it) */
     boolean isEnabled() {
         return enabled;
     }
@@ -266,34 +269,30 @@ final class AtspiApplication {
     /**
      * The desktop's switch moved, or was read. Any thread; the watch thread in the process.
      *
-     * <p>On: every attached window is asked for a publish, which buys the frame an idle window would
-     * otherwise never spend, and that publish joins. Off: the join is let go of, so the registry
-     * sees the application leave and no window keeps walking for a reader that has gone (decision
-     * 29).
+     * <p><b>On is once and for ever (decision 67).</b> The first true asks every attached window for
+     * a publish, which buys the frame an idle window would otherwise never spend, and that publish
+     * joins. A later false is recorded nowhere and changes nothing: the application stays embedded
+     * for the life of the process, as a GTK application does once {@code atk-bridge} has loaded.
      *
-     * @param on the switch's value
+     * <p>It used to leave the bus on a false, which is decision 29's teardown half. That half rested
+     * on the switch going false when the reader left, and it does not: neither Orca 50.2 (Fedora KDE
+     * 44) nor Orca 46.1 (Ubuntu 24.04) ever writes {@code IsEnabled} false — the only write either
+     * makes sets it true at start — and at-spi-bus-launcher clears nothing when the screen reader is
+     * disabled (readings/fedora-orca-switch-writes.txt, readings/ubuntu-orca-switch-writes.txt,
+     * readings/upstream-at-spi-bus-launcher-2.52-2.60.txt, 2026-09-15). So the false the teardown
+     * waited for never arrived from a reader quitting, and the one that did arrive — the desktop's
+     * own accessibility setting turned off, or its bus going away — would drop a reader that is
+     * still running on the connection it is still reading. The cost of staying is one embedded
+     * connection and its two threads, which ADR 039 §6 records.
+     *
+     * @param on the switch's value; a false is ignored once a true has been seen
      */
     void enabled(boolean on) {
-        boolean was = enabled;
-        enabled = on;
-        if (on == was) {
+        if (!on || enabled) {
             return;
         }
-        if (on) {
-            askEveryWindowToPublish();
-            return;
-        }
-        // A back-off being waited out is for a reader that has gone: end it now rather than keep a
-        // thread for up to a minute. Written before this read, as the waiter reads the switch after
-        // it names itself, so neither misses the other.
-        Thread waiter = waiting;
-        if (waiter != null) {
-            waiter.interrupt();
-        }
-        Joined now = joined.get();
-        if (now != null) {
-            leave(now);
-        }
+        enabled = true;
+        askEveryWindowToPublish();
     }
 
     /** Asks every attached window for a publish, which is what starts a join. Any thread. */
@@ -841,15 +840,13 @@ final class AtspiApplication {
         self.set(now);
         if (lostEarly.get()) {
             connectionLost(now);
-        } else if (!enabled || windows.isEmpty()) {
-            // The switch went off, or every window left, while the join ran: nothing is reading,
-            // and an application with no frame is what the next window must not register into.
+        } else if (windows.isEmpty()) {
+            // Every window left while the join ran: an application with no frame is what the next
+            // window must not register into.
             //
-            // Read AFTER the joined state is published, never before: enabled(false) writes the
-            // switch and then reads the joined state, so each of the two threads reads what the
-            // other wrote first and one of them always lets the join go. The check used to come
-            // before the publication, and a switch turned off between the two found nothing to
-            // leave while this thread found nothing turned off (the linux-A review).
+            // The switch was read here too until decision 67, because it could go off during the
+            // join; it cannot any more (see enabled(boolean)), and with it went the ordering this
+            // read had to keep against the thread that turned it off.
             leave(now);
         }
     }
@@ -888,7 +885,7 @@ final class AtspiApplication {
     /**
      * On a thread holding {@code joining}, after a failure: waits the back-off for the failures
      * counted so far, lets the join go, and asks every window for the publish that tries again —
-     * unless the switch went off or the application joined meanwhile.
+     * unless the last window left or the application joined meanwhile.
      *
      * <p>It used to only record when the next join might start and leave the asking to whatever
      * published next (LINUX-NEW-12, the linux-A review). A scene publishes only when its tree is
@@ -901,20 +898,20 @@ final class AtspiApplication {
         waiting = Thread.currentThread();
         boolean waited = false;
         try {
-            // Read after naming this thread, as enabled(false) writes the switch before it reads
-            // the name: one of the two always sees the other.
-            if (enabled && !windows.isEmpty()) {
+            // Named before this read, as detached() writes the window table before it reads the
+            // name: one of the two always sees the other.
+            if (!windows.isEmpty()) {
                 sleeper.sleep(wait);
                 waited = true;
             }
         } catch (InterruptedException e) {
-            // The switch went off, or the last window left: nobody to ask.
+            // The last window left: nobody to ask.
         } finally {
             waiting = null;
             Thread.interrupted();  // an interrupt that came after the wait was for this wait alone
             joining.set(false);
         }
-        if (waited && enabled && joined.get() == null) {
+        if (waited && joined.get() == null) {
             askEveryWindowToPublish();
         }
     }

@@ -172,23 +172,28 @@ class AtspiApplicationTest {
         assertTrue(app.isJoined());
 
         app.enabled(false);
-        assertFalse(window.isListening());
-        assertFalse(app.isJoined(), "the reader quit: the application leaves the bus");
-        assertTrue(bus.closed);
+        assertTrue(window.isListening(), "decision 67: once the desktop has said yes, the window "
+                + "keeps listening for the life of the process");
+        assertTrue(app.isJoined(), "and the application stays embedded: no reader ever writes the "
+                + "switch false, so a false is not a reader leaving");
+        assertFalse(bus.closed);
 
         app.enabled(true);
-        assertEquals(2, republishes[0]);
-        assertEquals(2, quietRepublishes[0]);
+        assertEquals(1, republishes[0], "and the switch coming back is not a change either");
+        assertEquals(1, quietRepublishes[0]);
         window.publish(aWindow("Main", 0).tree(), false);
-        assertEquals(2, bus.joins, "and comes back when a reader does");
+        assertEquals(1, bus.joins, "nothing rejoined, because nothing left");
     }
 
     @Test
-    void aJoinThatCompletesAfterTheSwitchWentOffLeavesAtOnce() {
+    void aSwitchTurnedOffWhileTheJoinRunsLeavesTheJoinAlone() {
+        // Until decision 67 the joiner read the switch after publishing its state and left when it
+        // had gone off, and the two tests here drove the switch off at both edges of that gap. The
+        // switch cannot go off any more: the only false a desktop sends is one no reader asked for.
         AtspiApplication[] app = new AtspiApplication[1];
         boolean[] closed = {false};
         app[0] = new AtspiApplication((objects, lost) -> {
-            app[0].enabled(false);  // the reader quits while the registry is embedding us
+            app[0].enabled(false);  // the desktop's setting is turned off while we embed
             return new AtspiApplication.Link() {
                 @Override public boolean signal(DBus.Msg signal, boolean tail) { return true; }
                 @Override public void close() { closed[0] = true; }
@@ -196,38 +201,8 @@ class AtspiApplicationTest {
         }, AtspiApplication.Starter.ON_THE_CALLER, System::nanoTime);
         app[0].enabled(true);
         app[0].window().publish(aWindow("Main", 0).tree(), false);
-        assertFalse(app[0].isJoined(), "nothing stays joined for a switch that is off");
-        assertTrue(closed[0]);
-    }
-
-    @Test
-    void aSwitchTurnedOffBetweenTheJoinsLastLookAndItsPublicationStillLeaves() {
-        // The window the review named: the joiner has its link and has not yet published the
-        // joined state when the reader quits. The clock is read in exactly that gap (the join's
-        // timestamp), so the test turns the switch off there: enabled(false) then finds nothing
-        // joined to leave, and only a look at the switch after the publication can let it go.
-        AtspiApplication[] app = new AtspiApplication[1];
-        boolean[] armed = {false};
-        boolean[] closed = {false};
-        app[0] = new AtspiApplication((objects, lost) -> {
-            armed[0] = true;
-            return new AtspiApplication.Link() {
-                @Override public boolean signal(DBus.Msg signal, boolean tail) { return true; }
-                @Override public void close() { closed[0] = true; }
-            };
-        }, AtspiApplication.Starter.ON_THE_CALLER, () -> {
-            if (armed[0]) {
-                armed[0] = false;
-                app[0].enabled(false);
-                assertFalse(app[0].isJoined(), "the switch went off before the state was published");
-            }
-            return 1_000_000_000L;
-        });
-        app[0].enabled(true);
-        app[0].window().publish(aWindow("Main", 0).tree(), false);
-        assertFalse(app[0].isJoined(), "nothing stays joined for a switch that is off, whichever "
-                + "thread looked first");
-        assertTrue(closed[0]);
+        assertTrue(app[0].isJoined(), "the join stands: a reader may be reading us on it");
+        assertFalse(closed[0]);
     }
 
     private static String path(long id) {
@@ -488,34 +463,37 @@ class AtspiApplicationTest {
     }
 
     @Test
-    void theSwitchTurningOffEndsABackOffAndNobodyIsAsked() {
+    void theLastWindowLeavingEndsABackOffAndNobodyIsAsked() {
         List<Runnable> threads = new ArrayList<>();
         AtspiApplication[] app = new AtspiApplication[1];
         boolean[] interrupted = {false};
+        AtspiBridge[] main = new AtspiBridge[1];
         app[0] = new AtspiApplication((objects, lost) -> {
             throw new java.io.IOException("the registry is not there");
         }, (name, body) -> threads.add(body), System::nanoTime, nanos -> {
-            app[0].enabled(false);  // the reader quits during the wait
+            app[0].enabled(false);  // a desktop setting turned off during the wait changes nothing
+            main[0].detach();       // the window closing does end it: there is nobody to ask
             if (Thread.interrupted()) {
                 interrupted[0] = true;
                 throw new InterruptedException();
             }
         });
-        AtspiBridge main = app[0].window();
+        main[0] = app[0].window();
         int[] republishes = {0};
-        main.attach(hostCounting(republishes));
+        main[0].attach(hostCounting(republishes));
         app[0].enabled(true);
         assertEquals(1, republishes[0]);
-        main.publish(aWindow("Main", 0).tree(), false);
+        main[0].publish(aWindow("Main", 0).tree(), false);
         threads.remove(0).run();
         assertTrue(interrupted[0], "the wait is ended rather than kept for up to a minute for a "
-                + "reader that has gone");
+                + "window that has gone");
         assertEquals(1, republishes[0], "and nobody is asked to publish for it");
 
-        app[0].enabled(true);
-        assertEquals(2, republishes[0]);
-        main.publish(aWindow("Main", 0).tree(), false);
-        assertEquals(1, threads.size(), "a reader that comes back is joined for at once: the ended "
+        AtspiBridge second = app[0].window();
+        int[] secondRepublishes = {0};
+        second.attach(hostCounting(secondRepublishes));
+        second.publish(aWindow("Main", 0).tree(), false);
+        assertEquals(1, threads.size(), "a window that comes back is joined for at once: the ended "
                 + "wait holds nothing");
     }
 

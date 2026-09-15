@@ -22,14 +22,17 @@ import limn.backend.lwjgl.a11y.PlatformBridge;
  * {@code org.a11y.Status.IsEnabled} on the session bus says whether assistive technology is running
  * at all, and it moves while applications run: a screen reader started after this window turns it
  * on. The process keeps one session connection and one parked thread following it
- * ({@link AtspiStatusWatch}, decision 29). While it is false no connection to the accessibility bus
- * is opened, no scene walks and no frame is spent; when it turns true every window is asked for a
- * publish, and when it turns false the application leaves the bus. A reader that quits does not
- * turn it off by itself: neither Orca 50.2 nor 46.1 ever writes it false
- * (readings/fedora-orca-switch-writes.txt, readings/ubuntu-orca-switch-writes.txt), so the leave
- * happens when the desktop's own setting or the session turns it off (ADR 039 §6). It is never "a client asked us
- * something recently": Orca registers for a focus change and then calls nothing until one fires, so
- * a gate of that shape goes silent exactly when the interface is being used.
+ * ({@link AtspiStatusWatch}, decision 29). While it has never been true no connection to the
+ * accessibility bus is opened, no scene walks and no frame is spent; the first true asks every
+ * window for a publish, and there it stays: <b>once embedded, embedded for the life of the
+ * process</b> (decision 67), as a GTK application is once {@code atk-bridge} has loaded. A false
+ * afterwards changes nothing, because it never means what a teardown would need it to mean:
+ * neither Orca 50.2 nor 46.1 ever writes the switch false
+ * (readings/fedora-orca-switch-writes.txt, readings/ubuntu-orca-switch-writes.txt), so a reader
+ * that quits leaves it on, and a false that does arrive — the desktop's own accessibility setting
+ * — can arrive while a reader is still reading us (ADR 039 §6). The gate is never "a client asked
+ * us something recently": Orca registers for a focus change and then calls nothing until one
+ * fires, so a gate of that shape goes silent exactly when the interface is being used.
  *
  * <p><b>Which thread may do what is the whole of the concurrency design.</b> The user-interface
  * thread publishes snapshots and enqueues events and blocks on nothing. The status thread follows

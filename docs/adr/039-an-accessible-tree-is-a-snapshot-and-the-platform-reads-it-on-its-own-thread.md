@@ -4354,6 +4354,47 @@ embed half of decision 29 holds; the teardown half holds only for a switch turne
 Whether teardown should follow a different signal is the owner's question (logged in the Linux lane
 log); phase 5 measures what each desktop does to the switch when Orca quits.
 
+#### Amendment 2026-09-15 — decision 67: once embedded, embedded for the life of the process
+
+**The owner's answer to the question above: stay embedded, and say why.** The teardown half of
+decision 29 is withdrawn. `AtspiApplication#enabled(boolean)` acts on the rising edge only — the
+first `true` asks every window to publish and joins, and every `false` after it is ignored — so the
+application keeps its connection, its frames and its walks until the process ends.
+
+**The reading it rests on, from both guests, 2026-09-15**
+(`scripts/a11y/linux/read-orca-switch-writes.sh`; `readings/fedora-orca-switch-writes.txt`, Orca 50.2
+on Fedora KDE 44 with at-spi2-core 2.60.6; `readings/ubuntu-orca-switch-writes.txt`, Orca 46.1 on
+Ubuntu 24.04 with at-spi2-core 2.52.0): the only write either Orca makes to `org.a11y.Status` sets
+`IsEnabled` **true**, at start; neither shutdown path touches it, and at-spi-bus-launcher clears
+nothing when the screen reader is disabled
+(`readings/upstream-at-spi-bus-launcher-2.52-2.60.txt`). The bridge therefore cannot learn from this
+switch that a reader has left, and the `false` it *can* receive means something else entirely — the
+desktop's own accessibility setting turned off, or the bus's owner going away — which may happen
+while a reader is still reading us on the connection the teardown would close. A teardown driven by
+that flag is not "tears down with Orca"; it is "drops whoever is reading, for a reason unrelated to
+them".
+
+**The precedent: this is what GTK does.** `atk-bridge` is loaded once, when the toolkit sees the
+switch on, and there is no path that unloads it or withdraws the application from the registry
+because accessibility was switched off; a GTK window on either of these desktops stays readable for
+its process's life. Limn now matches the platform's own behaviour rather than inventing a shutdown
+no client expects.
+
+**The idle cost this accepts**, beyond the parked status thread the amendment above measures: one
+accessibility-bus connection with its reader and writer threads, kept for the life of the process
+after the first `true`, and §5.3's walk on damaged frames for as long as the process lives. Both were
+already the cost while a reader ran; what changes is that they are no longer given back when the
+desktop's switch goes off. Nothing new is allocated per frame, and a process that never sees a `true`
+still pays nothing at all.
+
+**What the code does.** `AtspiApplication.enabled(boolean)` returns at once for a `false` and for a
+`true` it has already seen; the joiner's "did the switch go off while I joined" check and the
+back-off's went with it (the last window leaving still ends both, which is a different condition).
+Pinned by `AtspiApplicationTest`'s
+`theSwitchDecidesWhetherAWindowListensAndJoinsAndTurningItOnWakesEveryWindow` — the `false` leaves
+the window listening and the application joined — and
+`aSwitchTurnedOffWhileTheJoinRunsLeavesTheJoinAlone`.
+
 **These are the gates, and the gate is never "a client asked us something recently."** A publish
 conditioned on a recent inbound call inverts the contract on all three platforms: the platform events
 are pushes a client waits on, and Orca in particular registers for `object:state-changed:focused` and
