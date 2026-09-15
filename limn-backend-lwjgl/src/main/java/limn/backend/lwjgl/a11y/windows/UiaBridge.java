@@ -82,10 +82,16 @@ public final class UiaBridge extends PlatformBridge {
             java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /**
-     * Held by another window's drain thread while it raises a focus change on one of this bridge's
-     * elements, and by the whole-registry empty while it frees them, so the empty never frees an
-     * element a raise from outside is standing on. This bridge's own drain needs no such guard:
-     * the empty stops and joins it first.
+     * Held by the whole-registry empty while it frees this bridge's elements, and by every entry
+     * that reaches one of them <b>from another window</b>: that window's drain thread raising a
+     * focus change here ({@link #raiseFocusFromAnotherWindow}), and that window's RPC thread
+     * handing this window's element to UI Automation from its own {@code GetFocus}
+     * ({@link #handOverFromAnotherWindow}). So the empty never frees an element such a raise or
+     * hand-over is standing on, and neither mints into a registry the empty is clearing. This
+     * bridge's own drain needs no such guard, because the empty stops and joins it first. Its own
+     * RPC calls do not take it either: they arrive through its own provider, whose root the empty
+     * disconnects first, and a call arriving through another window's provider, still connected,
+     * has not even that.
      */
     private final Object vendGuard = new Object();
 
@@ -609,7 +615,7 @@ public final class UiaBridge extends PlatformBridge {
      */
     private boolean raiseFocusFromAnotherWindow(long nodeId) {
         synchronized (vendGuard) {
-            if (closed) {
+            if (closed || !OPEN.contains(this)) {
                 return false;
             }
             UiaElement element = elementOf(nodeId);
@@ -620,6 +626,30 @@ public final class UiaBridge extends PlatformBridge {
             owedAnEvent = false;
             return true;
         }
+    }
+
+    /**
+     * This bridge's fragment pointer for a node, handed to another window's {@code GetFocus} on
+     * that window's RPC thread (decision 5), under this bridge's guard: the element is minted,
+     * found and referenced while the whole-registry empty cannot run, and not at all once this
+     * bridge has left the open set, which its detach does before it empties.
+     *
+     * @param nodeId a node of this bridge's tree
+     * @return the pointer, referenced for the caller, or {@code 0} once this bridge is closing or
+     *         the node has left
+     */
+    private long handOverFromAnotherWindow(long nodeId) {
+        synchronized (vendGuard) {
+            if (closed || !OPEN.contains(this)) {
+                return 0;
+            }
+            return handOver(nodeId, UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT);
+        }
+    }
+
+    /** @return the guard another window's entries take; for the test that pins that they do */
+    Object vendGuardForTests() {
+        return vendGuard;
     }
 
     /**
@@ -995,13 +1025,14 @@ public final class UiaBridge extends PlatformBridge {
         }
 
         /**
-         * <p>The popup window's own fragment pointer, handed over by the bridge that holds it and
-         * referenced there, which is the element UI Automation raised the focus change on.
+         * <p>The popup window's own fragment pointer, handed over by the bridge that holds it,
+         * under that bridge's guard, and referenced there: the element UI Automation raised the
+         * focus change on.
          */
         @Override
         public long elementInAnotherWindowFor(long nodeId) {
             UiaBridge holder = openBridgeHolding(nodeId);
-            return holder == null ? 0 : holder.context.elementFor(nodeId);
+            return holder == null ? 0 : holder.handOverFromAnotherWindow(nodeId);
         }
 
         @Override

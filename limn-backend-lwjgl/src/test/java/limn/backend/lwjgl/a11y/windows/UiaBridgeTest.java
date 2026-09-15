@@ -934,38 +934,55 @@ class UiaBridgeTest {
      * has the keyboard and the field does not; and the host root's GetFocus answers the popup's
      * fragment pointer. Two bridges, two trees, as two windows have.
      */
+    /**
+     * Two windows as decision 5 has them: a host whose focused field (its cursor resolved across
+     * the popup relation) points at the ACTIVE day of a native popup's own tree.
+     */
+    private record TwoWindows(AccessibleTree hostTree, AccessibleTree popupTree, long field,
+                              long popupRoot, long day) {
+
+        static TwoWindows aFieldWithItsCursorInAPopup() {
+            Accessibility popupWalk = new Accessibility();
+            long popupRoot = popupWalk.mint();
+            long day = popupWalk.mint();
+            popupWalk.beginWalk(200, 200, Locale.ENGLISH);
+            popupWalk.begin(popupRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
+            popupWalk.role(Accessible.Role.WINDOW);
+            popupWalk.inherited(true, true, true, false, false);
+            popupWalk.begin(day, 0, Locale.ENGLISH, 10, 10, 20, 20);
+            popupWalk.role(Accessible.Role.CELL);
+            popupWalk.state(Accessible.State.ACTIVE, true);
+            popupWalk.inherited(true, true, true, false, false);
+            popupWalk.end();
+            popupWalk.end();
+            AccessibleTree popupTree = popupWalk.publish(0, 0, 0, 1f, true);
+
+            Accessibility hostWalk = new Accessibility();
+            long hostRoot = hostWalk.mint();
+            long field = hostWalk.mint();
+            hostWalk.beginWalk(400, 300, Locale.ENGLISH);
+            hostWalk.begin(hostRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            hostWalk.role(Accessible.Role.WINDOW);
+            hostWalk.inherited(true, true, true, false, false);
+            hostWalk.begin(field, 0, Locale.ENGLISH, 10, 10, 200, 30);
+            hostWalk.role(Accessible.Role.TEXT_FIELD);
+            hostWalk.inherited(true, true, true, true, true);
+            hostWalk.end();
+            hostWalk.end();
+            hostWalk.foreignActiveDescendant(day);
+            AccessibleTree hostTree = hostWalk.publish(field, 0, 0, 1f, true);
+            assertEquals(day, hostTree.effectiveFocus(), "the fixture: the cursor is the popup's day");
+            return new TwoWindows(hostTree, popupTree, field, popupRoot, day);
+        }
+    }
+
     @Test
     void aCursorInAnotherWindowsTreeIsRaisedAndAnsweredThroughThatWindowsProvider() {
-        Accessibility popupWalk = new Accessibility();
-        long popupRoot = popupWalk.mint();
-        long day = popupWalk.mint();
-        popupWalk.beginWalk(200, 200, Locale.ENGLISH);
-        popupWalk.begin(popupRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 200, 200);
-        popupWalk.role(Accessible.Role.WINDOW);
-        popupWalk.inherited(true, true, true, false, false);
-        popupWalk.begin(day, 0, Locale.ENGLISH, 10, 10, 20, 20);
-        popupWalk.role(Accessible.Role.CELL);
-        popupWalk.state(Accessible.State.ACTIVE, true);
-        popupWalk.inherited(true, true, true, false, false);
-        popupWalk.end();
-        popupWalk.end();
-        AccessibleTree popupTree = popupWalk.publish(0, 0, 0, 1f, true);
-
-        Accessibility hostWalk = new Accessibility();
-        long hostRoot = hostWalk.mint();
-        long field = hostWalk.mint();
-        hostWalk.beginWalk(400, 300, Locale.ENGLISH);
-        hostWalk.begin(hostRoot, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
-        hostWalk.role(Accessible.Role.WINDOW);
-        hostWalk.inherited(true, true, true, false, false);
-        hostWalk.begin(field, 0, Locale.ENGLISH, 10, 10, 200, 30);
-        hostWalk.role(Accessible.Role.TEXT_FIELD);
-        hostWalk.inherited(true, true, true, true, true);
-        hostWalk.end();
-        hostWalk.end();
-        hostWalk.foreignActiveDescendant(day);
-        AccessibleTree hostTree = hostWalk.publish(field, 0, 0, 1f, true);
-        assertEquals(day, hostTree.effectiveFocus(), "the fixture: the cursor is the popup's day");
+        TwoWindows windows = TwoWindows.aFieldWithItsCursorInAPopup();
+        AccessibleTree popupTree = windows.popupTree();
+        AccessibleTree hostTree = windows.hostTree();
+        long field = windows.field();
+        long day = windows.day();
 
         UiaBridge host = UiaBridge.withoutTheGate(0x1234);
         UiaBridge popup = UiaBridge.withoutTheGate(0x5678);
@@ -1008,6 +1025,53 @@ class UiaBridgeTest {
             host.detach();
             popup.detach();
             made.forEach(UiaObject::free);
+        }
+    }
+
+    /**
+     * §3.4, review of windows-A: the host's GetFocus reaches the popup bridge's registry from the
+     * host's RPC thread, through the host's provider, which the popup's detach does not disconnect.
+     * So it waits for the popup's guard, the one its whole-registry empty frees under, exactly as a
+     * focus raise from the host's drain does; and once the popup has left the open set it hands
+     * over nothing. Before, it minted and referenced an element with no lock at all.
+     */
+    @Test
+    void aHandOverToAnotherWindowsGetFocusWaitsForThatWindowsEmpty() throws Exception {
+        TwoWindows windows = TwoWindows.aFieldWithItsCursorInAPopup();
+        UiaBridge host = UiaBridge.withoutTheGate(0x1234);
+        UiaBridge popup = UiaBridge.withoutTheGate(0x5678);
+        try {
+            popup.publish(windows.popupTree(), false);
+            host.publish(windows.hostTree(), false);
+            long[] handed = {-1};
+            Thread asker = new Thread(() -> handed[0] =
+                    host.contextForTests().elementInAnotherWindowFor(windows.day()),
+                    "a host RPC thread");
+            Thread.State seen;
+            synchronized (popup.vendGuardForTests()) {
+                asker.start();
+                long deadline = System.nanoTime() + 2_000_000_000L;
+                do {
+                    seen = asker.getState();
+                    Thread.onSpinWait();
+                } while (seen != Thread.State.BLOCKED && seen != Thread.State.TERMINATED
+                        && System.nanoTime() < deadline);
+                assertEquals(-1, handed[0], "nothing was handed over while the popup's empty "
+                        + "could be running");
+            }
+            assertEquals(Thread.State.BLOCKED, seen,
+                    "the hand-over waits for the guard the popup's empty frees under");
+            asker.join(2_000);
+            assertEquals(popup.objectFor(windows.day())
+                            .pointerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT), handed[0],
+                    "and then hands over the popup's own fragment pointer");
+
+            popup.detach();
+            assertEquals(0, host.contextForTests().elementInAnotherWindowFor(windows.day()),
+                    "a popup that has left the open set hands over nothing");
+        } finally {
+            host.detach();
+            popup.detach();
         }
     }
 

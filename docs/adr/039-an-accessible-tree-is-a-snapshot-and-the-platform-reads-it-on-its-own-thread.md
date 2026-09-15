@@ -2655,6 +2655,16 @@ amendment the same day (W3):** an element may be minted by **another window's dr
 that window's focused field has its cursor in this window's tree (decision 5); minting was already
 any thread's, so the id map is unchanged, and the whole-registry empty now takes a per-bridge guard
 that such a raise also holds, so it never frees an element a raise from outside is standing on.
+**Amended again 2026-09-15 (review of that change):** the guard covered the raise and not the answer.
+A host window's `GetFocus`, answering a cursor that lives in the popup's tree, minted and referenced
+the popup's element on the host's RPC thread with no lock, and the popup's detach does not fence that
+call, because it arrives through the host's provider, which is still connected. That hand-over now
+takes the popup bridge's guard too, and answers nothing once the popup has left the process's set of
+open bridges (its detach leaves the set before it empties)
+(`UiaBridgeTest.aHandOverToAnotherWindowsGetFocusWaitsForThatWindowsEmpty`). A bridge's own RPC
+calls are not changed by this: they arrive through its own provider, whose root the empty
+disconnects first, and whatever race that leaves between an RPC thread and the empty is the one they
+already had, not a new one.
 
 ### 3.5 What all three share
 
