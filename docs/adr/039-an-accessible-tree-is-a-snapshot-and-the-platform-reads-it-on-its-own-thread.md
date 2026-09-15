@@ -2644,6 +2644,14 @@ arguments (an index out of bounds, a failed cast); `org.freedesktop.DBus.Error.F
 exception, with its text. A reply that cannot be marshalled is replaced by a `Failed` error for the
 same call. `NO_REPLY_EXPECTED` still gets no reply.
 
+**Corrected 2026-09-15 (the linux-A review):** "any other exception" was literal — `Exception` alone —
+so a handler that overflowed the stack or failed an assertion ended the reader thread and the
+connection, and the application joined again for every such call. `StackOverflowError`,
+`AssertionError` and `LinkageError` are answered `Failed` like an exception; only the errors that say
+the virtual machine itself is failing still end the reader, and the join's back-off (the correction
+above) paces the rejoin. Pinned by
+`DBusConnectionTest.aHandlerThatOverflowsTheStackIsAnsweredAndNeitherTheReaderNorTheConnectionEnds`.
+
 ### 3.4 The bridge's own mutable state, and which thread owns each piece
 
 The snapshot is immutable and needs no thread. Everything else a bridge keeps is mutable, is the

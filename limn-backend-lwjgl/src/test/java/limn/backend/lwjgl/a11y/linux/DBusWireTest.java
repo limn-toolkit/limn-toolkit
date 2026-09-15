@@ -393,6 +393,20 @@ class DBusWireTest {
         org.junit.jupiter.api.Assertions.assertTrue(
                 String.valueOf(failed.body[0]).contains("the snapshot is gone"), "" + failed);
 
+        for (Throwable error : java.util.List.of(new StackOverflowError("a describe hook recursed"),
+                new AssertionError("a handler's own check"), new NoClassDefFoundError("a lazy class"))) {
+            DBus.Msg answered = DBus.Conn.replyFor((conn, m) -> {
+                if (error instanceof Error e) {
+                    throw e;
+                }
+                return null;
+            }, null, call);
+            org.junit.jupiter.api.Assertions.assertEquals("org.freedesktop.DBus.Error.Failed",
+                    answered.errorName, "an error a handler raises is answered like an exception: "
+                            + error);
+            org.junit.jupiter.api.Assertions.assertEquals(12, answered.replySerial);
+        }
+
         DBus.Msg declined = DBus.Conn.replyFor((conn, m) -> null, null, call);
         org.junit.jupiter.api.Assertions.assertEquals("org.freedesktop.DBus.Error.UnknownMethod",
                 declined.errorName);

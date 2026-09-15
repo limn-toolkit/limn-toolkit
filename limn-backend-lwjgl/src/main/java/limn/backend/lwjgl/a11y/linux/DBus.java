@@ -1025,8 +1025,16 @@ final class DBus {
          * libatspi waits out a newly added application's whole call timeout — up to fifteen seconds
          * — before it pings and declares the process hung. Arguments of the wrong number or type
          * (an index past the body, a cast that does not hold) are the caller's mistake and answer
-         * {@code InvalidArgs}; anything else is this application's and answers {@code Failed}. Both
+     * {@code InvalidArgs}; anything else is this application's and answers {@code Failed}. Both
          * carry the exception's own text, and both are logged.
+         *
+         * <p>"Anything else" includes the errors a handler's own code raises — a recursion that
+         * overflows the stack, a failed assertion, a class that fails to load — and not only
+         * exceptions. It used to catch {@code Exception} alone, so such an error left this method, ended
+         * the reader thread and with it the connection, and each client call that provoked it cost a
+         * join (the linux-A review). The errors that say the virtual machine itself is failing
+         * ({@link OutOfMemoryError}, {@link InternalError}) are not answered here: they still end the
+         * reader, and the join's back-off decides when to try again.
          *
          * @param handler what answers the call's path, or null
          * @param conn    the connection it arrived on
@@ -1043,7 +1051,7 @@ final class DBus {
                             + call.path + " refused its arguments: " + e);
                     return Msg.err(call, INVALID_ARGS, call.iface + "." + call.member + " cannot "
                             + "take the arguments '" + call.signature + "': " + e);
-                } catch (Exception e) {
+                } catch (Exception | StackOverflowError | AssertionError | LinkageError e) {
                     System.err.println("[conn] " + call.iface + "." + call.member + " on "
                             + call.path + " failed: " + e);
                     return Msg.err(call, FAILED, call.iface + "." + call.member + " failed: " + e);

@@ -136,6 +136,35 @@ class DBusConnectionTest {
     }
 
     @Test
+    void aHandlerThatOverflowsTheStackIsAnsweredAndNeitherTheReaderNorTheConnectionEnds()
+            throws Exception {
+        // A StackOverflowError is not an Exception. Caught as one alone, it left replyFor, ended
+        // the reader and closed the connection, and the application then joined again: one
+        // client call, one lost join.
+        PlayedBus.Peer peer = connect();
+        CountDownLatch lost = new CountDownLatch(1);
+        connection.onLost(lost::countDown);
+        connection.exportFallback((conn, call) -> {
+            if ("GetRole".equals(call.member)) {
+                throw new StackOverflowError("a describe hook recursed");
+            }
+            return DBus.Msg.ret(call, null);
+        });
+        DBus.Msg role = DBus.Msg.call(":1.7", Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetRole", null);
+        role.sender = ":1.99";
+        peer.write(role.marshal(31));
+        peer.write(aPing(32).raw);
+
+        DBus.Msg[] replies = assertTimeoutPreemptively(Duration.ofSeconds(5),
+                () -> new DBus.Msg[] {peer.readMessage(), peer.readMessage()});
+        assertEquals(DBus.ERROR, replies[0].type, "the overflowing handler's caller is answered");
+        assertEquals("org.freedesktop.DBus.Error.Failed", replies[0].errorName);
+        assertEquals(31, replies[0].replySerial);
+        assertEquals(32, replies[1].replySerial, "and the reader answers the next call");
+        assertFalse(lost.await(200, TimeUnit.MILLISECONDS), "the connection was not lost over it");
+    }
+
+    @Test
     void aConnectionThatEndsOnItsOwnSaysSoOnceAndOneClosedByItsOwnerDoesNot() throws Exception {
         PlayedBus.Peer peer = connect();
         CountDownLatch lost = new CountDownLatch(1);
