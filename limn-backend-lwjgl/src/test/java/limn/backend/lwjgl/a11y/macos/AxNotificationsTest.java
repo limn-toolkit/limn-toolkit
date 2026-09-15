@@ -82,13 +82,22 @@ class AxNotificationsTest {
     }
 
     @Test
-    void focusIsPostedAtApplicationLevelAndEverythingElseAtItsOwnNode() {
-        assertEquals(AxNotifications.Subject.APPLICATION,
-                AxNotifications.of(AccessibleEvent.Type.FOCUS_CHANGED).subject(),
-                "an observer registered on the element receives nothing; this is AppKit's, not a choice");
+    void focusAndTheCursorArePostedAtApplicationLevelAndEverythingElseAtItsOwnNode() {
+        // Restated 2026-09-15 (decision 1; M3): a cursor move under the focused node is a focus move
+        // on this platform, so ACTIVE_DESCENDANT_CHANGED joined FOCUS_CHANGED at application level. It
+        // was a selected-children change on its own node.
+        java.util.Set<AccessibleEvent.Type> toApplication = EnumSet.of(
+                AccessibleEvent.Type.FOCUS_CHANGED, AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        for (AccessibleEvent.Type type : toApplication) {
+            AxNotifications.Posting posting = AxNotifications.of(type);
+            assertEquals(AxNotifications.Subject.APPLICATION, posting.subject(),
+                    type + ": an observer registered on the element receives nothing; this is AppKit's");
+            assertEquals("NSAccessibilityFocusedUIElementChangedNotification", posting.notificationSymbol(),
+                    type + " is where the user is, and a client asks the focused element after it");
+        }
         for (AccessibleEvent.Type type : AccessibleEvent.Type.values()) {
             AxNotifications.Posting posting = AxNotifications.of(type);
-            if (posting == null || type == AccessibleEvent.Type.FOCUS_CHANGED) continue;
+            if (posting == null || toApplication.contains(type)) continue;
             assertEquals(AxNotifications.Subject.NODE, posting.subject(),
                     type + " has no reason to be posted anywhere but its own node");
         }

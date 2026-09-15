@@ -28,11 +28,13 @@ import java.util.Map;
  *       object it vends for the window, and ours would name a node no client can see.</li>
  * </ul>
  *
- * <p><b>And one entry is posted somewhere other than its own node.</b> A focus change is delivered
- * only to an observer registered on the <em>application</em> element — measured in the spike, where
- * an observer on the element itself received nothing — so it is posted at application level and
- * never per element. That is the one place where "post the notification on its subject" is wrong
- * here, and it is a fact about AppKit rather than a choice.
+ * <p><b>And two entries are posted somewhere other than their own node.</b> A focus change is
+ * delivered only to an observer registered on the <em>application</em> element — measured in the
+ * spike, where an observer on the element itself received nothing — so it is posted at application
+ * level and never per element; and a cursor move under the focused node is a focus change here
+ * (decision 1), posted the same way. That is the one place where "post the notification on its
+ * subject" is wrong here, and it is a fact about AppKit rather than a choice. The bridge posts at most
+ * one of them per frame: a publish that moved both the focus and the cursor is one move for a reader.
  */
 final class AxNotifications {
 
@@ -83,8 +85,12 @@ final class AxNotifications {
     static {
         postToApplication(AccessibleEvent.Type.FOCUS_CHANGED,
                 "NSAccessibilityFocusedUIElementChangedNotification");
-        post(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
-                "NSAccessibilitySelectedChildrenChangedNotification");
+        // The cursor moving under the focused node is a focus move on this platform (decision 1;
+        // semantics 4): the focused element is the cursor item, so a client is told the focus
+        // changed and asks where. It was a selected-children change on the container, which told a
+        // reader to re-read a selection the cursor had not touched, on an attribute nothing answered.
+        postToApplication(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+                "NSAccessibilityFocusedUIElementChangedNotification");
         post(AccessibleEvent.Type.STRUCTURE_CHANGED, "NSAccessibilityLayoutChangedNotification");
         post(AccessibleEvent.Type.NAME_CHANGED, "NSAccessibilityTitleChangedNotification");
         // AppKit has no description-changed notification. A client that cares re-reads the

@@ -73,9 +73,17 @@ final class AxElementClass {
         long[] linkedElementsOf(AccessibleNode node);
 
         /**
-         * @return the element for the node that has the keyboard, or zero when nothing does
+         * @return the element for where the user is — the tree's effective focus, which is the cursor
+         *         item under the focused widget when there is one, and may be a node of another
+         *         window's tree (decision 5) — or zero when nothing is
          */
         long focusedElement();
+
+        /**
+         * @param node a node in the published tree
+         * @return whether it is where the user is, agreeing with {@link #focusedElement()}
+         */
+        boolean isFocused(AccessibleNode node);
 
         /**
          * Performs one verb on one node, through the scene.
@@ -313,7 +321,9 @@ final class AxElementClass {
         // element (§1.6). Answering false would make AppKit hoist a node's children over it.
         addBool("isAccessibilityElement", is(node -> true));
         addBool("isAccessibilityEnabled", is(node -> node.has(Accessible.State.ENABLED)));
-        addBool("isAccessibilityFocused", is(node -> node.has(Accessible.State.FOCUSED)));
+        // Where the user is, not which widget holds the keyboard around it (semantics 4): the cursor
+        // cell of a focused table answers true and the table does not, as the focused element does.
+        addBool("isAccessibilityFocused", is(source::isFocused));
 
         installHitTest();
         installFocusedElement();

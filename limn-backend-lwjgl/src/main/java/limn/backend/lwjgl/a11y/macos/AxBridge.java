@@ -201,6 +201,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     @Override
     public void publish(AccessibleTree published, boolean reentrant) {
         super.publish(published, reentrant);
+        if (published.nodeCount() > 0) open(this);
         if (reentrant) {
             // The store is the whole of it. Releasing, re-pushing or draining here would act on the
             // objects AppKit is standing on, and on this platform that is a crash rather than a
@@ -263,6 +264,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
 
     @Override
     public void detach() {
+        close(this);
         teardown.clear();
         detaching = true;
         try {
@@ -306,20 +308,126 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                 && current.perform(nodeId, action, Accessible.Argument.NONE);
     }
 
+    /**
+     * Where the user is (semantics 4; decision 1): the tree's {@linkplain AccessibleTree#effectiveFocus()
+     * effective focus}, the cursor item under the focused widget when there is one, and never the
+     * widget that merely holds the keyboard around it. VoiceOver is told the focus moved and then asks
+     * this, so an answer of the widget is a reader standing on the table while the user walks its cells.
+     *
+     * <p><b>The node may be another window's</b> (decision 5): a focused field whose cursor is in the
+     * native popup it opened. Its element is then that window's bridge's, minted in that bridge's
+     * registry, because an element belongs to the window whose tree it stands for. And the other way
+     * round: a popup window with nothing of its own focused, asked by AppKit, answers the node another
+     * window's cursor is on inside it, so both windows' views agree on one element.
+     */
     @Override
     public long focusedElement() {
-        long focused = tree().focused();
-        AccessibleNode node = focused == 0 ? null : tree().find(focused);
+        AccessibleTree tree = tree();
+        long effective = tree.effectiveFocus();
         Consumer<String> to = trace;
+        if (effective != 0 && tree.indexOf(effective) < 0) {
+            AxBridge holder = openBridgeHolding(effective);
+            if (holder != null) {
+                long element = holder.elements.elementFor(effective);
+                if (to != null) {
+                    to.accept("focused " + effective + "=" + holder.tree().find(effective).role() + "@"
+                            + Long.toHexString(element) + " in another window");
+                }
+                return element;
+            }
+            effective = 0;
+        }
+        if (effective == 0) effective = cursorFromAnotherWindow();
+        AccessibleNode node = effective == 0 ? null : tree.find(effective);
         if (node == null) {
             if (to != null) to.accept("focused none");
             return 0;
         }
-        long element = elements.elementFor(focused);
+        long element = elements.elementFor(effective);
         if (to != null) {
-            to.accept("focused " + focused + "=" + node.role() + "@" + Long.toHexString(element));
+            to.accept("focused " + effective + "=" + node.role() + "@" + Long.toHexString(element));
         }
         return element;
+    }
+
+    /**
+     * {@code isAccessibilityFocused}, agreeing with {@link #focusedElement()}: the node where the user
+     * is, in this window or as the cursor another window's focused node resolved into this one. The
+     * widget around a cursor item does not answer true; the item does.
+     */
+    @Override
+    public boolean isFocused(AccessibleNode node) {
+        AccessibleTree tree = tree();
+        long id = node.id();
+        if (tree.indexOf(id) < 0) return false;
+        return tree.effectiveFocus() == id || cursorFromAnotherWindow() == id;
+    }
+
+    // ---- the process's open windows (decision 5) ----------------------------------------------
+
+    /**
+     * Every bridge holding a published tree in this process, so that a cursor resolved into a native
+     * popup's tree is answered with the element of the window that holds it. Copied on write and read
+     * as an array, because it is read on every focus ask VoiceOver sends and an iterator would be an
+     * allocation on each; written on a publish that finds this bridge absent, and on a detach.
+     */
+    private static volatile AxBridge[] openBridges = new AxBridge[0];
+
+    private static synchronized void open(AxBridge bridge) {
+        AxBridge[] now = openBridges;
+        for (AxBridge open : now) {
+            if (open == bridge) return;
+        }
+        AxBridge[] grown = Arrays.copyOf(now, now.length + 1);
+        grown[now.length] = bridge;
+        openBridges = grown;
+    }
+
+    private static synchronized void close(AxBridge bridge) {
+        AxBridge[] now = openBridges;
+        for (int i = 0; i < now.length; i++) {
+            if (now[i] != bridge) continue;
+            AxBridge[] shrunk = new AxBridge[now.length - 1];
+            System.arraycopy(now, 0, shrunk, 0, i);
+            System.arraycopy(now, i + 1, shrunk, i, now.length - i - 1);
+            openBridges = shrunk;
+            return;
+        }
+    }
+
+    /**
+     * @return whether this bridge is in the process's set of open windows: from its first publish of
+     *         a tree until its detach, which drops it so that a closed window is never held for the
+     *         life of the process by the set that answers other windows' cursors
+     */
+    boolean isOpen() {
+        for (AxBridge open : openBridges) {
+            if (open == this) return true;
+        }
+        return false;
+    }
+
+    /** @return another open bridge whose published tree holds the node, or {@code null} */
+    private AxBridge openBridgeHolding(long nodeId) {
+        for (AxBridge other : openBridges) {
+            if (other != this && other.tree().indexOf(nodeId) >= 0) return other;
+        }
+        return null;
+    }
+
+    /**
+     * @return the node of this tree another open window's effective focus names, or {@code 0}: the
+     *         cursor a focused field in another window has inside this, its native popup
+     */
+    private long cursorFromAnotherWindow() {
+        AccessibleTree mine = tree();
+        for (AxBridge other : openBridges) {
+            if (other == this) continue;
+            AccessibleTree theirs = other.tree();
+            long cursor = theirs.effectiveFocus();
+            if (cursor != 0 && theirs.indexOf(cursor) < 0 && mine.indexOf(cursor) >= 0) return cursor;
+        }
+        return 0;
     }
 
     @Override
@@ -421,7 +529,15 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * <p>A collapse is why the sweep is here rather than only on {@code NODE_DESTROYED}: the burst
      * that overflowed the queue is exactly the one whose per-node destructions were dropped, so
      * after one there is no list of what died — only the tree, and whatever the registry still
-     * holds (§13.9).
+     * holds (§13.9). The model's own {@code INVALIDATED} says the same of its publish and is swept
+     * the same way (semantics 7).
+     *
+     * <p><b>Where the user is goes out once, and last.</b> A focus move and a cursor move are one
+     * notification here (both are "the focused element changed"), so a publish that moved both posts
+     * one; and after a sweep — the queue's collapse or the model's {@code INVALIDATED} — it is posted
+     * whether or not an event said so, because the sweep may have released the element a reader
+     * stood on and nothing else would send it back (semantics 4). Last, so that a reader told of a
+     * selection or an expansion in the same frame lands on the cursor after hearing it.
      */
     private boolean drain() {
         // Timed, because §13.19's macOS half is "what does one frame's drain cost with a reader
@@ -431,35 +547,55 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         long started = System.nanoTime();
         int postedNow = 0;
         boolean collapsing = events.willCollapse();
+        boolean swept = collapsing;
+        boolean focusOwed = false;
         List<AccessibleEvent> drained = events.drain();
         for (AccessibleEvent event : drained) {
+            if (event.type() == AccessibleEvent.Type.INVALIDATED) swept = true;
             AxNotifications.Posting posting = AxNotifications.of(event);
             // A null is a decision, not a gap: AppKit is already telling the client, or the event
             // names the window root this bridge elides.
             if (posting == null) continue;
-            long subject = posting.subject() == AxNotifications.Subject.APPLICATION
-                    ? applicationElement()
-                    : elementForEvent(event);
-            if (subject == 0) continue;
-            Consumer<String> to = trace;
-            if (to != null) to.accept("posted " + posting.notificationSymbol());
-            postedNow++;
-            if (objc != null) {
-                objc.post(subject, posting.literal()
-                        ? objc.string(posting.notificationSymbol())
-                        : objc.constant(posting.notificationSymbol()));
+            if (posting.subject() == AxNotifications.Subject.APPLICATION) {
+                focusOwed = true;
+                continue;
             }
+            long subject = elementForEvent(event);
+            if (subject == 0) continue;
+            post(subject, posting);
+            postedNow++;
         }
-        if (collapsing) {
+        if (swept) {
             elements.reconcile(liveNodeIds());
             // The pushed array may name elements that were just released, and comparing it against
             // a fresh list would then hand AppKit a freed pointer. Forgetting it forces a re-push.
             pushed = new long[0];
+            if (tree().effectiveFocus() != 0 || cursorFromAnotherWindow() != 0) {
+                focusOwed = true;
+            }
+        }
+        if (focusOwed) {
+            post(applicationElement(), FOCUS_POSTING);
+            postedNow++;
         }
         lastDrainNanos = System.nanoTime() - started;
         lastDrainDrained = drained.size();
         lastDrainPosted = postedNow;
-        return collapsing;
+        return swept;
+    }
+
+    /** The one application-level notification: the focused element changed. */
+    private static final AxNotifications.Posting FOCUS_POSTING =
+            AxNotifications.of(AccessibleEvent.Type.FOCUS_CHANGED);
+
+    private void post(long subject, AxNotifications.Posting posting) {
+        Consumer<String> to = trace;
+        if (to != null) to.accept("posted " + posting.notificationSymbol());
+        if (objc != null) {
+            objc.post(subject, posting.literal()
+                    ? objc.string(posting.notificationSymbol())
+                    : objc.constant(posting.notificationSymbol()));
+        }
     }
 
     private long lastDrainNanos;

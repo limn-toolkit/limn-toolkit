@@ -2143,6 +2143,16 @@ is a latent crash in a caller that trusts the union.
 | `NSAccessibilityPostNotification` | the event flush | **proven delivered out of process** to a real `AXObserver`, carrying the updated value. `AXValueChanged` reaches an observer registered on the element *or* on the application element; `AXFocusedUIElementChanged` reaches **only** the application-element registration, so focus is posted at application level and never per element |
 | `…PostNotificationWithUserInfo` with `AnnouncementRequested` | `ANNOUNCEMENT` | politeness rides `NSAccessibilityPriorityKey` |
 
+**Amended 2026-09-15 (phase 3, the macOS bridge; the rows above stand as written and these
+sentences say what the bridge now does where they differ).** *Where the user is* (decision 1,
+semantics 4): `accessibilityFocusedUIElement` — answered on the content view since §13.22 — and
+`isAccessibilityFocused` both answer from the tree's `effectiveFocus()`, the cursor item under the
+focused widget when there is one, so the table under the keyboard answers false and its cursor cell
+true. A cursor resolved into a native popup's tree (decision 5) is answered with the element the
+popup window's own bridge mints, and the popup's view, with nothing of its own focused, answers the
+same element; the bridges of a process's open windows find each other through one process-wide set,
+entered on a publish and left on a detach.
+
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a
 node the platform has asked about — and keeps a map from node id to element so a client's retained
@@ -2341,6 +2351,14 @@ container's multi flag: Windows raises `ElementSelected` for a single-select con
 sends `Activate`/`Deactivate` from the frame's path. `FOCUS_CHANGED` is also raised for a node
 that arrived holding the focus. After a collapse to `INVALIDATED` the structure, focus, cursor,
 selection and window-activation events of that publish still follow it.
+
+**Amended 2026-09-15 (phase 3, the macOS column).** `ACTIVE_DESCENDANT_CHANGED` posts
+`FocusedUIElementChanged` **at application level**, as `FOCUS_CHANGED` does, and no longer
+`SelectedChildrenChanged`: the cursor is the focused element here, so a client told of it asks where
+the focus went. A frame posts at most one of the two, after everything else that frame posts. After
+a sweep of the element registry — the bridge's own queue collapse, or the model's `INVALIDATED`,
+which is now swept the same way (semantics 7) — the focus change is posted again whenever anything
+anywhere is focused, because the sweep may have released what a reader stood on.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
