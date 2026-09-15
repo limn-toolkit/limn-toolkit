@@ -84,7 +84,8 @@ public final class UiaBridge extends PlatformBridge {
     /**
      * Held by the whole-registry empty while it frees this bridge's elements, and by every entry
      * that reaches one of them <b>from another window</b>: that window's drain thread raising a
-     * focus change here ({@link #raiseFocusFromAnotherWindow}), and that window's RPC thread
+     * focus change or a {@code HasKeyboardFocus} change here ({@link #raiseOnElement}), and that
+     * window's RPC thread
      * handing this window's element to UI Automation from its own {@code GetFocus}
      * ({@link #handOverFromAnotherWindow}). So the empty never frees an element such a raise or
      * hand-over is standing on, and neither mints into a registry the empty is clearing. This
@@ -95,8 +96,26 @@ public final class UiaBridge extends PlatformBridge {
      */
     private final Object vendGuard = new Object();
 
-    /** The node the last focus change was raised on, anywhere; for the trace. Drain thread. */
-    private volatile long announcedFocus;
+    /**
+     * One focus change raised: the bridge whose element it was raised on (another window's, for a
+     * cursor in a native popup) and the node.
+     *
+     * @param owner  the bridge holding the element; compared by identity
+     * @param nodeId the node
+     */
+    private record Announced(UiaBridge owner, long nodeId) {
+    }
+
+    /**
+     * The last effective focus announced in this process, by whichever bridge's drain raised it
+     * (semantics 4: each bridge remembers the last effective focus it announced; one memory for
+     * the process, because UI Automation has one focus and a raise in another window moves it).
+     * A focus event that names it again is not raised again; a re-announcement after a collapse
+     * or the model's INVALIDATED is, whatever it names. Forgotten when nothing in a window is
+     * focused, when a window is deactivated, and when the bridge that owns it empties.
+     */
+    private static final java.util.concurrent.atomic.AtomicReference<Announced> ANNOUNCED =
+            new java.util.concurrent.atomic.AtomicReference<>();
 
     /**
      * How many event subscriptions covering this window are standing: added minus removed. The
@@ -340,7 +359,7 @@ public final class UiaBridge extends PlatformBridge {
                 AccessibleEvent event = events.take();
                 if (event == UiaEvents.COLLAPSE) {
                     sweepAndInvalidate();
-                    raiseFocus("after this bridge's queue collapsed");
+                    raiseFocus("after this bridge's queue collapsed", true);
                 } else if (event.type() == AccessibleEvent.Type.INVALIDATED
                         && event.nodeId() == 0) {
                     // The model's own collapse (§1.10): a publish wider than its budget, whose
@@ -348,7 +367,7 @@ public final class UiaBridge extends PlatformBridge {
                     // same sweep as this queue's, and the same re-announcement; the root-targeted
                     // INVALIDATED the sweep raises names the root and comes back through raise().
                     sweepAndInvalidate();
-                    raiseFocus("after the model's INVALIDATED");
+                    raiseFocus("after the model's INVALIDATED", true);
                 } else {
                     raise(event);
                 }
@@ -417,8 +436,21 @@ public final class UiaBridge extends PlatformBridge {
             return;
         }
         if (event.type() == AccessibleEvent.Type.FOCUS_CHANGED
-                || event.type() == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED) {
-            raiseFocus(event.type().name());
+                || event.type() == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED
+                || event.type() == AccessibleEvent.Type.WINDOW_ACTIVATED) {
+            // The last of the three is ADR 039 §2.4's "focus change into the window": what the
+            // user returns to is the window's effective focus, raised unless it is the one
+            // already announced, which a deactivation forgot.
+            raiseFocus(event.type().name(), false);
+            return;
+        }
+        if (event.type() == AccessibleEvent.Type.WINDOW_DEACTIVATED) {
+            // Nothing is raised: UI Automation follows the focus into whatever window took it.
+            // What changes is the memory, so the return to this window is heard however little
+            // moved while it was away; and nothing raised is nothing paid (WINDOWS-NEW-6).
+            ANNOUNCED.set(null);
+            UiaWindow.say("WINDOW_DEACTIVATED for node " + event.nodeId()
+                    + " raises nothing and forgets the announced focus");
             return;
         }
         if (event.type() == AccessibleEvent.Type.SELECTION_CHANGED) {
@@ -451,12 +483,11 @@ public final class UiaBridge extends PlatformBridge {
             node = index < 0 ? null : tree.node(index);
             propertyId = changedProperty(event, node);
             if (propertyId == 0) {
-                // Mapped to nothing on this platform: WINDOW_ACTIVATED and WINDOW_DEACTIVATED,
-                // which since ADR 039 §1.10's amendment of 2026-09-14 name the window node every
-                // client that asked holds, BOUNDS_CHANGED, a state with no property of its own.
-                // Nothing is raised, so nothing pays the change a client that asked is owed:
-                // only a raise that reached the client may clear the flag (WINDOWS-NEW-6; the
-                // mappings themselves are phase 3's).
+                // Mapped to nothing on this platform: BOUNDS_CHANGED, CARET_MOVED, a state with
+                // no property of its own. (The window's activation, which names the window node
+                // every client that asked holds, is handled above since 2026-09-15.) Nothing is
+                // raised, so nothing pays the change a client that asked is owed: only a raise
+                // that reached the client may clear the flag (WINDOWS-NEW-6).
                 UiaWindow.say("unmapped " + event.type() + " for node " + event.nodeId());
                 return;
             }
@@ -478,7 +509,9 @@ public final class UiaBridge extends PlatformBridge {
     /**
      * Where the user is, raised: {@code AutomationFocusChanged} on the element of the tree's
      * {@linkplain AccessibleTree#effectiveFocus() effective focus} as the snapshot has it now
-     * (decision 1; semantics 4; W3, WINDOWS-NEW-4, WINDOWS-NEW-2).
+     * (decision 1; semantics 4; W3, WINDOWS-NEW-4, WINDOWS-NEW-2), then, when the focus moved, a
+     * {@code HasKeyboardFocus} property change on the element it left and on the one it reached
+     * (ADR 039 §2.4's {@code FOCUS_CHANGED} row).
      *
      * <p><b>On the effective focus, not on the event's node</b>, and read off the current tree:
      * NVDA 2024.4.2 queues the focus only if the sender answers {@code HasKeyboardFocus} true when
@@ -497,43 +530,112 @@ public final class UiaBridge extends PlatformBridge {
      * node this tree does not hold, and its element is that window's: the raise goes through the
      * popup bridge's own element, under that bridge's guard.
      *
-     * <p>Nothing is skipped as a repeat: a reader that already stands on the element drops the
-     * duplicate itself (the same reading, the duplicate filter), and a bridge-local memory would
-     * silence the return to an element after the focus spent a while in another window.
+     * <p><b>Remembered, and not raised twice in a row (semantics 4).</b> One publish can name the
+     * same element several times: a focus arriving on a table with a cursor is a
+     * {@code FOCUS_CHANGED} and an {@code ACTIVE_DESCENDANT_CHANGED}, and a publish past the model's
+     * budget is an {@code INVALIDATED} followed by both. Each raise waits for the reader's handler
+     * (ADR 039 §13.28: 2.5&nbsp;ms median, up to 50 on this thread), and NVDA drops the repeat
+     * anyway. So a focus event naming the element last announced in this process is skipped, while
+     * a {@code reannouncement} -- after the collapse and the sweep, which a client may have
+     * answered by re-reading -- raises whatever it names. The memory is the process's, so a raise
+     * in another window makes the return here heard; a deactivation forgets it, so the focus change
+     * into a window that is activated again is raised.
      *
-     * @param cause what prompted it, for the trace: the event type, or the collapse it follows
+     * @param cause          what prompted it, for the trace: the event type, or the collapse it
+     *                       follows
+     * @param reannouncement whether this follows a collapse or the model's INVALIDATED, and is
+     *                       raised even on the element already announced
      */
-    private void raiseFocus(String cause) {
+    private void raiseFocus(String cause, boolean reannouncement) {
         AccessibleTree tree = tree();
         long target = tree.effectiveFocus();
         if (target == 0) {
+            ANNOUNCED.set(null);
             UiaWindow.say("no focus to raise for " + cause);
             return;
         }
-        long started = System.nanoTime();
-        String where;
-        if (tree.indexOf(target) >= 0) {
-            UiaElement element = elementOf(target);
-            if (element == null) {
-                UiaWindow.say("focus on node " + target + " has no element for " + cause);
-                return;
-            }
-            Uia.raiseAutomationEvent(element.pointer(), UiaIds.AUTOMATION_FOCUS_CHANGED);
-            where = "";
-        } else {
-            UiaBridge holder = openBridgeHolding(target);
-            if (holder == null || !holder.raiseFocusFromAnotherWindow(target)) {
-                UiaWindow.say("focus on node " + target + " is in no open window for " + cause);
-                return;
-            }
-            where = " in another window";
+        UiaBridge owner = tree.indexOf(target) >= 0 ? this : openBridgeHolding(target);
+        if (owner == null) {
+            ANNOUNCED.set(null);
+            UiaWindow.say("focus on node " + target + " is in no open window for " + cause);
+            return;
         }
+        Announced now = new Announced(owner, target);
+        Announced last = ANNOUNCED.get();
+        if (!reannouncement && now.equals(last)) {
+            UiaWindow.say("focus on node " + target + " already announced, not raised again for "
+                    + cause);
+            return;
+        }
+        long started = System.nanoTime();
+        boolean raised = owner.raiseOnElement(target, true, owner != this, element ->
+                Uia.raiseAutomationEvent(element.pointer(), UiaIds.AUTOMATION_FOCUS_CHANGED));
+        if (!raised) {
+            UiaWindow.say("focus on node " + target + " has no element for " + cause);
+            return;
+        }
+        ANNOUNCED.set(now);
         // A raise that reached the platform: the one change a client that asked was owed.
         owedAnEvent = false;
-        announcedFocus = target;
-        UiaWindow.say("raised " + cause + " for node " + target + where + " in "
+        UiaWindow.say("raised " + cause + " for node " + target
+                + (owner != this ? " in another window" : "") + " in "
                 + (System.nanoTime() - started) / 1_000 + " us on "
                 + Thread.currentThread().getName());
+        if (!now.equals(last)) {
+            if (last != null) {
+                raiseKeyboardFocus(last, false);
+            }
+            raiseKeyboardFocus(now, true);
+        }
+    }
+
+    /**
+     * The {@code HasKeyboardFocus} property change on one side of a focus move, raised only on an
+     * element a client holds (the arriving one always is: the focus change just minted it) and
+     * whose node is still in its tree.
+     */
+    private void raiseKeyboardFocus(Announced side, boolean has) {
+        UiaBridge owner = side.owner();
+        boolean raised = owner.raiseOnElement(side.nodeId(), false, owner != this, element ->
+                raisePropertyChange(element, UiaIds.HAS_KEYBOARD_FOCUS, !has, has, null));
+        if (raised) {
+            UiaWindow.say("raised HasKeyboardFocus " + has + " for node " + side.nodeId());
+        }
+    }
+
+    /**
+     * Runs a raise on this bridge's element for a node.
+     *
+     * @param nodeId            a node of this bridge's tree
+     * @param mint              whether to mint the element when no client holds it
+     * @param fromAnotherWindow whether another window's drain thread is the caller, which takes
+     *                          this bridge's guard so the whole-registry empty waits for it
+     * @param raise             the platform call
+     * @return whether it ran: {@code false} when the node has left, the element is not held and
+     *         was not to be minted, or (from another window) this bridge is closing
+     */
+    private boolean raiseOnElement(long nodeId, boolean mint, boolean fromAnotherWindow,
+                                   java.util.function.Consumer<UiaElement> raise) {
+        if (!fromAnotherWindow) {
+            return raiseOnElementUnguarded(nodeId, mint, raise);
+        }
+        synchronized (vendGuard) {
+            return !closed && OPEN.contains(this) && raiseOnElementUnguarded(nodeId, mint, raise);
+        }
+    }
+
+    private boolean raiseOnElementUnguarded(long nodeId, boolean mint,
+                                            java.util.function.Consumer<UiaElement> raise) {
+        if (tree().indexOf(nodeId) < 0) {
+            return false;
+        }
+        UiaElement element = mint ? elementOf(nodeId) : elements.peek(nodeId);
+        if (element == null) {
+            return false;
+        }
+        raise.accept(element);
+        owedAnEvent = false;
+        return true;
     }
 
     /**
@@ -603,28 +705,6 @@ public final class UiaBridge extends PlatformBridge {
         } else {
             UiaWindow.say("SELECTION_CHANGED of container " + event.nodeId()
                     + " reached no held element");
-        }
-    }
-
-    /**
-     * Raises the focus change on this bridge's element for a node another window's effective
-     * focus names, on that window's drain thread.
-     *
-     * @param nodeId a node of this bridge's tree
-     * @return whether it was raised; {@code false} once this bridge is closed or the node has left
-     */
-    private boolean raiseFocusFromAnotherWindow(long nodeId) {
-        synchronized (vendGuard) {
-            if (closed || !OPEN.contains(this)) {
-                return false;
-            }
-            UiaElement element = elementOf(nodeId);
-            if (element == null) {
-                return false;
-            }
-            Uia.raiseAutomationEvent(element.pointer(), UiaIds.AUTOMATION_FOCUS_CHANGED);
-            owedAnEvent = false;
-            return true;
         }
     }
 
@@ -716,9 +796,10 @@ public final class UiaBridge extends PlatformBridge {
         return cursor != 0 && mine.indexOf(cursor) < 0 && theirs.indexOf(cursor) >= 0 ? cursor : 0;
     }
 
-    /** @return the node the last focus change was raised on; for tests */
-    long announcedFocusForTests() {
-        return announcedFocus;
+    /** @return the node the last focus change in this process was raised on, or 0; for tests */
+    static long announcedFocusForTests() {
+        Announced last = ANNOUNCED.get();
+        return last == null ? 0 : last.nodeId();
     }
 
     /**
@@ -741,13 +822,19 @@ public final class UiaBridge extends PlatformBridge {
      */
     private void raisePropertyChange(UiaElement element, int propertyId, AccessibleEvent event,
                                      AccessibleNode node) {
+        raisePropertyChange(element, propertyId, event.oldValue(), event.newValue(), node);
+    }
+
+    /** The same, with the two values given. */
+    private void raisePropertyChange(UiaElement element, int propertyId, Object oldValue,
+                                     Object newValue, AccessibleNode node) {
         long before = MemoryUtil.nmemCallocChecked(1, UiaVariant.SIZE);
         long after = MemoryUtil.nmemCallocChecked(1, UiaVariant.SIZE);
         try {
             java.nio.ByteBuffer oldOne = MemoryUtil.memByteBuffer(before, UiaVariant.SIZE);
             java.nio.ByteBuffer newOne = MemoryUtil.memByteBuffer(after, UiaVariant.SIZE);
-            write(oldOne, propertyId, changedValue(propertyId, event.oldValue(), node));
-            write(newOne, propertyId, changedValue(propertyId, event.newValue(), node));
+            write(oldOne, propertyId, changedValue(propertyId, oldValue, node));
+            write(newOne, propertyId, changedValue(propertyId, newValue, node));
             int hresult = Uia.raisePropertyChangedEvent(element.pointer(), propertyId,
                     before, after);
             UiaWindow.say("property " + propertyId + " changed -> 0x"
@@ -902,8 +989,8 @@ public final class UiaBridge extends PlatformBridge {
         stopDrain();
         java.util.Set<UiaObject> distinct =
                 java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-        // And any other window's drain thread raising a focus change on one of these elements
-        // finishes first (raiseFocusFromAnotherWindow).
+        // And any other window's drain thread raising on one of these elements, or RPC thread
+        // handing one over, finishes first (raiseOnElement, handOverFromAnotherWindow).
         synchronized (vendGuard) {
             // Then, while every closure the platform may call back through is still there.
             disconnectRootProvider();
@@ -911,7 +998,7 @@ public final class UiaBridge extends PlatformBridge {
             objects.clear();
             elements.empty();
             distinct.forEach(UiaObject::free);
-            announcedFocus = 0;
+            ANNOUNCED.updateAndGet(last -> last != null && last.owner() == this ? null : last);
         }
         UiaWindow.say("freed " + distinct.size() + " objects");
     }

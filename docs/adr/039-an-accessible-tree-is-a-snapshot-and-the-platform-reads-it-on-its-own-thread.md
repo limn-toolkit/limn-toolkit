@@ -2385,6 +2385,32 @@ when none entered) and a multi-select one `ElementAddedToSelection`/`ElementRemo
 each member. Each is raised only for an element a client holds. NVDA 2024.4.2 speaks none of these
 for a generic item (the same reading, §2); the reader hears the cursor through the focus rows above.
 
+**Amended again 2026-09-15 (review of those focus rows; semantics 4, WINDOWS-NEW-6): remembered,
+and the rows' two promises kept.** Three sentences of the amendment above are withdrawn. *"Nothing is
+suppressed as a repeat"*: semantics 4 has each bridge remember the last effective focus it announced,
+and without it one publish raised `AutomationFocusChanged` on the same element two or three times (a
+focus arriving on a table with a cursor is `FOCUS_CHANGED` and `ACTIVE_DESCENDANT_CHANGED`; a publish
+past the model's budget is `INVALIDATED` followed by both), each raise waiting for the reader
+(§13.28). The memory is now the process's — the bridge and node last announced, since UI Automation
+has one focus and a raise in another window moves it — and a focus event naming it again is skipped,
+while the re-announcement after a collapse or the model's `INVALIDATED` raises whatever it names. It
+is forgotten when a window has nothing focused, when a window is deactivated, and when its bridge
+empties, so the return to an element after the focus was elsewhere is heard, which was the objection
+to a bridge-local memory. *"The `HasKeyboardFocus` property change … is **not** raised"*: it is, as
+the `FOCUS_CHANGED` row says, "on both" — `false` on the element the focus left when a client holds it
+and its node remains, `true` on the one it reached — and only when the announced element changed; NVDA
+2024.4.2 subscribes to none (reading §3), so no reader behaviour depends on it today. *"The mapping of
+the remaining unmapped events is a later item"*: `WINDOW_ACTIVATED` is now the row's "focus change into
+the window", the window's effective focus raised subject to the memory, and `WINDOW_DEACTIVATED`
+raises nothing and forgets the memory; neither pays the event an ask is owed unless something was
+raised (`UiaBridgeTest.theFocusAlreadyAnnouncedIsNotRaisedAgainButIsReannouncedAfterTheModelsInvalidated`,
+`aFocusMoveTellsTheElementItLeftAndTheOneItReachedThatTheKeyboardMoved`,
+`aWindowActivatedAgainRaisesTheFocusItHadBecauseTheDeactivationForgotIt`,
+`aFocusRaisedInAnotherWindowMakesTheReturnHeard`). A raise from another window holds that window's
+guard across the platform call, so a client whose focus handler synchronously asked the host's
+`GetFocus` would wait for it; NVDA 2024.4.2's handler asks no such thing (reading §1), and phase 5
+watches for it.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

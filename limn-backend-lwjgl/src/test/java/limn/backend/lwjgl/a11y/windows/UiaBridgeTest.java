@@ -742,13 +742,14 @@ class UiaBridgeTest {
 
     /**
      * Since ADR 039 §1.10's amendment of 2026-09-14 a window's activation names the window node,
-     * which every client that asked holds, and this platform maps the pair to nothing. Nothing
-     * raised is nothing paid: the event an ask is owed is cleared by a raise that reached the
-     * client, never by one that fell through to silence (WINDOWS-NEW-6; the mapping is phase
-     * 3's). Before the guard this cleared the flag and traced "raised WINDOW_ACTIVATED".
+     * which every client that asked holds. On this platform it is the focus change into the window
+     * (§2.4), so in a window where nothing is focused it raises nothing; and nothing raised is
+     * nothing paid: the event an ask is owed is cleared by a raise that reached the client, never
+     * by one that fell through to silence (WINDOWS-NEW-6). Before the guard this cleared the flag
+     * and traced "raised WINDOW_ACTIVATED"; until 2026-09-15's review it traced "unmapped".
      */
     @Test
-    void aWindowActivationOnTheHeldRootRaisesNothingAndPaysNothing() {
+    void aWindowActivationWithNothingFocusedRaisesNothingAndPaysNothing() {
         UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
         java.util.List<String> trace = synchronizedTrace();
         java.util.function.Consumer<String> before = UiaWindow.trace;
@@ -758,8 +759,8 @@ class UiaBridgeTest {
             bridge.noteAsked();
             bridge.objectFor(1000);
             bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_ACTIVATED, 1000));
-            assertNotNull(awaitTrace(trace, l -> l.equals("unmapped WINDOW_ACTIVATED for node 1000")),
-                    "the event reached the drain and was found unmapped: " + trace);
+            assertNotNull(awaitTrace(trace, l -> l.equals("no focus to raise for WINDOW_ACTIVATED")),
+                    "the event reached the drain and found no focus to raise: " + trace);
             assertTrue(bridge.owesAnEvent(),
                     "an event this platform maps to nothing is not the one owed");
             synchronized (trace) {
@@ -879,7 +880,7 @@ class UiaBridgeTest {
                     l -> l.startsWith("raised ACTIVE_DESCENDANT_CHANGED for node 1005 in ")),
                     "raised on the cell the cursor reached: " + trace);
             assertTrue(bridge.holdsElementFor(1005), "minted for it");
-            assertEquals(1005, bridge.announcedFocusForTests());
+            assertEquals(1005, UiaBridge.announcedFocusForTests());
             assertFalse(bridge.owesAnEvent());
         } finally {
             UiaWindow.trace = before;
@@ -1087,6 +1088,164 @@ class UiaBridgeTest {
         } finally {
             host.detach();
             popup.detach();
+        }
+    }
+
+    /** @return the trace lines, copied, that satisfy {@code what} */
+    private static java.util.List<String> linesOf(java.util.List<String> trace,
+                                                  java.util.function.Predicate<String> what) {
+        synchronized (trace) {
+            return trace.stream().filter(what).toList();
+        }
+    }
+
+    /**
+     * Semantics 4, review of windows-A: the bridge remembers the effective focus it announced.
+     * A focus arriving on a table with a cursor is a FOCUS_CHANGED and an
+     * ACTIVE_DESCENDANT_CHANGED on one element, and a publish past the model's budget is an
+     * INVALIDATED followed by both; each raise waits for the reader (§13.28), so the element is
+     * raised once per such run: the repeat is skipped, the re-announcement after the sweep is not.
+     * Before, one publish raised AutomationFocusChanged on the same cell two or three times.
+     */
+    @Test
+    void theFocusAlreadyAnnouncedIsNotRaisedAgainButIsReannouncedAfterTheModelsInvalidated() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aFocusedTable(true), false);
+            bridge.objectFor(1000);
+            // The focus arrives on the table, whose cursor is the first cell.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+                    1001, 0L, 1003L));
+            // A publish past the budget: the model's INVALIDATED, then its reserved tail.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+                    1001, 0L, 1003L));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000, "", "end"));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised NAME_CHANGED for node 1000")));
+            assertEquals(java.util.List.of(
+                            "raised FOCUS_CHANGED for node 1003",
+                            "focus on node 1003 already announced, not raised again for ACTIVE_DESCENDANT_CHANGED",
+                            "raised after the model's INVALIDATED for node 1003",
+                            "focus on node 1003 already announced, not raised again for FOCUS_CHANGED",
+                            "focus on node 1003 already announced, not raised again for ACTIVE_DESCENDANT_CHANGED"),
+                    linesOf(trace, l -> l.contains("node 1003") && !l.contains("HasKeyboardFocus"))
+                            .stream().map(l -> l.replaceFirst(" in \\d+ us on .*", "")).toList(),
+                    "one raise on arrival and one re-announcement, every repeat skipped: " + trace);
+            assertEquals(1003, UiaBridge.announcedFocusForTests());
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * §2.4's FOCUS_CHANGED row, until the review of windows-A promised and not raised: a focus move
+     * is also a HasKeyboardFocus change on the element it left, when a client holds it, and on the
+     * one it reached. A re-announcement of the same element moves nothing and raises neither.
+     */
+    @Test
+    void aFocusMoveTellsTheElementItLeftAndTheOneItReachedThatTheKeyboardMoved() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aFocusedTable(true), false);
+            bridge.objectFor(1000);
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000, "", "a"));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised NAME_CHANGED for node 1000")));
+            bridge.publish(aFocusedTable(false), false);
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+                    1001, 1003L, 1005L));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000, "a", "b"));
+            assertNotNull(awaitTrace(trace, l -> linesOf(trace,
+                    x -> x.startsWith("raised NAME_CHANGED for node 1000")).size() == 2));
+            assertEquals(java.util.List.of(
+                            "raised HasKeyboardFocus true for node 1003",
+                            "raised HasKeyboardFocus false for node 1003",
+                            "raised HasKeyboardFocus true for node 1005"),
+                    linesOf(trace, l -> l.startsWith("raised HasKeyboardFocus")),
+                    "arrival on 1003; the move to 1005 on both; the re-announcement on neither: "
+                            + trace);
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * §2.4's WINDOW_ACTIVATED row, "focus change into the window": a deactivation forgets the
+     * announced focus, so the activation that follows raises the window's effective focus even
+     * though nothing moved inside it; a second focus event on it is then a repeat again.
+     */
+    @Test
+    void aWindowActivatedAgainRaisesTheFocusItHadBecauseTheDeactivationForgotIt() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true, true), false);
+            bridge.objectFor(1000);
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_ACTIVATED, 1000));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_DEACTIVATED, 1000));
+            bridge.noteAsked();
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.WINDOW_ACTIVATED, 1000));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000, "", "end"));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised NAME_CHANGED for node 1000")));
+            assertEquals(java.util.List.of(
+                            "raised FOCUS_CHANGED for node 1001",
+                            "focus on node 1001 already announced, not raised again for WINDOW_ACTIVATED",
+                            "WINDOW_DEACTIVATED for node 1000 raises nothing and forgets the announced focus",
+                            "raised WINDOW_ACTIVATED for node 1001",
+                            "focus on node 1001 already announced, not raised again for FOCUS_CHANGED"),
+                    linesOf(trace, l -> (l.contains("node 1001") || l.startsWith("WINDOW_"))
+                            && !l.contains("HasKeyboardFocus"))
+                            .stream().map(l -> l.replaceFirst(" in \\d+ us on .*", "")).toList(),
+                    "the return to the window is heard once: " + trace);
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * The memory is the process's: a focus raised in another window moves UI Automation's focus
+     * there, so the next focus event back here is raised although this window announced the same
+     * element last. A bridge-local memory would have silenced that return.
+     */
+    @Test
+    void aFocusRaisedInAnotherWindowMakesTheReturnHeard() {
+        UiaBridge first = UiaBridge.withoutTheGate(0x1234);
+        UiaBridge second = UiaBridge.withoutTheGate(0x5678);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            first.publish(aWindowWith(Accessible.Role.BUTTON, true, true), false);
+            second.publish(aFocusedTable(true), false);
+            first.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised FOCUS_CHANGED for node 1001")));
+            second.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised FOCUS_CHANGED for node 1003")));
+            first.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            assertNotNull(awaitTrace(trace, l -> linesOf(trace,
+                    x -> x.startsWith("raised FOCUS_CHANGED for node 1001")).size() == 2),
+                    "the return to the first window was raised: " + trace);
+            assertTrue(linesOf(trace, l -> l.startsWith("focus on node")).isEmpty(), "" + trace);
+        } finally {
+            UiaWindow.trace = before;
+            first.detach();
+            second.detach();
         }
     }
 
