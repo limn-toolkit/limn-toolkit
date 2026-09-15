@@ -300,6 +300,62 @@ final class UiaIds {
      */
     static final double SCROLL_NO_SCROLL = -1.0;
 
+    /**
+     * {@code StructureChangeType}, what {@code UiaRaiseStructureChangedEvent} says moved. Read on the
+     * Windows 11 ARM64 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9278) on 2026-09-13 by
+     * {@code dump-uia-constants.ps1} (readings/windows-dump-uia-constants.txt:
+     * {@code System.Windows.Automation.StructureChangeType}, UIAutomationTypes 4.8.9347) and by
+     * {@code dump-uia-typelib.ps1} (readings/windows-dump-uia-typelib.txt:
+     * {@code StructureChangeType_*} in the UIAutomationClient, UIA, UIAutomationClientPriv and
+     * UIAutomationBlockingCoreLib type libraries), which agree.
+     */
+    static final int STRUCTURE_CHANGE_CHILD_ADDED = 0;
+    /** @see #STRUCTURE_CHANGE_CHILD_ADDED */
+    static final int STRUCTURE_CHANGE_CHILD_REMOVED = 1;
+    /** @see #STRUCTURE_CHANGE_CHILD_ADDED */
+    static final int STRUCTURE_CHANGE_CHILDREN_INVALIDATED = 2;
+    /** @see #STRUCTURE_CHANGE_CHILD_ADDED */
+    static final int STRUCTURE_CHANGE_CHILDREN_BULK_ADDED = 3;
+    /** @see #STRUCTURE_CHANGE_CHILD_ADDED */
+    static final int STRUCTURE_CHANGE_CHILDREN_BULK_REMOVED = 4;
+    /** @see #STRUCTURE_CHANGE_CHILD_ADDED */
+    static final int STRUCTURE_CHANGE_CHILDREN_REORDERED = 5;
+
+    /**
+     * {@code NotificationKind}, the second argument of {@code UiaRaiseNotificationEvent}. Read on the
+     * same guest on 2026-09-13: the managed {@code AutomationNotificationKind} in UIAutomationTypes
+     * (readings/windows-dump-uia-constants.txt) and {@code NotificationKind_*} in the
+     * UIAutomationClient type library (readings/windows-dump-uia-typelib.txt), which agree.
+     */
+    static final int NOTIFICATION_KIND_ITEM_ADDED = 0;
+    /** @see #NOTIFICATION_KIND_ITEM_ADDED */
+    static final int NOTIFICATION_KIND_ITEM_REMOVED = 1;
+    /** @see #NOTIFICATION_KIND_ITEM_ADDED */
+    static final int NOTIFICATION_KIND_ACTION_COMPLETED = 2;
+    /** @see #NOTIFICATION_KIND_ITEM_ADDED */
+    static final int NOTIFICATION_KIND_ACTION_ABORTED = 3;
+    /** @see #NOTIFICATION_KIND_ITEM_ADDED */
+    static final int NOTIFICATION_KIND_OTHER = 4;
+
+    /**
+     * {@code NotificationProcessing}, the third argument of {@code UiaRaiseNotificationEvent}. Read
+     * on the same guest on 2026-09-13: the managed {@code AutomationNotificationProcessing} carries
+     * 0 to 4 and the UIAutomationClient type library 0 to 5, adding
+     * {@code ImportantCurrentThenMostRecent} (readings/windows-dump-uia-constants.txt,
+     * -typelib.txt).
+     */
+    static final int NOTIFICATION_PROCESSING_IMPORTANT_ALL = 0;
+    /** @see #NOTIFICATION_PROCESSING_IMPORTANT_ALL */
+    static final int NOTIFICATION_PROCESSING_IMPORTANT_MOST_RECENT = 1;
+    /** @see #NOTIFICATION_PROCESSING_IMPORTANT_ALL */
+    static final int NOTIFICATION_PROCESSING_ALL = 2;
+    /** @see #NOTIFICATION_PROCESSING_IMPORTANT_ALL */
+    static final int NOTIFICATION_PROCESSING_MOST_RECENT = 3;
+    /** @see #NOTIFICATION_PROCESSING_IMPORTANT_ALL */
+    static final int NOTIFICATION_PROCESSING_CURRENT_THEN_MOST_RECENT = 4;
+    /** @see #NOTIFICATION_PROCESSING_IMPORTANT_ALL */
+    static final int NOTIFICATION_PROCESSING_IMPORTANT_CURRENT_THEN_MOST_RECENT = 5;
+
     // ---- read from the managed side, not from the interop assembly's identifier tables; each
     // names its reading. The header spellings (UiaAppendRuntimeId, UIA_E_ELEMENTNOTAVAILABLE,
     // UIA_E_INVALIDOPERATION) need a Windows SDK the guest does not carry and are NOT read.
@@ -369,6 +425,21 @@ final class UiaIds {
      * the container.
      */
     static final int INVALIDATE_LIMIT = 20;
+
+    /**
+     * The same threshold for a container of items: more than this many children entering and
+     * leaving an items container is one bulk structure change.
+     *
+     * <p>Read on the Windows 11 ARM64 guest on 2026-09-13
+     * ({@code System.Windows.Automation.Provider.AutomationInteropProvider.ItemsInvalidateLimit} = 5,
+     * UIAutomationProvider; readings/windows-dump-uia-constants.txt) and 2026-09-15, how the
+     * platform's own providers use the two, decoded as IL by {@code dump-uia-provider-conventions.ps1}
+     * (readings/windows-dump-uia-provider-conventions.txt §3): {@code AutomationPeer.UpdateChildren}
+     * passes 20 and {@code ItemsControlAutomationPeer}/{@code TreeViewItemAutomationPeer.UpdateChildren}
+     * pass 5 to {@code UpdateChildrenInternal}, which raises one bulk change when added + removed is
+     * more than the limit.
+     */
+    static final int ITEMS_INVALIDATE_LIMIT = 5;
 
     /**
      * {@code UIA_E_ELEMENTNOTAVAILABLE}: what a stale element answers until its refcount drops.

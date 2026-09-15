@@ -480,10 +480,16 @@ public final class UiaBridge extends PlatformBridge {
             raiseSelection(event);
             return;
         }
+        if (event.type() == AccessibleEvent.Type.ANNOUNCEMENT) {
+            raiseAnnouncement(event);
+            return;
+        }
+        if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED) {
+            raiseStructure(event);
+            return;
+        }
         int eventId = switch (event.type()) {
             case INVOKED -> UiaIds.INVOKE_INVOKED;
-            case STRUCTURE_CHANGED -> UiaIds.STRUCTURE_CHANGED;
-            case ANNOUNCEMENT -> UiaIds.NOTIFICATION;
             case WINDOW_OPENED -> UiaIds.WINDOW_OPENED;
             case WINDOW_CLOSED -> UiaIds.WINDOW_CLOSED;
             case TEXT_CHANGED -> UiaIds.TEXT_CHANGED;
@@ -743,6 +749,166 @@ public final class UiaBridge extends PlatformBridge {
         } else {
             UiaWindow.say("SELECTION_CHANGED of container " + event.nodeId()
                     + " reached no held element");
+        }
+    }
+
+    /**
+     * {@code {kind, processing}} for an announcement (WINDOWS-NEW-1): kind {@code Other}, because
+     * the model says nothing of what an announcement is about; processing by politeness.
+     * {@code ASSERTIVE} interrupts, which is {@code ImportantMostRecent}: NVDA 2024.4.2 cancels its
+     * speech first for {@code MostRecent} and {@code ImportantMostRecent} and queues the others
+     * (readings/nvda-2024.4.2-uia.md §4), and an interruption is important. {@code POLITE} waits,
+     * which is {@code All}: queued, none dropped for a later one. The enumerators were read on the
+     * guest 2026-09-13 ({@link UiaIds#NOTIFICATION_KIND_OTHER}).
+     *
+     * @param politeness the announcement's
+     * @return the kind and the processing, in that order
+     */
+    static int[] notificationFor(Accessible.Politeness politeness) {
+        return new int[] {UiaIds.NOTIFICATION_KIND_OTHER, switch (politeness) {
+            case POLITE -> UiaIds.NOTIFICATION_PROCESSING_ALL;
+            case ASSERTIVE -> UiaIds.NOTIFICATION_PROCESSING_IMPORTANT_MOST_RECENT;
+        }};
+    }
+
+    /**
+     * An announcement, raised with {@code UiaRaiseNotificationEvent} on the root's element, minted if
+     * no client holds it (WINDOWS-NEW-1). It was mapped to the notification event id and then
+     * dropped, because the model names no node for it (node {@code 0}) and nothing held one; and
+     * {@code UiaRaiseAutomationEvent}, which it would have gone through, carries no text.
+     *
+     * <p>On the root because an announcement belongs to the window, and NVDA 2024.4.2 takes a
+     * notification from any element that resolves to a window handle, speaking it while its focus
+     * is in this process (readings/nvda-2024.4.2-uia.md §4); the root is the element whose host
+     * provider is the HWND's. The activity id is empty, as WinForms' own
+     * {@code AccessibleObject.RaiseAutomationNotification} passes it (read as IL 2026-09-15,
+     * readings/windows-dump-uia-provider-conventions.txt §4).
+     */
+    private void raiseAnnouncement(AccessibleEvent event) {
+        AccessibleTree tree = tree();
+        if (tree.nodeCount() == 0) {
+            UiaWindow.say("ANNOUNCEMENT with no tree to raise it on");
+            return;
+        }
+        if (!Uia.canRaiseNotifications() && Uia.isAvailable()) {
+            UiaWindow.say("ANNOUNCEMENT not raised: this UI Automation has no notification event");
+            return;
+        }
+        UiaElement root = elementOf(tree.root().id());
+        if (root == null) {
+            return;
+        }
+        String text = event.newValue() instanceof String said ? said : "";
+        int[] how = notificationFor(event.politeness());
+        long display = UiaStrings.system().allocate(text);
+        long activity = UiaStrings.system().allocate("");
+        long started = System.nanoTime();
+        int hresult;
+        try {
+            hresult = Uia.raiseNotificationEvent(root.pointer(), how[0], how[1], display, activity);
+        } finally {
+            UiaStrings.free(display);
+            UiaStrings.free(activity);
+        }
+        owedAnEvent = false;
+        UiaWindow.say("raised ANNOUNCEMENT kind " + how[0] + " processing " + how[1]
+                + " on the root " + tree.root().id() + " -> 0x" + Integer.toHexString(hresult)
+                + " in " + (System.nanoTime() - started) / 1_000 + " us on "
+                + Thread.currentThread().getName());
+    }
+
+    /**
+     * What one parent's {@code STRUCTURE_CHANGED} raises, as {@code {type, raisedOn, runtimeIdOf}}
+     * node triples in order (WINDOWS-NEW-3), the shape the platform's own
+     * {@code AutomationPeer.UpdateChildrenInternal} raises, read as IL on the guest 2026-09-15
+     * (readings/windows-dump-uia-provider-conventions.txt §3): when more children entered and left
+     * than the limit, one change on the parent with the parent's runtime id, {@code
+     * ChildrenBulkRemoved} when none entered, {@code ChildrenBulkAdded} when none left,
+     * {@code ChildrenInvalidated} when both; otherwise {@code ChildRemoved} on the parent with each
+     * removed child's runtime id, then {@code ChildAdded} on each added child with its own. The limit
+     * is the platform's: {@link UiaIds#ITEMS_INVALIDATE_LIMIT} for a container of items (a list,
+     * tree, table or grid: a node with a selection or a table facet), which is what
+     * {@code ItemsControlAutomationPeer} passes, else {@link UiaIds#INVALIDATE_LIMIT}. A publish
+     * that moved surviving children adds one {@code ChildrenReordered} on the parent, which the
+     * platform's peer has no case for and the model's event carries.
+     *
+     * @param event          a {@code STRUCTURE_CHANGED}
+     * @param itemsContainer whether its parent is a container of items
+     * @return the raises
+     */
+    static List<long[]> structureRaises(AccessibleEvent event, boolean itemsContainer) {
+        List<AccessibleEvent.Child> added = event.addedChildren();
+        List<AccessibleEvent.Child> removed = event.removedChildren();
+        long parent = event.nodeId();
+        List<long[]> raises = new ArrayList<>();
+        int limit = itemsContainer ? UiaIds.ITEMS_INVALIDATE_LIMIT : UiaIds.INVALIDATE_LIMIT;
+        if (added.size() + removed.size() > limit) {
+            int type = added.isEmpty() ? UiaIds.STRUCTURE_CHANGE_CHILDREN_BULK_REMOVED
+                    : removed.isEmpty() ? UiaIds.STRUCTURE_CHANGE_CHILDREN_BULK_ADDED
+                    : UiaIds.STRUCTURE_CHANGE_CHILDREN_INVALIDATED;
+            raises.add(new long[] {type, parent, parent});
+        } else {
+            for (AccessibleEvent.Child child : removed) {
+                raises.add(new long[] {UiaIds.STRUCTURE_CHANGE_CHILD_REMOVED, parent, child.id()});
+            }
+            for (AccessibleEvent.Child child : added) {
+                raises.add(new long[] {UiaIds.STRUCTURE_CHANGE_CHILD_ADDED, child.id(), child.id()});
+            }
+        }
+        if (!event.reorderedChildren().isEmpty()) {
+            raises.add(new long[] {UiaIds.STRUCTURE_CHANGE_CHILDREN_REORDERED, parent, parent});
+        }
+        return raises;
+    }
+
+    /**
+     * Raises {@link #structureRaises} through {@code UiaRaiseStructureChangedEvent}, when a client
+     * holds the parent's element: a client that never asked for the parent holds nothing its
+     * children could have changed under, and reads them when it does ask (§13.28's cost argument).
+     * With the parent held, an added child's element is minted for its {@code ChildAdded}, as the
+     * platform's peer raises it on the child's own provider; a removed child's runtime id is still
+     * its identifier's. It was {@code UiaRaiseAutomationEvent} with the structure-changed id before,
+     * which carries neither a type nor a runtime id, and dropped whenever the parent was unheld.
+     * NVDA 2024.4.2 subscribes to no structure change (readings/nvda-2024.4.2-uia.md §5); the event
+     * is for the clients that do.
+     */
+    private void raiseStructure(AccessibleEvent event) {
+        UiaElement parent = elements.peek(event.nodeId());
+        if (parent == null) {
+            UiaWindow.say("STRUCTURE_CHANGED of node " + event.nodeId() + " reached no held element");
+            return;
+        }
+        AccessibleTree tree = tree();
+        AccessibleNode parentNode = tree.find(event.nodeId());
+        boolean items = parentNode != null
+                && (parentNode.selection() != null || parentNode.table() != null);
+        long runtimeId = MemoryUtil.nmemAllocChecked(3L * Integer.BYTES);
+        boolean anything = false;
+        try {
+            for (long[] raise : structureRaises(event, items)) {
+                UiaElement on = raise[1] == event.nodeId() ? parent : elementOf(raise[1]);
+                if (on == null) {
+                    continue;
+                }
+                int[] id = UiaFragment.runtimeId(raise[2]);
+                for (int i = 0; i < id.length; i++) {
+                    MemoryUtil.memPutInt(runtimeId + (long) i * Integer.BYTES, id[i]);
+                }
+                long started = System.nanoTime();
+                int hresult = Uia.raiseStructureChangedEvent(on.pointer(), (int) raise[0],
+                        runtimeId, id.length);
+                anything = true;
+                UiaWindow.say("raised STRUCTURE_CHANGED as type " + raise[0] + " on node " + raise[1]
+                        + " with the runtime id of node " + raise[2] + " -> 0x"
+                        + Integer.toHexString(hresult) + " in "
+                        + (System.nanoTime() - started) / 1_000 + " us on "
+                        + Thread.currentThread().getName());
+            }
+        } finally {
+            MemoryUtil.nmemFree(runtimeId);
+        }
+        if (anything) {
+            owedAnEvent = false;
         }
     }
 

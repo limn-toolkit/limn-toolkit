@@ -2235,6 +2235,14 @@ included), null for a negative row or an unrealized one; `GetColumnHeaders` answ
 every `CellFacet(-1, c)` child of the table's direct `GROUP` children, a footer's `-2` cells never; and
 `GetColumnHeaderItems` answers the header whose `CellFacet` column is the cell's.
 
+**Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `UiaRaiseNotificationEvent` and
+`UiaRaiseStructureChangedEvent` are bound and raised.** The event-flush row lists both; neither was
+bound, an `ANNOUNCEMENT` (node `0`) was mapped to the notification event id and then dropped at the
+held-element gate, and a `STRUCTURE_CHANGED` went through `UiaRaiseAutomationEvent`, which carries no
+type and no runtime id. Both entry points are bound optionally, outside `Uia.isAvailable`, with the
+parameter lists read on the guest 2026-09-13 (readings/windows-dump-uia-entry-points.txt: ordinals 97
+and 98, not forwarded). How §2.4 raises them is amended there.
+
 ### 2.2 macOS: NSAccessibility
 
 | Attribute / action / notification | Answered from | Note |
@@ -2524,6 +2532,31 @@ during a scroll or a drag is one wait per frame for nobody. Both forms now say s
 bulk one (node `0`) returned silently before, and neither pays the event an ask is owed
 (`UiaBridgeTest.aCaretMoveIsTheTextSelectionChangeAndItsPairIsRaisedOnce`,
 `aBoundsChangeIsRaisedNeitherPerNodeNorInBulkAndSaysSo`).
+
+**Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `ANNOUNCEMENT` and
+`STRUCTURE_CHANGED` as built.** `ANNOUNCEMENT` is `UiaRaiseNotificationEvent` on the root's element,
+minted if no client holds it: kind `Other` (4) and processing by politeness, `ASSERTIVE` →
+`ImportantMostRecent` (1), `POLITE` → `All` (2), the enumerators read 2026-09-13; the text and an
+empty activity id travel as `BSTR`s freed after the call, the activity id being what WinForms' own
+`AccessibleObject.RaiseAutomationNotification` passes (read as IL 2026-09-15,
+readings/windows-dump-uia-provider-conventions.txt §4). NVDA 2024.4.2 consumes notifications from any
+element that resolves to a window, while its focus is in this process, cancelling speech first for
+`ImportantMostRecent` and queueing `All` (readings/nvda-2024.4.2-uia.md §4). `STRUCTURE_CHANGED` is
+`UiaRaiseStructureChangedEvent` in the shape the platform's own `AutomationPeer.UpdateChildrenInternal`
+raises, read as IL the same day (§3 of that reading): past the limit — `ItemsInvalidateLimit` (5) for a
+container of items (a node with a selection or table facet), `InvalidateLimit` (20) otherwise, which
+is what `ItemsControlAutomationPeer` and `AutomationPeer` pass — one `ChildrenBulkRemoved` (4),
+`ChildrenBulkAdded` (3) or `ChildrenInvalidated` (2) on the parent with the parent's runtime id;
+otherwise `ChildRemoved` (1) on the parent with each removed child's runtime id, then `ChildAdded` (0)
+on each added child's own element with its own; and one `ChildrenReordered` (5) on the parent for a
+publish that moved surviving children, which the peer has no case for. It is raised only when a client
+holds the parent's element, an added child's element being minted for its `ChildAdded`; the parent is
+the model's, so a nested tree row removed (§2.1's navigation) is reported to the tree. **NVDA 2024.4.2
+subscribes to no structure change** (readings/nvda-2024.4.2-uia.md §5): the event is for the clients
+that do (Narrator, Inspect, a .NET client), and phase 5 counts it with one
+(`UiaBridgeTest.anAnnouncementIsRaisedOnTheRootEvenBeforeAnyClientHeldIt`,
+`aStructureChangeIsRaisedAsThePlatformsOwnPeerRaisesIt`,
+`aStructureChangeIsRaisedWhenTheParentIsHeldAndMintsTheChildItAdds`).
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that

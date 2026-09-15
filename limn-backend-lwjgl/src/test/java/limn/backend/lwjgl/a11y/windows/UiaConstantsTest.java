@@ -162,6 +162,35 @@ class UiaConstantsTest {
     }
 
     /**
+     * What UiaRaiseStructureChangedEvent and UiaRaiseNotificationEvent take, read on the guest
+     * 2026-09-13 from the managed enumerations and the type libraries, which agree
+     * (readings/windows-dump-uia-constants.txt, -typelib.txt), and the provider API's limit for a
+     * container of items (AutomationInteropProvider.ItemsInvalidateLimit).
+     */
+    @Test
+    void theStructureAndNotificationNumbersAreTheOnesTheGuestGave() {
+        assertEquals(0, UiaIds.STRUCTURE_CHANGE_CHILD_ADDED);
+        assertEquals(1, UiaIds.STRUCTURE_CHANGE_CHILD_REMOVED);
+        assertEquals(2, UiaIds.STRUCTURE_CHANGE_CHILDREN_INVALIDATED);
+        assertEquals(3, UiaIds.STRUCTURE_CHANGE_CHILDREN_BULK_ADDED);
+        assertEquals(4, UiaIds.STRUCTURE_CHANGE_CHILDREN_BULK_REMOVED);
+        assertEquals(5, UiaIds.STRUCTURE_CHANGE_CHILDREN_REORDERED);
+        assertEquals(0, UiaIds.NOTIFICATION_KIND_ITEM_ADDED);
+        assertEquals(1, UiaIds.NOTIFICATION_KIND_ITEM_REMOVED);
+        assertEquals(2, UiaIds.NOTIFICATION_KIND_ACTION_COMPLETED);
+        assertEquals(3, UiaIds.NOTIFICATION_KIND_ACTION_ABORTED);
+        assertEquals(4, UiaIds.NOTIFICATION_KIND_OTHER);
+        assertEquals(0, UiaIds.NOTIFICATION_PROCESSING_IMPORTANT_ALL);
+        assertEquals(1, UiaIds.NOTIFICATION_PROCESSING_IMPORTANT_MOST_RECENT);
+        assertEquals(2, UiaIds.NOTIFICATION_PROCESSING_ALL);
+        assertEquals(3, UiaIds.NOTIFICATION_PROCESSING_MOST_RECENT);
+        assertEquals(4, UiaIds.NOTIFICATION_PROCESSING_CURRENT_THEN_MOST_RECENT);
+        assertEquals(5, UiaIds.NOTIFICATION_PROCESSING_IMPORTANT_CURRENT_THEN_MOST_RECENT,
+                "the type library's; the managed enumeration stops at 4");
+        assertEquals(5, UiaIds.ITEMS_INVALIDATE_LIMIT);
+    }
+
+    /**
      * UIA_LevelPropertyId, read 2026-09-13 from UIAutomationCore.dll's type library and the
      * internal managed table (readings/windows-dump-uia-typelib.txt, -constants.txt), beside the two
      * position ids the interop assembly carries.

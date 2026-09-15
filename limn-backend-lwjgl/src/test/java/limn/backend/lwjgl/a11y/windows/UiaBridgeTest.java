@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Locale;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -1470,6 +1471,127 @@ class UiaBridgeTest {
             assertNotEquals(0L,
                     bridge.contextForTests().patternProviderFor(1001, UiaIds.SCROLL_PATTERN));
         } finally {
+            bridge.detach();
+        }
+    }
+
+    // ---- announcements and structure (WINDOWS-NEW-1, WINDOWS-NEW-3)
+
+    /**
+     * WINDOWS-NEW-1: kind Other, and processing by politeness: an assertive announcement
+     * interrupts (ImportantMostRecent, which NVDA 2024.4.2 speaks after cancelling), a polite one
+     * waits (All, queued). The enumerators are the guest's, read 2026-09-13.
+     */
+    @Test
+    void anAnnouncementIsKindOtherAndItsPolitenessChoosesTheProcessing() {
+        assertArrayEquals(new int[] {4, 1}, UiaBridge.notificationFor(Accessible.Politeness.ASSERTIVE));
+        assertArrayEquals(new int[] {4, 2}, UiaBridge.notificationFor(Accessible.Politeness.POLITE));
+    }
+
+    /**
+     * WINDOWS-NEW-1: the model names no node for an announcement, so it was dropped at the held
+     * gate (node 0); it is raised on the root's element, minted when no client held it yet.
+     */
+    @Test
+    void anAnnouncementIsRaisedOnTheRootEvenBeforeAnyClientHeldIt() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aList(false, false), false);
+            assertFalse(bridge.holdsElementFor(1000));
+            bridge.noteAsked();
+
+            bridge.emit(AccessibleEvent.announcement("Saved", Accessible.Politeness.ASSERTIVE));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith(
+                    "raised ANNOUNCEMENT kind 4 processing 1 on the root 1000 -> 0x0 in ")),
+                    "raised on the root with the assertive processing: " + trace);
+            assertTrue(bridge.holdsElementFor(1000), "the root's element was minted for it");
+            assertFalse(bridge.owesAnEvent(), "a raise pays the event an ask is owed");
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    private static AccessibleEvent.Child child(long id, int index) {
+        return new AccessibleEvent.Child(id, index, 0);
+    }
+
+    /**
+     * WINDOWS-NEW-3: the shape the platform's own AutomationPeer.UpdateChildrenInternal raises (read
+     * as IL on the guest 2026-09-15): ChildRemoved on the parent with each removed child's runtime
+     * id, then ChildAdded on each added child with its own; one bulk change on the parent with the
+     * parent's id past the limit, 20 for a plain container and 5 for a container of items; one
+     * ChildrenReordered on the parent for a move.
+     */
+    @Test
+    void aStructureChangeIsRaisedAsThePlatformsOwnPeerRaisesIt() {
+        java.util.function.Function<java.util.List<long[]>, java.util.List<String>> show = raises ->
+                raises.stream().map(r -> r[0] + "@" + r[1] + "#" + r[2]).toList();
+
+        AccessibleEvent few = AccessibleEvent.structure(1001, java.util.List.of(child(1003, 1)),
+                java.util.List.of(child(1002, 0)), java.util.List.of());
+        assertEquals(java.util.List.of("1@1001#1002", "0@1003#1003"),
+                show.apply(UiaBridge.structureRaises(few, false)));
+
+        java.util.List<AccessibleEvent.Child> six = new java.util.ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            six.add(child(2000 + i, i));
+        }
+        AccessibleEvent sixAdded = AccessibleEvent.structure(1001, six, java.util.List.of(),
+                java.util.List.of());
+        assertEquals(java.util.List.of("3@1001#1001"),
+                show.apply(UiaBridge.structureRaises(sixAdded, true)),
+                "more than ItemsInvalidateLimit (5) in a container of items: ChildrenBulkAdded");
+        assertEquals(6, UiaBridge.structureRaises(sixAdded, false).size(),
+                "and six ChildAdded in a plain container, whose limit is 20");
+        AccessibleEvent sixRemoved = AccessibleEvent.structure(1001, java.util.List.of(), six,
+                java.util.List.of());
+        assertEquals(java.util.List.of("4@1001#1001"),
+                show.apply(UiaBridge.structureRaises(sixRemoved, true)), "ChildrenBulkRemoved");
+        AccessibleEvent both = AccessibleEvent.structure(1001, six.subList(0, 3), six.subList(3, 6),
+                java.util.List.of(child(1009, 0)));
+        assertEquals(java.util.List.of("2@1001#1001", "5@1001#1001"),
+                show.apply(UiaBridge.structureRaises(both, true)),
+                "ChildrenInvalidated for both, and a move is ChildrenReordered");
+    }
+
+    /**
+     * WINDOWS-NEW-3: raised through UiaRaiseStructureChangedEvent only when a client holds the
+     * parent, minting an added child's element for its ChildAdded; nothing for an unheld parent.
+     * Until 2026-09-15 it went through UiaRaiseAutomationEvent, with no type and no runtime id.
+     */
+    @Test
+    void aStructureChangeIsRaisedWhenTheParentIsHeldAndMintsTheChildItAdds() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            AccessibleTree tree = aList(false, false);
+            bridge.publish(tree, false);
+            long added = tree.node(3).id();
+            bridge.emit(AccessibleEvent.structure(1001, java.util.List.of(child(added, 1)),
+                    java.util.List.of(), java.util.List.of()));
+            assertNotNull(awaitTrace(trace, l -> l.equals(
+                    "STRUCTURE_CHANGED of node 1001 reached no held element")), "" + trace);
+            assertFalse(bridge.holdsElementFor(added), "nothing minted for an unheld parent");
+
+            bridge.objectFor(1001);
+            bridge.noteAsked();
+            bridge.emit(AccessibleEvent.structure(1001, java.util.List.of(child(added, 1)),
+                    java.util.List.of(child(4242, 0)), java.util.List.of()));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised STRUCTURE_CHANGED as type 1 on "
+                    + "node 1001 with the runtime id of node 4242 -> 0x0 in ")), "" + trace);
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised STRUCTURE_CHANGED as type 0 on "
+                    + "node " + added + " with the runtime id of node " + added + " -> 0x0 in ")),
+                    "" + trace);
+            assertTrue(bridge.holdsElementFor(added), "the added child's element was minted");
+            assertFalse(bridge.owesAnEvent());
+        } finally {
+            UiaWindow.trace = before;
             bridge.detach();
         }
     }
