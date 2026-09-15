@@ -363,14 +363,20 @@ class AtspiApplicationTest {
         Published second = aWindow("Calendar", 0);
         popup.publish(second.tree(), false);
         popup.publish(second.tree(), false);
-        assertEquals(2, bus.signals.size(), "one arrival, announced once: " + bus.signals);
+        assertEquals(3, bus.signals.size(), "one arrival, announced once: " + bus.signals);
         assertFrameSignal(bus.signals.get(0), "add", 1, second.window());
-        assertWindowSignal(bus.signals.get(1), "Create", second.window(), "Calendar");
+        assertEquals("AddAccessible", bus.signals.get(1).member, "the cache told of the frame");
+        assertEquals(path(second.window()), DBus.Ref.of(((Object[]) bus.signals.get(1).body[0])[0]).path);
+        assertWindowSignal(bus.signals.get(2), "Create", second.window(), "Calendar");
 
         popup.detach();
-        assertEquals(4, bus.signals.size());
-        assertWindowSignal(bus.signals.get(2), "Destroy", second.window(), "Calendar");
-        assertFrameSignal(bus.signals.get(3), "remove", 1, second.window());
+        assertEquals(6, bus.signals.size());
+        assertWindowSignal(bus.signals.get(3), "Destroy", second.window(), "Calendar");
+        assertFrameSignal(bus.signals.get(4), "remove", 1, second.window());
+        assertEquals("RemoveAccessible", bus.signals.get(5).member);
+        assertEquals(path(second.window()), DBus.Ref.of(bus.signals.get(5).body[0]).path);
+        assertEquals(List.of(AtspiStates.DEFUNCT), statesAt(app, path(second.window())),
+                "and the departed frame answers that it is defunct, not UnknownMethod");
         assertFalse(bus.closed, "the application stays while it still has a window");
         assertEquals(List.of(path(first.window())),
                 pathsOf(call(app, Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetChildren", null).body[0]));
@@ -517,7 +523,8 @@ class AtspiApplicationTest {
     private static List<String> spoken(List<DBus.Msg> signals) {
         List<String> out = new ArrayList<>();
         for (DBus.Msg m : signals) {
-            out.add(m.member + " " + m.body[0] + " " + m.body[1] + " " + m.path);
+            out.add(m.body.length < 2 ? m.member + " " + m.path
+                    : m.member + " " + m.body[0] + " " + m.body[1] + " " + m.path);
         }
         return out;
     }
@@ -537,6 +544,11 @@ class AtspiApplicationTest {
          * difference found, as a scene does.
          */
         List<limn.accessibility.AccessibleEvent> publish(boolean active, long focused) {
+            return publish(active, focused, 3001, 3002);
+        }
+
+        List<limn.accessibility.AccessibleEvent> publish(boolean active, long focused,
+                                                         long... buttons) {
             a.beginWalk(400, 300, Locale.ENGLISH);
             a.begin(3000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
@@ -545,7 +557,7 @@ class AtspiApplicationTest {
                 a.state(Accessible.State.ACTIVE);
             }
             a.inherited(true, true, true, false, false);
-            for (long id = 3001; id <= 3002; id++) {
+            for (long id : buttons) {
                 a.begin(id, 0, Locale.ENGLISH, 10, 20 + (id - 3001) * 50, 160, 40);
                 a.role(Accessible.Role.BUTTON);
                 a.name(I18nString.literal("Button " + id), Accessible.NameFrom.CONTENT);
@@ -591,6 +603,59 @@ class AtspiApplicationTest {
                 + path(3002)), "a focus change already sent in this publish is not sent twice, "
                 + "which Orca's 0.1 s filter would drop: " + sent);
         assertTrue(sent.indexOf("Activate  0 " + path(3000)) >= 0, sent.toString());
+    }
+
+    /** The state bits a path answers GetState with, as bit indices. */
+    private static List<Integer> statesAt(AtspiApplication app, String path) {
+        DBus.Msg reply = call(app, path, Atspi.I_ACCESSIBLE, "GetState", null);
+        List<?> words = (List<?>) reply.body[0];
+        long set = (((Number) words.get(1)).longValue() << 32)
+                | (((Number) words.get(0)).longValue() & 0xffffffffL);
+        List<Integer> out = new ArrayList<>();
+        for (int bit = 0; bit < 64; bit++) {
+            if ((set & (1L << bit)) != 0) {
+                out.add(bit);
+            }
+        }
+        return out;
+    }
+
+    @Test
+    void aChildLeavingAndAChildArrivingAreToldFromTheParentWithTheIndicesAndItemsTheTreeAnswers() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        Frames main = new Frames(app.window());
+        main.publish(true, 3001, 3001, 3002, 3003);
+        bus.signals.clear();
+
+        main.publish(true, 3001, 3001, 3003, 3004);
+
+        List<String> sent = spoken(bus.signals);
+        int defunct = sent.indexOf("StateChanged defunct 1 " + path(3002));
+        int remove = sent.indexOf("ChildrenChanged remove 1 " + path(3000));
+        int add = sent.indexOf("ChildrenChanged add 2 " + path(3000));
+        assertTrue(defunct >= 0 && remove >= 0 && add > remove, "the departure from its own path, "
+                + "the removal and the arrival from the parent, at the indices: " + sent);
+        assertEquals(path(3002), DBus.Ref.of(((DBus.Variant) bus.signals.get(remove).body[3]).value)
+                .path, "the child that left, by reference");
+        assertEquals("RemoveAccessible", bus.signals.get(remove + 1).member);
+        assertEquals(path(3002), DBus.Ref.of(bus.signals.get(remove + 1).body[0]).path);
+        assertEquals(call(app, path(3004), Atspi.I_ACCESSIBLE, "GetIndexInParent", null).body[0],
+                bus.signals.get(add).body[1], "the index GetIndexInParent answers for the arrival");
+        DBus.Msg item = bus.signals.get(add + 1);
+        assertEquals("AddAccessible", item.member);
+        assertEquals(Atspi.CACHE_ITEM, item.signature);
+        Object announced = null;
+        for (Object entry : (List<?>) call(app, Atspi.PATH_CACHE, Atspi.I_CACHE, "GetItems",
+                null).body[0]) {
+            if (DBus.Ref.of(((Object[]) entry)[0]).path.equals(path(3004))) {
+                announced = entry;
+            }
+        }
+        assertTrue(DBusWireTest.deepEq(announced, item.body[0]),
+                "the item GetItems lists for the same node: " + DBus.fmt(item.body[0]));
+        assertEquals(List.of(AtspiStates.DEFUNCT), statesAt(app, path(3002)),
+                "and the child that left answers defunct when it is asked");
     }
 
     @Test

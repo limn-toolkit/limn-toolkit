@@ -230,6 +230,35 @@ class DBusWireTest {
         check("GetItems reply signature", Atspi.CACHE_ITEMS, replyBack.signature);
         check("GetItems reply body", structs(item), replyBack.body[0]);
 
+        // The cache signals, whose signatures libatspi 2.60.6 compares as strings before it reads
+        // a byte (handle_add_accessible: cache_signal_type "((so)(so)(so)iiassusau)";
+        // handle_remove_accessible: "(so)"; readings/upstream-at-spi2-core-2.60.6-libatspi.txt).
+        // A signal's body of one struct is that struct's signature and nothing around it.
+        DBus.Msg added = DBus.Msg.signal(Atspi.PATH_CACHE, Atspi.I_CACHE, "AddAccessible",
+                Atspi.CACHE_ITEM, (Object) item);
+        DBus.Msg addedBack = DBus.Msg.parse(added.marshal(15));
+        check("AddAccessible signature is libatspi's cache_signal_type",
+              "((so)(so)(so)iiassusau)", addedBack.signature);
+        check("AddAccessible body is the one item", item, addedBack.body[0]);
+        check("AddAccessible path", "/org/a11y/atspi/cache", addedBack.path);
+        DBus.Msg gone = DBus.Msg.signal(Atspi.PATH_CACHE, Atspi.I_CACHE, "RemoveAccessible", "(so)",
+                (Object) new Object[] { ":1.9", "/org/a11y/atspi/accessible/1" });
+        DBus.Msg goneBack = DBus.Msg.parse(gone.marshal(17));
+        check("RemoveAccessible signature", "(so)", goneBack.signature);
+        check("RemoveAccessible body", new Object[] { ":1.9", "/org/a11y/atspi/accessible/1" },
+              goneBack.body[0]);
+        // ChildrenChanged: detail, index, 0, the child's reference in a variant, the application.
+        DBus.Msg children = DBus.Msg.signal("/org/a11y/atspi/accessible/10",
+                AtspiEvents.I_EVENT_OBJECT, "ChildrenChanged", AtspiEvents.SIGNATURE, "add", 2, 0,
+                DBus.v("(so)", new Object[] { ":1.9", "/org/a11y/atspi/accessible/11" }),
+                new Object[] { ":1.9", Atspi.PATH_ROOT });
+        DBus.Msg childrenBack = DBus.Msg.parse(children.marshal(19));
+        check("ChildrenChanged signature is one libatspi accepts", "siiv(so)",
+              childrenBack.signature);
+        check("ChildrenChanged body", new Object[] { "add", 2, 0,
+                DBus.v("(so)", new Object[] { ":1.9", "/org/a11y/atspi/accessible/11" }),
+                new Object[] { ":1.9", Atspi.PATH_ROOT } }, childrenBack.body);
+
         DBus.Msg err = DBus.Msg.err(getItems, "org.freedesktop.DBus.Error.UnknownMethod", "nope");
         err.destination = ":1.2";
         DBus.Msg errBack = DBus.Msg.parse(err.marshal(11));

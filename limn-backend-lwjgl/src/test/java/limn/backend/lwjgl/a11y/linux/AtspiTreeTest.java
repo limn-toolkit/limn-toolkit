@@ -401,6 +401,11 @@ class AtspiTreeTest {
                 "GetRole", null), "a node that left the tree resolves to nothing");
         assertEquals(null, call("/org/a11y/atspi/accessible/not-a-number", Atspi.I_ACCESSIBLE,
                 "GetRole", null));
+        assertEquals(List.of(1 << AtspiStates.DEFUNCT, 0), call("/org/a11y/atspi/accessible/999999",
+                Atspi.I_ACCESSIBLE, "GetState", null).body[0],
+                "except its state, which is DEFUNCT: a client holding it may ask (LINUX-NEW-1)");
+        assertEquals(null, call("/org/a11y/atspi/accessible/not-a-number", Atspi.I_ACCESSIBLE,
+                "GetState", null), "a path that was never a node is not one that left");
     }
 
     @Test

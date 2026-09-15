@@ -491,6 +491,10 @@ final class AtspiApplication {
             @Override public int indexInParent(long id) {
                 return objects.indexInParentOf(id);
             }
+
+            @Override public Object[] cacheItem(long id) {
+                return objects.cacheItemOf(id);
+            }
         };
     }
 
@@ -541,9 +545,22 @@ final class AtspiApplication {
      */
     private void announceFrame(AtspiBridge window, Link link, String detail, int index,
                                long frameId) {
+        DBus.Ref frame = objects.refOf(frameId);
         send(link, AtspiEvents.event(contextOf(window), Atspi.PATH_ROOT,
                 AtspiEvents.I_EVENT_OBJECT, "ChildrenChanged", detail, index, 0,
-                new DBus.Variant("(so)", objects.refOf(frameId).toStruct())));
+                new DBus.Variant("(so)", frame.toStruct())));
+        // And the cache, in the order structureChanged gives its reasons for: the item after the
+        // add that made room for it, the removal after the remove that still names it.
+        if ("add".equals(detail)) {
+            Object[] item = objects.cacheItemOf(frameId);
+            if (item != null) {
+                send(link, new AtspiEvents.Signal(Atspi.PATH_CACHE, Atspi.I_CACHE, "AddAccessible",
+                        Atspi.CACHE_ITEM, new Object[] {item}));
+            }
+        } else {
+            send(link, new AtspiEvents.Signal(Atspi.PATH_CACHE, Atspi.I_CACHE, "RemoveAccessible",
+                    "(so)", new Object[] {frame.toStruct()}));
+        }
     }
 
     /**

@@ -59,7 +59,16 @@ final class AtspiEvents {
          *         (a window's own node among the application's frames), or -1 when no window does
          */
         int indexInParent(long id);
+
+        /**
+         * @return the node's {@code Cache} item as {@code GetItems} would list it now, or
+         *         {@code null} when no window holds it
+         */
+        Object[] cacheItem(long id);
     }
+
+    /** Where the {@code Cache} signals are sent from, and what a client matches them by. */
+    static final String I_CACHE = Atspi.I_CACHE;
 
     /**
      * One signal as it goes on the wire: the object it is sent from, its interface and member, its
@@ -112,6 +121,9 @@ final class AtspiEvents {
         if (event.type() == AccessibleEvent.Type.TEXT_CHANGED) {
             return textChanged(event, context, path);  // a replacement is two signals
         }
+        if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED) {
+            return structureChanged(event, context, path);
+        }
         Signal one = switch (event.type()) {
             // Nothing. Focus is a state change on this platform -- the dedicated Focus signal is
             // deprecated and Orca subscribes to object:state-changed:focused -- and the difference
@@ -128,13 +140,8 @@ final class AtspiEvents {
             case VALUE_CHANGED -> event(context, path, I_EVENT_OBJECT, "PropertyChange",
                     "accessible-value", 0, 0, new DBus.Variant("d", number(event.newValue())));
             case BOUNDS_CHANGED -> boundsChanged(event, context, path);
-            // Structure and destruction are both "the children of something moved" here: the
-            // platform has no separate word for a node that ceased to exist, and a client answers
-            // both by re-reading the subtree.
-            case STRUCTURE_CHANGED -> event(context, path, I_EVENT_OBJECT, "ChildrenChanged", "",
-                    0, 0, new DBus.Variant("i", 0));
-            case NODE_DESTROYED -> event(context, path, I_EVENT_OBJECT, "ChildrenChanged",
-                    "remove", 0, 0, new DBus.Variant("i", 0));
+            case NODE_DESTROYED -> event(context, path, I_EVENT_OBJECT, "StateChanged", "defunct",
+                    1, 0, new DBus.Variant("i", 0));
             case SELECTION_CHANGED -> event(context, path, I_EVENT_OBJECT, "SelectionChanged", "",
                     0, 0, new DBus.Variant("i", 0));
             case ACTIVE_DESCENDANT_CHANGED -> activeDescendantChanged(event, context, path);
@@ -198,6 +205,63 @@ final class AtspiEvents {
             String added = after.substring(start, insertedEnd);
             out.add(event(context, path, I_EVENT_OBJECT, "TextChanged", "insert", at,
                     added.codePointCount(0, added.length()), new DBus.Variant("s", added)));
+        }
+        return out;
+    }
+
+    /**
+     * A parent's children moved (LINUX-NEW-1, LAB-NEW-3): per child, {@code ChildrenChanged} from
+     * the parent with the child's index in {@code detail1} and its {@code (so)} as the value, plus
+     * {@code Cache.RemoveAccessible} for a child that left the tree and {@code Cache.AddAccessible}
+     * for one that arrived here.
+     *
+     * <p>It was one {@code ChildrenChanged} with an empty detail, no index and an {@code i} per new
+     * node, and a {@code remove} from the destroyed node's own path — a path that answered nothing
+     * by then. libatspi 2.60.6's {@code cache_process_children_changed} touches a client's cached
+     * children only for {@code add} or {@code remove} with an accessible {@code any_data}
+     * (readings/upstream-at-spi2-core-2.60.6-libatspi.txt), and Orca 50.2 crashed on the
+     * {@code int} (the 2026-09-14 baseline's LAB-NEW-3) and ignores one from a dead source.
+     *
+     * <p>The order is libatspi's arithmetic, not taste. {@code remove} takes the child out by
+     * reference, so removals go first, the highest former index first. {@code add} removes the
+     * child and inserts it at {@code detail1}, so additions and reorders go next in ascending
+     * index, each landing where the ones before it already stand. {@code AddAccessible} writes the
+     * child into the parent's slot at its index — overwriting whatever stands there — so it follows
+     * the {@code add} that put the child in that slot rather than preceding it, where it would
+     * overwrite a sibling (GTK 4.22.4 sends its cache addition first; its cache was never read
+     * through this path). {@code RemoveAccessible} disposes the client's object, so it follows the
+     * {@code remove} that still names it. A child that moved between parents is removed from one
+     * and added to the other; it is never removed from the cache.
+     */
+    private static List<Signal> structureChanged(AccessibleEvent event, Context context,
+                                                 String path) {
+        List<Signal> out = new java.util.ArrayList<>();
+        List<AccessibleEvent.Child> removed = new java.util.ArrayList<>(event.removedChildren());
+        removed.sort((a, b) -> Integer.compare(b.index(), a.index()));
+        for (AccessibleEvent.Child child : removed) {
+            DBus.Ref ref = context.refOf(child.id());
+            out.add(event(context, path, I_EVENT_OBJECT, "ChildrenChanged", "remove",
+                    child.index(), 0, new DBus.Variant("(so)", ref.toStruct())));
+            if (child.otherParent() == 0) {
+                out.add(new Signal(Atspi.PATH_CACHE, I_CACHE, "RemoveAccessible", "(so)",
+                        new Object[] {ref.toStruct()}));
+            }
+        }
+        List<AccessibleEvent.Child> arriving = new java.util.ArrayList<>(event.addedChildren());
+        java.util.Set<Long> added = new java.util.HashSet<>();
+        for (AccessibleEvent.Child child : arriving) {
+            added.add(child.id());
+        }
+        arriving.addAll(event.reorderedChildren());
+        arriving.sort(java.util.Comparator.comparingInt(AccessibleEvent.Child::index));
+        for (AccessibleEvent.Child child : arriving) {
+            out.add(event(context, path, I_EVENT_OBJECT, "ChildrenChanged", "add", child.index(),
+                    0, new DBus.Variant("(so)", context.refOf(child.id()).toStruct())));
+            Object[] item = added.contains(child.id()) ? context.cacheItem(child.id()) : null;
+            if (item != null) {
+                out.add(new Signal(Atspi.PATH_CACHE, I_CACHE, "AddAccessible", Atspi.CACHE_ITEM,
+                        new Object[] {item}));
+            }
         }
         return out;
     }

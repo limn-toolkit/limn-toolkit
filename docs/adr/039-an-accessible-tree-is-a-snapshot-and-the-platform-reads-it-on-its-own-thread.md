@@ -2434,6 +2434,27 @@ pair; it is widened to whole characters before it is converted. `TextCaretMoved`
 offset in characters in `detail1`, read off the published `TextFacet` (it was always 0; Orca
 compares it with the last cursor position). `TextSelectionChanged` carries an empty string.
 
+**`STRUCTURE_CHANGED`, `NODE_DESTROYED` (LINUX-NEW-1, LAB-NEW-3; decision 28).** Per child of the
+event's surviving parent, `ChildrenChanged` from the parent's path with the child's `(so)` as the
+value and its index in `detail1` (its former index for a removal): removals first, highest index
+first, each followed by `Cache.RemoveAccessible` `(so)` when the child left the tree; then additions
+and reorders in ascending index, each addition followed by `Cache.AddAccessible` with the item
+`Cache.GetItems` lists for it (`((so)(so)(so)iiassusau)`). That order is libatspi 2.60.6's
+arithmetic: `remove` takes a child out by reference, `add` removes it and inserts it at `detail1`,
+`AddAccessible` overwrites the parent's slot at the item's index, and `RemoveAccessible` disposes the
+object (readings/upstream-at-spi2-core-2.60.6-libatspi.txt). A child that moved between parents is
+removed from one and added to the other and never removed from the cache. `NODE_DESTROYED` sends
+`StateChanged` `defunct` 1 from the node's own path, as GTK 4.22.4 does before unregistering a
+context, and a node path no window holds any more answers `GetState` with `DEFUNCT` (6, read
+2026-09-13 off the Fedora typelib) while declining everything else — Orca 50.2 ignores an event from
+a source that is `DEFUNCT` or whose name cannot be read (readings/fedora-orca-dead-object.txt). It
+was one `ChildrenChanged` with an empty detail and an `i` per new node, and a `remove` from the
+destroyed node's own dead path, whose `int` crashed Orca's `_ignore_children_changed`. A frame
+arriving or leaving after the join gets the same `AddAccessible`/`RemoveAccessible` after its
+`ChildrenChanged` from the application object, which closes what §2.3's amendment of this date left
+to this item. No container publishes `MANAGES_DESCENDANTS`: decision 28 keeps clients' child caches
+correct instead.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

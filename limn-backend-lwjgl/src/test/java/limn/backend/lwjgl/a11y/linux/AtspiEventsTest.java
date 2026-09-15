@@ -43,6 +43,10 @@ class AtspiEventsTest {
         @Override public int indexInParent(long id) {
             return 3;
         }
+
+        @Override public Object[] cacheItem(long id) {
+            return new Object[] {"the item of", id};
+        }
     };
 
     private static List<AtspiEvents.Signal> signals(AccessibleEvent event) {
@@ -272,11 +276,75 @@ class AtspiEventsTest {
             @Override public int indexInParent(long id) {
                 return NAMES.indexInParent(id);
             }
+
+            @Override public Object[] cacheItem(long id) {
+                return NAMES.cacheItem(id);
+            }
         };
     }
 
     private static List<Object> shape(AtspiEvents.Signal signal) {
         return List.of(signal.detail(), signal.detail1(), signal.detail2(), signal.value().value);
+    }
+
+    /**
+     * A parent's children moved: per child, {@code ChildrenChanged} from the parent with the index
+     * and the child's reference, and the cache told of what left the tree and what arrived
+     * (LINUX-NEW-1, LAB-NEW-3). Removals first, highest former index first; then additions and
+     * reorders in ascending index, each {@code AddAccessible} after the {@code add} that made room.
+     */
+    @Test
+    void aStructureChangeIsOneChildrenChangedPerChildFromTheParentWithTheCacheToldInLibatspisOrder() {
+        List<AtspiEvents.Signal> sent = signals(AccessibleEvent.structure(10,
+                List.of(new AccessibleEvent.Child(8, 0, 0), new AccessibleEvent.Child(12, 3, 44)),
+                List.of(new AccessibleEvent.Child(6, 0, 0), new AccessibleEvent.Child(5, 2, 0),
+                        new AccessibleEvent.Child(7, 1, 99)),
+                List.of(new AccessibleEvent.Child(9, 1, 0))));
+
+        List<String> said = new java.util.ArrayList<>();
+        for (AtspiEvents.Signal signal : sent) {
+            if (signal.iface().equals(AtspiEvents.I_EVENT_OBJECT)) {
+                assertEquals("/org/a11y/atspi/accessible/10", signal.path(), "from the parent");
+                assertEquals("(so)", signal.value().sig);
+                said.add(signal.detail() + " " + signal.detail1() + " "
+                        + DBus.Ref.of(signal.value().value).path.replace(
+                                "/org/a11y/atspi/accessible/", ""));
+            } else {
+                assertEquals(Atspi.PATH_CACHE, signal.path());
+                Object arg = signal.body()[0];
+                said.add(signal.member() + " " + (signal.member().equals("AddAccessible")
+                        ? ((Object[]) arg)[1]
+                        : DBus.Ref.of(arg).path.replace("/org/a11y/atspi/accessible/", "")));
+            }
+        }
+        assertEquals(List.of(
+                "remove 2 5", "RemoveAccessible 5",
+                "remove 1 7",
+                "remove 0 6", "RemoveAccessible 6",
+                "add 0 8", "AddAccessible 8",
+                "add 1 9",
+                "add 3 12", "AddAccessible 12"), said,
+                "a child that moved to another parent (7) is never taken out of the cache, a "
+                        + "reordered one (9) is only moved, and one that moved here (12) is "
+                        + "announced where it now stands");
+        AtspiEvents.Signal add = sent.get(6);
+        assertEquals(Atspi.CACHE_ITEM, add.signature(), "the item struct libatspi compares against");
+        assertEquals("(so)", sent.get(1).signature());
+    }
+
+    /**
+     * A node that left the tree says so from its own path, as GTK 4.22.4 does before it
+     * unregisters a context: {@code StateChanged defunct 1}. It used to send a
+     * {@code ChildrenChanged remove} from that path with an {@code i}, which libatspi could do
+     * nothing with and Orca 50.2 crashed on.
+     */
+    @Test
+    void aDestroyedNodeSaysItIsDefunctFromItsOwnPath() {
+        AtspiEvents.Signal gone = one(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, 5));
+        assertEquals("StateChanged", gone.member());
+        assertEquals("defunct", gone.detail());
+        assertEquals(1, gone.detail1());
+        assertEquals("/org/a11y/atspi/accessible/5", gone.path());
     }
 
     @Test

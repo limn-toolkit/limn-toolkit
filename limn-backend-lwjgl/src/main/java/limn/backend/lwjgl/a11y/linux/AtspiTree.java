@@ -218,7 +218,7 @@ final class AtspiTree {
         boolean root = isRoot(m.path);
         Located at = root ? null : nodeOf(m.path);
         if (!root && at == null) {
-            return null;
+            return departed(m, iface);
         }
         AccessibleNode node = at == null ? null : at.node();
         if (Atspi.I_PROPS.equals(iface)) {
@@ -246,6 +246,32 @@ final class AtspiTree {
             return application(m);
         }
         return null;
+    }
+
+    /**
+     * A call on a node path no window's snapshot holds any more: {@code GetState} answers
+     * {@code DEFUNCT} alone, and everything else is declined as before.
+     *
+     * <p>A node leaves with a {@code ChildrenChanged remove} from its parent, a
+     * {@code Cache.RemoveAccessible} and a {@code StateChanged defunct} from its own path
+     * (LINUX-NEW-1), but a client may still hold the reference and ask. GTK 4.22.4 marks a context
+     * defunct before it unregisters it; Orca 50.2 ignores an event whose source has
+     * {@code DEFUNCT} or whose name cannot be read ({@code _handle_early_event_processing},
+     * {@code is_dead}: readings/fedora-orca-dead-object.txt). Declining the name keeps the second
+     * test true; answering the state makes the first true for a client that asks it. Only a path
+     * that parses as a node id: anything else was never ours.
+     */
+    private static DBus.Msg departed(DBus.Msg m, String iface) {
+        if (m.path == null || !m.path.startsWith(NODE_PREFIX) || !Atspi.I_ACCESSIBLE.equals(iface)
+                || !"GetState".equals(m.member)) {
+            return null;
+        }
+        try {
+            Long.parseLong(m.path.substring(NODE_PREFIX.length()));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return DBus.Msg.ret(m, "au", Atspi.stateWords(Atspi.state(AtspiStates.DEFUNCT)));
     }
 
     /**
@@ -302,19 +328,39 @@ final class AtspiTree {
         for (int f = 0; f < frames.size(); f++) {
             AccessibleTree tree = frames.get(f).tree();
             for (int i = 0; i < tree.nodeCount(); i++) {
-                AccessibleNode node = tree.node(i);
-                items.add(new Object[] {
-                        refOf(node.id()).toStruct(), rootRef().toStruct(),
-                        parentRef(tree, node).toStruct(),
-                        node.parent() < 0 ? f : tree.indexInParent(node),
-                        tree.children(node).size(),
-                        new ArrayList<>(interfacesOf(false, node)),
-                        node.name(), roleOf(node), node.description(),
-                        Atspi.stateWords(statesOf(node)),
-                });
+                items.add(cacheItem(tree, tree.node(i), f));
             }
         }
         return DBus.Msg.ret(m, Atspi.CACHE_ITEMS, items);
+    }
+
+    /**
+     * One node's {@code ((so)(so)(so)iiassusau)} item: what {@code Cache.GetItems} lists for it and
+     * what {@code Cache.AddAccessible} announces, built by one method so the two cannot differ.
+     *
+     * @param frame the window's place among the application's frames, for a node zero
+     */
+    private Object[] cacheItem(AccessibleTree tree, AccessibleNode node, int frame) {
+        return new Object[] {
+                refOf(node.id()).toStruct(), rootRef().toStruct(),
+                parentRef(tree, node).toStruct(),
+                node.parent() < 0 ? frame : tree.indexInParent(node),
+                tree.children(node).size(),
+                new ArrayList<>(interfacesOf(false, node)),
+                node.name(), roleOf(node), node.description(),
+                Atspi.stateWords(statesOf(node)),
+        };
+    }
+
+    /**
+     * The cache item a node has now, in whichever window holds it, for {@code Cache.AddAccessible}.
+     *
+     * @param id the node
+     * @return its item, or {@code null} when no window's snapshot holds it
+     */
+    Object[] cacheItemOf(long id) {
+        Located at = locate(id);
+        return at == null ? null : cacheItem(at.tree(), at.node(), frameIndexOf(at.window()));
     }
 
     /**

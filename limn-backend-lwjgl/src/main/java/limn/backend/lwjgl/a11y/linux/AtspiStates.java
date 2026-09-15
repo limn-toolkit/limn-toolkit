@@ -38,6 +38,15 @@ final class AtspiStates {
     /** {@code Atspi.StateType.EXPANDABLE}, from the same 2026-09-13 reading as {@link #COLLAPSED}. */
     static final int EXPANDABLE = 9;
 
+    /**
+     * {@code Atspi.StateType.DEFUNCT}: an object that has left its application's tree. Read with
+     * {@link #COLLAPSED} off the Fedora KDE 44 guest (libatspi 2.60.6, typelib) on 2026-09-13 by
+     * {@code scripts/a11y/linux/dump-atspi-constants.py --all}
+     * (readings/fedora-atspi-constants-all.txt). Never a toolkit state: a node that has it is not
+     * in any published tree.
+     */
+    static final int DEFUNCT = 6;
+
     private static final Map<Accessible.State, Integer> BIT = new EnumMap<>(Accessible.State.class);
 
     static {
