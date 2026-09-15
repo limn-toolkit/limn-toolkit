@@ -91,10 +91,12 @@ import java.util.function.Supplier;
  * models with no node of their own and are not listed, though the scenes use them.
  *
  * <p>The entries a screen reader is run over carry a {@link ReaderScript}: what a person presses,
- * step by step, and the widget the run puts the keyboard in ({@link Built#focus}). The scripts are
- * in {@link ReaderScripts}; {@link ReaderDriver} ({@code limn-demo --reader <id>}) runs one in a
- * window of its own on a guest, and {@code ReaderStepsTest} runs every one headlessly, failing on a
- * step that changes nothing a reader could be told (decision 24 of the 2026-09-13 pass).
+ * step by step, what each step leaves the trees holding ({@link Fact}), and the widget the run
+ * puts the keyboard in ({@link Built#focus}). The scripts are in {@link ReaderScripts};
+ * {@link ReaderDriver} ({@code limn-demo --reader <id>}) runs one in a window of its own on a
+ * guest, and {@code ReaderStepsTest} runs every one headlessly, failing on a step that changes
+ * nothing a reader could be told or leaves one of its facts untrue (decision 24 of the 2026-09-13
+ * pass).
  */
 public final class AccessibilityGallery {
 
@@ -144,8 +146,18 @@ public final class AccessibilityGallery {
      * @param codepoint the character typed, or {@code -1} for a key
      * @param label     what the step does to the widget, as the step line prints it and a guest
      *                  recipe's snapshot label says it
+     * @param facts     what the published trees hold once the step is done, which makes the
+     *                  label checkable: {@code ReaderStepsTest} fails a step whose facts are not
+     *                  true, so a label that says the opposite of what the key does is found
+     *                  before a recipe is written against it
      */
-    public record Step(int key, int modifiers, int codepoint, String label) {
+    public record Step(int key, int modifiers, int codepoint, String label, List<Fact> facts) {
+
+        /** @throws NullPointerException for a missing label or fact list */
+        public Step {
+            java.util.Objects.requireNonNull(label, "label");
+            facts = List.copyOf(facts);
+        }
 
         /**
          * The command modifier, whichever the platform's is: {@code Accelerator.commandModifier()}
@@ -160,7 +172,7 @@ public final class AccessibilityGallery {
          * @return a key pressed and released with no modifier
          */
         public static Step press(int key, String label) {
-            return new Step(key, 0, -1, label);
+            return new Step(key, 0, -1, label, List.of());
         }
 
         /**
@@ -170,7 +182,7 @@ public final class AccessibilityGallery {
          * @return a chord pressed and released
          */
         public static Step chord(int key, int modifiers, String label) {
-            return new Step(key, modifiers, -1, label);
+            return new Step(key, modifiers, -1, label, List.of());
         }
 
         /**
@@ -179,7 +191,15 @@ public final class AccessibilityGallery {
          * @return a character typed, as an input method commits one
          */
         public static Step type(char character, String label) {
-            return new Step(-1, 0, character, label);
+            return new Step(-1, 0, character, label, List.of());
+        }
+
+        /**
+         * @param expected what the trees hold once this step is done
+         * @return this step with those facts
+         */
+        public Step expecting(Fact... expected) {
+            return new Step(key, modifiers, codepoint, label, List.of(expected));
         }
 
         /** @return the keys as a step line names them: {@code SHIFT+TAB}, {@code CMD+UP}, {@code '5'} */
@@ -246,6 +266,170 @@ public final class AccessibilityGallery {
                 default -> key >= limn.input.Keys.A && key <= limn.input.Keys.Z
                         ? Character.toString(key) : "KEY" + key;
             };
+        }
+    }
+
+    /**
+     * One thing a step's label claims, as the published trees must show it once the step is done:
+     * which node the reader stands on, which node holds the keyboard, which row is selected, or
+     * that some node is there at all, with its role, its name and the states it has and has not.
+     *
+     * <p>Names, descriptions and values are written in English, the language the labels are, and
+     * are compared only in a run built in English; a run in another language (decision 65's pt-BR)
+     * compares the roles, the states and the rows, whose first cell holds data no language
+     * translates. A fact never names a platform constant: it is the toolkit's own tree.
+     *
+     * @param subject     which node the fact is about
+     * @param role        the role that node has, or {@code null} for any ({@link Subject#ROW}: a row)
+     * @param name        its name, or {@code null} for any
+     * @param row         the name of the first cell of the row the node sits in, or {@code null};
+     *                    for {@link Subject#ROW}, the row itself
+     * @param description its description, or {@code null} for any
+     * @param value       its value's text, or {@code null} for any
+     * @param with        states it must have
+     * @param without     states it must not have
+     */
+    public record Fact(Subject subject, Accessible.Role role, String name, String row,
+                       String description, String value, java.util.Set<Accessible.State> with,
+                       java.util.Set<Accessible.State> without) {
+
+        /** Which node a fact is about. */
+        public enum Subject {
+            /**
+             * Where the reader stands: the entry's window's effective focus, the active
+             * descendant when there is one (read across into a popup's own window, decision 5)
+             * and the focused node otherwise.
+             */
+            CURSOR,
+            /** The node holding the keyboard in the entry's window. */
+            FOCUSED,
+            /** A row, found by the name of its first cell. */
+            ROW,
+            /** Some node in a window still open, whichever. */
+            ANY
+        }
+
+        /** Copies the state sets. */
+        public Fact {
+            java.util.Objects.requireNonNull(subject, "subject");
+            with = with.isEmpty() ? java.util.Set.of() : java.util.Set.copyOf(with);
+            without = without.isEmpty() ? java.util.Set.of() : java.util.Set.copyOf(without);
+        }
+
+        /**
+         * @param role the role of the node the reader stands on
+         * @param name its name
+         * @return the fact
+         */
+        public static Fact cursor(Accessible.Role role, String name) {
+            return new Fact(Subject.CURSOR, role, name, null, null, null, java.util.Set.of(),
+                    java.util.Set.of());
+        }
+
+        /**
+         * @param role the role of the node holding the keyboard
+         * @param name its name
+         * @return the fact
+         */
+        public static Fact focused(Accessible.Role role, String name) {
+            return new Fact(Subject.FOCUSED, role, name, null, null, null, java.util.Set.of(),
+                    java.util.Set.of());
+        }
+
+        /**
+         * @param firstCell the name of the row's first cell
+         * @return the fact about that row
+         */
+        public static Fact row(String firstCell) {
+            return new Fact(Subject.ROW, Accessible.Role.ROW, null, firstCell, null, null,
+                    java.util.Set.of(), java.util.Set.of());
+        }
+
+        /**
+         * @param role the role of a node some open window publishes
+         * @param name its name
+         * @return the fact
+         */
+        public static Fact shown(Accessible.Role role, String name) {
+            return new Fact(Subject.ANY, role, name, null, null, null, java.util.Set.of(),
+                    java.util.Set.of());
+        }
+
+        /**
+         * @param firstCell the name of the first cell of the row the node sits in
+         * @return this fact, about a node in that row
+         */
+        public Fact inRow(String firstCell) {
+            return new Fact(subject, role, name, firstCell, description, value, with, without);
+        }
+
+        /**
+         * @param text the node's description
+         * @return this fact, with the description
+         */
+        public Fact described(String text) {
+            return new Fact(subject, role, name, row, text, value, with, without);
+        }
+
+        /**
+         * @param text the text of the node's value
+         * @return this fact, with the value
+         */
+        public Fact valued(String text) {
+            return new Fact(subject, role, name, row, description, text, with, without);
+        }
+
+        /**
+         * @param states states the node has
+         * @return this fact, with them
+         */
+        public Fact with(Accessible.State... states) {
+            java.util.Set<Accessible.State> all = new java.util.HashSet<>(with);
+            all.addAll(List.of(states));
+            return new Fact(subject, role, name, row, description, value, all, without);
+        }
+
+        /**
+         * @param states states the node does not have
+         * @return this fact, without them
+         */
+        public Fact without(Accessible.State... states) {
+            java.util.Set<Accessible.State> all = new java.util.HashSet<>(without);
+            all.addAll(List.of(states));
+            return new Fact(subject, role, name, row, description, value, with, all);
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder out = new StringBuilder(switch (subject) {
+                case CURSOR -> "the reader stands on";
+                case FOCUSED -> "the keyboard is in";
+                case ROW -> "the row";
+                case ANY -> "a window shows";
+            });
+            if (role != null && subject != Subject.ROW) {
+                out.append(' ').append(role);
+            }
+            if (name != null) {
+                out.append(" \"").append(name).append('"');
+            }
+            if (row != null) {
+                out.append(subject == Subject.ROW ? " of \"" : " in the row of \"").append(row)
+                        .append('"');
+            }
+            if (description != null) {
+                out.append(" described \"").append(description).append('"');
+            }
+            if (value != null) {
+                out.append(" valued \"").append(value).append('"');
+            }
+            if (!with.isEmpty()) {
+                out.append(" with ").append(new java.util.TreeSet<>(with));
+            }
+            if (!without.isEmpty()) {
+                out.append(" without ").append(new java.util.TreeSet<>(without));
+            }
+            return out.toString();
         }
     }
 
