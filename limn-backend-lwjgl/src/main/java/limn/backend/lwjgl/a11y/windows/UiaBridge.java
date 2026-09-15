@@ -895,7 +895,6 @@ public final class UiaBridge extends PlatformBridge {
         boolean items = parentNode != null
                 && (parentNode.selection() != null || parentNode.table() != null);
         long runtimeId = MemoryUtil.nmemAllocChecked(3L * Integer.BYTES);
-        boolean anything = false;
         try {
             for (long[] raise : structureRaises(event, items)) {
                 UiaElement on = raise[1] == event.nodeId() ? parent : elementOf(raise[1]);
@@ -909,7 +908,9 @@ public final class UiaBridge extends PlatformBridge {
                 long started = System.nanoTime();
                 int hresult = Uia.raiseStructureChangedEvent(on.pointer(), (int) raise[0],
                         runtimeId, id.length);
-                anything = true;
+                // Paid before the trace says so, as every other raise here pays it: a reader of
+                // the trace (a test on another thread) must not find the line with the debt open.
+                owedAnEvent = false;
                 UiaWindow.say("raised STRUCTURE_CHANGED as type " + raise[0] + " on node " + raise[1]
                         + " with the runtime id of node " + raise[2] + " -> 0x"
                         + Integer.toHexString(hresult) + " in "
@@ -918,9 +919,6 @@ public final class UiaBridge extends PlatformBridge {
             }
         } finally {
             MemoryUtil.nmemFree(runtimeId);
-        }
-        if (anything) {
-            owedAnEvent = false;
         }
     }
 

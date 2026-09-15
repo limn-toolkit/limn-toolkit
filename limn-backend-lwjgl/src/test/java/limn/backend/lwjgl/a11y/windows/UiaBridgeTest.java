@@ -1592,7 +1592,7 @@ class UiaBridgeTest {
                     + "node " + added + " with the runtime id of node " + added + " -> 0x0 in ")),
                     "" + trace);
             assertTrue(bridge.holdsElementFor(added), "the added child's element was minted");
-            assertFalse(bridge.owesAnEvent());
+            assertFalse(bridge.owesAnEvent(), "paid by the time the trace says it was raised");
         } finally {
             UiaWindow.trace = before;
             bridge.detach();
