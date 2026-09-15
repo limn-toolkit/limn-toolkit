@@ -142,6 +142,23 @@ final class UiaProperties {
                 return node.role() == Accessible.Role.DIALOG
                         || node.role() == Accessible.Role.ALERT;
 
+            // Semantics 6 (decision 4; W4, CRIT-6): "n of m" from the selection item's numbers and
+            // the depth from the hierarchy facet, each only when it is not zero, which is the
+            // model's "no number" and a client's too (NVDA 2024.4.2 uses each only when positive,
+            // readings/nvda-2024.4.2-uia.md §2). The level passes through: the platform's base is
+            // one, read off a native Win32 tree on 2026-09-15 (UiaIds#LEVEL). NVDA ignores Level on
+            // a tree item and counts TreeItem ancestors instead, which is why UiaFragment nests
+            // tree rows; the property is for every other client.
+            case UiaIds.POSITION_IN_SET:
+                return node.selectionItem() != null && node.selectionItem().positionInSet() > 0
+                        ? Integer.valueOf(node.selectionItem().positionInSet()) : null;
+            case UiaIds.SIZE_OF_SET:
+                return node.selectionItem() != null && node.selectionItem().sizeOfSet() > 0
+                        ? Integer.valueOf(node.selectionItem().sizeOfSet()) : null;
+            case UiaIds.LEVEL:
+                return node.hierarchy() != null && node.hierarchy().level() > 0
+                        ? Integer.valueOf(node.hierarchy().level()) : null;
+
             // UI Automation has no busy bit; ItemStatus is its field for "the state of this item" as
             // text a client reads out. So BUSY is a word here, in the node's own language, and an
             // item that is not busy has no status at all rather than a status saying it is idle.

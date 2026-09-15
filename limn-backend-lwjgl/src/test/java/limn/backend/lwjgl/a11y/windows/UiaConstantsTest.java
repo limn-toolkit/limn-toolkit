@@ -162,6 +162,18 @@ class UiaConstantsTest {
     }
 
     /**
+     * UIA_LevelPropertyId, read 2026-09-13 from UIAutomationCore.dll's type library and the
+     * internal managed table (readings/windows-dump-uia-typelib.txt, -constants.txt), beside the two
+     * position ids the interop assembly carries.
+     */
+    @Test
+    void theLevelIdIsTheTypeLibrarysAndSitsBesideThePositionIds() {
+        assertEquals(30152, UiaIds.POSITION_IN_SET);
+        assertEquals(30153, UiaIds.SIZE_OF_SET);
+        assertEquals(30154, UiaIds.LEVEL);
+    }
+
+    /**
      * A handful of readings spot-checked against what §2.1 says the bridge answers with, so that a
      * re-run of the dump script that renamed or renumbered something fails here rather than in a
      * guest three commits later.

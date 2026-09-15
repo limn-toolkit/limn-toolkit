@@ -276,6 +276,11 @@ with the two facets is phase 3's: Windows publishes UIA `Level` (30154, read off
 derives level from `TreeItem` ancestors; Linux publishes the `level`/`posinset`/`setsize` object
 attributes Orca 50.2 reads first; macOS answers `accessibilityDisclosureLevel` from the level and
 `accessibilityIndex` from the row. A zero in any of the three publishes nothing on any platform.
+**Amended 2026-09-15 (phase 3, Windows): built as planned.** `Level`, `PositionInSet` and
+`SizeOfSet` are answered from the two facets, and navigation nests each `TreeItem` under the nearest
+earlier row of a lower level. The level passes through unchanged: a native Win32 tree view answers
+`Level` 1 for its root items, read on the guest 2026-09-15 (ADR 039 §2.1, amended the same day,
+`UiaTreeRowsTest`).
 
 **Amendment, 2026-09-14: a tree item always has a name.** The L4 baseline on the Fedora guest read
 every row of the reader scene as `name=''`: the demo's cells are composites — an icon, a label and

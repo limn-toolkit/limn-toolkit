@@ -146,6 +146,23 @@ final class UiaIds {
     static final int LIVE_SETTING = 30135;
     static final int POSITION_IN_SET = 30152;
     static final int SIZE_OF_SET = 30153;
+    /**
+     * {@code UIA_LevelPropertyId}: how deep an item stands in an outline, one-based.
+     *
+     * <p>The id was read on the Windows 11 ARM64 guest (10.0.26200, UIAutomationCore.dll
+     * 7.2.26100.9278) on 2026-09-13: 30154 as {@code UIA_LevelPropertyId} in UIAutomationCore.dll's
+     * embedded {@code UIAutomationClient} type library, module {@code UIA_PropertyIds}
+     * ({@code scripts/a11y/windows/dump-uia-typelib.ps1}, readings/windows-dump-uia-typelib.txt), and
+     * as the internal managed constant
+     * {@code MS.Internal.Automation.AutomationIdentifierConstants+Properties.Level}
+     * ({@code dump-uia-constants.ps1}, readings/windows-dump-uia-constants.txt); no public managed
+     * {@code LevelProperty} exists. The base was read on the same guest (UIAutomationCore.dll
+     * 7.2.26100.9457) on 2026-09-15 off native trees by {@code read-native-tree-levels.ps1}
+     * (readings/windows-read-native-tree-levels.txt): a Win32 tree view answers 1 for its root
+     * items, 2 and 3 below; a WPF 4.8 tree answers 0 (nothing) everywhere. So the model's
+     * one-based level passes through unchanged, and a zero is not answered.
+     */
+    static final int LEVEL = 30154;
     static final int HEADING_LEVEL = 30173;
     static final int IS_DIALOG = 30174;
 

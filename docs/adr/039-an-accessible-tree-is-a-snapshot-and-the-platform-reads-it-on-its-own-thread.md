@@ -2197,6 +2197,30 @@ it already answered the facet's writability. The Expand/Collapse, Toggle and Val
 vended from their facets, because their state is what a reader reads; a verb delegated to a container
 (a tree row's `EXPAND`) is posted on the row's id and the scene routes it (decision 7).
 
+**Amended 2026-09-15 (phase 3, Windows; decision 4, semantics 6; W4, CRIT-6): position, set size and
+level are answered, and tree rows nest in navigation.** The `GetPropertyValue` row names neither
+`PositionInSet` nor `Level`, and the `Navigate` row says "the stored links"; every selection item's
+position answered `VT_EMPTY`, and a tree's rows, published flat under the tree, were all its
+children. As built: `PositionInSet` (30152) and `SizeOfSet` (30153) are the `SelectionItemFacet`'s
+numbers and `Level` (30154, read from UIAutomationCore.dll's type library 2026-09-13) the
+`HierarchyFacet`'s, each an integer and `VT_EMPTY` for a zero. The level passes through unchanged:
+the platform's base was read off native trees on the guest 2026-09-15
+(`scripts/a11y/windows/read-native-tree-levels.ps1`, readings/windows-read-native-tree-levels.txt):
+a Win32 tree view answers `Level` 1 for its root items, 2 and 3 below, and `PositionInSet`/`SizeOfSet`
+one-based among siblings; a WPF 4.8 tree answers 0 for all three (UIA's default for a provider that
+answers nothing). **`Navigate` nests `TREE_ITEM` rows**: a row with a positive level has as its parent
+the nearest earlier sibling row of a lower level, or the node it hangs under when there is none (a
+row whose parent row is not realized); a row's children are its own children, then the later sibling
+rows whose parent that makes it; every other node keeps the stored links. NVDA 2024.4.2 counts a tree
+item's `TreeItem` ancestors for its level and overwrites UIA's `Level` with that count
+(readings/nvda-2024.4.2-uia.md §2), and both native trees nest their items in the raw view, so this is
+what makes NVDA say the right level. Structure changes keep naming the stored parent (a removed row's
+`ChildRemoved` goes to the tree), which a client re-reading the tree reconciles; `UiaFragmentTest`
+holds navigation to one consistent tree reaching every node once, and `UiaTreeRowsTest` a real
+`Tree`'s rows' ancestor counts to their published levels. **Recorded as seen:** through the COM client
+the Win32 tree's items answered `ControlType` Tree and an empty `Name` in that reading, while the
+managed client read them as `TreeItem`s with their names; it bears on no number used here.
+
 ### 2.2 macOS: NSAccessibility
 
 | Attribute / action / notification | Answered from | Note |

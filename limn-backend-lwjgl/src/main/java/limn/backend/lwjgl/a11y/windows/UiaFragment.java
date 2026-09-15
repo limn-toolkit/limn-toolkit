@@ -31,15 +31,154 @@ final class UiaFragment {
      * @return the index of the node in that direction, or {@link AccessibleNode#NONE}
      */
     static int navigate(AccessibleTree tree, int index, int direction) {
-        AccessibleNode node = tree.node(index);
         return switch (direction) {
-            case UiaIds.NAVIGATE_DIRECTION_PARENT -> node.parent();
-            case UiaIds.NAVIGATE_DIRECTION_FIRST_CHILD -> node.firstChild();
-            case UiaIds.NAVIGATE_DIRECTION_LAST_CHILD -> node.lastChild();
-            case UiaIds.NAVIGATE_DIRECTION_NEXT_SIBLING -> node.nextSibling();
-            case UiaIds.NAVIGATE_DIRECTION_PREVIOUS_SIBLING -> node.previousSibling();
+            case UiaIds.NAVIGATE_DIRECTION_PARENT -> outlineParent(tree, index);
+            case UiaIds.NAVIGATE_DIRECTION_FIRST_CHILD -> firstChild(tree, index);
+            case UiaIds.NAVIGATE_DIRECTION_LAST_CHILD -> lastChild(tree, index);
+            case UiaIds.NAVIGATE_DIRECTION_NEXT_SIBLING -> nextSibling(tree, index);
+            case UiaIds.NAVIGATE_DIRECTION_PREVIOUS_SIBLING -> previousSibling(tree, index);
             default -> AccessibleNode.NONE;
         };
+    }
+
+    // ---- tree rows, nested (decision 4; semantics 6; W4)
+    //
+    // A tree publishes its rows flat, as siblings under the tree, each with its level in a hierarchy
+    // facet. NVDA 2024.4.2 derives a tree item's level from how many TreeItem ancestors it has and
+    // ignores UIA's Level (readings/nvda-2024.4.2-uia.md §2), and a native tree nests its items in the
+    // raw view (readings/windows-read-native-tree-levels.txt). So navigation nests them: a row's
+    // parent is the nearest earlier sibling row of a lower level, or the node the row hangs under when
+    // there is none; a row's children are its own children, then the later sibling rows whose parent
+    // that makes it. Every other node navigates by the stored links, and nothing here allocates.
+
+    /** @return whether a node is a tree row that navigation nests by its level */
+    static boolean isNestedRow(AccessibleNode node) {
+        return node.role() == Accessible.Role.TREE_ITEM && node.hierarchy() != null
+                && node.hierarchy().level() > 0;
+    }
+
+    /**
+     * @param tree  the published tree
+     * @param index a node
+     * @return its parent as navigation answers it: for a nested row, the nearest earlier sibling
+     *         row of a lower level, else the stored parent
+     */
+    static int outlineParent(AccessibleTree tree, int index) {
+        AccessibleNode node = tree.node(index);
+        if (!isNestedRow(node) || node.hierarchy().level() == 1) {
+            return node.parent();
+        }
+        int level = node.hierarchy().level();
+        for (int at = node.previousSibling(); at != AccessibleNode.NONE;
+                at = tree.node(at).previousSibling()) {
+            AccessibleNode earlier = tree.node(at);
+            if (isNestedRow(earlier) && earlier.hierarchy().level() < level) {
+                return at;
+            }
+        }
+        return node.parent();
+    }
+
+    /** @return whether {@code at}, a sibling after a nested row, still lies in that row's subtree */
+    private static boolean inBlockOf(AccessibleTree tree, AccessibleNode row, int at) {
+        AccessibleNode later = tree.node(at);
+        return !isNestedRow(later) || later.hierarchy().level() > row.hierarchy().level();
+    }
+
+    private static int firstChild(AccessibleTree tree, int index) {
+        AccessibleNode node = tree.node(index);
+        for (int at = node.firstChild(); at != AccessibleNode.NONE; at = tree.node(at).nextSibling()) {
+            if (outlineParent(tree, at) == index) {
+                return at;
+            }
+        }
+        return firstRowChild(tree, index);
+    }
+
+    /** @return the first later sibling row whose navigation parent is this nested row, or none */
+    private static int firstRowChild(AccessibleTree tree, int index) {
+        AccessibleNode node = tree.node(index);
+        if (!isNestedRow(node)) {
+            return AccessibleNode.NONE;
+        }
+        for (int at = node.nextSibling(); at != AccessibleNode.NONE && inBlockOf(tree, node, at);
+                at = tree.node(at).nextSibling()) {
+            if (outlineParent(tree, at) == index) {
+                return at;
+            }
+        }
+        return AccessibleNode.NONE;
+    }
+
+    private static int lastChild(AccessibleTree tree, int index) {
+        AccessibleNode node = tree.node(index);
+        if (isNestedRow(node)) {
+            int last = AccessibleNode.NONE;
+            for (int at = node.nextSibling(); at != AccessibleNode.NONE && inBlockOf(tree, node, at);
+                    at = tree.node(at).nextSibling()) {
+                if (outlineParent(tree, at) == index) {
+                    last = at;
+                }
+            }
+            if (last != AccessibleNode.NONE) {
+                return last;
+            }
+        }
+        for (int at = node.lastChild(); at != AccessibleNode.NONE;
+                at = tree.node(at).previousSibling()) {
+            if (outlineParent(tree, at) == index) {
+                return at;
+            }
+        }
+        return AccessibleNode.NONE;
+    }
+
+    private static int nextSibling(AccessibleTree tree, int index) {
+        int parent = outlineParent(tree, index);
+        if (parent == AccessibleNode.NONE) {
+            return AccessibleNode.NONE;
+        }
+        AccessibleNode node = tree.node(index);
+        boolean ownChild = node.parent() == parent;
+        for (int at = node.nextSibling(); at != AccessibleNode.NONE; at = tree.node(at).nextSibling()) {
+            if (!ownChild && !inBlockOf(tree, tree.node(parent), at)) {
+                return AccessibleNode.NONE;
+            }
+            if (outlineParent(tree, at) == parent) {
+                return at;
+            }
+        }
+        // The last of a nested row's own children is followed by its first child row.
+        return ownChild ? firstRowChild(tree, parent) : AccessibleNode.NONE;
+    }
+
+    private static int previousSibling(AccessibleTree tree, int index) {
+        int parent = outlineParent(tree, index);
+        if (parent == AccessibleNode.NONE) {
+            return AccessibleNode.NONE;
+        }
+        AccessibleNode node = tree.node(index);
+        boolean ownChild = node.parent() == parent;
+        for (int at = node.previousSibling(); at != AccessibleNode.NONE;
+                at = tree.node(at).previousSibling()) {
+            if (!ownChild && at == parent) {
+                break;
+            }
+            if (outlineParent(tree, at) == parent) {
+                return at;
+            }
+        }
+        if (ownChild) {
+            return AccessibleNode.NONE;
+        }
+        // The first child row of a nested row is preceded by the last of the row's own children.
+        AccessibleNode row = tree.node(parent);
+        for (int at = row.lastChild(); at != AccessibleNode.NONE; at = tree.node(at).previousSibling()) {
+            if (outlineParent(tree, at) == parent) {
+                return at;
+            }
+        }
+        return AccessibleNode.NONE;
     }
 
     /**
