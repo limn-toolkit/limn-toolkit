@@ -20,14 +20,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -160,6 +164,40 @@ class GalleryFrameThrowTest {
                 "the failure names the shot and what threw: " + failure);
         assertTrue(run.escaped().isEmpty(),
                 "and nothing escaped the frame callback: " + run.escaped());
+    }
+
+    /**
+     * What stderr is left holding is the only artifact a CI run keeps, and the summary alone
+     * names nothing in this file: a throwable stringifies to its class and its message, and the
+     * line that raised it -- a scene builder, a footer walk, a capture sink -- is in the trace
+     * or nowhere. {@code failure()} deliberately keeps only the summary.
+     */
+    @Test
+    void theFailureOnStderrCarriesTheThrowablesStackTraceBesideTheSummary() {
+        PrintStream err = System.err;
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        Run run;
+        try {
+            System.setErr(new PrintStream(captured, true, StandardCharsets.UTF_8));
+            run = run(new TestRenderer() {
+                @Override
+                public void captureFramebuffer(Consumer<Image> sink) {
+                    throw new IllegalStateException("the framebuffer readback failed");
+                }
+            }, NAMED_FAILURE_FRAMES);
+        } finally {
+            System.setErr(err);
+        }
+
+        String printed = captured.toString(StandardCharsets.UTF_8);
+        assertTrue(run.driver().failed(), "the run failed: " + printed);
+        assertTrue(printed.contains("gallery: broken-dark@2x.png: the frame threw"),
+                "the one-line summary is on stderr: " + printed);
+        assertTrue(printed.contains("at " + GalleryFrameThrowTest.class.getName()),
+                "and so is the trace, which is the only thing that names the line that threw: "
+                        + printed);
+        assertFalse(String.valueOf(run.driver().failure()).contains("\tat "),
+                "while failure() stays a summary: " + run.driver().failure());
     }
 
     /**

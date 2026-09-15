@@ -710,11 +710,29 @@ public final class Gallery {
          * would be the second silent throw in one frame.
          */
         private void fail(String why) {
+            fail(why, null);
+        }
+
+        /**
+         * The same, for a failure that has a throwable behind it: the summary is unchanged and
+         * {@code cause}'s stack trace is printed beside it.
+         *
+         * <p>The summary alone is not enough for most of them. A refusal describes itself (the
+         * step, the frame, the widget it aimed at), but an NPE out of a scene builder, a footer
+         * walk or a capture sink stringifies to a class name and a message and names no line in
+         * this file at all -- and on CI that one line is the whole artifact. {@link #failure()}
+         * still carries only the summary: it is what a caller reads and compares, and a stack
+         * trace is not a summary.
+         */
+        private void fail(String why, Throwable cause) {
             String where = index >= 0 && index < shots.size()
                     ? shots.get(index).file().getFileName().toString()
                     : "after the last shot";
             failure = where + ": " + why;
             System.err.println("gallery: " + failure);
+            if (cause != null) {
+                cause.printStackTrace();
+            }
             failed = true;
             film = null;
             scene = null;
@@ -761,7 +779,7 @@ public final class Gallery {
                 Files.writeString(file, Transcript.of(keeper.tree()), StandardCharsets.UTF_8);
                 return true;
             } catch (IOException e) {
-                fail("could not write " + file + ": " + e.getMessage());
+                fail("could not write " + file + ": " + e.getMessage(), e);
                 return false;
             }
         }
@@ -842,7 +860,7 @@ public final class Gallery {
                             } catch (RuntimeException refused) {
                                 fail(refused instanceof Motion.Refused
                                         ? refused.getMessage()
-                                        : "a film step threw " + refused);
+                                        : "a film step threw " + refused, refused);
                                 return;
                             }
                         }
@@ -974,7 +992,7 @@ public final class Gallery {
                     // count actually bounds is an Error too intermittent to fill that streak:
                     // one clean iteration resets it, and before the count those frames were
                     // free.
-                    fail("the frame threw " + thrown);
+                    fail("the frame threw " + thrown, thrown);
                 }
             });
         }
