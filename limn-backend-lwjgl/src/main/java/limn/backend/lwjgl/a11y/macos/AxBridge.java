@@ -209,8 +209,12 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         // tree stored here would re-enter the open windows, where another window's focus ask would
         // mint through a freed registry (macos-B review). A window gets a new bridge; this one is done.
         if (released) return;
+        AccessibleTree before = tree();
         super.publish(published, reentrant);
         openWindowsEpoch++;
+        // Both kinds of publish: a count read off two snapshots touches no platform object, and the
+        // post it owes waits for the frame's end like every other.
+        noteRowCountChanges(before, published);
         if (published.nodeCount() > 0) open(this);
         if (reentrant) {
             // The store is the whole of it. Releasing, re-pushing or draining here would act on the
@@ -249,7 +253,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         }
         // A quiet frame costs one comparison and allocates nothing: AccessibleIdleCostTest's frame
         // with a live bridge and a clean tree goes through here.
-        if (events.size() == 0 && !events.willCollapse()) return;
+        if (events.size() == 0 && !events.willCollapse() && recountedContainers.isEmpty()) return;
         if (drain()) repushRootIfChanged();
     }
 
@@ -622,9 +626,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             if (opened != null) {
                 posting = AxNotifications.disclosure(Boolean.TRUE.equals(event.newValue()));
                 AccessibleNode outline = tree().node(opened.selectionContainer());
-                if (elements.holds(outline.id()) && !recountedOutlines.contains(outline.id())) {
-                    recountedOutlines.add(outline.id());
-                }
+                if (!recountedContainers.contains(outline.id())) recountedContainers.add(outline.id());
             }
             if (posting.subject() == AxNotifications.Subject.APPLICATION) {
                 focusOwed = true;
@@ -635,11 +637,15 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             post(subject, posting);
             postedNow++;
         }
-        for (int i = 0; i < recountedOutlines.size(); i++) {
-            post(elements.elementFor(recountedOutlines.get(i)), AxNotifications.ROW_COUNT_CHANGED);
+        for (int i = 0; i < recountedContainers.size(); i++) {
+            long container = recountedContainers.get(i);
+            // Held and still in the tree now, at the frame's end: a container a later publish of the
+            // same frame removed has nothing left to recount.
+            if (!elements.holds(container) || tree().indexOf(container) == AccessibleNode.NONE) continue;
+            post(elements.elementFor(container), AxNotifications.ROW_COUNT_CHANGED);
             postedNow++;
         }
-        recountedOutlines.clear();
+        recountedContainers.clear();
         toldSelections.clear();
         if (swept) {
             elements.reconcile(liveNodeIds());
@@ -660,8 +666,50 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         return swept;
     }
 
-    /** The outlines a drain owes a row-count change, once each; emptied by the drain that fills it. */
-    private final List<Long> recountedOutlines = new ArrayList<>();
+    /**
+     * The row containers a drain owes a row-count change, once each: filled by a publish whose snapshot
+     * counts a held container's rows differently from the one before, and by an outline row opening or
+     * closing; emptied by the drain that posts them.
+     */
+    private final List<Long> recountedContainers = new ArrayList<>();
+
+    /**
+     * Queues a row-count change for every held table, outline or list whose row count differs between
+     * two snapshots (M1 correction 2). An outline's rows change without any row's expanded state
+     * flipping — a lazy load landing under a row already open, a refresh, a model adding roots — and a
+     * list's and a table's with no expansion at all; a native outline posted {@code AXRowCountChanged}
+     * on itself when its rows changed (read on the macOS 26.6.2 guest, 2026-09-15,
+     * {@code scripts/a11y/macos/outline-probe.swift}, for a disclosure, the one trigger read). The count
+     * is the model's, not the realized rows': a scroll changes which rows are realized and not how many
+     * the widget has.
+     */
+    private void noteRowCountChanges(AccessibleTree before, AccessibleTree now) {
+        if (before.nodeCount() == 0 || now.nodeCount() == 0) return;
+        for (int i = 1; i < now.nodeCount(); i++) {
+            AccessibleNode node = now.node(i);
+            if (!grid.isRowContainer(node) || !elements.holds(node.id())) continue;
+            int was = before.indexOf(node.id());
+            if (was == AccessibleNode.NONE || rowCountOf(before, was) == rowCountOf(now, i)) continue;
+            if (!recountedContainers.contains(node.id())) recountedContainers.add(node.id());
+        }
+    }
+
+    /**
+     * @return how many rows a row container has in one snapshot: a table's facet count; an outline's
+     *         hierarchy row count and a list's set size, read off its first realized member among its
+     *         children, which is where a tree's and a list's rows hang; zero with no member realized
+     */
+    private static int rowCountOf(AccessibleTree tree, int container) {
+        AccessibleNode node = tree.node(container);
+        if (node.table() != null) return node.table().rowCount();
+        for (int child = node.firstChild(); child != AccessibleNode.NONE; child = tree.node(child).nextSibling()) {
+            AccessibleNode member = tree.node(child);
+            if (member.selectionContainer() != container) continue;
+            if (member.hierarchy() != null) return member.hierarchy().rowCount();
+            if (member.selectionItem() != null) return member.selectionItem().sizeOfSet();
+        }
+        return 0;
+    }
 
     /** The containers a drain posts a selection change on; emptied by the drain that fills it. */
     private final List<Long> toldSelections = new ArrayList<>();

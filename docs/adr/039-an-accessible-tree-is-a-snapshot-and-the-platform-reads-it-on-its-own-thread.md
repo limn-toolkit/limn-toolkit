@@ -2418,7 +2418,15 @@ in the same frame, and `STATE_CHANGED` of `ACTIVE` is posted nowhere — no attr
 it, and where it matters the focused node's `ACTIVE_DESCENDANT_CHANGED` is the focus change — because
 one arrow in a focused `Tree` posted four `ValueChanged` on the rows beside `SelectedRowsChanged` and
 the focus change, where the native outline delivered only `AXSelectedRowsChanged` to an observer that
-also asked for `AXValueChanged`. One cursor move now posts exactly those two.
+also asked for `AXValueChanged`. One cursor move now posts exactly those two. *And the row count
+(M1 correction 2):* `RowCountChanged` is no longer derived from an outline row's `EXPANDED` flip
+alone. Every publish compares each held table's, outline's and list's row count — the table facet's
+count, the hierarchy facet's row count, the set size — with the snapshot before, and the frame's end
+posts one `RowCountChanged` on each container whose count moved and which is still in the tree, once
+per container however many publishes or openings moved it: a lazy load landing under a row already
+open, a refresh, and a list growing or shrinking are row-count changes too; a scroll, which changes
+which rows are realized and not how many there are, is none. Only the disclosure trigger was read on
+the native outline; the others follow from the same attribute.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that

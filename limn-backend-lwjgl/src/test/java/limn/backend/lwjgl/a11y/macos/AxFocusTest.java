@@ -138,8 +138,47 @@ class AxFocusTest {
         bridge.frameEnded();
         assertEquals(3, bridge.elementCount(), "semantics 7: macOS reconciles on the model's INVALIDATED");
         assertEquals(pushes + 1, bridge.pushes(), "and the array AppKit holds is pushed again");
-        assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
-                "the sweep may have released what the reader stood on, so where it is goes out again");
+        assertEquals(List.of("NSAccessibilityRowCountChangedNotification",
+                        "NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
+                "the sweep may have released what the reader stood on, so where it is goes out again, "
+                        + "last; and the list, which went from three rows to two, says its count changed");
+    }
+
+    @Test
+    void aListWhoseRowsChangedIsRecountedWhenTheFrameEndsThoughNoEventWasEmitted() {
+        AxBridge bridge = PlatformFreeBridges.make();
+        List<String> trace = new ArrayList<>();
+        bridge.trace(trace::add);
+        bridge.publish(aFocusedListWithACursor(1003), false);
+        bridge.publish(aFocusedListWithACursorAndTwoItems(), false);
+        bridge.frameEnded();
+        assertEquals(List.of("NSAccessibilityRowCountChangedNotification"), posted(trace),
+                "the count is read off the snapshots, so a frame with no event still owes it");
+    }
+
+    @Test
+    void aListWhoseRowsChangedAndThatLeftTheTreeInTheSameFrameIsNotRecounted() {
+        AxBridge bridge = PlatformFreeBridges.make();
+        List<String> trace = new ArrayList<>();
+        bridge.trace(trace::add);
+        bridge.publish(aFocusedListWithACursor(1003), false);   // the list is a root child: pushed, held
+        bridge.publish(aFocusedListWithACursorAndTwoItems(), false);   // three rows became two
+
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1050, 0, Locale.ENGLISH, 10, 10, 80, 30);
+        a.role(Accessible.Role.BUTTON);
+        a.name(I18nString.literal("OK"), Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, true, true);
+        a.end();
+        a.end();
+        bridge.publish(a.publish(0, 0, 0, 1f, true), false);    // and the list is gone before the frame ends
+        bridge.frameEnded();
+        assertTrue(posted(trace).isEmpty(),
+                "a container no longer in the tree when the frame ends has no rows left to recount: " + trace);
     }
 
     @Test

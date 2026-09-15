@@ -196,6 +196,86 @@ class AxOutlineSceneTest {
         assertEquals(6, grid.index(bridge.nodeFor(after[6])), "and Readme moved down to 6");
     }
 
+    private List<String> postedSinceCleared() {
+        return trace.stream().filter(line -> line.startsWith("posted "))
+                .map(line -> line.substring("posted ".length())).toList();
+    }
+
+    @Test
+    void aLoadLandingUnderARowAlreadyOpenIsARowCountChangeOnTheOutline() {
+        Node remote = Node.of("Remote");
+        List<Node> fetched = List.of(Node.of("One"), Node.of("Two"));
+        Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
+            @Override public List<Node> roots() {
+                return List.of(remote, readme);
+            }
+
+            @Override public List<Node> children(Node node) {
+                return node == remote ? null : node.children();   // not known yet: load fetches them
+            }
+
+            @Override public limn.concurrent.Work<List<Node>> load(Node node) {
+                return limn.concurrent.Ui.work(progress -> fetched);
+            }
+
+            @Override public Widget cellFor(Node node) {
+                return new SizedBox(200, 24, new Label(node.name()));
+            }
+
+            @Override public I18nString nameOf(Node node) {
+                return I18nString.literal(node.name());
+            }
+        });
+        bind(tree);
+        tree.expand(remote);
+        frame();
+        AxGrid grid = new AxGrid(bridge);
+        assertEquals(List.of("Remote", "Readme"), names(grid.rows(only(Accessible.Role.TREE))),
+                "the fixture: the row is open and its children are on their way");
+
+        trace.clear();
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        frame();
+        assertEquals(List.of("Remote", "One", "Two", "Readme"), names(grid.rows(only(Accessible.Role.TREE))));
+        List<String> posted = postedSinceCleared();
+        assertEquals(1, posted.stream().filter("NSAccessibilityRowCountChangedNotification"::equals).count(),
+                "the outline's rows went from two to four with no row opening or closing, and a native "
+                        + "outline tells its rows' change as a row-count change on itself (M1 correction 2): "
+                        + trace);
+        assertTrue(!posted.contains("NSAccessibilityRowExpandedNotification"), "no row opened: " + trace);
+    }
+
+    @Test
+    void aListWhoseRowsGrowIsARowCountChangeAndAScrollIsNone() {
+        java.util.concurrent.atomic.AtomicInteger count = new java.util.concurrent.atomic.AtomicInteger(50);
+        ListView list = new ListView(new ListView.Adapter() {
+            @Override public int rowCount() {
+                return count.get();
+            }
+
+            @Override public Widget rowAt(int index) {
+                return new SizedBox(200, 24, new Label("Row " + index));
+            }
+        });
+        bind(list);
+        AxGrid grid = new AxGrid(bridge);
+        long[] rows = grid.rows(only(Accessible.Role.LIST));
+
+        trace.clear();
+        assertTrue(perform(rows[rows.length - 1], Accessible.Action.SCROLL_INTO_VIEW));
+        assertTrue(only(Accessible.Role.LIST).scroll().verticalPercent() > 0, "the fixture: it scrolled");
+        assertTrue(!postedSinceCleared().contains("NSAccessibilityRowCountChangedNotification"),
+                "a scroll changes which rows are realized, not how many the list has: " + trace);
+
+        trace.clear();
+        count.set(60);
+        list.refresh();
+        frame();
+        assertEquals(1, postedSinceCleared().stream()
+                        .filter("NSAccessibilityRowCountChangedNotification"::equals).count(),
+                "fifty rows became sixty, told once on the list: " + trace);
+    }
+
     /** A reader's write through the setter half, as the closure makes it: mapped, then performed. */
     private boolean write(AxSetters.Setting setting, long element) {
         if (setting == null) return false;
