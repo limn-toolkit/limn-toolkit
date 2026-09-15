@@ -2,6 +2,7 @@ package limn.components.date;
 
 import limn.i18n.I18n;
 
+import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.chrono.ChronoLocalDate;
@@ -11,6 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.FormatStyle;
 import java.time.format.TextStyle;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.WeekFields;
 import java.util.List;
 import java.util.Locale;
@@ -115,6 +117,83 @@ final class CalendarChronology {
         } catch (RuntimeException e) {
             return null;
         }
+    }
+
+    /**
+     * {@code date.plus(amount, unit)}, or {@code null} where the calendar has no such date: a
+     * Hijri month before AH 1300 or after AH 1600 throws {@code DateTimeException} out of the
+     * JDK, and a grid standing at either end of the range asks for exactly that month -- for
+     * the leading cells, for the paging arrows, for a chooser cell's period end. Every caller
+     * has an ISO fallback for a null, the way {@link #date} and {@link #iso} already give them.
+     */
+    static ChronoLocalDate plus(ChronoLocalDate date, long amount, ChronoUnit unit) {
+        try {
+            return date.plus(amount, unit);
+        } catch (DateTimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The ISO date of the first day of the month, <b>in the calendar being drawn</b>, that holds a
+     * day: the one answer to "which month is this" that is right in every chronology. A Hijri
+     * month starts three weeks into an ISO one, so {@code day.withDayOfMonth(1)} names a day of
+     * the <em>previous</em> Hijri month for most of the year; paging, the choosers and the cursor
+     * all went wrong on exactly that until 2026-09-14 (DATES-NEW-1).
+     *
+     * @param chronology the calendar being drawn
+     * @param day        any day
+     * @return the ISO date of that month's first day; the ISO month's first when the chronology
+     *         cannot hold the day, which is the same fallback the grid draws
+     */
+    static LocalDate firstOfMonth(Chronology chronology, LocalDate day) {
+        ChronoLocalDate drawn = date(chronology, day);
+        if (drawn != null) {
+            LocalDate first = iso(drawn.with(java.time.temporal.ChronoField.DAY_OF_MONTH, 1));
+            if (first != null) {
+                return first;
+            }
+        }
+        return day.withDayOfMonth(1);
+    }
+
+    /**
+     * Whether the calendar's years are short enough that the era is part of what a year means:
+     * Reiwa 8 and Minguo 115 say nothing without their era, where 2026, 2569 (Buddhist) and 1448
+     * (Hijri) do. Read off the year of era <em>today</em> rather than off a list of chronologies,
+     * so a calendar the runtime adds later is classified by the same rule.
+     *
+     * <p>This is the settled reading of ADR 042 &sect;3's widening rule (era-year-width,
+     * 2026-09-14): the four-digit widening removes a two-digit year's ambiguity, and a year of era
+     * that is one to three digits long inside a named era is not ambiguous.
+     *
+     * @param chronology the calendar being drawn
+     * @param today      the widget's today
+     * @return whether a year of this calendar is spoken and drawn with its era
+     */
+    static boolean yearsNameTheirEra(Chronology chronology, LocalDate today) {
+        ChronoLocalDate drawn = date(chronology, today);
+        return drawn != null && drawn.get(java.time.temporal.ChronoField.YEAR_OF_ERA) < 1000;
+    }
+
+    /**
+     * The year with its era, the way the language writes the pair &mdash; "令和8", "民國115" &mdash;
+     * for a calendar {@link #yearsNameTheirEra} says needs one.
+     *
+     * @param chronology the calendar being drawn
+     * @param date       a day of the year
+     * @param locale     the language in effect
+     * @param narrow     whether to use the one-letter era ("R8") that fits a chooser cell, or the
+     *                   full name a reader is told
+     * @return the labelled year
+     */
+    static String eraYear(Chronology chronology, ChronoLocalDate date, Locale locale,
+                          boolean narrow) {
+        DateTimeFormatter formatter = FORMATTERS.computeIfAbsent(
+                (narrow ? "eraN " : "era ") + locale.toLanguageTag() + ' ' + chronology.getId(),
+                key -> DateTimeFormatter.ofPattern(narrow ? "GGGGGy" : "GGGGy", locale)
+                        .withChronology(chronology));
+        return I18n.localizeDigits(formatter.format(date));
     }
 
     /**

@@ -77,6 +77,19 @@ Three consequences are worth stating because each is a bug that did not happen:
   calendar for that widget rather than throwing inside a frame. The guard is in one place
   (`CalendarChronology.convert`) and both widgets go through it.
 
+**Amendment, 2026-09-14 (DATES-NEW-1): the visible month is the drawn calendar's month.**
+`CalendarView.visibleMonth()` answers the ISO date of the first day of the month *in the calendar
+being drawn*, and every path that chooses a month — `setVisibleMonth`, paging, a chooser pick, a
+cursor walking off the grid, `setClock` — normalizes to that day. The first implementation
+normalized to the ISO month's first day and then drew the chronology month holding it, which is
+right for ISO and wrong for every calendar whose months start mid-way through ISO ones: "next"
+from a Hijri month computed a day whose ISO first was the one already shown and did nothing (95 of
+the 132 ISO months of a decade), a selected day could fall off the grid, and a month picked in the
+chooser drew the month before it. The guard sentence above is also corrected: the one place is
+`CalendarChronology.date`/`iso`/`usableFor` (there is no `convert`), and `firstOfMonth` beside
+them is the normalization. Pinned by `CalendarViewAccessibilityTest` (Hijri paging, a Hijri day
+on the grid, a Hijri month picked).
+
 **Rejected: a value type of our own.** A `limn.time.CalendarDate` would decouple the toolkit from
 the JDK and would cost every application a conversion at every boundary, to buy nothing: `java.time`
 is in `java.base`, it is the type every persistence layer, every JSON binding and every SQL driver
@@ -119,6 +132,36 @@ its own for a screen that shows a month rather than filling a field.
 - **`DatePicker`** composes them: it *holds a `DateField` as a real child* and opens a
   `CalendarView` in a popup.
 
+**Amendment, 2026-09-14 (decisions 12, 47, 48, 51 — DT6): two starts and one knob decide the
+shape, and the table above is superseded.** The factories named above never existed as written
+(`dateTime()`/`time()`/`range()` are value getters; the shapes were `DateField.ofTime`,
+`DateField.ofDateTime`, `DatePicker.ofDateTime`, `DatePicker.ofRange`), and `ofDateTime` and
+`setShowSeconds` are gone: a field starts at the year (`new DateField()`, `new DatePicker()`) or
+at the hour (`DateField.ofTime()`), and `setGranularity(Granularity)` — a closed enum `YEAR`,
+`MONTH`, `DAY`, `HOUR`, `MINUTE`, `SECOND` — says which segment is its last. A time field refuses
+the three date levels loudly. The picker fans the level out to its field (both ends of a period)
+and its calendar, which takes its level as a `CalendarView.View` (`setGranularity(View)`; an hour
+does not compile there). Segments below the level are cut from the locale's own pattern together
+with the literal that joined them (`DatePattern.without`: `dd/MM/y` → `MM/y`, `yy. M. d.` →
+`yy. M.`), and the value is what the segments say: a month field told 15 June answers the 1st.
+
+| granularity | `DateField` | `DatePicker` popup | a `RANGE` at this level (decision 51) |
+|---|---|---|---|
+| `YEAR` | the year alone | the year chooser is terminal: a pick there is the selection | 1 January of the first year to 31 December of the last, in the drawn calendar |
+| `MONTH` | month and year | the month chooser is terminal (decision 48: its cells carry a real selection) | the 1st of the first month to the last day (28/29/30/31) of the last |
+| `DAY` | the default | the day grid | the two days |
+| `HOUR` | plus the hour | the day grid **and a time row under it**; Tab cycles grid → header → row (decision 19) | the start at hh:00:00, the end at hh:59:59 |
+| `MINUTE` | plus the minute (`ofTime()`'s default) | as `HOUR` | the end at :59 seconds |
+| `SECOND` | plus the second | as `HOUR` | the two instants |
+
+The end of a period is the *end field's* business: `DatePicker.ofRange()` marks its second field
+as the end of a period, so it holds "June" and answers the 30th, and a range picker at an hour
+granularity answers the last representable instant of its end hour. Pinned by `DateFieldTest`
+(the six levels, the refusal, a coarser level dropping the segments it lost), `CalendarViewTest`
+(a month picker's terminal pick, Gregorian March–June → 03-01..06-30, a leap February → 02-29, a
+year range → 01-01..12-31) and `DatePickerTest` (the time row and its Tab cycle, a month range
+picker, an hour range 00:00..23:59:59).
+
 **Why composition rather than one class with modes.** A single `DatePicker` with
 `Mode.DATE | TIME | DATE_TIME` and `setCalendarEnabled(false)` is one import and one Javadoc, and
 that is the whole of its case. Against it: half its state is mutually exclusive at any moment, its
@@ -134,6 +177,12 @@ popup, and Tab moves between the two ends of the period for free. The picker pai
 thing itself — the trailing calendar button — and publishes it the way `SearchField` publishes its
 clear button and `Spinner` its two arrows: a synthetic child with a name the toolkit supplies,
 because nothing else can name it.
+
+**Amendment, 2026-09-14 (DT4): the button is a real child, and the picker paints more than it.**
+The paragraph above describes a first cut. The calendar button is a focusable widget of its own
+(`DatePicker.CalendarButton`), the picker's last child in Tab order, named by the toolkit and
+published as a plain `BUTTON` with `PRESS` (§8's amendment of decisions 18 and 55); and the
+picker paints its box and, for a period, the dash between the two fields, as well as the button.
 
 ## 3. The field is segments the locale orders, and one of them is always focused
 
@@ -166,6 +215,42 @@ Three details are decisions rather than mechanics:
   and publishes `VALIDITY` as invalid; it does not guess a year. Guessing is what makes a form
   submit something nobody typed.
 
+**Amendment, 2026-09-14 (DATES-NEW-9, decision 57, settled typed-iso-run and implausible-year):
+what a paste and a typed run do.** "A long run typed or pasted is parsed as a whole" held for a
+paste and not for typing: `2026-12-31` typed digit by digit into a day-first field went segment
+by segment to 0001-02-20 and called it valid. The field now keeps the characters typed since the
+last key and, once they read as an ISO date (`2026-12-31`, or `2026-12` in a month field),
+commits that date as a whole, caret on the last segment. A **two-digit year** — pasted as
+`31/12/26` (the language's `dd/MM/y` parsed it as the year 26), as the six-digit run `311226`, or
+typed as `26` and left with a Right, a Home, a separator, a click or the focus — resolves through
+a window around today by the widget's clock: 80 years back and 19 ahead by default (`26` → 2026,
+`85` → 1985, `45` → 2045), `setTwoDigitYearWindow(yearsBack)` moves it, and
+`REFUSE_TWO_DIGIT_YEARS` turns the guess off (a pasted two-digit year is left blank and the field
+incomplete; a typed one stays what was typed — **corrected the same day:** a typed two-digit
+year left with the caret is blanked the same way, so a form that refuses to guess is never
+handed the year 26 as valid; the earlier reading applied the decision's "left blank" to pastes
+only). Four digits are what was meant, however small: a
+year of 26 is held, and whether it is plausible is the application's bound (`setMinDate`). A
+digit run keeps its leading zero (`01022026`), a run longer than a date's or a month or day outside
+its range refuses the whole paste and leaves the value untouched, and no paste throws out of the
+key handler (`Integer.parseInt` over the whole of a pasted account number did). Pinned by
+`DateFieldTest`'s typed-and-pasted cases.
+
+**Amendment, 2026-09-14 (era-year-width, decision 38 — DATES-NEW-7, DATES-NEW-10): the widening
+stops at eras, and the era rides in the year's spoken text.** The four-digit widening above
+removes a two-digit year's ambiguity; a year of era inside a named era has none, so in a calendar
+whose years need their era — read off the year of era today being under a thousand (Japanese,
+Minguo), never off a list — the year is drawn at its own width ("R8/9/9", "民國115/9/9", not
+"R0008") and typed with one to three digits: "115" rolls on, "8" waits for a Right. The era of an
+empty field is today's **by the widget's clock** (§1), not the wall clock's: a field under a clock
+set to 2018 types into Heisei. "It is read out" was false until now — the era segment is not
+editable and so was never a node — and stays true a different way: the era is no node of its own
+(ADR 039 §7's DateField row corrected), and reaches a reader as part of the year segment's value
+text, "令和8" for the "8" that is drawn, formatted by the JDK with no string of this toolkit's.
+Pinned by `DateFieldTest.anEraYearIsDrawnAtItsOwnWidthAndTypedWithUpToThreeDigits`,
+`anEmptyEraFieldTypesIntoTheClocksEra` and
+`DateFieldAccessibilityTest.anEraCalendarsYearSegmentSpeaksItsEra`.
+
 ## 4. The grid is a table, and that is why it can already be read
 
 `CalendarView` lays out six week rows of seven day cells, plus a weekday header row and, when asked,
@@ -188,11 +273,29 @@ and each pick descends one step. `setView` lets an application open at any level
 birth-date picker wants. Descending is navigation and not a choice: no selection is announced and no
 handler runs until a **day** is picked.
 
+**Amendment, 2026-09-14 (DATES-NEW-1, DATES-NEW-10): the year chooser blocks by the proleptic
+year and names the era.** A block of twenty-four is aligned on `ChronoField.YEAR`, the one number
+every chronology counts without a gap, and not on the year of era: aligned on the year of era, a
+Japanese block began at "Reiwa 0", which is not a year, and paging back from Reiwa's block landed
+on Heisei's with 2012–2018 in neither. In a calendar whose years are short enough to need their
+era — read off the year of era today being under a thousand (Japanese, Minguo), never off a list
+of chronologies — a cell is spoken with its era ("平成31", "令和2"), drawn with the era's one
+letter only while the block crosses an era ("H31", "R2"), and the title names both ends ("平成28 –
+令和21"); the month chooser's title is the same era-qualified year. Pinned by
+`CalendarViewAccessibilityTest.aJapaneseYearChooserPagesWithoutSkippingYearsAndNamesTheEra`.
+
 The month is paged by the two header buttons, by PageUp and PageDown, and by arrowing off an edge.
 Arrow keys move by a day and a week, Home and End go to the first and last day **of the week**
 (they name a position in a row, so they mirror with the row; §8), and the focused day is a *cursor*
 that is not the selection: it moves with the arrows and commits with Enter or Space. A grid where
 arrowing selected would fire a form's handler seven times crossing a week.
+
+**Amendment, 2026-09-14 (DT3, DT4): Home and End do not mirror, and Shift with a Page key is a
+year.** The parenthesis above contradicts §9 and the code: Home and End name the first and last
+day of the week, not a side of the row, so they do not mirror (`DateMirroringTest.upAndDownAndHomeAndEndDoNotMirror`);
+the cross-reference is §9, not §8. Shift with PageUp or PageDown steps the cursor a year, and in
+`RANGE` extends the band from the anchor as Shift with an arrow does — a binding the code always
+had and this record did not name (`CalendarViewAccessibilityTest.shiftWithAnArrowPreviewsTheBandFromTheAnchorWithoutClosingIt`).
 
 ## 5. Bounds are two dates and a predicate, and all three are enforced twice
 
@@ -210,12 +313,30 @@ Snapping is the behaviour that loses a user's typing without telling them.
 The predicate is called during paint, once per visible cell, and is documented as such: it must be
 cheap and it must be pure. A filter that hits a database is a filter that stalls a frame.
 
+**Amendment, 2026-09-14 (decision 30 — DATES-NEW-6): the cursor stops on a refused day and says
+so.** "Skipped by the keyboard cursor" above was never what the code did, and the owner chose the
+code's behaviour over the record's: the cursor visits every day, Enter and Space are refused on a
+refused one (`pick` says no, nothing is announced, no handler runs), and the cell is published
+**disabled** — through the model's narrowing-only declaration (`Accessibility.disabled()`, ADR 039
+§1.2 amendment of the same date), which is the one route a synthetic child has to be less enabled
+than its owner — with no `SELECT` verb, so a reader arrowing across the month hears that the day is
+unavailable where a skip would have left a hole nobody was told about. A month or year the
+chooser does not offer is published the same way. The sentence about the field ("the value the
+application reads stays what it was") is also corrected: `date()` answers the out-of-range date
+that was typed, and `isValid()` says separately that it is not acceptable (`DateFieldTest`). Pinned
+by `CalendarViewTest.theCursorStopsOnARefusedDayAndEnterIsRefusedThere` and
+`CalendarViewAccessibilityTest.aDayTheBoundsRefuseCarriesNoSelectVerb`.
+
 ## 6. A period is one grid and two fields
 
 `CalendarView.setSelectionMode(RANGE)` makes the grid select a period: the first click sets an
 anchor, the second closes the range, the cells between them are drawn as a band, and moving the
 pointer or the keyboard cursor before the second click previews the band it would make. Shift with
-an arrow extends from the anchor. A range is `DateRange`, a record of two inclusive `LocalDate`
+an arrow extends from the anchor. (**Corrected 2026-09-14, DT4:** the pointer previews, and the
+keyboard previews only with Shift held — a plain arrow moves the cursor and leaves the band alone,
+so arrowing away from a half-made period does not drag it along; pinned by
+`CalendarViewAccessibilityTest.aPointerMovePreviewsTheBand` and
+`shiftWithAnArrowPreviewsTheBandFromTheAnchorWithoutClosingIt`.) A range is `DateRange`, a record of two inclusive `LocalDate`
 ends, normalized so `start` is never after `end`; a half-made range is not a `DateRange` and is not
 published as one — `selectedRange()` answers `null` until the period is closed.
 
@@ -241,7 +362,9 @@ in one domain and a deadline red in another, and the toolkit has no opinion abou
 ## 8. What a screen reader is told
 
 **The grid.** `TABLE` with `table(6 rows, 7 or 8 columns)`; the weekday header is a `GROUP` of
-`COLUMN_HEADER`s named with the standalone narrow weekday; each week is a `ROW`; each day is a
+`COLUMN_HEADER`s named with the standalone narrow weekday (**corrected 2026-09-14, DT4:** with
+the *full* standalone weekday — the narrow letter is what is drawn, and seven single letters name
+nothing to a reader crossing the header; `CalendarViewAccessibilityTest.theHeaderRowNamesEachColumnWithTheWholeWeekdayAndNotTheLetterDrawn`); each week is a `ROW`; each day is a
 `CELL` carrying `cell(row, column)`, a `SELECT` verb when it is selectable, `selectionItem` when it
 is selected or in the band, and `State.ACTIVE` when it is the keyboard cursor. A day's name is the
 **full localized date** and not the bare number — "9 de setembro de 2026" and not "9" — because a
@@ -260,19 +383,113 @@ description when the field holds something unacceptable, and the whole date as a
 `DateField.text()` for an application that wants it. (The first implementation put the whole date
 on the group as a `valueText`; §12 records why that reached nobody.)
 
+**Amendment, 2026-09-14 (decisions 16 and 53 — DATES-NEW-8): an empty segment says so.** A
+segment nobody has filled published its minimum as its number, so a client reading the number
+heard "1" for a day nobody typed and the published verb (a step lands on today's) contradicted
+it. It now publishes the model's empty value (ADR 039 §1.2 amendment of the same date: the range
+kept, no number, the minimum answered only where a platform must have one) with a spoken word as
+its text — "empty", one string in all 21 date locale files — while the dashes stay drawn. Typing
+the first digit is a `VALUE_CHANGED` even when the digit is the minimum, and the first step from
+empty still lands on today's own value by the widget's clock (§1). Pinned by
+`DateFieldAccessibilityTest.aBlankSegmentSaysItIsEmptyAndFillingItIsAValueChange`.
+
 The header's title is published as a `BUTTON` carrying `EXPANDED`, because it is the only way to
 the two choosers and a reader never offered it is left paging. In a chooser the grid stays a
 `TABLE`; its cells are named with the month or the year, carry `SELECT` where they lead anywhere,
 and carry **no** selection facet &mdash; telling a reader a month is "selected" would be telling
 them the form holds a value it does not.
 
+**Amendment, 2026-09-14 (decision 37): a day is "15 of 30".** "`selectionItem` when it is
+selected or in the band" above was never what the code did: every day cell carries one while the
+selection mode is not `NONE`, selected or not (the capture read "item 1 of 42 unselected"), and
+what it carried as its position was the cell's flat index over the forty-two cells of the grid —
+the geometry, read out as a place in a set. A day cell now publishes its day of the month as the
+position and its month's length as the size, in the calendar being drawn and each cell by its own
+date, so a leading cell of the month before is "31 of 31" and a Hijri day is numbered in its Hijri
+month; a chooser cell keeps its index over the chooser's count, and zero still means "none" on
+every platform (semantics 6). Pinned by
+`CalendarViewAccessibilityTest.aDayCellIsNumberedByItsDayOfMonthOverTheMonthsLength`.
+
+**Amendment, 2026-09-14 (decision 48, DATES-NEW-11, DT2 — MODEL-NEW-1's widget half): what a
+chooser says, and what its nodes are.** The cell holding the month or year on show — filled on
+screen — carries the fact in its name, after a comma as "today" does ("Sep, on show"; one string,
+`limn.date.onShow`, in all 21 date locale files), in a chooser somebody is passing through; the
+first implementation set `CHECKED` on it, which the builder drops (ADR 039 §1.2). The chooser a
+month or year picker picks in carries a real selection instead and no word. The two paging
+buttons are named for what they page in the view on show — "Previous month"/"Next month" over
+the days, "Previous year"/"Next year" over the months, "Previous 24 years"/"Next 24 years" over
+the years (four strings, 21 locales) — where before all three views said "month". And a
+chooser's rows and cells are keyed in a range of their own rather than the day grid's: a key is
+an identity, so a month cell keyed like a day cell *was* that node across a view change, and a
+Windows element built for it while it carried no selection item answered no `SelectionItem` for
+the day it later stood for; a view change now destroys one set of nodes and mints the other.
+(Corrected the same day, DT2's second half: the first cut gave the months and the years one
+chooser range between them, so in a month picker — whose months carry a selection item and whose
+years do not — the climb to the years and back kept the defect one level up; the month chooser
+and the year chooser now have ranges of their own, and the sentence before holds between all
+three views.)
+Pinned by `CalendarViewAccessibilityTest.theChooserNamesTheCellOnShowAndAMonthPickerSaysItWithASelectionInstead`,
+`thePagingButtonsSayWhatTheyPageInEveryView` and `dayAndChooserCellsAreDifferentNodes`.
+
 **The picker.** The field's subtree, the popup's, and one synthetic `BUTTON` for the calendar
 affordance with `EXPANDED` on the picker itself.
+
+**Amendment, 2026-09-14 (decisions 18 and 55, settled calendar-title-verbs — DATES-NEW-4,
+DATES-NEW-12, WINDOWS-NEW-10's widget half): the popup is the field's to tell.** The button is a
+real widget, not a synthetic child (§12's finding, repeated here wrongly), and the expanded state
+moves off the picker and the button onto the **field**, which is the node a reader arrives at:
+like `ComboBox` and the ARIA combobox pattern, the field publishes `EXPANDED`, `HAS_POPUP` and the
+one verb its state allows — `EXPAND` while closed, `COLLAPSE` while open (Alt+Down and Escape) —
+and accepts exactly those; the "Open calendar" button is a plain `PRESS`; the picker's group
+carries no expand state and accepts no verb (it accepted `EXPAND`, `COLLAPSE` and `CANCEL` without
+publishing them, against ADR 039 §1.5's contract). A **single picker's group is no node at all**:
+it declares nothing and the walk hoists its field and button in its place, so a caption bound to
+the picker names the field (the walk's label-redirect hook of the same date), where before it
+named an unfocusable group and left the focused field nameless. A **range picker** keeps the
+group and the label over it, and its two fields are "Start date" and "End date" (21 locales) for
+themselves. The calendar's **title** publishes `EXPAND` only while the finest view is showing and
+`COLLAPSE` only above it, and accepts exactly those (`COLLAPSE` comes straight back down, as
+Escape does); `PRESS` keeps climbing one step. The accessibility gallery gained a "Date picker,
+closed" entry so the field is ratcheted as it stands in a form. Pinned by
+`DatePickerAccessibilityTest` and
+`CalendarViewAccessibilityTest.theTitleExpandsAndCollapsesAsWellAsPressesAndRefusesTheVerbItDoesNotPublish`.
+
+**Amendment, 2026-09-14 (decision 5, semantics 4 — the native presentation's effective focus):
+the caret yields to the popup's cursor.** With the calendar in a window of its own the field keeps
+the focus and the popup takes none, and the tree's effective focus falls through to the cursor
+in the popup's tree only when the focused node's own subtree holds no `ACTIVE` node. The field's
+caret segment therefore claims `ACTIVE` while the field holds the focus **except** while its own
+popup holds the keyboard (open, and the picker not aiming at the field), and claims it again
+the moment the popup closes; until this note the segment stayed `ACTIVE` throughout, so the
+cross-window fallback could never fire for a date picker and a reader arrowing across the month
+was told the field's day segment. The drawn caret is unchanged. The scene presentation is
+untouched: there the overlay holds the focus, the picker aims at the field for the digits, and
+the cursor is `ACTIVE` under the overlay. Pinned by limn-demo's
+`DatePickerNativePopupTest.whileTheCalendarWindowHoldsTheKeyboardTheEffectiveFocusIsItsCursorNotTheFieldsCaret`,
+which reads the host tree's effective focus across the two windows.
+
+**Amendment, 2026-09-14 (decision 2, semantics 5 — the scene presentation's closing verb): the
+field publishes `COLLAPSE` only where it can take it.** While the popup is an overlay of the
+scene, the scene refuses every verb on a widget beneath the overlay (its input gate), and the
+platform is answered from the snapshot before any hook runs; a `COLLAPSE` published on the field
+there was reported accepted and closed nothing. So in the scene presentation the open field
+publishes `EXPANDED` and `HAS_POPUP` and no verb, the overlay's `CANCEL` is the closing verb,
+and the field accepts `COLLAPSE` only where it publishes it — in a window of its own, where the
+field keeps the focus and the verb reaches it (the paragraph above's "accepts exactly those"
+holds in both presentations, with the list differing between them). `ComboBox` has the same
+shape and was left as it is: it is another lane's widget, and its precedent is noted, not
+followed. Pinned by `DatePickerAccessibilityTest.theCaptionNamesTheFieldAndTheFieldSaysItHasAPopup`
+(in-scene: no verb on the open field, Collapse performed there changes nothing, the overlay's
+Cancel closes; and the overlay holds the focus with the cursor `ACTIVE` under it as the tree's
+effective focus, decision 1's in-scene half of item 10) and limn-demo's
+`DatePickerNativePopupTest` (the field takes `COLLAPSE` in a window of its own).
 
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and
 it is why the calendar could be built at all without reopening the bridges, which live in their own
-repository since the fourth split.
+repository since the fourth split. (**Corrected 2026-09-14, DT4:** the bridges live in
+`limn-backend-lwjgl` since 03fd728 of 2026-09-06, three days before this record; the sentence
+was written against the split it reversed.)
 
 ## 9. Reading right to left
 
@@ -309,6 +526,23 @@ only for `Origin.USER`; `observeChanges` hears everything. The aspects each anno
 - `DatePicker`: `EXPANDED` when the popup opens or closes, and the value aspects it forwards from
   its field so that a watcher on the picker does not have to know it has children.
 
+**Amendment, 2026-09-14 (decision 59 — DATES-NEW-13): a change of view is a `VALUE` too, and
+Escape from the header announces the cursor.** `CalendarView` announces `VALUE` when what it
+shows moves between days, months and years — the person's (`USER`) from the title, from Ctrl
+with an arrow, from a chooser's Escape and from a picker backing out of a chooser; the caller's
+(`CODE`) from `setView`; the calendar's own (`ADJUSTMENT`) when `setGranularity` lifts a finer
+view to the new level (added the same day: the first cut assigned the view there directly and
+announced nothing, which a date picker converting its level with the card open reaches); nothing
+for a view already showing — where before only the title's
+published `EXPANDED` flipped and a watcher heard a layout. Escape on a header control puts the
+cursor back on the grid and now announces `ACTIVE` for it, as Down always did. A date field's
+arrow between segments is the same kind of move and reaches a reader as one
+`ACTIVE_DESCENDANT_CHANGED` on the field (decisions 6 and 49; the model's rule since phase 1),
+pinned here beside the roll-on case. Pinned by
+`CalendarViewTest.climbingTheHeaderAnnouncesTheViewAsAValueAndSoDoesACallersWrite`,
+`CalendarViewTest.escapeFromTheHeaderAnnouncesTheCursor` and
+`DateFieldAccessibilityTest.anArrowBetweenSegmentsMovesTheFieldsCursorOnce`.
+
 `CalendarView` has two handler slots and not one: `onSelect(Consumer<LocalDate>)` in `SINGLE` mode
 and `onSelectRange(Consumer<DateRange>)` in `RANGE`. One slot taking a widget, or a slot taking
 `Object`, would make every application cast; two slots, each documented as its mode's, is the
@@ -332,6 +566,19 @@ worse than one that never made it.
   segmented time editor inside a surface that cannot be focused would need either a focus contract
   this record has no business changing or a second key-forwarding path. `DatePicker.dateTime()`
   therefore edits its time in the field, which is where a keyboard user would type it anyway.
+
+  **Amendment, 2026-09-14 (decision 19; DT6, DATES-NEW-3): withdrawn.** The second forwarding
+  path existed already — the picker forwards Tab into the calendar's header — and it now carries
+  characters too. A picker at `HOUR` or finer has a time row under the grid: a real `DateField`
+  that never takes the focus, driven exactly as the grid is (the keys and the digits are handed to
+  it while Tab has put the keyboard on it), and Tab cycles grid → paging arrows and title → time
+  row → grid in both presentations. What it types goes into the field through the row's own
+  origin, so the application's handler runs as if the person had typed into the field. The
+  in-scene presentation, where the overlay holds the focus, forwards every key and character it
+  does not answer to the field whose caret is showing, which is what a day typed over an open
+  calendar needed and did not have (DATES-NEW-3: the digits died at the overlay's root). Pinned by
+  `DatePickerTest.aPickerDownToTheMinuteCarriesATimeRowInItsPopupAndTabCyclesThroughIt` and
+  `whileTheInSceneCalendarIsOpenTypedDigitsAndBackspaceStillReachTheField`.
 - **A footer of shortcuts** — "Today", "Clear", "last 7 days". Cheap to add and deliberately not
   added: which shortcuts a form wants is an application's decision, and a toolkit that ships three
   guesses ships three that are wrong somewhere.
@@ -367,7 +614,58 @@ nothing for it to land on, so the whole date published on the field's group was 
 nobody. Found by `DateFieldAccessibilityTest`, which asked the tree for it. The group now publishes
 no value at all and the segments carry them, which is §8 as it now reads.
 
+**Amendment, 2026-09-14 (DT3): what is really tested, by name.** The first paragraph of this
+section claimed more than the tests held, and seven implemented behaviours had no test at all.
+As of this date: the segment parser is `DatePatternTest`, where
+`everyPatternTheProbeRecordedParsesIntoItsOwnOrderAndSeparators` parses all eight patterns named
+above verbatim (`dd.MM.yy` and `d.M.y` were named and parsed by no test until it), beside the
+short-date orders of pt-BR, en-US, ja, ko and ar through the JDK. The chronology
+axis: `CalendarViewTest.theCalendarDrawnIsIsoUntilTheLocaleOrTheApplicationSaysOtherwise`
+(Japanese by locale, Thai Buddhist by call) and `aChronologyThatCannotHoldTheMonthFallsBackRatherThanThrowing`
+(1750, outside the Hijri range); Hijrah in `CalendarViewAccessibilityTest.aHijriGridPagesByHijriMonths`,
+`aSelectedHijriDayIsOnTheGrid`, `aHijriMonthPickedInTheChooserIsTheMonthShown` and
+`aHijriGridAtTheEndsOfItsRange` — the AH 1300 and 1600 ends this section named and no test
+reached, and writing that test found that the month before AH 1300 threw `DateTimeException` out
+of a frame (`previousMonthLength`), so every chronology step at a range's end now falls back to
+ISO (`CalendarChronology.plus`); Minguo in `aMinguoCalendarNamesTheRepublicsYear` and
+`DateFieldAccessibilityTest.anEraCalendarsYearSegmentSpeaksItsEra`; Japanese in
+`aJapaneseYearChooserPagesWithoutSkippingYearsAndNamesTheEra`,
+`DateFieldTest.anEraYearIsDrawnAtItsOwnWidthAndTypedWithUpToThreeDigits` and
+`theCaretNeverStopsOnTheEra`. Geometry and paging: `CalendarViewTest.theArrowsMoveByADayAndAWeekAndThePageKeysByAMonth`,
+`homeAndEndAreTheEndsOfTheWeekAndFollowTheLocalesFirstDay`,
+`theArrowsPageAYearInTheMonthChooserAndABlockInTheYearChooser`,
+`CalendarViewAccessibilityTest.theCellsAreCentredOnTheWidgetInEveryView` and
+`pickingALeadingOrTrailingDayPagesTheGrid`. The band: `CalendarViewTest.aPeriodTakesTwoPicksAndTheHandlerOnlyRunsForTheSecond`,
+`aPeriodPickedBackwardsIsStillOrdered`, `CalendarViewAccessibilityTest.shiftWithAnArrowPreviewsTheBandFromTheAnchorWithoutClosingIt`
+(Shift+arrow, and Shift+PageDown a year), `aPointerMovePreviewsTheBand` and
+`aSelectedDayAndEveryDayInAPeriodSaysSo`. Bounds and the filter: `CalendarViewTest.theCursorStopsOnARefusedDayAndEnterIsRefusedThere`,
+`aFilteredDayIsNotSelectableInEitherMode`, `aMonthOrYearWithNoSelectableDayInItIsNotOffered`,
+`DateFieldTest.aDateOutsideTheBoundsIsHeldAndReportedRatherThanSnapped` and
+`aFilteredDateIsInvalidWithItsOwnMessage`. Week numbers and marks:
+`theWeekNumberColumnAddsAColumnAndNotARow`, `theWeekNumberIsTheLanguagesOwn` (week 1 in en-US
+and 53 in de-DE for the same row) and `whatAMarkSaysReachesTheReaderAndNotOnlyTheEye`. Paste and
+typed runs: `DateFieldTest.aPastedTwoDigitYearIsTheSameCenturyEveryWayItIsWritten`,
+`aPastedRunKeepsItsLeadingZero`, `anOverlongPasteChangesNothingAndThrowsNothing`,
+`aPastedImpossibleMonthOrDayIsRefusedWhole` and `aTypedIsoRunCommitsTheSameDayAsTheLanguagesForm`.
+The accessible trees: the four `*AccessibilityTest` classes (`DatePickerAccessibilityTest` since
+decision 55) and limn-demo's `DatePickerNativePopupTest`; the mirroring: `DateMirroringTest` (columns, the week column, tree
+order, Left and Right, Up/Down/Home/End, the field's run, and now the paging buttons' ends); the
+ADR 040 obligations: the three rows of `NotificationContractTest`. Two test names overclaimed and
+were corrected the same day: `DatePickerTest.whileTheGridIsOpenTheNavigationKeysDriveItAndTheDigitsStillReachTheField`
+now types the digits it names, and `boundsAndTheFilterRefuseADayRatherThanMovingIt`, which
+pressed no key, is `theCursorStopsOnARefusedDayAndEnterIsRefusedThere`.
+
 **Still owed, and named so it is not forgotten:** a live reader run on each of the three guests over
 the demo's date scene — the same discipline ADR 039 and ADR 041 were held to, which is what found
 four defects on Windows and two on Linux that no headless test could have. Until that run happens,
 what §8 claims is what the headless tree says and not what a reader speaks.
+
+**Amendment, 2026-09-14 (LAB-NEW-13, settled reader-scene-clock): what the run is pointed at
+speaks the same day everywhere.** The run goes over limn-demo's `AccessibilityGallery` date
+entries ("Calendar grid", "Date field, segmented", "Date picker, open", "Date picker, closed"),
+not over the demo's live date scene, which keeps the real clock. Each of those entries is built
+on noon of 2026-09-09 UTC and declares English (United States) on its root, whatever the guest's
+clock and process locale say: a calendar names its today cell ", today" and the language names
+every cell and segment, so an entry on the real clock spoke a different day on each guest (the
+Fedora guest's clock ran days behind the others). Pinned by limn-demo's `DateReaderEntriesTest`,
+built under a Brazilian Portuguese process locale.

@@ -58,6 +58,37 @@ class DatePatternTest {
         assertEquals(1, ((DatePattern.FieldPart) parts.get(4)).width(), "y is one");
     }
 
+    /**
+     * The eight patterns ADR 042 &sect;12 says the probe recorded, each parsed verbatim into its own
+     * order and its own separators. Until 2026-09-14 two of them ({@code dd.MM.yy} and
+     * {@code d.M.y}) were named by the record and parsed by no test (DT3).
+     */
+    @Test
+    void everyPatternTheProbeRecordedParsesIntoItsOwnOrderAndSeparators() {
+        DatePattern.Field d = DatePattern.Field.DAY;
+        DatePattern.Field m = DatePattern.Field.MONTH;
+        DatePattern.Field y = DatePattern.Field.YEAR;
+        DatePattern.Field g = DatePattern.Field.ERA;
+        record Recorded(String pattern, List<DatePattern.Field> fields, List<String> literals) {
+        }
+        List<Recorded> recorded = List.of(
+                new Recorded("M/d/yy", List.of(m, d, y), List.of("/", "/")),
+                new Recorded("dd/MM/y", List.of(d, m, y), List.of("/", "/")),
+                new Recorded("dd.MM.yy", List.of(d, m, y), List.of(".", ".")),
+                new Recorded("y/MM/dd", List.of(y, m, d), List.of("/", "/")),
+                new Recorded("yy. M. d.", List.of(y, m, d), List.of(". ", ". ", ".")),
+                new Recorded("d.M.y", List.of(d, m, y), List.of(".", ".")),
+                new Recorded("d\u200F/M\u200F/y", List.of(d, m, y), List.of("\u200F/", "\u200F/")),
+                new Recorded("GGGGGy/M/d", List.of(g, y, m, d), List.of("/", "/")));
+        for (Recorded r : recorded) {
+            List<DatePattern.Part> parts = DatePattern.parse(r.pattern());
+            assertEquals(r.fields(), fieldsOf(parts), r.pattern());
+            assertEquals(r.literals(), literalsOf(parts), r.pattern());
+        }
+        List<DatePattern.Part> german = DatePattern.parse("dd.MM.yy");
+        assertEquals(2, ((DatePattern.FieldPart) german.get(4)).width(), "yy is two letters wide");
+    }
+
     @Test
     void adjacentLiteralCharactersMergeIntoOnePart() {
         // Korean: ". " twice, and a trailing "." after the last field. All three are one part each,

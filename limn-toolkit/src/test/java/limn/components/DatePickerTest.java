@@ -1,6 +1,7 @@
 package limn.components;
 
 import limn.components.date.CalendarView;
+import limn.components.date.DateField;
 import limn.components.date.DatePicker;
 import limn.components.date.DateRange;
 import limn.i18n.I18n;
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -107,9 +109,46 @@ class DatePickerTest extends ComponentTestBase {
         assertEquals(ANCHOR.plusWeeks(1), picker.calendar().focusedDate(),
                 "Down moved the grid's cursor and not the field's day segment");
         assertEquals(ANCHOR, picker.date(), "and the field is untouched until something commits");
+        type("15");
+        assertEquals(LocalDate.of(2026, 9, 15), picker.date(),
+                "the digits went into the field's day segment, over the open calendar");
+        assertTrue(picker.isOpen(), "and the calendar is still open");
+        key(Keys.DOWN, 0);
+        assertEquals(LocalDate.of(2026, 9, 22), picker.calendar().focusedDate(),
+                "the grid followed the typed date and Down moved on from there");
         key(Keys.ENTER, 0);
-        assertEquals(ANCHOR.plusWeeks(1), picker.date(), "Enter picks, and the field takes it");
+        assertEquals(LocalDate.of(2026, 9, 22), picker.date(), "Enter picks, and the field takes it");
         assertFalse(picker.isOpen(), "and the grid closes behind it");
+    }
+
+    private void type(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            scene.charTyped(text.charAt(i));
+        }
+        scene.inputBatchEnded();
+    }
+
+    /**
+     * DATES-NEW-3: in the in-scene presentation the overlay holds the focus, so a digit that only
+     * bubbled from the focused widget died at the overlay's root and the date never moved. The
+     * overlay now hands every key and character it does not answer to the field whose caret is
+     * showing, so the two presentations type alike.
+     */
+    @Test
+    void whileTheInSceneCalendarIsOpenTypedDigitsAndBackspaceStillReachTheField() {
+        build(new DatePicker());
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        picker.setDate(ANCHOR);
+        picker.open();
+        assertFalse(picker.field().isFocused(), "the overlay took the focus, as its contract says");
+        type("15");
+        assertEquals(LocalDate.of(2026, 9, 15), picker.date(), "the digits reached the day segment");
+        assertTrue(picker.isOpen());
+        key(Keys.BACKSPACE, 0);
+        assertNull(picker.date(), "and so did Backspace: the segment the caret moved on to is empty");
+        assertTrue(picker.isOpen());
+        key(Keys.DOWN, 0);
+        assertNotNull(picker.calendar().focusedDate(), "while the arrows still drive the grid");
     }
 
     @Test
@@ -141,17 +180,162 @@ class DatePickerTest extends ComponentTestBase {
         assertFalse(picker.field().isValid());
     }
 
+    /**
+     * Decisions 12 and 19: a picker down to the minute types its time in the field and, with the
+     * popup open, in a time row under the grid that Tab reaches after the header. The row never
+     * takes the focus; the keys and the digits are handed to it the way they are to the grid.
+     */
     @Test
-    void aDateTimePickerTypesItsTimeAndPicksItsDate() {
-        build(DatePicker.ofDateTime());
+    void aPickerDownToTheMinuteCarriesATimeRowInItsPopupAndTabCyclesThroughIt() {
+        build(new DatePicker().setGranularity(DateField.Granularity.MINUTE));
         picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
         assertEquals(LocalTime.of(18, 30), picker.time());
         assertEquals(ANCHOR, picker.date());
         assertEquals(LocalDateTime.of(2026, 9, 9, 18, 30), picker.dateTime());
-        // The popup carries the grid alone; the clock is in the field (ADR 042 11).
+        assertEquals("09/09/2026 18:30", picker.field().text());
+
+        List<LocalDate> handled = new ArrayList<>();
+        picker.onSelect(handled::add);
         picker.open();
-        assertEquals("SINGLE", picker.calendar().selectionMode().name(),
-                "the popup carries the grid alone; the clock is in the field");
+        for (int i = 0; i < 4; i++) {
+            key(Keys.TAB, 0);   // grid, previous, title, next, and on to the time row
+        }
+        assertTrue(picker.isOpen(), "the walk did not fall out of the popup");
+        type("0905");
+        assertEquals(LocalTime.of(9, 5), picker.time(), "the digits went into the time row");
+        assertEquals(ANCHOR, picker.date(), "and the date is untouched");
+        assertFalse(handled.isEmpty(), "typing into the row is the user operating the picker");
+        assertEquals(ANCHOR, handled.get(handled.size() - 1));
+        assertTrue(picker.isOpen());
+
+        key(Keys.TAB, 0);       // round to the grid again
+        key(Keys.RIGHT, 0);
+        assertEquals(ANCHOR.plusDays(1), picker.calendar().focusedDate(),
+                "Tab off the row lands on the grid, whose arrows move the day");
+        key(Keys.TAB, Keys.MOD_SHIFT);   // back to the row, whose caret is still on the minute
+        key(Keys.UP, 0);
+        assertEquals(LocalTime.of(9, 6), picker.time(), "Up in the row steps the segment its caret is in");
+        key(Keys.TAB, Keys.MOD_SHIFT);   // and back onto the header's last control
+        key(Keys.ENTER, 0);
+        assertEquals(LocalDate.of(2026, 10, 1), picker.calendar().visibleMonth(),
+                "Shift+Tab off the row lands on the arrow that pages on");
+        key(Keys.ESCAPE, 0);
+        assertFalse(picker.isOpen());
+        assertEquals(LocalDateTime.of(2026, 9, 9, 9, 6), picker.dateTime());
+    }
+
+    /**
+     * The same cycle in the scene presentation, where the overlay holds the focus and hands
+     * every key to the picker first (ADR 042 §11's amendment says "in both presentations", and
+     * until 2026-09-14 only the windowless path pinned it): Tab reaches the row through the
+     * overlay, the digits go into the row, Shift+Tab climbs back to the header, Escape closes.
+     */
+    @Test
+    void theInSceneCalendarTabsThroughItsTimeRowTheSameWay() {
+        build(new DatePicker().setGranularity(DateField.Granularity.MINUTE));
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
+        picker.open();
+        assertFalse(picker.field().isFocused(), "the overlay took the focus");
+        for (int i = 0; i < 4; i++) {
+            key(Keys.TAB, 0);   // grid, previous, title, next, and on to the time row
+        }
+        assertTrue(picker.isOpen(), "the walk did not fall out of the popup");
+        type("0905");
+        assertEquals(LocalTime.of(9, 5), picker.time(), "the digits went into the time row");
+        assertEquals(ANCHOR, picker.date(), "and the date is untouched");
+
+        key(Keys.TAB, 0);       // round to the grid again
+        key(Keys.RIGHT, 0);
+        assertEquals(ANCHOR.plusDays(1), picker.calendar().focusedDate(),
+                "Tab off the row lands on the grid, whose arrows move the day");
+        type("15");
+        assertEquals(LocalDate.of(2026, 9, 15), picker.date(),
+                "and a digit typed there reaches the field again, not the row");
+        assertEquals(LocalTime.of(9, 5), picker.time());
+        key(Keys.TAB, Keys.MOD_SHIFT);   // back to the row
+        key(Keys.UP, 0);
+        assertEquals(LocalTime.of(9, 6), picker.time(), "Up in the row steps the segment its caret is in");
+        key(Keys.TAB, Keys.MOD_SHIFT);   // and back onto the header's last control
+        key(Keys.ENTER, 0);
+        assertEquals(LocalDate.of(2026, 10, 1), picker.calendar().visibleMonth(),
+                "Shift+Tab off the row lands on the arrow that pages on");
+        key(Keys.ESCAPE, 0);
+        assertFalse(picker.isOpen());
+        assertEquals(LocalDateTime.of(2026, 9, 15, 9, 6), picker.dateTime());
+    }
+
+    /**
+     * The card is built for the level it opened at: its time row is a child added when the card
+     * was made. A level changed while the card is showing used to leave the old row on it (and
+     * a new row off it) until the next open; the popup is now rebuilt around the change.
+     */
+    @Test
+    void aLevelChangedWhileTheCalendarIsOpenRebuildsTheCardWithOrWithoutItsTimeRow() {
+        build(new DatePicker().setGranularity(DateField.Granularity.MINUTE));
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
+        picker.open();
+        limn.scene.Widget card = picker.calendar().parent();
+        assertEquals(2, card.children().size(), "the grid and the time row");
+        limn.scene.Widget row = card.children().get(1);
+
+        picker.setGranularity(DateField.Granularity.DAY);
+        assertTrue(picker.isOpen(), "still open");
+        limn.scene.Widget rebuilt = picker.calendar().parent();
+        assertNotSame(card, rebuilt, "a card built for the new level");
+        assertEquals(List.of(picker.calendar()), rebuilt.children(), "the grid alone on it");
+        assertNotSame(rebuilt, row.parent(), "and the old row is not on the card that is showing");
+        assertEquals("09/09/2026", picker.field().text());
+
+        picker.setGranularity(DateField.Granularity.MINUTE);
+        assertTrue(picker.isOpen());
+        assertEquals(2, picker.calendar().parent().children().size(),
+                "a row again, on the card that is showing");
+        for (int i = 0; i < 4; i++) {
+            key(Keys.TAB, 0);
+        }
+        type("0905");
+        assertEquals(LocalTime.of(9, 5), picker.time(), "and it is the row the keyboard reaches");
+    }
+
+    @Test
+    void aMonthRangePickerAnswersWholeMonthsAtBothEnds() {
+        build(DatePicker.ofRange().setGranularity(DateField.Granularity.MONTH));
+        picker.field().setDate(LocalDate.of(2026, 3, 15));
+        picker.endField().setDate(LocalDate.of(2026, 6, 15));
+        assertEquals("03/2026", picker.field().text());
+        assertEquals("06/2026", picker.endField().text());
+        assertEquals(new DateRange(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 6, 30)),
+                picker.range(), "the first day of the first month to the last day of the last");
+        picker.open();
+        assertEquals(CalendarView.View.MONTHS, picker.calendar().view());
+        assertEquals(picker.range(), picker.calendar().selectedRange(), "the grid follows the fields");
+        // Picked from the grid: February to April, on the year on show. The cursor arrives on
+        // March, the month the start field holds.
+        key(Keys.LEFT, 0);        // February
+        key(Keys.ENTER, 0);
+        key(Keys.RIGHT, 0);
+        key(Keys.RIGHT, 0);       // April
+        key(Keys.ENTER, 0);
+        assertFalse(picker.isOpen());
+        assertEquals(new DateRange(LocalDate.of(2026, 2, 1), LocalDate.of(2026, 4, 30)),
+                picker.range());
+        assertEquals("02/2026", picker.field().text());
+        assertEquals("04/2026", picker.endField().text());
+    }
+
+    @Test
+    void anHourRangeRunsFromTheFirstMinuteOfItsStartToTheLastOfItsEnd() {
+        build(DatePicker.ofRange().setGranularity(DateField.Granularity.HOUR));
+        picker.field().setDateTime(LocalDateTime.of(2026, 3, 1, 0, 30));
+        picker.endField().setDateTime(LocalDateTime.of(2026, 3, 1, 23, 30));
+        assertEquals(LocalDateTime.of(2026, 3, 1, 0, 0), picker.field().dateTime(),
+                "the start's hour begins at its first minute");
+        assertEquals(LocalDateTime.of(2026, 3, 1, 23, 59, 59), picker.endField().dateTime(),
+                "the end's hour runs to its last representable instant (decision 51)");
+        assertEquals("01/03/2026 00", picker.field().text());
+        assertEquals("01/03/2026 23", picker.endField().text());
     }
 
     @Test
@@ -273,6 +457,39 @@ class DatePickerTest extends ComponentTestBase {
         assertNotNull(picker.calendar().parent(), "the grid is in the new popup, not the old one");
     }
 
+    /**
+     * DATES-NEW-3's second correction: over a window the in-scene card fades out and the
+     * overlay is removed at the fade's end, so the focus request that followed a pick was made
+     * while the overlay was still the top layer and refused; the removal then returned the
+     * focus to what held it when the popup opened -- the button, when it was opened from
+     * there -- and the field the pick had just filled was left unfocused.
+     */
+    @Test
+    void aPickMadeOverAWindowHandsTheFocusToTheFieldOnceTheCardHasFaded() {
+        build(new DatePicker());
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        picker.setDate(ANCHOR);
+        scene.bind(new StubWindow());
+        scene.layoutPass(400, 320);
+        scene.renderFrame(new FakeCanvas(400, 320));
+        limn.scene.Widget affordance = picker.children().stream()
+                .filter(child -> child != picker.field() && child.isFocusable())
+                .findFirst().orElseThrow();
+        scene.requestFocus(affordance);
+        key(Keys.ENTER, 0);
+        assertTrue(picker.isOpen(), "opened from the button");
+        assertFalse(picker.field().isFocused(), "the overlay holds the focus while it is open");
+        settle();
+        key(Keys.RIGHT, 0);
+        key(Keys.ENTER, 0);
+        assertFalse(picker.isOpen());
+        assertEquals(ANCHOR.plusDays(1), picker.date(), "the pick reached the field");
+        settle();       // the card fades out and the overlay is actually removed
+        assertTrue(picker.field().isFocused(),
+                "and the field has the focus, not the button the calendar was opened from");
+        assertFalse(affordance.isFocused());
+    }
+
     /** Real time passes, so a fade-out finishes and the overlay is actually taken down. */
     private void settle() {
         for (int i = 0; i < 60; i++) {
@@ -318,7 +535,7 @@ class DatePickerTest extends ComponentTestBase {
         assertEquals(CalendarView.View.MONTHS, picker.calendar().view());
         key(Keys.ESCAPE, 0);
         assertEquals(CalendarView.View.DAYS, picker.calendar().view(),
-                "Escape comes back down a level before it closes anything");
+                "Escape comes straight back to the finest view before it closes anything");
         assertTrue(picker.isOpen());
     }
 

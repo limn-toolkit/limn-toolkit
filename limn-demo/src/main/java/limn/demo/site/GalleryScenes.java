@@ -341,7 +341,14 @@ final class GalleryScenes {
         DatePicker picker = new DatePicker();
         picker.setDate(LocalDate.of(2026, 9, 9));
         picker.setMinDate(LocalDate.of(2026, 1, 1));
-        return scene(picker);
+        // Room for the calendar, for the combo box's reason above: this entry is filmed
+        // opening it in the scene, and the site crops the still and the film to the one box
+        // measured before any calendar exists. The card measured 248 by 268 points, opened
+        // under the field's 32; as wide as the card, the field and the card share their edges.
+        Column room = new Column();
+        room.mainAlignment(Flex.MainAlignment.START).crossAlignment(Flex.CrossAlignment.STRETCH);
+        room.add(picker);
+        return scene(new SizedBox(248, 308, room));
     }
     // #endregion
 

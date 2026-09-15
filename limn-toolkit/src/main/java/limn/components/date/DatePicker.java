@@ -25,6 +25,7 @@ import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
@@ -42,9 +43,11 @@ import java.util.function.Predicate;
  * {@link CalendarView} in a popup, and this class is the wiring between them.
  *
  * <pre>{@code
- * new DatePicker()                    // a date, with a calendar
- * DatePicker.ofDateTime()             // a date and a time, with a calendar
- * DatePicker.ofRange()                // a period: two fields, one calendar
+ * new DatePicker()                                   // a date, with a calendar
+ * new DatePicker().setGranularity(MINUTE)            // a date and a time; the popup gains a time row
+ * new DatePicker().setGranularity(MONTH)             // a month picker
+ * DatePicker.ofRange()                               // a period: two fields, one calendar
+ * DatePicker.ofRange().setGranularity(MONTH)         // a period of whole months
  * }</pre>
  *
  * <p><b>Composition rather than modes</b> (ADR 042 &sect;2). The typing, the segments and the
@@ -56,11 +59,14 @@ import java.util.function.Predicate;
  * caret moving between them on Tab, the clipboard works, and a screen reader walks a subtree that
  * was already described. The picker paints one box around them so it reads as one control.
  *
- * <p><b>The popup never takes focus</b>, which is the toolkit's popup contract and not this
- * widget's choice: the field keeps the keyboard, and the navigation keys are forwarded to the grid
- * while it is open, so Up, Down, PageUp, PageDown and Enter drive the calendar and the digits still
- * reach the segments. That is also why {@code DatePicker.ofDateTime()} edits its time in the field
- * and not in the popup (ADR 042 &sect;11).
+ * <p><b>The popup never takes focus in a window of its own</b>, which is the toolkit's popup
+ * contract and not this widget's choice: the field keeps the keyboard, and the navigation keys are
+ * forwarded to the grid while it is open, so Up, Down, PageUp, PageDown and Enter drive the
+ * calendar and the digits still reach the segments. In the in-scene presentation the overlay holds
+ * the focus instead and forwards every key and every character the same way, so the two
+ * presentations type alike (DATES-NEW-3, 2026-09-14). At an hour granularity or finer the popup
+ * carries a time row under the grid, and Tab cycles the keyboard between the grid, its header and
+ * that row (decision 19, ADR 042 &sect;11 amended).
  *
  * <p>The presentation follows {@link DisplayMode}: a window of its own where the platform can place
  * one, an overlay inside the owner window where it cannot &mdash; and an application that documents
@@ -77,6 +83,20 @@ public class DatePicker extends Widget {
     /** The second end of a period, or {@code null} for a picker that is not one. */
     private final DateField endField;
     private final CalendarView calendar = new CalendarView();
+    /**
+     * The clock under the grid, present while the granularity has a time of day (decision 19).
+     * A real {@link DateField} that never takes the focus: the popup contract keeps the keyboard
+     * on the field that opened the popup, and this row is driven the way the grid is, by keys
+     * and characters the picker hands over while {@link #timeRowActive}.
+     */
+    private DateField timeRow;
+    /** Whether the popup's keyboard is on the time row rather than on the grid. */
+    private boolean timeRowActive;
+    /**
+     * Whether a key or character is being handed to a field by this class: the field's own
+     * delegate would otherwise hand it straight back here (DATES-NEW-3, reviewer note 3).
+     */
+    private boolean forwarding;
 
     private boolean open;
     /** Which of the two fields the calendar is writing into; always the first unless it is a range. */
@@ -129,6 +149,9 @@ public class DatePicker extends Widget {
         adopt(field);
         if (endField != null) {
             adopt(endField);
+            // The end of a period answers the last day or instant of what it names (decision
+            // 51): a month range's end field reads June and answers the 30th.
+            endField.setPeriodEnd(true);
             calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
             field.setAccessibleName(DateStrings.RANGE_START);
             endField.setAccessibleName(DateStrings.RANGE_END);
@@ -144,7 +167,12 @@ public class DatePicker extends Widget {
         // the popup contract keeps focus on the field and forwards the navigation keys here, so a
         // focusable grid is a node the traversal can land on and a node with no name -- a reader
         // arriving at it hears "table" and nothing. A standalone CalendarView stays focusable,
-        // because there it IS the control and an application names it.
+        // because there it IS the control and an application names it. A reader is still told
+        // where the cursor is (decision 5, 2026-09-14): the grid publishes its cursor ACTIVE
+        // while this picker drives it, and the tree's effective focus resolves to it -- under
+        // the overlay in the scene presentation, and across the popup relation into the
+        // popup window's tree in the native one, where the field keeps the focus and its
+        // caret yields (DateField.popupHoldsKeyboard).
         calendar.setFocusable(false);
         // The grid inherits the picker's step, direction and language through the tree in the
         // in-scene presentation and through the host link in the other; the link is set when the
@@ -186,6 +214,22 @@ public class DatePicker extends Widget {
             }
         });
         member.setKeyDelegate(this::interceptKey);
+        member.setCharDelegate(this::interceptChar);
+        // The field is where a reader opens the calendar from (decision 18); opening from the
+        // end of a period fills that end, whether or not the focus got there first. The closing
+        // verb is the field's only where a verb on the field can reach it: not while the popup
+        // is an overlay of the scene, whose CANCEL closes it there.
+        member.setPopup(() -> open, () -> scenePopup == null, wanted -> {
+            if (wanted && endField != null) {
+                fillingEnd = member == endField;
+            }
+            setOpen(wanted, Change.Origin.USER);
+        });
+    }
+
+    /** The field the calendar and the time row are writing into. */
+    private DateField filling() {
+        return fillingEnd && endField != null ? endField : field;
     }
 
     /**
@@ -198,14 +242,78 @@ public class DatePicker extends Widget {
     }
 
     /**
-     * A picker for a date and a time of day. The time is typed in the field; the popup carries the
-     * calendar alone, and ADR 042 &sect;11 says why.
+     * How fine this picker goes, on its field (or both ends of a period) and on its calendar at
+     * once (decision 12, 2026-09-14). {@link DateField.Granularity#MONTH} makes a month picker:
+     * the field shows a month and a year and the popup opens on the twelve months, where a pick
+     * is the selection. {@link DateField.Granularity#YEAR} likewise. {@link DateField.Granularity#HOUR}
+     * and finer keep the day grid and add a time row under it (decision 19).
      *
-     * @return the picker
+     * <p>Set here and not on {@link #field()}: the calendar has to follow, and a field told alone
+     * would leave a month picker opening on days it cannot pick.
+     *
+     * @param level how fine to go
+     * @return this
      */
-    public static DatePicker ofDateTime() {
-        return new DatePicker(DateField.ofDateTime(), null);
+    public DatePicker setGranularity(DateField.Granularity level) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(level, "granularity");
+        if (field.granularity() == level) {
+            return this;
+        }
+        // A card already showing was built for the old level -- its time row is a child added
+        // when the card was made, and a row that goes or arrives with the level would be left
+        // on it, or off it, until the next open. So the popup is closed and reopened around the
+        // change, through the same state machine a person's close-then-open takes (and the
+        // release of the grid that path already handles), rather than patched in place.
+        boolean showing = open;
+        if (showing) {
+            setOpen(false, Change.Origin.CODE);
+        }
+        field.setGranularity(level);
+        if (endField != null) {
+            endField.setGranularity(level);
+        }
+        calendar.setGranularity(switch (level) {
+            case YEAR -> CalendarView.View.YEARS;
+            case MONTH -> CalendarView.View.MONTHS;
+            default -> CalendarView.View.DAYS; // an hour is nothing a grid can show
+        });
+        if (level.compareTo(DateField.Granularity.HOUR) >= 0) {
+            if (timeRow == null) {
+                timeRow = DateField.ofTime();
+                timeRow.setFocusable(false);
+                timeRow.setAccessibleName(DateStrings.TIME_OF_DAY);
+                timeRow.setClock(clock);
+                timeRow.observeChanges((widget, change) -> {
+                    if (change.aspect() == Change.Aspect.VALUE && !syncingTimeRow) {
+                        // Into the field through the row's own origin, so a person typing into
+                        // the row reaches the application's handler as if they had typed into
+                        // the field; a write from code is a no-op there, the value being equal.
+                        filling().writeTime(timeRow.time(), change.origin());
+                    }
+                });
+            }
+            timeRow.setGranularity(level);
+        } else {
+            timeRow = null;
+        }
+        calendar.setTabLeavesAtEnds(timeRow != null);
+        syncCalendarFromFields();
+        if (showing) {
+            setOpen(true, Change.Origin.CODE);
+        }
+        return this;
     }
+
+    /** @return how fine this picker goes; {@link DateField.Granularity#DAY} unless it was changed */
+    public DateField.Granularity granularity() {
+        return field.granularity();
+    }
+
+    /** The clock handed to every part, kept so a time row built later gets it too. */
+    private Clock clock;
+    /** Guards the time row's own announcement while the picker is writing into it. */
+    private boolean syncingTimeRow;
 
     /**
      * A picker for a period: two fields with the calendar between them in range mode. Focus in the
@@ -376,9 +484,13 @@ public class DatePicker extends Widget {
      * @return this
      */
     public DatePicker setClock(Clock clock) {
+        this.clock = clock;
         field.setClock(clock);
         if (endField != null) {
             endField.setClock(clock);
+        }
+        if (timeRow != null) {
+            timeRow.setClock(clock);
         }
         calendar.setClock(clock);
         return this;
@@ -433,10 +545,19 @@ public class DatePicker extends Widget {
         open = wanted;
         if (wanted) {
             syncCalendarFromFields();
+            timeRowActive = false;
             calendar.setKeyboardActive(true);
             present();
         } else {
+            timeRowActive = false;
             calendar.setKeyboardActive(false);
+            if (timeRow != null) {
+                timeRow.setKeyboardActive(false);
+            }
+            field.setKeyboardActive(false);
+            if (endField != null) {
+                endField.setKeyboardActive(false);
+            }
             dismiss();
         }
         invalidate();
@@ -445,12 +566,20 @@ public class DatePicker extends Widget {
 
     /** Points the grid at what the fields hold, without disturbing what the person is typing. */
     private void syncCalendarFromFields() {
+        if (timeRow != null) {
+            syncingTimeRow = true;
+            try {
+                timeRow.setTime(filling().time());
+            } finally {
+                syncingTimeRow = false;
+            }
+        }
         if (endField != null) {
             DateRange picked = range();
             if (picked != null) {
                 calendar.setSelectedRange(picked);
             }
-            LocalDate anchor = (fillingEnd ? endField : field).date();
+            LocalDate anchor = filling().date();
             if (anchor != null) {
                 calendar.setVisibleMonth(anchor);
             }
@@ -466,8 +595,7 @@ public class DatePicker extends Widget {
             return;
         }
         field.setDate(day);
-        setOpen(false, Change.Origin.USER);
-        field.requestFocus();
+        closeTo(field, Change.Origin.USER);
         notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
     }
 
@@ -477,9 +605,37 @@ public class DatePicker extends Widget {
         }
         field.setDate(picked.start());
         endField.setDate(picked.end());
-        setOpen(false, Change.Origin.USER);
-        (fillingEnd ? endField : field).requestFocus();
+        closeTo(fillingEnd ? endField : field, Change.Origin.USER);
         notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+    }
+
+    /**
+     * The field to hand the focus to once the popup is actually gone; see {@link #closeTo}.
+     * Taken by {@link #dismiss} when the removal is deferred to the end of a fade, and
+     * performed by {@link #closeTo} itself otherwise.
+     */
+    private DateField refocus;
+
+    /**
+     * Closes the popup and puts the focus on a field <em>once the popup is actually gone</em>.
+     *
+     * <p>In the scene presentation the overlay is removed at the end of its fade-out, and a
+     * focus request made while it is still the top layer is refused: the scene confines the
+     * focus to the layer that owns input. So the request that used to follow the close was
+     * refused in every real window, and the overlay's removal then returned the focus to
+     * whatever held it when the overlay was pushed &mdash; the calendar button, when the
+     * popup was opened from it with Tab and Enter &mdash; rather than to the field the pick
+     * had just filled. Headless, and in a window of its own, nothing defers the removal and
+     * the request is made here.
+     */
+    private void closeTo(DateField target, Change.Origin origin) {
+        refocus = target;
+        setOpen(false, origin);
+        DateField pending = refocus;
+        refocus = null;
+        if (pending != null) {
+            pending.requestFocus();
+        }
     }
 
     /**
@@ -513,11 +669,12 @@ public class DatePicker extends Widget {
      * The keys the picker takes before its field sees them.
      *
      * <p>While the popup is open the grid owns the navigation keys and the field keeps the digits,
-     * which is what lets somebody arrow to a day and still type over it. Alt+Down opens, Escape
-     * closes, and neither reaches the field.
+     * which is what lets somebody arrow to a day and still type over it. Alt+Down opens; Escape
+     * comes straight back to the finest view from a chooser (the years go to the days in one
+     * press, not one level at a time) and closes from there; neither reaches the field.
      */
     private void interceptKey(KeyEvent event) {
-        if (!event.isPressed()) {
+        if (!event.isPressed() || forwarding) {
             return;
         }
         boolean alt = (event.modifiers() & Keys.MOD_ALT) != 0;
@@ -528,13 +685,18 @@ public class DatePicker extends Widget {
             }
             return;
         }
+        if (timeRowActive) {
+            timeRowKey(event);
+            return;
+        }
         switch (event.key()) {
             case Keys.ESCAPE -> {
-                // Escape backs out one level at a time: out of the year chooser to the days, and
-                // only then out of the popup. A single Escape that closed the whole thing from
-                // inside a chooser would throw away the navigation as well as the popup.
-                if (calendar.view() != CalendarView.View.DAYS) {
-                    calendar.setView(CalendarView.View.DAYS);
+                // Escape backs out of a chooser to the finest view the calendar picks in -- the
+                // days, or the months of a month picker -- and only then out of the popup. A
+                // single Escape that closed the whole thing from inside a chooser would throw
+                // away the navigation as well as the popup.
+                if (calendar.view() != calendar.granularity()) {
+                    calendar.setView(calendar.granularity(), Change.Origin.USER);
                     repaintPopup();
                 } else {
                     setOpen(false, Change.Origin.USER);
@@ -544,12 +706,15 @@ public class DatePicker extends Widget {
             case Keys.TAB -> {
                 // Forwarded so the grid's own parts -- the two paging arrows and the title --
                 // are reachable while the field holds the focus. The calendar declines the key
-                // when the walk runs off an end, and that is the signal to let go: the popup
-                // closes and the Tab does what it would have done, which is move to the next
-                // control in the form.
+                // when the walk runs off an end: with a time row under the grid that is where
+                // the keyboard goes next (decision 19), and without one it is the signal to let
+                // go -- the popup closes and the Tab does what it would have done, which is move
+                // to the next control in the form.
                 calendar.onKeyEvent(event);
                 if (event.isConsumed()) {
                     repaintPopup();
+                } else if (timeRow != null) {
+                    enterTimeRow(event);
                 } else {
                     setOpen(false, Change.Origin.USER);
                 }
@@ -565,6 +730,96 @@ public class DatePicker extends Widget {
             }
             default -> {
             }
+        }
+    }
+
+    /**
+     * The keyboard while it is on the popup's time row: the row's own segments take the arrows,
+     * the digits and the two deleting keys exactly as a focused field would; Tab and Shift+Tab
+     * carry on round the cycle to the grid and its header; Enter and Escape close the popup, the
+     * time already written into the field as it was typed.
+     */
+    private void timeRowKey(KeyEvent event) {
+        switch (event.key()) {
+            case Keys.TAB -> {
+                boolean shift = (event.modifiers() & Keys.MOD_SHIFT) != 0;
+                leaveTimeRow();
+                if (shift) {
+                    calendar.enterFromEnd();
+                } else {
+                    calendar.setKeyboardActive(true);
+                }
+                event.consume();
+                repaintPopup();
+            }
+            case Keys.ESCAPE, Keys.ENTER -> {
+                closeTo(filling(), Change.Origin.USER);
+                event.consume();
+            }
+            case Keys.UP, Keys.DOWN, Keys.LEFT, Keys.RIGHT, Keys.HOME, Keys.END,
+                 Keys.DELETE, Keys.BACKSPACE -> {
+                timeRow.onKeyEvent(event);
+                event.consume();
+                repaintPopup();
+            }
+            default -> {
+            }
+        }
+    }
+
+    private void enterTimeRow(KeyEvent tab) {
+        calendar.setKeyboardActive(false);
+        timeRowActive = true;
+        timeRow.setKeyboardActive(true);
+        // The caret is not drawn in the field while the row has it: one caret at a time.
+        filling().setKeyboardActive(false);
+        tab.consume();
+        repaintPopup();
+    }
+
+    private void leaveTimeRow() {
+        timeRowActive = false;
+        timeRow.setKeyboardActive(false);
+        if (scenePopup != null) {
+            filling().setKeyboardActive(true);
+        }
+    }
+
+    /**
+     * The characters, before the field sees them: while the popup's time row holds the keyboard
+     * the digits are the row's. Everything else falls through to the field that owns the caret,
+     * which is what makes a day typable over an open calendar (DATES-NEW-3).
+     */
+    private void interceptChar(CharEvent event) {
+        if (forwarding || !open || !timeRowActive) {
+            return;
+        }
+        timeRow.onCharTyped(event);
+        event.consume();
+        repaintPopup();
+    }
+
+    /**
+     * A key the in-scene overlay received, handed to the field that would have had it in a
+     * window of its own: the overlay holds the focus there and the field does not, and a
+     * Backspace, a paste or a digit that died at the overlay's root was the defect this answers
+     * (DATES-NEW-3). Guarded so the field's own delegate does not hand it straight back.
+     */
+    private void forwardToField(KeyEvent event) {
+        forwarding = true;
+        try {
+            filling().onKeyEvent(event);
+        } finally {
+            forwarding = false;
+        }
+    }
+
+    private void forwardToField(CharEvent event) {
+        forwarding = true;
+        try {
+            filling().onCharTyped(event);
+        } finally {
+            forwarding = false;
         }
     }
 
@@ -643,15 +898,26 @@ public class DatePicker extends Widget {
     private void presentInScene(Scene owner) {
         releaseCalendar();
         popupPanel = new PopupPanel();
-        popupPanel.setInheritanceHost(this);
+        // Hosted by the FIELD being filled, not by this composite (decisions 18 and 55,
+        // 2026-09-14): the host is also the opener the walk names in the popup's POPUP_FOR and
+        // mirrors as CONTROLLER_FOR, and the node a reader is at is the field -- a single
+        // picker's own group is no node at all. Every inherited axis resolves through the field
+        // to this picker exactly as it did, and decision 5's cursor lookup starts from the
+        // focused node, which in a window of its own is the field.
+        popupPanel.setInheritanceHost(filling());
         scenePopup = new ScenePopup(popupPanel);
         // The link goes on the OVERLAY as well, and it is the overlay's that does the work: a host
         // link on a widget that has a parent loses to the tree, and here the panel's parent is the
         // overlay. Without it the grid resolves the scene's defaults instead of the picker's, and
         // opens at a different density, direction or language from the field that opened it.
-        scenePopup.setInheritanceHost(this);
+        scenePopup.setInheritanceHost(filling());
         boolean animate = owner.window() != null;
         sceneFade = animate ? 0f : 1f;
+        // Before the overlay takes the focus: the field keeps its caret drawn and published,
+        // because that is still where the digits land (DATES-NEW-3), and a field that knows a
+        // picker is aiming at it does not treat the loss of focus as somebody moving on (a
+        // half-typed year is not resolved by the popup opening).
+        filling().setKeyboardActive(true);
         owner.pushOverlay(scenePopup);
         if (animate) {
             ScenePopup fading = scenePopup;
@@ -698,7 +964,7 @@ public class DatePicker extends Widget {
         parent.registerChildPopup(popupWindow);
         releaseCalendar();
         popupPanel = new PopupPanel();
-        popupPanel.setInheritanceHost(this);
+        popupPanel.setInheritanceHost(filling()); // the opener a reader sees: see presentInScene
         popupScene = new Scene(popupPanel);
         popupScene.inheritRenderingFlags(scene);
         popupScene.bind(popupWindow);
@@ -715,26 +981,23 @@ public class DatePicker extends Widget {
         popupWindow.requestFrame();
     }
 
-    /** The popup's box: the grid's own measurement plus the panel's padding. */
+    /** The popup's box: the grid's own measurement, the time row's under it, and the panel's padding. */
     private Size popupContentSize() {
         SizeTokens t = Theme.current().tokensFor(this);
         float pad = t.popupPadV();
         Size grid = calendar.measure(Constraints.loose(Float.POSITIVE_INFINITY,
                 Float.POSITIVE_INFINITY));
-        return new Size(grid.width() + 2 * pad, grid.height() + 2 * pad);
+        float width = grid.width();
+        float height = grid.height();
+        if (timeRow != null) {
+            Size row = timeRow.measure(Constraints.loose(Float.POSITIVE_INFINITY,
+                    Float.POSITIVE_INFINITY));
+            width = Math.max(width, row.width());
+            height += t.spacingSmall() + row.height();
+        }
+        return new Size(width + 2 * pad, height + 2 * pad);
     }
 
-    /**
-     * Takes the popup down, fading it out where there is a frame pump to run the fade.
-     *
-     * <p>The fields are relinquished <em>before</em> the fade starts, so that a picker reopened
-     * while the old surface is still vanishing builds a new one rather than writing into the one
-     * on its way out. The two presentations fade differently and both matter: a window fades its
-     * own compositing, an overlay fades a number this class paints with, and the overlay's last
-     * frame is what removes the layer holding input capture and focus &mdash; on wall time, not
-     * frame time, or a paused application would be left with an open calendar over an unreachable
-     * field.
-     */
     /**
      * Dismisses on OS focus loss, <b>unless the focus went to this picker's own popup</b>.
      *
@@ -760,6 +1023,17 @@ public class DatePicker extends Widget {
         }
     }
 
+    /**
+     * Takes the popup down, fading it out where there is a frame pump to run the fade.
+     *
+     * <p>The fields are relinquished <em>before</em> the fade starts, so that a picker reopened
+     * while the old surface is still vanishing builds a new one rather than writing into the one
+     * on its way out. The two presentations fade differently and both matter: a window fades its
+     * own compositing, an overlay fades a number this class paints with, and the overlay's last
+     * frame is what removes the layer holding input capture and focus &mdash; on wall time, not
+     * frame time, or a paused application would be left with an open calendar over an unreachable
+     * field.
+     */
     private void dismiss() {
         if (blurHandle != null) {
             blurHandle.cancel();
@@ -809,6 +1083,8 @@ public class DatePicker extends Widget {
                 releaseCalendar();
                 return;
             }
+            DateField pending = refocus; // the fade's end is where the focus can move: closeTo
+            refocus = null;
             owner.addRealTimeTicker(dt -> {
                 sceneFade = (float) Math.max(0, sceneFade - dt / Theme.current().animWindow);
                 closing.invalidate();
@@ -819,6 +1095,9 @@ public class DatePicker extends Widget {
                 // Released here rather than at the start of the fade, so the card fades out with
                 // the grid still on it; the next open takes it back whether this ran or not.
                 releaseCalendar();
+                if (pending != null) {
+                    pending.requestFocus();
+                }
                 return false;
             });
         }
@@ -934,32 +1213,30 @@ public class DatePicker extends Widget {
     // ------------------------------------------------------------------ accessibility
 
     /**
-     * The picker itself is a group carrying the expanded state and the trailing button; the fields
-     * are real children and describe themselves, which is the whole reason they are widgets.
+     * What the composite says of itself (decisions 18 and 55, 2026-09-14): a single picker says
+     * <b>nothing</b> and is no node &mdash; its field is the picker a reader meets, carries the
+     * label bound to the picker, the popup state and the verbs that open and close it &mdash;
+     * and a range picker is a group that keeps the label over its two named ends. The expanded
+     * state this group once carried, and the verbs it accepted without publishing, are the
+     * field's now; the button is a plain press. The fields and the button are real children and
+     * describe themselves, which is the whole reason they are widgets.
      */
     @Override
     protected void onAccessibility(Accessibility a) {
+        if (endField == null) {
+            return; // transparent: declares nothing, so the walk hoists the field and the button
+        }
         a.role(Accessible.Role.GROUP);
-        a.expand(open);
-        // The button is a real child and describes itself; the fields likewise. This hook says
-        // what is true of the composite and nothing about its members.
     }
 
+    /**
+     * Where a caption bound to this picker lands (decision 55): on the single field, which is
+     * the node a reader arrives at; a range picker keeps it on the group, whose two ends are
+     * named "Start date" and "End date" for themselves.
+     */
     @Override
-    protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        switch (action) {
-            case EXPAND -> {
-                setOpen(true, Change.Origin.USER);
-                return true;
-            }
-            case COLLAPSE, CANCEL -> {
-                setOpen(false, Change.Origin.USER);
-                return true;
-            }
-            default -> {
-                return false;
-            }
-        }
+    protected Widget accessibleLabelTarget() {
+        return endField == null ? field : this;
     }
 
     // ------------------------------------------------------------------ the popup's two shells
@@ -1115,11 +1392,15 @@ public class DatePicker extends Widget {
             }
         }
 
+        /**
+         * A plain press (decision 18): the popup's state is the field's to tell, and a button
+         * that advertised an expand state vended a pattern on Windows whose Expand it then
+         * refused (DATES-NEW-4).
+         */
         @Override
         protected void onAccessibility(Accessibility a) {
             a.role(Accessible.Role.BUTTON);
             a.name(DateStrings.OPEN_CALENDAR, Accessible.NameFrom.CONTENT);
-            a.expand(open);
             if (isEnabled()) {
                 a.action(Accessible.Action.PRESS);
             }
@@ -1144,24 +1425,44 @@ public class DatePicker extends Widget {
 
         PopupPanel() {
             add(calendar);
+            if (timeRow != null) {
+                Widget holder = timeRow.parent();
+                if (holder != null) {
+                    holder.remove(timeRow); // the last card's, still fading: see releaseCalendar
+                }
+                add(timeRow);
+            }
         }
 
         @Override
         protected Size onMeasure(Constraints constraints) {
-            SizeTokens t = Theme.current().tokensFor(DatePicker.this);
-            float pad = t.popupPadV();
-            Size grid = calendar.measure(constraints.loosened());
-            return constraints.constrain(grid.width() + 2 * pad, grid.height() + 2 * pad);
+            Size content = popupContentSize();
+            return constraints.constrain(content.width(), content.height());
         }
 
+        /**
+         * The grid on top and the time row under it, centred: a clock is narrower than a month,
+         * and a row stretched to the grid's width would put its segments off to one side.
+         */
         @Override
         protected void onLayout() {
             SizeTokens t = Theme.current().tokensFor(DatePicker.this);
             float pad = t.popupPadV();
             float w = Math.max(0, width() - 2 * pad);
             float h = Math.max(0, height() - 2 * pad);
-            calendar.measure(Constraints.tight(w, h));
-            calendar.layoutBox(pad, pad, w, h);
+            if (timeRow == null) {
+                calendar.measure(Constraints.tight(w, h));
+                calendar.layoutBox(pad, pad, w, h);
+                return;
+            }
+            Size row = timeRow.measure(Constraints.loose(w, h));
+            float gridH = Math.max(0, h - t.spacingSmall() - row.height());
+            calendar.measure(Constraints.tight(w, gridH));
+            calendar.layoutBox(pad, pad, w, gridH);
+            float rowW = Math.min(w, row.width());
+            timeRow.measure(Constraints.tight(rowW, row.height()));
+            timeRow.layoutBox(pad + (w - rowW) / 2, pad + gridH + t.spacingSmall(), rowW,
+                    row.height());
         }
 
         /**
@@ -1264,9 +1565,25 @@ public class DatePicker extends Widget {
             panel.layoutBox(x, y, content.width(), content.height());
         }
 
+        /**
+         * The overlay holds the focus in this presentation, so it is where the keys arrive: the
+         * picker takes the ones the popup answers, and what is left goes to the field whose
+         * caret is showing, exactly as it would in a window of its own (DATES-NEW-3).
+         */
         @Override
         protected void onKeyEvent(KeyEvent event) {
             DatePicker.this.interceptKey(event);
+            if (!event.isConsumed() && open) {
+                forwardToField(event);
+            }
+        }
+
+        @Override
+        protected void onCharTyped(CharEvent event) {
+            DatePicker.this.interceptChar(event);
+            if (!event.isConsumed() && open) {
+                forwardToField(event);
+            }
         }
 
         @Override

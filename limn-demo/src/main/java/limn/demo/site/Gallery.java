@@ -836,30 +836,6 @@ public final class Gallery {
          */
         private static final java.util.function.LongSupplier BUILDING = () -> 0L;
 
-        /**
-         * The day every date widget in a capture calls today: the anchor the dates scene and the
-         * date tiles are built around. Without it the calendar's "today" ring and its reader's
-         * "today" moved with the wall clock, and two runs a day apart differed in six images and
-         * two transcripts with nothing else changed (ADR 043 §9.3).
-         */
-        private static final java.time.Clock GALLERY_TODAY = java.time.Clock.fixed(
-                java.time.LocalDate.of(2026, 9, 9).atTime(12, 0)
-                        .atZone(java.time.ZoneOffset.UTC).toInstant(),
-                java.time.ZoneOffset.UTC);
-
-        private static void pinToday(Widget root) {
-            if (root instanceof limn.components.date.CalendarView calendar) {
-                calendar.setClock(GALLERY_TODAY);
-            } else if (root instanceof limn.components.date.DatePicker picker) {
-                picker.setClock(GALLERY_TODAY);
-            } else if (root instanceof limn.components.date.DateField field) {
-                field.setClock(GALLERY_TODAY);
-            }
-            for (Widget child : root.children()) {
-                pinToday(child);
-            }
-        }
-
         /** Asks every performance footer under {@code root} for its reading now. */
         private static void primeFooters(Widget root) {
             if (root instanceof limn.demo.PerfFooter footer) {
@@ -954,8 +930,9 @@ public final class Gallery {
             // Every date widget reads today from one fixed day, so a capture taken tomorrow is
             // the capture taken today. Applied here rather than in the scene functions, whose text
             // the site publishes as the sample: a reader copying a calendar should not copy a
-            // clock pinned to a documentation date.
-            pinToday(scene.root());
+            // clock pinned to a documentation date. Without it two runs a day apart differed in
+            // six images and two transcripts with nothing else changed (ADR 043 §9.3).
+            limn.demo.DocumentationDay.pin(scene.root());
             // Whole frames, explicitly: partial rendering is the toolkit's default since ADR 043,
             // and this harness opts out -- a choice rather than a constraint. A capture harness
             // gains nothing from the cheaper mode -- nobody is waiting on its frames -- and whole

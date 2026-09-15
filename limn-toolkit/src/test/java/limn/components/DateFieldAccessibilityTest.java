@@ -183,6 +183,81 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(month.id(), moved.get(0).newValue());
     }
 
+    /**
+     * Decisions 16 and 53 (DATES-NEW-8): a segment nobody has filled publishes an empty value
+     * over its real range with the spoken word as its text, never its minimum as if typed (a
+     * client reading the number heard "1" for a day nobody typed); the dashes stay drawn. Typing
+     * the first digit is a value change even when the digit is the minimum. The first step from
+     * empty lands on today's own value by the widget's clock, which is the rule kept.
+     */
+    @Test
+    void aBlankSegmentSaysItIsEmptyAndFillingItIsAValueChange() {
+        DateField field = bindField(new DateField(), PT_BR);
+        field.setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-03-15T12:00:00Z"),
+                java.time.ZoneOffset.UTC));
+        scene.requestFocus(field);
+        frame();
+        AccessibleNode day = segmentNodes().get(0);
+        assertNotNull(day.value(), "the range stands");
+        assertTrue(day.value().empty(), "but there is no number: " + day.value());
+        assertEquals(1, day.value().min());
+        assertEquals(31, day.value().max());
+        assertEquals("vazio", day.value().text(), "the spoken word, not the dashes");
+        assertTrue(field.text().startsWith("--"), "which stay drawn: " + field.text());
+        bridge.events.clear();
+
+        scene.charTyped('1');
+        scene.inputBatchEnded();
+        frame();
+        day = segmentNodes().get(0);
+        assertFalse(day.value().empty());
+        assertEquals(1, day.value().value(), "the minimum, this time because it was typed");
+        assertEquals("01", day.value().text(), "drawn at the pattern's own width");
+        assertTrue(bridge.eventsOf(AccessibleEvent.Type.VALUE_CHANGED).stream()
+                        .anyMatch(event -> event.nodeId() == segmentNodes().get(0).id()),
+                "a value change on the day, though the number is the minimum: " + bridge.events);
+
+        AccessibleNode month = segmentNodes().get(1);
+        assertTrue(month.value().empty());
+        scene.keyEvent(limn.input.Keys.RIGHT, true, false, 0);
+        scene.keyEvent(limn.input.Keys.UP, true, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertEquals(3, segmentNodes().get(1).value().value(),
+                "the first step from empty is today's month by the field's clock");
+    }
+
+    /**
+     * Decision 38 (DATES-NEW-7): the era is no node of its own — it is drawn as a read-only piece
+     * of the pattern — and reaches a reader in the year segment's spoken text, "令和8" for the "8"
+     * that is drawn, with no string of this toolkit's. A calendar whose years are whole years
+     * (ISO, Buddhist, Hijri) speaks the bare number as before.
+     */
+    @Test
+    void anEraCalendarsYearSegmentSpeaksItsEra() {
+        DateField field = bindField(new DateField(), Locale.forLanguageTag("ja-JP-u-ca-japanese"));
+        field.setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-09-09T12:00:00Z"),
+                java.time.ZoneOffset.UTC));
+        field.setDate(LocalDate.of(2026, 9, 9));
+        frame();
+        List<AccessibleNode> segments = segmentNodes();
+        assertEquals(3, segments.size(), "year, month, day: the era is no segment " + describe(tree()));
+        assertEquals("令和8", segments.get(0).value().text());
+        assertEquals(8, segments.get(0).value().value());
+        assertEquals("R8/9/9", field.text(), "drawn with the era's one letter");
+
+        DateField minguo = bindField(new DateField(), Locale.forLanguageTag("zh-TW-u-ca-roc"));
+        minguo.setDate(LocalDate.of(2026, 9, 9));
+        frame();
+        assertEquals("民國115", segmentNodes().get(0).value().text());
+
+        DateField thai = bindField(new DateField(), Locale.forLanguageTag("th-TH-u-ca-buddhist"));
+        thai.setDate(LocalDate.of(2026, 9, 9));
+        frame();
+        List<String> texts = segmentNodes().stream().map(node -> node.value().text()).toList();
+        assertTrue(texts.contains("2569"), "a whole year speaks as itself: " + texts);
+    }
+
     @Test
     void aSetValueFromOutsideClampsToTheSegmentsOwnRange() throws InterruptedException {
         DateField field = bindField(new DateField(), PT_BR);
@@ -192,5 +267,40 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
         perform(day.id(), Accessible.Action.SET_VALUE, new Accessible.Argument.OfValue(99));
         assertEquals(LocalDate.of(2026, 6, 30), field.date(),
                 "June has thirty days and the segment will not hold more");
+    }
+
+    /**
+     * DATES-NEW-2 (decisions 6 and 49): an arrow between segments is a move of the field's
+     * cursor, and the field is the focused node, so it is announced once, on the field, naming
+     * the segment left and the segment reached. Before the model's rule changed, Right raised
+     * two state bits on two synthetic children and nothing a reader follows.
+     */
+    @Test
+    void anArrowBetweenSegmentsMovesTheFieldsCursorOnce() {
+        DateField field = bindField(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 12, 31));
+        scene.requestFocus(field);
+        frame();
+        List<AccessibleNode> segments = segmentNodes();
+        AccessibleNode day = segments.get(0);
+        AccessibleNode month = segments.get(1);
+        assertEquals(day.id(), tree().activeDescendant(), describe(tree()));
+        bridge.events.clear();
+
+        scene.keyEvent(limn.input.Keys.RIGHT, true, false, 0);
+        scene.keyEvent(limn.input.Keys.RIGHT, false, false, 0);
+        scene.inputBatchEnded();
+        frame();
+
+        assertEquals(month.id(), tree().activeDescendant(),
+                "the caret is in the month: " + describe(tree()));
+        List<AccessibleEvent> moved = bridge.eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        assertEquals(1, moved.size(),
+                "one cursor event, on the field, which is the focused node: " + bridge.events);
+        assertEquals(groupNode().id(), moved.get(0).nodeId());
+        assertEquals(day.id(), moved.get(0).oldValue());
+        assertEquals(month.id(), moved.get(0).newValue());
+        assertTrue(bridge.eventsOf(AccessibleEvent.Type.FOCUS_CHANGED).isEmpty(),
+                "the focus itself did not move: " + bridge.events);
     }
 }

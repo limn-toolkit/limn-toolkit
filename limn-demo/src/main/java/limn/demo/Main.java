@@ -32,7 +32,7 @@ public final class Main {
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
             "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
-            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reader", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "form", "animations", "cursors",
+            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reader", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
             "newcontrols", "newcontrols-light", "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
@@ -258,6 +258,13 @@ public final class Main {
                 widgetScene = built.scene();
                 afterLayout = screenshotMode ? null : built.afterLayout();
                 treeScroll = built.afterLayout();
+            } else if (scene.startsWith("dates-month-picker") || scene.startsWith("dates-time-row")
+                    || scene.startsWith("dates-month-range")) {
+                // One picker per granularity, opened by the capture as dates-popup is.
+                DatesScene.Built datesBuilt = DatesScene.granularity(scene.endsWith("-light"),
+                        scene.substring("dates-".length()).replace("-light", ""));
+                widgetScene = datesBuilt.scene();
+                datesPicker = datesBuilt.picker();
             } else if (scene.equals("dates-months") || scene.equals("dates-years")) {
                 widgetScene = DatesScene.create(false,
                         scene.equals("dates-months")

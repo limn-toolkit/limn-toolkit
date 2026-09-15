@@ -67,6 +67,44 @@ final class DatesScene {
         return built.scene();
     }
 
+    /**
+     * {@code --scene dates-month-picker}, {@code dates-time-row} and {@code dates-month-range}
+     * (each also {@code -light}): one picker per granularity the owner is shown a render of
+     * (decisions 12, 19 and 51), opened by the capture the way {@code dates-popup} is.
+     *
+     * @param light which palette
+     * @param which {@code month-picker}, {@code time-row} or {@code month-range}
+     */
+    static Built granularity(boolean light, String which) {
+        Theme.setCurrent(light ? Theme.light() : Theme.dark());
+        DatePicker picker;
+        String caption;
+        switch (which) {
+            case "month-picker" -> {
+                picker = new DatePicker().setGranularity(DateField.Granularity.MONTH);
+                picker.setDate(ANCHOR);
+                caption = "Month";
+            }
+            case "time-row" -> {
+                picker = new DatePicker().setGranularity(DateField.Granularity.MINUTE);
+                picker.setDateTime(LocalDateTime.of(ANCHOR, LocalTime.of(14, 30)));
+                caption = "Date and time, with a calendar";
+            }
+            default -> {
+                picker = DatePicker.ofRange().setGranularity(DateField.Granularity.MONTH);
+                picker.setRange(new DateRange(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 6, 30)));
+                caption = "Period of months";
+            }
+        }
+        picker.setDisplayMode(DisplayMode.IN_SCENE);
+        Column column = new Column();
+        column.gap(14).crossAlignment(Flex.CrossAlignment.START);
+        column.add(Labelled.above(caption, picker));
+        Scene scene = new Scene(new Padding(Insets.all(20), column));
+        scene.setBackground(Theme.current().background);
+        return new Built(scene, picker, null);
+    }
+
     /** The same, with the picker handed back for the popup capture. */
     static Built build(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
@@ -95,9 +133,10 @@ final class DatesScene {
         DatePicker picker = new DatePicker();
         picker.setDate(ANCHOR);
         // In-scene on purpose: a native popup is a window of its own and is absent from a capture
-        // of this one, so the gallery would show a picker that never opens.
-        // EXPERIMENT (uncommitted): LIMN_DATES_NATIVE=1 asks for the real second window instead,
-        // which is the only presentation where the focus question exists at all.
+        // of this one, so the capture would show a picker that never opens. The native
+        // presentation, which is the default, is exercised headless by limn-demo's
+        // DatePickerNativePopupTest; live reader runs over it are owed (settled
+        // native-popup-reader, reopened by decision 5).
         picker.setDisplayMode(DisplayMode.IN_SCENE);
         picker.calendar().setShowWeekNumbers(true);
         return picker;
@@ -117,13 +156,13 @@ final class DatesScene {
         clock.setTime(LocalTime.of(14, 30));
         column.add(Labelled.above("Time of day", clock));
 
-        DateField moment = DateField.ofDateTime();
+        DateField moment = new DateField().setGranularity(DateField.Granularity.MINUTE);
         moment.setDateTime(LocalDateTime.of(ANCHOR, LocalTime.of(9, 5)));
         column.add(Labelled.above("Date and time, typed", moment));
 
         column.add(Labelled.above("Date, with a calendar", picker));
 
-        DatePicker withTime = DatePicker.ofDateTime();
+        DatePicker withTime = new DatePicker().setGranularity(DateField.Granularity.MINUTE);
         withTime.setDateTime(LocalDateTime.of(ANCHOR, LocalTime.of(18, 0)));
         withTime.setDisplayMode(DisplayMode.IN_SCENE);
         column.add(Labelled.above("Date and time, with a calendar", withTime));

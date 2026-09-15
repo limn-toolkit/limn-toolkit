@@ -2,6 +2,8 @@ package limn.components;
 
 import limn.components.date.CalendarView;
 import limn.components.date.DateRange;
+import limn.graphics.Paint;
+import limn.graphics.RoundRect;
 import limn.i18n.I18n;
 import limn.input.Keys;
 import limn.scene.Change;
@@ -21,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The month grid: paging, the cursor, selection, periods, bounds and the calendar it draws. */
@@ -177,8 +180,14 @@ class CalendarViewTest extends ComponentTestBase {
         assertNull(calendar.selectedRange());
     }
 
+    /**
+     * Decision 30 (2026-09-14): the cursor visits a refused day and Enter is refused on it. ADR
+     * 042 §5 said the cursor skipped such days; the code never did, and stopping is what lets a
+     * reader hear that the day is unavailable. The earlier version of this test asserted nothing
+     * about the keyboard its comment described; this one presses the keys.
+     */
     @Test
-    void boundsAndTheFilterRefuseADayRatherThanMovingIt() {
+    void theCursorStopsOnARefusedDayAndEnterIsRefusedThere() {
         build();
         calendar.setMinDate(LocalDate.of(2026, 9, 5));
         calendar.setMaxDate(LocalDate.of(2026, 9, 20));
@@ -191,12 +200,23 @@ class CalendarViewTest extends ComponentTestBase {
 
         List<LocalDate> picked = new ArrayList<>();
         calendar.onSelect(picked::add);
-        calendar.setSelectedDate(LocalDate.of(2026, 9, 6)); // a caller may still write one
+        calendar.setSelectedDate(LocalDate.of(2026, 9, 12)); // a Saturday
         scene.requestFocus(calendar);
-        // The keyboard cannot commit it, though: the pick refuses, and nothing is announced.
-        calendar.setSelectedDate(null);
-        calendar.setVisibleMonth(LocalDate.of(2026, 9, 6));
+        key(Keys.RIGHT);
+        assertEquals(LocalDate.of(2026, 9, 13), calendar.focusedDate(),
+                "the cursor stops on the Sunday rather than skipping to Monday");
+        key(Keys.ENTER);
+        assertEquals(LocalDate.of(2026, 9, 12), calendar.selectedDate(), "and Enter is refused there");
+        assertTrue(picked.isEmpty(), "no handler ran");
+        key(Keys.LEFT);
+        for (int i = 0; i < 8; i++) {
+            key(Keys.LEFT);                    // back past the minimum
+        }
+        assertEquals(LocalDate.of(2026, 9, 4), calendar.focusedDate(),
+                "the cursor walks below the minimum too, and the grid pages with it");
+        key(Keys.ENTER);
         assertTrue(picked.isEmpty());
+        assertEquals(LocalDate.of(2026, 9, 12), calendar.selectedDate());
     }
 
     @Test
@@ -255,6 +275,12 @@ class CalendarViewTest extends ComponentTestBase {
         calendar.setVisibleMonth(LocalDate.of(2027, 1, 5));
         assertTrue(heard.contains(Change.Aspect.VALUE));
         assertEquals(LocalDate.of(2027, 1, 1), calendar.visibleMonth());
+
+        heard.clear();
+        calendar.setView(CalendarView.View.MONTHS);
+        assertTrue(heard.contains(Change.Aspect.VALUE), "the view is a value too (decision 59)");
+        assertEquals(CalendarView.View.MONTHS, calendar.view());
+        calendar.setView(CalendarView.View.DAYS);
 
         heard.clear();
         calendar.setMinDate(LocalDate.of(2020, 1, 1));
@@ -394,6 +420,120 @@ class CalendarViewTest extends ComponentTestBase {
                 "a month that leads nowhere refuses, the way a day out of bounds does");
     }
 
+    // ------------------------------------------------- a month or year picker (decisions 47, 48, 51)
+
+    @Test
+    void aMonthPickerOpensOnTheMonthsAndAPickThereIsTheSelection() {
+        build();
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        assertEquals(CalendarView.View.MONTHS, calendar.view(), "nothing finer to show");
+        List<LocalDate> picked = new ArrayList<>();
+        calendar.onSelect(picked::add);
+        scene.requestFocus(calendar);
+        key(Keys.HOME);      // the cursor arrives on September; Home is the first of its row
+        key(Keys.UP);
+        key(Keys.UP);        // January
+        key(Keys.ENTER);
+        assertEquals(LocalDate.of(2026, 1, 1), calendar.selectedDate(),
+                "the month is the value, as the first day of it");
+        assertEquals(List.of(LocalDate.of(2026, 1, 1)), picked, "and the handler ran for it");
+        assertEquals(CalendarView.View.MONTHS, calendar.view(),
+                "a pick in the chooser the calendar picks in is not a step down");
+        key(Keys.ESCAPE);
+        assertEquals(CalendarView.View.MONTHS, calendar.view(), "and Escape has nowhere lower to go");
+        assertThrows(IllegalArgumentException.class,
+                () -> calendar.setView(CalendarView.View.DAYS), "a month picker has no days to show");
+        calendar.setSelectedDate(LocalDate.of(2026, 6, 15));
+        assertEquals(LocalDate.of(2026, 6, 1), calendar.selectedDate(),
+                "a caller's day is held as its month");
+    }
+
+    /**
+     * The chooser's selection is painted from answers held between frames (they were derived
+     * per cell per frame, through the chronology and back), so what has to hold is that the
+     * held answers follow the selection: the solid cell is March, and after the selection moves
+     * it is June and March is plain.
+     */
+    @Test
+    void aMonthPickersSolidCellFollowsTheSelectionFromFrameToFrame() {
+        build();
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        calendar.setSelectedDate(LocalDate.of(2026, 3, 1));
+        List<RoundRect> solid = new ArrayList<>();
+        FakeCanvas recording = new FakeCanvas(400, 400) {
+            @Override
+            public void fillRoundRect(RoundRect roundRect, Paint paint) {
+                if (paint.equals(Theme.current().primary)) {
+                    solid.add(roundRect);
+                }
+            }
+        };
+        scene.layoutPass(400, 400);
+        scene.renderFrame(recording);
+        assertEquals(1, solid.size(), "one solid cell: the selected month");
+        RoundRect march = solid.get(0);
+
+        solid.clear();
+        calendar.setSelectedDate(LocalDate.of(2026, 6, 1));
+        scene.renderFrame(recording);
+        assertEquals(1, solid.size(), "still one, after the selection moved");
+        RoundRect june = solid.get(0);
+        assertTrue(june.y() > march.y(), "June is a row below March in a four-column chooser: "
+                + march + " -> " + june);
+        assertFalse(june.x() == march.x() && june.y() == march.y(), "and March is no longer solid");
+    }
+
+    @Test
+    void aPeriodOfMonthsRunsFromTheFirstToTheLastDayOfItsEnds() {
+        build();
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
+        AtomicReference<DateRange> closed = new AtomicReference<>();
+        calendar.onSelectRange(closed::set);
+        scene.requestFocus(calendar);
+        key(Keys.UP);        // September -> May
+        key(Keys.LEFT);
+        key(Keys.LEFT);      // March
+        key(Keys.ENTER);
+        assertNull(calendar.selectedRange(), "one end is not a period");
+        key(Keys.RIGHT);
+        key(Keys.RIGHT);
+        key(Keys.RIGHT);     // June
+        key(Keys.ENTER);
+        assertEquals(new DateRange(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 6, 30)),
+                calendar.selectedRange(), "1 March to 30 June (decision 51)");
+        assertEquals(calendar.selectedRange(), closed.get());
+    }
+
+    @Test
+    void aLeapFebruaryEndsOnTheTwentyNinth() {
+        build();
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
+        calendar.setVisibleMonth(LocalDate.of(2028, 2, 10));
+        scene.requestFocus(calendar);
+        key(Keys.ENTER);     // the cursor arrives on the month on show: February 2028
+        key(Keys.ENTER);
+        assertEquals(new DateRange(LocalDate.of(2028, 2, 1), LocalDate.of(2028, 2, 29)),
+                calendar.selectedRange());
+    }
+
+    @Test
+    void aPeriodOfYearsRunsFromNewYearsDayToNewYearsEve() {
+        build();
+        calendar.setGranularity(CalendarView.View.YEARS);
+        calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
+        scene.requestFocus(calendar);
+        key(Keys.ENTER);     // 2026, the year on show
+        key(Keys.RIGHT);     // 2027
+        key(Keys.ENTER);
+        assertEquals(new DateRange(LocalDate.of(2026, 1, 1), LocalDate.of(2027, 12, 31)),
+                calendar.selectedRange());
+        calendar.setSelectedRange(new DateRange(LocalDate.of(2020, 5, 5), LocalDate.of(2021, 5, 5)));
+        assertEquals(new DateRange(LocalDate.of(2020, 1, 1), LocalDate.of(2021, 12, 31)),
+                calendar.selectedRange(), "a caller's period is widened the same way");
+    }
+
     @Test
     void writingTheValueTheCalendarAlreadyHoldsAnnouncesNothing() {
         build();
@@ -402,5 +542,77 @@ class CalendarViewTest extends ComponentTestBase {
         calendar.observeChanges((widget, change) -> heard.add(change.aspect()));
         calendar.setSelectedDate(ANCHOR);
         assertTrue(heard.isEmpty(), "the early return two bound calendars rely on");
+    }
+
+    /**
+     * Decision 59 (DATES-NEW-13): what the grid shows is a value, and a change of view is
+     * announced as one -- the person's when the title, a chooser's Escape or Ctrl with an arrow
+     * moved it, the caller's from {@code setView} -- and a view already showing announces
+     * nothing. Until this test the title's published state flipped with no change to explain
+     * it, so a watcher heard a layout and nothing else.
+     */
+    @Test
+    void climbingTheHeaderAnnouncesTheViewAsAValueAndSoDoesACallersWrite() {
+        build();
+        List<Change> heard = new ArrayList<>();
+        calendar.observeChanges((widget, change) -> heard.add(change));
+        key(Keys.TAB);   // the arrow that pages back
+        key(Keys.RIGHT); // the title
+        heard.clear();
+        key(Keys.ENTER);
+        assertEquals(CalendarView.View.MONTHS, calendar.view());
+        assertTrue(heard.stream().anyMatch(change -> change.aspect() == Change.Aspect.VALUE
+                && change.origin() == Change.Origin.USER),
+                "the person climbed, and the view is announced as their value change: " + heard);
+
+        heard.clear();
+        calendar.setView(CalendarView.View.YEARS);
+        assertTrue(heard.stream().anyMatch(change -> change.aspect() == Change.Aspect.VALUE
+                && change.origin() == Change.Origin.CODE),
+                "a caller's write is the caller's: " + heard);
+
+        heard.clear();
+        calendar.setView(CalendarView.View.YEARS);
+        assertTrue(heard.isEmpty(), "the view already showing announces nothing: " + heard);
+
+        key(Keys.DOWN);  // off the header, into the year cells
+        heard.clear();
+        key(Keys.ESCAPE);
+        assertEquals(CalendarView.View.DAYS, calendar.view(), "Escape comes straight back down");
+        assertTrue(heard.stream().anyMatch(change -> change.aspect() == Change.Aspect.VALUE
+                && change.origin() == Change.Origin.USER),
+                "and that is the person's too: " + heard);
+
+        heard.clear();
+        calendar.setGranularity(CalendarView.View.MONTHS);
+        assertEquals(CalendarView.View.MONTHS, calendar.view(), "a month picker shows no days");
+        assertEquals(List.of(Change.of(Change.Aspect.VALUE, Change.Origin.ADJUSTMENT)), heard,
+                "the level moved the view, and the calendar says so as its own adjustment"
+                        + " (nothing was selected, so no selection is dropped): " + heard);
+
+        heard.clear();
+        calendar.setGranularity(CalendarView.View.DAYS);
+        assertEquals(CalendarView.View.MONTHS, calendar.view());
+        assertTrue(heard.isEmpty(), "a finer level leaves the view where it was: " + heard);
+    }
+
+    /**
+     * DATES-NEW-13's other half: Escape on a header control puts the cursor back on the grid,
+     * which Down also does, and Down announced the move while Escape did not.
+     */
+    @Test
+    void escapeFromTheHeaderAnnouncesTheCursor() {
+        build();
+        calendar.setSelectedDate(ANCHOR);
+        List<Change.Aspect> heard = new ArrayList<>();
+        calendar.observeChanges((widget, change) -> heard.add(change.aspect()));
+        key(Keys.TAB);   // onto the arrow that pages back
+        heard.clear();
+        key(Keys.ESCAPE);
+        assertTrue(heard.contains(Change.Aspect.ACTIVE),
+                "the cursor moved from the header to the grid, and a watcher was told: " + heard);
+        key(Keys.RIGHT);
+        assertEquals(ANCHOR.plusDays(1), calendar.focusedDate(),
+                "and the arrows move the day cursor again");
     }
 }

@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The segmented editor: what the locale orders, what typing does, and what an incomplete field is. */
@@ -202,17 +203,21 @@ class DateFieldTest extends ComponentTestBase {
     }
 
     @Test
-    void secondsAreShownOnlyWhenAsked() {
+    void secondsAreShownOnlyAtTheSecondLevelAndAMinuteFieldHoldsNone() {
+        build(DateField.ofTime().setGranularity(DateField.Granularity.SECOND), PT_BR);
+        field.setTime(LocalTime.of(14, 30, 45));
+        assertEquals("14:30:45", field.text());
+
         build(DateField.ofTime(), PT_BR);
         field.setTime(LocalTime.of(14, 30, 45));
         assertEquals("14:30", field.text());
-        field.setShowSeconds(true);
-        assertEquals("14:30:45", field.text());
+        assertEquals(LocalTime.of(14, 30), field.time(),
+                "the value is what the segments say, never a second the segments cannot show");
     }
 
     @Test
     void aDateAndTimeFieldAnswersBothHalvesAndNeverInventsOne() {
-        build(DateField.ofDateTime(), PT_BR);
+        build(new DateField().setGranularity(DateField.Granularity.MINUTE), PT_BR);
         assertNull(field.dateTime());
         field.setDateTime(LocalDateTime.of(2026, 12, 31, 18, 5));
         assertEquals(LocalDate.of(2026, 12, 31), field.date());
@@ -222,6 +227,288 @@ class DateFieldTest extends ComponentTestBase {
         build(new DateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 12, 31));
         assertNull(field.dateTime(), "a date-only field answers null here rather than midnight");
+    }
+
+    // ------------------------------------------------------------ granularity (decision 12, 51)
+
+    @Test
+    void aMonthFieldShowsAMonthAndAYearAndAnswersTheFirstOfTheMonth() {
+        build(new DateField().setGranularity(DateField.Granularity.MONTH), PT_BR);
+        field.setDate(LocalDate.of(2026, 6, 15));
+        assertEquals("06/2026", field.text(), "the day and its slash are cut from the pattern");
+        assertEquals(LocalDate.of(2026, 6, 1), field.date(),
+                "a month field told 15 June holds June and answers the 1st");
+        type("072027");
+        assertEquals(LocalDate.of(2027, 7, 1), field.date(), "two segments, typed as one run");
+
+        build(new DateField().setGranularity(DateField.Granularity.MONTH), EN_US);
+        field.setDate(LocalDate.of(2026, 6, 15));
+        assertEquals("6/2026", field.text(), "M/d/yy loses its middle day and the slash before it");
+
+        build(new DateField().setGranularity(DateField.Granularity.MONTH),
+                Locale.forLanguageTag("ko-KR"));
+        field.setDate(LocalDate.of(2026, 6, 15));
+        assertEquals("2026. 6.", field.text(),
+                "Korean keeps the full stop that closes the date and loses the one before the day");
+    }
+
+    @Test
+    void aYearFieldIsTheYearAloneAndAnswersItsFirstDay() {
+        build(new DateField().setGranularity(DateField.Granularity.YEAR), PT_BR);
+        field.setDate(LocalDate.of(2026, 6, 15));
+        assertEquals("2026", field.text());
+        assertEquals(LocalDate.of(2026, 1, 1), field.date());
+    }
+
+    @Test
+    void anHourFieldDropsTheMinuteAndItsColon() {
+        build(DateField.ofTime().setGranularity(DateField.Granularity.HOUR), PT_BR);
+        field.setTime(LocalTime.of(14, 30));
+        assertEquals("14", field.text());
+        assertEquals(LocalTime.of(14, 0), field.time(), "the hour's first minute");
+
+        build(new DateField().setGranularity(DateField.Granularity.HOUR), PT_BR);
+        field.setDateTime(LocalDateTime.of(2026, 9, 9, 14, 30));
+        assertEquals("09/09/2026 14", field.text(), "a date field down to the hour");
+    }
+
+    @Test
+    void aTimeFieldRefusesADateLevelRatherThanShowingNothing() {
+        build(DateField.ofTime(), PT_BR);
+        assertThrows(IllegalArgumentException.class,
+                () -> field.setGranularity(DateField.Granularity.DAY));
+        assertEquals(DateField.Granularity.MINUTE, field.granularity(), "and stays where it was");
+    }
+
+    @Test
+    void aFieldMadeCoarserDropsTheSegmentsItLostAndAnnouncesTheValueThatMoved() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 6, 15));
+        List<Change.Aspect> heard = new ArrayList<>();
+        field.observeChanges((widget, change) -> heard.add(change.aspect()));
+        field.setGranularity(DateField.Granularity.MONTH);
+        assertEquals(LocalDate.of(2026, 6, 1), field.date());
+        assertTrue(heard.contains(Change.Aspect.VALUE), "the 15th became the 1st: " + heard);
+        heard.clear();
+        field.setGranularity(DateField.Granularity.DAY);
+        assertNull(field.date(), "the day segment is back and empty, so there is no date yet");
+        assertTrue(field.text().contains("--"), field.text());
+    }
+
+    // ----------------------------------------------- typed and pasted input (DATES-NEW-9, decision 57)
+
+    private final TextFieldTest.MockClipboard clipboard = new TextFieldTest.MockClipboard();
+
+    private void paste(String text) {
+        scene.setClipboard(clipboard);
+        clipboard.set(text);
+        scene.keyEvent(Keys.V, true, false, Keys.MOD_CONTROL);
+        scene.keyEvent(Keys.V, false, false, Keys.MOD_CONTROL);
+        scene.inputBatchEnded();
+    }
+
+    @Test
+    void aPastedTwoDigitYearIsTheSameCenturyEveryWayItIsWritten() {
+        build(new DateField(), PT_BR);
+        field.setClock(IN_2026);
+        paste("31/12/26");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(),
+                "the language's own form: 'dd/MM/y' parsed 26 as the year 26 before");
+        assertTrue(field.isValid());
+        paste("31122026");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(), "the digit run, four-digit year");
+        paste("311226");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(), "the digit run, two-digit year");
+        paste("31/12/85");
+        assertEquals(LocalDate.of(1985, 12, 31), field.date(), "eighty years back is the window's start");
+        paste("31/12/45");
+        assertEquals(LocalDate.of(2045, 12, 31), field.date(), "and nineteen ahead its end");
+        paste("31/12/0026");
+        assertEquals(LocalDate.of(26, 12, 31), field.date(),
+                "four digits are what was meant, however small; the bounds are the application's");
+    }
+
+    @Test
+    void theTwoDigitYearWindowIsAdjustableAndCanBeTurnedOff() {
+        build(new DateField(), PT_BR);
+        field.setClock(IN_2026);
+        field.setTwoDigitYearWindow(20);
+        paste("31/12/85");
+        assertEquals(LocalDate.of(2085, 12, 31), field.date(), "2006 to 2105 now");
+        assertThrows(IllegalArgumentException.class, () -> field.setTwoDigitYearWindow(100));
+
+        field.setTwoDigitYearWindow(DateField.REFUSE_TWO_DIGIT_YEARS);
+        paste("31/12/26");
+        assertNull(field.date(), "no guess: the year is left blank");
+        assertEquals("31/12/----", field.text());
+        assertFalse(field.isValid(), "and the field says it is incomplete");
+        paste("311226");
+        assertEquals("31/12/----", field.text(), "the digit run the same way");
+        paste("31/12/2026");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(), "four digits need no guess");
+    }
+
+    @Test
+    void aPastedRunKeepsItsLeadingZero() {
+        build(new DateField(), PT_BR);
+        paste("01022026");
+        assertEquals(LocalDate.of(2026, 2, 1), field.date(),
+                "Integer.toString dropped the zero and a seven-digit run matched nothing");
+        paste("0102");
+        assertEquals(LocalDate.of(2026, 2, 1), field.date(), "too short to be a date: untouched");
+    }
+
+    @Test
+    void anOverlongPasteChangesNothingAndThrowsNothing() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        List<Throwable> crashed = new ArrayList<>();
+        limn.backend.CrashHandler handler = (phase, error) -> {
+            crashed.add(error);
+            return true;
+        };
+        limn.backend.Crashes.install(handler);
+        try {
+            paste("123456789012");
+            paste("1234567890123456789012345");
+            paste("12345/12345/2026");
+        } finally {
+            limn.backend.Crashes.uninstall(handler);
+        }
+        assertEquals(LocalDate.of(2026, 9, 9), field.date(), "not a date: the value stands");
+        assertEquals(List.of(), crashed,
+                "and nothing threw out of the key handler (Integer.parseInt over the whole run did)");
+    }
+
+    @Test
+    void aPastedImpossibleMonthOrDayIsRefusedWhole() {
+        build(new DateField(), PT_BR);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        paste("31/13/2026");
+        assertEquals(LocalDate.of(2026, 9, 9), field.date(), "a thirteenth month is no date");
+        assertEquals("09/09/2026", field.text(), "and no segment was written above its range");
+        paste("32/01/2026");
+        assertEquals("09/09/2026", field.text());
+        paste("31/02/2026");
+        assertEquals(LocalDate.of(2026, 2, 28), field.date(),
+                "a day past a short month is the last day of it, as typing 31 into February is");
+    }
+
+    @Test
+    void aTypedIsoRunCommitsTheSameDayAsTheLanguagesForm() {
+        build(new DateField(), PT_BR);
+        type("2026-12-31");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(),
+                "typed segment by segment into a day-first field this was 0001-02-20");
+        assertTrue(field.isValid());
+        assertEquals(2, field.focusedSegment(), "the caret ends on the last segment");
+
+        build(new DateField(), EN_US);
+        type("2026-12-31");
+        assertEquals(LocalDate.of(2026, 12, 31), field.date());
+
+        build(new DateField().setGranularity(DateField.Granularity.MONTH), PT_BR);
+        type("2026-12");
+        assertEquals(LocalDate.of(2026, 12, 1), field.date(), "a month field takes the year and month");
+    }
+
+    @Test
+    void aTypedTwoDigitYearResolvesWhenTheCaretLeavesIt() {
+        build(new DateField(), PT_BR);
+        field.setClock(IN_2026);
+        type("3112");
+        type("26");
+        assertEquals(LocalDate.of(26, 12, 31), field.date(), "while the caret is still in the year");
+        key(Keys.HOME);
+        assertEquals(LocalDate.of(2026, 12, 31), field.date(), "left with Home, it is this century");
+
+        build(new DateField(), PT_BR);
+        field.setClock(IN_2026);
+        type("311285");
+        scene.requestFocus(null);
+        assertEquals(LocalDate.of(1985, 12, 31), field.date(), "left with the focus, the same");
+
+        build(new DateField(), PT_BR);
+        field.setClock(IN_2026);
+        field.setTwoDigitYearWindow(DateField.REFUSE_TWO_DIGIT_YEARS);
+        type("311226");
+        assertEquals(LocalDate.of(26, 12, 31), field.date(), "while the caret is still in the year");
+        key(Keys.HOME);
+        assertNull(field.date(), "with the guess off a typed two-digit year is left blank too");
+        assertEquals("31/12/----", field.text());
+        assertFalse(field.isValid(), "and the field is incomplete, as after a paste (decision 57)");
+    }
+
+    // ------------------------------------------------------------ eras (era-year-width, decision 38)
+
+    private static final Locale JAPANESE = Locale.forLanguageTag("ja-JP-u-ca-japanese");
+    private static final Locale MINGUO = Locale.forLanguageTag("zh-TW-u-ca-roc");
+    private static final Clock IN_2026 =
+            Clock.fixed(Instant.parse("2026-09-09T12:00:00Z"), ZoneOffset.UTC);
+
+    /**
+     * ADR 042 §3's four-digit widening removes a two-digit year's ambiguity; a year of era inside
+     * a named era has none, so it is drawn at its own width and typed with one to three digits.
+     * Before 2026-09-14 the field drew "R0008/9/9" and "民國0115/9/9" and waited for four digits.
+     */
+    @Test
+    void anEraYearIsDrawnAtItsOwnWidthAndTypedWithUpToThreeDigits() {
+        build(new DateField(), JAPANESE);
+        field.setClock(IN_2026);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        assertEquals("R8/9/9", field.text());
+        assertEquals(LocalDate.of(2026, 9, 9), field.date(), "the value is ISO either way");
+
+        build(new DateField(), MINGUO);
+        field.setClock(IN_2026);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        assertEquals("民國115/9/9", field.text(), "the Republic's 115th year, at its own width");
+        type("116");            // three digits fill the year and roll on to the month
+        type("3");
+        key(Keys.RIGHT);
+        type("4");
+        assertEquals(LocalDate.of(2027, 3, 4), field.date(), "Minguo 116-03-04");
+
+        build(new DateField(), JAPANESE);
+        field.setClock(IN_2026);
+        type("9");              // one digit: the year waits for a Right rather than a fourth digit
+        key(Keys.RIGHT);
+        type("1");
+        key(Keys.RIGHT);
+        type("2");
+        assertEquals(LocalDate.of(2027, 1, 2), field.date(), "Reiwa 9-01-02, the era from the clock");
+    }
+
+    /**
+     * Whether the years carry their era is held per chronology rather than derived on every
+     * call (it read the clock and converted today through the chronology, several times a
+     * frame), so what has to hold is that the held answer goes with the chronology: a field
+     * moved from the Japanese calendar to ISO widens its year again and wants four digits.
+     */
+    @Test
+    void aFieldMovedOffAnEraCalendarWidensItsYearAgain() {
+        build(new DateField(), JAPANESE);
+        field.setClock(IN_2026);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        assertEquals("R8/9/9", field.text());
+        field.setChronology(java.time.chrono.IsoChronology.INSTANCE);
+        assertEquals("2026/09/09", field.text(), "the same day, in the language's ISO form");
+        key(Keys.HOME);
+        type("2027");           // four digits are a year again; three would have rolled on
+        assertEquals(LocalDate.of(2027, 9, 9), field.date());
+    }
+
+    @Test
+    void anEmptyEraFieldTypesIntoTheClocksEra() {
+        build(new DateField(), JAPANESE);
+        field.setClock(Clock.fixed(Instant.parse("2018-06-01T12:00:00Z"), ZoneOffset.UTC));
+        type("30");             // Heisei 30 by that clock; Reiwa 30 (2048) by the wall clock's era
+        key(Keys.RIGHT);
+        type("6");
+        key(Keys.RIGHT);
+        type("1");
+        assertEquals(LocalDate.of(2018, 6, 1), field.date());
+        assertEquals("H30/6/1", field.text());
     }
 
     @Test
@@ -300,5 +587,25 @@ class DateFieldTest extends ComponentTestBase {
         key(Keys.UP);
         assertEquals(1, heard.size());
         assertEquals(field.date(), heard.get(0));
+    }
+
+    /**
+     * ADR 042 §3: the era is drawn and never edited, and the caret never stops on it -- Home
+     * lands on the year beside it, Left from there stays, and what is typed there is the year.
+     */
+    @Test
+    void theCaretNeverStopsOnTheEra() {
+        build(new DateField(), JAPANESE);
+        field.setClock(IN_2026);
+        field.setDate(LocalDate.of(2026, 9, 9));
+        key(Keys.END);
+        key(Keys.HOME);
+        assertEquals(0, field.focusedSegment(), "the first editable segment is the year");
+        key(Keys.LEFT);
+        assertEquals(0, field.focusedSegment(), "and there is nothing editable before it");
+        type("9");
+        key(Keys.RIGHT);
+        assertEquals("R9/9/9", field.text(), "the digit went into the year, not the era");
+        assertEquals(LocalDate.of(2027, 9, 9), field.date());
     }
 }

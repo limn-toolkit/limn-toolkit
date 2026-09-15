@@ -145,6 +145,14 @@ public final class AccessibilityGallery {
     /** A transparent picture, for the same reason. */
     private static final Image BLANK_PICTURE = new Image(16, 16, new byte[16 * 16 * 4]);
 
+    /**
+     * The language every date entry is built in (settled reader-scene-clock; LAB-NEW-13), as its
+     * today is {@link limn.demo.DocumentationDay}'s: a cell's name, a segment's name and the
+     * week's first day are the locale's, and a guest's process locale is not the
+     * host's. English (United States), because the captions these entries carry are English.
+     */
+    static final java.util.Locale READER_LOCALE = java.util.Locale.US;
+
     private AccessibilityGallery() {
     }
 
@@ -218,6 +226,14 @@ public final class AccessibilityGallery {
                 new Entry("Date picker, open", List.of(DatePicker.class),
                         List.of(Role.GROUP, Role.SPIN_BUTTON, Role.BUTTON, Role.TABLE, Role.CELL),
                         AccessibilityGallery::datePicker),
+                // Closed, so the field a reader arrives at is checked as it stands in a form:
+                // named by the caption bound to the picker, carrying the popup state and the
+                // verb that opens it (decisions 18 and 55, 2026-09-14; DATES-NEW-12). The open
+                // entry above never checked it, because everything under its overlay is not
+                // published focusable.
+                new Entry("Date picker, closed", List.of(DatePicker.class),
+                        List.of(Role.GROUP, Role.SPIN_BUTTON, Role.BUTTON),
+                        AccessibilityGallery::datePickerClosed),
                 new Entry("Tabbed pane", List.of(TabbedPane.class),
                         List.of(Role.TAB_LIST, Role.TAB, Role.TAB_PANEL),
                         AccessibilityGallery::tabbedPane),
@@ -551,7 +567,7 @@ public final class AccessibilityGallery {
                 ? DayMark.of(Theme.current().danger, I18nString.literal("holiday"))
                 : null);
         page.add(Labelled.above("Delivery date", calendar));
-        return new Built(page);
+        return new Built(pinnedForReaders(page));
     }
 
     /**
@@ -563,10 +579,10 @@ public final class AccessibilityGallery {
         DateField date = new DateField();
         date.setDate(java.time.LocalDate.of(2026, 9, 9));
         page.add(Labelled.above("Invoice date", date));
-        DateField moment = DateField.ofDateTime();
+        DateField moment = new DateField().setGranularity(DateField.Granularity.MINUTE);
         moment.setDateTime(java.time.LocalDateTime.of(2026, 9, 9, 14, 30));
         page.add(Labelled.above("Appointment", moment));
-        return new Built(page);
+        return new Built(pinnedForReaders(page));
     }
 
     /** The picker with its calendar open, in the scene so the whole tree is in one window. */
@@ -579,7 +595,38 @@ public final class AccessibilityGallery {
         // Opened after the first layout, for the reason every open-popup entry here is: the overlay
         // hangs from the picker's place in the scene, and a picker that has not been laid out has
         // none yet.
-        return new Built(page, picker::open);
+        return new Built(pinnedForReaders(page), picker::open);
+    }
+
+    /**
+     * A single picker and a period, both closed and both captioned: the caption names the single
+     * picker's field, and the period's group with its two ends named for themselves.
+     */
+    private static Built datePickerClosed() {
+        Column page = page();
+        DatePicker picker = new DatePicker();
+        picker.setDate(java.time.LocalDate.of(2026, 9, 9));
+        page.add(Labelled.above("Delivery date", picker));
+        DatePicker stay = DatePicker.ofRange();
+        stay.setRange(new limn.components.date.DateRange(
+                java.time.LocalDate.of(2026, 9, 14), java.time.LocalDate.of(2026, 9, 25)));
+        page.add(Labelled.above("Stay", stay));
+        return new Built(pinnedForReaders(page));
+    }
+
+    /**
+     * Pins {@link limn.demo.DocumentationDay} on every date widget under {@code root} (a calendar
+     * names its today cell ", today" and a field steps an empty segment from today, so an entry on
+     * the real clock spoke differently on each guest and each day) and declares
+     * {@link #READER_LOCALE} on {@code root} itself, which every descendant inherits. In the
+     * entries rather than in whatever runs them, so the gallery window a reader is pointed at,
+     * the headless tests and a driver all build the same tree; these scenes are not published as
+     * samples, so the pinned clock is copied into nobody's application.
+     */
+    private static Widget pinnedForReaders(Widget root) {
+        root.setLocale(READER_LOCALE);
+        limn.demo.DocumentationDay.pin(root);
+        return root;
     }
 
     private static Built tabbedPane() {
