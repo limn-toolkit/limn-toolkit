@@ -428,7 +428,7 @@ public final class Gallery {
      * screen can be written beside what a screen reader would be told about it. It listens, so
      * the scene publishes on every damaged frame exactly as it would under a reader.
      */
-    private static final class TreeKeeper implements AccessibilityBridge {
+    static final class TreeKeeper implements AccessibilityBridge {
         private volatile AccessibleTree tree = AccessibleTree.EMPTY;
 
         @Override
@@ -743,18 +743,26 @@ public final class Gallery {
          * the tree the scene published for the frame that was just photographed, one line per
          * node. Once per entry and not per palette, because the transcript carries no colour
          * and no rectangle; both passes write the same bytes to the same file.
+         *
+         * @return whether the transcript was written. A run that could not write one is over,
+         *         and the frame it happened on ends there: this used to declare the failure and
+         *         hand control back into the middle of the body, which carried straight on --
+         *         clearing the still, resolving the entry's film, installing it, recording
+         *         FILM_CONTENT and asking for another frame. It was the one failure path that
+         *         kept mutating driver state after the run had been declared failed, and what
+         *         ended it at all was the backend skipping a close-requested window.
          */
-        private void writeTranscript(Shot shot) {
+        private boolean writeTranscript(Shot shot) {
             if (!(window.accessibility() instanceof TreeKeeper keeper)) {
-                return;
+                return true;
             }
             Path file = transcriptFile(shot.file(), shot.entry().id());
             try {
                 Files.writeString(file, Transcript.of(keeper.tree()), StandardCharsets.UTF_8);
+                return true;
             } catch (IOException e) {
-                System.err.println("gallery: could not write " + file + ": " + e.getMessage());
-                failed = true;
-                closeAll();
+                fail("could not write " + file + ": " + e.getMessage());
+                return false;
             }
         }
 
@@ -794,10 +802,11 @@ public final class Gallery {
                 // out, which is now given up before its render instead of after it -- a
                 // failure path either way.
                 if (++totalFrames > frameBudget) {
-                    System.err.println("gallery: watchdog (no progress), giving up at shot "
-                            + index + " of " + shots.size());
-                    failed = true;
-                    closeAll();
+                    // Through fail() like every other ending, so failure() names it too: the
+                    // watchdog is the failure whose cause is hardest to guess from a log, and
+                    // it was the one a caller reading failure() got a null for.
+                    fail("watchdog (no progress), giving up at shot " + index
+                            + " of " + shots.size());
                     return;
                 }
                 // Nothing may leave this body silently. A throw that escapes is a run with no
@@ -894,17 +903,16 @@ public final class Gallery {
                                         + " actually drawn; retrying");
                             }
                             if (System.nanoTime() - shotStartNanos > FLAT_RETRY_MS * 1_000_000L) {
-                                System.err.println("gallery: " + shot.file().getFileName()
-                                        + " never rendered anything; failing rather than"
-                                        + " publishing a blank capture");
-                                failed = true;
-                                closeAll();
+                                fail("never rendered anything; failing rather than publishing"
+                                        + " a blank capture");
                                 return;
                             }
                             // Fall through to the frame request below and try again.
                         } else if (still != null) {
                             writer.write(still, shot.file());
-                            writeTranscript(shot);
+                            if (!writeTranscript(shot)) {
+                                return;
+                            }
                             still = null;
                             stillPending = false;
                             // The still is the poster, and it is captured before any pointer
