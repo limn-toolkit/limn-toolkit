@@ -2355,6 +2355,27 @@ row's note is false**: `Event.Focus.Focus` is not emitted beside `StateChanged`,
 listen for it (its `Script.get_listeners` registers no `focus:` event). `Announcement` is now sent;
 until this date it was not.
 
+#### Amendment 2026-09-15 — `Table` and `TableCell` find a cell by its facet, and a header by its row
+
+**What was wrong (LINUX-NEW-10, LINUX-NEW-11).** The `Table` row's "`GetAccessibleAt` answers a
+realized cell" held only for a table whose rows carry a `SelectionItemFacet`: a row was matched by
+its position in set, which a calendar's week rows do not publish, so every cell of every calendar
+answered the null object. The `TableCell` row's "its header group's child at the cell's column" was
+the table's first group child's child at that index, so a table with its header hidden and a footer
+shown named the footer's totals as its column headers, and a partial footer the wrong column's.
+`AddRowSelection` posted `SELECT` alone and `RemoveRowSelection` refused everything.
+
+**What the bridge does now (semantics 2, 3 and 5 of the 2026-09-13 pass).** Cell (r, c) is the node
+whose `CellFacet` is (r, c) and whose nearest `TableFacet` ancestor is the table, searched under the
+table's `ROW` children (where a widget cell hangs under its synthetic row); a row's index is its cells'
+`CellFacet` row, and `IsSelected`/`GetRowColumnExtentsAtIndex` also count a selected cell. The header
+of column c is the child with `CellFacet(-1, c)` of one of the table's direct `GROUP` children; a
+footer cell (row −2) is never one, and none means none. `AddRowSelection` posts the first of
+[`ADD_TO_SELECTION`, `SELECT`] the row accepts and `RemoveRowSelection` [`DESELECT`], through
+`AccessibleNode#accepts`, and answer false otherwise. `GetRowColumnSpan` stays `iiii`: libatspi 2.60.6
+reads `=>iiii` although the ATK bridge's XML declares `biiii`
+(readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt, readings/fedora-dbus-TableCell.xml).
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |

@@ -754,12 +754,16 @@ final class AtspiTree {
     // ------------------------------------------------------------------ org.a11y.atspi.Table
 
     /**
-     * The table interface over a node with a {@code TableFacet}; ADR 041 §7.
+     * The table interface over a node with a {@code TableFacet}; ADR 041 §7, semantics 2 and 3 of
+     * the 2026-09-13 pass.
      *
      * <p>Rows and cells are answered from what the walk published: a row the table has not
      * realized has no node, so {@code GetAccessibleAt} on it answers the null object, which is the
-     * degradation ADR 039 §4.1 already accepts for a client that walks a long list. Column headers
-     * are the header group's children, and row headers are none.
+     * degradation ADR 039 §4.1 already accepts for a client that walks a long list. A cell is found
+     * by its {@code CellFacet} and a row by its cells' — never by a row's position in a selection,
+     * which a calendar's week rows do not carry (LINUX-NEW-10) — column headers by
+     * {@code CellFacet(-1, c)} among the table's direct group children, which a footer's row −2
+     * never matches (LINUX-NEW-11), and row headers are none.
      */
     private DBus.Msg table(DBus.Msg m, Located at) {
         AccessibleTree tree = at.tree();
@@ -796,7 +800,7 @@ final class AtspiTree {
             case "GetSelectedRows": {
                 List<Object> rows = new ArrayList<>();
                 for (AccessibleNode row : selectedRowsOf(tree, node)) {
-                    rows.add(row.selectionItem().positionInSet() - 1);
+                    rows.add(rowIndexOf(tree, node, row));
                 }
                 return DBus.Msg.ret(m, "ai", rows);
             }
@@ -808,31 +812,33 @@ final class AtspiTree {
             }
             case "IsSelected": {
                 AccessibleNode row = rowAt(tree, node, arg(m, 0));
-                return DBus.Msg.ret(m, "b", row != null && row.has(Accessible.State.SELECTED));
+                AccessibleNode cell = cellAt(tree, node, arg(m, 0), arg(m, 1));
+                return DBus.Msg.ret(m, "b", row != null && row.has(Accessible.State.SELECTED)
+                        || cell != null && cell.has(Accessible.State.SELECTED));
             }
             case "IsColumnSelected":
             case "AddColumnSelection":
             case "RemoveColumnSelection":
-            case "RemoveRowSelection":
                 return DBus.Msg.ret(m, "b", false);
-            case "AddRowSelection": {
-                AccessibleNode row = rowAt(tree, node, arg(m, 0));
-                AccessibilityBridge.Host h = at.window().host();
-                boolean done = row != null && h != null && row.actions() != null
-                        && row.actions().has(Accessible.Action.SELECT)
-                        && h.perform(row.id(), Accessible.Action.SELECT, Accessible.Argument.NONE);
-                return DBus.Msg.ret(m, "b", done);
-            }
+            case "AddRowSelection":
+                // Semantics 5: "add" is [ADD_TO_SELECTION, SELECT], the first the row accepts.
+                return DBus.Msg.ret(m, "b", performFirst(at, rowAt(tree, node, arg(m, 0)),
+                        Accessible.Action.ADD_TO_SELECTION, Accessible.Action.SELECT));
+            case "RemoveRowSelection":
+                return DBus.Msg.ret(m, "b", performFirst(at, rowAt(tree, node, arg(m, 0)),
+                        Accessible.Action.DESELECT));
             case "GetRowColumnExtentsAtIndex": {
                 int index = arg(m, 0);
                 boolean valid = columns > 0 && index >= 0 && index < node.table().rowCount() * columns;
                 int row = valid ? index / columns : 0;
                 int column = valid ? index % columns : 0;
                 AccessibleNode rowNode = valid ? rowAt(tree, node, row) : null;
+                AccessibleNode cell = valid ? cellAt(tree, node, row, column) : null;
                 // Six out arguments, not one struct: libatspi reads "biiiib" and refuses a reply
                 // whose signature is "(biiiib)", as it refused GetRowColumnSpan on the Fedora guest.
                 return DBus.Msg.ret(m, "biiiib", valid, row, column, 1, 1,
-                        rowNode != null && rowNode.has(Accessible.State.SELECTED));
+                        rowNode != null && rowNode.has(Accessible.State.SELECTED)
+                                || cell != null && cell.has(Accessible.State.SELECTED));
             }
             default:
                 return null;
@@ -846,7 +852,10 @@ final class AtspiTree {
         switch (m.member == null ? "" : m.member) {
             case "GetRowColumnSpan":
                 // Four out arguments and not a struct: measured on the Fedora guest, where a
-                // "(iiii)" reply was refused by libatspi with "expected iiii".
+                // "(iiii)" reply was refused by libatspi with "expected iiii". libatspi 2.60.6
+                // reads "=>iiii" (atspi-table-cell.c), although the ATK bridge's own XML declares
+                // "biiii" (readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt,
+                // readings/fedora-dbus-TableCell.xml): the client's demand is what a reply meets.
                 return DBus.Msg.ret(m, "iiii", node.cell().row(), node.cell().column(), 1, 1);
             case "GetRowHeaderCells":
                 return DBus.Msg.ret(m, "a(so)", new ArrayList<>());
@@ -869,50 +878,124 @@ final class AtspiTree {
         return ((Number) m.body[index]).intValue();
     }
 
+    /**
+     * Posts the first of {@code candidates} the node accepts now, on the host of the window that
+     * published it (semantics 5: each entry point is an ordered candidate list, and the published
+     * snapshot is the only synchronous authority, read through {@link AccessibleNode#accepts}).
+     *
+     * @return whether a verb was posted and the host took it; {@code false} for a missing node, a
+     *         node that accepts none of them, or a window with no host
+     */
+    private static boolean performFirst(Located at, AccessibleNode node,
+                                        Accessible.Action... candidates) {
+        return performFirst(at, node, Accessible.Argument.NONE, candidates);
+    }
+
+    private static boolean performFirst(Located at, AccessibleNode node, Accessible.Argument arg,
+                                        Accessible.Action... candidates) {
+        if (node == null) {
+            return false;
+        }
+        AccessibilityBridge.Host h = at.window().host();
+        if (h == null) {
+            return false;
+        }
+        for (Accessible.Action verb : candidates) {
+            if (node.accepts(verb)) {
+                return h.perform(node.id(), verb, arg);
+            }
+        }
+        return false;
+    }
+
     /** The nearest ancestor of {@code node} that is a table, itself included; null when none. */
     private static AccessibleNode tableOf(AccessibleTree tree, AccessibleNode node) {
         for (AccessibleNode at = node; at != null; ) {
             if (at.table() != null) {
                 return at;
             }
-            int parent = at.parent();
-            at = parent < 0 || parent >= tree.nodeCount() ? null : tree.node(parent);
+            at = parentOf(tree, at);
         }
         return null;
     }
 
-    /** The header group's child at {@code column}: the table's first group child's children. */
+    private static AccessibleNode parentOf(AccessibleTree tree, AccessibleNode node) {
+        int parent = node.parent();
+        return parent < 0 || parent >= tree.nodeCount() ? null : tree.node(parent);
+    }
+
+    /** Whether {@code table} is the nearest ancestor of {@code cell} carrying a table facet. */
+    private static boolean belongsTo(AccessibleTree tree, AccessibleNode cell, AccessibleNode table) {
+        AccessibleNode parent = parentOf(tree, cell);
+        return parent != null && tableOf(tree, parent) == table;
+    }
+
+    /**
+     * The header of column {@code column} (semantics 3): the child with {@code CellFacet(-1,
+     * column)} of one of the table's direct group children, matched by column and never by
+     * position. A footer cell (row −2) is never a header, and no such node means no header.
+     */
     private static AccessibleNode columnHeaderOf(AccessibleTree tree, AccessibleNode table,
                                                  int column) {
-        for (AccessibleNode child : tree.children(table)) {
-            if (child.role() == Accessible.Role.GROUP) {
-                List<AccessibleNode> headers = tree.children(child);
-                return column >= 0 && column < headers.size() ? headers.get(column) : null;
+        for (AccessibleNode group : tree.children(table)) {
+            if (group.role() != Accessible.Role.GROUP) {
+                continue;
+            }
+            for (AccessibleNode cell : tree.children(group)) {
+                if (cell.cell() != null && cell.cell().row() == -1
+                        && cell.cell().column() == column) {
+                    return cell;
+                }
             }
         }
         return null;
     }
 
-    /** The realized row shown at {@code row}, by its position in set; null when unrealized. */
+    /**
+     * The row index a realized row stands at (semantics 2): its cells' {@code CellFacet} row, or -1
+     * when it holds no data cell of this table.
+     */
+    private static int rowIndexOf(AccessibleTree tree, AccessibleNode table, AccessibleNode row) {
+        for (AccessibleNode cell : tree.children(row)) {
+            if (cell.cell() != null && cell.cell().row() >= 0 && belongsTo(tree, cell, table)) {
+                return cell.cell().row();
+            }
+        }
+        return -1;
+    }
+
+    /** The realized row shown at {@code row}, found by its cells; null when unrealized. */
     private static AccessibleNode rowAt(AccessibleTree tree, AccessibleNode table, int row) {
+        if (row < 0) {
+            return null;
+        }
         for (AccessibleNode child : tree.children(table)) {
-            if (child.role() == Accessible.Role.ROW && child.selectionItem() != null
-                    && child.selectionItem().positionInSet() == row + 1) {
+            if (child.role() == Accessible.Role.ROW && rowIndexOf(tree, table, child) == row) {
                 return child;
             }
         }
         return null;
     }
 
+    /**
+     * Cell ({@code row}, {@code column}) of {@code table} (semantics 2): the node whose
+     * {@code CellFacet} is that pair and whose nearest table is this one, searched under the
+     * table's row children, where a widget cell hangs under its synthetic row (decision 3).
+     */
     private static AccessibleNode cellAt(AccessibleTree tree, AccessibleNode table, int row,
                                          int column) {
-        AccessibleNode rowNode = rowAt(tree, table, row);
-        if (rowNode == null) {
+        if (row < 0) {
             return null;
         }
-        for (AccessibleNode cell : tree.children(rowNode)) {
-            if (cell.cell() != null && cell.cell().column() == column) {
-                return cell;
+        for (AccessibleNode rowNode : tree.children(table)) {
+            if (rowNode.role() != Accessible.Role.ROW) {
+                continue;
+            }
+            for (AccessibleNode cell : tree.children(rowNode)) {
+                if (cell.cell() != null && cell.cell().row() == row
+                        && cell.cell().column() == column && belongsTo(tree, cell, table)) {
+                    return cell;
+                }
             }
         }
         return null;

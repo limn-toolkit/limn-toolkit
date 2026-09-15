@@ -213,6 +213,169 @@ class AtspiTreeTest {
     }
 
     /**
+     * A calendar's grid (LINUX-NEW-10, semantics 2): week rows that are no selection's members, and
+     * day cells that carry their row and column and a day-of-month position (decision 37). The
+     * lookup went through a row's position in set, which a week row does not have, so every cell of
+     * every calendar answered the null object.
+     */
+    @Test
+    void aCalendarShapedGridAnswersItsCellsByRowAndColumnAndNeverByAPositionInSet() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int grid = a.begin(4000, 0, Locale.ENGLISH, 0, 0, 350, 100);
+        a.role(Accessible.Role.TABLE);
+        a.table(2, 7);
+        a.selection(false, true);
+        a.inherited(true, true, true, true, false);
+        for (int w = 0; w < 2; w++) {
+            int row = a.begin(4100 + w * 10, grid, Locale.ENGLISH, 0, w * 50, 350, 50);
+            a.role(Accessible.Role.ROW);
+            a.inherited(true, true, true, false, false);
+            for (int c = 0; c < 7; c++) {
+                a.begin(4101 + w * 10 + c, row, Locale.ENGLISH, c * 50, w * 50, 50, 50);
+                a.role(Accessible.Role.CELL);
+                a.cell(w, c);
+                int day = w * 7 + c + 1;
+                a.selectionItem(day == 10, day, 30);
+                a.action(Accessible.Action.SELECT);
+                a.inherited(true, true, true, false, false);
+                a.end();
+            }
+            a.end();
+        }
+        a.end();
+        a.end();
+        tree.set(a.publish(0, 0, 0, 1f, true));
+
+        DBus.Msg cell = call(path(4000), Atspi.I_TABLE, "GetAccessibleAt", "ii", 1, 2);
+        assertEquals(path(4113), ((Object[]) cell.body[0])[1],
+                "week 1, weekday 2 is the day its CellFacet names, whatever a row publishes");
+        DBus.Msg extents = call(path(4000), Atspi.I_TABLE, "GetRowColumnExtentsAtIndex", "i", 9);
+        assertEquals(List.of(true, 1, 2, 1, 1, true), List.of(extents.body),
+                "index 9 is row 1, column 2, and that day is the selected one");
+        assertEquals(true, call(path(4000), Atspi.I_TABLE, "IsSelected", "ii", 1, 2).body[0],
+                "a selected cell is selected at its row and column, though its row is not");
+        assertEquals(false, call(path(4000), Atspi.I_TABLE, "IsRowSelected", "i", 1).body[0]);
+        assertEquals(Atspi.PATH_NULL, ((Object[]) call(path(4000), Atspi.I_TABLE, "GetAccessibleAt",
+                "ii", 2, 0).body[0])[1], "a week the grid does not hold is the null object");
+    }
+
+    /**
+     * A table's column headers are found by their CellFacet among its direct groups (LINUX-NEW-11,
+     * semantics 3): with the header hidden and a footer shown, the footer was the first group, so a
+     * reader was told the totals were the column headers, and a partial footer named the wrong
+     * column's.
+     */
+    @Test
+    void aColumnHeaderIsTheCellAtRowMinusOneOfItsColumnAndAFooterIsNeverOne() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int table = a.begin(5000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TABLE);
+        a.table(1, 2);
+        a.inherited(true, true, true, true, false);
+        int row = a.begin(5010, table, Locale.ENGLISH, 0, 0, 400, 30);
+        a.role(Accessible.Role.ROW);
+        a.inherited(true, true, true, false, false);
+        for (int c = 0; c < 2; c++) {
+            a.begin(5011 + c, row, Locale.ENGLISH, c * 200, 0, 200, 30);
+            a.role(Accessible.Role.CELL);
+            a.name(I18nString.literal("r0c" + c), Accessible.NameFrom.CONTENT);
+            a.cell(0, c);
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        int footer = a.begin(5100, table, Locale.ENGLISH, 0, 30, 400, 30);
+        a.role(Accessible.Role.GROUP);
+        a.inherited(true, true, true, false, false);
+        a.begin(5102, footer, Locale.ENGLISH, 200, 30, 200, 30);
+        a.role(Accessible.Role.CELL);
+        a.name(I18nString.literal("Total 99"), Accessible.NameFrom.CONTENT);
+        a.cell(-2, 1);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.end();
+        a.end();
+        tree.set(a.publish(0, 0, 0, 1f, true));
+
+        for (int column = 0; column < 2; column++) {
+            assertEquals(Atspi.PATH_NULL, ((Object[]) call(path(5000), Atspi.I_TABLE,
+                    "GetColumnHeader", "i", column).body[0])[1],
+                    "no header row: column " + column + " has no header, the footer is not one");
+            assertEquals("", call(path(5000), Atspi.I_TABLE, "GetColumnDescription", "i", column)
+                    .body[0]);
+        }
+        assertEquals(List.of(), call(path(5012), Atspi.I_TABLE_CELL, "GetColumnHeaderCells", null)
+                .body[0], "and a data cell of column 1 names no header cell");
+        assertEquals(path(5012), ((Object[]) call(path(5000), Atspi.I_TABLE, "GetAccessibleAt",
+                "ii", 0, 1).body[0])[1]);
+    }
+
+    /**
+     * {@code AddRowSelection} posts the first of [ADD_TO_SELECTION, SELECT] the row accepts and
+     * {@code RemoveRowSelection} posts DESELECT (semantics 5): it posted SELECT alone, so on a
+     * multi-select table a client's "add" replaced the selection, and a removal was refused on a row
+     * that offered it.
+     */
+    @Test
+    void aRowSelectionPostsTheFirstOfItsCandidatesTheRowAcceptsAndNothingElse() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int table = a.begin(6000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TABLE);
+        a.table(4, 1);
+        a.selection(true, false);
+        a.inherited(true, true, true, true, false);
+        Accessible.Action[][] verbs = {
+                {Accessible.Action.SELECT, Accessible.Action.ADD_TO_SELECTION},
+                {Accessible.Action.SELECT},
+                {Accessible.Action.SELECT, Accessible.Action.DESELECT},
+                {},
+        };
+        for (int r = 0; r < verbs.length; r++) {
+            int row = a.begin(6010 + r * 10, table, Locale.ENGLISH, 0, r * 30, 400, 30);
+            a.role(Accessible.Role.ROW);
+            a.selectionItem(r == 2, r + 1, verbs.length);
+            if (verbs[r].length > 0) {
+                a.action(verbs[r]);
+            }
+            a.inherited(true, true, true, false, false);
+            a.begin(6011 + r * 10, row, Locale.ENGLISH, 0, r * 30, 400, 30);
+            a.role(Accessible.Role.CELL);
+            a.cell(r, 0);
+            a.inherited(true, true, true, false, false);
+            a.end();
+            a.end();
+        }
+        a.end();
+        a.end();
+        tree.set(a.publish(0, 0, 0, 1f, true));
+
+        List<Object> answers = new ArrayList<>();
+        for (int r = 0; r < verbs.length; r++) {
+            answers.add(call(path(6000), Atspi.I_TABLE, "AddRowSelection", "i", r).body[0]);
+            answers.add(call(path(6000), Atspi.I_TABLE, "RemoveRowSelection", "i", r).body[0]);
+        }
+        assertEquals(List.of(true, false, true, false, true, true, false, false), answers,
+                "add is taken where the row offers ADD_TO_SELECTION or SELECT; remove only where "
+                        + "it offers DESELECT");
+        assertEquals(List.of("6010:ADD_TO_SELECTION", "6020:SELECT", "6030:SELECT",
+                "6030:DESELECT"), performed, "the first candidate the row accepts, and on a row "
+                + "offering nothing, nothing");
+    }
+
+    /**
      * The relation set, one entry per type with every target of that type, in the platform's own
      * numbering: what Orca reads a field's label and its description from when it lands on it.
      */
