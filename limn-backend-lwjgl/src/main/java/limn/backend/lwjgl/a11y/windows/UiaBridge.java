@@ -488,6 +488,10 @@ public final class UiaBridge extends PlatformBridge {
             raiseStructure(event);
             return;
         }
+        if (event.type() == AccessibleEvent.Type.VALUE_CHANGED) {
+            raiseValue(event);
+            return;
+        }
         int eventId = switch (event.type()) {
             case INVOKED -> UiaIds.INVOKE_INVOKED;
             case WINDOW_OPENED -> UiaIds.WINDOW_OPENED;
@@ -1017,13 +1021,106 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
+     * A value that moved, raised as the property of each pattern the node vends that it moved on
+     * (the settled value-text-event item; CRIT-4's Windows half), only for an element a client holds.
+     *
+     * <p>Until 2026-09-15 one property was raised, {@code RangeValue.Value} whenever the node had a
+     * number, so a node vending both patterns -- a spinner's "07:30", a date segment's "empty" --
+     * never told a client its {@code Value} string moved, and a change of the text alone (a segment
+     * filled with its minimum) was raised as a number that had not moved. NVDA 2024.4.2 reads a
+     * control's value from {@code Value} when it vends both and maps both properties to its
+     * {@code valueChange} (readings/nvda-2024.4.2-uia.md §3).
+     *
+     * <p>The old string goes as an empty variant: the model's event carries the two numbers and
+     * not the text, and a COM client's {@code HandlePropertyChangedEvent} receives the new value
+     * alone (sender, propertyId, newValue: UIAutomationCore.dll's type library, read 2026-09-13,
+     * readings/windows-dump-uia-typelib-all-members.txt).
+     *
+     * @param event the {@code VALUE_CHANGED}
+     */
+    private void raiseValue(AccessibleEvent event) {
+        UiaElement element = elements.peek(event.nodeId());
+        if (element == null) {
+            // As every property change: nothing asked for this node, so nothing is told.
+            return;
+        }
+        AccessibleTree tree = tree();
+        int index = tree.indexOf(event.nodeId());
+        AccessibleNode node = index < 0 ? null : tree.node(index);
+        int[] properties = valueRaises(event, tree, node);
+        if (properties.length == 0) {
+            // Nothing a vended pattern carries moved (a bare number's emptiness), or the node has
+            // gone: nothing raised, so nothing pays the event an ask is owed (WINDOWS-NEW-6).
+            UiaWindow.say("unmapped " + event.type() + " for node " + event.nodeId()
+                    + ": no vended pattern's property moved");
+            return;
+        }
+        long started = System.nanoTime();
+        StringBuilder raised = new StringBuilder();
+        for (int propertyId : properties) {
+            if (propertyId == UiaIds.VALUE_VALUE) {
+                raisePropertyChange(element, propertyId, null, valueString(node), node);
+            } else {
+                raisePropertyChange(element, propertyId, event.oldValue(), event.newValue(), node);
+            }
+            raised.append(raised.length() == 0 ? "" : ", ").append(propertyId);
+        }
+        owedAnEvent = false;
+        UiaWindow.say("raised " + event.type() + " for node " + event.nodeId() + " as [" + raised
+                + "] in " + (System.nanoTime() - started) / 1_000 + " us on "
+                + Thread.currentThread().getName());
+    }
+
+    /**
+     * The properties a {@code VALUE_CHANGED} raises, in order: {@code RangeValue.Value} where the
+     * node vends RangeValue and the event's number moved, then {@code Value.Value} wherever the node
+     * vends Value.
+     *
+     * <p>A number that did not move means the text or the emptiness did (the model raises the event
+     * for nothing else, ADR 039 §1.10's 2026-09-14 amendment), so RangeValue, which carries only the
+     * number, is not raised. The Value string is raised even when the number moved and the text
+     * happened not to, because the event carries no text to compare: a Value vended from a value
+     * facet is the number's spoken form, which moves with it.
+     *
+     * @param event the {@code VALUE_CHANGED}
+     * @param tree  the tree the node is read from
+     * @param node  the node, or {@code null} when it has left the tree
+     * @return the property ids, empty when nothing is raised
+     */
+    static int[] valueRaises(AccessibleEvent event, AccessibleTree tree, AccessibleNode node) {
+        if (node == null) {
+            return new int[0];
+        }
+        boolean numberMoved = !(event.oldValue() instanceof Number before
+                && event.newValue() instanceof Number after
+                && Double.compare(before.doubleValue(), after.doubleValue()) == 0);
+        boolean range = numberMoved && UiaPatterns.supports(tree, node, UiaIds.RANGE_VALUE_PATTERN);
+        boolean string = UiaPatterns.supports(tree, node, UiaIds.VALUE_PATTERN);
+        int[] properties = new int[(range ? 1 : 0) + (string ? 1 : 0)];
+        int at = 0;
+        if (range) {
+            properties[at++] = UiaIds.RANGE_VALUE_VALUE;
+        }
+        if (string) {
+            properties[at] = UiaIds.VALUE_VALUE;
+        }
+        return properties;
+    }
+
+    /** @return what {@code Value.get_Value} answers for the node now */
+    private static String valueString(AccessibleNode node) {
+        String value = node.text() != null ? node.text().text()
+                : node.value() != null ? node.value().text() : null;
+        return value == null ? "" : value;
+    }
+
+    /**
      * A property that moved, which UI Automation is told about with both values.
      *
-     * <p><b>Which property depends on the node and not only on the event</b>: a value that moved is
-     * a number on a slider and a string in a text field, and the two are different properties to a
-     * client. A state that moved is whichever property carries that state — a check mark is the
-     * toggle pattern's, an enabled flag is the element's own — so a state this bridge has no
-     * property for is not raised rather than raised as something else.
+     * <p><b>Which property depends on the node and not only on the event</b>: a state that moved is
+     * whichever property carries that state — a check mark is the toggle pattern's, an enabled flag
+     * is the element's own — so a state this bridge has no property for is not raised rather than
+     * raised as something else. (A value that moved is {@link #raiseValue}'s, since 2026-09-15.)
      *
      * <p>Both values are written into {@code VARIANT}s allocated for the call and freed after it.
      * A string among them is a {@code BSTR} the callee reads and does not keep, which is the one
@@ -1071,8 +1168,7 @@ public final class UiaBridge extends PlatformBridge {
         return switch (event.type()) {
             case NAME_CHANGED -> UiaIds.NAME;
             case DESCRIPTION_CHANGED -> UiaIds.HELP_TEXT;
-            case VALUE_CHANGED -> node != null && node.value() != null
-                    ? UiaIds.RANGE_VALUE_VALUE : UiaIds.VALUE_VALUE;
+            // VALUE_CHANGED raises up to two properties and never comes here (raiseValue).
             case STATE_CHANGED -> switch (event.state()) {
                 case CHECKED, MIXED -> UiaIds.TOGGLE_STATE;
                 case ENABLED -> UiaIds.IS_ENABLED;

@@ -2627,6 +2627,30 @@ default branch (the runtime id of the provider made for the event's object) — 
 here on the parent. That the element is the container whose children moved rests on 32772 being the
 Win32 reorder event, whose header name was not read.
 
+**Amended 2026-09-15 (phase 3, Windows; CRIT-4's Windows half, the settled value-text-event item,
+T7's Windows reading): `VALUE_CHANGED` and `BUSY` as built.** The property-change row's "the
+property id" is, for `VALUE_CHANGED`, the property of **each pattern the node vends that the change
+moved**: `RangeValue.Value` (30047) with both numbers where the node vends `RangeValue` and the
+event's number moved, then `Value.Value` (30045) with the string `get_Value` answers wherever the
+node vends `Value`. A change whose number stood moved the text or the emptiness, so a date segment
+filled with its minimum raises the string alone; a number that moved raises the string too, because
+the event carries no text to compare and a `Value` vended from a value facet is the number's spoken
+form. The old string travels as an empty variant: a COM client's `HandlePropertyChangedEvent`
+receives only the new value (UIAutomationCore.dll's type library, read 2026-09-13). Until this
+amendment one property was raised, `RangeValue.Value` for any node with a number, so a spinner's
+"07:30" and a segment's "empty" were never raised as strings, though NVDA 2024.4.2 reads a control
+that vends both from `Value` and maps both properties to its `valueChange` (readings/
+nvda-2024.4.2-uia.md §3); whether it then speaks a change raised as both once or twice is phase 5's
+to hear. An event that moved nothing a vended pattern carries raises nothing and pays nothing an ask
+is owed (`UiaBridgeTest.aValueChangeRaisesThePropertyOfEachVendedPatternItMovedOn`,
+`aValueChangeIsRaisedOnTheHeldElementAsEachPropertyThatMoved`). **`STATE_CHANGED` for `BUSY`** stays
+an `ItemStatus` (30026) property change carrying the localized busy phrase and then an empty string,
+answered by `get_ItemStatus` the same way; **NVDA 2024.4.2 has no handler for it**: `ItemStatus`
+maps to its `UIA_itemStatus` event, which nothing in NVDAObjects handles, and it reads `ItemStatus`
+only as the description of an element whose class name is `UIColumnHeader` (readings/
+nvda-2024.4.2-uia.md, "`event_UIA_itemStatus`"), so a busy tree row is silent to it on Windows until
+a fallback is decided after phase 5's reader run (T7).
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

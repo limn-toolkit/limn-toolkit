@@ -1598,4 +1598,105 @@ class UiaBridgeTest {
             bridge.detach();
         }
     }
+
+    /**
+     * A window (1000) holding a slider with a bare number (1001), a spinner whose value has a
+     * spoken form (1002, "07:30") and an empty date segment that says so (1003, "empty").
+     */
+    private static AccessibleTree aWindowWithValues() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 0, 0, 100, 20);
+        a.role(Accessible.Role.SLIDER);
+        a.value(41, 0, 100, 1);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(1002, 0, Locale.ENGLISH, 0, 30, 100, 20);
+        a.role(Accessible.Role.SPIN_BUTTON);
+        a.value(450, 0, 1439, 1);
+        a.valueText("07:30", 1);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(1003, 0, Locale.ENGLISH, 0, 60, 100, 20);
+        a.role(Accessible.Role.SPIN_BUTTON);
+        a.emptyValue(1, 31, 1, false);
+        a.valueText("empty", 1);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    /**
+     * CRIT-4's Windows half (settled value-text-event): a VALUE_CHANGED raises the property of
+     * each pattern the node vends that it moved on. Until 2026-09-15 it raised RangeValue.Value
+     * alone whenever the node had a number, so the spinner's and the segment's Value string was
+     * never raised and a text-only change was raised as a number that had not moved.
+     */
+    @Test
+    void aValueChangeRaisesThePropertyOfEachVendedPatternItMovedOn() {
+        AccessibleTree tree = aWindowWithValues();
+        AccessibleNode slider = tree.find(1001);
+        AccessibleNode spinner = tree.find(1002);
+        AccessibleNode segment = tree.find(1003);
+        AccessibleEvent moved = AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, 1001,
+                40.0, 41.0);
+        AccessibleEvent textOnly = AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, 1001,
+                1.0, 1.0);
+
+        assertArrayEquals(new int[] {UiaIds.RANGE_VALUE_VALUE},
+                UiaBridge.valueRaises(moved, tree, slider),
+                "a bare number vends RangeValue alone, and its number moved");
+        assertArrayEquals(new int[] {UiaIds.RANGE_VALUE_VALUE, UiaIds.VALUE_VALUE},
+                UiaBridge.valueRaises(moved, tree, spinner),
+                "the number and its spoken form: both patterns are vended and both moved");
+        assertArrayEquals(new int[] {UiaIds.VALUE_VALUE},
+                UiaBridge.valueRaises(textOnly, tree, segment),
+                "a segment filled with its minimum: the text moved, the number did not");
+        assertArrayEquals(new int[0], UiaBridge.valueRaises(textOnly, tree, slider),
+                "no vended pattern carries what moved on a bare number whose number stood");
+        assertArrayEquals(new int[0], UiaBridge.valueRaises(moved, tree, null),
+                "a node that has left the tree raises nothing");
+    }
+
+    /**
+     * The same, raised: both properties on the held spinner, the Value string alone on the held
+     * segment, and an event that moved nothing a pattern carries pays nothing an ask is owed.
+     */
+    @Test
+    void aValueChangeIsRaisedOnTheHeldElementAsEachPropertyThatMoved() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWithValues(), false);
+            bridge.objectFor(1001);
+            bridge.objectFor(1002);
+            bridge.objectFor(1003);
+            bridge.noteAsked();
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, 1001, 41.0,
+                    41.0));
+            assertNotNull(awaitTrace(trace, l -> l.equals("unmapped VALUE_CHANGED for node 1001: "
+                    + "no vended pattern's property moved")), "" + trace);
+            assertTrue(bridge.owesAnEvent(), "nothing was raised, so nothing was paid");
+
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, 1002, 449.0,
+                    450.0));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised VALUE_CHANGED for node 1002 as ["
+                    + UiaIds.RANGE_VALUE_VALUE + ", " + UiaIds.VALUE_VALUE + "] in ")), "" + trace);
+            assertFalse(bridge.owesAnEvent(), "paid by the time the trace says it was raised");
+
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, 1003, 1.0,
+                    1.0));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised VALUE_CHANGED for node 1003 as ["
+                    + UiaIds.VALUE_VALUE + "] in ")), "" + trace);
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
 }
