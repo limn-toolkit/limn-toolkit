@@ -528,16 +528,9 @@ class DamageContractTest extends ComponentTestBase {
                 node = node.kids().isEmpty() ? null : node.kids().get(0)) {
             tree.expand(node);
         }
-        // The bars' clock held at zero, as ReservedBarStripTest holds it: the first-overflow
-        // flash the mount gives them then never ends, so their fade-out cannot land inside
-        // whichever gesture first lays the tree out after the 1.1 s hold — which is where it
-        // landed, 12% of the box in the load gesture's third frame, once the gestures before it
-        // grew by three. The bars' own fade is the bar's row's to measure, not this one's.
-        for (Widget child : tree.children()) {
-            if (child instanceof ScrollBar bar) {
-                bar.clock(() -> 0L);
-            }
-        }
+        // The bars' first-overflow flash used to be pinned here (their clock held at zero):
+        // its fade-out landed in the load gesture's third frame, 12% of the box. mount() now
+        // lets the hold elapse and the fade end before the first gesture, for every row.
         return tree;
     }
 
@@ -576,11 +569,22 @@ class DamageContractTest extends ComponentTestBase {
         scene.setTextRuler(RULER);
         scene.setPartialRendering(true);
         canvas = new RecordingTestCanvas(W, H);
+        // A runtime of the row's own, on the scene's clock, pumped while the widget settles: a
+        // bar's first-overflow hold is a delayed task, and on the wall clock, never pumped, its
+        // fade-out waited for whichever gesture first laid the widget out and landed in that
+        // gesture's frames (the tree lane's item 14 hazard). Its own, because an earlier row's
+        // focused field keeps re-posting its caret blink. At rest means nothing painted and
+        // nothing waiting on the clock.
+        ui.close();
+        ui = new limn.testing.HeadlessUi(nanos::get);
+        runtime = ui.runtime();
+        pump = ui;
         for (int i = 0; i < 300; i++) {
             nanos.addAndGet(200_000_000L);
+            runtime.drain();
             canvas.reset();
             scene.renderFrame(canvas);
-            if (canvas.nothingPainted()) {
+            if (canvas.nothingPainted() && runtime.nanosUntilNextDeadline() < 0) {
                 return widget;
             }
         }
@@ -647,6 +651,27 @@ class DamageContractTest extends ComponentTestBase {
     }
 
     // ------------------------------------------------------------------------------ the tests
+
+    /**
+     * The harness itself: a widget is measured from rest, and a scroll bar's hold is part of
+     * getting there. A table that overflows flashes its bars once when mounted; their fade-out
+     * must be over before the first gesture, or it is measured as that gesture's.
+     */
+    @Test
+    void aMountedWidgetsBarsHaveFadedBeforeTheFirstGesture() {
+        Row table = ROWS.stream().filter(r -> r.name().equals("limn.components.table.Table"))
+                .findFirst().orElseThrow();
+        Widget widget = mount(table);
+        int bars = 0;
+        for (Widget child : widget.children()) {
+            if (child instanceof ScrollBar bar) {
+                bars++;
+                assertEquals(0f, bar.shownOpacity(), "bar " + bars
+                        + "'s first-overflow flash faded while the widget settled");
+            }
+        }
+        assertEquals(2, bars, "the fixture overflows both axes");
+    }
 
     /**
      * Every concrete public widget has a row, and every row names one that exists. A widget
