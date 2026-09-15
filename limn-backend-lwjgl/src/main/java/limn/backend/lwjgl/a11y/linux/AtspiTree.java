@@ -581,7 +581,10 @@ final class AtspiTree {
      * success to a {@code CurrentValue} write on an insensitive spin button and on a level bar, the
      * level bar keeping its number under GTK 4 (readings/fedora-gtk3-interface-replies.txt,
      * fedora-gtk4-interface-replies.txt, section 5, 2026-09-15) — the silent success that would
-     * have a caller believe a read-only progress bar took the number. Another property of Value,
+     * have a caller believe a read-only progress bar took the number. {@code Failed} is the name,
+     * and not {@code PropertyReadOnly}: the XML this bridge serves declares {@code CurrentValue}
+     * writable and it is, on the nodes that accept it — what this node cannot do is take it now,
+     * which is a state of the object and not a property of the interface. Another property of Value,
      * all read-only in the installed XML, is answered {@code PropertyReadOnly} as the ATK bridge
      * answers it; a name Value does not have, or a {@code CurrentValue} that is not a number,
      * {@code InvalidArgs}, as {@code Get} answers a name it does not have.

@@ -153,6 +153,65 @@ class AtspiConstantsTest {
         }
     }
 
+    /** The five sites the phase-3 critic listed as uncited, or as choices with no reasoning. */
+    private static final java.util.List<String[]> CITED_OR_ARGUED = java.util.List.of(
+            new String[] {"Atspi.java", "static final String PATH_ACCESSIBLE", ""},
+            new String[] {"Atspi.java", "static final int INTERFACE_VERSION", "choice"},
+            new String[] {"DBus.java", "static final String PROPERTY_READ_ONLY", "choice"},
+            new String[] {"AtspiTree.java", "private DBus.Msg setValue(", "choice"},
+            new String[] {"AtspiText.java", "final class AtspiText", "choice"});
+
+    /**
+     * Every platform fact this bridge answers from either cites the reading it came from or says,
+     * in the comment beside it, that it is a choice between readings that disagree and why that
+     * half was taken (ADR 039 §12.2's rule for platform constants; the phase-3 critic's list).
+     *
+     * <p>A ratchet on the comment and not on a value, because that is where the defect is: a number
+     * or a name nobody can trace is one the next reader has to re-derive from a guest, and a choice
+     * with no reasoning is one the next reader will quietly reverse.
+     */
+    @Test
+    void thePlatformFactsWithoutOneReadingSayWhichHalfWasTakenAndWhy() throws java.io.IOException {
+        java.nio.file.Path source = limn.testing.RepositoryRoot.find()
+                .resolve("limn-backend-lwjgl/src/main/java/limn/backend/lwjgl/a11y/linux");
+        for (String[] site : CITED_OR_ARGUED) {
+            java.util.List<String> lines = java.nio.file.Files.readAllLines(
+                    source.resolve(site[0]), java.nio.charset.StandardCharsets.UTF_8);
+            String comment = commentAbove(lines, site[1]).toLowerCase(java.util.Locale.ROOT);
+            assertTrue(comment.contains("readings/"), site[0] + ": " + site[1]
+                    + " must cite the reading it came from, by its file under readings/");
+            assertTrue(site[2].isEmpty() || comment.contains(site[2]), site[0] + ": " + site[1]
+                    + " is a choice between readings that disagree, and the comment must say so "
+                    + "and say why that half was taken");
+        }
+    }
+
+    /**
+     * The comment block directly above a declaration.
+     *
+     * @param lines       the source
+     * @param declaration what the declaration's line contains
+     * @return every line of the block above it, joined; the empty string when there is none
+     */
+    private static String commentAbove(java.util.List<String> lines, String declaration) {
+        int at = -1;
+        for (int i = 0; i < lines.size() && at < 0; i++) {
+            if (lines.get(i).contains(declaration)) {
+                at = i;
+            }
+        }
+        assertTrue(at >= 0, "no declaration containing " + declaration);
+        StringBuilder out = new StringBuilder();
+        for (int i = at - 1; i >= 0; i--) {
+            String line = lines.get(i).trim();
+            if (!line.startsWith("//") && !line.startsWith("*") && !line.startsWith("/*")) {
+                break;
+            }
+            out.insert(0, line + "\n");
+        }
+        return out.toString();
+    }
+
     @Test
     void aRoleCarriesThePlatformsOwnNameForIt() {
         assertEquals("push button", AtspiRoles.nameOf(Accessible.Role.BUTTON));

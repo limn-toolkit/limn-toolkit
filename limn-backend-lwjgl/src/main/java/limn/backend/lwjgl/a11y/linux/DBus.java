@@ -1048,8 +1048,19 @@ final class DBus {
          * 3.24.52's ATK bridge (at-spi2-atk 2.60.6) answers to {@code Set(org.a11y.atspi.Value,
          * MinimumValue, d)} on a spin button and a level bar, read 2026-09-15 on the Fedora KDE 44
          * guest (readings/fedora-gtk3-interface-replies.txt, section 5,
-         * scripts/a11y/linux/read-gtk-interface-replies.py); GTK 4.22.4 answers
-         * {@code InvalidArgs} there (readings/fedora-gtk4-interface-replies.txt).
+         * scripts/a11y/linux/read-gtk-interface-replies.py).
+         *
+         * <p><b>A choice between two readings that disagree, and the reasoning</b> (the phase-3
+         * critic asked for it in writing). GTK 4.22.4 refuses the same write with
+         * {@code InvalidArgs}, "the property MinimumValue cannot be written"
+         * (readings/fedora-gtk4-interface-replies.txt, section 5). Both refuse; only the name
+         * differs, so nothing about a client's behaviour is at stake beyond which string it logs.
+         * The ATK bridge's name is taken for two reasons: this bridge serves the interface XML
+         * extracted from that same {@code libatk-bridge-2.0.so}, so it should answer as the server
+         * that XML describes; and of the two names it is the one the D-Bus specification defines
+         * for exactly this condition, while {@code InvalidArgs} says the arguments were wrong when
+         * they were not. The two readings differ on the name and agree on the rule, and this bridge
+         * follows the one that names the rule.
          */
         static final String PROPERTY_READ_ONLY = "org.freedesktop.DBus.Error.PropertyReadOnly";
 

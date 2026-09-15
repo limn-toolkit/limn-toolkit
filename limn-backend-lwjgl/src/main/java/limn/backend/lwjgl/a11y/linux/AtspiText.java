@@ -31,12 +31,24 @@ import java.util.TreeSet;
  * character through its line feed, and the {@code _END} types from one end to the next. A
  * granularity is answered as libatspi 2.60.6's own fallback reads it (CHAR as CHAR, WORD as
  * WORD_START, SENTENCE as SENTENCE_START, LINE as LINE_START;
- * readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt), and PARAGRAPH as LINE_START:
- * libatspi's fallback names no boundary for it, and on the Fedora KDE 44 guest GTK 4.22.4's text
- * view answers a paragraph as what a line feed delimits while GTK 3's ATK bridge answers
- * ('', -1, -1) (readings/fedora-gtk4-interface-replies.txt and fedora-gtk3-interface-replies.txt,
- * section 4, scripts/a11y/linux/read-gtk-interface-replies.py, 2026-09-15). GTK 4 leaves the line
- * feed out of a line and a paragraph; the ATK bridge's line keeps it, and so does this one.
+ * readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt), and PARAGRAPH as LINE_START.
+ *
+ * <p><b>PARAGRAPH is a choice between two readings that disagree, and the reasoning is here</b>
+ * (the phase-3 critic asked for it in writing). libatspi's own fallback names no boundary for
+ * PARAGRAPH, so the platform does not settle it, and the two toolkits read on the Fedora KDE 44
+ * guest answer differently: GTK 4.22.4's text view answers a paragraph as what a line feed
+ * delimits, GTK 3.24.52's ATK bridge answers {@code ('', -1, -1)} — nothing at all
+ * (readings/fedora-gtk4-interface-replies.txt and readings/fedora-gtk3-interface-replies.txt,
+ * section 4, scripts/a11y/linux/read-gtk-interface-replies.py, 2026-09-15). GTK 4's is taken,
+ * for three reasons: it is the newer toolkit and the direction the desktops are moving; it agrees
+ * with what this facet can honestly say, since with no soft wrap a paragraph and a line are the
+ * same run of characters here; and a client asking for a paragraph is better served with the run it
+ * would get from a line than with an empty string it cannot use — GTK 3's answer tells a reader
+ * nothing, and Orca moving by paragraph over a Limn text area would simply stop. Whether Orca 50.2
+ * actually moves by paragraph over it is a phase-5 measurement, not an assumption made here.
+ *
+ * <p>GTK 4 leaves the line feed out of a line and a paragraph; the ATK bridge's line keeps it, and
+ * so does this one.
  */
 final class AtspiText {
 
@@ -122,6 +134,10 @@ final class AtspiText {
 
     /**
      * The boundary type a granularity is answered as.
+     *
+     * <p>The first four are libatspi 2.60.6's own fallback. PARAGRAPH is the one this platform does
+     * not settle and the two toolkits disagree on: it is answered as GTK 4's line feed and not as
+     * GTK 3's nothing, for the reasons in this class's javadoc.
      *
      * @return the {@code Atspi.TextBoundaryType}, or -1 for a granularity this platform does not
      *         name

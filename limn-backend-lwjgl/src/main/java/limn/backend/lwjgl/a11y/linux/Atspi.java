@@ -43,6 +43,19 @@ final class Atspi {
     static final String I_TEXT        = "org.a11y.atspi.Text";
     static final String I_EDITABLE_TEXT = "org.a11y.atspi.EditableText";
     // The node paths' common prefix, whose Introspect lists the application root and every node.
+    //
+    // Read, rather than assumed, 2026-09-15 on the Fedora KDE 44 guest: GTK 3.24.52 through
+    // at-spi2-atk 2.60.6 exports its application object at "/org/a11y/atspi/accessible/root" and
+    // each node at "/org/a11y/atspi/accessible/<n>" (readings/fedora-gtk3-interface-replies.txt
+    // lines 21-24, scripts/a11y/linux/read-gtk-interface-replies.py 3). That is the prefix this
+    // bridge answers on and the one every live probe here has been walked at.
+    //
+    // It is a namespace and not a protocol constant, and the same day's reading says so: GTK 4.22.4
+    // on that desktop exports its nodes under "/org/gtk/application/<app>/a11y/<uuid>"
+    // (readings/fedora-gtk4-interface-replies.txt) and is read by the same clients, because every
+    // reference on this bus is an (so) pair of bus name and object path that a client follows
+    // without parsing. So the choice costs nothing and buys the ATK bridge's shape, which is what a
+    // person debugging with busctl expects to see.
     static final String PATH_ACCESSIBLE = "/org/a11y/atspi/accessible";
     static final String I_CACHE       = "org.a11y.atspi.Cache";
     static final String I_SOCKET      = "org.a11y.atspi.Socket";
@@ -110,8 +123,19 @@ final class Atspi {
     // "version") on every interface it serves: a "u" 1, read 2026-09-15 on the Fedora KDE 44 guest by
     // scripts/a11y/linux/read-gtk-interface-replies.py 3 (readings/fedora-gtk3-interface-replies.txt,
     // section 2); at-spi2-core 2.60.6's atspi-constants.h defines every ATSPI_*_VERSION as 1. Answered
-    // on the interfaces whose XML below, read off that same bridge, declares the property. GTK 4.22.4
-    // answers InvalidArgs there (readings/fedora-gtk4-interface-replies.txt).
+    // on the interfaces whose XML below, read off that same bridge, declares the property.
+    //
+    // A CHOICE between two readings that disagree, and the reasoning (the phase-3 critic asked for
+    // it in writing): GTK 4.22.4 answers InvalidArgs to the same Get -- "no property version" on
+    // Accessible, and "no interface" for the other eight, which its application object does not
+    // serve at all (readings/fedora-gtk4-interface-replies.txt, section 2). The ATK bridge's answer
+    // is taken, on two grounds. The property is declared in the interface XML THIS bridge
+    // implements, extracted from that same libatk-bridge-2.0.so and the source of every interface
+    // name above, and a server that declares a property and then refuses it contradicts its own
+    // introspection. And of the two halves it is the one that cannot cost a client anything: one
+    // that never asks is unaffected, and one that asks gets the number at-spi2-core 2.60.6's own
+    // atspi-constants.h defines, rather than an error to handle. It is a completeness answer; no
+    // behaviour of this bridge turns on it.
     static final int INTERFACE_VERSION = 1;
 
     // ---- AtspiCoordType / AtspiComponentLayer (typelib) -------------------------------------

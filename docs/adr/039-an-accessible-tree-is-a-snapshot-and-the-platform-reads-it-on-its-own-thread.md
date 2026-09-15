@@ -5395,6 +5395,27 @@ descending 2, from the SDK the script was compiled against, without quotes). The
 the test carried as owed to it are retired, so each is now held against the committed dump like any
 other.
 
+#### Amendment 2026-09-15 — a platform fact two servers answer differently is a choice, and the choice is argued in the source
+
+**What the phase-3 critic found on Linux.** Four facts this bridge answers were read on two toolkits
+that disagree, and one was carried with no citation at all: AT-SPI `PARAGRAPH`'s boundary (GTK 4
+answers a line feed, GTK 3 answers nothing), the `version` property (GTK 3 answers `1`, GTK 4 refuses
+it), the error for a `Properties.Set` of a read-only property (GTK 3 `PropertyReadOnly`, GTK 4
+`InvalidArgs`), the error for a `CurrentValue` write a node will not take (both toolkits answer
+success, and this bridge refuses with `Failed`), and the object-path prefix
+`/org/a11y/atspi/accessible`.
+
+**The rule this adds to §12.3.** A constant read off one machine cites its reading, as it already
+must. A fact the machines answer differently is not thereby unread: it is a **choice**, and the
+comment beside it must say that the readings disagree, name both, and say why that half was taken.
+The five sites now do, and `AtspiConstantsTest.thePlatformFactsWithoutOneReadingSayWhichHalfWasTakenAndWhy`
+reads the source and fails when one of them loses its citation or its reasoning, so the next edit
+cannot quietly drop either. The prefix gained a reading of its own the same day: GTK 3 through
+at-spi2-atk 2.60.6 exports at exactly that prefix (`readings/fedora-gtk3-interface-replies.txt`),
+while GTK 4 exports under `/org/gtk/application/<app>/a11y/<uuid>` and is read by the same clients —
+so the prefix is this bridge's namespace, chosen to match the ATK bridge, and not a protocol
+constant. A reference on this bus is an `(so)` pair a client follows without parsing.
+
 ---
 
 ## 13. Risks and open edges
