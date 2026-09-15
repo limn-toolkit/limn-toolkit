@@ -2415,6 +2415,35 @@ installed interface carries a `Text` property and Orca 50.2 reads it with the nu
 `org.freedesktop.DBus.Error.Failed`, which reaches the caller's `GError`; so is a write to any other
 `Value` property. A display form is also served through `Text` (its own amendment below).
 
+#### Amendment 2026-09-15 — `Text` is served, over a text and over a value's display form
+
+**What was wrong (LINUX-NEW-4).** The `Text` row promised an interface no code served, while the
+bridge already sent `TextChanged`, `TextCaretMoved` and `TextSelectionChanged` from nodes that
+answered none of the questions those events invite (§2.4's "an event is half a conversation").
+
+**What the bridge does now (settled linux-value-text).** `org.a11y.atspi.Text` is listed for a node with
+a `TextFacet` and for a node with a `ValueFacet` whose display form is not empty (a date segment's
+"15" or "empty", a spinner's "07:30"), which is read-only text with no caret and no selection; a
+value whose number is the whole of it serves none. Every offset is a character, converted from the
+model's UTF-16 units in `AtspiText` and nowhere else. Answered: `CharacterCount` and `CaretOffset`
+(properties, `i`), `GetText` (−1 as the end), `GetCharacterAtOffset`, `GetStringAtOffset`,
+`GetTextAtOffset`/`-BeforeOffset`/`-AfterOffset`, `GetNSelections`, `GetSelection`, attributes as
+none over the whole text (`GetAttributeRun` is `a{ss}ii`, the shape libatspi 2.60.6 checks), and the
+writes `SetCaretOffset` (`SET_CARET`), `AddSelection`/`SetSelection`/`RemoveSelection`
+(`SET_SELECTION`, the model holding one selection) through `AccessibleNode#accepts`, offsets back in
+units. **Boundaries:** words and sentences are `BreakIterator`'s under the node's locale; a line and a
+paragraph are what a line feed delimits, because no facet carries soft wraps, so a wrapped line of a
+text area reads as its paragraph; each boundary type has the shape its AT-SPI name gives
+(`WORD_START` from a word's start to the next word's, `LINE_START` through the line feed, the
+`_END` types from one end to the next), and a granularity is answered as libatspi 2.60.6's own
+fallback reads it (WORD as `WORD_START`, SENTENCE as `SENTENCE_START`, LINE as `LINE_START`;
+PARAGRAPH as `LINE_START` here) (readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt;
+the enumerators from readings/fedora-atspi-constants-all.txt, Fedora KDE 44, 2026-09-13). **Not
+answered, as §11 decided:** `GetCharacterExtents`, `GetRangeExtents`, `GetOffsetAtPoint` and
+`GetBoundedRanges` are declined and `ScrollSubstringTo(Point)` answers false; Orca 50.2 calls the
+first three for flat review and mouse review (readings/fedora-orca-interface-calls.txt), which stay
+degraded.
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |

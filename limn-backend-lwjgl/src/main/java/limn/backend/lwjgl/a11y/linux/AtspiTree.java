@@ -245,6 +245,10 @@ final class AtspiTree {
         if (Atspi.I_SELECTION.equals(iface) && at != null && node.selection() != null) {
             return selection(m, at);
         }
+        if (Atspi.I_TEXT.equals(iface) && at != null) {
+            AtspiText.Source source = AtspiText.of(node);
+            return source == null ? null : text(m, at, source);
+        }
         if (Atspi.I_APPLICATION.equals(iface) && root) {
             return application(m);
         }
@@ -512,6 +516,14 @@ final class AtspiTree {
             out.put("Text", new DBus.Variant("s", value.text() == null ? "" : value.text()));
             return out;
         }
+        if (Atspi.I_TEXT.equals(which) && node != null && AtspiText.of(node) != null) {
+            // Both properties, "i" each, in characters (atspi-text.c reads them through Get).
+            AtspiText.Source source = AtspiText.of(node);
+            out.put("CharacterCount", new DBus.Variant("i", source.length()));
+            out.put("CaretOffset", new DBus.Variant("i",
+                    AtspiText.charsOf(source.text(), source.caret())));
+            return out;
+        }
         if (Atspi.I_SELECTION.equals(which) && node != null && node.selection() != null) {
             // A property, not a method: libatspi 2.60.6 reads it through Properties.Get, "i"
             // (atspi-selection.c, readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt).
@@ -702,6 +714,9 @@ final class AtspiTree {
         if (node.value() != null) {
             out.add(Atspi.I_VALUE);
         }
+        if (AtspiText.of(node) != null) {
+            out.add(Atspi.I_TEXT);
+        }
         // An interface is named from the facet alone, never from whether its setter is accepted
         // now: a disabled field is still a field with a value. Every setter these serve posts
         // only what AccessibleNode#accepts allows (performFirst), a node without ENABLED
@@ -805,6 +820,114 @@ final class AtspiTree {
             default:
                 return null;
         }
+    }
+
+    // ------------------------------------------------------------------ org.a11y.atspi.Text
+
+    /**
+     * The text interface over a node's text or its value's display form (LINUX-NEW-4; settled
+     * linux-value-text), in characters; {@link AtspiText} holds the arithmetic.
+     *
+     * <p>Every method Orca 50.2 calls is answered except the geometry ones
+     * (readings/fedora-orca-interface-calls.txt): {@code GetCharacterExtents},
+     * {@code GetRangeExtents}, {@code GetOffsetAtPoint} and {@code GetBoundedRanges} are declined,
+     * because no facet carries a range's rectangle (ADR 039 §11), and {@code ScrollSubstringTo}
+     * answers false. Attributes are none, over the whole text. The writes post, through
+     * {@link AccessibleNode#accepts}, {@code SET_CARET} for {@code SetCaretOffset} and
+     * {@code SET_SELECTION} for the selection methods, each with its offsets back in UTF-16 units;
+     * the model holds one selection, so {@code AddSelection} is refused while one stands and a
+     * selection number other than 0 names nothing. A value's display form has neither verb and
+     * refuses them all.
+     */
+    private DBus.Msg text(DBus.Msg m, Located at, AtspiText.Source source) {
+        String text = source.text();
+        switch (m.member == null ? "" : m.member) {
+            case "GetText": {
+                int start = AtspiText.unitsOf(text, arg(m, 0));
+                int endChars = arg(m, 1);
+                int end = endChars < 0 ? text.length() : AtspiText.unitsOf(text, endChars);
+                return DBus.Msg.ret(m, "s", end <= start ? "" : text.substring(start, end));
+            }
+            case "GetCharacterAtOffset": {
+                int chars = arg(m, 0);
+                int units = AtspiText.unitsOf(text, chars);
+                return DBus.Msg.ret(m, "i",
+                        chars < 0 || units >= text.length() ? 0 : text.codePointAt(units));
+            }
+            case "GetStringAtOffset": {
+                int[] range = AtspiText.segment(source, arg(m, 0),
+                        AtspiText.boundaryOfGranularity(arg(m, 1)), AtspiText.Where.AT);
+                return range == null
+                        ? DBus.Msg.err(m, DBus.Conn.INVALID_ARGS, "no such granularity")
+                        : textRange(m, text, range);
+            }
+            case "GetTextAtOffset":
+            case "GetTextBeforeOffset":
+            case "GetTextAfterOffset": {
+                AtspiText.Where where = switch (m.member) {
+                    case "GetTextBeforeOffset" -> AtspiText.Where.BEFORE;
+                    case "GetTextAfterOffset" -> AtspiText.Where.AFTER;
+                    default -> AtspiText.Where.AT;
+                };
+                int[] range = AtspiText.segment(source, arg(m, 0), arg(m, 1), where);
+                return range == null
+                        ? DBus.Msg.err(m, DBus.Conn.INVALID_ARGS, "no such boundary type")
+                        : textRange(m, text, range);
+            }
+            case "GetNSelections":
+                return DBus.Msg.ret(m, "i", source.hasSelection() ? 1 : 0);
+            case "GetSelection": {
+                boolean one = arg(m, 0) == 0 && source.hasSelection();
+                int start = Math.min(source.selectionStart(), source.selectionEnd());
+                int end = Math.max(source.selectionStart(), source.selectionEnd());
+                return DBus.Msg.ret(m, "ii", one ? AtspiText.charsOf(text, start) : 0,
+                        one ? AtspiText.charsOf(text, end) : 0);
+            }
+            case "SetCaretOffset": {
+                int units = AtspiText.unitsOf(text, arg(m, 0));
+                return DBus.Msg.ret(m, "b", performFirst(at, at.node(),
+                        new Accessible.Argument.OfRange(units, units), Accessible.Action.SET_CARET));
+            }
+            case "AddSelection":
+                return DBus.Msg.ret(m, "b", !source.hasSelection()
+                        && select(at, text, arg(m, 0), arg(m, 1)));
+            case "SetSelection":
+                return DBus.Msg.ret(m, "b", arg(m, 0) == 0 && select(at, text, arg(m, 1), arg(m, 2)));
+            case "RemoveSelection":
+                return DBus.Msg.ret(m, "b", arg(m, 0) == 0 && source.hasSelection()
+                        && performFirst(at, at.node(),
+                                new Accessible.Argument.OfRange(source.caret(), source.caret()),
+                                Accessible.Action.SET_SELECTION));
+            case "GetAttributes":
+            case "GetAttributeRun":
+                return DBus.Msg.ret(m, "a{ss}ii", new LinkedHashMap<>(), 0, source.length());
+            case "GetDefaultAttributes":
+            case "GetDefaultAttributeSet":
+                return DBus.Msg.ret(m, "a{ss}", new LinkedHashMap<>());
+            case "GetAttributeValue":
+                return DBus.Msg.ret(m, "s", "");
+            case "ScrollSubstringTo":
+            case "ScrollSubstringToPoint":
+                return DBus.Msg.ret(m, "b", false);
+            default:
+                return null;
+        }
+    }
+
+    /** A {@code sii} reply: the text between two character offsets, and the offsets. */
+    private static DBus.Msg textRange(DBus.Msg m, String text, int[] range) {
+        int start = AtspiText.unitsOf(text, range[0]);
+        int end = AtspiText.unitsOf(text, range[1]);
+        return DBus.Msg.ret(m, "sii", text.substring(start, Math.max(start, end)), range[0],
+                range[1]);
+    }
+
+    /** Posts {@code SET_SELECTION} over two character offsets, in either order. */
+    private static boolean select(Located at, String text, int from, int to) {
+        int start = AtspiText.unitsOf(text, Math.min(from, to));
+        int end = AtspiText.unitsOf(text, Math.max(from, to));
+        return performFirst(at, at.node(), new Accessible.Argument.OfRange(start, end),
+                Accessible.Action.SET_SELECTION);
     }
 
     // ------------------------------------------------------------------ org.a11y.atspi.Selection

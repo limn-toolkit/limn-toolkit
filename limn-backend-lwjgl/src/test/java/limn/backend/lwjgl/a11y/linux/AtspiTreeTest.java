@@ -624,6 +624,137 @@ class AtspiTreeTest {
         assertEquals(List.of(), performed, "and nothing reached a widget");
     }
 
+    /** "Hi 😀 there.\nNext line": an astral character, two words, two lines. */
+    private static final String FIELD = "Hi \uD83D\uDE00 there.\nNext line";
+
+    /**
+     * A window holding a text area with FIELD, its caret after the emoji (UTF-16 5, character 4)
+     * and "Hi" selected; a date segment whose value reads "empty"; a spinner whose value has no
+     * display form; and a disabled field.
+     */
+    private void publishAWindowWithText() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(9101, 0, Locale.ENGLISH, 0, 0, 400, 60);
+        a.role(Accessible.Role.TEXT_AREA);
+        a.text(FIELD, 1, 5, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 2, 2, null, false);
+        a.inherited(true, true, true, true, true);
+        a.end();
+        a.begin(9102, 0, Locale.ENGLISH, 0, 60, 100, 30);
+        a.role(Accessible.Role.SPIN_BUTTON);
+        a.emptyValue(1, 12, 1, false);
+        a.valueText("empty", 1);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(9103, 0, Locale.ENGLISH, 100, 60, 100, 30);
+        a.role(Accessible.Role.SPIN_BUTTON);
+        a.value(3, 0, 10, 1);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(9104, 0, Locale.ENGLISH, 200, 60, 100, 30);
+        a.role(Accessible.Role.TEXT_FIELD);
+        a.text("off", 1, 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1, null, false);
+        a.inherited(false, true, true, false, false);
+        a.end();
+        a.end();
+        tree.set(a.publish(9101, 0, 0, 1f, true));
+    }
+
+    private List<Object> range(long id, String member, String sig, Object... args) {
+        DBus.Msg reply = call(path(id), Atspi.I_TEXT, member, sig, args);
+        assertEquals("sii", reply.signature, member + " answers the string and its two offsets");
+        return List.of(reply.body);
+    }
+
+    /**
+     * org.a11y.atspi.Text over a TextFacet (LINUX-NEW-4): no Linux client could read a field's text,
+     * its caret or its selection, although the events already said they changed. Every offset is a
+     * character: the emoji is one.
+     */
+    @Test
+    void aTextIsReadInCharactersByOffsetGranularityAndBoundary() {
+        publishAWindowWithText();
+
+        assertTrue(((List<?>) call(path(9101), Atspi.I_ACCESSIBLE, "GetInterfaces", null).body[0])
+                .contains(Atspi.I_TEXT), "a node with a text facet implements Text");
+        @SuppressWarnings("unchecked")
+        java.util.Map<Object, Object> props = (java.util.Map<Object, Object>) call(path(9101),
+                Atspi.I_PROPS, "GetAll", "s", Atspi.I_TEXT).body[0];
+        assertEquals(21, ((DBus.Variant) props.get("CharacterCount")).value,
+                "twenty-two UTF-16 units, twenty-one characters");
+        assertEquals(4, ((DBus.Variant) props.get("CaretOffset")).value,
+                "after the emoji: five units, four characters");
+
+        assertEquals(FIELD, call(path(9101), Atspi.I_TEXT, "GetText", "ii", 0, -1).body[0]);
+        assertEquals("\uD83D\uDE00", call(path(9101), Atspi.I_TEXT, "GetText", "ii", 3, 4).body[0]);
+        assertEquals(0x1F600, call(path(9101), Atspi.I_TEXT, "GetCharacterAtOffset", "i", 3)
+                .body[0]);
+
+        assertEquals(List.of("\uD83D\uDE00", 3, 4), range(9101, "GetStringAtOffset", "iu", 3,
+                Atspi.TEXT_GRANULARITY_CHAR));
+        assertEquals(List.of("there.\n", 5, 12), range(9101, "GetStringAtOffset", "iu", 7,
+                Atspi.TEXT_GRANULARITY_WORD), "from the word's start to the next word's");
+        assertEquals(List.of("Hi \uD83D\uDE00 there.\n", 0, 12), range(9101,
+                "GetStringAtOffset", "iu", 2, Atspi.TEXT_GRANULARITY_LINE), "a line through its "
+                + "line feed");
+        assertEquals(List.of("Next line", 12, 21), range(9101, "GetStringAtOffset", "iu", 21,
+                Atspi.TEXT_GRANULARITY_LINE), "and a caret after the last character reads the last");
+        assertEquals(List.of("Next line", 12, 21), range(9101, "GetStringAtOffset", "iu", 15,
+                Atspi.TEXT_GRANULARITY_SENTENCE));
+        assertEquals(List.of("Hi \uD83D\uDE00 there.\n", 0, 12), range(9101,
+                "GetTextBeforeOffset", "iu", 14, Atspi.TEXT_BOUNDARY_LINE_START));
+        assertEquals(List.of("Next line", 12, 21), range(9101, "GetTextAfterOffset", "iu", 0,
+                Atspi.TEXT_BOUNDARY_LINE_START));
+        assertEquals(List.of("\nNext line", 11, 21), range(9101, "GetTextAtOffset", "iu", 15,
+                Atspi.TEXT_BOUNDARY_LINE_END), "an _END boundary runs from one end to the next");
+
+        assertEquals(1, call(path(9101), Atspi.I_TEXT, "GetNSelections", null).body[0]);
+        assertEquals(List.of(0, 2), List.of(call(path(9101), Atspi.I_TEXT, "GetSelection", "i", 0)
+                .body));
+        DBus.Msg run = call(path(9101), Atspi.I_TEXT, "GetAttributeRun", "ib", 3, true);
+        assertEquals("a{ss}ii", run.signature, "the shape libatspi checks before it reads a run");
+        assertEquals(List.of(java.util.Map.of(), 0, 21), List.of(run.body));
+        assertNull(call(path(9101), Atspi.I_TEXT, "GetRangeExtents", "iiu", 0, 2, 1),
+                "no geometry is answered (ADR 039 §11)");
+    }
+
+    /**
+     * The writes of Text post SET_CARET and SET_SELECTION in UTF-16 units, where the node accepts
+     * them (semantics 5); a value's display form is read-only text (settled linux-value-text), and a
+     * value with no display form serves no Text at all.
+     */
+    @Test
+    void aTextsCaretAndSelectionAreSetInUnitsAndAValuesDisplayFormIsReadOnlyText() {
+        publishAWindowWithText();
+
+        assertEquals(true, call(path(9101), Atspi.I_TEXT, "SetCaretOffset", "i", 4).body[0]);
+        assertEquals(false, call(path(9101), Atspi.I_TEXT, "AddSelection", "ii", 5, 6).body[0],
+                "one selection stands already, and the model holds one");
+        assertEquals(true, call(path(9101), Atspi.I_TEXT, "SetSelection", "iii", 0, 4, 3).body[0]);
+        assertEquals(false, call(path(9101), Atspi.I_TEXT, "SetSelection", "iii", 1, 0, 1).body[0]);
+        assertEquals(true, call(path(9101), Atspi.I_TEXT, "RemoveSelection", "i", 0).body[0]);
+        assertEquals(List.of("9101:SET_CARET", "9101:SET_SELECTION", "9101:SET_SELECTION"),
+                performed);
+        assertEquals(List.of(new Accessible.Argument.OfRange(5, 5),
+                new Accessible.Argument.OfRange(3, 5), new Accessible.Argument.OfRange(5, 5)),
+                arguments, "character 4 is unit 5; a removal collapses the selection at the caret");
+
+        performed.clear();
+        assertTrue(((List<?>) call(path(9102), Atspi.I_ACCESSIBLE, "GetInterfaces", null).body[0])
+                .contains(Atspi.I_TEXT), "a value with a display form serves it as text");
+        assertEquals("empty", call(path(9102), Atspi.I_TEXT, "GetText", "ii", 0, -1).body[0]);
+        assertEquals(false, call(path(9102), Atspi.I_TEXT, "SetCaretOffset", "i", 1).body[0]);
+        assertTrue(!((List<?>) call(path(9103), Atspi.I_ACCESSIBLE, "GetInterfaces", null).body[0])
+                .contains(Atspi.I_TEXT), "a value whose number is the whole of it does not");
+        assertNull(call(path(9103), Atspi.I_TEXT, "GetText", "ii", 0, -1));
+        assertEquals(false, call(path(9104), Atspi.I_TEXT, "SetCaretOffset", "i", 1).body[0],
+                "a disabled field keeps its text and takes no caret");
+        assertEquals(List.of(), performed);
+    }
+
     /**
      * The relation set, one entry per type with every target of that type, in the platform's own
      * numbering: what Orca reads a field's label and its description from when it lands on it.

@@ -40,6 +40,7 @@ final class Atspi {
     // reading 2026-09-10).
     static final String I_SELECTION   = "org.a11y.atspi.Selection";
     static final String I_VALUE       = "org.a11y.atspi.Value";
+    static final String I_TEXT        = "org.a11y.atspi.Text";
     static final String I_CACHE       = "org.a11y.atspi.Cache";
     static final String I_SOCKET      = "org.a11y.atspi.Socket";
     static final String I_PROPS       = "org.freedesktop.DBus.Properties";
@@ -83,6 +84,23 @@ final class Atspi {
     // event-shapes.txt, readings/fedora-orca-event-consumers.txt).
     static final int LIVE_POLITE    = 1;   // Atspi.Live.POLITE
     static final int LIVE_ASSERTIVE = 2;   // Atspi.Live.ASSERTIVE
+
+    // ---- AtspiTextGranularity, AtspiTextBoundaryType ------------------------------------------
+    // Read 2026-09-13 off the Fedora KDE 44 guest's typelib (libatspi 2.60.6, every enumerator) by
+    // scripts/a11y/linux/dump-atspi-constants.py --all (readings/fedora-atspi-constants-all.txt).
+    // GetStringAtOffset takes a granularity; GetTextAtOffset, -Before- and -After- a boundary type.
+    static final int TEXT_GRANULARITY_CHAR = 0;            // Atspi.TextGranularity.CHAR
+    static final int TEXT_GRANULARITY_WORD = 1;            // Atspi.TextGranularity.WORD
+    static final int TEXT_GRANULARITY_SENTENCE = 2;        // Atspi.TextGranularity.SENTENCE
+    static final int TEXT_GRANULARITY_LINE = 3;            // Atspi.TextGranularity.LINE
+    static final int TEXT_GRANULARITY_PARAGRAPH = 4;       // Atspi.TextGranularity.PARAGRAPH
+    static final int TEXT_BOUNDARY_CHAR = 0;               // Atspi.TextBoundaryType.CHAR
+    static final int TEXT_BOUNDARY_WORD_START = 1;         // Atspi.TextBoundaryType.WORD_START
+    static final int TEXT_BOUNDARY_WORD_END = 2;           // Atspi.TextBoundaryType.WORD_END
+    static final int TEXT_BOUNDARY_SENTENCE_START = 3;     // Atspi.TextBoundaryType.SENTENCE_START
+    static final int TEXT_BOUNDARY_SENTENCE_END = 4;       // Atspi.TextBoundaryType.SENTENCE_END
+    static final int TEXT_BOUNDARY_LINE_START = 5;         // Atspi.TextBoundaryType.LINE_START
+    static final int TEXT_BOUNDARY_LINE_END = 6;           // Atspi.TextBoundaryType.LINE_END
 
     // ---- AtspiCoordType / AtspiComponentLayer (typelib) -------------------------------------
     static final int COORD_SCREEN = 0, COORD_WINDOW = 1;
