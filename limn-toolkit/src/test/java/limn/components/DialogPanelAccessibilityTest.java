@@ -561,6 +561,78 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * Once answered, the dialog offers nothing it would refuse through the fade that follows
+     * (semantics 5, 2026-09-15): the card publishes and performs {@code CANCEL}, and its buttons
+     * {@code PRESS}, on the one condition that no answer is on its way out. Through the fade the
+     * card published {@code CANCEL} its hook refused, and the buttons {@code PRESS}, which was
+     * answered done and raised {@code INVOKED} for a resolution {@code resolve}'s guard dropped.
+     * The clock is held still after Escape, so the fade stays at its first frame.
+     */
+    @Test
+    void throughTheFadeOutInSceneNothingIsOfferedAndNothingIsPerformed() throws Exception {
+        showInScene(cancelAndOk());
+        assertTrue(card().actions().has(Accessible.Action.CANCEL), describe(tree()));
+        assertTrue(node("OK").actions().has(Accessible.Action.PRESS), describe(tree()));
+        List<String> changes = new ArrayList<>();
+        limn.concurrent.Subscription watching = scene.observeChanges((source, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.INVOKED) {
+                changes.add(source.getClass().getSimpleName() + " " + change.aspect());
+            }
+        });
+
+        pressEscape();
+        frame();
+        assertTrue(dialogIsPublished(), "the fading card is still drawn and published"
+                + describe(tree()));
+        assertEquals("<open>", resultNow(), "the fade has not finished");
+        assertNull(card().actions(), "no CANCEL while an answer is on its way out"
+                + describe(tree()));
+        for (String button : List.of("Cancel", "OK")) {
+            assertFalse(node(button).actions().has(Accessible.Action.PRESS),
+                    button + " offers no PRESS through the fade" + describe(tree()));
+        }
+
+        perform(card().id(), Accessible.Action.CANCEL, Accessible.Argument.NONE);
+        perform(node("OK").id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        perform(node("Cancel").id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        frame();
+        watching.cancel();
+        assertEquals(List.of(), changes, "no button was invoked");
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED),
+                "no press was reported done: " + bridge.events);
+
+        for (int i = 0; i < 100 && dialogIsPublished(); i++) {
+            tick();
+        }
+        assertEquals("cancel", resultNow(), "Escape's answer, and no other");
+    }
+
+    /**
+     * The same condition when nothing fades: a headless or native card answered by its default
+     * button publishes no {@code CANCEL} and no {@code PRESS} afterwards, and a second press is
+     * neither performed nor reported done.
+     */
+    @Test
+    void anAnsweredCardOffersNoVerbAndPerformsNone() throws Exception {
+        bindNative(cancelAndOk());
+
+        assertTrue(perform(node("OK").id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        frame();
+        assertEquals("ok", resultNow());
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.INVOKED), "" + bridge.events);
+
+        assertNull(card().actions(), "answered: no CANCEL" + describe(tree()));
+        assertFalse(node("Cancel").actions().has(Accessible.Action.PRESS), describe(tree()));
+        assertFalse(node("OK").actions().has(Accessible.Action.PRESS), describe(tree()));
+
+        perform(node("Cancel").id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        frame();
+        assertEquals("ok", resultNow());
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.INVOKED),
+                "the second press was not reported done: " + bridge.events);
+    }
+
+    /**
      * Dragging the card moves its published box by the drag, and everything under it with it.
      *
      * <p>The press lands on the card's own padding band, inside the card and outside every

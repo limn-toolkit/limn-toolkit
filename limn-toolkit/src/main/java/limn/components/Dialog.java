@@ -269,6 +269,10 @@ public final class Dialog {
         Ui.checkUiThread();
         Button button = new Button(text).setSecondary(!primary);
         button.onAction(() -> resolve(resultValue));
+        // Its press resolves the dialog, and once an answer is on its way out resolve() drops
+        // it: so a reader is offered the press, and the press is performed, on the condition
+        // the card's CANCEL is (semantics 5, 2026-09-15).
+        button.acceptPressWhile(this::answerable);
         buttonRow.add(button);
         if (primary && !hasDefaultButton) {
             // The first primary button is the default one, and its filled style is the whole
@@ -784,12 +788,26 @@ public final class Dialog {
         });
     }
 
+    /**
+     * Whether the dialog can still be answered: not once an answer is on its way out, through the
+     * fade that follows it. The one condition the card publishes and performs {@code CANCEL} on,
+     * and its buttons {@code PRESS} (2026-09-15, semantics 5): through the fade both were
+     * published, and the cancel refused while the press was answered done for a resolution that
+     * {@link #resolve}'s own guard dropped.
+     */
+    private boolean answerable() {
+        return !closing;
+    }
+
     private void resolve(String value) {
         Ui.checkUiThread();
         if (closing) {
             return;
         }
         closing = true;
+        // The card's verb and its buttons' go with it. A native window's fade moves only the
+        // window's opacity and damages nothing, so the walk that withdraws them is asked for.
+        panel.invalidateAccessible();
         if (unanswered != null) {
             // An answer arrived: this dialog resolves through the fade path below,
             // which registers its own close flush. Dropping the observer matters for
@@ -991,7 +1009,8 @@ public final class Dialog {
 
         /**
          * Describes the card as the dialog: a {@code DIALOG} named by the title it holds, with the
-         * message as its description and one verb, the dismissal.
+         * message as its description and one verb, the dismissal, offered while the dialog can
+         * still be answered and not through the fade that follows an answer.
          *
          * <p>The name is the dialog's own painted text, handed over by reference, so a frame that
          * damaged the card and changed nothing about it allocates nothing to say so; its
@@ -1025,7 +1044,9 @@ public final class Dialog {
             if (message != null) {
                 a.description(message);
             }
-            a.action(Accessible.Action.CANCEL);
+            if (answerable()) {
+                a.action(Accessible.Action.CANCEL);
+            }
         }
 
         /**
@@ -1034,7 +1055,8 @@ public final class Dialog {
          * the application cannot tell the two apart. Any other verb is refused, and so is a
          * dismissal once an answer is already on its way out, which is the guard the key path
          * keeps and the reason a second cancel during the fade is a truthful {@code false} rather
-         * than a silently swallowed call.
+         * than a silently swallowed call. The describe hook reads the same {@code answerable()},
+         * so through the fade the card publishes no {@code CANCEL} either (2026-09-15).
          *
          * @param verb what was asked
          * @param arg  ignored; a dismissal carries none
@@ -1042,7 +1064,7 @@ public final class Dialog {
          */
         @Override
         protected boolean onAccessibilityAction(Accessible.Action verb, Accessible.Argument arg) {
-            if (verb != Accessible.Action.CANCEL || closing) {
+            if (verb != Accessible.Action.CANCEL || !answerable()) {
                 return false;
             }
             resolve(cancelResult);

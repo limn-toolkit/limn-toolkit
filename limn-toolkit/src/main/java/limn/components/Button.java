@@ -59,6 +59,11 @@ public class Button extends Widget {
     private ShapedText caption;
     private boolean secondary;
     private Runnable action;
+    // The one condition, beside the enabled bit the walk and the scene own, under which PRESS is
+    // published and performed; null for always. Package-private: a Dialog withdraws its buttons'
+    // press while its answer fades out, where the press would run a handler whose own guard
+    // drops it (2026-09-15, semantics 5).
+    private java.util.function.BooleanSupplier pressAccepted;
     // Hover and focus-ring fades, animated through the shared Transition.
     private final Transition hover =
             new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
@@ -170,6 +175,22 @@ public class Button extends Widget {
     /** The user pressed: the watchers hear {@code INVOKED} and then the handler runs. */
     private void invoke() {
         notifyChange(Change.of(Change.Aspect.INVOKED, Change.Origin.USER));
+    }
+
+    /**
+     * Publishes and performs {@link Accessible.Action#PRESS} only while {@code condition} holds.
+     * Read by both accessibility hooks, so the verb a reader is offered and the verb this button
+     * performs cannot disagree; the pointer and the keyboard are not gated by it. Package-private,
+     * for {@link Dialog}.
+     *
+     * @param condition read on the UI thread whenever the node is described or a press arrives
+     */
+    void acceptPressWhile(java.util.function.BooleanSupplier condition) {
+        this.pressAccepted = Objects.requireNonNull(condition, "condition");
+    }
+
+    private boolean pressAccepted() {
+        return pressAccepted == null || pressAccepted.getAsBoolean();
     }
 
     /** The caption as it currently reads; see {@link #textSource()} for the key behind it. */
@@ -367,7 +388,9 @@ public class Button extends Widget {
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.BUTTON);
         a.name(text, Accessible.NameFrom.CONTENT);
-        a.action(Accessible.Action.PRESS);
+        if (pressAccepted()) {
+            a.action(Accessible.Action.PRESS);
+        }
     }
 
     /**
@@ -388,7 +411,7 @@ public class Button extends Widget {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action verb, Accessible.Argument arg) {
-        if (verb != Accessible.Action.PRESS || !isEnabled()) {
+        if (verb != Accessible.Action.PRESS || !isEnabled() || !pressAccepted()) {
             return false;
         }
         invoke();
