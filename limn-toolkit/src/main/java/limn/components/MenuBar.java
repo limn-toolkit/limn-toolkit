@@ -767,9 +767,9 @@ public final class MenuBar extends Widget {
      * show an empty menu on every platform, every time, so the popup state, the expanded facet,
      * the opening verbs and the key binding are all gated on the menu having items — an absent
      * verb rather than one that is always refused. It keeps {@code FOCUS}, which opens nothing:
-     * the arrows walk onto it, so a reader may too. The emptiness is read live from a model this bar never
-     * hears about, so a menu filled after the bar was drawn is republished on the next frame that
-     * walks, and on a quiet window not at all.
+     * the arrows walk onto it, so a reader may too. The emptiness is read live from a model this
+     * bar never hears about, so a menu filled after the bar was drawn is republished on the next
+     * frame that walks, and on a quiet window not at all.
      *
      * @param a the builder for this node
      */
@@ -879,9 +879,10 @@ public final class MenuBar extends Widget {
      * <p>The verbs answered are exactly the verbs {@link #onAccessibility} publishes for the
      * title's state: {@code SHOW_MENU} and {@code EXPAND} open a closed title, {@code COLLAPSE}
      * closes the open one, {@code FOCUS} takes the keyboard and puts the bar's cursor on any title
-     * while no menu is down, without opening it (decision 11, 2026-09-15), and {@code PRESS} — accepted here as a third synonym until 2026-09-14
-     * — is refused, because a verb a node performs without publishing is one a reader cannot see
-     * and one platform invokes by accident (ADR 039 §1.5, amended that day; decision 2).
+     * while no menu is down, without opening it (decision 11, 2026-09-15), and {@code PRESS} —
+     * accepted here as a third synonym until 2026-09-14 — is refused, because a verb a node
+     * performs without publishing is one a reader cannot see and one platform invokes by accident
+     * (ADR 039 §1.5, amended that day; decision 2).
      *
      * <p>The answer to an open is whether a cascade is on screen, not whether the bar now believes
      * one is: the show is refused outright over a window that cannot host a popup, and answering

@@ -80,6 +80,12 @@ class MenuBarNativePopupTest {
         assertTrue(title(host, 0).expand().expanded(), Transcript.of(host.bridge().tree()));
         assertEquals(Set.of(Accessible.Action.COLLAPSE), title(host, 0).actions().actions(),
                 "open: SHOW_MENU is not published, so no platform offers it");
+        assertEquals(Set.of(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND),
+                title(host, 2).actions().actions(),
+                "a closed title beside it opens, and takes no FOCUS while a menu is down: the "
+                        + "open title is the cursor, and in a window of its own the cascade "
+                        + "leaves the bar inside the scene's input layer, so this gate is the "
+                        + "bar's own (decision 11)");
 
         // Sent anyway: Host#perform answers from the snapshot's membership alone, so the hook is
         // what refuses it.

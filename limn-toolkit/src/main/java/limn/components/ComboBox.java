@@ -1665,7 +1665,7 @@ public class ComboBox extends Widget {
          *
          * @param key    the option's index, which is its key
          * @param action what is being asked
-         * @param arg    unused; both verbs here are parameterless
+         * @param arg    unused; all three verbs here are parameterless
          * @return whether the option was chosen
          */
         @Override

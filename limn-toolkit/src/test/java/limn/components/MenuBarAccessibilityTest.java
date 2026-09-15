@@ -527,21 +527,39 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
                 "and it is the field the arrows move, not a copy of it" + describe(tree()));
     }
 
+    /**
+     * Decision 11's negative half with a cascade really down, in the scene. Until 2026-09-15 this
+     * case built a cascade the window refused to show, which is the bar's belief and not a menu
+     * on screen. With one on screen as an overlay of the scene the answer is the central rule's
+     * (ADR 039 §1.13, amended that day): the scene refuses every verb beneath the overlay, so no
+     * title publishes {@code FOCUS} &mdash; nor any other verb &mdash; and a {@code FOCUS} sent
+     * anyway moves nothing. The bar's own gate, that no title takes {@code FOCUS} while a menu is
+     * down because the open title is the cursor, is what a cascade in a window of its own reads,
+     * and {@code MenuBarNativePopupTest} holds it there.
+     */
     @Test
     void whileAMenuIsDownNoTitleTakesFocus() throws Exception {
-        bindBar(new NoPopupWindow());
+        bindBar();
         clickTitle(0);
-        assertTrue(bar.isOpen(), "the bar's own open index, which is the cursor's fact");
+        assertTrue(bar.isOpen(), describe(tree()));
+        assertTrue(titles().get(0).expand().expanded(),
+                "a cascade is on screen, not merely believed in" + describe(tree()));
+        assertFalse(nodesWith(Accessible.State.MODAL).isEmpty(),
+                "and it is an overlay of the scene" + describe(tree()));
         for (AccessibleNode title : titles()) {
-            assertFalse(title.actions().actions().contains(Accessible.Action.FOCUS),
-                    "the open title is the cursor, and moving it is opening another"
+            assertNull(title.actions(),
+                    "beneath the in-scene cascade no title publishes FOCUS or any other verb"
                             + describe(tree()));
         }
 
         perform(titles().get(2).id(), Accessible.Action.FOCUS, Accessible.Argument.NONE);
         frame();
-        assertEquals(List.of("File"), activeNames(),
-                "sent anyway, the hook refuses it" + describe(tree()));
+        assertTrue(titles().get(0).has(Accessible.State.ACTIVE)
+                        && !titles().get(2).has(Accessible.State.ACTIVE),
+                "sent anyway, the scene refuses it: the open title is still the cursor"
+                        + describe(tree()));
+        assertTrue(bar.isOpen() && titles().get(0).expand().expanded(),
+                "and nothing else opened or closed" + describe(tree()));
     }
 
     @Test
