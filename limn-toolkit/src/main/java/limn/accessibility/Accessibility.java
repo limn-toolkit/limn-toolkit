@@ -1610,8 +1610,10 @@ public final class Accessibility {
 
     /**
      * Whether the node at an index of the walk in progress is published {@code ENABLED}, as
-     * {@link #inherited} or {@link #inheritedAt} settled it. The publish step asks, after that
-     * call, to know whether the node is one {@link #inoperableAt} applies to.
+     * {@link #inherited} or {@link #inheritedAt} settled it. Only the publish step reads it, after
+     * that call, to know whether the node is one {@link #inoperableAt} applies to; a widget never
+     * does. Asked from a describe hook it answers before the bit is settled, so it says nothing
+     * about the widget's own node or any child the hook declared.
      *
      * @param index the node's index in this walk
      * @return whether the node carries {@link Accessible.State#ENABLED}
