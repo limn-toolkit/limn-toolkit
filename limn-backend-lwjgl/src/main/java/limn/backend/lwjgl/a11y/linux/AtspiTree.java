@@ -860,6 +860,23 @@ final class AtspiTree {
         return AtspiStates.setOf(node::has);
     }
 
+    /**
+     * The interfaces a node serves, as one number to compare: equal for two versions of a node
+     * exactly when {@link #interfacesOf} lists the same names for both. Allocates nothing, since
+     * the event mapping asks it of every value and state change.
+     */
+    static int interfaceBitsOf(AccessibleNode node) {
+        int bits = 0;
+        if (node.actions() != null && !node.actions().actions().isEmpty()) bits |= 1;
+        if (node.table() != null) bits |= 1 << 1;
+        if (node.cell() != null) bits |= 1 << 2;
+        if (node.selection() != null) bits |= 1 << 3;
+        if (node.value() != null) bits |= 1 << 4;
+        if (AtspiText.serves(node)) bits |= 1 << 5;
+        if (isEditableText(node)) bits |= 1 << 6;
+        return bits;
+    }
+
     private static List<Object> interfacesOf(boolean root, AccessibleNode node) {
         List<Object> out = new ArrayList<>();
         out.add(Atspi.I_ACCESSIBLE);
@@ -885,7 +902,7 @@ final class AtspiTree {
         if (node.value() != null) {
             out.add(Atspi.I_VALUE);
         }
-        if (AtspiText.of(node) != null) {
+        if (AtspiText.serves(node)) {
             out.add(Atspi.I_TEXT);
         }
         if (isEditableText(node)) {

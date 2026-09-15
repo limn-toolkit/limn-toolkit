@@ -321,6 +321,77 @@ class AtspiEventsTest {
                 + "text change");
     }
 
+    /**
+     * When a change moves the interfaces a node serves, the node's cache item follows, because a
+     * client keeps a node's interfaces from its item and libatspi 2.60.6 overwrites them only from a
+     * later AddAccessible (the review of sub-lane linux-C). A display form that appears adds Text
+     * (the item before the insertion), one that empties drops it (the item after the deletion), and
+     * a button whose verbs go with ENABLED drops Action; a change that moves nothing it serves says
+     * nothing more.
+     */
+    @Test
+    void aChangeThatMovesTheInterfacesANodeServesSendsItsCacheItemAgain() {
+        AccessibleEvent filled = AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, 1001,
+                1.0, 1.0);
+        assertEquals(List.of("PropertyChange accessible-value", "AddAccessible [the item of, 1001]",
+                        "TextChanged insert"),
+                described(AtspiEvents.of(filled, over(aSegment(1.0, "1", false),
+                        aSegment(null, "", false)))),
+                "no display form, then one: Text is listed before its text is said");
+        AccessibleEvent emptied = AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, 1001,
+                1.0, 1.0);
+        assertEquals(List.of("PropertyChange accessible-value", "TextChanged delete",
+                        "AddAccessible [the item of, 1001]"),
+                described(AtspiEvents.of(emptied, over(aSegment(null, "", false),
+                        aSegment(1.0, "1", false)))),
+                "a display form that emptied: said deleted, then Text is no longer listed");
+        AccessibleEvent stepped = AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, 1001,
+                1.0, 2.0);
+        assertEquals(List.of("PropertyChange accessible-value", "AddAccessible [the item of, 1001]"),
+                described(AtspiEvents.of(stepped, over(aSegment(2.0, "2", false),
+                        aSegment(1.0, "", false)))),
+                "a number that moved and brought a display form: no echo, and the item");
+        assertEquals(List.of("PropertyChange accessible-value"),
+                described(AtspiEvents.of(stepped, over(aSegment(2.0, "2", false),
+                        aSegment(1.0, "1", false)))),
+                "a change that moves no interface sends no item");
+
+        AccessibleEvent disabled = AccessibleEvent.state(1001, Accessible.State.ENABLED, false);
+        assertEquals(List.of("StateChanged enabled", "AddAccessible [the item of, 1001]"),
+                described(AtspiEvents.of(disabled, over(aButton(false), aButton(true)))),
+                "a button that lost its verbs with ENABLED no longer lists Action");
+        AccessibleEvent focused = AccessibleEvent.state(1001, Accessible.State.FOCUSED, true);
+        assertEquals(List.of("StateChanged focused"),
+                described(AtspiEvents.of(focused, over(aButton(true), aButton(true)))),
+                "a state that moves no interface sends no item");
+    }
+
+    /** Each signal as its member and detail, and an AddAccessible as its item. */
+    private static List<String> described(List<AtspiEvents.Signal> signals) {
+        return signals.stream().map(s -> "AddAccessible".equals(s.member())
+                ? s.member() + " " + java.util.Arrays.toString((Object[]) s.body()[0])
+                : s.member() + " " + s.detail()).toList();
+    }
+
+    /** A window holding button 1001, enabled with its verb or disabled with none, as published. */
+    private static AccessibleTree aButton(boolean enabled) {
+        limn.accessibility.Accessibility a = new limn.accessibility.Accessibility();
+        a.beginWalk(400, 300, java.util.Locale.ENGLISH);
+        a.begin(1000, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400,
+                300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, java.util.Locale.ENGLISH, 0, 0, 100, 20);
+        a.role(Accessible.Role.BUTTON);
+        if (enabled) {
+            a.action(Accessible.Action.PRESS);
+        }
+        a.inherited(enabled, true, true, enabled, false);
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
     /** The names of {@link #NAMES} over a tree of the test's own. */
     private static AtspiEvents.Context over(AccessibleTree tree) {
         return over(tree, AccessibleTree.EMPTY);

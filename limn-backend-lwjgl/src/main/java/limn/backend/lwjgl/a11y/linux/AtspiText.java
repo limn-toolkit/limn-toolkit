@@ -84,6 +84,20 @@ final class AtspiText {
         return null;
     }
 
+    /**
+     * Whether a node serves Text at all: {@link #of} is not null for it. Allocates nothing.
+     *
+     * @param node the node
+     * @return whether it has a text, or a value whose display form is not empty
+     */
+    static boolean serves(AccessibleNode node) {
+        if (node.text() != null) {
+            return true;
+        }
+        ValueFacet value = node.value();
+        return value != null && value.text() != null && !value.text().isEmpty();
+    }
+
     private static int clamp(String text, int units) {
         return Math.max(0, Math.min(text.length(), units));
     }

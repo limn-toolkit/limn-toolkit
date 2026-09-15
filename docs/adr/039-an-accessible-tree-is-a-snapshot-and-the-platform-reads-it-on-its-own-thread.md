@@ -2771,6 +2771,26 @@ whole string for whole string, read off the node in the window's previous and cu
 that moved the number sends the property change alone, and a node with a text of its own raises its
 own `TEXT_CHANGED`.
 
+**A change that moves the interfaces a node serves re-sends its cache item (amended 2026-09-15, review
+of the interfaces item).** What a node serves is not fixed by its role: `Text` is served for a value
+only while its display form is not empty (§2.3's `Text` amendment), `Action` only while the node has a
+verb, which it loses with `ENABLED` — beneath an overlay too — and `EditableText` only while it is
+`EDITABLE`. A client keeps a node's interfaces from its cache item, and libatspi 2.60.6's
+`add_accessible_from_iter` overwrites them, with the name, role, description and states, from a later
+`Cache.AddAccessible` for a node it already holds (readings/upstream-at-spi2-core-2.60.6-libatspi.txt,
+atspi-misc.c 578-698); nothing sent one, so a client could lack `Text` on a segment that had just
+gained a word, or `Action` on a button enabled again. Now a `VALUE_CHANGED` or `STATE_CHANGED` whose node
+serves a different set of interfaces than in the window's previous tree (`AtspiTree.interfaceBitsOf`)
+also sends that node's `AddAccessible`: after the state change or the property change, and in a
+value's text echo between the `delete` (said while `Text` was still listed) and the `insert` (said once
+it is listed). A publish that moves several bits of one node sends the same item after each, and a
+modal that withdraws the verbs of every node beneath it sends an item per node whose `Action` went,
+beside the `enabled` 0 each already sends. Keeping the list stable per role or facet was the other way
+offered; it would have listed `Text` with an empty string on every slider and progress bar, which no
+toolkit on the guest does (GTK 4.22.4's level bar serves `Value` alone,
+readings/fedora-gtk4-interface-replies.txt). Not observed live: the gallery's date segments always
+carry a word. Pinned by `AtspiEventsTest.aChangeThatMovesTheInterfacesANodeServesSendsItsCacheItemAgain`.
+
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
 something changed, it then asks a question of its own, and if nobody answers that question the

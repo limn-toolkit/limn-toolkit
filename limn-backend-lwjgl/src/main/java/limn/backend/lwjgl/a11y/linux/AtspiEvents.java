@@ -136,7 +136,11 @@ final class AtspiEvents {
         if (event.type() == AccessibleEvent.Type.STATE_CHANGED
                 && (event.state() == Accessible.State.EXPANDED
                         || event.state() == Accessible.State.EXPANDABLE)) {
-            return expandChanged(event, context, path);
+            return withInterfacesSaid(expandChanged(event, context, path), event, context);
+        }
+        if (event.type() == AccessibleEvent.Type.STATE_CHANGED) {
+            Signal state = stateChanged(event, context, path);
+            return withInterfacesSaid(state == null ? List.of() : List.of(state), event, context);
         }
         Signal one = switch (event.type()) {
             // Focus is a state change on this platform -- the dedicated Focus signal is deprecated
@@ -149,7 +153,6 @@ final class AtspiEvents {
             // focus already said in the same publish.
             case FOCUS_CHANGED -> event(context, path, I_EVENT_OBJECT, "StateChanged",
                     detailOf(Accessible.State.FOCUSED), 1, 0, new DBus.Variant("i", 0));
-            case STATE_CHANGED -> stateChanged(event, context, path);
             case NAME_CHANGED -> event(context, path, I_EVENT_OBJECT, "PropertyChange",
                     "accessible-name", 0, 0, new DBus.Variant("s", string(event.newValue())));
             case DESCRIPTION_CHANGED -> event(context, path, I_EVENT_OBJECT, "PropertyChange",
@@ -241,17 +244,14 @@ final class AtspiEvents {
      * property change a reader already presents.
      */
     private static List<Signal> valueChanged(AccessibleEvent event, Context context, String path) {
-        List<Signal> out = new java.util.ArrayList<>(3);
+        List<Signal> out = new java.util.ArrayList<>(4);
         out.add(event(context, path, I_EVENT_OBJECT, "PropertyChange", "accessible-value", 0, 0,
                 new DBus.Variant("d", number(event.newValue()))));
-        if (number(event.oldValue()) != number(event.newValue())) {
-            return out;
-        }
         limn.accessibility.AccessibleNode now = context.tree().find(event.nodeId());
         limn.accessibility.AccessibleNode was = context.previousTree().find(event.nodeId());
-        if (now == null || was == null || now.text() != null || now.value() == null
-                || was.value() == null) {
-            return out;
+        if (number(event.oldValue()) != number(event.newValue()) || now == null || was == null
+                || now.text() != null || now.value() == null || was.value() == null) {
+            return withInterfacesSaid(out, event, context);
         }
         String before = was.value().text() == null ? "" : was.value().text();
         String after = now.value().text() == null ? "" : now.value().text();
@@ -262,11 +262,60 @@ final class AtspiEvents {
             out.add(event(context, path, I_EVENT_OBJECT, "TextChanged", "delete", 0,
                     before.codePointCount(0, before.length()), new DBus.Variant("s", before)));
         }
+        // Between the two: a display form that emptied has said its deletion while the node still
+        // listed Text, and one that appeared is listed before its insertion is said.
+        Signal said = interfacesSaid(event, context);
+        if (said != null) {
+            out.add(said);
+        }
         if (!after.isEmpty()) {
             out.add(event(context, path, I_EVENT_OBJECT, "TextChanged", "insert", 0,
                     after.codePointCount(0, after.length()), new DBus.Variant("s", after)));
         }
         return out;
+    }
+
+    /**
+     * {@code signals}, followed by the node's {@code Cache.AddAccessible} when the interfaces it
+     * serves moved with the change; see {@link #interfacesSaid}.
+     */
+    private static List<Signal> withInterfacesSaid(List<Signal> signals, AccessibleEvent event,
+                                                   Context context) {
+        Signal said = interfacesSaid(event, context);
+        if (said == null) {
+            return signals;
+        }
+        List<Signal> out = new java.util.ArrayList<>(signals.size() + 1);
+        out.addAll(signals);
+        out.add(said);
+        return out;
+    }
+
+    /**
+     * The node's {@code Cache.AddAccessible} when the interfaces it serves differ between the tree
+     * its window published before and this one, or {@code null}.
+     *
+     * <p>A client keeps a node's interfaces from its cache item ({@code GetItems} or an
+     * {@code AddAccessible}), and libatspi 2.60.6's {@code add_accessible_from_iter} overwrites them
+     * — with the name, role, description and states — from the item a later {@code AddAccessible}
+     * carries, for a node it already holds (readings/upstream-at-spi2-core-2.60.6-libatspi.txt).
+     * Two facts that move without the node leaving the tree change what it serves: a value's display
+     * form going from empty to a word and back (Text, settled linux-value-text), and the verbs and
+     * the editable bit a node gains or loses with {@code ENABLED}, {@code EDITABLE} or its expand
+     * state (Action, EditableText). Nothing said so, and a client went on without Text on a node
+     * that served it, or without Action on a button enabled again (the review of sub-lane linux-C).
+     * A publish that moves several bits of one node sends the item after each; the item is the same.
+     */
+    private static Signal interfacesSaid(AccessibleEvent event, Context context) {
+        limn.accessibility.AccessibleNode now = context.tree().find(event.nodeId());
+        limn.accessibility.AccessibleNode was = context.previousTree().find(event.nodeId());
+        if (now == null || was == null
+                || AtspiTree.interfaceBitsOf(now) == AtspiTree.interfaceBitsOf(was)) {
+            return null;
+        }
+        Object[] item = context.cacheItem(event.nodeId());
+        return item == null ? null : new Signal(Atspi.PATH_CACHE, I_CACHE, "AddAccessible",
+                Atspi.CACHE_ITEM, new Object[] {item});
     }
 
     /**
