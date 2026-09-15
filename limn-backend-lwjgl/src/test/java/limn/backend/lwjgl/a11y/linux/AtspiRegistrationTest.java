@@ -206,7 +206,7 @@ class AtspiRegistrationTest {
             }
             joinedLatch.countDown();
             return new AtspiApplication.Link() {
-                @Override public boolean signal(DBus.Msg signal) { return true; }
+                @Override public boolean signal(DBus.Msg signal, boolean tail) { return true; }
                 @Override public void close() { }
             };
         }, AtspiApplication.Starter.DAEMON, System::nanoTime);

@@ -36,6 +36,10 @@ class AtspiApplicationTest {
         int joins;
         boolean closed;
         final List<DBus.Msg> signals = new ArrayList<>();
+        /** Whether each recorded signal was offered as the reserved tail, index for index. */
+        final List<Boolean> tails = new ArrayList<>();
+        /** A connection whose ordinary backlog is full: it refuses every signal but the tail's. */
+        boolean refusesOrdinarySignals;
 
         Runnable lost;
 
@@ -45,8 +49,12 @@ class AtspiApplicationTest {
             lost = whenLost;
             objects.busName(BUS);
             return new AtspiApplication.Link() {
-                @Override public boolean signal(DBus.Msg signal) {
+                @Override public boolean signal(DBus.Msg signal, boolean tail) {
+                    if (refusesOrdinarySignals && !tail) {
+                        return false;
+                    }
                     signals.add(signal);
+                    tails.add(tail);
                     return true;
                 }
 
@@ -175,7 +183,7 @@ class AtspiApplicationTest {
         app[0] = new AtspiApplication((objects, lost) -> {
             app[0].enabled(false);  // the reader quits while the registry is embedding us
             return new AtspiApplication.Link() {
-                @Override public boolean signal(DBus.Msg signal) { return true; }
+                @Override public boolean signal(DBus.Msg signal, boolean tail) { return true; }
                 @Override public void close() { closed[0] = true; }
             };
         }, AtspiApplication.Starter.ON_THE_CALLER, System::nanoTime);
@@ -197,7 +205,7 @@ class AtspiApplicationTest {
         app[0] = new AtspiApplication((objects, lost) -> {
             armed[0] = true;
             return new AtspiApplication.Link() {
-                @Override public boolean signal(DBus.Msg signal) { return true; }
+                @Override public boolean signal(DBus.Msg signal, boolean tail) { return true; }
                 @Override public void close() { closed[0] = true; }
             };
         }, AtspiApplication.Starter.ON_THE_CALLER, () -> {
@@ -549,6 +557,12 @@ class AtspiApplicationTest {
 
         List<limn.accessibility.AccessibleEvent> publish(boolean active, long focused,
                                                          long... buttons) {
+            return publish(active, focused, id -> true, buttons);
+        }
+
+        List<limn.accessibility.AccessibleEvent> publish(boolean active, long focused,
+                                                         java.util.function.LongPredicate showing,
+                                                         long... buttons) {
             a.beginWalk(400, 300, Locale.ENGLISH);
             a.begin(3000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
@@ -561,7 +575,7 @@ class AtspiApplicationTest {
                 a.begin(id, 0, Locale.ENGLISH, 10, 20 + (id - 3001) * 50, 160, 40);
                 a.role(Accessible.Role.BUTTON);
                 a.name(I18nString.literal("Button " + id), Accessible.NameFrom.CONTENT);
-                a.inherited(true, true, true, true, focused == id);
+                a.inherited(true, true, showing.test(id), true, focused == id);
                 a.end();
             }
             a.end();
@@ -656,6 +670,69 @@ class AtspiApplicationTest {
                 "the item GetItems lists for the same node: " + DBus.fmt(item.body[0]));
         assertEquals(List.of(AtspiStates.DEFUNCT), statesAt(app, path(3002)),
                 "and the child that left answers defunct when it is asked");
+    }
+
+    private static long[] buttons(int count) {
+        long[] ids = new long[count];
+        for (int i = 0; i < count; i++) {
+            ids[i] = 3001 + i;
+        }
+        return ids;
+    }
+
+    /**
+     * A publish wider than the model's budget collapses to INVALIDATED and keeps its tail (decision
+     * 28, semantics 7): here the focus moves in the same frame as three hundred boxes stop showing
+     * and the last one leaves, so no per-node state change survives, the structure change does,
+     * and the reader must still hear where the focus went.
+     */
+    @Test
+    void aCollapsedPublishStillSaysWhereTheFocusWentAndSendsOnlyTailSignals() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        Frames main = new Frames(app.window());
+        long[] ids = buttons(300);
+        main.publish(true, 3001, id -> true, ids);
+        bus.signals.clear();
+        bus.tails.clear();
+
+        List<limn.accessibility.AccessibleEvent> events = main.publish(true, 3002,
+                id -> id == 3002, java.util.Arrays.copyOf(ids, 299));
+        assertEquals(limn.accessibility.AccessibleEvent.Type.INVALIDATED, events.get(0).type(),
+                "the fixture must cross the budget: " + events.size() + " events");
+
+        List<String> sent = spoken(bus.signals);
+        assertEquals(1, java.util.Collections.frequency(sent, "StateChanged focused 1 "
+                + path(3002)), "the focus change the collapse swallowed, said once: " + sent);
+        assertFalse(sent.stream().anyMatch(line -> line.startsWith("StateChanged showing")),
+                "and nothing of what was collapsed: " + sent);
+        assertTrue(sent.contains("ChildrenChanged remove 299 " + path(3000)),
+                "while the structure the tail kept is told, so a client's cached children hold: "
+                        + sent);
+        assertTrue(bus.tails.stream().allMatch(tail -> tail),
+                "every signal of a collapsed publish is the tail's, which no backlog refuses");
+    }
+
+    /**
+     * A connection whose ordinary backlog is full refuses an event; the reader is told where the
+     * focus is anyway, as a tail signal, once (semantics 4: a bridge re-announces after its own
+     * queue collapse).
+     */
+    @Test
+    void aRefusedSignalIsFollowedByTheFocusSaidAgainAsATailSignal() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        Frames main = new Frames(app.window());
+        main.publish(true, 3001);
+        bus.signals.clear();
+        bus.tails.clear();
+        bus.refusesOrdinarySignals = true;
+
+        main.publish(true, 3002);
+
+        assertEquals(List.of("StateChanged focused 1 " + path(3002)), spoken(bus.signals),
+                "the losing node's change was refused, and the focus was said again at once");
+        assertEquals(List.of(true), bus.tails);
     }
 
     @Test

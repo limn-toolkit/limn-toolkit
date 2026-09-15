@@ -1645,7 +1645,10 @@ Linux one needed anyway:
   three. **It runs on the thread that handles the collapse** — the drain thread on Windows, the UI
   thread on macOS — which is also the thread that owns removal there (§3.4). On Linux there is
   nothing to sweep, because nothing is retained per node: the collapse is one `Cache.AddAccessible`
-  for the root and the client re-reads.
+  for the root and the client re-reads. *(Amended 2026-09-15: not so. libatspi 2.60.6 reconciles
+  a cached child list only from `ChildrenChanged` and a cached state only from `StateChanged`, so
+  one root item re-reads nothing; the Linux bridge sends nothing for `INVALIDATED` and relies on
+  the reserved tail's structure signals and says the focus again — §2.4's amendment of this date.)*
 - **Windows and Linux drain on a thread of the bridge's own, and on Linux that is emphatically not
   the reader thread.** The Windows spike raised an event from an RPC thread and from inside `Invoke`
   and got `S_OK` both times, so a raise does not need the UI thread, and the Windows bridge starts
@@ -2454,6 +2457,21 @@ arriving or leaving after the join gets the same `AddAccessible`/`RemoveAccessib
 `ChildrenChanged` from the application object, which closes what §2.3's amendment of this date left
 to this item. No container publishes `MANAGES_DESCENDANTS`: decision 28 keeps clients' child caches
 correct instead.
+
+**`INVALIDATED` and the reserved tail (L6; decision 28; semantics 4 and 7).** The table has no
+`INVALIDATED` row; on Linux it sends nothing of its own — the bridge holds no per-node state to sweep,
+and the one `Cache.AddAccessible` for the root that §2 once prescribed would reconcile no client's
+cached children or states (libatspi 2.60.6 updates a cached child list only from `ChildrenChanged`
+and a state only from `StateChanged`). What a client's cache needs arrives in the tail that follows:
+the structure signals above, then the cursor, the selection and the window's activation. The
+`focused` changes the collapse swallowed are said again from the tree at once: `StateChanged
+focused` 1 on the focused node and the cursor's `ActiveDescendantChanged`, unless the same publish
+already sent them. Every signal of a tail event, of a frame's arrival or departure, and of focus said
+again is offered to the connection as the tail kind, which `Outbound.SIGNAL_BOUND`'s ordinary backlog
+never refuses (`Outbound.TAIL_BOUND`, sixteen times it, bounds the tail alone so a writer that never
+writes is still not a leak). An ordinary signal the connection does refuse is followed, once per
+publish, by the focus and cursor said again as the tail kind: the bridge's own queue collapse is
+answered like the model's.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that

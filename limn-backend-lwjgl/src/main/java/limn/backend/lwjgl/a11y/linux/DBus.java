@@ -777,15 +777,17 @@ final class DBus {
          * {@link #send} for an event signal, which is the one kind of message this connection may
          * refuse.
          *
-         * @param m the signal
+         * @param m    the signal
+         * @param tail whether it belongs to a publish's reserved tail, which an ordinary backlog
+         *             never refuses ({@link Outbound#TAIL_BOUND})
          * @return whether it was accepted
          */
-        boolean sendSignal(Msg m) throws IOException {
+        boolean sendSignal(Msg m, boolean tail) throws IOException {
             byte[] b;
             synchronized (writeLock) {
                 b = m.marshal(serial.getAndIncrement());
             }
-            return outbound.offerSignal(b);
+            return tail ? outbound.offerTailSignal(b) : outbound.offerSignal(b);
         }
 
         /** Drains the outbound queue. The one thread that writes to this connection. */

@@ -61,9 +61,11 @@ final class AtspiApplication {
          * Queues one signal. Never blocks.
          *
          * @param signal the message
+         * @param tail   whether it belongs to the reserved tail, which an ordinary backlog never
+         *               refuses ({@link Outbound#TAIL_BOUND})
          * @return whether it was accepted
          */
-        boolean signal(DBus.Msg signal);
+        boolean signal(DBus.Msg signal, boolean tail);
 
         /** Lets the connection go. Throws nothing. */
         void close();
@@ -351,7 +353,7 @@ final class AtspiApplication {
             window.shownAsFrame = true;
             announceFrame(window, now.link(), "add", frameIndexOf(window), window.frameId);
             send(now.link(), AtspiEvents.window(contextOf(window),
-                    objects.refOf(window.frameId).path, "Create", window.frameName));
+                    objects.refOf(window.frameId).path, "Create", window.frameName), true);
         } else {
             int index = frameIndexOf(window);
             window.shownAsFrame = false;
@@ -365,7 +367,7 @@ final class AtspiApplication {
      */
     private void frameLeaves(AtspiBridge window, Link link, int index) {
         send(link, AtspiEvents.window(contextOf(window), objects.refOf(window.frameId).path,
-                "Destroy", window.frameName));
+                "Destroy", window.frameName), true);
         announceFrame(window, link, "remove", index, window.frameId);
     }
 
@@ -404,6 +406,16 @@ final class AtspiApplication {
      * after the publish it describes. Dropped while the application has not joined, as every event
      * before the join always was.
      *
+     * <p><b>The reserved tail is never lost to a backlog, and neither is where the user is</b>
+     * (decision 28, semantics 4 and 7). The model keeps structure, focus, cursor, selection and
+     * window activation outside its event budget and sends them after an {@code INVALIDATED}; here
+     * their signals are sent as the tail kind, which the ordinary {@link Outbound#SIGNAL_BOUND}
+     * does not refuse. {@code INVALIDATED} itself sends nothing of its own — this bridge holds no
+     * per-node state to sweep, and a client's cache is kept by the tail's structure signals — but
+     * the focus changes the collapse swallowed are said again from the tree at once. An ordinary
+     * signal the connection refuses does the same, once per publish: whatever else was lost, the
+     * reader hears where the focus and the cursor are.
+     *
      * @param window the facade whose scene raised it, whose tree the event describes
      * @param event  what the difference between two published trees found
      */
@@ -412,39 +424,84 @@ final class AtspiApplication {
         if (now == null) {
             return;
         }
+        Link link = now.link();
+        AtspiEvents.Context context = contextOf(window);
+        switch (event.type()) {
+            case INVALIDATED -> {
+                sayFocusAgain(window, link, context);
+                return;
+            }
+            case STATE_CHANGED -> {
+                if (focusGained(event) && window.focusSaid == event.nodeId()) {
+                    return;  // already said again in this publish; Orca's 0.1 s filter drops a copy
+                }
+            }
+            case ACTIVE_DESCENDANT_CHANGED -> {
+                long cursor = cursorOf(event);
+                if (cursor != 0 && window.cursorSaid == cursor) {
+                    return;
+                }
+            }
+            default -> {
+            }
+        }
         // Nothing on this platform may carry it, and then nothing is sent: better silent than
         // approximate. Otherwise each goes out from the node it is about, so a client that
         // subscribed by path hears it, and as a signal rather than a reply, so it is the one kind
         // the connection may refuse when a peer has stopped draining.
-        AtspiEvents.Context context = contextOf(window);
+        boolean tail = isInTheTail(event.type());
+        boolean refused = false;
         for (AtspiEvents.Signal signal : AtspiEvents.of(event, context)) {
-            send(now.link(), signal);
+            refused |= !send(link, signal, tail);
         }
-        switch (event.type()) {
-            case STATE_CHANGED -> {
-                if (event.state() == limn.accessibility.Accessible.State.FOCUSED
-                        && Boolean.TRUE.equals(event.newValue())) {
-                    window.focusSaid = event.nodeId();
-                }
+        if (!refused) {
+            if (focusGained(event)) {
+                window.focusSaid = event.nodeId();
+            } else if (event.type() == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED) {
+                window.cursorSaid = cursorOf(event);
             }
-            case ACTIVE_DESCENDANT_CHANGED ->
-                    window.cursorSaid = event.newValue() instanceof Number n ? n.longValue() : 0;
-            case WINDOW_ACTIVATED -> sayFocusAgain(window, now.link(), context);
-            default -> {
-            }
+        }
+        if (event.type() == AccessibleEvent.Type.WINDOW_ACTIVATED || refused) {
+            sayFocusAgain(window, link, context);
         }
     }
 
     /**
-     * After {@code Activate}, the focus and the cursor again, from the tree that says the window is
-     * active (LINUX-NEW-15, LAB-NEW-2; semantics 7).
+     * The kinds the model reserves outside its budget (ADR 039 §1.10, amended 2026-09-14), whose
+     * signals the connection's ordinary backlog never refuses.
+     */
+    static boolean isInTheTail(AccessibleEvent.Type type) {
+        return switch (type) {
+            case STRUCTURE_CHANGED, FOCUS_CHANGED, ACTIVE_DESCENDANT_CHANGED, SELECTION_CHANGED,
+                    WINDOW_ACTIVATED, WINDOW_DEACTIVATED -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean focusGained(AccessibleEvent event) {
+        return event.type() == AccessibleEvent.Type.STATE_CHANGED
+                && event.state() == limn.accessibility.Accessible.State.FOCUSED
+                && Boolean.TRUE.equals(event.newValue());
+    }
+
+    private static long cursorOf(AccessibleEvent event) {
+        return event.newValue() instanceof Number n ? n.longValue() : 0;
+    }
+
+    /**
+     * The focus and the cursor again, from the window's tree, as tail signals: after
+     * {@code Activate} (LINUX-NEW-15, LAB-NEW-2), after the model's {@code INVALIDATED} and after
+     * the connection refused an ordinary signal (semantics 4 and 7).
      *
      * <p>Orca 50.2's {@code _on_window_activated} puts its locus of focus on the frame itself
      * (readings/fedora-orca-active-window.txt), so a {@code focused} change a client heard before
      * the activation — the 2026-09-14 baseline's arrived 176 ms before the frame was active and was
-     * dropped for it, "[frame] lacks active state" — has to be told again after it. Not twice in one
-     * publish: a change already sent since this window's last publish stands, because the same type
-     * from the same application inside 0.1 s is dropped by {@code _ignore_by_spam_filter}.
+     * dropped for it, "[frame] lacks active state" — has to be told again after it. A collapsed
+     * publish carries no per-node state change at all, and a refused one may have lost exactly the
+     * focus. Not twice in one publish: a change already sent since this window's last publish
+     * stands, because the same type from the same application inside 0.1 s is dropped by
+     * {@code _ignore_by_spam_filter}, and one said here is not sent again when the publish's own
+     * event for it arrives.
      */
     private void sayFocusAgain(AtspiBridge window, Link link, AtspiEvents.Context context) {
         AccessibleTree tree = window.tree();
@@ -455,7 +512,7 @@ final class AtspiApplication {
         if (window.focusSaid != focused) {
             for (AtspiEvents.Signal signal : AtspiEvents.of(AccessibleEvent.state(focused,
                     limn.accessibility.Accessible.State.FOCUSED, true), context)) {
-                send(link, signal);
+                send(link, signal, true);
             }
             window.focusSaid = focused;
         }
@@ -463,7 +520,7 @@ final class AtspiApplication {
         if (cursor != 0 && window.cursorSaid != cursor) {
             for (AtspiEvents.Signal signal : AtspiEvents.of(AccessibleEvent.property(
                     AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED, focused, 0L, cursor), context)) {
-                send(link, signal);
+                send(link, signal, true);
             }
             window.cursorSaid = cursor;
         }
@@ -498,9 +555,10 @@ final class AtspiApplication {
         };
     }
 
-    private static void send(Link link, AtspiEvents.Signal signal) {
-        link.signal(DBus.Msg.signal(signal.path(), signal.iface(), signal.member(),
-                signal.signature(), signal.body()));
+    /** @return whether the link accepted it */
+    private static boolean send(Link link, AtspiEvents.Signal signal, boolean tail) {
+        return link.signal(DBus.Msg.signal(signal.path(), signal.iface(), signal.member(),
+                signal.signature(), signal.body()), tail);
     }
 
     /**
@@ -548,18 +606,18 @@ final class AtspiApplication {
         DBus.Ref frame = objects.refOf(frameId);
         send(link, AtspiEvents.event(contextOf(window), Atspi.PATH_ROOT,
                 AtspiEvents.I_EVENT_OBJECT, "ChildrenChanged", detail, index, 0,
-                new DBus.Variant("(so)", frame.toStruct())));
+                new DBus.Variant("(so)", frame.toStruct())), true);
         // And the cache, in the order structureChanged gives its reasons for: the item after the
         // add that made room for it, the removal after the remove that still names it.
         if ("add".equals(detail)) {
             Object[] item = objects.cacheItemOf(frameId);
             if (item != null) {
                 send(link, new AtspiEvents.Signal(Atspi.PATH_CACHE, Atspi.I_CACHE, "AddAccessible",
-                        Atspi.CACHE_ITEM, new Object[] {item}));
+                        Atspi.CACHE_ITEM, new Object[] {item}), true);
             }
         } else {
             send(link, new AtspiEvents.Signal(Atspi.PATH_CACHE, Atspi.I_CACHE, "RemoveAccessible",
-                    "(so)", new Object[] {frame.toStruct()}));
+                    "(so)", new Object[] {frame.toStruct()}), true);
         }
     }
 
@@ -810,9 +868,9 @@ final class AtspiApplication {
     static Link linkOver(DBus.Conn connection) {
         return new Link() {
             @Override
-            public boolean signal(DBus.Msg signal) {
+            public boolean signal(DBus.Msg signal, boolean tail) {
                 try {
-                    return connection.sendSignal(signal);
+                    return connection.sendSignal(signal, tail);
                 } catch (IOException e) {
                     // The writer thread reports its own failures and the connection closes itself;
                     // an event lost to a dying socket is not worth a second report.
