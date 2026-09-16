@@ -284,6 +284,9 @@ public class Table<T> extends Widget implements Scrollable {
     private long lastPressNanos;
     private int lastPressRow = -1;
 
+    /** Reused per walk to assemble a row's composite name before comparing it with the kept one. */
+    private final StringBuilder nameBuilder = new StringBuilder();
+
     /** One realized row: its text per column, shaped and fitted lazily, and its widget cells. */
     private static final class Slot {
         int row;
@@ -305,6 +308,13 @@ public class Table<T> extends Widget implements Scrollable {
         boolean ordinalKnown;
         /** Published since the identities were last settled: releasing it leaves one behind. */
         boolean published;
+        /**
+         * The composite name the row was last published under &mdash; the text of its shown
+         * cells, in column order &mdash; kept so a quiet frame compares and allocates nothing,
+         * and so the string's identity is the witness the builder wants; {@code null} when the
+         * row's cells hold no text at all.
+         */
+        String name;
 
         Slot(int columns) {
             texts = new String[columns];
@@ -3625,6 +3635,13 @@ public class Table<T> extends Widget implements Scrollable {
             a.child(slot.id);
             a.bounds(rowX, top, w, slot.height);
             a.role(Accessible.Role.ROW);
+            // A row is its record, and says so (decision 23 of 2026-09-14; P5W-1, 2026-09-16):
+            // the text of its shown cells in column order, which is the treatment a TREE_ITEM
+            // whose cell is a composite already gets (TREE-ROW-NAME).
+            String rowName = derivedName(slot);
+            if (rowName != null) {
+                a.name(rowName, System.identityHashCode(rowName), Accessible.NameFrom.CONTENT);
+            }
             boolean isSelected = selected.get(model);
             a.selectionItem(isSelected, row + 1, describedRowCount);
             // The verbs a row accepts, by its state (decisions 10, 11 and 20 of 2026-09-14):
@@ -3695,6 +3712,76 @@ public class Table<T> extends Widget implements Scrollable {
                 a.endChild();
             }
             a.endChild();
+        }
+    }
+
+    /**
+     * The name a {@code ROW} is published under: the text of its shown cells, in column order,
+     * separated by a space &mdash; a record read as one phrase, which is what decision 23 means
+     * by "a row is its record" and what {@code Tree} already does for a composite row
+     * (TREE-ROW-NAME).
+     *
+     * <p><b>Why a row needs one at all.</b> A {@code ROW} published with an empty name was
+     * measured on all three platforms on 2026-09-16: NVDA 2024.4.2 spoke {@code 'item de dados',
+     * 'selecionado', '4 de 10'} &mdash; role, position, no name &mdash; and Orca discarded the row
+     * outright, an unnamed row that is not focusable, selectable or expandable being "believed to
+     * be layout only". The cells carried the text and the row carried none, so the one node a
+     * reader announces when the cursor changes row said nothing.
+     *
+     * <p>A widget column contributes the text of its cell's labels rather than nothing, by the
+     * same walk {@code Tree} uses: a switch or a button cell has no text of its own and a row
+     * ending in one would otherwise be named by its other columns alone.
+     *
+     * <p>Assembled into one reused builder and compared with the string kept on the slot, so a
+     * quiet frame allocates nothing; a new string is built only when the row's text moved, and
+     * the string's identity is then the witness the builder wants.
+     *
+     * @return the name, or {@code null} when no shown cell of the row holds text
+     */
+    private String derivedName(Slot slot) {
+        nameBuilder.setLength(0);
+        for (int s = 0; s < shownCount; s++) {
+            int c = shownIndex[s];
+            if (slot.widgets[c] != null) {
+                appendLabelText(slot.widgets[c]);
+            } else {
+                appendText(slot.texts[c]);
+            }
+        }
+        String kept = slot.name;
+        if (nameBuilder.length() == 0) {
+            slot.name = null;
+            return null;
+        }
+        if (kept != null && kept.contentEquals(nameBuilder)) {
+            return kept;
+        }
+        String fresh = nameBuilder.toString();
+        slot.name = fresh;
+        return fresh;
+    }
+
+    private void appendText(String text) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        if (nameBuilder.length() > 0) {
+            nameBuilder.append(' ');
+        }
+        nameBuilder.append(text);
+    }
+
+    private void appendLabelText(Widget widget) {
+        if (!widget.isVisible()) {
+            return;
+        }
+        if (widget instanceof limn.components.Label label) {
+            appendText(label.text());
+            return;
+        }
+        List<Widget> children = widget.children();
+        for (int i = 0; i < children.size(); i++) { // indexed: an iterator is an allocation
+            appendLabelText(children.get(i));
         }
     }
 
