@@ -15,9 +15,12 @@ import java.util.List;
  * asks {@code isAccessibilitySelectorAllowed:} about the <em>setter</em> selector, and with a gate that
  * says yes to it every attribute that has an {@code NSAccessibilityElement} setter reports settable —
  * {@code AXRole} included — and a write lands in {@code NSAccessibilityElement}'s own storage, where
- * nothing of the toolkit ever reads it. So a setter installed here is offered exactly where its verb
- * is accepted, and every other {@code setAccessibility…} selector is refused on every node
- * ({@link AxGate}).
+ * nothing of the toolkit ever reads it. So a setter installed here is offered where its verb is
+ * accepted <em>and</em> the attribute is one a native element of that shape carries, and every other
+ * {@code setAccessibility…} selector is refused on every node ({@link AxGate}). The second half is not
+ * pedantry: a row whose {@code AXFocused} was settable because the row accepts {@code FOCUS} — while a
+ * native row carries no {@code AXFocused} at all — let VoiceOver's cursor sync fight the application
+ * for the cursor (P5M-1, 2026-09-16; see {@link #offers}).
  *
  * <p><b>A write is posted, never waited for</b> (§1.9): the setter returns nothing, and a verb the node
  * does not accept is not posted. The check is made again on the write itself, because a client may
@@ -28,7 +31,7 @@ final class AxSetters {
     private AxSetters() {
     }
 
-    /** {@code setAccessibilityFocused:}: YES moves the keyboard, or the cursor, here. */
+    /** {@code setAccessibilityFocused:}: YES moves the keyboard, or the cursor, here — never on a row. */
     static final String FOCUSED = "setAccessibilityFocused:";
     /** {@code setAccessibilitySelected:}: YES selects, NO deselects. */
     static final String SELECTED = "setAccessibilitySelected:";
@@ -75,7 +78,17 @@ final class AxSetters {
      */
     static boolean offers(AxGrid grid, AccessibleNode node, String selector) {
         return switch (selector) {
-            case FOCUSED -> node.accepts(Accessible.Action.FOCUS);
+            // Everywhere the node takes the verb EXCEPT on a row, where a native row has no AXFocused
+            // at all: an NSOutlineView row answers kAXErrorAttributeUnsupported for both the value and
+            // its settability while the outline itself answers AXFocused=1 settable=true
+            // (readings/macos-outline-probe.txt, every row of every pass), and an NSTableView row's
+            // AXAttributeNames carries AXSelected and no AXFocused while the table's does carry it
+            // (readings/macos-table-probe.txt). The view takes focus; its rows are selected. Offering
+            // it on a row let VoiceOver's cursor sync write its own previous row back 40 ms after every
+            // key and drag the application's cursor with it, so no tree script got past row index 2
+            // (P5M-1, readings/phase5-macos/). A reader still moves the cursor the native way, by
+            // writing AXSelected on the row or AXSelectedRows on the container, which both post SELECT.
+            case FOCUSED -> node.accepts(Accessible.Action.FOCUS) && !grid.isRow(node);
             case SELECTED -> node.accepts(Accessible.Action.SELECT) || node.accepts(Accessible.Action.DESELECT);
             // Settable only on a row that can open, as a native outline's AXDisclosing is (read on the
             // guest, 2026-09-15, outline-probe.swift); a row publishes EXPAND or COLLAPSE only then.

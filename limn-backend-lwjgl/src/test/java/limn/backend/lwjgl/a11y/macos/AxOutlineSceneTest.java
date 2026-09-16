@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -302,7 +303,7 @@ class AxOutlineSceneTest {
     }
 
     @Test
-    void aReaderOpensARowByWritingAXDisclosingAndMovesTheCursorByWritingAXFocused() {
+    void aReaderOpensARowByWritingAXDisclosingAndMovesTheCursorByWritingAXSelected() {
         Tree<Node> tree = bindTree();
         scene.requestFocus(tree);
         frame();
@@ -320,11 +321,14 @@ class AxOutlineSceneTest {
         assertEquals(7, grid.rows(only(Accessible.Role.TREE)).length);
 
         long notesRow = grid.rows(only(Accessible.Role.TREE))[3];
-        assertTrue(AxSetters.offers(grid, bridge.nodeFor(notesRow), AxSetters.FOCUSED));
-        assertTrue(write(AxSetters.forBool(grid, bridge.nodeFor(notesRow), AxSetters.FOCUSED, true), notesRow));
+        assertTrue(!AxSetters.offers(grid, bridge.nodeFor(notesRow), AxSetters.FOCUSED),
+                "a row's AXFocused is not settable, as a native row's is not (P5M-1)");
+        assertTrue(AxSetters.offers(grid, bridge.nodeFor(notesRow), AxSetters.SELECTED));
+        assertTrue(write(AxSetters.forBool(grid, bridge.nodeFor(notesRow), AxSetters.SELECTED, true), notesRow));
         assertEquals("Notes", bridge.nodeFor(bridge.focusedElement()).name(),
-                "VoiceOver's cursor sync writes AXFocused, and the tree's cursor follows it");
-        assertTrue(tree.selectedNodes().isEmpty(), "without selecting (decision 11)");
+                "a reader moves the cursor the way a native outline is driven, by writing the row's "
+                        + "AXSelected, and the tree's cursor follows it");
+        assertEquals(List.of(notes), tree.selectedNodes(), "which selects it too, as natively");
     }
 
     @Test
@@ -427,6 +431,40 @@ class AxOutlineSceneTest {
                 "one cursor move is the selection it moved, once, on the outline, as a native outline "
                         + "posts it, and one focus change told last; no value change on the row the "
                         + "selection or the cursor left or reached (M3 correction f): " + trace);
+    }
+
+    @Test
+    void noWriteOfAXFocusedOnARowCanDragTheCursorOffTheRowAKeyPutItOn() {
+        // P5M-1. The write is the one the live client made in readings/phase5-macos/cl-outline-1
+        // ("set AXFocused=true on row[3]: err=0 -> app focused is now: AXRow '2026.pdf'"), which is
+        // what VoiceOver's cursor sync makes about 40 ms after every key. A native outline's row has
+        // no AXFocused to write: it answers kAXErrorAttributeUnsupported for the value and for its
+        // settability (readings/macos-outline-probe.txt), and a native table row's attribute names
+        // carry AXSelected and no AXFocused (readings/macos-table-probe.txt).
+        Tree<Node> tree = bindTree();
+        scene.requestFocus(tree);
+        frame();
+        AxGrid grid = new AxGrid(bridge);
+        long[] rows = grid.rows(only(Accessible.Role.TREE));
+        assertTrue(perform(rows[3], Accessible.Action.SELECT), "a key leaves the cursor on Notes");
+        assertEquals(notes, tree.cursorNode(), "the fixture: the model's cursor is on Notes");
+
+        long documentsRow = rows[0];
+        assertTrue(bridge.nodeFor(documentsRow).accepts(Accessible.Action.FOCUS),
+                "the fixture: the model does take the cursor to that row, by its own verb");
+        assertTrue(!AxGate.allows(grid, bridge.nodeFor(documentsRow), AxSetters.FOCUSED),
+                "and a client reads the row's AXFocused as not settable, as a native row's is not");
+        assertNull(AxSetters.forBool(grid, bridge.nodeFor(documentsRow), AxSetters.FOCUSED, true),
+                "so the write posts nothing");
+        assertEquals(notes, tree.cursorNode(), "and the cursor stayed where the key put it");
+
+        assertTrue(AxGate.allows(grid, only(Accessible.Role.TREE), AxSetters.FOCUSED),
+                "the outline itself stays focus-settable, as the native outline is (AXFocused=1 "
+                        + "settable=true), so the keyboard can still be sent to the tree");
+        // And the reader keeps the cursor move it lost, by the route the native outline offers.
+        assertTrue(write(AxSetters.forBool(grid, bridge.nodeFor(documentsRow), AxSetters.SELECTED, true),
+                documentsRow), "AXSelected on the row is still settable");
+        assertEquals(documents, tree.cursorNode(), "and moves the cursor there");
     }
 
     @Test

@@ -2830,7 +2830,7 @@ the committed AppKit dump by `AxConstantsTest`, and answered only where `isAcces
 | `setAccessibilityFrameInParentSpace:` | pushed for every held element and column element on each ordinary publish and on mint; **`accessibilityFrame` is not installed** (the row said it was): AppKit answers it from the pushed box |
 | `accessibilityParent`, `accessibilityChildren` | the snapshot links; a table's children end with its column elements; the root's children pushed, re-pushed when they change |
 | `accessibilityFocusedUIElement`, `isAccessibilityFocused` | **installed** (the row said "not claimed"), on the content view's own subclass and on the element class, from the tree's effective focus, across a native popup's window |
-| `setAccessibilityFocused:`, `setAccessibilitySelected:`, `setAccessibilityDisclosed:`, `setAccessibilityExpanded:`, `setAccessibilityValue:`, `setAccessibilitySelectedRows:` | installed with the gate, each posting the verb it means where `AccessibleNode#accepts` holds; every other stored setter refused |
+| `setAccessibilityFocused:`, `setAccessibilitySelected:`, `setAccessibilityDisclosed:`, `setAccessibilityExpanded:`, `setAccessibilityValue:`, `setAccessibilitySelectedRows:` | installed with the gate, each posting the verb it means where `AccessibleNode#accepts` holds; every other stored setter refused. **`setAccessibilityFocused:` is refused on a row as well** — a native row carries no `AXFocused` at all, and offering it let VoiceOver's cursor sync drag the application's cursor back after every key (amendment 2026-09-16, end of this section) |
 | `accessibilitySelectedChildren`, `accessibilitySelectedRows`, `accessibilitySelectedCells` | the one of the container's selection shape (children / rows / cells) |
 | `accessibilityRows`, `accessibilityVisibleRows`, `accessibilityIndex` | tables, outlines and lists; a table row's index is its data cells' row, already zero-based (`NSNotFound` with no data cell); an outline row's is the hierarchy facet's flat row less one; a list row's is its position in the set less one |
 | `accessibilityRowCount`, `accessibilityColumnCount` | tables only, the table facet's counts (a native table answers neither; kept, see the columns note) |
@@ -2944,6 +2944,60 @@ installed on it: the push is a message to one instance, and every implementation
 lives on its own `NSAccessibilityElement` subclass, where `self` identifies the node through the
 bridge's own map — the same recovery the Windows spike used to get a Java object back from a COM
 interface pointer.
+
+#### Amendment 2026-09-16 — a row's `AXFocused` is not settable, because a native row has none
+
+**The setter half above, and the `setAccessibilityFocused:` row of the table, describe the setter as
+installed and say nothing about what a screen reader does with it. This is what one did.** Phase 5,
+macOS 26.6.2, VoiceOver, `readings/phase5-macos/`: with a reader attached, the tree reader script
+speaks the wrong row at almost every step. A key moves Limn's cursor, and about 40 ms later a second
+`AXSelectedRowsChanged` and a second `AXFocusedUIElementChanged` put it back on the row the reader
+was still standing on. Four attempts never got past row index 2, and `Documents 2` ended the run
+collapsed — a state the script never asks for, because the `LEFT` of three different steps all landed
+on the row the cursor kept being returned to. Stop VoiceOver and it vanishes: the same jar and the
+same script walk all 21 rows in order, in two repeats (`tree-noVO-1`, `tree-noVO-2`, the stop proved
+by `caps.txt`). And an ordinary client's write reproduces the return trip on its own —
+`cl-outline-1/probe.log`, `set AXFocused=true on row[3]: err=0 -> app focused is now: AXRow
+'2026.pdf'`.
+
+**The route is the setter this ADR installed, and the reason it was wrong was already in the
+readings.** `offers` asked `AccessibleNode#accepts(FOCUS)` and nothing else, and a row does accept
+`FOCUS` — correctly, because that is how the toolkit says "the cursor is here" on all three
+platforms. What no one checked is whether a *native* element of that shape carries the attribute at
+all. It does not. `readings/macos-outline-probe.txt`, taken on the guest on 2026-09-15 and already
+cited three rows above for `AXIndex` and `AXDisclosing`: every row of a native `NSOutlineView`, in
+every pass, answers `AXFocused=AXError(-25205)` — `kAXErrorAttributeUnsupported` — and
+`settable=AXError(-25205)`, while the outline itself answers `AXFocused=1 settable=true`.
+`readings/macos-table-probe.txt`: a native `NSTableView` row's `AXAttributeNames` are
+`["AXIndex", …, "AXSelected", "AXFrame"]` with **no** `AXFocused`, while the table's do carry it.
+**The view takes focus; its rows are selected.** A row that answered "settable" was inviting exactly
+the write VoiceOver makes, and VoiceOver's cursor sync and the application's cursor then each
+insisted on a different row, twenty times a script.
+
+**So `setAccessibilityFocused:` is refused on a row** — `AxSetters.offers` reads
+`node.accepts(FOCUS) && !grid.isRow(node)`, where a row is a table's `ROW` or a member of an
+outline's or a list's selection, which is exactly the set AppKit calls `AXRows`. Refused through the
+gate, so `AXUIElementIsAttributeSettable` answers false and a client is told rather than ignored, and
+checked again on the write. **A reader loses nothing:** the native route to the cursor is
+`setAccessibilitySelected:` on the row or `setAccessibilitySelectedRows:` on the container, both
+already offered here, both posting `SELECT`, and `SELECT` on a Limn row moves the cursor to it. The
+container itself stays focus-settable, as the native outline is.
+
+**One asymmetry with the native shape is kept on purpose.** `isAccessibilityFocused` still answers on
+a row, and answers true on the cursor row, where a native row refuses the getter too. It is kept
+because decision 1 and semantics 4 make the cursor row the element
+`accessibilityFocusedUIElement` names: a client that walks there and asks the row whether it is
+focused is entitled to a truthful yes, and refusing the getter would make this bridge's own focus
+answer unconfirmable. Reading the cursor is not what fights the application; writing it is.
+
+**What this does not close.** The table script shows the same two-focus-change pattern from step 10
+on — the step at which it starts moving a *row* — but there the element Limn publishes as focused is
+the cell's own widget (`ATEVENT focused = AXCheckBox id=…164 'Visitada'`, put back to `…162`), which
+is not a row and is legitimately focus-settable: a native `NSButton` in a cell view is. The write
+itself was **not** captured for that path — no phase-5 run had the inbound trace on — so the route
+there is inferred and no code was changed for it. It needs one live run with the inbound trace
+enabled, to see whether the put-back on a table arrives as `setAccessibilityFocused:` and on which
+element, before anything is decided.
 
 ### 2.3 Linux: AT-SPI2
 
@@ -3883,6 +3937,29 @@ event buys nothing at all. The silence is indistinguishable from never having po
 So the rule is not "raise the event" but "raise the event and be able to answer what it invites",
 and the two are written in different files by different people. A reviewer of a fourth bridge
 should look for the question before looking for the event.
+
+#### Amendment 2026-09-16 — the reader does not only ask after a focus event; it writes back
+
+**The table directly above asks what a reader wants to *read* after a focus event. Phase 5 on macOS
+added the other half: what it wants to *write*.** VoiceOver keeps its own cursor and the keyboard
+focus in step, so when this bridge posts `FocusedUIElementChanged` for a cursor the application moved
+itself, VoiceOver answers by writing `AXFocused` on the element its cursor is still on — the previous
+row — about 40 ms later. The `FOCUS_CHANGED` row's macOS column is therefore incomplete as written:
+posting `FocusedUIElementChanged` at application level is correct and is not the defect, but **on
+macOS a focus event is a round trip, and what the bridge offers as settable decides whether the
+return leg lands.** Measured, `readings/phase5-macos/`: two `AXSelectedRowsChanged` and two
+`AXFocusedUIElementChanged` per key, the second of each undoing the first, on every step of every
+tree script, and none of it with VoiceOver stopped. §2.2's amendment of this date has the full
+measurement and the fix — a row is no longer focus-settable, because a native row carries no
+`AXFocused`.
+
+**The general rule, which a fourth bridge should read before it installs a setter.** An event says
+what changed; the attribute set says what a reader may change back. Where the two overlap on the same
+state, the reader and the application are two writers of one value, and the platform arbitrates by
+recency rather than by authority. So a setter is not safe merely because the node accepts the verb:
+it is safe where a *native* element of that shape carries the attribute, because that is what tells
+the reader whether this is a value it owns. Neither half is visible headlessly — a unit test proves
+the write lands, and only a live reader makes the write.
 
 **And the reason both defects survived so long is worth more than either of them.** Neither is
 visible on a widget that has a second thing to announce. On macOS the check box appeared to be

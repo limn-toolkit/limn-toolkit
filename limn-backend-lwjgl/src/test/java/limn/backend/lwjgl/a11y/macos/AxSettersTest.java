@@ -243,6 +243,95 @@ class AxSettersTest {
         assertNull(AxSetters.forBool(label.grid(), label.node(), AxSetters.FOCUSED, true));
     }
 
+    /**
+     * WINDOW &gt; TREE 1010 &gt; TREE_ITEM 1011 and TABLE 1020 &gt; ROW 1021, every row publishing FOCUS
+     * and SELECT, and BUTTON 1030 publishing FOCUS: the discriminator between "the node takes the
+     * cursor" and "AXFocused is settable on it".
+     */
+    private static AccessibleTree rowsThatTakeTheCursor() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int outline = a.begin(1010, 0, Locale.ENGLISH, 0, 0, 200, 30);
+        a.role(Accessible.Role.TREE);
+        a.selection(false, false);
+        a.action(Accessible.Action.FOCUS);
+        a.inherited(true, true, true, true, false);
+        a.begin(1011, outline, Locale.ENGLISH, 0, 0, 200, 30);
+        a.role(Accessible.Role.TREE_ITEM);
+        a.name(I18nString.literal("row"), Accessible.NameFrom.CONTENT);
+        a.selectionItem(true, 1, 1);
+        a.hierarchy(1, 1, 1);
+        a.action(Accessible.Action.FOCUS, Accessible.Action.SELECT);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        int table = a.begin(1020, 0, Locale.ENGLISH, 0, 40, 200, 30);
+        a.role(Accessible.Role.TABLE);
+        a.table(1, 1);
+        a.selection(false, false);
+        a.action(Accessible.Action.FOCUS);
+        a.inherited(true, true, true, true, false);
+        int row = a.begin(1021, table, Locale.ENGLISH, 0, 40, 200, 30);
+        a.role(Accessible.Role.ROW);
+        a.selectionItem(true, 1, 1);
+        a.action(Accessible.Action.FOCUS, Accessible.Action.SELECT);
+        a.inherited(true, true, true, false, false);
+        a.begin(1022, row, Locale.ENGLISH, 0, 40, 200, 30);
+        a.role(Accessible.Role.CELL);
+        a.cell(0, 0);
+        a.name(I18nString.literal("cell"), Accessible.NameFrom.CONTENT);
+        a.action(Accessible.Action.FOCUS);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.end();
+        a.begin(1030, 0, Locale.ENGLISH, 0, 80, 80, 30);
+        a.role(Accessible.Role.BUTTON);
+        a.action(Accessible.Action.PRESS, Accessible.Action.FOCUS);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    @Test
+    void aRowsAXFocusedIsNotSettableThoughTheRowTakesTheCursor() {
+        // P5M-1. A native NSOutlineView's row answers kAXErrorAttributeUnsupported for AXFocused and
+        // for its settability, while the outline itself answers AXFocused=1 settable=true
+        // (readings/macos-outline-probe.txt); a native NSTableView row's AXAttributeNames carry
+        // AXSelected and no AXFocused, while the table's carry AXFocused (readings/macos-table-probe.txt).
+        // The view takes focus and rows are selected — and a row that was focus-settable let
+        // VoiceOver's cursor sync write its previous row back after every key.
+        AccessibleTree tree = rowsThatTakeTheCursor();
+        AxBridge bridge = PlatformFreeBridges.make();
+        bridge.publish(tree, false);
+        AxGrid grid = new AxGrid(bridge);
+        for (long id : new long[] {1011L, 1021L}) {
+            AccessibleNode node = tree.find(id);
+            assertTrue(node.accepts(Accessible.Action.FOCUS), id + ": the model does take the cursor here");
+            assertTrue(grid.isRow(node), id + ": and it is a row");
+            assertFalse(AxSetters.offers(grid, node, AxSetters.FOCUSED),
+                    id + ": so its AXFocused is not settable, as a native row's is not");
+            assertNull(AxSetters.forBool(grid, node, AxSetters.FOCUSED, true),
+                    id + ": and a write to it posts nothing");
+            assertFalse(AxGate.allows(grid, node, AxSetters.FOCUSED), id + ": the gate says the same");
+            assertEquals(Accessible.Action.SELECT,
+                    AxSetters.forBool(grid, node, AxSetters.SELECTED, true).action(),
+                    id + ": the native route to the cursor is left open");
+        }
+        for (long id : new long[] {1010L, 1020L, 1022L, 1030L}) {
+            AccessibleNode node = tree.find(id);
+            assertTrue(AxSetters.offers(grid, node, AxSetters.FOCUSED),
+                    id + ": a container, a cell and a control keep AXFocused settable, as natively "
+                            + "the outline and the table do and their rows do not");
+            assertEquals(Accessible.Action.FOCUS,
+                    AxSetters.forBool(grid, node, AxSetters.FOCUSED, true).action(), String.valueOf(id));
+        }
+    }
+
     @Test
     void aSelectedWriteSelectsOrDeselectsByWhatTheItemPublishes() {
         One single = one(Accessible.Role.LIST_ITEM, a -> {

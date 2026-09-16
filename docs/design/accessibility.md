@@ -164,6 +164,18 @@ answers the question rather than the bridges:
 | **macOS** | the item | `accessibilityFocusedUIElement` and `isAccessibilityFocused` answer it; `FocusedUIElementChanged` is posted at application level |
 | **Linux** | the widget | `focused` stays on `focused()`; the item travels as `ActiveDescendantChanged` carrying its `(so)` reference |
 
+**On macOS the reader also writes focus back, so a row is not focus-settable** (measured 2026-09-16,
+ADR 039 §2.2's amendment of that date). VoiceOver keeps its cursor and the keyboard focus in step: a
+moment after the application moves its own cursor, VoiceOver writes `AXFocused` on the row its cursor
+is still on. A native `NSOutlineView` row carries no `AXFocused` at all — it answers
+`kAXErrorAttributeUnsupported` for the value and for its settability, and a native `NSTableView`
+row's attribute names carry `AXSelected` and no `AXFocused` — so the bridge refuses
+`setAccessibilityFocused:` on a row and leaves it to the container, as AppKit does. Rows are
+*selected*, and a reader moves the cursor by writing `AXSelected` on the row or `AXSelectedRows` on
+the container, which post `SELECT`. The *getter* still answers on a row, because
+`accessibilityFocusedUIElement` names the cursor row and a client that walks there must get a
+truthful answer. Nothing changes for Windows or Linux, where the reader does not write focus back.
+
 Two consequences a widget author feels. A focused list, table or tree keeps its cursor row realized
 even when a scroll takes it off screen, so the descendant never resolves to nothing; and where the
 cursor is inside a native popup window, it is resolved across the opener's relation into that
