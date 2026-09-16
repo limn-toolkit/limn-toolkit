@@ -427,6 +427,106 @@ class UiaTraceTest {
         }
     }
 
+    /**
+     * The four formatters no assertion reached: the enumerators a line names by hand.
+     *
+     * <p>The identifier spaces come from {@link UiaIds} itself, so a constant renamed there is
+     * renamed in the file and {@code UiaConstantsTest} pins the numbers. These four do not: they
+     * are switches written out here, and a case pointing at the wrong name would be read as the
+     * platform having done something it did not (2026-09-16 review). Each is checked against the
+     * constant it names rather than against a number typed twice.
+     */
+    @Test
+    void theEnumeratorsALineNamesByHandAreNamedRight() {
+        assertEquals("direction=PARENT(" + UiaIds.NAVIGATE_DIRECTION_PARENT + ')',
+                UiaTrace.direction(UiaIds.NAVIGATE_DIRECTION_PARENT));
+        assertEquals("direction=NEXT_SIBLING(" + UiaIds.NAVIGATE_DIRECTION_NEXT_SIBLING + ')',
+                UiaTrace.direction(UiaIds.NAVIGATE_DIRECTION_NEXT_SIBLING));
+        assertEquals("direction=PREVIOUS_SIBLING("
+                        + UiaIds.NAVIGATE_DIRECTION_PREVIOUS_SIBLING + ')',
+                UiaTrace.direction(UiaIds.NAVIGATE_DIRECTION_PREVIOUS_SIBLING));
+        assertEquals("direction=FIRST_CHILD(" + UiaIds.NAVIGATE_DIRECTION_FIRST_CHILD + ')',
+                UiaTrace.direction(UiaIds.NAVIGATE_DIRECTION_FIRST_CHILD));
+        assertEquals("direction=LAST_CHILD(" + UiaIds.NAVIGATE_DIRECTION_LAST_CHILD + ')',
+                UiaTrace.direction(UiaIds.NAVIGATE_DIRECTION_LAST_CHILD));
+        assertEquals("direction=UNKNOWN(9)", UiaTrace.direction(9),
+                "a direction this platform does not have is still printed, as its number");
+
+        assertEquals("change=CHILD_ADDED(" + UiaIds.STRUCTURE_CHANGE_CHILD_ADDED + ')',
+                UiaTrace.structureChange(UiaIds.STRUCTURE_CHANGE_CHILD_ADDED));
+        assertEquals("change=CHILD_REMOVED(" + UiaIds.STRUCTURE_CHANGE_CHILD_REMOVED + ')',
+                UiaTrace.structureChange(UiaIds.STRUCTURE_CHANGE_CHILD_REMOVED));
+        assertEquals("change=CHILDREN_INVALIDATED("
+                        + UiaIds.STRUCTURE_CHANGE_CHILDREN_INVALIDATED + ')',
+                UiaTrace.structureChange(UiaIds.STRUCTURE_CHANGE_CHILDREN_INVALIDATED));
+        assertEquals("change=CHILDREN_BULK_ADDED("
+                        + UiaIds.STRUCTURE_CHANGE_CHILDREN_BULK_ADDED + ')',
+                UiaTrace.structureChange(UiaIds.STRUCTURE_CHANGE_CHILDREN_BULK_ADDED));
+        assertEquals("change=CHILDREN_BULK_REMOVED("
+                        + UiaIds.STRUCTURE_CHANGE_CHILDREN_BULK_REMOVED + ')',
+                UiaTrace.structureChange(UiaIds.STRUCTURE_CHANGE_CHILDREN_BULK_REMOVED));
+        assertEquals("change=CHILDREN_REORDERED("
+                        + UiaIds.STRUCTURE_CHANGE_CHILDREN_REORDERED + ')',
+                UiaTrace.structureChange(UiaIds.STRUCTURE_CHANGE_CHILDREN_REORDERED));
+        assertEquals("change=UNKNOWN(99)", UiaTrace.structureChange(99));
+
+        // The pairing an announcement is raised with, which is the one this bridge chooses
+        // (notificationFor): Other, and a processing by politeness.
+        assertEquals("kind=OTHER(" + UiaIds.NOTIFICATION_KIND_OTHER + ") processing=ALL("
+                        + UiaIds.NOTIFICATION_PROCESSING_ALL + ')',
+                UiaTrace.notification(UiaIds.NOTIFICATION_KIND_OTHER,
+                        UiaIds.NOTIFICATION_PROCESSING_ALL));
+        assertEquals("kind=ITEM_ADDED(" + UiaIds.NOTIFICATION_KIND_ITEM_ADDED
+                        + ") processing=IMPORTANT_MOST_RECENT("
+                        + UiaIds.NOTIFICATION_PROCESSING_IMPORTANT_MOST_RECENT + ')',
+                UiaTrace.notification(UiaIds.NOTIFICATION_KIND_ITEM_ADDED,
+                        UiaIds.NOTIFICATION_PROCESSING_IMPORTANT_MOST_RECENT));
+        assertEquals("kind=ITEM_REMOVED(" + UiaIds.NOTIFICATION_KIND_ITEM_REMOVED
+                        + ") processing=CURRENT_THEN_MOST_RECENT("
+                        + UiaIds.NOTIFICATION_PROCESSING_CURRENT_THEN_MOST_RECENT + ')',
+                UiaTrace.notification(UiaIds.NOTIFICATION_KIND_ITEM_REMOVED,
+                        UiaIds.NOTIFICATION_PROCESSING_CURRENT_THEN_MOST_RECENT));
+        assertEquals("kind=ACTION_COMPLETED(" + UiaIds.NOTIFICATION_KIND_ACTION_COMPLETED
+                        + ") processing=IMPORTANT_ALL("
+                        + UiaIds.NOTIFICATION_PROCESSING_IMPORTANT_ALL + ')',
+                UiaTrace.notification(UiaIds.NOTIFICATION_KIND_ACTION_COMPLETED,
+                        UiaIds.NOTIFICATION_PROCESSING_IMPORTANT_ALL));
+        assertEquals("kind=ACTION_ABORTED(" + UiaIds.NOTIFICATION_KIND_ACTION_ABORTED
+                        + ") processing=MOST_RECENT("
+                        + UiaIds.NOTIFICATION_PROCESSING_MOST_RECENT + ')',
+                UiaTrace.notification(UiaIds.NOTIFICATION_KIND_ACTION_ABORTED,
+                        UiaIds.NOTIFICATION_PROCESSING_MOST_RECENT));
+        assertEquals("kind=UNKNOWN(77) processing=IMPORTANT_CURRENT_THEN_MOST_RECENT("
+                        + UiaIds.NOTIFICATION_PROCESSING_IMPORTANT_CURRENT_THEN_MOST_RECENT + ')',
+                UiaTrace.notification(77,
+                        UiaIds.NOTIFICATION_PROCESSING_IMPORTANT_CURRENT_THEN_MOST_RECENT));
+        assertEquals("kind=OTHER(" + UiaIds.NOTIFICATION_KIND_OTHER + ") processing=UNKNOWN(88)",
+                UiaTrace.notification(UiaIds.NOTIFICATION_KIND_OTHER, 88));
+    }
+
+    /**
+     * What a property change's two values print as, which is the other formatter no assertion
+     * reached — including the absent value, whose word has to be the one the raise itself writes
+     * for it.
+     */
+    @Test
+    void aPropertyChangesValuesPrintAsTheClientWouldHaveThem() {
+        assertEquals("none", UiaTrace.value(null),
+                "which is the VT_EMPTY the raise writes for an absent value");
+        assertEquals("\"Save as\"", UiaTrace.value("Save as"));
+        assertEquals("true", UiaTrace.value(Boolean.TRUE));
+        assertEquals("7.5", UiaTrace.value(7.5));
+        assertEquals("1", UiaTrace.value(1));
+        String long42 = "x".repeat(UiaTrace.STRING_LIMIT + 2);
+        assertEquals('"' + "x".repeat(UiaTrace.STRING_LIMIT) + "…\"", UiaTrace.value(long42),
+                "cut to the limit and said to be cut, so no line carries a whole document");
+        assertEquals("\"two lines\"", UiaTrace.value("two\nlines"),
+                "a value with a newline in it must not break the one-line-per-event shape");
+        assertEquals("null", UiaTrace.text(null),
+                "and a string that is absent is not the same as one that is empty");
+        assertEquals("\"\"", UiaTrace.text(""));
+    }
+
     /** @return the {@code IN} lines of what was said, in order, without the bridge's own notes */
     private static List<String> inbound(List<String> said) {
         synchronized (said) {

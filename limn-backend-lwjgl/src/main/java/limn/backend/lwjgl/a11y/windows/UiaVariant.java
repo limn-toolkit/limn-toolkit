@@ -211,7 +211,24 @@ final class UiaVariant {
      * @return the string in quotes, or the pointer where it may not be read
      */
     private static String bstrText(long bstr, int limit) {
-        if (bstr == 0 || !UiaStrings.isAvailable()) {
+        return bstrText(bstr, limit, UiaStrings.isAvailable());
+    }
+
+    /**
+     * The same, with the one thing a test cannot arrange for itself given.
+     *
+     * <p>Split for that reason alone: the payload is a real {@code BSTR} only where
+     * {@code oleaut32} opened, so on every other machine the production path stops at the pointer
+     * and the length-prefixed read — the one piece of raw memory arithmetic in this file — would
+     * first run on the guest being diagnosed. A test hands it a buffer it built itself instead.
+     *
+     * @param bstr     the pointer written into the union
+     * @param limit    the longest string to repeat
+     * @param readable whether the four bytes in front of the pointer may be read at all
+     * @return the string in quotes, or the pointer where it may not be read
+     */
+    static String bstrText(long bstr, int limit, boolean readable) {
+        if (bstr == 0 || !readable) {
             return "0x" + Long.toHexString(bstr);
         }
         // A BSTR's length in BYTES sits in the four immediately before the pointer, and the data

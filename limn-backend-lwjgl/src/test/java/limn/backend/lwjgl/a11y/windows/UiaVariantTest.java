@@ -156,6 +156,92 @@ class UiaVariantTest {
                 "8192 for the array and 3 for the element type, which is what the guest numbered");
     }
 
+    /**
+     * What the trace says a client was handed, one tag at a time.
+     *
+     * <p>{@code describe} had no test on any branch when it was written (2026-09-16 review) and its
+     * only caller is {@code GetPropertyValue}, so the first run of most of this would have been the
+     * guest's. The tags are the ones this bridge writes plus one it never does, which is the branch
+     * a client's own {@code VARIANT} could still arrive on.
+     */
+    @Test
+    void everyTagTheTraceCanMeetDescribesItself() {
+        ByteBuffer memory = poisoned();
+
+        UiaVariant.empty(memory, 0);
+        assertEquals("VT_EMPTY", UiaVariant.describe(memory, 0, 40));
+
+        UiaVariant.i4(memory, 0, 50_020);
+        assertEquals("VT_I4(50020)", UiaVariant.describe(memory, 0, 40));
+
+        UiaVariant.r8(memory, 0, 1234.5);
+        assertEquals("VT_R8(1234.5)", UiaVariant.describe(memory, 0, 40));
+
+        UiaVariant.bool(memory, 0, true);
+        assertEquals("VT_BOOL(true)", UiaVariant.describe(memory, 0, 40));
+        UiaVariant.bool(memory, 0, false);
+        assertEquals("VT_BOOL(false)", UiaVariant.describe(memory, 0, 40));
+
+        UiaVariant.unknown(memory, 0, 0x1f4a20);
+        assertEquals("VT_UNKNOWN(0x1f4a20)", UiaVariant.describe(memory, 0, 40));
+
+        UiaVariant.i4Array(memory, 0, 0x1000);
+        assertEquals("tag8195(0x1000)", UiaVariant.describe(memory, 0, 40),
+                "an array is named by its number, which is the two flags together");
+
+        // A string is the one payload that is a pointer to be followed, and it is followed only
+        // where oleaut32 opened -- which is not here, and is the whole of the guard.
+        UiaVariant.bstr(memory, 0, 0x0000_7FFF_DEAD_BEEFL);
+        assertEquals("VT_BSTR(0x7fffdeadbeef)", UiaVariant.describe(memory, 0, 40),
+                "on a machine with no oleaut32 the pointer is not dereferenced");
+    }
+
+    /**
+     * The length-prefixed read itself, over a buffer this test builds: four bytes of length in
+     * front of UTF-16 data, which is what {@code SysAllocStringLen} hands back.
+     *
+     * <p>It is the one piece of raw memory arithmetic in this file, and until now it could run for
+     * the first time on the machine it was added to diagnose. A log line must never be the thing
+     * that walks off the end of a buffer, so every length that is not one a string could have is
+     * refused with the pointer printed instead.
+     */
+    @Test
+    void aStringIsReadBackThroughItsLengthAndAnImpossibleLengthIsRefused() {
+        assertEquals("0x0", UiaVariant.bstrText(0, 40, true), "a null is not followed");
+        assertEquals("0x1000", UiaVariant.bstrText(0x1000, 40, false),
+                "nor is anything where the payload is not a real BSTR");
+
+        long block = org.lwjgl.system.MemoryUtil.nmemCallocChecked(1, 4 + 2L * 8);
+        try {
+            long bstr = block + 4;
+            writeUtf16(bstr, "Save as…");
+            org.lwjgl.system.MemoryUtil.memPutInt(block, 16);
+            assertEquals("\"Save as…\"", UiaVariant.bstrText(bstr, 40, true));
+            assertEquals("\"Save…\"", UiaVariant.bstrText(bstr, 4, true),
+                    "cut to the limit, and said to be cut");
+
+            org.lwjgl.system.MemoryUtil.memPutInt(block, 15);
+            assertEquals("0x" + Long.toHexString(bstr) + " length15",
+                    UiaVariant.bstrText(bstr, 40, true), "no UTF-16 string is an odd byte long");
+            org.lwjgl.system.MemoryUtil.memPutInt(block, -2);
+            assertEquals("0x" + Long.toHexString(bstr) + " length-2",
+                    UiaVariant.bstrText(bstr, 40, true), "nor a negative one");
+            org.lwjgl.system.MemoryUtil.memPutInt(block, (1 << 20) + 2);
+            assertEquals("0x" + Long.toHexString(bstr) + " length1048578",
+                    UiaVariant.bstrText(bstr, 40, true),
+                    "nor one longer than any name a provider hands over");
+        } finally {
+            org.lwjgl.system.MemoryUtil.nmemFree(block);
+        }
+    }
+
+    /** Writes UTF-16 code units where a {@code BSTR}'s data sits. */
+    private static void writeUtf16(long at, String text) {
+        for (int i = 0; i < text.length(); i++) {
+            org.lwjgl.system.MemoryUtil.memPutShort(at + (long) i * 2, (short) text.charAt(i));
+        }
+    }
+
     @Test
     void everyWriterLeavesTheStructureExactlyTwentyFourBytesLong() {
         ByteBuffer memory = poisoned();
