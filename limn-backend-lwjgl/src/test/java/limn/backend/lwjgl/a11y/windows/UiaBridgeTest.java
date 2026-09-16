@@ -539,6 +539,38 @@ class UiaBridgeTest {
         }
     }
 
+    /**
+     * §13.5, the half a guest measured on 2026-09-16: the ask that decides whether a client ever
+     * subscribes arrives 50-141 ms after the bind and 300-500 ms before the first frame, and a
+     * client told this window has no provider does not ask again — it subscribes to nothing, and
+     * every focus event raised for the rest of the run returns S_OK to nobody. So the scene hands
+     * this bridge the window's own node at the bind, and what this pins is that the node is enough
+     * to answer with and that the contents arrive under the same element: a root retired and
+     * re-minted between the two would leave the subscription on an element that no longer exists.
+     */
+    @Test
+    void theRootHandedOverBeforeTheFirstFrameIsTheOneTheContentsArriveUnder() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        try {
+            assertTrue(bridge.needsRootBeforeTheFirstFrame(),
+                    "this is the platform whose window is asked before a frame has run");
+            bridge.publish(aWindowWithout(), false); // what a bind publishes
+            bridge.answerGetObject(0, 0);
+
+            assertTrue(bridge.holdsElementFor(1000),
+                    "the window alone was not enough to hand over a root, so the ask was answered "
+                            + "with nothing and the client that heard it will not ask twice");
+            UiaObject root = bridge.objectFor(1000);
+
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false); // the first frame
+
+            assertSame(root, bridge.objectFor(1000),
+                    "the button arrived under a different root than the one handed over");
+        } finally {
+            bridge.detach();
+        }
+    }
+
     private static AccessibleTree aWindowWithout() {
         Accessibility a = new Accessibility();
         a.beginWalk(400, 300, Locale.ENGLISH);

@@ -374,6 +374,17 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
+     * <p>Yes, and this is the platform the question exists for: {@code WM_GETOBJECT} arrives
+     * whenever a client decides to look at this window, which on the guest is 50 to 141 ms after the
+     * bind and 300-500 ms before the first frame — and a client told there is no provider does not
+     * ask a second time. See {@link #answerGetObject} for what that costs and how it was measured.
+     */
+    @Override
+    public boolean needsRootBeforeTheFirstFrame() {
+        return true;
+    }
+
+    /**
      * <p>The snapshot is swapped whole. A client reading on an RPC thread sees the previous tree or
      * the next one and never half of either, which is the property the whole record is built on.
      *
@@ -1796,6 +1807,20 @@ public final class UiaBridge extends PlatformBridge {
         // handed over the tree it already had and let the gate do the rest read every value. The
         // priming publish is a truthful tree; the ask opens the gate (noteAsked), and the first
         // frame something moves publishes and raises it, outside anyone's call.
+        //
+        // 2026-09-16: that measurement's two runs are no longer evidence for anything, and what
+        // this answers when it has nothing was the defect. Ten runs of one build with the trace on
+        // split five spoken and five silent, and the line that decided every one of them is this
+        // one: a run whose two asks both fell before the first publish answered 0 twice, and
+        // AdviseEventAdded(AUTOMATION_FOCUS_CHANGED) then never arrived, so every focus event of
+        // that run was raised S_OK into a subscription nobody had made — which is exactly
+        // "announcing the window and never anything in it", the symptom the 2026-09-07 note read as
+        // the cost of publishing inside the ask. It was the cost of answering nothing. The rule
+        // above stands unchanged — nothing is published from inside this message — and the tree
+        // that makes it answerable now exists before the message can arrive: the scene publishes
+        // the window's own node at the bind (AccessibilityBridge#needsRootBeforeTheFirstFrame).
+        // Ten runs, four with the reader started after the first publish, are in
+        // readings/phase5-windows-diagnosis/evidence-table.txt.
         AccessibleTree tree = tree();
         boolean held = UiaTrace.on() && tree.nodeCount() > 0 && holdsElementFor(tree.root().id());
         long root = rootElement();

@@ -109,10 +109,15 @@ final class RecordingWindow implements NativeWindow {
     @Override public void requestFrame() { frameRequests++; }
     @Override public void setFrameCallback(FrameCallback callback) { }
     @Override public void setInput(WindowInput input) { }
-    @Override public String title() { return ""; }
-    @Override public void setTitle(String title) { }
-    @Override public float logicalWidth() { return 0; }
-    @Override public float logicalHeight() { return 0; }
+    /** What a window says about itself before the scene in it has ever laid out. */
+    String title = "";
+    float logicalWidth;
+    float logicalHeight;
+
+    @Override public String title() { return title; }
+    @Override public void setTitle(String newTitle) { this.title = newTitle; }
+    @Override public float logicalWidth() { return logicalWidth; }
+    @Override public float logicalHeight() { return logicalHeight; }
     @Override public int framebufferWidth() { return 0; }
     @Override public int framebufferHeight() { return 0; }
     @Override public float contentScale() { return 1; }

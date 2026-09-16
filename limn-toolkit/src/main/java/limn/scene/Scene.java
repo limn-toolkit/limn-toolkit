@@ -361,10 +361,41 @@ public final class Scene implements WindowInput {
         // attach() and not a tree: at this instant the scene has never laid out, so every box in
         // it would be a zero-size rectangle at the origin. The first frame is where the boxes are.
         this.bridge.attach(accessibilityHost());
+        publishTheWindowNodeIfOwed();
         window.setInput(this);
         this.renderRequester = window::requestFrame;
         window.setFrameCallback((renderer, frame) ->
                 renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs()));
+    }
+
+    /**
+     * The window's own node, published at the bind for the one bridge that can be asked whether this
+     * window has accessibility at all before a frame has run.
+     *
+     * <p>It does not walk the scene and it is not the priming publish, which stays where it is: the
+     * first frame still publishes the real tree, with the boxes layout has by then made real, and
+     * this is only what stands in the meantime so that the answer to the platform's question is
+     * "yes, and here it is" rather than "nothing here". A client that asks before the first frame
+     * and is told no does not ask again — measured, with the count of runs it decided, in
+     * {@link limn.backend.AccessibilityBridge#needsRootBeforeTheFirstFrame}.
+     *
+     * <p><b>Published and not emitted.</b> The difference between no tree and this one is that a
+     * window appeared, which is the platform's own news to carry and not a fact any client has been
+     * told anything else about; the first frame's difference is measured from this tree, so nothing
+     * that happens to this window goes unsaid.
+     */
+    private void publishTheWindowNodeIfOwed() {
+        if (window == null || !bridge.needsRootBeforeTheFirstFrame()) {
+            return;
+        }
+        // The window's own size and not the scene's: width and height here are zero until the first
+        // layoutPass assigns them, and the window has had a size since it was created.
+        accessibleWalk().walkWindowOnly(this, window.logicalWidth(), window.logicalHeight());
+        limn.accessibility.AccessibleTree tree = accessibleWalk.publish(
+                window.screenX(), window.screenY(), window.logicalToScreenFactor(),
+                window.supportsAbsolutePositioning());
+        publishedTree = tree;
+        bridge.publish(tree, false);
     }
 
     /**

@@ -7,8 +7,8 @@ import limn.accessibility.AccessibleTree;
 /**
  * What a backend gives a window so that a platform's assistive technology can read it.
  *
- * <p><b>The whole seam is eleven members and one direction each.</b> Outbound, the scene tells a
- * bridge things and asks it two questions, and nothing in the toolkit calls a bridge in any other
+ * <p><b>The whole seam is twelve members and one direction each.</b> Outbound, the scene tells a
+ * bridge things and asks it three questions, and nothing in the toolkit calls a bridge in any other
  * way. Inbound, everything a platform asks of the toolkit arrives through the four members of
  * {@link Host}. Nothing in a bridge ever touches a widget, a scene or a window: it is handed an
  * immutable tree and it answers from that.
@@ -63,6 +63,32 @@ public interface AccessibilityBridge {
      * @return whether this bridge is owed one tree on the first frame regardless
      */
     default boolean needsPrimingPublish() {
+        return false;
+    }
+
+    /**
+     * Whether this bridge is owed the window's own node the moment a scene binds, because it can be
+     * asked whether this window has accessibility at all before the first frame has run.
+     *
+     * <p>Asked once, when a scene binds, and true on one platform. There a client asks the window
+     * itself, in a message, and a window that answers "nothing here" is not asked again: the client
+     * subscribes to no events, and every event raised for the rest of that window's life is
+     * delivered to nobody while the window keeps answering every question it is asked. Measured on
+     * the Windows 11 guest, 2026-09-16: the reader asks twice, milliseconds apart, within 141 ms of
+     * the bind, and the first frame publishes 305-523 ms later, so ten runs of one build split five
+     * silent and five spoken on nothing but which side of the first frame those two asks fell
+     * (`.claude/pending/2026-09-13/readings/phase5-windows-diagnosis/evidence-table.txt`).
+     *
+     * <p><b>What it is owed is the window node alone, and not the scene.</b> No layout has run at a
+     * bind, so every widget is a zero-size rectangle at the origin and a tree of those is worse than
+     * none — it reads perfectly and hit-tests nowhere (ADR 039 §13.21). The window's role, its title
+     * and the size it already has are true at that instant, and the identifier they are published
+     * under is the one every later walk reuses, so the element a client subscribes to here is the
+     * element the contents arrive under.
+     *
+     * @return whether this bridge is owed the window's own node the moment a scene binds
+     */
+    default boolean needsRootBeforeTheFirstFrame() {
         return false;
     }
 

@@ -145,6 +145,33 @@ final class AccessibleWalk {
      * @param sceneHeight its height
      */
     void walk(Scene scene, float sceneWidth, float sceneHeight) {
+        walk(scene, sceneWidth, sceneHeight, true);
+    }
+
+    /**
+     * Walks the window's own node and nothing inside it: what a scene has to say about itself
+     * before it has ever laid out.
+     *
+     * <p>For the one bridge that can be asked whether its window has accessibility at all before
+     * the first frame runs ({@link limn.backend.AccessibilityBridge#needsRootBeforeTheFirstFrame}).
+     * Every fact it publishes — the role, the title, the modal bit, the window's own size — is one
+     * the window already has at a bind; the widgets are left out precisely because they do not have
+     * theirs yet, and a zero-size rectangle at the origin is not a truth about a widget. The window
+     * node keeps {@link #windowNodeId}, so the next walk describes the same element rather than
+     * retiring the one a client has already subscribed to.
+     *
+     * @param scene       the scene to describe
+     * @param sceneWidth  the window's width in logical points, which layout has not yet confirmed
+     * @param sceneHeight its height
+     */
+    void walkWindowOnly(Scene scene, float sceneWidth, float sceneHeight) {
+        walk(scene, sceneWidth, sceneHeight, false);
+    }
+
+    /**
+     * @param contents whether to walk what is inside the window, or only the window itself
+     */
+    private void walk(Scene scene, float sceneWidth, float sceneHeight, boolean contents) {
         this.scene = scene;
         Locale sceneLocale = scene.locale() != null ? scene.locale() : limn.i18n.I18n.processLocale();
         builder.beginWalk(sceneWidth, sceneHeight, sceneLocale);
@@ -195,6 +222,16 @@ final class AccessibleWalk {
         Widget layer = scene.accessibleInputLayer();
         builder.inherited(layer != null, true, true, false, false);
 
+        if (!contents) {
+            // The window alone, and the tail below still runs: it resolves relations there are none
+            // of and counts the one node, which is what leaves the builder in the state the next
+            // walk's comparison reads.
+            builder.end();
+            count = builder.nodeCount();
+            builder.resolveRelations(resolver);
+            builder.foreignActiveDescendant(0);
+            return;
+        }
         walkWidget(scene, root, null, 0, -1, 0, 0, true, true, layer == root);
         List<Widget> overlays = scene.overlays();
         for (int i = 0; i < overlays.size(); i++) {

@@ -42,6 +42,9 @@ public final class RecordingAccessibilityBridge implements AccessibilityBridge {
     /** What {@link #needsPrimingPublish()} answers. */
     public boolean needsPriming;
 
+    /** What {@link #needsRootBeforeTheFirstFrame()} answers. */
+    public boolean needsRootAtBind;
+
     /** Every tree handed over, newest last. */
     public final List<AccessibleTree> published = new ArrayList<>();
 
@@ -66,6 +69,11 @@ public final class RecordingAccessibilityBridge implements AccessibilityBridge {
     @Override
     public boolean needsPrimingPublish() {
         return needsPriming;
+    }
+
+    @Override
+    public boolean needsRootBeforeTheFirstFrame() {
+        return needsRootAtBind;
     }
 
     @Override

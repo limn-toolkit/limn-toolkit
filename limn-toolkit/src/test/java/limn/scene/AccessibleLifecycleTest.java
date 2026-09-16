@@ -75,6 +75,65 @@ class AccessibleLifecycleTest extends AccessibleTestBase {
                 "a bridge that did not ask pays no walk for a window nobody ever touches");
     }
 
+    /**
+     * The one platform that is asked whether this window has accessibility at all, in a message,
+     * before the first frame can run — and that does not ask twice when it is told no. What it is
+     * handed at the bind is the window and nothing under it: the widgets have no boxes yet, and the
+     * priming publish on the first frame is still the one that describes them.
+     */
+    @Test
+    void aBridgeAskedForARootBeforeTheFirstFrameIsHandedTheWindowAloneAtTheBind() {
+        Group root = sceneWithAButton();
+        bridge = new RecordingAccessibilityBridge();
+        bridge.listening = false;
+        bridge.needsPriming = true;
+        bridge.needsRootAtBind = true;
+        window = new RecordingWindow();
+        window.accessibility = bridge;
+        window.title = "A window";
+        window.logicalWidth = 400;
+        window.logicalHeight = 300;
+        scene = new Scene(root, nanos::get);
+        scene.bind(window);
+
+        assertEquals(1, bridge.published.size(), "the bind owed this bridge a root");
+        AccessibleTree atBind = bridge.published.get(0);
+        assertEquals(1, atBind.nodeCount(), "the window alone: " + describe(atBind));
+        assertEquals(Accessible.Role.WINDOW, atBind.root().role());
+        assertEquals("A window", atBind.root().name());
+        assertEquals(400f, atBind.root().width(),
+                "the window's own size, which it has had since it was created");
+        assertEquals(300f, atBind.root().height());
+        long windowNode = atBind.root().id();
+
+        frame();
+
+        assertEquals(2, bridge.published.size(), "and the first frame still publishes the scene");
+        assertEquals(20f, node("Save").height(), "with real boxes: " + describe(tree()));
+        assertEquals(windowNode, tree().root().id(),
+                "the contents arrived under a different window node than the one a client was "
+                        + "handed at the bind, so whatever subscribed to that one is subscribed to "
+                        + "an element that no longer exists");
+    }
+
+    @Test
+    void aBridgeThatDidNotAskForARootIsHandedNothingAtTheBind() {
+        Group root = sceneWithAButton();
+        bridge = new RecordingAccessibilityBridge();
+        bridge.listening = true;
+        bridge.needsRootAtBind = false;
+        window = new RecordingWindow();
+        window.accessibility = bridge;
+        window.logicalWidth = 400;
+        window.logicalHeight = 300;
+        scene = new Scene(root, nanos::get);
+        scene.bind(window);
+
+        assertTrue(bridge.published.isEmpty(),
+                "two platforms answer their own 'is anyone listening' and pay nothing before a "
+                        + "frame; only the one that is asked in a message is owed a root");
+    }
+
     @Test
     void bindingRaisesAWindowOpenedAndClosingRaisesAWindowClosed() {
         Group root = sceneWithAButton();
