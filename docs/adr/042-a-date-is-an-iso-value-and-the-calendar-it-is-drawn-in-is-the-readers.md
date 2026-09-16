@@ -299,7 +299,9 @@ letter only while the block crosses an era ("H31", "R2"), and the title names bo
 
 The month is paged by the two header buttons, by PageUp and PageDown, and by arrowing off an edge.
 Arrow keys move by a day and a week, Home and End go to the first and last day **of the week**
-(they name a position in a row, so they mirror with the row; §8), and the focused day is a *cursor*
+(this parenthesis said "they name a position in a row, so they mirror with the row; §8" and was
+**corrected 2026-09-14**, below: they name the first and last day of the week, not a side of it, so
+they do **not** mirror, and the cross-reference is §9), and the focused day is a *cursor*
 that is not the selection: it moves with the arrows and commits with Enter or Space. A grid where
 arrowing selected would fire a form's handler seven times crossing a week.
 
@@ -316,12 +318,16 @@ had and this record did not name (`CalendarViewAccessibilityTest.shiftWithAnArro
 `DateField` and on `DatePicker`, which fans out to both of its parts. A day outside the bounds or
 refused by the filter is drawn disabled, is skipped by the keyboard cursor, refuses a click, and is
 published to a screen reader without a `SELECT` verb — the same "a dead control carries no verb"
-rule `SegmentedControl` states for a scroll arrow it cannot use.
+rule `SegmentedControl` states for a scroll arrow it cannot use. (**"Skipped by the keyboard cursor"
+was reversed 2026-09-14**, decision 30, the amendment below: the cursor stops on a refused day,
+which is published disabled and carries no verb, because a skip leaves a hole nobody is told about.)
 
 The field enforces the same three, and enforces them at a different moment: a typed date that is out
 of range or refused does not silently snap to the nearest legal day. It is held, the field publishes
-`VALIDITY` as invalid with a message, and the value the application reads stays what it was.
-Snapping is the behaviour that loses a user's typing without telling them.
+`VALIDITY` as invalid with a message, and the value the application reads stays what it was
+(**corrected 2026-09-14**, below: `date()` answers the out-of-range date that was typed, and
+`isValid()` says separately that it is not acceptable). Snapping is the behaviour that loses a
+user's typing without telling them.
 
 The predicate is called during paint, once per visible cell, and is documented as such: it must be
 cheap and it must be pure. A filter that hits a database is a filter that stalls a frame.
