@@ -803,6 +803,15 @@ public final class AccessibilityGallery {
         page.add(Labelled.above("Quantity", new Spinner(0, 99, 1).setValue(1)));
         page.add(Labelled.above("Opacity", new Spinner(0, 1, 0.25).setValue(0.5)));
         page.add(Labelled.above("Departure", Spinner.time().setValue(7 * 60 + 30)));
+        // Parked at its maximum, so the gallery carries a spinner whose upper arrow cannot move
+        // the value and is published without ENABLED and with no PRESS (decision 69), beside three
+        // whose arrows are both live. Until this one there was no spinner at a bound anywhere in
+        // the gallery, which is why VerbPolicyRatchetTest's dead-arrow skip could be struck
+        // without a single line of any transcript moving -- and also why nothing in that suite
+        // would have noticed had the narrowing been written the wrong way round. It is the
+        // "Contrast, locked" slider's role on the sliders page: a state variant, not a fourth
+        // widget.
+        page.add(Labelled.above("Servings, at the maximum", new Spinner(1, 8, 1).setValue(8)));
         return new Built(page);
     }
 

@@ -369,19 +369,20 @@ class VerbPolicyRatchetTest {
      *   <li>{@link #IDEMPOTENT}, a verb that names a state the node is already in;</li>
      *   <li><b>a step past the end of a range.</b> {@code INCREMENT} on a value already at its
      *       maximum and {@code DECREMENT} on one at its minimum are a no-op wherever the value
-     *       lives — a scroll bar parked at the top, a colour picker's alpha at 100. The range may
-     *       be the parent's: a spin button's {@code Increase} and {@code Decrease} chevrons are
-     *       children of the spinner and carry no value of their own, and pressing the dead one of
-     *       the pair does nothing. That last case is the loosest test here, because a chevron's
-     *       direction is not in the model: at a limit neither chevron is asked, so a broken live
-     *       one would go unseen. It is the shape decision 30 would rather close on the widget, by
-     *       narrowing the dead chevron with {@code Accessibility#disabled()} as a scroll chevron
-     *       with nothing left to scroll already is; until a widget lane does that, the pass does
-     *       not report it.</li>
+     *       lives — a scroll bar parked at the top, a colour picker's alpha at 100.</li>
      * </ul>
+     *
+     * <p>There was a fourth, and decision 69 struck it on 2026-09-16: a {@code PRESS} on a node
+     * whose <em>parent</em> is a {@code SPIN_BUTTON} at a bound. A spinner's {@code Increase} and
+     * {@code Decrease} arrows carry no value of their own, so the dead one of the pair used to
+     * publish a press that did nothing and this method had to let it through — the loosest test in
+     * the file, because an arrow's direction is not in the model, so at a limit neither arrow was
+     * asked and a broken live one would have gone unseen. {@code Spinner} now narrows the dead
+     * arrow with {@code Accessibility#disabled()} and the publish step withdraws its verb, which
+     * is what {@code SegmentedControl}'s dead chevron and a refused calendar day already did, so
+     * the pass is never offered that press and both arrows are asked whenever both are live.
      */
-    private static boolean movesNothingByDefinition(AccessibleTree tree, AccessibleNode node,
-                                                    Accessible.Action verb) {
+    private static boolean movesNothingByDefinition(AccessibleNode node, Accessible.Action verb) {
         if (verb == Accessible.Action.FOCUS || verb == Accessible.Action.SCROLL_INTO_VIEW) {
             return true;
         }
@@ -391,17 +392,9 @@ class VerbPolicyRatchetTest {
             }
         }
         limn.accessibility.ValueFacet own = node.value();
-        if (own != null && !own.empty()) {
-            return verb == Accessible.Action.INCREMENT && own.value() >= own.max()
-                    || verb == Accessible.Action.DECREMENT && own.value() <= own.min();
-        }
-        if (verb != Accessible.Action.PRESS || node.parent() == AccessibleNode.NONE) {
-            return false;
-        }
-        AccessibleNode parent = tree.node(node.parent());
-        limn.accessibility.ValueFacet range = parent.value();
-        return parent.role() == Accessible.Role.SPIN_BUTTON && range != null && !range.empty()
-                && (range.value() >= range.max() || range.value() <= range.min());
+        return own != null && !own.empty()
+                && (verb == Accessible.Action.INCREMENT && own.value() >= own.max()
+                        || verb == Accessible.Action.DECREMENT && own.value() <= own.min());
     }
 
     /**
@@ -421,7 +414,7 @@ class VerbPolicyRatchetTest {
                         AccessibleNode node = tree.node(i);
                         if (!verb.isParameterless() || node.actions() == null
                                 || !node.actions().has(verb)
-                                || movesNothingByDefinition(tree, node, verb)) {
+                                || movesNothingByDefinition(node, verb)) {
                             continue;
                         }
                         Outcome outcome = run.perform(w, node.id(), verb,

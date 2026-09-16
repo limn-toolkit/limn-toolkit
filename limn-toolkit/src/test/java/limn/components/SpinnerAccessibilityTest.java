@@ -219,15 +219,24 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         for (AccessibleNode arrow : arrows()) {
             assertEquals(Accessible.Role.BUTTON, arrow.role(), describe(tree()));
             arrowNames.add(arrow.name());
-            assertTrue(arrow.actions().has(Accessible.Action.PRESS), describe(tree()));
             assertFalse(arrow.has(Accessible.State.FOCUSABLE),
                     "a thing a widget paints is not a tab stop; Tab reaches the spinner and the "
                             + "arrows belong to it" + describe(tree()));
-            assertTrue(arrow.has(Accessible.State.ENABLED),
-                    "the owner's bits, written onto every node the owner drew" + describe(tree()));
             assertTrue(arrow.has(Accessible.State.SHOWING), describe(tree()));
             assertNull(arrow.value(), "the number is on the spinner, once" + describe(tree()));
         }
+        // A fresh spinner sits at its minimum -- the constructor's `value = min` -- so this
+        // fixture is a bounded one and the halves differ (decision 69): the upper one is the
+        // owner's enabled bit written onto a node the owner drew, the lower one is narrowed
+        // because pressing it would step below zero and move nothing. The both-alive shape is
+        // asserted by bothHalvesAreOperableInsideTheRange, on a spinner set off its bound.
+        assertTrue(arrows().get(0).has(Accessible.State.ENABLED), describe(tree()));
+        assertTrue(arrows().get(0).actions().has(Accessible.Action.PRESS), describe(tree()));
+        assertFalse(arrows().get(1).has(Accessible.State.ENABLED),
+                "a fresh spinner is at min, so its lower half cannot move the value"
+                        + describe(tree()));
+        assertNull(arrows().get(1).actions(),
+                "and a node that is not ENABLED publishes no verb" + describe(tree()));
         assertEquals(List.of("Increase", "Decrease"), arrowNames,
                 "named by the toolkit, because nothing else can reach them: a synthetic child is "
                         + "not a widget, so setAccessibleName, a bound caption and the tooltip "
@@ -527,6 +536,136 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         for (AccessibleNode arrow : arrows()) {
             assertNull(arrow.actions(), "nor on its arrows" + describe(tree()));
         }
+    }
+
+    // ------------------------------------------------------------------------- the bounds (d. 69)
+
+    /**
+     * Decision 69, 2026-09-16: the arrow that cannot move the value any further publishes without
+     * {@code ENABLED} and carries no verb, so a reader says "unavailable" instead of offering a
+     * press that does nothing. The spinner's own node is untouched by it — it is a value-bearing
+     * node whose {@code INCREMENT} past the end of its range is the shape a scroll bar and a rail
+     * have too — and so is everything else the two halves publish, which is why the name, the box
+     * and the role are read back here as well.
+     */
+    @Test
+    void theUpperHalfAtTheMaximumIsNotEnabledAndCarriesNoVerb() throws Exception {
+        bindSpinner(new Spinner(0, 99, 1).setValue(99));
+        AccessibleNode up = arrows().get(0);
+        AccessibleNode down = arrows().get(1);
+        bridge.events.clear();
+
+        assertFalse(up.has(Accessible.State.ENABLED),
+                "at max the upper arrow cannot move the value, and it is drawn dimmed: the node "
+                        + "says the same thing the pixels do" + describe(tree()));
+        assertNull(up.actions(),
+                "and a node that is not ENABLED publishes no verb at all -- no PRESS, and no "
+                        + "INCREMENT either, which it never declared" + describe(tree()));
+        assertFalse(up.accepts(Accessible.Action.PRESS), describe(tree()));
+        assertEquals("Increase", up.name(),
+                "it is still named and still boxed: unavailable, not gone" + describe(tree()));
+        assertEquals(Accessible.Role.BUTTON, up.role(), describe(tree()));
+        assertTrue(up.width() > 0 && up.height() > 0, describe(tree()));
+        assertTrue(up.has(Accessible.State.SHOWING), describe(tree()));
+
+        assertTrue(down.has(Accessible.State.ENABLED),
+                "the other half still moves, so the narrowing is per arrow and not per widget"
+                        + describe(tree()));
+        assertTrue(down.actions().has(Accessible.Action.PRESS), describe(tree()));
+
+        AccessibleNode node = spinnerNode();
+        assertTrue(node.has(Accessible.State.ENABLED),
+                "the owner is untouched: disabled() narrows the child alone" + describe(tree()));
+        assertTrue(node.actions().has(Accessible.Action.INCREMENT),
+                "and the spinner's own INCREMENT at max stays published -- that is a value-bearing "
+                        + "node stepping past the end of its own range, the scroll bar's shape, "
+                        + "and not an arrow" + describe(tree()));
+
+        // Sent anyway, the way a platform that read a stale snapshot would send it. Host#perform
+        // answers true from the membership check alone and the UI-thread refusal stays silent
+        // (semantics 5), so what is asserted is the refusal's effect and not its return value.
+        perform(up.id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        frame();
+
+        assertEquals(99.0, spinner.value(), "performing it moved nothing");
+        assertEquals(List.of(), changed, "and reached no application handler");
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED),
+                "a refused press is not acknowledged: " + bridge.events);
+        assertTrue(bridge.events.isEmpty(), bridge.events.toString());
+    }
+
+    @Test
+    void theLowerHalfAtTheMinimumIsNotEnabledAndCarriesNoVerb() throws Exception {
+        bindSpinner(new Spinner(0, 99, 1).setValue(0));
+        AccessibleNode down = arrows().get(1);
+        bridge.events.clear();
+
+        assertFalse(down.has(Accessible.State.ENABLED), describe(tree()));
+        assertNull(down.actions(), describe(tree()));
+        assertEquals("Decrease", down.name(), describe(tree()));
+        assertTrue(arrows().get(0).has(Accessible.State.ENABLED), describe(tree()));
+
+        assertFalse(down.accepts(Accessible.Action.PRESS), describe(tree()));
+        perform(down.id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        frame();
+
+        assertEquals(0.0, spinner.value(), "performing it moved nothing");
+        assertEquals(List.of(), changed);
+        assertTrue(bridge.events.isEmpty(), bridge.events.toString());
+    }
+
+    @Test
+    void bothHalvesAreOperableInsideTheRange() throws Exception {
+        bindSpinner(new Spinner(0, 99, 1).setValue(50));
+
+        for (AccessibleNode arrow : arrows()) {
+            assertTrue(arrow.has(Accessible.State.ENABLED), describe(tree()));
+            assertTrue(arrow.actions().has(Accessible.Action.PRESS), describe(tree()));
+            assertTrue(arrow.accepts(Accessible.Action.PRESS), describe(tree()));
+        }
+        assertTrue(perform(arrows().get(0).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE), describe(tree()));
+        frame();
+        assertEquals(51.0, spinner.value());
+        assertTrue(perform(arrows().get(1).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE), describe(tree()));
+        frame();
+        assertEquals(50.0, spinner.value());
+        assertEquals(List.of(51.0, 50.0), changed);
+    }
+
+    /**
+     * The arrow comes back the moment the value leaves the bound, through the difference the
+     * publish raises rather than through a rebuild: the narrowing is read off the value in the
+     * hook, so nothing has to remember to clear it. A time spinner is used for the second half
+     * because its increment is 60 while the arrows are on the hours, and a bound predicate written
+     * against the increment rather than against the value would put the upper arrow out one hour
+     * early.
+     */
+    @Test
+    void anArrowComesBackWhenTheValueLeavesTheBound() throws Exception {
+        bindSpinner(new Spinner(0, 99, 1).setValue(99));
+        assertFalse(arrows().get(0).has(Accessible.State.ENABLED), describe(tree()));
+
+        spinner.setValue(98);
+        frame();
+
+        assertTrue(arrows().get(0).has(Accessible.State.ENABLED),
+                "one step off the bound and the arrow is operable again" + describe(tree()));
+        assertTrue(arrows().get(0).actions().has(Accessible.Action.PRESS), describe(tree()));
+
+        bindSpinner(Spinner.time(0, 23 * 60 + 59, 1).setValue(23 * 60));
+        assertEquals(60.0, spinnerNode().value().step(),
+                "the fixture really is on the hours field" + describe(tree()));
+        assertTrue(arrows().get(0).has(Accessible.State.ENABLED),
+                "23:00 is not 23:59: the bound is the value against max, never the value plus one "
+                        + "increment" + describe(tree()));
+
+        spinner.setValue(23 * 60 + 59);
+        frame();
+
+        assertFalse(arrows().get(0).has(Accessible.State.ENABLED), describe(tree()));
+        assertNull(arrows().get(0).actions(), describe(tree()));
     }
 
     @Test

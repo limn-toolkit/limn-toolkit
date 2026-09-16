@@ -1438,20 +1438,28 @@ public class Spinner extends Widget {
      * crossing, so a hook that published either would re-copy the whole tree for a mouse the reader
      * is not using.
      *
-     * <p><b>The two arrow nodes do not say they are dimmed at a bound, and the reason they gave is
-     * out of date</b> (checked 2026-09-15). What this said until now was that a declared
-     * {@code ENABLED} is ignored, so a reader infers the bound from the value against the bounds
-     * it was given. The first half stopped being true on 2026-09-14: decision 30 gave a synthetic
-     * child {@link limn.accessibility.Accessibility#disabled()}, a narrowing-only declaration, and
-     * a refused calendar day and {@code SegmentedControl}'s dead chevron were both narrowed with
-     * it. So the route exists, and the value this hook already reads says which arrow is dead: at
-     * {@code max} the upper one presses and steps nothing, and {@code VerbPolicyRatchetTest} has
-     * to skip its published {@code PRESS} as one that "moves nothing by definition". Whether a
-     * stepper's arrow at a bound should go on to publish not-{@code ENABLED} and no verb is an
-     * open question — the model lane raised it as a candidate for decision 30 on 2026-09-15 and
-     * the round's critic left it with the owner, since decision 30 names the calendar day and the
-     * segmented control's chevron and not this — and only the second half of the old reason still
-     * argues for today's answer. Do not read this paragraph as a settled "no".
+     * <p><b>An arrow that cannot move the value any further says so</b> (decision 69, 2026-09-16,
+     * which is decision 30 and semantics 5 carried from the refused calendar day and
+     * {@code SegmentedControl}'s dead chevron onto every stepper in the toolkit): at {@code max}
+     * the upper half is narrowed with {@link limn.accessibility.Accessibility#disabled()} and at
+     * {@code min} the lower half is, and the publish step then withdraws the {@code PRESS} each
+     * declares, so a reader says "unavailable" instead of offering an act that does nothing. What
+     * stood here until 2026-09-15 was that a declared {@code ENABLED} is ignored so a reader must
+     * infer the bound from the value against the bounds — the first half untrue since
+     * {@code Accessibility#disabled()} arrived on 2026-09-14, the second half an inference the
+     * owner has now declined to ask a reader to make. It is heard on every spinner in the toolkit,
+     * twenty-two arrows in a colour picker among them.
+     *
+     * <p>The two predicates are {@code paintButtons}' own, {@code value < max} and
+     * {@code value > min}, read from the same fields in the same pass: the arrow a reader is told
+     * is unavailable is exactly the one drawn in {@code disabledText}, and the node cannot say
+     * operable where the pixels say dead. They are also exactly right about the verb, because
+     * nothing here wraps: {@link #nudge} goes through {@link #settle}, which clamps to the bound
+     * and returns false when the value did not move, and reaches {@code max} from anywhere below
+     * it whatever the snap grid. A spinner whose own node is {@code INCREMENT}-at-{@code max} is
+     * left alone by this: that is a value-bearing node stepping past the end of its own range, the
+     * shape {@code VerbPolicyRatchetTest} reads off the facet for a scroll bar and a rail too, and
+     * not an arrow.
      *
      * <p><b>The tree does not model the inline edit.</b> There is no text facet, so the node always
      * publishes the committed value and its display form: while the user is typing, what a reader
@@ -1510,12 +1518,23 @@ public class Spinner extends Widget {
         // built here, so a spinner damaged by its own repeat allocates nothing to say what it is.
         a.name(ComponentStrings.SPINNER_INCREMENT, Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
+        if (!(value < max)) {
+            // paintButtons' own predicate, negated: the half drawn in disabledText is the half
+            // published without ENABLED, and the publish step then takes the PRESS above off it
+            // (decision 69; decision 30, semantics 5). Written as !(value < max) and not
+            // value >= max so that a NaN bound -- which the constructor cannot produce and a
+            // future setter might -- narrows rather than publishing a live arrow.
+            a.disabled();
+        }
         a.endChild();
         a.child(DOWN_BUTTON);
         a.bounds(columnX, mid, columnW, height() - mid);
         a.role(Accessible.Role.BUTTON);
         a.name(ComponentStrings.SPINNER_DECREMENT, Accessible.NameFrom.CONTENT);
         a.action(Accessible.Action.PRESS);
+        if (!(value > min)) {
+            a.disabled();
+        }
         a.endChild();
     }
 
@@ -1616,6 +1635,16 @@ public class Spinner extends Widget {
      * acknowledgement a press owes; the value change reaches a reader as the next publish's
      * difference.
      *
+     * <p><b>The answer is whether anything moved</b>, which is what makes a press on an arrow at
+     * its bound honest (decision 69, 2026-09-16). Such an arrow publishes no verb, so a press can
+     * only arrive here from a platform working off a stale snapshot, and the one before this
+     * answered every press with {@code true} and had the scene acknowledge a dead arrow with an
+     * {@code INVOKED} a reader would speak. It is read off the value rather than off {@link #nudge}
+     * alone because {@link #commitEdit} above it can move the value too: reaching for the arrows is
+     * leaving the text, verbatim what a click on this box does, and a press that adopted a typed
+     * number and then could not step did change something. {@code SegmentedControl}'s dead chevron
+     * answers the same way, by whether the scroll moved.
+     *
      * @param key    which half, and any other key is refused
      * @param action what was asked, which for these two is a press and nothing else
      * @param arg    unused: a press carries no argument
@@ -1635,9 +1664,10 @@ public class Spinner extends Widget {
         } else {
             return false;
         }
+        double before = value;
         commitEdit();
         nudge(direction);
-        return true;
+        return value != before;
     }
 
     /** Decimal places needed to render {@code step} exactly (0–6). */
