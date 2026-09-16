@@ -3,6 +3,13 @@
 - **Status:** Accepted, 2026-09-09; phase 1 implemented. §11 says what lands in the first phase and
   what is deliberately left out of it, and §12 what has been verified against a live client and what
   is still owed.
+  **Revised through the 2026-09-13 accessibility pass** (amendments dated 2026-09-14 and 2026-09-15
+  throughout): the granularity API of decisions 12, 47 and 51 (§2's table); the typed and pasted
+  date, the two-digit-year window and the era's own width (§3); the refused day the cursor stops on
+  (§5); and most of §8, where the empty segment's word, the day's "15 of 30", the chooser's "on
+  show", the picker's label target and the expand verbs all moved. **No screen reader has yet spoken
+  a date widget** (DT8): the three reader entries exist and the runs are phase 5's, so §8 is what
+  the code publishes and not what a reader was heard to say.
 - **Date:** 2026-09-09
 - **Scope:** the toolkit's first date widgets: what value they exchange with the application, which
   calendar system they draw, how a date is typed, how a month grid is laid out, selected, bounded,

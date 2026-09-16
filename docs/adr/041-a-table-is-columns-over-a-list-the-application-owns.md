@@ -8,6 +8,13 @@
   TableItem, row and column counts, cell by row and column, column headers). Two defects only a
   live client could find are recorded in §7.1. §10 says which phase each item lands in and what
   is deliberately left out of the first.
+  **Revised through the 2026-09-13 accessibility pass** (amendments dated 2026-09-14 and
+  2026-09-15 throughout): a row is its record and not its index (decision 23, §3); the header is a
+  keyboard stop that sorts (decision 36, §4 and §7); the sort direction is a fact on `CellFacet`
+  that all three bridges carry (§7); the Selection and Scroll patterns are served on Windows and
+  the macOS row is described as built (§7); semantics 2 and 3 read the same on all three bridges.
+  **No screen reader has yet spoken a table** (B9): the live run over the gallery's table entry is
+  phase 5's, and until it happens §7 is what the code does and not what a reader was heard to say.
 - **Date:** 2026-09-08
 - **Scope:** the toolkit's first table widget: what its data model is, how it virtualizes on two
   axes, how rows are selected and columns sorted and resized, what a cell is, how it is read by a
@@ -496,7 +503,7 @@ header is shown — with `setShowHeader(false)` and a footer, the footer group i
 child, and every bridge handed out footer cells as column headers. The rule is: the header cell
 of column *c* is the child with `CellFacet(-1, c)` of one of the table's direct `GROUP` children,
 and a footer cell, row `-2`, never; a headerless table has no header group rather than an empty
-one. The three bridges' lookups move to that rule in phase 3; the model already publishes it).
+one. The three bridges' lookups moved to that rule in phase 3 and all three now read it (ADR 039 §2.1, §2.2, §2.3; closed 2026-09-15).
 Carrying its identifier would make a facet a bridge reads on its own thread depend on a resolution
 that happens after the walk, which is what relations are for and cells are too many to be. A `ROW`
 carries `SelectionItemFacet` exactly as a list row does, with the view position as position in set
@@ -552,11 +559,12 @@ ADR 039 §1.10's amendment lands on the column title and one `ACTIVE_DESCENDANT_
 Tab back to the rows returns it to the focus cell. A header cell of a sortable column publishes
 `PRESS`, which sorts as a click does; the header of the column the rows are ordered on carries
 the direction as its **description** (`TableStrings.SORTED_ASCENDING` / `SORTED_DESCENDING`, the
-`table` string domain, 21 locales), and the others describe nothing. **Left for phase 3:** a
-sort-direction facet or state once the three platforms' carriers of one have been read on the
-guests (UIA has none native to a header item beyond a property a provider may expose; AT-SPI an
-object attribute; AX `AXSortDirection` on a column) — until then the description is the carrier,
-and a bridge maps nothing special. Pinned by
+`table` string domain, 21 locales), and the others describe nothing. This record left a
+sort-direction facet or state to phase 3, until the three platforms' carriers had been read on the
+guests; **that is closed** — the readings came back, `CellFacet` gained the direction, and all three
+bridges map it (the amendment directly below, and ADR 039 §2.1/§2.2/§2.3). The description stays
+beside the enumeration, and is not merely the carrier of last resort: it is what Windows publishes.
+Pinned by
 `TableAccessibilityTest.theHeadersColumnCursorIsTheCursorWhileTheHeaderHoldsTheKeyboard`.
 
 **Amended 2026-09-15 (decision 36's carrier, settled after phase 3): the facet, and the description

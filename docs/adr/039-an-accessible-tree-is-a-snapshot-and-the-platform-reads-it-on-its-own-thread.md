@@ -1088,8 +1088,12 @@ routing, the key, the gate on the child and on the container still holding it),
 `ListViewAccessibilityTest` and `TreeAccessibilityTest` (a row's `SELECT` selects that row, from
 the user, once).
 
-**Amendment, 2026-09-15: a delegated verb is gated on the container showing, not the child
-(decision 22 read with semantics 5).** "Gates the verb on the child's node exactly as it gates
+**Amendment, 2026-09-15, superseded the same day by decision 66 (the amendment below): a delegated
+verb is gated on the container, not the child.** Recorded whole because it is the step that found the
+defect; what it got right is that the gate belongs on the container, and what decision 66 corrected
+the same day is the bit it read the container with — `SHOWING` rather than visibility through the
+ancestry, so a container merely scrolled away refused a verb it had published instead of revealing
+and performing it. Read the paragraph with that correction applied throughout. "Gates the verb on the child's node exactly as it gates
 every verb" above made the kept cursor row of decision 22 — published outside the viewport, not
 `SHOWING`, still `ACTIVE` — a row whose `SELECT`, `ADD_TO_SELECTION`, `DESELECT`, `EXPAND`,
 `COLLAPSE` and `FOCUS` (`Tree`) and `SELECT` (`ListView`) `Host#perform` accepted and the posted
@@ -1104,10 +1108,6 @@ modal-blocked, inside the input root, the container still the child's parent —
 `AccessibleActionTest` (a clipped child of a showing container performs; a hidden child and a
 child of a container clipped away do not), `TreeAccessibilityTest` and
 `ListViewAccessibilityTest` (the kept row's verbs, wheeled out of the box).
-**Superseded the same day (decision 66; the amendment of that date below):** a container that is
-only scrolled away is revealed and the verb performed, not refused, and the `AccessibleActionTest`
-case this paragraph names was renamed with the policy.
-
 **Amendment, 2026-09-14: a composite says which child carries a label bound to it (decision 55;
 DATES-NEW-12).** A form's caption is bound to the widget the application holds — a `DatePicker` —
 and the node a reader arrives at is the field inside it, so `Label#setLabelFor(picker)` named an
@@ -1215,16 +1215,18 @@ controls inside keep performing their verbs through the fade: an open `DatePicke
 layer published `CANCEL` through its fade (§7's `DatePicker.ScenePopup` row), and an open
 `ColorPickerButton`.
 
-**Amendment, 2026-09-15 (fix round 2e): a facet implies its setter only on an `ENABLED` node.**
+**Amendment, 2026-09-15 (fix round 2e), widened the same day by decision 66: a facet implies its
+setter only on a node that is `ENABLED` — and, from the decision-66 amendment below, `VISIBLE` too.**
+Read "`ENABLED`" as "`ENABLED` and `VISIBLE`" everywhere in this paragraph, including its
+"marks exactly the nodes §1.9's gate refuses on" clause; the reasoning below is unchanged by the
+widening, which added an axis rather than replacing one.
 Semantics 5 above says a writable `ValueFacet` implies `SET_VALUE` and a non-read-only `TextFacet`
 implies `SET_TEXT`, `SET_CARET` and `SET_SELECTION`. Fix rounds 2c and 2d kept that sentence and
 took the setters off an inoperable node by publishing its value read-only and its text `READ_ONLY`,
 which conflated the two bits §1.2 keeps apart and reversed §7's `TextField` warning ("never
 `READ_ONLY` from disabled"): a reader would say "read-only" of a field that is only disabled, or
 only behind a dialog. The sentence now reads: **such a facet implies its setter only on a node that
-is `ENABLED`.** (**Amended the same day by decision 66, the amendment below: `ENABLED` and
-`VISIBLE`**; the "marks exactly the nodes §1.9's gate refuses on" clause of this paragraph is read
-with `VISIBLE` beside it since that date.) Whether a node is operable is read off the snapshot
+is `ENABLED`.** Whether a node is operable is read off the snapshot
 alone and needs nothing new. For the input-layer axis four carriers were weighed — a new `State`
 (an inert bit), a flag on `AccessibleNode`, an empty action list, and `ENABLED` itself — and
 `ENABLED` is taken. §1.13 has
@@ -2004,9 +2006,17 @@ measured against the wrong window's origin, and would break `ElementProviderFrom
 `accessibilityHitTest:` and `GetAccessibleAtPoint` in the native mounting.
 
 In both mountings the popup's root carries a `POPUP_FOR` relation to the node that opened it, and the
-opener carries the mirror `CONTROLLER_FOR`, so a client walking either direction finds the other. The
-opener is already known: every popup, menu and dialog calls `Widget#setInheritanceHost` on its root
-today for the size, direction and locale chain, and §8 makes that link readable.
+opener carries the mirror `CONTROLLER_FOR`. **In the model both directions exist; only one platform
+publishes both** (ratified 2026-09-16 on the two bridges' own readings, and the reason is per
+platform, in the CRIT-2 amendments below). **Linux** publishes the pair, `ATSPI_RELATION_POPUP_FOR`
+and its mirror, so a client there walks either direction. **Windows** publishes the opener's
+`ControllerFor` into the popup and nothing back, because UI Automation has no element-valued property
+that carries "popup for" at all. **macOS** publishes `AXLinkedUIElements` from the opener only,
+because the popup's root is the node AppKit's own window object stands for and there is no element of
+ours to ask it on. The one-way link is enough for what depends on it: the cursor crossing into a
+native popup resolves from the opener's side (semantics 4), never from the mirror. The opener is
+already known: every popup, menu and dialog calls `Widget#setInheritanceHost` on its root today for
+the size, direction and locale chain, and §8 makes that link readable.
 
 **A relation target is resolved to the nearest published ancestor, and dropped when there is none.**
 The inheritance host is an *axis-resolution* host, not an accessibility parent, and the two disagree
@@ -2518,92 +2528,83 @@ included), null for a negative row or an unrealized one; `GetColumnHeaders` answ
 every `CellFacet(-1, c)` child of the table's direct `GROUP` children, a footer's `-2` cells never; and
 `GetColumnHeaderItems` answers the header whose `CellFacet` column is the cell's.
 
-**Amended 2026-09-15 (phase 3, Windows; decision 36): how the platform's own headers carry a sort
-direction, read, and not yet carried.** UI Automation has no sort-direction property (none in
-UIAutomationCore.dll's type library, read 2026-09-13), so it was read off native headers on the
-Windows 11 guest (10.0.26200, UIAutomationCore.dll 7.2.26100.9457, .NET Framework 4.8 (Release
-533509, 4.8.09221; UIA and WPF assemblies 4.8.9347, WinForms 4.8.9325); 2026-09-15,
+**Amended 2026-09-15/16 (phase 3, Windows, and the two fix rounds after it; decision 36): a sorted
+header says its direction in `ItemStatus` beside `HelpText`.** Written in three passes — read first,
+then carried, then made to raise — and folded here as one.
+
+*The reading.* UI Automation has no sort-direction property (none in UIAutomationCore.dll's type
+library, read 2026-09-13), so it was read off native headers on the Windows 11 guest (10.0.26200,
+UIAutomationCore.dll 7.2.26100.9457, .NET Framework 4.8 (Release 533509, 4.8.09221; UIA and WPF
+assemblies 4.8.9347, WinForms 4.8.9325); 2026-09-15,
 `scripts/a11y/windows/read-native-sort-direction.ps1`, readings/windows-read-native-sort-direction.txt):
-one column sorted each way and one not, every property id 30000-30200 read through the COM client. **File
-Explorer's details view carries it in `ItemStatus` (30026)** of the sorted column's header — a
+one column sorted each way and one not, every property id 30000-30200 read through the COM client.
+**File Explorer's details view carries it in `ItemStatus` (30026)** of the sorted column's header — a
 `SplitButton` (50031) of class `UIColumnHeader` under a `Header` — as a localized phrase ("Classificado
 (Crescente)", "Classificado (Descrescente)" on that pt-BR guest, switching with `SortColumns` and
 nothing else changing), and answers no `ItemStatus` on the others. **A WPF `DataGrid` (`SortDirection`),
 a WinForms `DataGridView` (`SortGlyphDirection`) and a Win32 list view (header format flags) carry
 nothing**: no property differs between their sorted and unsorted headers, and the managed peers' and
 proxies' IL (same reading, part 1) reads no direction. So the platform's carrier is Explorer's, a
-status phrase on the header. Not carried by this bridge yet: a Table header says its direction only in
-its description (`TableStrings`, ADR 041), which `HelpText` answers, and the model publishes no
-direction a bridge could turn into `ItemStatus` without reading meaning into a description; decision
-36's "give the model a facet or state then" is owed first. NVDA 2024.4.2 reads `ItemStatus` as a
-description only for an element of class `UIColumnHeader` (readings/nvda-2024.4.2-uia.md), while it
-reads `HelpText` as every element's description, so the description is what it speaks today, and a
-move to `ItemStatus` alone would silence it on Limn's headers.
+status phrase on the header. NVDA 2024.4.2 reads `ItemStatus` as a description only for an element of
+class `UIColumnHeader` (readings/nvda-2024.4.2-uia.md), while it reads `HelpText` as every element's
+description — which is why a move to `ItemStatus` **alone** would silence it on Limn's headers, and
+why both are answered.
 
-**Amended 2026-09-15 (the fix round's integration): it is carried now, and it is carried as both.**
-The model carrier this paragraph waits on landed in the same round (`CellFacet.Sort`, §1.2's
-amendment of this date), on the model branch while the three bridge lanes ran, so each lane logged
-its own mapping as owed rather than compiling against a type its branch lacked; the mappings are the
-integration's, each written out whole in its lane's log against a reading that lane had already
-taken. Here, `UiaProperties.valueOf` answers `ItemStatus` (30026) on a cell of the header row whose
-`Sort` is not `NONE`, with **the node's description** — the localized phrase the model resolved at
-publish, where a locale scope was open, which is the whole reason the model kept the description
-beside the enumeration the other two platforms read. `HelpText` (30013) needed no change: it already
-answers that same description, so the settled list's "`ItemStatus` **and** `HelpText`" is true of one
-string published once, and NVDA — which has no `ItemStatus` handler and reads `HelpText` as every
-element's description — keeps hearing exactly what it heard. The header row is what makes a header: a
-footer cell (`-2`) and a data cell head no column, whatever direction their facet carries.
+*What is answered.* `UiaProperties.valueOf` answers `ItemStatus` (30026) on a cell of the header row
+whose `Sort` is not `NONE`, with **the node's description** — the localized phrase the model resolved
+at publish, where a locale scope was open, which is the whole reason `CellFacet` kept the description
+beside the enumeration the other two platforms read (§1.2's amendment of 2026-09-15). `HelpText`
+(30013) needed no change: it already answers that same description, so the settled list's "`ItemStatus`
+**and** `HelpText`" is true of one string published once, and NVDA keeps hearing exactly what it heard.
+The header row is what makes a header: a footer cell (`-2`) and a data cell head no column, whatever
+direction their facet carries.
 
 *A choice and not a reading, marked where it is made:* **a busy sorted header answers the busy word
-alone.** `ItemStatus` is one string and two facts want it; nothing on the guest reads on composing
-them (Explorer's header was not busy), and joining two translated fragments with punctuation chosen
-on a thread with no locale open would invent a sentence in twenty-one languages. Busy is the
-transient state the property exists for, and the direction is not lost while it holds, because
-`HelpText` still carries it. A live Narrator or Inspect run over a header that is both would settle
-it; phase 5. Pinned by
+alone.** `ItemStatus` is one string and two facts want it; nothing on the guest reads on composing them
+(Explorer's header was not busy), and joining two translated fragments with punctuation chosen on a
+thread with no locale open would invent a sentence in twenty-one languages. Busy is the transient state
+the property exists for, and the direction is not lost while it holds, because `HelpText` still carries
+it. A live Narrator or Inspect run over a header that is both would settle it; phase 5. Pinned by
 `UiaPropertiesTest.aSortedHeaderSaysItsDirectionInItsStatusAndInItsHelpTextAndBusyWinsOverBoth`.
-`UiaBridge.changedProperty` is untouched: a sort that moves arrives as a publish and not as a state
-change, so nothing raises an `ItemStatus` property change for it — worth one look in the same run.
 
-*(Amended 2026-09-16, fix round 3b: that last sentence was half right, and the half that was wrong is
-fixed.* A sort that moves is not a state change, and it is **not silent**: it moves the header cell's
-description, and the differ emits a `DESCRIPTION_CHANGED` for exactly that. What this bridge did with
-it was raise `HelpText` alone, so a client that caches `ItemStatus` — the property File Explorer's
-convention exists for — went on reading the direction the column used to be sorted in. A
-`DESCRIPTION_CHANGED` on a **cell of the header row** now raises `ItemStatus` as well as `HelpText`,
-with the same two strings, through a second mapping named `UiaBridge.alsoChangedProperty`; it is the
-only change today that moves two properties outside `raiseValue`. The guard is the header row and not
-the direction, because the change that *ends* a sort leaves the facet at `NONE` and the description
-empty, which is exactly when a cached status is most wrong, and an empty string is already what this
-property carries for "nothing to say" (the BUSY mapping writes it when busy clears). And nothing is
-raised while `BUSY` holds, which is the same choice as the getter's: busy owns the one string while
-it lasts. Pinned by
-`UiaBridgeTest.aSortedHeadersDescriptionMovesTheStatusThatCarriesItAndADataCellsDoesNot`, red three
-ways: with the `ItemStatus` arm removed, with the header-row guard dropped (a data cell's own
-description raised as a status) and with the busy guard dropped. Phase 5 still hears the composition
-choice above; it no longer has to ask whether the direction is announced at all.)
+*What raises it.* This record said for a day that nothing did — "a sort arrives as a publish and not as
+a state change" — and that was half right. A sort that moves is not a state change and it is **not
+silent**: it moves the header cell's description, and the differ emits a `DESCRIPTION_CHANGED` for
+exactly that. The bridge raised `HelpText` alone, so a client that caches `ItemStatus` — the property
+File Explorer's convention exists for — went on reading the direction the column used to be sorted in.
+A `DESCRIPTION_CHANGED` on a **cell of the header row** now raises `ItemStatus` as well as `HelpText`,
+through a second mapping named `UiaBridge.alsoChangedProperty`; it is the only change today that moves
+two properties outside `raiseValue`.
 
-*(Amended again 2026-09-16, fix round 3b's review: the sentence above about the empty string was
-wrong, and the event half is closed with it.* This property has no "nothing to say" string: a node
-with no status answers `null`, written as `VT_EMPTY`, which is what the getter's own comment says
-("an item that is not busy has no status at all rather than a status saying it is idle"). The BUSY
-mapping wrote `""` when busy cleared, and on a header that is both busy and sorted that was the
-stale `ItemStatus` this whole amendment exists to prevent, raised by the mapping itself: the client
-was told the status was `""` the moment busy cleared, while `GetPropertyValue` answered
-"Sorted ascending". **The rule now is that what an `ItemStatus` change carries is what the getter
-answers**, on all three of its arms — the busy word while busy holds; for a busy that clears, the
-not-busy answer for that node (the sort phrase on a sorted header, nothing anywhere else); and for a
-description, the description only where the getter reads it as a status. It is the *not-busy* answer
+*And what a change carries is what the getter answers* — the rule that replaced this amendment's own
+first attempt at it (2026-09-16, the fix round's review). That attempt said an empty string is what
+`ItemStatus` carries for "nothing to say". It is not: a node with no status answers `null`, written as
+`VT_EMPTY`, which is what the getter's own comment says ("an item that is not busy has no status at all
+rather than a status saying it is idle"). The `BUSY` mapping wrote `""` when busy cleared, and on a
+header that is both busy and sorted that was the stale `ItemStatus` this whole amendment exists to
+prevent, raised by the mapping itself: the client was told the status was `""` the moment busy cleared,
+while `GetPropertyValue` answered "Sorted ascending". So on all three of its arms an `ItemStatus`
+change carries what the getter answers — the busy word while busy holds; for a busy that clears, the
+**not-busy** answer for that node (the sort phrase on a sorted header, nothing anywhere else); and for
+a description, the description only where the getter reads it as a status. It is the not-busy answer
 and not `GetPropertyValue` itself because the node in the published tree carries `BUSY` on the busy
 side of the change, so asking the getter for the old value of a busy just set would answer the busy
-word twice. The same rule closes the other gap in the pair of guards: the raise's guard is the
-header row while the getter also asks for a direction, so a header cell whose description is its own
-— no widget writes one today; `Table` writes only the sort phrase — raises a change from nothing to
-nothing instead of announcing a status the element denies. The wider guard stays, because the change
-that *ends* a sort leaves the facet at `NONE` and is exactly when a cached direction is most wrong.
-Pinned by `UiaPropertiesTest.whatAnItemStatusChangeCarriesIsWhatTheGetterAnswers` (red with the
-empty string put back, and red with the description arm removed) and by the bridge test above, which
-now drives a description change on the footer cell and on the unsorted column's header too.)
+word twice. The same rule closes the other gap in the pair of guards: the raise's guard is the header
+row *while the getter also asks for a direction*, so a header cell whose description is its own — no
+widget writes one today; `Table` writes only the sort phrase — raises a change from nothing to nothing
+instead of announcing a status the element denies. The wider guard stays, because the change that
+*ends* a sort leaves the facet at `NONE` and is exactly when a cached direction is most wrong; and
+nothing is raised while `BUSY` holds, which is the getter's choice again: busy owns the one string
+while it lasts. Pinned by
+`UiaBridgeTest.aSortedHeadersDescriptionMovesTheStatusThatCarriesItAndADataCellsDoesNot`, red three
+ways (the `ItemStatus` arm removed; the header-row guard dropped, so a data cell's own description is
+raised as a status; the busy guard dropped), driving a description change on the footer cell and on the
+unsorted column's header too, and by
+`UiaPropertiesTest.whatAnItemStatusChangeCarriesIsWhatTheGetterAnswers` (red with the empty string put
+back, and red with the description arm removed).
+
+*What phase 5 still hears* is the composition choice — a header that is both busy and sorted — and not
+whether the direction is announced at all.
 
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `UiaRaiseNotificationEvent` and
 `UiaRaiseStructureChangedEvent` are bound and raised.** The event-flush row lists both; neither was
@@ -3390,60 +3391,50 @@ the reader, one raise after the last sweep says it, and each raise waits for the
 `theModelsInvalidatedSweepsOncePerEmitAndReannouncesTheFocus` was restated to follow each collapse
 with a tail event, as the model's own always is.
 
-**What that leaves open, and what a live run should listen for (recorded 2026-09-15, the fix round's
-review).** The second of the two flush points — "when nothing more is waiting" — is a queue-emptiness
-test made on the drain thread while the user-interface thread is still offering the tail one event
-at a time. A drain that reaches the top of its loop between the collapse and the first tail
-`STRUCTURE_CHANGED` sees an empty queue and re-announces early: the very order this amendment
-fixes, in the one case where the drain outruns the producer. The ordering is guaranteed whenever the
-tail is already queued, which is how a publish hands it over, and the debt is never dropped either
-way, so what remains is a race and not a lost re-announcement. **Phase 5 hears it as the focus
-spoken before the shape of a large publish's tail**, after an expand or a sort that collapses the
-queue. The fix if it is heard is to flush on a publish boundary instead of on emptiness: the model
-already marks one — `AccessibilityBridge#frameEnded`, which the scene calls once per frame after
-every event of that frame has been emitted, and which this bridge does not override (macOS posts
-its whole frame there). Its cost is the reason it was not taken blind: a marker offered into the
-same bounded queue can be swallowed by that queue's own collapse, and a bridge whose scene then runs
-no further frame would owe the re-announcement with nothing left to flush it — a dropped debt traded
-for a race. Whichever is worse is a question for a reader and not for a test.
-
-**Amended 2026-09-16 (fix round 3b, Windows item 1): that race is closed, and neither half of the
-trade was paid.** The second flush point is now the publish boundary and not an empty queue: the
-Windows bridge overrides `AccessibilityBridge#frameEnded` and hands the boundary over as
+**Where the second flush point is, and what it took to get it there (2026-09-15, corrected
+2026-09-16).** It was first written as "when nothing more is waiting" — a queue-emptiness test made
+on the drain thread while the user-interface thread was still offering the tail one event at a time,
+so a drain reaching the top of its loop between the collapse and the first tail `STRUCTURE_CHANGED`
+saw an empty queue and re-announced early: the very order the rule above fixes, in the one case
+where the drain outruns the producer. That is closed (fix round 3b, Windows item 1) and neither half
+of the trade it was weighed against was paid. **The second flush point is the publish boundary.**
+The Windows bridge overrides `AccessibilityBridge#frameEnded` (§5.3) and hands the boundary over as
 `UiaEvents.FRAME_END`, a marker in the same queue the frame's events went into, so it arrives behind
 every one of them however fast the drain thread runs. The debt a collapse leaves is flushed when
-that marker is taken, and — unchanged — before the first tail event that is not a
+that marker is taken and — unchanged — before the first tail event that is not a
 `STRUCTURE_CHANGED`, which is still where a tail with a focus, a cursor or a selection in it pays.
-The cost the paragraph above feared is answered by the marker itself rather than by accepting it:
-`UiaEvents#endFrame` ignores the collapsed flag (a collapse covers the events it swallowed, and it
-*raises* the debt this marker flushes, so it may not swallow the marker), and when the queue has no
-room it collapses the queue — the honest answer for a queue already over capacity — and puts the
-marker in behind the collapse's own. A collapse can only happen while a frame is handing events
-over, so that frame's end always follows it; a window whose scene then goes still has already been
-told. Only a frame that could leave a debt is marked, so an ordinary frame wakes the drain thread
-for nothing. Linux reaches the same boundary without a queue to cross (§2.3's `frameEnded` row);
-macOS posts its whole frame there. All three bridges now flush at the same boundary in the same
-order. Pinned by `UiaBridgeTest.theFocusIsReannouncedAtTheFramesEndAndNotTheMomentTheQueueRunsDry`
-(which waits for the drain to be parked in its take — the one place the old emptiness test had
-certainly already fired — and asserts nothing has been said yet),
-`aCollapseWithNoTailAtAllIsStillFlushedByTheFramesEnd`, and `UiaEventsTest`'s three marker cases.
-**Phase 5 no longer listens for the early focus**; what it still hears is the order itself.
+Linux reaches the same boundary with no queue to cross (§2.3's `frameEnded` row) and macOS posts its
+whole frame there, so all three bridges now flush at one boundary in one order.
 
-*(Amended 2026-09-16, fix round 3b's review: "the marker is never dropped" says more than the code
-does, and the true statement is the narrower one.)* A collapse **clears the queue**, so a frame end
-already waiting in it is discarded; what `UiaEvents#endFrame` guarantees is that no frame ends
-without a marker going in — refused for want of room, it collapses the queue and goes in behind the
-collapse's own. That is enough, because a debt is cleared by the raise that pays it and by nothing
-else, and the frame in which a collapse happened owes one of its own (`emit` sets the flag on the
-refused offer), so it marks its end behind that collapse and the drain flushes every debt still
-owed when it gets there. The count of markers a drain sees can fall; the number of debts left with
-none cannot rise above zero. Measured, not argued, by
-`UiaBridgeTest.aCollapseThatClearsAnEarlierFramesEndStillPaysTheDebtAtItsOwn`, which holds the drain
-inside the first sweep so the loss is certain, shows one marker waiting before the second frame's
-collapse and one after it, and then shows the re-announcement raised at the second frame's end (red
-with `endFrame` returning early while collapsed: "and the frame that collapsed marks its own end
-behind it ==> expected: <2> but was: <1>"); `UiaEventsTest.aFullQueueCollapsesRatherThanDropTheFramesEnd`
-now asserts the same arithmetic on the queue alone.
+**The cost that kept it from being taken blind is answered by the marker, and the guarantee is the
+narrow one.** The fear was that a marker offered into the same bounded queue would be swallowed by
+that queue's own collapse, leaving a bridge whose scene then runs no further frame owing a
+re-announcement with nothing to flush it — a dropped debt traded for a race. `UiaEvents#endFrame`
+ignores the collapsed flag (a collapse covers the events it swallowed, and it *raises* the debt this
+marker flushes, so it may not swallow the marker), and when the queue has no room it collapses the
+queue — the honest answer for a queue already over capacity — and puts the marker in behind the
+collapse's own. A collapse can only happen while a frame is handing events over, so that frame's end
+always follows it; a window whose scene then goes still has already been told; only a frame that
+could leave a debt is marked, so an ordinary frame wakes the drain thread for nothing. **What is
+guaranteed is not "the marker is never dropped"** (2026-09-16, the fix round's review — the first
+statement of it said more than the code does): a collapse *clears* the queue, so a frame end already
+waiting in it is discarded. What holds is that no frame ends without a marker going in, and that a
+debt is cleared by the raise that pays it and by nothing else — the frame in which a collapse
+happened owes one of its own (`emit` sets the flag on the refused offer), so it marks its end behind
+that collapse and the drain flushes every debt still owed when it gets there. The count of markers a
+drain sees can fall; the number of debts left with none cannot rise above zero.
+
+Pinned by `UiaBridgeTest.theFocusIsReannouncedAtTheFramesEndAndNotTheMomentTheQueueRunsDry` (which
+waits for the drain to be parked in its take — the one place the old emptiness test had certainly
+already fired — and asserts nothing has been said yet),
+`aCollapseWithNoTailAtAllIsStillFlushedByTheFramesEnd`, `UiaEventsTest`'s three marker cases, and
+`aCollapseThatClearsAnEarlierFramesEndStillPaysTheDebtAtItsOwn`, which holds the drain inside the
+first sweep so the loss is certain, shows one marker waiting before the second frame's collapse and
+one after it, and then shows the re-announcement raised at the second frame's end (red with
+`endFrame` returning early while collapsed: "and the frame that collapsed marks its own end behind
+it ==> expected: <2> but was: <1>"); `UiaEventsTest.aFullQueueCollapsesRatherThanDropTheFramesEnd`
+asserts the same arithmetic on the queue alone. **Phase 5 no longer listens for an early focus**;
+what it still hears is the order itself.
 
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-6's remainder): `CARET_MOVED` and
 `BOUNDS_CHANGED` as built.** `CARET_MOVED` is `Text_TextSelectionChanged`, as its row says, handled
@@ -3805,7 +3796,7 @@ platform focus is one; a focus or cursor event resolving to the node already ann
 the model's `INVALIDATED` and the bridge's own queue collapse re-announce whatever they name, because
 the sweep may have released the element the reader stood on; and the memory is forgotten when nothing
 is focused in any open window, on `WINDOW_DEACTIVATED` (which still posts nothing of ours) and when
-the bridge that owns it detaches, so that a return is announced however little moved while away.
+the bridge that owns it detaches.
 
 Two consequences worth stating. The answer is resolved exactly as `focusedElement()` resolves it, so
 a cursor that lives in another window's tree is remembered as **that** window's node and a second
@@ -3816,23 +3807,24 @@ Windows' `raiseFocus` has always behaved this way. Pinned by
 `aDeactivatedWindowAndAnEmptyFocusBothForgetWhatWasAnnounced`. The tail's order is unchanged and is
 semantics 7's: structure first, focus last in the frame.
 
-**Amended again 2026-09-15 (the fix round's review of the amendment above): what the forgetting buys
-on this platform.** The clause *"so that a return is announced however little moved while away"* is
-withdrawn for macOS: it is Windows' sentence, and it is true there because §2.4's Windows cell for
-`WINDOW_ACTIVATED`/`WINDOW_DEACTIVATED` **is** the focus change — UI Automation has no window
-activation event of its own, so `UiaBridge` raises the focus on the return and the cleared memory is
-what lets that raise be heard. This bridge posts nothing for either event and is right not to: the
-macOS cell is AppKit's own `MainWindowChanged` and `FocusedWindowChanged`, the null mapping is
-deliberate and pinned (`AxNotificationsTest.theWindowEventsAreAppKitsOwnAndNotOurs`), and a client
-that wants to know where the user now is asks `accessibilityFocusedUIElement`, which is answered
-live. So a bare return — activation back, nothing moved — announces nothing here, and adding a post
-for it would be inventing a notification no reading asked for. What the forgetting does buy is the
-**next focus event** after the return: a node that arrives holding the focus is a `FOCUS_CHANGED`
-even when it is the node announced before (this section's 2026-09-14 amendment, WINDOWS-NEW-12), so a window whose
+**What the forgetting buys here is not what it buys on Windows** (corrected 2026-09-15, the fix
+round's review of the paragraph above, which had carried Windows' sentence — *"so that a return is
+announced however little moved while away"* — across to this platform). That sentence is true on
+Windows because §2.4's Windows cell for `WINDOW_ACTIVATED`/`WINDOW_DEACTIVATED` **is** the focus
+change: UI Automation has no window activation event of its own, so `UiaBridge` raises the focus on
+the return and the cleared memory is what lets that raise be heard. This bridge posts nothing for
+either event and is right not to: the macOS cell is AppKit's own `MainWindowChanged` and
+`FocusedWindowChanged`, the null mapping is deliberate and pinned
+(`AxNotificationsTest.theWindowEventsAreAppKitsOwnAndNotOurs`), and a client that wants to know
+where the user now is asks `accessibilityFocusedUIElement`, which is answered live. So a bare return
+— activation back, nothing moved — announces nothing here, and adding a post for it would be
+inventing a notification no reading asked for. What the forgetting does buy is the **next focus
+event** after the return: a node that arrives holding the focus is a `FOCUS_CHANGED` even when it is
+the node announced before (this section's 2026-09-14 amendment, WINDOWS-NEW-12), so a window whose
 content was rebuilt while the user was in another application says where the user is again instead
 of being silenced by a memory made while VoiceOver's cursor was in another process entirely. The
-test now pins both halves: the activation posts nothing and leaves the memory empty, and the focus
-event after it is announced though it names what was announced before.
+test pins both halves: the activation posts nothing and leaves the memory empty, and the focus event
+after it is announced though it names what was announced before.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
@@ -4355,6 +4347,17 @@ public interface AccessibilityBridge {
     /** The window is going away: raises {@code WINDOW_CLOSED}, then empties (§5.3). */
     default void detach() { }
 
+    /**
+     * The frame's accessibility step is over: everything this frame had to say was emitted.
+     * UI thread; run however the step returned, and never from {@code republishNow()}.
+     *
+     * <p>Added 2026-09-15 (§5.3). It is the publish boundary, which is more than a drain
+     * point: macOS posts its frame's notifications here, Linux flushes an owed
+     * re-announcement here (§2.3), and Windows hands the boundary into its own queue behind
+     * that frame's events (§2.4). The no-op default is for a bridge with neither obligation.
+     */
+    default void frameEnded() { }
+
     /** What the scene gives a bridge: the three ways to ask for a tree, and the one way to act. */
     interface Host {
 
@@ -4398,9 +4401,10 @@ public interface AccessibilityBridge {
 }
 ```
 
-Six members on the bridge and four on the host; every bridge member is a no-op or a constant on
-`NONE`, and none returns anything the toolkit has to interpret. Everything platform-shaped stays
-behind it.
+Seven members on the bridge and four on the host — six until `frameEnded` joined them on 2026-09-15
+(§5.3), which is the eleventh member of the seam counting `NONE` — and every bridge member is a
+no-op or a constant on `NONE`, and none returns anything the toolkit has to interpret. Everything
+platform-shaped stays behind it.
 
 **`perform` is on the host and not on the bridge, and an earlier draft had it the other way round.**
 That was not an infelicity, it was a path that does not exist: `perform` declared on the bridge is
@@ -4691,8 +4695,8 @@ And the reentrancy paragraph's "owed to the next ordinary frame" did not hold: `
 clears the node flag it walked for, so the frame it asks for finds nothing dirty, returns at step 3,
 and the deferred re-push, boxes and drain waited for an unrelated change.
 
-**The rule.** `AccessibilityBridge` gains an eleventh member (the §5.2 listing above predates it),
-with a no-op default:
+**The rule.** `AccessibilityBridge` gains an eleventh member, with a no-op default (folded into the
+§5.2 listing, which predated it):
 
 ```java
     /** The frame's accessibility step is over: everything this frame had to say was emitted. */
@@ -4702,15 +4706,16 @@ with a no-op default:
 and the step gains a last line, run however steps 0 to 7 returned — after a re-present, with nothing
 listening, with a clean tree, after a re-stamp, after a publish:
 
-8. `bridge.frameEnded()`. One virtual call; `NONE` and every bridge that raises on a thread of its
-   own inherit the no-op. Never from `republishNow()`.
+8. `bridge.frameEnded()`. One virtual call. Never from `republishNow()`.
 
-*(Amended 2026-09-16, fix round 3b: "every bridge that raises on a thread of its own inherits the
-no-op" is no longer true of any of them. A bridge that raises elsewhere still posts nothing here,
-but the frame's end is also the **publish boundary** the re-announcement of §2.4 is flushed at, and
-that is a fact a thread of the bridge's own cannot see: Linux reads the marker on this thread
-(§2.3), and Windows hands it into its own queue behind the frame's events (§2.4's 2026-09-16
-amendment). What the default still buys is a bridge with neither obligation.)*
+**What the default buys is a bridge with neither of the two obligations** — and that is narrower
+than this record first said. It read "`NONE` and every bridge that raises on a thread of its own
+inherit the no-op" until 2026-09-16 (fix round 3b), which is no longer true of any of the three. A
+bridge that raises elsewhere still *posts* nothing here, but the frame's end is also the **publish
+boundary** the re-announcement of §2.4 is flushed at, and that is a fact a thread of the bridge's
+own cannot see: Linux reads the marker on this thread (§2.3), and Windows hands it into its own
+queue behind that frame's events (§2.4). So all three override it, each for its own reason, and the
+default stands for a fourth bridge that owes neither.
 
 On macOS `frameEnded` first pays what a reentrant publish deferred (the re-push of the root's
 children and the boxes), then drains the queue: posts, the collapse's sweep, and — because the
@@ -4772,9 +4777,12 @@ GNOME session with accessibility off, a macOS process no client has queried. Per
   elements to push onto the content view at all (§2.2). Not at bind, where the scene has never laid
   out and every box would be zero (§5.2). After that walk and until a client touches one of those
   elements, a frame does nothing here either.
-- **Linux:** `org.a11y.Status.IsEnabled` on the session bus, read once when the first window opens and
-  refreshed on `PropertiesChanged`, **and** a completed `Socket.Embed`. When accessibility is off, no
-  a11y bus connection is opened and no thread is started.
+- **Linux:** `org.a11y.Status.IsEnabled` on the session bus, **watched** — a session-bus connection
+  and one parked daemon thread per process from the first window's bridge on, however this bullet
+  first read it (amended 2026-09-15, LINUX-NEW-7, below) — **and** a completed `Socket.Embed`. While
+  accessibility is off, no accessibility-bus connection is opened. Once the switch has been on, this
+  process stays embedded for its life (decision 67, below): the switch cannot say that a reader
+  left.
 
 #### Amendment 2026-09-15 — the Linux switch is watched, and that costs one parked thread per process
 
@@ -4840,8 +4848,9 @@ screen reader is disabled (readings/upstream-at-spi-bus-launcher-2.52-2.60.txt).
 the switch stays on until something else turns it off — the desktop's accessibility setting, or the
 session ending — and the application stays joined and its scenes keep walking after Orca quits. The
 embed half of decision 29 holds; the teardown half holds only for a switch turned off by the desktop.
-Whether teardown should follow a different signal is the owner's question (logged in the Linux lane
-log); phase 5 measures what each desktop does to the switch when Orca quits.
+**That question went to the owner and came back as decision 67, immediately below: the teardown half
+is withdrawn.** Phase 5 therefore no longer measures what each desktop does to the switch when Orca
+quits — the answer cannot change this bridge's behaviour.
 
 #### Amendment 2026-09-15 — decision 67: once embedded, embedded for the life of the process
 
@@ -5686,8 +5695,8 @@ have.
 | Test | What it pins |
 | --- | --- |
 | `AccessibleCoverageTest` | reads the component source directories as declared Gradle inputs, finds every **transitive** `Widget` subclass — not the literal text `extends Widget` — and fails until each appears in §7's table with an expected role. A new widget cannot be added without saying what it is |
-| `AccessibleGalleryTest` | **written 2026-09-07 evening**, in `limn-demo`, and not over the demo's own gallery: it runs over `limn.demo.a11y.AccessibilityGallery`, a gallery of components built for this purpose, each entry declaring the toolkit classes it covers and the roles it promises, labelled the way a reader needs (`Label.setLabelFor`, described pictures, titled dialogs), with a `main` so a reader can be pointed at it. Every entry, in both palettes, over every window it opens (a dialog in its own window, a popup): no node has role `UNKNOWN`; every `FOCUSABLE` node has a non-blank name; no two nodes share an id; and the clipping invariant as the model can state it — the published node carries no clip mark (`Widget#clipsChildren()` is consulted by the walk for `SHOWING` and never published) and "wholly inside" is false by design for a half-scrolled row (§7.2), so a `SHOWING` node must have a non-empty box overlapping the scene's and every `SHOWING` ancestor's. Every promised role must appear, which is what caught a headless window with no display and so no popup. Completeness both ways, by scanning the toolkit's sources for `onAccessibility` overrides: a hook-bearing class no entry covers fails, and so does an entry claiming a class with no hook. Its first run found the picker a colour well raises focusable and nameless — §7.2's own prediction — and the well now names it after its dialog's title. What it cannot catch: the demo's own usage, which the transcripts cover; and a synthetic child the model cannot publish disabled (a segment strip's dead chevron is a `BUTTON` with no verb) |
-| `AccessibleTranscriptTest` (`limn-demo`) | three demo scenes — `forms`, `components`, `kitchen-dialog` — built as `--scene` builds them, bound to a headless window and backend, settled over the gallery's warm-up frames under the fixed ruler and the English locale, and their published trees written as transcripts: one line per node in tree order, role, name with provenance, description, spoken states, facets, verbs and relations by line, **no bounds**. Compared against goldens somebody has read aloud, rewritten only under `-Dlimn.a11y.transcripts.update=true` and failing otherwise with the differing lines. The kitchen scene is two trees, host and modal window |
+| `AccessibleGalleryTest` | **written 2026-09-07 evening**, in `limn-demo`, and not over the demo's own gallery: it runs over `limn.demo.a11y.AccessibilityGallery`, a gallery of components built for this purpose, each entry declaring the toolkit classes it covers and the roles it promises, labelled the way a reader needs (`Label.setLabelFor`, described pictures, titled dialogs), with a `main` so a reader can be pointed at it. Every entry, in both palettes, over every window it opens (a dialog in its own window, a popup): no node has role `UNKNOWN`; every `FOCUSABLE` node has a non-blank name; no two nodes share an id; and the clipping invariant as the model can state it — the published node carries no clip mark (`Widget#clipsChildren()` is consulted by the walk for `SHOWING` and never published) and "wholly inside" is false by design for a half-scrolled row (§7.2), so a `SHOWING` node must have a non-empty box overlapping the scene's and every `SHOWING` ancestor's. Every promised role must appear, which is what caught a headless window with no display and so no popup. Completeness both ways, by scanning the toolkit's sources for `onAccessibility` overrides: a hook-bearing class no entry covers fails, and so does an entry claiming a class with no hook. Its first run found the picker a colour well raises focusable and nameless — §7.2's own prediction — and the well now names it after its dialog's title. What it cannot catch: the demo's own usage, which the transcripts cover. It said until 2026-09-16 that it also could not catch "a synthetic child the model cannot publish disabled", naming the segment strip's dead chevron; that has not been true since 2026-09-14, when `Accessibility#disabled()` gave a widget the route (§1.2). The chevron is published without `ENABLED` and, since 2026-09-15, without a verb (semantics 5) — a disabled `BUTTON` with no verb, which is a shape the invariants do read |
+| `AccessibleTranscriptTest` (`limn-demo`) | four scenes — `forms`, `components`, `kitchen-dialog` and, since 2026-09-14, the accessibility gallery's `table` (B5) — built as `--scene` builds them, bound to a headless window and backend, settled over the gallery's warm-up frames under the fixed ruler and the English locale, and their published trees written as transcripts: one line per node in tree order, role, name with provenance, description, spoken states, facets, verbs and relations by line, **no bounds**. Compared against goldens a reviewer chose by reading them aloud — true of the first three; `table.txt` was read line by line and not aloud when it was committed, and the reading aloud is owed (amended 2026-09-16) — rewritten only under `-Dlimn.a11y.transcripts.update=true` and failing otherwise with the differing lines. The kitchen scene is two trees, host and modal window |
 | `AccessibleFocusOrderTest` | the invariant that keeps the tree honest: the published nodes carrying `FOCUSABLE`, in tree order, equal the sequence produced by repeated `focusTraverse` from nothing. Stated on that bit and not on `ENABLED`, which is a strictly larger set — every `Label`, `ScrollBar` and `Separator` is enabled and is not a tab stop (§1.13). Roving focus passes because only the holder is focusable, which is the same fact the tree reports |
 | `AccessibleMirroringTest` | in RTL, tree order is unchanged and bounds decrease in x. The tree is not sorted by geometry |
 | `AccessibleLocaleTest` | a subtree with a declared locale publishes its name in that language while the process locale is another, and a locale move re-resolves every name exactly once |

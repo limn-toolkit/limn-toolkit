@@ -2,6 +2,14 @@
 
 - **Status:** Proposed, 2026-09-12. Phase 1 is the widget and its three-platform accessibility;
   §8 says what is deliberately not in it and §9 what each later phase is.
+  **Still Proposed as of 2026-09-16, deliberately (decision 60 of the 2026-09-13 pass).** The
+  amendments of 2026-09-14 and 2026-09-15 are written: the widget's keyboard, selection, identity,
+  loading and damage rules, and the three bridges' outline mapping. What is missing is the thing
+  this record is about — §4's findings are what three readers said on 2026-09-13 about a build that
+  predates every fix in this pass, and no reader has spoken the tree since. **Acceptance follows the
+  phase-5 reader runs**, one guest at a time over the gallery's `tree` and `tree-loading` entries,
+  and the status line will then record what each reader heard, as ADRs 041 and 042 record theirs.
+  Until then §4 is read as a plan plus a stale transcript, not as a verified mapping.
 - **Date:** 2026-09-12
 - **Scope:** the toolkit's first tree: what its model is, how a row is expanded and how children
   that are not there yet arrive, how it virtualizes, what the keyboard does, how a screen reader
