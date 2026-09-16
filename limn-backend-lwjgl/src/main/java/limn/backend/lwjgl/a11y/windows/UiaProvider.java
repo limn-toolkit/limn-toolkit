@@ -336,7 +336,7 @@ final class UiaProvider {
         if (found != AccessibleNode.NONE) {
             MemoryUtil.memPutAddress(out, context.elementFor(tree.node(found).id()));
         }
-        if (UiaTrace.on()) {
+        if (UiaTrace.onForRead()) {
             UiaTrace.inbound("Navigate", UiaTrace.direction(direction) + " from=" + nodeId
                     + " answer=" + (found == AccessibleNode.NONE ? "none"
                             : UiaTrace.element(tree, tree.node(found).id())), UiaIds.S_OK);
@@ -389,7 +389,7 @@ final class UiaProvider {
      */
     private static int runtimeId(long nodeId, long out, Context context) {
         int answer = runtimeIdAnswering(nodeId, out, context);
-        if (UiaTrace.on()) {
+        if (UiaTrace.onForRead(answer)) {
             UiaTrace.inbound("GetRuntimeId", UiaTrace.element(context.tree(), nodeId)
                     + " answer=" + (answer == UiaIds.S_OK ? "runtimeId" : "none"), answer);
         }
@@ -427,7 +427,7 @@ final class UiaProvider {
         for (int i = 0; i < 4; i++) {
             MemoryUtil.memPutDouble(out + (long) i * 8, box[i]);
         }
-        if (UiaTrace.on()) {
+        if (UiaTrace.onForRead()) {
             UiaTrace.inbound("get_BoundingRectangle", "node=" + nodeId + " answer=["
                     + box[0] + ',' + box[1] + ',' + box[2] + ',' + box[3] + ']', UiaIds.S_OK);
         }
@@ -444,7 +444,7 @@ final class UiaProvider {
             return refused("GetEmbeddedFragmentRoots", nodeId, UiaIds.E_NO_INTERFACE);
         }
         MemoryUtil.memPutAddress(out, 0);
-        if (UiaTrace.on()) {
+        if (UiaTrace.onForRead()) {
             UiaTrace.inbound("GetEmbeddedFragmentRoots", "node=" + nodeId + " answer=none",
                     UiaIds.S_OK);
         }
@@ -499,7 +499,7 @@ final class UiaProvider {
         }
         long root = context.rootElement();
         MemoryUtil.memPutAddress(out, root);
-        if (UiaTrace.on()) {
+        if (UiaTrace.onForRead()) {
             AccessibleTree tree = context.tree();
             UiaTrace.inbound("get_FragmentRoot", "answer=" + (tree.nodeCount() == 0 ? "none"
                     : UiaTrace.element(tree, tree.root().id())) + " provider=0x"
@@ -579,7 +579,7 @@ final class UiaProvider {
             return refused("get_ProviderOptions", nodeId, UiaIds.E_NO_INTERFACE);
         }
         MemoryUtil.memPutInt(out, UiaIds.PROVIDER_OPTIONS_SERVER_SIDE_PROVIDER);
-        if (UiaTrace.on()) {
+        if (UiaTrace.onForRead()) {
             // The first thing UI Automation asks of an element it has been handed, so an IN line
             // for it is the earliest evidence in the file that a client's process arrived.
             UiaTrace.inbound("get_ProviderOptions", "node=" + nodeId + " answer=SERVER_SIDE("
@@ -607,7 +607,7 @@ final class UiaProvider {
         if (vends) {
             MemoryUtil.memPutAddress(out, context.patternProviderFor(nodeId, patternId));
         }
-        if (UiaTrace.on()) {
+        if (UiaTrace.onForRead()) {
             UiaTrace.inbound("GetPatternProvider", UiaTrace.pattern(patternId) + " node=" + nodeId
                     + " answer=" + (vends ? "0x" + Long.toHexString(MemoryUtil.memGetAddress(out))
                             : "notVended"), UiaIds.S_OK);
@@ -622,7 +622,7 @@ final class UiaProvider {
      */
     private static int propertyValue(long nodeId, int propertyId, long out, Context context) {
         int answer = propertyValueAnswering(nodeId, propertyId, out, context);
-        if (UiaTrace.on()) {
+        if (UiaTrace.onForRead(answer)) {
             // Named by identifier and not described, unlike a raise: a reader asks this dozens of
             // times per node and the node's role and name are established by the lines around it.
             // What is repeated is the variant's own tag and value -- which is what the provider
@@ -768,7 +768,7 @@ final class UiaProvider {
         boolean isRoot = tree.nodeCount() > 0 && tree.root().id() == nodeId;
         long host = isRoot ? context.hostProvider() : 0;
         MemoryUtil.memPutAddress(out, host);
-        if (UiaTrace.on()) {
+        if (UiaTrace.onForRead()) {
             // The CALL line from UiaHostProviderFromHwnd sits inside this one, for the root; every
             // other node answers none without asking the platform anything.
             UiaTrace.inbound("get_HostRawElementProvider", "node=" + nodeId + " answer="

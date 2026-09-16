@@ -369,6 +369,95 @@ class UiaTraceTest {
     }
 
     /**
+     * The quiet mode drops a client's reads of one node and keeps what decides something —
+     * including every failing return.
+     *
+     * <p>An NVDA read of one node is dozens of {@code GetPropertyValue} calls, each a flushed line
+     * through one {@code PrintWriter} whose {@code println} is synchronized, so the drain thread's
+     * {@code RAISE} queues behind the RPC threads' disk writes and the instrument perturbs the
+     * scheduling of the very thread the 1-in-14 race turns on (2026-09-16 review). The volume and
+     * the decisions are separate switches for that reason. The default stays everything: a client
+     * can arrive and read without ever subscribing, and a file that is quiet by default cannot
+     * answer the arrival question this trace exists for.
+     */
+    @Test
+    void theQuietModeDropsAClientsReadsAndKeepsItsDecisionsAndEveryFailure() {
+        List<String> said = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        Consumer<String> before = UiaWindow.trace;
+        boolean beforeReads = UiaTrace.reads;
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        long out = MemoryUtil.nmemCallocChecked(1, 64);
+        try {
+            bridge.publish(aFocusedButton(), false);
+            UiaProvider.Context context = bridge.contextForTests();
+            org.lwjgl.system.CallbackI read =
+                    UiaProvider.simpleSlots(1001, context).get("GetPropertyValue");
+            org.lwjgl.system.CallbackI readOfAGoneNode =
+                    UiaProvider.simpleSlots(4242, context).get("GetPropertyValue");
+            org.lwjgl.system.CallbackI advise =
+                    UiaProvider.adviseEventsSlots(context).get("AdviseEventAdded");
+            org.lwjgl.system.CallbackI act = UiaProvider.fragmentSlots(1001, context).get("SetFocus");
+            UiaWindow.trace = said::add;
+
+            UiaTrace.reads = false;
+            callSlot(read, out);
+            assertEquals(List.of(), inbound(said),
+                    "a read that answered is the volume this mode is for: " + said);
+            callSlot(readOfAGoneNode, out);
+            callSlot(advise, out);
+            callSlot(act, out);
+            List<String> kept = inbound(said);
+            assertEquals(3, kept.size(), "a failure, a subscription and a client acting: " + said);
+            assertTrue(kept.get(0).startsWith("IN GetPropertyValue "), kept.get(0));
+            assertTrue(kept.get(0).contains("hr=0x80040201(E_ELEMENT_NOT_AVAILABLE)"), kept.get(0));
+            assertTrue(kept.get(1).startsWith("IN AdviseEventAdded "), kept.get(1));
+            assertTrue(kept.get(2).startsWith("IN SetFocus "), kept.get(2));
+
+            said.clear();
+            UiaTrace.reads = true;
+            callSlot(read, out);
+            assertEquals(1, inbound(said).size(),
+                    "and with the whole half on, the read says so: " + said);
+            assertTrue(inbound(said).get(0).startsWith("IN GetPropertyValue "), said.toString());
+        } finally {
+            UiaTrace.reads = beforeReads;
+            UiaWindow.trace = before;
+            MemoryUtil.nmemFree(out);
+            bridge.detach();
+        }
+    }
+
+    /** @return the {@code IN} lines of what was said, in order, without the bridge's own notes */
+    private static List<String> inbound(List<String> said) {
+        synchronized (said) {
+            return said.stream().filter(l -> l.startsWith("IN ")).toList();
+        }
+    }
+
+    /** What the property says, and what an unreadable value falls back to. */
+    @Test
+    void onlyTheWordDecisionsNarrowsTheInboundHalf() {
+        java.io.PrintStream beforeErr = System.err;
+        java.io.ByteArrayOutputStream complained = new java.io.ByteArrayOutputStream();
+        System.setErr(new java.io.PrintStream(complained, true, StandardCharsets.UTF_8));
+        try {
+            assertTrue(UiaTrace.readsFromProperty(null), "nothing asked for is everything");
+            assertTrue(UiaTrace.readsFromProperty("all"));
+            assertTrue(UiaTrace.readsFromProperty(" ALL "));
+            assertFalse(UiaTrace.readsFromProperty("decisions"));
+            assertFalse(UiaTrace.readsFromProperty(" Decisions "));
+            assertTrue(UiaTrace.readsFromProperty("decision"),
+                    "a value nobody recognises writes more rather than less");
+        } finally {
+            System.setErr(beforeErr);
+        }
+        assertTrue(complained.toString(StandardCharsets.UTF_8)
+                        .contains("is neither all nor decisions"),
+                "and says so, because writing less than was asked for is the one failure this "
+                        + "switch can have that nothing downstream reveals: " + complained);
+    }
+
+    /**
      * Calls one slot through the Java interface its vtable entry implements, with arguments no
      * member can refuse to answer for: a zeroed out parameter big enough for the widest of them,
      * and {@code 0} wherever the member takes an identifier or a coordinate.

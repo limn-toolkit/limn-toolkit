@@ -54,7 +54,10 @@ import java.util.function.Consumer;
  *       pinned by {@code UiaTraceTest.everyMemberOfTheFourInboundInterfacesSaysThatItWasCalled}.
  *       The <b>pattern</b> members ({@link UiaPatternProviders}, some thirty-five slots: an
  *       invoke, a toggle, a value written, a scroll) write none, so a file with no {@code IN} line
- *       says that no client read this provider — not that none acted on it.</li>
+ *       says that no client read this provider — not that none acted on it.
+ *       {@code -Dlimn.a11y.uia.trace.inbound=decisions} narrows this half to the lines that decide
+ *       something and every failing return, for a run whose question is a timing race rather than
+ *       arrival ({@link #onForRead}).</li>
  *   <li>{@code NOTE} — the bridge's own older notes, which the file carries unchanged.</li>
  * </ul>
  *
@@ -101,6 +104,66 @@ final class UiaTrace {
      */
     static boolean on() {
         return file != null || UiaWindow.trace != null;
+    }
+
+    /** The property choosing how much of the inbound half is written. */
+    static final String INBOUND_PROPERTY = "limn.a11y.uia.trace.inbound";
+
+    /**
+     * Whether a client's ordinary reads of one node are written. Volatile and not final so a test
+     * can turn it over.
+     */
+    static volatile boolean reads = readsFromProperty(propertyOrNull(INBOUND_PROPERTY));
+
+    /**
+     * Whether a client's read of one node should say so.
+     *
+     * <p><b>The volume and the decisions are separate switches.</b> An NVDA read of one node is
+     * dozens of {@code GetPropertyValue} calls, each a flushed line through one
+     * {@code PrintWriter} whose {@code println} is synchronized — so with the whole inbound half
+     * on, the drain thread's {@code RAISE} waits for the RPC threads' disk writes, and the
+     * scheduling of the very thread the 1-in-14 race turns on is perturbed by the instrument
+     * (2026-09-16 review). {@code -Dlimn.a11y.uia.trace.inbound=decisions} keeps the lines that
+     * decide something — what a client subscribed to, what it asked the window for, what it acted
+     * on, and <b>every failing return</b> — and drops the per-node reads.
+     *
+     * <p><b>The default is everything</b>, which is not what the review proposed (it proposed
+     * advise-only) and is a judgement to be overruled if the owner disagrees: the first question
+     * this file exists to answer is whether a client's process arrives at all, a client can arrive
+     * and read without ever subscribing, and a file that is quiet by default cannot answer the
+     * question it was turned on for. The quiet mode is one word on the command line for the run
+     * that is chasing the timing race rather than the arrival.
+     *
+     * @param hresult what the member answered
+     * @return whether to write the line
+     */
+    static boolean onForRead(int hresult) {
+        return hresult == UiaIds.S_OK ? onForRead() : on();
+    }
+
+    /**
+     * @return {@link #onForRead}'s {@code S_OK} half, for a site a failure never reaches
+     */
+    static boolean onForRead() {
+        return reads && on();
+    }
+
+    /**
+     * @param said what the property said, or {@code null}
+     * @return whether a client's ordinary reads are written: {@code decisions} narrows the file to
+     *         the decisions and the failures; anything else is everything, and an unrecognised
+     *         value says so on standard error rather than quietly writing less than was asked for
+     */
+    static boolean readsFromProperty(String said) {
+        if (said == null || said.isBlank() || said.trim().equalsIgnoreCase("all")) {
+            return true;
+        }
+        if (said.trim().equalsIgnoreCase("decisions")) {
+            return false;
+        }
+        System.err.println("[uia] -D" + INBOUND_PROPERTY + '=' + said
+                + " is neither all nor decisions; writing everything");
+        return true;
     }
 
     /**
@@ -343,7 +406,21 @@ final class UiaTrace {
 
     /** Opens the file {@link #PROPERTY} names, or answers {@code null}. */
     private static Consumer<String> openFromProperty() {
-        return opened(System.getProperty(PROPERTY));
+        return opened(propertyOrNull(PROPERTY));
+    }
+
+    /**
+     * @param name a system property
+     * @return its value, or {@code null} — and never a throw, because every reader of this is in
+     *         this class's initialization, which {@link #opened} explains must not fail
+     */
+    private static String propertyOrNull(String name) {
+        try {
+            return System.getProperty(name);
+        } catch (RuntimeException cannot) {
+            System.err.println("[uia] cannot read -D" + name + ": " + cannot);
+            return null;
+        }
     }
 
     /**

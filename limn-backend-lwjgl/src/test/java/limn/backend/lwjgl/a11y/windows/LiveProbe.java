@@ -74,6 +74,11 @@ public final class LiveProbe {
                 + (System.getProperty(UiaTrace.PROPERTY) == null ? "off (-D" + UiaTrace.PROPERTY
                         + "=<file> turns it on)" : System.getProperty(UiaTrace.PROPERTY)
                         + (UiaTrace.file == null ? " -- NOT OPENED, see stderr" : " (open)")));
+        // And how much of the inbound half it writes, for the same reason: a file that is quiet
+        // because it was asked to be reads like a client that never called.
+        say("bridge trace inbound:      " + (UiaTrace.reads
+                ? "all (-D" + UiaTrace.INBOUND_PROPERTY + "=decisions drops a client's reads)"
+                : "decisions and failures only"));
 
         try (Backend backend = new LwjglBackend()) {
             NativeWindow window = backend.createWindow(
