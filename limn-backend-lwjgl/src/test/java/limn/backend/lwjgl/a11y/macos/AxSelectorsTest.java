@@ -35,17 +35,18 @@ class AxSelectorsTest {
             "addRange", AxSelectors.Kind.RANGE);
 
     /** The closure classes a direct {@code addMethod} call may be handed, and their shapes. */
-    private static final Map<String, AxSelectors.Kind> CLOSURES = Map.of(
-            "IdGetter", AxSelectors.Kind.ID,
-            "BoolGetter", AxSelectors.Kind.BOOL,
-            "LongGetter", AxSelectors.Kind.INTEGER,
-            "RangeGetter", AxSelectors.Kind.RANGE,
-            "AttributeGetter", AxSelectors.Kind.ID_OF_ID,
-            "SelectorGate", AxSelectors.Kind.BOOL_OF_SELECTOR,
-            "CellAt", AxSelectors.Kind.ID_OF_TWO_INTEGERS,
-            "HitTest", AxSelectors.Kind.ID_OF_POINT,
-            "BoolSetter", AxSelectors.Kind.VOID_OF_BOOL,
-            "IdSetter", AxSelectors.Kind.VOID_OF_ID);
+    private static final Map<String, AxSelectors.Kind> CLOSURES = Map.ofEntries(
+            Map.entry("IdGetter", AxSelectors.Kind.ID),
+            Map.entry("BoolGetter", AxSelectors.Kind.BOOL),
+            Map.entry("LongGetter", AxSelectors.Kind.INTEGER),
+            Map.entry("RangeGetter", AxSelectors.Kind.RANGE),
+            Map.entry("AttributeGetter", AxSelectors.Kind.ID_OF_ID),
+            Map.entry("SelectorGate", AxSelectors.Kind.BOOL_OF_SELECTOR),
+            Map.entry("AttributeGate", AxSelectors.Kind.BOOL_OF_ID),
+            Map.entry("CellAt", AxSelectors.Kind.ID_OF_TWO_INTEGERS),
+            Map.entry("HitTest", AxSelectors.Kind.ID_OF_POINT),
+            Map.entry("BoolSetter", AxSelectors.Kind.VOID_OF_BOOL),
+            Map.entry("IdSetter", AxSelectors.Kind.VOID_OF_ID));
 
     /**
      * What {@code AxElementClass}'s source installs, selector to closure shape, read off the source.
@@ -137,6 +138,41 @@ class AxSelectorsTest {
         while (calls.find()) count++;
         assertEquals(1, count, "every install goes through addMethod, the one class_addMethod call, "
                 + "which refuses an unlisted selector and skips one AppKit lacks");
+    }
+
+    /**
+     * The scan above reads install <em>sites</em>, so it counts a selector installed by a method that
+     * nothing ever calls. Every {@code installX()} must therefore be reached from somewhere else in
+     * the file.
+     *
+     * <p>Found by sabotage on 2026-09-16, while proving the settability hook's tests red: deleting the
+     * {@code installSettable()} call left every test green, and so did deleting {@code installBusy()}'s
+     * — the gap was general and older than either. A selector listed, dumped, shaped and never
+     * installed is exactly the silent half-disablement MACOS-NEW-6 exists to prevent, and on this
+     * platform it shows up only on a Mac, as an attribute a reader quietly never hears.
+     */
+    @Test
+    void everyInstallMethodIsActuallyCalled() throws IOException {
+        String source = Files.readString(RepositoryRoot.find().resolve(ELEMENT_CLASS),
+                StandardCharsets.UTF_8);
+        // Comments first: a {@link #installSettable()} in a javadoc is a mention and not a call, and
+        // counting it let the very sabotage this test was written for stay green.
+        String code = source.replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\\n]*", "");
+        Matcher declared = Pattern.compile("private void (install\\w*)\\(\\)").matcher(code);
+        java.util.List<String> uncalled = new java.util.ArrayList<>();
+        int found = 0;
+        while (declared.find()) {
+            found++;
+            String name = declared.group(1);
+            Matcher mentions = Pattern.compile("(?<![\\w.])" + name + "\\(\\)").matcher(code);
+            int count = 0;
+            while (mentions.find()) count++;
+            // One mention is the declaration itself; a call is any mention beyond it.
+            if (count < 2) uncalled.add(name);
+        }
+        assertTrue(found >= 5, "only " + found + " install methods found; the scan's pattern went stale");
+        assertTrue(uncalled.isEmpty(), "install methods nothing calls, so every selector they install "
+                + "is listed and dumped and never reaches the class: " + uncalled);
     }
 
     /**
