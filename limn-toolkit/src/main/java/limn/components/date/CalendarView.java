@@ -133,10 +133,28 @@ public class CalendarView extends Widget {
      * it &mdash; the publish step interns the (owner, key) pair. But a verb performed on one
      * arrives at {@link #onSyntheticAction} carrying <b>only</b> the innermost key, so two nodes
      * under different parents that share a key are two nodes this widget cannot tell apart. The day
-     * cells therefore take the non-negative half, one key per cell across the whole grid, and
+     * cells therefore take the non-negative half and
      * everything that is not a day is negative and spaced apart from its neighbours by more than it
-     * can ever have members. The cells are the only nodes here that carry a verb, and the flat key
+     * can ever have members. The cells are the only nodes here that carry a verb, and the key
      * is what makes {@code SELECT} land on the day it was asked for.
+     *
+     * <p><b>Amended 2026-09-16 (P5W-4/P5L-5): a day is not a slot.</b> The day grid's three kinds
+     * of node &mdash; the week rows, the week-number cells and the day cells &mdash; were keyed by
+     * their <em>position in the grid</em>, 0..41 for a day and 0..5 for a row, which made paging a
+     * month rewrite the name of forty-two nodes that stayed the same node. Measured on 2026-09-16:
+     * NVDA 2024.4.2 read {@code property=NAME from="20 de setembro de 2026" to="18 de outubro de
+     * 2026"} on one element and, subscribed to {@code Name} on the focused one, spoke the slot's
+     * new occupant before the focus moved, in 6 of 7 paging events over three runs; Orca saw the
+     * same 42 renames arrive one signal at a time, 190 in a run, and read a row mid-burst, saying
+     * {@code '1 de outubro'} beside {@code '4 de setembro'}. macOS agrees at source (131
+     * {@code AXTitleChanged} on stable node ids) and VoiceOver never spoke a wrong date, so that
+     * platform passes before and after and is not where this is measured. Each of the three is now
+     * keyed by <b>the day it shows</b> &mdash; a day cell by its epoch day, a row and its week
+     * number by the epoch day their week starts on &mdash; in three ranges of its own high above
+     * everything else here, so paging <em>retires</em> the days that left and <em>mints</em> the
+     * days that arrived, renames nothing, and keeps the nodes of the weeks the two months share.
+     * A verb that arrives for a day no longer in the grid decodes out of range and is refused,
+     * where a slot key would have resolved it to whatever day now stands there.
      *
      * <p>A chooser's rows and cells have keys of their own rather than the day grid's (DT2,
      * 2026-09-14). A key is also an <em>identity</em>: the publish step interns (owner, key), so
@@ -158,10 +176,16 @@ public class CalendarView extends Widget {
     private static final long KEY_TITLE = -4;
     /** One per column head, offset so it cannot meet a row or a week number. */
     private static final long KEY_HEAD_BASE = -10;
-    /** One per week row. */
-    private static final long KEY_ROW_BASE = -100;
-    /** One per week-number cell. */
-    private static final long KEY_WEEK_BASE = -200;
+    /**
+     * A day cell's key: {@code this + the day's epoch day}. A {@code LocalDate}'s epoch day fits
+     * in &plusmn;2<sup>39</sup> at the very ends of the ISO range, so the three day-grid ranges
+     * are two powers of two apart and cannot meet each other or anything negative above.
+     */
+    private static final long KEY_DAY_BASE = 1L << 40;
+    /** A week row's key: {@code this + the epoch day its week starts on}. */
+    private static final long KEY_WEEK_ROW_BASE = 1L << 41;
+    /** A week-number cell's key: {@code this + the epoch day its week starts on}. */
+    private static final long KEY_WEEK_NUMBER_BASE = 1L << 42;
     /** One per row of the month chooser: three. */
     private static final long KEY_MONTH_ROW_BASE = -300;
     /** One per row of the year chooser: six. */
@@ -304,6 +328,16 @@ public class CalendarView extends Widget {
     private String[] chooserName = new String[0];
     private final String[] dayText = new String[CELLS];
     private final String[] weekText = new String[WEEKS];
+    /**
+     * The composite name each week row and each chooser row was last published under, kept so a
+     * quiet frame compares and allocates nothing (the rule {@code Tree} and {@code Table} rows
+     * follow); {@code null} where the row draws nothing. The chooser's six is its deepest, the
+     * year chooser's row count.
+     */
+    private final String[] rowNames = new String[WEEKS];
+    private final String[] chooserRowNames = new String[6];
+    /** Reused per walk to assemble a row's name before comparing it with the kept one. */
+    private final StringBuilder nameBuilder = new StringBuilder();
     private final String[] weekdayText = new String[DAYS_IN_WEEK];
     private final DayOfWeek[] weekdays = new DayOfWeek[DAYS_IN_WEEK];
 
@@ -2641,12 +2675,23 @@ public class CalendarView extends Widget {
         LocalDate today = today();
         for (int w = 0; w < WEEKS; w++) {
             float top = gridY + w * cellH;
-            a.child(KEY_ROW_BASE - w);
+            long weekStart = gridStartEpoch + (long) w * DAYS_IN_WEEK;
+            a.child(KEY_WEEK_ROW_BASE + weekStart);
             a.bounds(0, top, width(), cellH);
             a.role(Accessible.Role.ROW);
+            // A row is what it shows, and says so (P5W-8, 2026-09-16): the numbers drawn across
+            // it, in reading order. A ROW published with an empty name is the shape P5W-1 found
+            // on a table -- NVDA speaks a bare 'item de dados' before many of these cells, and
+            // Orca discards an unnamed row that is not focusable, selectable or expandable as
+            // layout only. It is the week's own numbers rather than the seven full dates its
+            // cells are named with, because the cell says the date and the row says the week.
+            String rowName = weekRowName(w);
+            if (rowName != null) {
+                a.name(rowName, System.identityHashCode(rowName), Accessible.NameFrom.CONTENT);
+            }
             int c = 0;
             if (showWeekNumbers) {
-                a.child(KEY_WEEK_BASE - w);
+                a.child(KEY_WEEK_NUMBER_BASE + weekStart);
                 a.bounds(weekColumnLeft(rtl), top, weekColW, cellH);
                 a.role(Accessible.Role.CELL);
                 a.name(weekText[w], textEpoch, Accessible.NameFrom.CONTENT);
@@ -2657,8 +2702,9 @@ public class CalendarView extends Widget {
             for (int d = 0; d < DAYS_IN_WEEK; d++, c++) {
                 int index = w * DAYS_IN_WEEK + d;
                 LocalDate day = dayAt(index);
-                // The flat cell index and not the column: this is the key a SELECT comes back with.
-                a.child(index);
+                // The day it shows and not the slot it sits in: this is the key a SELECT comes
+                // back with, and the identity a paged month must not hand to another date.
+                a.child(KEY_DAY_BASE + day.toEpochDay());
                 a.bounds(cellLeft(d, rtl), top, cellW, cellH);
                 a.role(Accessible.Role.CELL);
                 ChronoLocalDate drawn = CalendarChronology.date(chronology, day);
@@ -2727,6 +2773,12 @@ public class CalendarView extends Widget {
             a.child(rowBase - row);
             a.bounds(0, top, width(), cellH);
             a.role(Accessible.Role.ROW);
+            // Named for what it shows, as a week row is: without it a reader crossing the chooser
+            // hears a bare 'item de dados' before each cell (P5W-8) and Orca discards the row.
+            String rowName = chooserRowName(row, columns);
+            if (rowName != null) {
+                a.name(rowName, System.identityHashCode(rowName), Accessible.NameFrom.CONTENT);
+            }
             for (int column = 0; column < columns; column++) {
                 int index = row * columns + column;
                 if (index >= chooserText.length) {
@@ -2824,6 +2876,76 @@ public class CalendarView extends Widget {
      * about it. Built here rather than memoized: it is wanted by nothing else, and forty-two long
      * dates per layout pass would cost more than the tree does.
      */
+    /**
+     * A week row's name: the numbers drawn across it in reading order &mdash; the week number
+     * where the column is shown, then the seven day numbers &mdash; separated by a space.
+     *
+     * <p><b>What it shows and not what its cells are called.</b> A day cell is named with the
+     * whole localized date, so a composite of its cells' names would be seven full dates, ~160
+     * characters, spoken before every cell announcement a cursor move into a new week makes; the
+     * row draws seven numbers and that is what it says. The rule a table row follows is the same
+     * rule &mdash; the text the row shows, in column order &mdash; and it lands differently here
+     * because the two widgets draw different things.
+     *
+     * <p>Kept per row and compared against a reused builder, so a quiet frame allocates nothing
+     * and republishes nothing; the string's identity is then the witness the builder wants. With
+     * the row keyed by its week (this class's key-space note) the name of a given week never
+     * moves, so paging raises no name change on a surviving row at all.
+     *
+     * @return the name, or {@code null} before a grid has been built
+     */
+    private String weekRowName(int w) {
+        nameBuilder.setLength(0);
+        if (showWeekNumbers) {
+            appendCellText(weekText[w]);
+        }
+        for (int d = 0; d < DAYS_IN_WEEK; d++) {
+            appendCellText(dayText[w * DAYS_IN_WEEK + d]);
+        }
+        return keptName(rowNames, w);
+    }
+
+    /** A chooser row's name: the months or years drawn across it, as {@link #weekRowName}. */
+    private String chooserRowName(int row, int columns) {
+        nameBuilder.setLength(0);
+        for (int column = 0; column < columns; column++) {
+            int index = row * columns + column;
+            if (index >= chooserText.length) {
+                break;
+            }
+            appendCellText(chooserText[index]);
+        }
+        return keptName(chooserRowNames, row);
+    }
+
+    private void appendCellText(String text) {
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        if (nameBuilder.length() > 0) {
+            nameBuilder.append(' ');
+        }
+        nameBuilder.append(text);
+    }
+
+    /** The builder's text, reusing the string kept at {@code slot} when it reads the same. */
+    private String keptName(String[] kept, int slot) {
+        if (slot >= kept.length) {
+            return nameBuilder.length() == 0 ? null : nameBuilder.toString();
+        }
+        if (nameBuilder.length() == 0) {
+            kept[slot] = null;
+            return null;
+        }
+        String was = kept[slot];
+        if (was != null && was.contentEquals(nameBuilder)) {
+            return was;
+        }
+        String fresh = nameBuilder.toString();
+        kept[slot] = fresh;
+        return fresh;
+    }
+
     private String cellName(Chronology chronology, ChronoLocalDate drawn, LocalDate day,
                             LocalDate today, Locale locale) {
         String date = drawn == null ? day.toString()
@@ -2933,21 +3055,37 @@ public class CalendarView extends Widget {
             }
             return true;
         }
-        if (key >= 0 && key < CELLS && action == Accessible.Action.FOCUS) {
-            LocalDate day = dayAt((int) key);
+        int cell = dayCellOf(key);
+        if (cell >= 0 && action == Accessible.Action.FOCUS) {
+            LocalDate day = dayAt(cell);
             if (isRefused(day)) {
                 return false; // published with no verb (decision 30)
             }
             focusDay(day);
             return true;
         }
-        if (key >= 0 && key < CELLS && action == Accessible.Action.SELECT) {
+        if (cell >= 0 && action == Accessible.Action.SELECT) {
             // pick() refuses a day the grid refuses a click on, by the same rule the pointer
             // meets. What tells a reader no is that such a day publishes no SELECT and is not
             // ENABLED (decisions 2 and 30): the platform answers from the published list before
             // this hook runs, so this false never reaches it.
-            return pick(dayAt((int) key), Change.Origin.USER);
+            return pick(dayAt(cell), Change.Origin.USER);
         }
         return false;
+    }
+
+    /**
+     * The grid cell a day key names, or {@code -1} for a key that is not a day of the grid on
+     * show &mdash; a row, a week number, a chooser cell, or a day that has paged away since a
+     * client read it. The last is the point of keying a cell by its day (this class's key-space
+     * note, amended 2026-09-16): a verb for a day the grid no longer shows is refused, where a
+     * slot key would have quietly performed it on whichever day now stands in that slot.
+     */
+    private int dayCellOf(long key) {
+        if (key < KEY_DAY_BASE || gridStartEpoch == Long.MIN_VALUE) {
+            return -1;
+        }
+        long index = key - KEY_DAY_BASE - gridStartEpoch;
+        return index >= 0 && index < CELLS ? (int) index : -1;
     }
 }

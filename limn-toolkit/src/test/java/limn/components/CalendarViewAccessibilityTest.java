@@ -1138,4 +1138,117 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(dayNodes().get(8).selectionItem().selected());
         assertFalse(dayNodes().get(5).selectionItem().selected());
     }
+
+    /** The node a given date is published as, or {@code null} when the grid does not show it. */
+    private AccessibleNode dayNamedOrNull(String prefix) {
+        for (AccessibleNode day : dayNodes()) {
+            if (day.name().startsWith(prefix)) {
+                return day;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * P5W-4 and its Fedora twin (2026-09-16), the model's on two platforms: day cells were keyed
+     * by their <b>grid slot</b>, so paging a month rewrote the name of forty-two nodes that stayed
+     * the same node. NVDA 2024.4.2 read {@code property=NAME from="20 de setembro de 2026" to="18
+     * de outubro de 2026"} on one element and, subscribed to {@code Name} on the focused one,
+     * spoke the slot's new occupant before the focus moved, in 6 of 7 paging events; Orca saw 42
+     * renames one signal at a time, 190 in a run, and read a row mid-burst, saying {@code '1 de
+     * outubro'} beside {@code '4 de setembro'}.
+     *
+     * <p>A cell is its day now, so paging retires the days that left and mints the days that
+     * arrived. The weeks the two months share keep their nodes — which is the check that the
+     * identity really is the date and not a fresh mint per page.
+     */
+    @Test
+    void pagingAMonthRetiresAndMintsDaysInsteadOfRenamingTheSlots() throws InterruptedException {
+        bindCalendar();
+        // 30 September is in the last week of September and the first row of October's grid.
+        AccessibleNode shared = dayNamedOrNull("30 de setembro");
+        assertNotNull(shared, "September's grid shows the 30th: " + describe(tree()));
+        AccessibleNode leaving = dayNamedOrNull("15 de setembro");
+        assertNotNull(leaving);
+        long sharedId = shared.id();
+        long leavingId = leaving.id();
+        bridge.events.clear();
+
+        assertTrue(perform(pagingButton(true).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE));
+        frame();
+
+        List<AccessibleEvent> renames = new ArrayList<>();
+        for (AccessibleEvent event : bridge.events) {
+            if (event.type() == AccessibleEvent.Type.NAME_CHANGED) {
+                renames.add(event);
+            }
+        }
+        for (AccessibleEvent rename : renames) {
+            assertFalse(rename.nodeId() == sharedId || rename.nodeId() == leavingId,
+                    "a day cell renamed under the reader: " + rename);
+        }
+        assertTrue(renames.size() <= 1,
+                "the title is allowed to be renamed; the grid is not: " + renames);
+
+        assertEquals(sharedId, dayNamedOrNull("30 de setembro").id(),
+                "the same day is the same node across the page: " + describe(tree()));
+        assertNull(dayNamedOrNull("15 de setembro"), "and a day that left the grid is gone");
+        assertEquals(AccessibleNode.NONE, tree().indexOf(leavingId),
+                "retired, not renamed: " + describe(tree()));
+        assertNotNull(dayNamedOrNull("20 de outubro"), "October's days were minted");
+    }
+
+    /**
+     * The other half of keying a cell by its day: a verb sent for a day the grid no longer shows
+     * is <b>refused</b>, where a slot key resolved it to whichever day now stands in that slot.
+     * This is the same degradation ADR 039 §4.1 accepts for an unrealized table row.
+     */
+    @Test
+    void aSelectForADayThatHasPagedAwayIsRefusedRatherThanLandingOnItsSuccessor()
+            throws InterruptedException {
+        CalendarView calendar = bindCalendar();
+        AccessibleNode leaving = dayNamedOrNull("15 de setembro");
+        assertNotNull(leaving);
+        long stale = leaving.id();
+        assertTrue(perform(pagingButton(true).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE));
+        frame();
+        assertNull(calendar.selectedDate());
+        assertFalse(perform(stale, Accessible.Action.SELECT, Accessible.Argument.NONE),
+                "the element is gone, so the verb is refused");
+        assertNull(calendar.selectedDate(), "and nothing was picked in its place");
+    }
+
+    /**
+     * P5W-8 (2026-09-16), the calendar's half of P5W-1: a week {@code ROW} published an empty
+     * name, so NVDA spoke a bare {@code 'item de dados'} before many cell announcements and Orca
+     * discards an unnamed row that is not focusable, selectable or expandable as layout only. A
+     * row says what it draws — its numbers, in reading order — and not what its cells are called,
+     * which would be seven full dates spoken before every cell.
+     */
+    @Test
+    void aWeekRowIsNamedByTheNumbersItDraws() {
+        CalendarView calendar = bindCalendar();
+        List<AccessibleNode> rows = rowNodes();
+        assertEquals(6, rows.size(), describe(tree()));
+        assertEquals("30 31 1 2 3 4 5", rows.get(0).name(),
+                "the week August ends in: " + describe(tree()));
+        assertEquals(Accessible.NameFrom.CONTENT, rows.get(0).nameFrom());
+        for (AccessibleNode row : rows) {
+            assertFalse(row.name().isEmpty(), "no nameless row: " + describe(tree()));
+        }
+
+        calendar.setShowWeekNumbers(true);
+        frame();
+        assertTrue(rowNodes().get(0).name().endsWith("30 31 1 2 3 4 5"),
+                "with the column shown the week number leads: " + rowNodes().get(0).name());
+        assertFalse(rowNodes().get(0).name().equals("30 31 1 2 3 4 5"),
+                "and it really is there: " + rowNodes().get(0).name());
+
+        calendar.setView(CalendarView.View.MONTHS);
+        frame();
+        assertFalse(rowNodes().get(0).name().isEmpty(),
+                "a chooser row is named the same way: " + describe(tree()));
+    }
 }

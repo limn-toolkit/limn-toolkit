@@ -596,6 +596,53 @@ an `ENABLED` node; the scene refuses one sent anyway. The field's case is rename
 `DatePickerAccessibilityTest.theFieldsSegmentsCarryNoVerbBeneathTheCalendarOverlay` assert that the
 value stays writable and is not accepted.
 
+**Amended 2026-09-16 (fix round after phase 5; P5W-4 and P5W-8, both the model's).** Two things a
+live reader found and nothing headless had asked about.
+
+**A day cell is the day it shows, not the slot it sits in.** The key space above gave the day grid's
+nodes their *position*: 0..41 for a day, 0..5 for a week row and its week-number cell. A month is
+paged by rebuilding that grid, so every one of those nodes survived the page and was handed a
+different date — forty-two renames on forty-two nodes that a client had every right to believe were
+the same forty-two things. What that cost, measured on 2026-09-16 on three guests: **Windows**, NVDA
+2024.4.2 read `property=NAME from="20 de setembro de 2026" to="18 de outubro de 2026"` on a single
+element and, subscribed to `Name` on the focused one, spoke the slot's new occupant *before* the
+focus moved — 6 of 7 paging events over three runs, structural in cause and intermittent in
+appearance (`readings/phase5-windows-fix/reader-calendar-1`). **Fedora 44**, Orca 50.2: 42 cells
+renamed one signal at a time, 190 in a run, and Orca read a row mid-burst and spoke `'1 de outubro'`
+beside `'4 de setembro'`. **Ubuntu 24.04**: the 190 signals reproduce exactly, in bursts of
+49/49/43/43 over two independent runs, though that Orca never happened to read mid-burst — same
+source defect, different reader luck. **macOS 26.6.2** agrees at source, 131 `AXTitleChanged` on
+stable node ids, and VoiceOver **never spoke a wrong date**, so that platform passes before and
+after and is not where this fix is measured.
+
+So a day cell is keyed by its epoch day, and a week `ROW` and its week-number `CELL` by the epoch day
+their week starts on, each in a range of its own two powers of two apart, high above every negative
+key here. Paging now *retires* the days that left and *mints* the days that arrived; the weeks the
+two months share keep their nodes, which is what says the identity really is the date and not a
+fresh mint per page. `SelectionItemFacet`'s numbering is unaffected — it was already the day of the
+month over the month's length (decision 37) and never the slot. One consequence is a plain
+improvement: a verb that arrives for a day the grid no longer shows now decodes out of range and is
+**refused**, the degradation ADR 039 §4.1 already accepts for an unrealized table row, where a slot
+key performed it on whichever day had taken that slot.
+
+**A week row is named by the numbers it draws.** Every `ROW` here published an empty name, which is
+the shape P5W-1 found on a table: NVDA spoke a bare `'item de dados'` before many of these cell
+announcements, and Orca discards an unnamed row that is not focusable, selectable or expandable as
+"believed to be layout only". A row is now named with the numbers drawn across it in reading order —
+the week number where that column is shown, then the seven day numbers — and a chooser row with its
+months or years. **Not** a composite of its cells' names, which is the rule a table row follows: a
+day cell is named with the *whole localized date*, so that composite would be seven full dates,
+around 160 characters, spoken before every cell announcement a cursor move into a new week makes.
+The rule is the same rule — the text the row shows, in column order — and it lands differently here
+because the two widgets draw different things. Pinned by
+`CalendarViewAccessibilityTest.pagingAMonthRetiresAndMintsDaysInsteadOfRenamingTheSlots`,
+`aSelectForADayThatHasPagedAwayIsRefusedRatherThanLandingOnItsSuccessor` and
+`aWeekRowIsNamedByTheNumbersItDraws`.
+
+*Not changed, and recorded so nobody assumes it was:* the **year chooser** has the same shape — its
+cells are keyed by their position in the 24-cell block, so paging a block renames all 24 — and it
+was not measured on any guest. It is left as it stands rather than fixed on a hunch.
+
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and
 it is why the calendar could be built at all without reopening the bridges, which live in their own
