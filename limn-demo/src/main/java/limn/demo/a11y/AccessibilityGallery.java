@@ -1051,6 +1051,15 @@ public final class AccessibilityGallery {
      * <p>Both politeness levels, because the platforms map them to different values and a run that
      * heard only one would leave the other unread. The buttons are ordinary buttons: what is being
      * exercised is the scene's own path, not a widget's.
+     *
+     * <p><b>The two announced strings are the first thing decision 68 will owe a catalogue</b>
+     * (2026-09-15, unassigned as of this writing). Every other entry's English is a caption or a
+     * label — a word beside a widget, which a pt-BR run hears as a name — while these two are the
+     * only strings in the gallery a reader speaks as a <em>sentence</em>, straight through from
+     * the application. Until the en/pt-BR catalogue decision 68 asks for exists, phase 5's pt-BR
+     * pass hears an English sentence here and nowhere else, so these are the two entries to move
+     * first when it lands. {@code ReaderStepsTest.theAnnouncementEntrySpeaksBothPolitenessLevels}
+     * names both literals, so the catalogue cannot be added without that test being brought along.
      */
     private static Built announcing() {
         Column page = page();
