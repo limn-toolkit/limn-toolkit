@@ -345,8 +345,15 @@ underneath it, and both defects a live reader has ever found here were underneat
 window early. A probe that reads correctly and shows nothing has been rejected twice, for the same
 reason both times: a blank window is impossible to look at and believe, even when it is honest.
 
-The guests, their logins and their per-platform startup incantations are lab notes and not
-repository facts, so they are not here.
+**A platform script is versioned; a lab runner is not.** A script that reads a platform and runs on
+any machine of that OS is here: the constants dumps, the out-of-process clients, the probes, and the
+demo's own `--reader` driver. A runner that brings one guest up — its address, its login, its home
+paths, the order a VM is built, copied to, started and photographed in — is a lab note and lives
+outside this repository, because a fact about one machine rots without anyone noticing and is
+nobody's to re-run. Where a constant's comment needs to say where a number came from, it cites the
+guest and its version, never the runner that typed it. `ScriptsCarryNoLabFactsTest` is what keeps
+the line: it refuses a private IPv4 literal, a lab login and a `/Users/<name>` path anywhere under
+`scripts/`.
 
 ## What is deliberately absent
 

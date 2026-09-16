@@ -362,10 +362,13 @@ visible headless and most of it not caused by the tree:
 - **All three.** Two seconds after Remote's load was due, none of the three clients saw its
   children in the tree.
 
-The recipes are `scripts/a11y/linux/run-tree-reader.sh` with `tree-check.py`,
-`scripts/a11y/windows/walk-the-tree.ps1`, and `scripts/a11y/macos/guest-tree-reader.sh` with
-`axoutline.swift`. Until these are fixed and re-run, the tree is readable by a client and not yet
-navigable by a person using a screen reader.
+The versioned half of those recipes is the platform clients: `scripts/a11y/linux/tree-check.py`,
+`scripts/a11y/windows/walk-the-tree.ps1` and `scripts/a11y/macos/axoutline.swift`, each run against
+the demo started by the gallery's `--reader` driver. The runners that brought a particular guest up
+around them are not in this repository (decision 17 of the 2026-09-13 pass, ADR 039 §12.2): they
+carried a VM's address, login and home paths, and their copies live outside the tree. Until the
+clients are re-run against the fixed bridges, the tree is readable by a client and not yet navigable
+by a person using a screen reader.
 
 **Amendment, 2026-09-15: the scene those runs drove is the accessibility gallery's now.**
 `TreeScene.reader()` and the fifteen arrows inline in `Main` are gone (decision 24 of the

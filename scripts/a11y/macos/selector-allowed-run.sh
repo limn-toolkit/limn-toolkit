@@ -7,7 +7,7 @@
 #
 # Expects selector-allowed-probe beside this script, already built.
 #
-# usage: guest-selector-allowed.sh [quiet-seconds] [refused-selector ...]
+# usage: selector-allowed-run.sh [quiet-seconds] [refused-selector ...]
 set -u
 HERE=${0:A:h}
 QUIET=${1:-3}
