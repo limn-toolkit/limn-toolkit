@@ -2810,7 +2810,7 @@ objects at `/org/a11y/atspi/accessible/<id>`, plus `…/root` and `…/cache`.
 | `Component.Contains`, `GetAccessibleAtPoint` | a bounds walk over the snapshot | again not `Widget#hitTest`, for the disabled-node reason |
 | `Component.GetLayer`, `GetMDIZOrder`, `GetAlpha` | `LAYER_WIDGET` / `LAYER_WINDOW`, 0, 1.0 | |
 | `Component.GrabFocus` | posted `FOCUS` | |
-| `Action.NActions`, `GetActions`, `GetName`, `GetDescription`, `GetLocalizedName`, `GetKeyBinding`, `DoAction` | `ActionFacet` | `GetActions` is `a(sss)`; the third column is the key binding, where `Accelerator#display()` goes |
+| `Action.NActions`, `GetActions`, `GetName`, `GetDescription`, `GetLocalizedName`, `GetKeyBinding`, `DoAction` | `AccessibleNode#accepts` (the `ActionFacet`'s parameterless verbs) | `GetActions` is `a(sss)`; the third column is the key binding, where `Accelerator#display()` goes. *(Amended 2026-09-15, semantics 5 settled after phase 3: the listing and `DoAction` both ask `accepts`, as every other entry point on this bridge does. They read the facet directly until then — the same answer, and the one call here that did not read the toolkit's single authority, so a gate reaching `accepts` would have left `DoAction` on the old rule. Pinned on the source by `AtspiTreeTest.everyVerbThisBridgePostsIsPostedAtOnePlaceBehindAccepts`, because behaviour cannot tell the two apart while they agree.)* |
 | `Value` `CurrentValue` (read/write), `MinimumValue`, `MaximumValue`, `MinimumIncrement` | `ValueFacet` | numeric only; a display form such as a spinner's `07:30` is published through `Text` |
 | `Text`, `EditableText` | `TextFacet` | **offsets converted from UTF-16 to characters at this boundary and nowhere else**; `GetRangeExtents` is not answered in the first cut (§11) |
 | `Selection` | `SelectionFacet` | |
@@ -3483,6 +3483,46 @@ was not sent at all. Two identical copies waiting in Orca's queue together are h
 `_is_obsoleted_by` drops the earlier for the later, matching same type and same source
 (readings/fedora-orca-event-queue.txt). Orca's queue is ordered by `_get_priority` before arrival;
 the numeric values of its constants were not read.)*
+
+*(Amended 2026-09-15, semantics 4 settled for the three bridges after phase 3. Two sentences above
+change. "It sends only what differs from the memory" is now true of an ordinary publish only: **an
+owed reconcile — one the model's `INVALIDATED` or a refused signal asked for — says the focus and
+the cursor again whether or not they moved.** Linux was the only bridge that sent nothing when the
+focus had not moved, while Windows re-raises and macOS re-posts unconditionally after their own
+sweeps; and a focus that did not move is precisely the case where the client is standing on a node
+whose state changes it lost in the collapse. The repeat costs a message and no speech: Orca 50.2's
+`set_locus_of_focus` returns at once when the locus is already that object (focus_manager.py
+278-281, readings/fedora-orca-focus-manager.txt). The memory stays, and is what keeps an ordinary
+publish quiet. And "when the publish carries none, before the window's next publish replaces its
+tree" becomes **at the end of the frame** (`AccessibilityBridge#frameEnded`, §5.3): a collapse whose
+tail holds nothing after its structure signals used to wait for a next publish that a window going
+still never makes, so the re-announcement the semantics ask for never happened at all. The publish
+path stays as the later net for a refusal that comes after the frame has ended. Order is unchanged
+and is semantics 7's: the structure signals first, then focus, then the cursor, then selection and
+the window's activation. Pinned by
+`AtspiApplicationTest.aCollapseWhoseTailIsStructureAloneSaysTheFocusAgainWhenTheFrameEnds` and
+`aCollapseSaysTheFocusAndTheCursorAgainAtTheFramesEndEvenWhenNeitherMoved`.)*
+
+*(Amended again 2026-09-15, the review of that change; semantics 4's other half. "Each window
+remembers, across publishes, the focus and cursor it last announced" was one memory per window,
+where the settlement asks for **one memory per process** — the platform focus is one — and the
+unconditional re-say the amendment above added was gated on nothing, so a collapse or a refusal in a
+**background** frame put a `focused` 1 on the bus for a window nobody is in, a case that had stayed
+silent while it only sent differences. Both halves close together. The memory is now
+`AtspiApplication`'s: the window that holds it, the node, and the cursor, cleared when that window
+detaches and on a new join (Windows keeps the same pair in `UiaBridge.ANNOUNCED`). And **only the
+frame the desktop has active reconciles at all**: the model publishes `ACTIVE` on the window node of
+the scene whose window has the keyboard (`AccessibleWalk`, `Scene#isWindowFocused`), a native popup
+that takes the focus included, and a frame without it holds the node the user would *return* to and
+not where the user is — which is what Orca 50.2 says of such an event in as many words, "[frame]
+lacks active state", then "unable to find active window" (readings/fedora-l4-baseline/summary.md,
+LAB-NEW-2). A window that is not active therefore says nothing here: it neither repeats nor
+contradicts what the active frame announced. One consequence is new and deliberate: when the active
+frame re-says the focus, the `focused` 0 for the node the process last announced goes out **from the
+window that holds that node**, which may be another frame — libatspi's `cache_process_state_changed`
+clears only the bit an event names, so a focus that crossed windows used to leave `FOCUSED` cached on
+a node of each. Pinned by
+`AtspiApplicationTest.aBackgroundFramesCollapseSaysNothingAndTheActiveOnesClearsTheOneFocusAnnounced`.)*
 
 **`STATE_CHANGED` for `EXPANDED` and `EXPANDABLE` (L3; decision 27; semantics 9).** Both reach the
 bus as `StateChanged` `expanded` / `expandable` (bits 10 and 9) from the difference, and whenever the
@@ -4589,6 +4629,47 @@ embed half of decision 29 holds; the teardown half holds only for a switch turne
 Whether teardown should follow a different signal is the owner's question (logged in the Linux lane
 log); phase 5 measures what each desktop does to the switch when Orca quits.
 
+#### Amendment 2026-09-15 — decision 67: once embedded, embedded for the life of the process
+
+**The owner's answer to the question above: stay embedded, and say why.** The teardown half of
+decision 29 is withdrawn. `AtspiApplication#enabled(boolean)` acts on the rising edge only — the
+first `true` asks every window to publish and joins, and every `false` after it is ignored — so the
+application keeps its connection, its frames and its walks until the process ends.
+
+**The reading it rests on, from both guests, 2026-09-15**
+(`scripts/a11y/linux/read-orca-switch-writes.sh`; `readings/fedora-orca-switch-writes.txt`, Orca 50.2
+on Fedora KDE 44 with at-spi2-core 2.60.6; `readings/ubuntu-orca-switch-writes.txt`, Orca 46.1 on
+Ubuntu 24.04 with at-spi2-core 2.52.0): the only write either Orca makes to `org.a11y.Status` sets
+`IsEnabled` **true**, at start; neither shutdown path touches it, and at-spi-bus-launcher clears
+nothing when the screen reader is disabled
+(`readings/upstream-at-spi-bus-launcher-2.52-2.60.txt`). The bridge therefore cannot learn from this
+switch that a reader has left, and the `false` it *can* receive means something else entirely — the
+desktop's own accessibility setting turned off, or the bus's owner going away — which may happen
+while a reader is still reading us on the connection the teardown would close. A teardown driven by
+that flag is not "tears down with Orca"; it is "drops whoever is reading, for a reason unrelated to
+them".
+
+**The precedent: this is what GTK does.** `atk-bridge` is loaded once, when the toolkit sees the
+switch on, and there is no path that unloads it or withdraws the application from the registry
+because accessibility was switched off; a GTK window on either of these desktops stays readable for
+its process's life. Limn now matches the platform's own behaviour rather than inventing a shutdown
+no client expects.
+
+**The idle cost this accepts**, beyond the parked status thread the amendment above measures: one
+accessibility-bus connection with its reader and writer threads, kept for the life of the process
+after the first `true`, and §5.3's walk on damaged frames for as long as the process lives. Both were
+already the cost while a reader ran; what changes is that they are no longer given back when the
+desktop's switch goes off. Nothing new is allocated per frame, and a process that never sees a `true`
+still pays nothing at all.
+
+**What the code does.** `AtspiApplication.enabled(boolean)` returns at once for a `false` and for a
+`true` it has already seen; the joiner's "did the switch go off while I joined" check and the
+back-off's went with it (the last window leaving still ends both, which is a different condition).
+Pinned by `AtspiApplicationTest`'s
+`theSwitchDecidesWhetherAWindowListensAndJoinsAndTurningItOnWakesEveryWindow` — the `false` leaves
+the window listening and the application joined — and
+`aSwitchTurnedOffWhileTheJoinRunsLeavesTheJoinAlone`.
+
 **These are the gates, and the gate is never "a client asked us something recently."** A publish
 conditioned on a recent inbound call inverts the contract on all three platforms: the platform events
 are pushes a client waits on, and Orca in particular registers for `object:state-changed:focused` and
@@ -5492,6 +5573,29 @@ live reading of the `Selection`, `Value`, `Text` and attribute amendments of §2
 which is semantics 5 as the walk publishes it. What it does not replace is Orca speaking them, which is
 phase 5's.)*
 
+*(Amended 2026-09-15, the after-lane checks on at-spi2-core 2.52: the Ubuntu row's assertions were run
+against the finished bridge, and the readings are in `readings/ubuntu-2.52-after-lane.txt`. Ubuntu
+24.04.4, GNOME Shell 46.0 on X11, at-spi2-core 2.52.0-1build1, no screen reader started or running,
+no `sudo`, over SSH, with the branch's own `limn-demo-all.jar`. **Registration:** the desktop lists
+exactly one application for the process, with one frame per window — the shape §2.3 prescribes — so
+the 2.60 registration order the Fedora guest forced is right on 2.52 as well, where a wrong one would
+not have shown. **A native ComboBox popup:** `press-the-probe.py` performed the combo box's own
+`expand` through `Action.DoAction` from outside the process — no keyboard touched on the guest — and
+it answered true and opened a real popup window; `frames-check.py` then read one application with two
+frames, the list's `POPUP_FOR` naming the combo box in the other frame and the combo box's
+`CONTROLLER_FOR` naming the list, each resolved through the other frame; `walk-the-probe.py` read the
+open list's five items with `press`/`select`/`focus` and the first `ACTIVE` and `SELECTED`, and the
+combo box itself now `EXPANDED` and offering `collapse`. **A native DatePicker calendar:** the
+gallery's `--reader date-picker` run (pt-BR, the documentation day, the entry's own presentation)
+gave the same shape — two frames, the calendar panel's `POPUP_FOR` naming the "Delivery date" field
+and the field's `CONTROLLER_FOR` naming the panel — and the frame left the application's child list
+when the picker closed, through `children-changed:remove` from the application. So decision 5's
+cross-window relations, which only Linux had implemented by the end of phase 3, are read by libatspi
+2.52 as well as 2.60. `press-the-probe.py` gained the two arguments that made the combo box reachable
+(a role substring and a verb name, defaulting to a button's first action, which is what it did
+before). What this does not settle is what Orca 46.1 SAYS about any of it: that is phase 5's, and the
+reader was deliberately left unstarted.)*
+
 **One of these can plausibly move into CI, and it is worth trying.** The Linux bridge is pure Java and
 pure D-Bus, and the Ubuntu runner can install `at-spi2-core` and run the whole probe under
 `dbus-run-session`. If that works, one of the three platforms gains a real gate. It is listed as work,
@@ -5569,6 +5673,45 @@ encodings table" — and the sort direction's attribute and C enum values (unkno
 descending 2, from the SDK the script was compiled against, without quotes). The selectors and symbols
 the test carried as owed to it are retired, so each is now held against the committed dump like any
 other.
+
+#### Amendment 2026-09-15 — a platform fact two servers answer differently is a choice, and the choice is argued in the source
+
+**What the phase-3 critic found on Linux.** Four facts this bridge answers were read on two toolkits
+that disagree, and one was carried with no citation at all: AT-SPI `PARAGRAPH`'s boundary (GTK 4
+answers a line feed, GTK 3 answers nothing), the `version` property (GTK 3 answers `1`, GTK 4 refuses
+it), the error for a `Properties.Set` of a read-only property (GTK 3 `PropertyReadOnly`, GTK 4
+`InvalidArgs`), the error for a `CurrentValue` write a node will not take (both toolkits answer
+success, and this bridge refuses with `Failed`), and the object-path prefix
+`/org/a11y/atspi/accessible`.
+
+**The rule this adds to §12.3.** A constant read off one machine cites its reading, as it already
+must. A fact the machines answer differently is not thereby unread: it is a **choice**, and the
+comment beside it must say that the readings disagree, name both, and say why that half was taken.
+The five sites now do, and `AtspiConstantsTest.thePlatformFactsWithoutOneReadingSayWhichHalfWasTakenAndWhy`
+reads the source and fails when one of them loses its citation or its reasoning, so the next edit
+cannot quietly drop either. The prefix gained a reading of its own the same day: GTK 3 through
+at-spi2-atk 2.60.6 exports at exactly that prefix (`readings/fedora-gtk3-interface-replies.txt`),
+while GTK 4 exports under `/org/gtk/application/<app>/a11y/<uuid>` and is read by the same clients —
+so the prefix is this bridge's namespace, chosen to match the ATK bridge, and not a protocol
+constant. A reference on this bus is an `(so)` pair a client follows without parsing.
+
+*(Amended 2026-09-15, the review of that change. **A sixth site**: the application object answering
+`org.a11y.atspi.Component` at all is a choice against both toolkits — GTK 3.24.52 through
+at-spi2-atk 2.60.6 answers `UnknownMethod` on `/org/a11y/atspi/accessible/root` and logs
+`impl_GetExtents: assertion 'ATK_IS_COMPONENT (user_data)' failed` doing it
+(`readings/fedora-gtk3-interface-replies.txt` lines 3-9 and 33-36), GTK 4.22.4 answers
+`UnknownMethod` because its application object serves no such interface
+(`readings/fedora-gtk4-interface-replies.txt` lines 25-28), and the ATK bridge disagrees with itself
+by answering that interface's `version` property `1` on the same root. This bridge answers the first
+frame's box, because of the two halves it is the one that cannot cost a client anything; whether any
+client is misled by a root that answers `Component` is a phase-5 reading and the condition for
+reversing it. It was argued in `AtspiTree.applicationComponent`'s javadoc and added to the test's
+list. **And the test asserts more of the rule than the word.** Its first cut required only a file
+under `readings/` and the word "choice", both of which one site already carried before its argument
+was written — so that entry could not have gone red for the defect it guards. A choice site must now
+also name **both servers** it read, and, where the disagreement is over a name rather than a value,
+the name it did **not** answer with. What a test cannot check is whether a reason is a good one; the
+javadoc says so in as many words, so nobody reads a green run as a claim about the reasoning.)*
 
 ---
 

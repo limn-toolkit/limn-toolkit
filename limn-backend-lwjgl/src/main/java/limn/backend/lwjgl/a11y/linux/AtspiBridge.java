@@ -22,14 +22,17 @@ import limn.backend.lwjgl.a11y.PlatformBridge;
  * {@code org.a11y.Status.IsEnabled} on the session bus says whether assistive technology is running
  * at all, and it moves while applications run: a screen reader started after this window turns it
  * on. The process keeps one session connection and one parked thread following it
- * ({@link AtspiStatusWatch}, decision 29). While it is false no connection to the accessibility bus
- * is opened, no scene walks and no frame is spent; when it turns true every window is asked for a
- * publish, and when it turns false the application leaves the bus. A reader that quits does not
- * turn it off by itself: neither Orca 50.2 nor 46.1 ever writes it false
- * (readings/fedora-orca-switch-writes.txt, readings/ubuntu-orca-switch-writes.txt), so the leave
- * happens when the desktop's own setting or the session turns it off (ADR 039 §6). It is never "a client asked us
- * something recently": Orca registers for a focus change and then calls nothing until one fires, so
- * a gate of that shape goes silent exactly when the interface is being used.
+ * ({@link AtspiStatusWatch}, decision 29). While it has never been true no connection to the
+ * accessibility bus is opened, no scene walks and no frame is spent; the first true asks every
+ * window for a publish, and there it stays: <b>once embedded, embedded for the life of the
+ * process</b> (decision 67), as a GTK application is once {@code atk-bridge} has loaded. A false
+ * afterwards changes nothing, because it never means what a teardown would need it to mean:
+ * neither Orca 50.2 nor 46.1 ever writes the switch false
+ * (readings/fedora-orca-switch-writes.txt, readings/ubuntu-orca-switch-writes.txt), so a reader
+ * that quits leaves it on, and a false that does arrive — the desktop's own accessibility setting
+ * — can arrive while a reader is still reading us (ADR 039 §6). The gate is never "a client asked
+ * us something recently": Orca registers for a focus change and then calls nothing until one
+ * fires, so a gate of that shape goes silent exactly when the interface is being used.
  *
  * <p><b>Which thread may do what is the whole of the concurrency design.</b> The user-interface
  * thread publishes snapshots and enqueues events and blocks on nothing. The status thread follows
@@ -64,20 +67,17 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     /** Whether this publish sent the frame's own {@code StateChanged active} 1. UI thread. */
     boolean frameActiveSaid;
     /**
-     * The node this window last told clients was focused, or 0, across publishes (semantics 4: a
-     * bridge remembers the last effective focus it announced). UI thread. What a collapse or a
-     * refusal is reconciled against: said again only when the tree now says otherwise, with a
-     * {@code focused} 0 for this node when it still stands and lost the focus.
+     * The join this window's {@link #reconcileOwed} belongs to, so an owe raised on a connection
+     * clients no longer hold is not paid on the next one. UI thread. What was <em>announced</em> is
+     * not remembered here: the last effective focus is one memory for the process and lives on
+     * {@link AtspiApplication} (semantics 4, settled 2026-09-15), because the platform focus is one.
      */
-    long announcedFocus;
-    /** The descendant this window last named in an {@code ActiveDescendantChanged}, across publishes. */
-    long announcedCursor;
-    /** The join {@link #announcedFocus} and {@link #announcedCursor} were told on. UI thread. */
-    int announcedGeneration;
+    int reconcileGeneration;
     /**
      * Whether the model's {@code INVALIDATED} or a refused signal left the focus and cursor to be
      * reconciled at the tail's place: before the first tail event after the structure signals, or,
-     * when the publish carried none, before this window's next publish replaces its tree. UI thread.
+     * when the publish carried none, at {@link #frameEnded()} — and, for a refusal that came after
+     * that, before this window's next publish replaces its tree. UI thread.
      */
     boolean reconcileOwed;
     /**
@@ -167,7 +167,9 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
 
     @Override
     public boolean isListening() {
-        // The desktop's own flag as the watch last read it, and not "are we on the bus yet". This
+        // The desktop's own flag as it has EVER been read true, and not "are we on the bus yet" and
+        // not the value the watch read last: a false after a true is recorded nowhere (decision 67,
+        // AtspiApplication#enabled), so this answers yes for the life of the process once it has. This
         // platform is the one that can be asked whether anything is reading, which is what §6 wants
         // a gate to be — and making it depend on being embedded would be a cycle with no way in:
         // the bus is joined on the first publish, and a scene publishes only when something is
@@ -193,8 +195,6 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     @Override
     protected void releasePlatformHalf() {
         previousTree = AccessibleTree.EMPTY;
-        announcedFocus = 0;
-        announcedCursor = 0;
         reconcileOwed = false;
         // The window leaves the application; the application lets the connection go when it was
         // the last one (AtspiApplication#detached).
@@ -227,5 +227,14 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
     @Override
     public void emit(AccessibleEvent event) {
         application.emit(this, event);
+    }
+
+    @Override
+    public void frameEnded() {
+        // Nothing is posted here — this bridge writes from its own writer thread, and every signal
+        // of this frame has already been queued. What is owed is the re-announcement of the focus
+        // and the cursor after a collapse whose tail held nothing after its structure signals
+        // (semantics 4): it belongs to this frame, not to whenever the tree next changes.
+        application.frameEnded(this);
     }
 }

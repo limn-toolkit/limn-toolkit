@@ -10,11 +10,16 @@ import java.util.concurrent.TimeUnit;
  *
  * <p><b>Read once was not enough, because the switch moves while applications run.</b> The bridge
  * used to read the flag when a window first asked for accessibility and keep the answer, so an
- * application started before the screen reader stayed unreadable for the life of its windows, and
- * one whose switch was turned off kept its connection and its walks (LINUX-NEW-7). A reader that
- * quits is not such a switch: Orca only ever sets it true (ADR 039 §6's record of 2026-09-15). The owner chose the watch
- * over a re-read on activation (decision 29): a thread that waits costs nothing a frame can measure,
- * and a re-read answers only when a window happens to be activated.
+ * application started before the screen reader stayed unreadable for the life of its windows
+ * (LINUX-NEW-7). The owner chose the watch over a re-read on activation (decision 29): a thread that
+ * waits costs nothing a frame can measure, and a re-read answers only when a window happens to be
+ * activated.
+ *
+ * <p><b>Only the rising edge is acted on</b> (decision 67). Orca only ever sets the flag true (ADR
+ * 039 §6's record of 2026-09-15), so a false never means "the reader left"; the application it
+ * feeds ignores every false once it has seen a true and stays embedded. This watch still reports
+ * both edges, because what it reports is the switch and not a policy, and the one reader of it
+ * decides.
  *
  * <p><b>What the switch sends was read before this was written</b>, on both desktops the lab has
  * (readings/fedora-a11y-status-signal.txt, Fedora KDE 44, at-spi2-core 2.60.6, dbus-broker 37;
@@ -260,7 +265,13 @@ final class AtspiStatusWatch implements Runnable {
         String owner = newOwnerIn(m);
         if (owner != null) {
             if (owner.isEmpty()) {
-                sink.enabled(false);  // the launcher left, and its accessibility bus with it
+                // The launcher left, and its accessibility bus with it. Reported because this watch
+                // reports the switch and not a policy; recorded nowhere, because decision 67's
+                // reader of it acts on the rising edge alone. So nothing here tears an embedded
+                // application down: a connection that dies with the bus is noticed by that
+                // connection (AtspiApplication#connectionLost), which is the only path that can
+                // tell a dead bus from a desktop setting somebody turned off.
+                sink.enabled(false);
             } else {
                 readAgain = true;  // a launcher arrived: its switch is read, not assumed
             }

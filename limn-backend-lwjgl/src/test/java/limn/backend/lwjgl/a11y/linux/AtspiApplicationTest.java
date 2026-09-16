@@ -172,23 +172,28 @@ class AtspiApplicationTest {
         assertTrue(app.isJoined());
 
         app.enabled(false);
-        assertFalse(window.isListening());
-        assertFalse(app.isJoined(), "the reader quit: the application leaves the bus");
-        assertTrue(bus.closed);
+        assertTrue(window.isListening(), "decision 67: once the desktop has said yes, the window "
+                + "keeps listening for the life of the process");
+        assertTrue(app.isJoined(), "and the application stays embedded: no reader ever writes the "
+                + "switch false, so a false is not a reader leaving");
+        assertFalse(bus.closed);
 
         app.enabled(true);
-        assertEquals(2, republishes[0]);
-        assertEquals(2, quietRepublishes[0]);
+        assertEquals(1, republishes[0], "and the switch coming back is not a change either");
+        assertEquals(1, quietRepublishes[0]);
         window.publish(aWindow("Main", 0).tree(), false);
-        assertEquals(2, bus.joins, "and comes back when a reader does");
+        assertEquals(1, bus.joins, "nothing rejoined, because nothing left");
     }
 
     @Test
-    void aJoinThatCompletesAfterTheSwitchWentOffLeavesAtOnce() {
+    void aSwitchTurnedOffWhileTheJoinRunsLeavesTheJoinAlone() {
+        // Until decision 67 the joiner read the switch after publishing its state and left when it
+        // had gone off, and the two tests here drove the switch off at both edges of that gap. The
+        // switch cannot go off any more: the only false a desktop sends is one no reader asked for.
         AtspiApplication[] app = new AtspiApplication[1];
         boolean[] closed = {false};
         app[0] = new AtspiApplication((objects, lost) -> {
-            app[0].enabled(false);  // the reader quits while the registry is embedding us
+            app[0].enabled(false);  // the desktop's setting is turned off while we embed
             return new AtspiApplication.Link() {
                 @Override public boolean signal(DBus.Msg signal, boolean tail) { return true; }
                 @Override public void close() { closed[0] = true; }
@@ -196,38 +201,50 @@ class AtspiApplicationTest {
         }, AtspiApplication.Starter.ON_THE_CALLER, System::nanoTime);
         app[0].enabled(true);
         app[0].window().publish(aWindow("Main", 0).tree(), false);
-        assertFalse(app[0].isJoined(), "nothing stays joined for a switch that is off");
-        assertTrue(closed[0]);
+        assertTrue(app[0].isJoined(), "the join stands: a reader may be reading us on it");
+        assertFalse(closed[0]);
     }
 
+    /**
+     * The last window leaving while its join is being published still leaves the application off the
+     * bus. The joiner asks "is anything still here" <b>after</b> it has published the joined state,
+     * and the detach writes the window table before it reads that state: one of the two always sees
+     * the other, and an application with no frame is what the registry must not read.
+     *
+     * <p>The seam is the clock the joined state is stamped with, which is read on the joiner's thread
+     * in the step before the state is published; a detach driven from there lands in the gap and sees
+     * a join of {@code null}, so nothing but the joiner's own read can let the connection go. The
+     * deleted {@code aSwitchTurnedOffBetweenTheJoinsLastLookAndItsPublicationStillLeaves} pinned this
+     * ordering through the switch's half of the same condition, which decision 67 removed; the
+     * {@code windows.isEmpty()} half is what is left of it and this is its test. (A sabotage that
+     * moves the read into the gap itself — between the state's construction and its publication —
+     * cannot be driven from a test, because there is no call there to hook: what covers that
+     * interleaving is {@code detached()} reading the joined state again after it removes the window,
+     * not this ordering.)
+     */
     @Test
-    void aSwitchTurnedOffBetweenTheJoinsLastLookAndItsPublicationStillLeaves() {
-        // The window the review named: the joiner has its link and has not yet published the
-        // joined state when the reader quits. The clock is read in exactly that gap (the join's
-        // timestamp), so the test turns the switch off there: enabled(false) then finds nothing
-        // joined to leave, and only a look at the switch after the publication can let it go.
-        AtspiApplication[] app = new AtspiApplication[1];
-        boolean[] armed = {false};
-        boolean[] closed = {false};
-        app[0] = new AtspiApplication((objects, lost) -> {
-            armed[0] = true;
-            return new AtspiApplication.Link() {
-                @Override public boolean signal(DBus.Msg signal, boolean tail) { return true; }
-                @Override public void close() { closed[0] = true; }
-            };
-        }, AtspiApplication.Starter.ON_THE_CALLER, () -> {
-            if (armed[0]) {
-                armed[0] = false;
-                app[0].enabled(false);
-                assertFalse(app[0].isJoined(), "the switch went off before the state was published");
-            }
-            return 1_000_000_000L;
-        });
-        app[0].enabled(true);
-        app[0].window().publish(aWindow("Main", 0).tree(), false);
-        assertFalse(app[0].isJoined(), "nothing stays joined for a switch that is off, whichever "
-                + "thread looked first");
-        assertTrue(closed[0]);
+    void aWindowThatLeavesWhileItsJoinIsPublishedDoesNotLeaveAnApplicationJoinedWithNoWindow() {
+        FakeBus bus = new FakeBus();
+        AtspiBridge[] main = new AtspiBridge[1];
+        boolean[] inTheGap = {false};
+        AtspiApplication app = new AtspiApplication(bus, AtspiApplication.Starter.ON_THE_CALLER,
+                () -> {
+                    if (inTheGap[0]) {
+                        inTheGap[0] = false;
+                        main[0].detach();  // the window closes on its own thread, here
+                    }
+                    return 1_000_000_000L;
+                });
+        app.enabled(true);
+        main[0] = app.window();
+        inTheGap[0] = true;
+
+        main[0].publish(aWindow("Main", 0).tree(), false);
+
+        assertEquals(1, bus.joins, "the join ran: the window had a tree when it published");
+        assertFalse(app.isJoined(), "and the application did not stay joined with no window: the "
+                + "registry would read an application with no frame, and then never list it");
+        assertTrue(bus.closed, "the connection went with the window");
     }
 
     private static String path(long id) {
@@ -488,34 +505,37 @@ class AtspiApplicationTest {
     }
 
     @Test
-    void theSwitchTurningOffEndsABackOffAndNobodyIsAsked() {
+    void theLastWindowLeavingEndsABackOffAndNobodyIsAsked() {
         List<Runnable> threads = new ArrayList<>();
         AtspiApplication[] app = new AtspiApplication[1];
         boolean[] interrupted = {false};
+        AtspiBridge[] main = new AtspiBridge[1];
         app[0] = new AtspiApplication((objects, lost) -> {
             throw new java.io.IOException("the registry is not there");
         }, (name, body) -> threads.add(body), System::nanoTime, nanos -> {
-            app[0].enabled(false);  // the reader quits during the wait
+            app[0].enabled(false);  // a desktop setting turned off during the wait changes nothing
+            main[0].detach();       // the window closing does end it: there is nobody to ask
             if (Thread.interrupted()) {
                 interrupted[0] = true;
                 throw new InterruptedException();
             }
         });
-        AtspiBridge main = app[0].window();
+        main[0] = app[0].window();
         int[] republishes = {0};
-        main.attach(hostCounting(republishes));
+        main[0].attach(hostCounting(republishes));
         app[0].enabled(true);
         assertEquals(1, republishes[0]);
-        main.publish(aWindow("Main", 0).tree(), false);
+        main[0].publish(aWindow("Main", 0).tree(), false);
         threads.remove(0).run();
         assertTrue(interrupted[0], "the wait is ended rather than kept for up to a minute for a "
-                + "reader that has gone");
+                + "window that has gone");
         assertEquals(1, republishes[0], "and nobody is asked to publish for it");
 
-        app[0].enabled(true);
-        assertEquals(2, republishes[0]);
-        main.publish(aWindow("Main", 0).tree(), false);
-        assertEquals(1, threads.size(), "a reader that comes back is joined for at once: the ended "
+        AtspiBridge second = app[0].window();
+        int[] secondRepublishes = {0};
+        second.attach(hostCounting(secondRepublishes));
+        second.publish(aWindow("Main", 0).tree(), false);
+        assertEquals(1, threads.size(), "a window that comes back is joined for at once: the ended "
                 + "wait holds nothing");
     }
 
@@ -600,9 +620,19 @@ class AtspiApplicationTest {
     private static final class Frames {
         final Accessibility a = new Accessibility();
         final AtspiBridge window;
+        /** This window's own node; its controls are numbered from it. */
+        final long root;
+        final String title;
 
         Frames(AtspiBridge window) {
+            this(window, 3000, "Main");
+        }
+
+        /** A second window of the same application, whose identifiers never meet the first's. */
+        Frames(AtspiBridge window, long root, String title) {
             this.window = window;
+            this.root = root;
+            this.title = title;
         }
 
         /**
@@ -611,7 +641,7 @@ class AtspiApplicationTest {
          * difference found, as a scene does.
          */
         List<limn.accessibility.AccessibleEvent> publish(boolean active, long focused) {
-            return publish(active, focused, 3001, 3002);
+            return publish(active, focused, root + 1, root + 2);
         }
 
         List<limn.accessibility.AccessibleEvent> publish(boolean active, long focused,
@@ -623,15 +653,15 @@ class AtspiApplicationTest {
                                                          java.util.function.LongPredicate showing,
                                                          long... buttons) {
             a.beginWalk(400, 300, Locale.ENGLISH);
-            a.begin(3000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            a.begin(root, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
             a.role(Accessible.Role.WINDOW);
-            a.name(I18nString.literal("Main"), Accessible.NameFrom.EXPLICIT);
+            a.name(I18nString.literal(title), Accessible.NameFrom.EXPLICIT);
             if (active) {
                 a.state(Accessible.State.ACTIVE);
             }
             a.inherited(true, true, true, false, false);
             for (long id : buttons) {
-                a.begin(id, 0, Locale.ENGLISH, 10, 20 + (id - 3001) * 50, 160, 40);
+                a.begin(id, 0, Locale.ENGLISH, 10, 20 + (id - root - 1) * 50, 160, 40);
                 a.role(Accessible.Role.BUTTON);
                 a.name(I18nString.literal("Button " + id), Accessible.NameFrom.CONTENT);
                 a.inherited(true, true, showing.test(id), true, focused == id);
@@ -794,9 +824,14 @@ class AtspiApplicationTest {
     }
 
     private static long[] buttons(int count) {
+        return buttons(count, 3000);
+    }
+
+    /** @param root the window node they hang under; they are numbered from it */
+    private static long[] buttons(int count, long root) {
         long[] ids = new long[count];
         for (int i = 0; i < count; i++) {
-            ids[i] = 3001 + i;
+            ids[i] = root + 1 + i;
         }
         return ids;
     }
@@ -867,13 +902,56 @@ class AtspiApplicationTest {
     }
 
     /**
-     * The bridge remembers what it last announced (semantics 4): a collapse that moved neither the
-     * focus nor the cursor says neither again, however many publishes cross the budget — a fast
-     * scroll of a large list is one such publish per frame. Until the review of linux-B the memory
-     * was cleared on every publish, and every collapse repeated both.
+     * A collapse whose tail holds nothing after its structure signals — the focus did not move, so
+     * there is no {@code FOCUS_CHANGED} to reconcile before — says the focus again when the frame
+     * ends, in the frame it belongs to. It used to wait for this window's next publish, which on a
+     * window that then goes still never comes.
      */
     @Test
-    void aCollapseThatMovesNeitherTheFocusNorTheCursorSaysNeitherAgain() {
+    void aCollapseWhoseTailIsStructureAloneSaysTheFocusAgainWhenTheFrameEnds() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        AtspiBridge window = app.window();
+        Frames main = new Frames(window);
+        long[] ids = buttons(300);
+        main.publish(true, 3001, id -> true, ids);
+        window.frameEnded();
+        bus.signals.clear();
+        bus.tails.clear();
+
+        List<limn.accessibility.AccessibleEvent> events = main.publish(true, 3001,
+                id -> id == 3001, java.util.Arrays.copyOf(ids, 299));
+        assertEquals(limn.accessibility.AccessibleEvent.Type.INVALIDATED, events.get(0).type(),
+                "the fixture must cross the budget: " + events.size() + " events");
+        assertEquals(List.of("ChildrenChanged remove 299 " + path(3000),
+                "RemoveAccessible " + Atspi.PATH_CACHE), spoken(bus.signals),
+                "the tail's structure, and nothing else has arrived to reconcile at");
+
+        window.frameEnded();
+        assertEquals(List.of("ChildrenChanged remove 299 " + path(3000),
+                "RemoveAccessible " + Atspi.PATH_CACHE,
+                "StateChanged focused 1 " + path(3001)), spoken(bus.signals),
+                "the structure first, then where the reader stands, in this frame");
+        assertTrue(bus.tails.stream().allMatch(tail -> tail),
+                "and as tail signals, which no backlog refuses");
+
+        window.frameEnded();
+        assertEquals(3, spoken(bus.signals).size(), "a frame that owed nothing says nothing");
+    }
+
+    /**
+     * A collapse says the focus and the cursor again even when neither moved (semantics 4, settled
+     * for the three bridges on 2026-09-15), at the frame's end when its tail held nothing after the
+     * structure signals. Linux was the bridge that sent nothing there, because it compared against
+     * what it had announced; what a client lost in the collapse is exactly what that comparison
+     * says it already has. Orca 50.2 drops a locus set to the object it is already on
+     * (focus_manager.py 278-281), so the repeat costs a message and no speech.
+     *
+     * <p>The memory itself stays, and is what keeps an ordinary publish quiet: the assertions below
+     * count one focus and one cursor per collapse, not one per publish.
+     */
+    @Test
+    void aCollapseSaysTheFocusAndTheCursorAgainAtTheFramesEndEvenWhenNeitherMoved() {
         FakeBus bus = new FakeBus();
         AtspiApplication app = anApplication(bus);
         AtspiBridge window = app.window();
@@ -903,20 +981,95 @@ class AtspiApplicationTest {
             for (limn.accessibility.AccessibleEvent event : List.copyOf(a.events())) {
                 window.emit(event);
             }
+            window.frameEnded();  // every frame ends, as a scene ends it
         };
         publish.accept(300);
         List<String> first = spoken(bus.signals);
         assertTrue(first.contains("StateChanged focused 1 " + path(4001))
-                && first.contains("ActiveDescendantChanged  7 " + path(4001)),
-                "the fixture announces the focus and the cursor once: " + first);
+                        && first.contains("ActiveDescendantChanged  7 " + path(4001)),
+                "the fixture announces the focus and the cursor: " + first);
+        bus.signals.clear();
+
+        publish.accept(300);
+        assertEquals(List.of(), spoken(bus.signals),
+                "a publish that changed nothing says nothing: the memory still holds");
         bus.signals.clear();
 
         publish.accept(10);
         publish.accept(300);
         List<String> sent = spoken(bus.signals);
-        assertFalse(sent.stream().anyMatch(line -> line.startsWith("StateChanged focused")
-                        || line.startsWith("ActiveDescendantChanged")),
-                "two collapses in which the reader's position stood still: " + sent);
+        assertEquals(2, java.util.Collections.frequency(sent,
+                "StateChanged focused 1 " + path(4001)),
+                "two collapses, and each says where the reader stands again: " + sent);
+        assertEquals(2, java.util.Collections.frequency(sent,
+                "ActiveDescendantChanged  7 " + path(4001)), sent.toString());
+        assertFalse(sent.contains("StateChanged focused 0 " + path(4001)),
+                "and never a focused 0 for the node that still holds it: " + sent);
+    }
+
+    /**
+     * <b>A frame that is not the active one says nothing about its focus</b>, whatever collapses or
+     * is refused in it (semantics 4 as settled for the three bridges on 2026-09-15, and the review
+     * of this fix round). The platform focus is one and it belongs to the frame the desktop has
+     * active; a background window's tree still names the node the user would return to, and putting
+     * that on the bus after every collapse there tells a reader about a window nobody is in — which
+     * Orca 50.2 answers "[frame] lacks active state" to, and then "unable to find active window"
+     * (readings/fedora-l4-baseline/summary.md, LAB-NEW-2). The re-announcement this lane added was
+     * not gated on it and this is what pins the gate.
+     *
+     * <p>And what the active frame's reconcile is compared against is <b>one memory for the
+     * process</b> and not one per window: the last focus this application announced was the
+     * background frame's, so the active frame's own re-say clears it where it was set — from that
+     * window's own context, since libatspi's cache clears only the bit an event names, or a client
+     * holds FOCUSED on a node of each frame at once.
+     */
+    @Test
+    void aBackgroundFramesCollapseSaysNothingAndTheActiveOnesClearsTheOneFocusAnnounced() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        Frames main = new Frames(app.window());
+        Frames other = new Frames(app.window(), 6000, "Other");
+        long[] mains = buttons(300);
+        long[] others = buttons(300, 6000);
+        main.publish(true, 3001, id -> true, mains);
+        main.window.frameEnded();
+        other.publish(false, 6001, id -> true, others);
+        other.window.frameEnded();
+        assertTrue(spoken(bus.signals).contains("StateChanged focused 1 " + path(6001)),
+                "the fixture: the background frame's own focus was announced last, so the one "
+                        + "memory is its: " + spoken(bus.signals));
+        bus.signals.clear();
+
+        // The background frame collapses: three hundred boxes stop showing, one leaves, and the
+        // focus does not move. Its tail holds nothing after the structure, so the reconcile that
+        // would say the focus again lands at the frame's end.
+        other.publish(false, 6001, id -> id == 6001, java.util.Arrays.copyOf(others, 299));
+        other.window.frameEnded();
+        assertEquals(List.of("ChildrenChanged remove 299 " + path(6000),
+                "RemoveAccessible " + Atspi.PATH_CACHE), spoken(bus.signals),
+                "the structure the tail kept, and not a word about a focus this frame does not "
+                        + "hold: " + spoken(bus.signals));
+        bus.signals.clear();
+
+        // The active frame collapses in the same shape, and says where the reader stands.
+        main.publish(true, 3001, id -> id == 3001, java.util.Arrays.copyOf(mains, 299));
+        main.window.frameEnded();
+        assertEquals(List.of("ChildrenChanged remove 299 " + path(3000),
+                "RemoveAccessible " + Atspi.PATH_CACHE,
+                "StateChanged focused 0 " + path(6001),
+                "StateChanged focused 1 " + path(3001)), spoken(bus.signals),
+                "the structure first, then the one focus this process had announced cleared in the "
+                        + "frame that holds it, then where the reader stands: " + spoken(bus.signals));
+        bus.signals.clear();
+
+        main.publish(true, 3001, id -> true, mains);
+        main.window.frameEnded();
+        List<String> again = spoken(bus.signals);
+        assertTrue(again.contains("StateChanged focused 1 " + path(3001)),
+                "a second collapse in the active frame says it again: " + again);
+        assertFalse(again.contains("StateChanged focused 0 " + path(3001)),
+                "and the memory is this frame's now, so the node that still holds the focus is "
+                        + "never told it lost it: " + again);
     }
 
     /**

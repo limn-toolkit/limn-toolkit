@@ -244,9 +244,8 @@ final class AtspiTree {
             return accessible(m, root, at);
         }
         if (Atspi.I_COMPONENT.equals(iface)) {
-            // The application object answers Component too. A client asks the root for its extents
-            // before it walks anything, and an error there stops the walk at the first step rather
-            // than degrading: libatspi reports the failure and abandons the subtree.
+            // The application object answers Component too, which both toolkits refuse: a choice,
+            // with its readings and its reasoning, in applicationComponent's javadoc.
             return at == null ? applicationComponent(m) : component(m, at);
         }
         if (Atspi.I_ACTION.equals(iface) && at != null) {
@@ -465,8 +464,30 @@ final class AtspiTree {
 
     /**
      * The application's own rectangle: its first frame's, or nothing before any window has
-     * published. The application object has no geometry of its own; a client asks for it only to
-     * learn that the walk may go on, and the first window is what it walks into.
+     * published. The application object has no geometry of its own, and the first window is what a
+     * walk from it goes into.
+     *
+     * <p><b>Serving {@code Component} here at all is a choice against both toolkits, and this is the
+     * reasoning</b> (ADR 039 §12.3's rule for a fact two servers answer differently; the phase-3
+     * critic's list, where this was the sixth site). Read on the Fedora KDE 44 guest, 2026-09-15:
+     * GTK 3.24.52 through at-spi2-atk 2.60.6 answers {@code GetExtents}, {@code GetPosition} and
+     * {@code GetSize} on {@code /org/a11y/atspi/accessible/root} with
+     * {@code org.freedesktop.DBus.Error.UnknownMethod}, its own bridge logging
+     * {@code impl_GetExtents: assertion 'ATK_IS_COMPONENT (user_data) ' failed} as it does
+     * (readings/fedora-gtk3-interface-replies.txt lines 3-9 and 33-36); GTK 4.22.4 answers
+     * {@code UnknownMethod} too, for the plainer reason that its application object serves no such
+     * interface at all ("Nenhuma interface org.a11y.atspi.Component",
+     * readings/fedora-gtk4-interface-replies.txt lines 25-28). The two agree on the refusal and
+     * differ on the reason — and the ATK bridge disagrees with itself, since that same root answers
+     * the interface's {@code version} property with 1 (line 56 of the same reading).
+     *
+     * <p>The rectangle is answered anyway, because of the two halves it is the one that cannot cost
+     * a client anything: a client that never asks the root for a box is unaffected, and one that
+     * does gets the first frame's box rather than an error at the first step of a walk, from an
+     * object that is not drawn anywhere and whose box can only be one of its windows'. Nothing in
+     * this bridge turns on it. What would settle it is a client seen needing the box or misled by
+     * it — a root that answers {@code Component} treated as a window — which is a phase-5 reading,
+     * and the choice to reverse if it comes back the other way.
      */
     private DBus.Msg applicationComponent(DBus.Msg m) {
         List<Frame> frames = frames();
@@ -581,7 +602,10 @@ final class AtspiTree {
      * success to a {@code CurrentValue} write on an insensitive spin button and on a level bar, the
      * level bar keeping its number under GTK 4 (readings/fedora-gtk3-interface-replies.txt,
      * fedora-gtk4-interface-replies.txt, section 5, 2026-09-15) — the silent success that would
-     * have a caller believe a read-only progress bar took the number. Another property of Value,
+     * have a caller believe a read-only progress bar took the number. {@code Failed} is the name,
+     * and not {@code PropertyReadOnly}: the XML this bridge serves declares {@code CurrentValue}
+     * writable and it is, on the nodes that accept it — what this node cannot do is take it now,
+     * which is a state of the object and not a property of the interface. Another property of Value,
      * all read-only in the installed XML, is answered {@code PropertyReadOnly} as the ATK bridge
      * answers it; a name Value does not have, or a {@code CurrentValue} that is not a number,
      * {@code InvalidArgs}, as {@code Get} answers a name it does not have.
@@ -1067,12 +1091,13 @@ final class AtspiTree {
                 if (i < 0 || i >= verbs.size()) {
                     return DBus.Msg.ret(m, "b", false);
                 }
-                // The host of the window that published this node: every window's scene performs
-                // only on its own nodes, and a verb sent to another would find nothing to act on.
-                AccessibilityBridge.Host h = at.window().host();
-                boolean done = h != null
-                        && h.perform(node.id(), verbs.get(i), Accessible.Argument.NONE);
-                return DBus.Msg.ret(m, "b", done);
+                // Through AccessibleNode#accepts like every other entry point on this bridge
+                // (semantics 5, settled 2026-09-15). It read the published ActionFacet directly
+                // and posted on the host of the window that published the node, which is the same
+                // answer today — accepts' parameterless arm IS that facet — and was the one call
+                // here that did not read the toolkit's single authority, so a gate added to accepts
+                // would have left this one entry on the old rule.
+                return DBus.Msg.ret(m, "b", performFirst(at, node, verbs.get(i)));
             }
             default:
                 return null;
@@ -1634,6 +1659,11 @@ final class AtspiTree {
      *
      * <p>Only the ones that take no argument: AT-SPI's {@code DoAction} carries an index and
      * nothing else, so a verb that needs a value has no way to arrive through it.
+     *
+     * <p>Asked of {@link AccessibleNode#accepts} rather than of the {@code ActionFacet} directly, so
+     * that the list a client reads and the list {@code DoAction} posts from are one fact
+     * (semantics 5). The two are the same today; they would not stay so if {@code accepts} gained a
+     * condition the facet does not carry.
      */
     private static List<Accessible.Action> verbsOf(AccessibleNode node) {
         List<Accessible.Action> out = new ArrayList<>();
@@ -1641,7 +1671,7 @@ final class AtspiTree {
             return out;
         }
         for (Accessible.Action verb : Accessible.Action.values()) {
-            if (node.actions().has(verb) && verb.isParameterless()) {
+            if (verb.isParameterless() && node.accepts(verb)) {
                 out.add(verb);
             }
         }
