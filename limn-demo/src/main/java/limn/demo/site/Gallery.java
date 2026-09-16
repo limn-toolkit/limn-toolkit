@@ -4,6 +4,7 @@ import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 import limn.backend.Backend;
+import limn.backend.Crashes;
 import limn.backend.Display;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
@@ -278,11 +279,13 @@ public final class Gallery {
 
             Driver driver = new Driver(all, List.of(window, big), writer, backend.uiRuntime());
             driver.start();
-            backend.runEventLoop();
-            // Every capture is on disk before the warm-up is deleted or a manifest promises
-            // anything: the writes were queued, and a queued write that failed is a file the
-            // site would fail the build over, so it fails this task here instead.
-            writer.join();
+            Throwable ended = runAndDrain(backend::runEventLoop, writer);
+            if (ended != null) {
+                System.err.println("gallery: the event loop ended by throwing; the gallery is"
+                        + " incomplete and nothing is published");
+                ended.printStackTrace();
+                System.exit(1);
+            }
             Files.deleteIfExists(warmUp);
             if (driver.failed()) {
                 System.exit(1);
@@ -295,6 +298,51 @@ public final class Gallery {
         System.out.printf("gallery: %d entr%s × %d palette(s) → %s%n",
                 entries.size(), entries.size() == 1 ? "y" : "ies", PALETTES.size(),
                 outDir.toAbsolutePath());
+    }
+
+    /**
+     * Runs the capture's event loop and drains {@code writer} whichever way the loop ends.
+     *
+     * <p>The loop does not only return. {@code LwjglBackend.runEventLoop} catches a
+     * {@code Throwable} from a frame callback -- an {@code Error} included -- dispatches it
+     * under {@code CrashPhase.FRAME} (the default handler logs it and says continue) and hands
+     * the SAME window another frame; after {@code CRASH_STREAK_LIMIT} = 100 consecutive crashed
+     * iterations it gives up by throwing {@code IllegalStateException} out of the loop. A run
+     * whose every frame throws reaches that net in about a hundred iterations, far ahead of the
+     * driver's own ceiling of some twenty-eight thousand frames.
+     *
+     * <p>That throw used to unwind {@code main} straight past {@code writer.join()}, which was
+     * not in a finally. The writer's threads are deliberately NOT daemons, and {@code join} is
+     * what shuts their pool down, so nothing ended them: the main thread died, the JVM stayed up
+     * holding live non-daemon threads with no work, and the capture task hung forever -- the
+     * same symptom, from the far end, that the watchdog exists to remove. The drain runs on that
+     * path too now, and the caller exits non-zero with the loop's stack printed.
+     *
+     * @return what the loop ended by throwing, or {@code null} when it returned normally; a
+     *         drain that failed is attached to that throwable as a suppressed one, or returned
+     *         in its own right when the loop itself was clean
+     */
+    static Throwable runAndDrain(Runnable eventLoop, FrameWriter writer) {
+        Throwable loopFailure = null;
+        try {
+            eventLoop.run();
+        } catch (Throwable thrown) {
+            loopFailure = thrown;
+        }
+        try {
+            // Every capture is on disk before the warm-up is deleted or a manifest promises
+            // anything: the writes were queued, and a queued write that failed is a file the
+            // site would fail the build over, so it fails this task here instead.
+            writer.join();
+        } catch (IOException | RuntimeException drainFailure) {
+            if (loopFailure == null) {
+                return drainFailure;
+            }
+            // The loop's throw is the cause of the run; a drain that failed while the loop was
+            // already unwinding is a consequence, and neither may hide the other.
+            loopFailure.addSuppressed(drainFailure);
+        }
+        return loopFailure;
     }
 
     /**
@@ -380,7 +428,7 @@ public final class Gallery {
      * screen can be written beside what a screen reader would be told about it. It listens, so
      * the scene publishes on every damaged frame exactly as it would under a reader.
      */
-    private static final class TreeKeeper implements AccessibilityBridge {
+    static final class TreeKeeper implements AccessibilityBridge {
         private volatile AccessibleTree tree = AccessibleTree.EMPTY;
 
         @Override
@@ -651,6 +699,46 @@ public final class Gallery {
             return failed;
         }
 
+        /**
+         * Ends the run as a failure that names the shot it happened on and {@code why}: the
+         * state a caller with no stderr reads ({@link #failed()}, {@link #failure()}), a line
+         * on stderr for one that has, and both windows closed, so the event loop returns and
+         * {@code Gallery.main} exits 1 instead of publishing a half-captured gallery.
+         *
+         * <p>The shot is named defensively: a failure raised after the last shot has advanced
+         * past the end of the list, and a failure that itself threw while naming its own cause
+         * would be the second silent throw in one frame.
+         */
+        private void fail(String why) {
+            fail(why, null);
+        }
+
+        /**
+         * The same, for a failure that has a throwable behind it: the summary is unchanged and
+         * {@code cause}'s stack trace is printed beside it.
+         *
+         * <p>The summary alone is not enough for most of them. A refusal describes itself (the
+         * step, the frame, the widget it aimed at), but an NPE out of a scene builder, a footer
+         * walk or a capture sink stringifies to a class name and a message and names no line in
+         * this file at all -- and on CI that one line is the whole artifact. {@link #failure()}
+         * still carries only the summary: it is what a caller reads and compares, and a stack
+         * trace is not a summary.
+         */
+        private void fail(String why, Throwable cause) {
+            String where = index >= 0 && index < shots.size()
+                    ? shots.get(index).file().getFileName().toString()
+                    : "after the last shot";
+            failure = where + ": " + why;
+            System.err.println("gallery: " + failure);
+            if (cause != null) {
+                cause.printStackTrace();
+            }
+            failed = true;
+            film = null;
+            scene = null;
+            closeAll();
+        }
+
         /** @return why the run failed, or {@code null} while it has not */
         String failure() {
             return failure;
@@ -673,18 +761,26 @@ public final class Gallery {
          * the tree the scene published for the frame that was just photographed, one line per
          * node. Once per entry and not per palette, because the transcript carries no colour
          * and no rectangle; both passes write the same bytes to the same file.
+         *
+         * @return whether the transcript was written. A run that could not write one is over,
+         *         and the frame it happened on ends there: this used to declare the failure and
+         *         hand control back into the middle of the body, which carried straight on --
+         *         clearing the still, resolving the entry's film, installing it, recording
+         *         FILM_CONTENT and asking for another frame. It was the one failure path that
+         *         kept mutating driver state after the run had been declared failed, and what
+         *         ended it at all was the backend skipping a close-requested window.
          */
-        private void writeTranscript(Shot shot) {
+        private boolean writeTranscript(Shot shot) {
             if (!(window.accessibility() instanceof TreeKeeper keeper)) {
-                return;
+                return true;
             }
             Path file = transcriptFile(shot.file(), shot.entry().id());
             try {
                 Files.writeString(file, Transcript.of(keeper.tree()), StandardCharsets.UTF_8);
+                return true;
             } catch (IOException e) {
-                System.err.println("gallery: could not write " + file + ": " + e.getMessage());
-                failed = true;
-                closeAll();
+                fail("could not write " + file + ": " + e.getMessage(), e);
+                return false;
             }
         }
 
@@ -702,155 +798,214 @@ public final class Gallery {
                 if (owner != window) {
                     return;
                 }
-                if (scene != null) {
-                    // One frame of scene time, once, before anything reads the clock. The
-                    // scene reads it several times a frame; a clock that advanced on every
-                    // read ran nine times too fast; see GalleryScenes.FrameClock.
-                    if (built != null && built.clock() != null) {
-                        built.clock().advance();
-                    }
-                    // The pointer moves BEFORE the render, never after: an event delivered
-                    // to a scene that has already drawn shows up one frame late, and a
-                    // press would land in the frame after the one the arrow is down in.
-                    if (film != null) {
-                        // A step the scene refuses ends the run here, naming the step. It used
-                        // to escape the callback before the watchdog's count and the capture's,
-                        // so the film never reached its last frame, the watchdog never reached
-                        // its ceiling, and every frame the window was still given threw again:
-                        // a capture that spun until it was killed (task_3aa41c6a).
-                        try {
-                            applyFilmStep();
-                        } catch (RuntimeException refused) {
-                            String why = refused instanceof Motion.Refused
-                                    ? refused.getMessage()
-                                    : "a film step threw " + refused;
-                            failure = shots.get(index).file().getFileName() + ": " + why;
-                            System.err.println("gallery: " + failure);
-                            failed = true;
-                            film = null;
-                            scene = null;
-                            closeAll();
-                            return;
-                        }
-                    }
-                    scene.renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs());
+                // A failed run takes no further frame, and it is this driver that says so.
+                // fail() and the flat-frame bail-out both drop the scene and request close, and
+                // a frame delivered after either one would fall through to
+                // "scene == null && !advance()" at the bottom -- which builds, themes and binds
+                // the NEXT shot and asks for another frame, resuming a capture that has already
+                // been declared over and had its cause printed. Nothing delivers that frame
+                // today: requestClose posts, the post drains at the top of the loop's next
+                // iteration, and the render phase skips a close-requested window. That is the
+                // backend holding the driver's invariant for it, one layer away and for its own
+                // reasons; this is the driver holding its own.
+                if (failed) {
+                    return;
                 }
                 // A capture that never happens must end the run rather than spin. Without
                 // this, any future mistake in the cursor is an unbounded wait instead of a
                 // failed build, which is exactly how the first version of this driver
                 // behaved when Scene.bind replaced its frame callback.
+                //
+                // COUNTED FIRST, ahead of the film step, the render and the capture. A ceiling
+                // that is only reached by frames which ran to the bottom of this body is not a
+                // ceiling: whatever throws in between skips the count, and the frames the
+                // backend keeps handing back (its FRAME containment re-requests one) are then
+                // free. That is how a refused film step spun this capture, and the step was
+                // only the first way in -- a capture sink, a scene builder, a transcript or a
+                // footer walk throw from the same body. Counting here holds the ceiling for
+                // every one of them, including a throw this driver does not catch: the frame
+                // is spent whether or not it finished.
+                //
+                // The ceiling itself is unchanged, and so is what it counts: every frame this
+                // callback ran for the whole run (the constructor's budget). Before this the
+                // only frames it missed were the ones that threw, which are exactly the frames
+                // it has to see. The one behaviour that moves is on the frame the budget runs
+                // out, which is now given up before its render instead of after it -- a
+                // failure path either way.
                 if (++totalFrames > frameBudget) {
-                    System.err.println("gallery: watchdog (no progress), giving up at shot "
-                            + index + " of " + shots.size());
-                    failed = true;
-                    closeAll();
+                    // Through fail() like every other ending, so failure() names it too: the
+                    // watchdog is the failure whose cause is hardest to guess from a log, and
+                    // it was the one a caller reading failure() got a null for.
+                    fail("watchdog (no progress), giving up at shot " + index
+                            + " of " + shots.size());
                     return;
                 }
-                if (scene != null && film != null) {
-                    // A filmed frame: this one is already on screen with its pointer in it.
-                    Shot shot = shots.get(index);
-                    // The file is named NOW: the sink runs at the end of this frame, after the
-                    // index below has moved on, and a sink that asked then would write every
-                    // frame under the next frame's name. The pixels are read on this thread,
-                    // as they must be; the encode is the writer's.
-                    Path file = frameFile(shot, frameIndex);
-                    renderer.captureFramebuffer(image -> writer.write(image, file));
-                    if (++frameIndex >= film.frames()) {
-                        System.out.println("  " + shot.file().getFileName()
-                                + " + " + film.frames() + " frame(s)");
-                        FILM_FRAMES.put(shot.entry().id(), film.frames());
-                        film = null;
-                        scene = null;
+                // Nothing may leave this body silently. A throw that escapes is a run with no
+                // named cause, no closed window, no writer.join() and no exit(1): the backend
+                // logs it, asks the same window for another frame, and what ends the build is
+                // its hundred-crash net, if the throws even come close enough together to fill
+                // it. Every throw ends the run here instead, naming the shot and what threw.
+                try {
+                    if (scene != null) {
+                        // One frame of scene time, once, before anything reads the clock. The
+                        // scene reads it several times a frame; a clock that advanced on every
+                        // read ran nine times too fast; see GalleryScenes.FrameClock.
+                        if (built != null && built.clock() != null) {
+                            built.clock().advance();
+                        }
+                        // The pointer moves BEFORE the render, never after: an event delivered
+                        // to a scene that has already drawn shows up one frame late, and a
+                        // press would land in the frame after the one the arrow is down in.
+                        if (film != null) {
+                            // A step the scene refuses ends the run here, naming the step. It
+                            // used to escape the callback before the watchdog's count and the
+                            // capture's, so the film never reached its last frame, the watchdog
+                            // never reached its ceiling, and every frame the window was still
+                            // given threw again: a capture that spun until it was killed
+                            // (task_3aa41c6a). Caught here rather than by the body's catch
+                            // below only to name the phase: a refusal is a script aimed at a
+                            // scene that does not have what it aims at, which is a different
+                            // thing to read than a capture that broke.
+                            try {
+                                applyFilmStep();
+                            } catch (Crashes.ShutdownRequested shutdown) {
+                                throw shutdown; // a crash handler's verdict, not this film's
+                            } catch (RuntimeException refused) {
+                                fail(refused instanceof Motion.Refused
+                                        ? refused.getMessage()
+                                        : "a film step threw " + refused, refused);
+                                return;
+                            }
+                        }
+                        scene.renderFrame(renderer.canvas(), frame.rePresent(),
+                                frame.gpuFrameMs());
                     }
-                } else if (scene != null && ++frames >= WARMUP_FRAMES) {
-                    Shot shot = shots.get(index);
-                    // The still is inspected before it is accepted: a frame whose every
-                    // pixel is one colour is a scene that has not drawn, not a picture of
-                    // one. Writing it to disk anyway is how the site published a flat
-                    // rectangle for the 3D showcase: the file exists, the manifest is
-                    // satisfied, and nothing downstream can tell a sky from a screenshot.
-                    //
-                    // Two frames per still, by the capture's own contract: the sink runs
-                    // late in the frame that scheduled it, so the pixels are judged at the
-                    // top of the frame after; deciding at the call site reads a capture
-                    // that has not happened yet.
-                    if (shot.primesFooter() && footerBaselineFrame < 0) {
-                        // The baseline, once the opening transitions are done; the paced
-                        // frames that follow are what the reading is measured over. See
-                        // SETTLE_PACE_MS.
-                        footerBaselineFrame = frames;
-                        primeFooters(scene.root());
-                    } else if (shot.primesFooter() && !footerSampled) {
-                        if (frames - footerBaselineFrame >= PRIME_FRAMES) {
-                            // The reading the picture shows; the frame requested below paints
-                            // it, and the shutter fires on that one.
-                            footerSampled = true;
-                            primeFooters(scene.root());
-                        }
-                    } else if (still == null && !stillPending) {
-                        stillPending = true;
-                        renderer.captureFramebuffer(image -> still = image);
-                    } else if (still != null && uniform(still)) {
-                        still = null;
-                        stillPending = false;
-                        if (flatWarnedIndex != index) {
-                            flatWarnedIndex = index;
-                            System.err.println("gallery: " + shot.file().getFileName()
-                                    + " came back as one flat colour: the scene has not"
-                                    + " actually drawn; retrying");
-                        }
-                        if (System.nanoTime() - shotStartNanos > FLAT_RETRY_MS * 1_000_000L) {
-                            System.err.println("gallery: " + shot.file().getFileName()
-                                    + " never rendered anything; failing rather than"
-                                    + " publishing a blank capture");
-                            failed = true;
-                            closeAll();
-                            return;
-                        }
-                        // Fall through to the frame request below and try again.
-                    } else if (still != null) {
-                        writer.write(still, shot.file());
-                        writeTranscript(shot);
-                        still = null;
-                        stillPending = false;
-                        // The still is the poster, and it is captured before any pointer
-                        // exists, so an entry that is filmed and one that is not still open
-                        // the page the same way. The film starts on the next frame: the
-                        // layout has settled by now, which is what makes the script's
-                        // widget targets resolvable.
-                        Motion motion = shot.entry().film() == null ? null
-                                : shot.entry().film().apply(built);
-                        if (motion == null) {
-                            System.out.println("  " + shot.file().getFileName());
+                    if (scene != null && film != null) {
+                        // A filmed frame: this one is already on screen with its pointer in it.
+                        Shot shot = shots.get(index);
+                        // The file is named NOW: the sink runs at the end of this frame, after
+                        // the index below has moved on, and a sink that asked then would write
+                        // every frame under the next frame's name. The pixels are read on this
+                        // thread, as they must be; the encode is the writer's.
+                        Path file = frameFile(shot, frameIndex);
+                        renderer.captureFramebuffer(image -> writer.write(image, file));
+                        if (++frameIndex >= film.frames()) {
+                            System.out.println("  " + shot.file().getFileName()
+                                    + " + " + film.frames() + " frame(s)");
+                            FILM_FRAMES.put(shot.entry().id(), film.frames());
+                            film = null;
                             scene = null;
-                        } else {
-                            film = motion.film();
-                            frameIndex = 0;
-                            buttonDown = false;
-                            Widget content = built.content();
-                            if (content != null) {
-                                FILM_CONTENT.put(shot.entry().id(), String.format(
-                                        java.util.Locale.ROOT,
-                                        "{ \"x\": %.1f, \"y\": %.1f, \"width\": %.1f, \"height\": %.1f }",
-                                        content.localToSceneX(), content.localToSceneY(),
-                                        content.width(), content.height()));
+                        }
+                    } else if (scene != null && ++frames >= WARMUP_FRAMES) {
+                        Shot shot = shots.get(index);
+                        // The still is inspected before it is accepted: a frame whose every
+                        // pixel is one colour is a scene that has not drawn, not a picture of
+                        // one. Writing it to disk anyway is how the site published a flat
+                        // rectangle for the 3D showcase: the file exists, the manifest is
+                        // satisfied, and nothing downstream can tell a sky from a screenshot.
+                        //
+                        // Two frames per still, by the capture's own contract: the sink runs
+                        // late in the frame that scheduled it, so the pixels are judged at the
+                        // top of the frame after; deciding at the call site reads a capture
+                        // that has not happened yet.
+                        if (shot.primesFooter() && footerBaselineFrame < 0) {
+                            // The baseline, once the opening transitions are done; the paced
+                            // frames that follow are what the reading is measured over. See
+                            // SETTLE_PACE_MS.
+                            footerBaselineFrame = frames;
+                            primeFooters(scene.root());
+                        } else if (shot.primesFooter() && !footerSampled) {
+                            if (frames - footerBaselineFrame >= PRIME_FRAMES) {
+                                // The reading the picture shows; the frame requested below
+                                // paints it, and the shutter fires on that one.
+                                footerSampled = true;
+                                primeFooters(scene.root());
+                            }
+                        } else if (still == null && !stillPending) {
+                            stillPending = true;
+                            renderer.captureFramebuffer(image -> still = image);
+                        } else if (still != null && uniform(still)) {
+                            still = null;
+                            stillPending = false;
+                            if (flatWarnedIndex != index) {
+                                flatWarnedIndex = index;
+                                System.err.println("gallery: " + shot.file().getFileName()
+                                        + " came back as one flat colour: the scene has not"
+                                        + " actually drawn; retrying");
+                            }
+                            if (System.nanoTime() - shotStartNanos > FLAT_RETRY_MS * 1_000_000L) {
+                                fail("never rendered anything; failing rather than publishing"
+                                        + " a blank capture");
+                                return;
+                            }
+                            // Fall through to the frame request below and try again.
+                        } else if (still != null) {
+                            writer.write(still, shot.file());
+                            if (!writeTranscript(shot)) {
+                                return;
+                            }
+                            still = null;
+                            stillPending = false;
+                            // The still is the poster, and it is captured before any pointer
+                            // exists, so an entry that is filmed and one that is not still open
+                            // the page the same way. The film starts on the next frame: the
+                            // layout has settled by now, which is what makes the script's
+                            // widget targets resolvable.
+                            Motion motion = shot.entry().film() == null ? null
+                                    : shot.entry().film().apply(built);
+                            if (motion == null) {
+                                System.out.println("  " + shot.file().getFileName());
+                                scene = null;
+                            } else {
+                                film = motion.film();
+                                frameIndex = 0;
+                                buttonDown = false;
+                                Widget content = built.content();
+                                if (content != null) {
+                                    FILM_CONTENT.put(shot.entry().id(), String.format(
+                                            java.util.Locale.ROOT,
+                                            "{ \"x\": %.1f, \"y\": %.1f, \"width\": %.1f,"
+                                                    + " \"height\": %.1f }",
+                                            content.localToSceneX(), content.localToSceneY(),
+                                            content.width(), content.height()));
+                                }
                             }
                         }
                     }
-                }
-                if (scene == null && !advance()) {
-                    closeAll();
-                    return;
-                }
-                // A shot with a live footer is paced; everything else renders flat out. The
-                // request goes through the UI queue with a delay rather than straight back to
-                // the window, and that indirection IS the throttle; see SETTLE_PACE_MS for
-                // what removing it puts in the published footer.
-                if (shots.get(index).primesFooter()) {
-                    NativeWindow paced = window;
-                    Ui.postDelayed(paced::requestFrame, SETTLE_PACE_MS);
-                } else {
-                    window.requestFrame();
+                    if (scene == null && !advance()) {
+                        closeAll();
+                        return;
+                    }
+                    // A shot with a live footer is paced; everything else renders flat out. The
+                    // request goes through the UI queue with a delay rather than straight back
+                    // to the window, and that indirection IS the throttle; see SETTLE_PACE_MS
+                    // for what removing it puts in the published footer.
+                    if (shots.get(index).primesFooter()) {
+                        NativeWindow paced = window;
+                        Ui.postDelayed(paced::requestFrame, SETTLE_PACE_MS);
+                    } else {
+                        window.requestFrame();
+                    }
+                } catch (Crashes.ShutdownRequested shutdown) {
+                    // A crash handler said stop. It is already dispatched; let it unwind the
+                    // event loop exactly as every other containment site does.
+                    throw shutdown;
+                } catch (RuntimeException thrown) {
+                    // Everything else the frame could throw: a capture sink, a scene builder,
+                    // a transcript, a footer walk, the writer refusing work. The run ends
+                    // here, named, rather than escaping to be logged and retried for as long
+                    // as the backend keeps offering frames.
+                    //
+                    // An Error is deliberately not caught -- it is not this driver's to
+                    // contain -- and the count above is what bounds it, but only against THIS
+                    // ceiling: under LwjglBackend an Error every frame fills the hundred-crash
+                    // net (CRASH_STREAK_LIMIT) in about a hundred iterations, long before a
+                    // budget of some twenty-eight thousand frames, and the loop throws instead.
+                    // That path is handled where it lands, in runAndDrain, not here. What the
+                    // count actually bounds is an Error too intermittent to fill that streak:
+                    // one clean iteration resets it, and before the count those frames were
+                    // free.
+                    fail("the frame threw " + thrown, thrown);
                 }
             });
         }
