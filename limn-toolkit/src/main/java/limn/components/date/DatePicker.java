@@ -965,7 +965,9 @@ public class DatePicker extends Widget {
         releaseCalendar();
         popupPanel = new PopupPanel();
         popupPanel.setInheritanceHost(filling()); // the opener a reader sees: see presentInScene
-        popupScene = new Scene(popupPanel);
+        // On the owner's clock, so the fade-out that destroys this window advances with it
+        // (Scene#clock).
+        popupScene = new Scene(popupPanel, scene.clock());
         popupScene.inheritRenderingFlags(scene);
         popupScene.bind(popupWindow);
         popupBlurHandle = popupScene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));

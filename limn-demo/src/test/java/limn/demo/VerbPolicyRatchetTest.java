@@ -80,7 +80,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * ({@code INCREMENT} on a slider in an unselected tab, {@code PRESS} on a button scrolled out of
  * view), and neither of the two passes above can see it.
  * {@link #movesNothingByDefinition} says which verbs are not asked and why, and
- * {@link #PERFORMED_UNSEEN} carries the one finding it holds open under the same shrink-only rule.
+ * {@link #PERFORMED_UNSEEN}, which carried its one finding under the same shrink-only rule, is
+ * empty since that finding was fixed.
  */
 class VerbPolicyRatchetTest {
 
@@ -107,15 +108,19 @@ class VerbPolicyRatchetTest {
      *       {@code AccessibleGalleryTest.SETTLE_FRAMES} and
      *       {@code AccessibleTranscriptTest.SETTLE_FRAMES} are both 24 at the same 20&nbsp;ms step.
      *       A second settle width in the same harness would be a second answer to one question.</li>
-     *   <li><b>It is not load-bearing either way today, which was measured rather than assumed.</b>
-     *       The suite is green at 2, 4, 8, 9, 24 and 400 frames (248 tests, 0 failures at each).
-     *       Below the fade it stays green because a dismissal announces its change on the frame it
-     *       starts, which is already "something moved"; above it, because the one thing that never
-     *       moves never starts moving. That upper run is the point: {@link #PERFORMED_UNSEEN}'s
-     *       popup is still open after 400 frames — 8 seconds of scene time, fifty fades — so the
-     *       entry records a headless-backend teardown that does not happen, not a test that ran out
-     *       of patience. Keep the width: a future entry whose dismissal shows up only once the
-     *       window is gone needs the frames this one does not.</li>
+     *   <li><b>It became load-bearing on 2026-09-15, and the floor was measured rather than
+     *       assumed.</b> Re-run at five widths once a popup's scene came to run on its opener's
+     *       clock ({@code Scene#clock}) and its window therefore really went: 248 tests, 0 failures
+     *       at 9, 24 and 400 frames, and <b>2 failures at 2 and at 8</b> — "Popup menu, open" in
+     *       both runs, four published verbs that "moved nothing": the cascade's {@code CANCEL} and
+     *       {@code PRESS} on each of Cut, Copy and Paste. That is exactly the fade: what a
+     *       dismissal in a window of its own changes is the window's opacity, which no tree
+     *       publishes, so nothing a harness can read moves until the destroy — the ninth frame, the
+     *       fade's eight plus the one that runs the callback. Before that fix the same four were
+     *       still unseen at 400 frames, and were carried as {@link #PERFORMED_UNSEEN}.
+     *       24 is nearly three times that floor — room for every other transition a dismissal could
+     *       be waiting on — and is green at the top of the range too, so nothing depends on the
+     *       upper end.</li>
      * </ol>
      */
     private static final int FRAMES_FOR_A_SURFACE_TO_GO = 24;
@@ -467,22 +472,24 @@ class VerbPolicyRatchetTest {
      * fix, under the same shrink-only rule as {@link #ALLOWLIST}: the moment the harness sees it,
      * the entry is stale and the test says so.
      *
-     * <p>One finding, recorded on 2026-09-15 by this pass's first run and older than it (the same
-     * four fail with the pre-decision-66 gate, checked by backing the gate out). In the popup menu
-     * that is a window of its own, pressing a row and cancelling the cascade both reach the
-     * widget and both return done — {@code Scene#performAccessibleAction} was instrumented and
-     * prints {@code done=true}, the input layer resolved to the {@code MenuSurface} itself — and
-     * twenty-four frames later the popup window is still open with the same tree. So what does not
-     * happen is the close, in the gallery's headless backend, for a popup that is a native window
-     * rather than an overlay of the scene: the same entry presented in the scene closes. It is not
-     * a verb policy defect and it is not this lane's: it belongs to whoever owns the headless
-     * backend's native-popup teardown, and phase 5 hears the real one on a guest.
+     * <p><b>Empty since 2026-09-15.</b> Its one finding — in "Popup menu, open", a popup that is a
+     * window of its own, pressing a row and cancelling the cascade both reached the widget, both
+     * returned done, and the window was still open with the same tree twenty-four frames later, and
+     * four hundred — was the harness defect it was diagnosed as, and it was in the toolkit rather
+     * than in the backend: the cascade's own scene was built with no clock, so the real-time fade
+     * whose last frame destroys the window advanced by the microseconds the frames actually took
+     * while its opener's clock was told that seconds had passed. A surface opened in a window of its
+     * own now takes its opener's clock ({@code Scene#clock}), the two exemptions went stale, and
+     * this list holds the promise the other way round: the moment the harness sees what the scene
+     * performed, an entry here is stale and the test says so.
      */
     static final List<Exemption> PERFORMED_UNSEEN = List.of(
-            new Exemption("headless native-popup teardown", "Popup menu, open",
-                    Accessible.Role.GROUP, "Menu", Set.of(Accessible.Action.CANCEL)),
-            new Exemption("headless native-popup teardown", "Popup menu, open",
-                    Accessible.Role.MENU_ITEM, null, Set.of(Accessible.Action.PRESS)));
+            // The two "headless native-popup teardown" lines (a cascade's GROUP accepting CANCEL
+            // and its MENU_ITEM rows accepting PRESS, each moving nothing a harness could see)
+            // were struck on 2026-09-15: the popup's scene runs on its opener's clock, its
+            // fade-out ends, and the window it destroys is gone by the ninth frame
+            // (NativePopupTeardownTest).
+    );
 
     private static Exemption unseenFor(String entry, AccessibleNode node, Accessible.Action verb) {
         for (Exemption exemption : PERFORMED_UNSEEN) {

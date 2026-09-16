@@ -566,7 +566,9 @@ public class ComboBox extends Widget {
         // process defaults there would lay rows out at one step, or in one direction, inside a
         // window sized at another.
         popupPanel.setInheritanceHost(this);
-        popupScene = new Scene(popupPanel);
+        // On the owner's clock, so the fade-out that destroys this window advances with it
+        // (Scene#clock).
+        popupScene = new Scene(popupPanel, scene().clock());
         popupScene.inheritRenderingFlags(scene()); // partial/debug follow the owner window
         popupScene.bind(popupWindow);
         // Clicking the list may hand OS focus to the popup window itself; when

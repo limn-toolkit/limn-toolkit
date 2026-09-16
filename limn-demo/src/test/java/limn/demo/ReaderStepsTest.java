@@ -5,7 +5,6 @@ import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.components.DisplayMode;
-import limn.components.Theme;
 import limn.components.date.CalendarView;
 import limn.components.date.DateField;
 import limn.components.date.DatePicker;
@@ -99,10 +98,12 @@ class ReaderStepsTest {
     private static final long BUSY_DEADLINE_MILLIS = 10_000;
 
     /**
-     * What is added to a window's fade, in wall time, before the next step is sent while a popup
-     * window exists: time for a frame to land after the fade has run out on a loaded machine.
+     * Frames rendered while a popup window is still open before the next step is sent: the same
+     * width the sibling suites settle with, nearly three times the eight frames
+     * {@code Theme.animWindow} (0.16 s) takes at the harness's 20 ms step, plus the one that
+     * destroys the window (NativePopupTeardownTest measures those nine).
      */
-    private static final long FADE_MARGIN_MILLIS = 100;
+    private static final int FRAMES_OF_A_WINDOW_FADE = 24;
 
     @Test
     void everyStepDeclaresWhatItLeaves() {
@@ -383,11 +384,14 @@ class ReaderStepsTest {
     }
 
     /**
-     * Renders in wall time for a window's fade while a popup window exists. A popup's scene runs
-     * on the wall clock, not on the harness's scene time, and its fade-out is what closes its
-     * window (DatePicker#dismiss), so without this a picker reopened on the next step opens a
-     * second popup while the first is still published, and the field is the controller of both:
-     * a state the driver, whose steps are three seconds apart, never reaches.
+     * Renders out a window's fade while a popup window is still open, so the next step is sent to
+     * the scene the driver's own three seconds would send it to: a picker reopened while the last
+     * popup is still published leaves the field the controller of two of them, a state no run
+     * reaches.
+     *
+     * <p>In scene time since 2026-09-15. A popup's scene takes its opener's clock
+     * ({@code Scene#clock}), so the harness's frames advance the fade that closes the window, and
+     * this waited in wall time only because they did not.
      */
     private static void waitForWindowFades(Harness harness) {
         List<HeadlessWindow> windows = harness.windows();
@@ -398,18 +402,7 @@ class ReaderStepsTest {
         if (!popup) {
             return;
         }
-        long until = System.currentTimeMillis() + (long) (Theme.current().animWindow * 1000)
-                + FADE_MARGIN_MILLIS;
-        while (System.currentTimeMillis() < until) {
-            try {
-                Thread.sleep(20);
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            harness.settle(1);
-        }
-        harness.settle(2);
+        harness.settle(FRAMES_OF_A_WINDOW_FADE);
     }
 
     /**
