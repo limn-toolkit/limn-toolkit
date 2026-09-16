@@ -502,9 +502,16 @@ public final class UiaBridge extends PlatformBridge {
      * <p>The reason it was not taken blind was that a marker in a bounded queue can be swallowed by
      * that queue's own collapse, leaving the debt with nothing to flush it on a window whose scene
      * then goes still. {@link UiaEvents#endFrame} is what answers that: the marker ignores the
-     * collapsed flag and collapses the queue rather than be dropped for want of room, so it is the
-     * one thing here that is never dropped. A collapse is always inside a frame — it can only
-     * happen while the scene is handing events over — and that frame's end follows it.
+     * collapsed flag and collapses the queue rather than be dropped for want of room, so no frame
+     * ends without a marker going in. A collapse is always inside a frame — it can only happen
+     * while the scene is handing events over — and that frame's end follows it.
+     *
+     * <p><b>A collapse does clear a marker an earlier frame left waiting</b>, and that is not the
+     * failure above: a debt is cleared by the raise that pays it and by nothing else, and the frame
+     * whose collapse cleared the marker marks its own end (the offer it refused is one of the two
+     * things {@link #emit} sets {@link #frameEndOwed} on), so the next marker the drain takes
+     * flushes whatever is still owed. Pinned by
+     * {@code UiaBridgeTest.aCollapseThatClearsAnEarlierFramesEndStillPaysTheDebtAtItsOwn}.
      *
      * <p><b>The Linux bridge takes the same marker on a different trade.</b>
      * {@code AtspiBridge#frameEnded} reconciles there for the case a tail of nothing but structure

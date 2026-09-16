@@ -3409,6 +3409,22 @@ certainly already fired — and asserts nothing has been said yet),
 `aCollapseWithNoTailAtAllIsStillFlushedByTheFramesEnd`, and `UiaEventsTest`'s three marker cases.
 **Phase 5 no longer listens for the early focus**; what it still hears is the order itself.
 
+*(Amended 2026-09-16, fix round 3b's review: "the marker is never dropped" says more than the code
+does, and the true statement is the narrower one.)* A collapse **clears the queue**, so a frame end
+already waiting in it is discarded; what `UiaEvents#endFrame` guarantees is that no frame ends
+without a marker going in — refused for want of room, it collapses the queue and goes in behind the
+collapse's own. That is enough, because a debt is cleared by the raise that pays it and by nothing
+else, and the frame in which a collapse happened owes one of its own (`emit` sets the flag on the
+refused offer), so it marks its end behind that collapse and the drain flushes every debt still
+owed when it gets there. The count of markers a drain sees can fall; the number of debts left with
+none cannot rise above zero. Measured, not argued, by
+`UiaBridgeTest.aCollapseThatClearsAnEarlierFramesEndStillPaysTheDebtAtItsOwn`, which holds the drain
+inside the first sweep so the loss is certain, shows one marker waiting before the second frame's
+collapse and one after it, and then shows the re-announcement raised at the second frame's end (red
+with `endFrame` returning early while collapsed: "and the frame that collapsed marks its own end
+behind it ==> expected: <2> but was: <1>"); `UiaEventsTest.aFullQueueCollapsesRatherThanDropTheFramesEnd`
+now asserts the same arithmetic on the queue alone.
+
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-6's remainder): `CARET_MOVED` and
 `BOUNDS_CHANGED` as built.** `CARET_MOVED` is `Text_TextSelectionChanged`, as its row says, handled
 together with `TEXT_SELECTION_CHANGED` (the settled unmapped-and-window-level-events item): the model

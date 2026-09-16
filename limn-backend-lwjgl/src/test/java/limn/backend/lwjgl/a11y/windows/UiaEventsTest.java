@@ -118,6 +118,13 @@ class UiaEventsTest {
      * The other way the marker could be dropped: no room. A queue that full is over capacity and a
      * collapse is what it already owes the client, so it collapses and the marker goes in behind
      * the collapse's own rather than being lost.
+     *
+     * <p><b>And what the collapse takes with it, said exactly</b> (2026-09-16, the review of this
+     * round): the clear takes the first frame's end away — two frames end here and one marker
+     * survives — so "never dropped" is true of the marker being <em>refused</em> and not of the
+     * queue as a whole. The frame that collapsed owes and leaves one of its own, which is the
+     * marker the drain reaches; what that costs the debt is measured on the bridge, where a debt
+     * exists, in {@code UiaBridgeTest.aCollapseThatClearsAnEarlierFramesEndStillPaysTheDebtAtItsOwn}.
      */
     @Test
     void aFullQueueCollapsesRatherThanDropTheFramesEnd() throws InterruptedException {
@@ -127,11 +134,15 @@ class UiaEventsTest {
         }
         events.endFrame();
         assertEquals(0, events.collapses(), "the last slot is the frame's end, and it fitted");
+        assertEquals(UiaEvents.CAPACITY + 1, events.size(), "the first frame's end is waiting");
         events.endFrame();
         assertEquals(1, events.collapses(), "the second had nowhere to go, so the queue collapsed");
-        assertEquals(2, events.size());
+        assertEquals(2, events.size(), "the clear took the first frame's end with the events: what "
+                + "is left is this collapse and the end of the frame it happened in");
         assertSame(UiaEvents.COLLAPSE, events.take());
         assertSame(UiaEvents.FRAME_END, events.take());
+        assertEquals(0, events.size(), "one marker for two frames, and the later one is the one "
+                + "that flushes what is still owed");
     }
 
     @Test

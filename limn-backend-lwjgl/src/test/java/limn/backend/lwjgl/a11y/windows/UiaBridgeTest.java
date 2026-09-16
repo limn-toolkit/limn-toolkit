@@ -1114,6 +1114,76 @@ class UiaBridgeTest {
     }
 
     /**
+     * What a collapse's clear costs a marker already waiting, measured rather than argued (the
+     * review of this round, 2026-09-16). {@code UiaEvents#collapse} empties the queue, so a frame
+     * end waiting in it is discarded — "never dropped" is true of a marker being refused for want
+     * of room, and not of the queue as a whole.
+     *
+     * <p>It leaves no debt unflushed, and this is why: a debt is cleared by the raise that pays it
+     * and by nothing else, and the frame in which the collapse happened owes one of its own (its
+     * offers were refused), so it marks its end behind the collapse and the drain flushes there.
+     * The drain is held inside the first sweep for the whole of it, so the loss is certain and not
+     * a race: the first frame's marker is provably still waiting when the second frame's collapse
+     * clears it.
+     */
+    @Test
+    void aCollapseThatClearsAnEarlierFramesEndStillPaysTheDebtAtItsOwn() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        java.util.concurrent.CountDownLatch held = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicBoolean first = new java.util.concurrent.atomic.AtomicBoolean(true);
+        // The drain thread is stopped inside the first sweep and stays there until this test lets
+        // it go, which is what makes the first frame's marker certainly still in the queue.
+        UiaWindow.trace = line -> {
+            trace.add(line);
+            if (line.equals("collapse: swept 0 elements") && first.compareAndSet(true, false)) {
+                try {
+                    held.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        };
+        try {
+            bridge.publish(aFocusedTable(true), false);
+            bridge.objectFor(1000);
+            bridge.noteAsked();
+
+            // Frame 1: the model's own collapse, which owes a re-announcement and marks its end.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            assertNotNull(awaitTrace(trace, l -> l.equals("collapse: swept 0 elements")),
+                    "the drain never reached the sweep, so nothing is held: " + trace);
+            bridge.frameEnded();
+            assertEquals(1, bridge.eventsWaitingForTests(),
+                    "the first frame's end is waiting, and the drain is held before it");
+
+            // Frame 2: more events than the queue holds, so its collapse clears that marker.
+            for (int i = 0; i <= UiaEvents.CAPACITY + 8; i++) {
+                bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000,
+                        "A window", "A window " + i));
+            }
+            assertEquals(1, bridge.collapses(), "the fixture: this queue collapsed");
+            assertEquals(1, bridge.eventsWaitingForTests(),
+                    "the clear took the first frame's end with the events: what is waiting is the "
+                            + "collapse marker alone");
+            bridge.frameEnded();
+            assertEquals(2, bridge.eventsWaitingForTests(),
+                    "and the frame that collapsed marks its own end behind it");
+
+            held.countDown();
+            assertNotNull(awaitTrace(trace, l -> l.startsWith(
+                    "raised after this bridge's queue collapsed for node 1003 in ")),
+                    "the debt outlived the marker that was cleared and was never paid at the "
+                            + "next one: " + trace);
+        } finally {
+            held.countDown();
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
      * Decision 36's remaining half on this bridge (2026-09-16). A sorted column header carries its
      * direction in {@code ItemStatus} <b>and</b> {@code HelpText}, both answered from the node's
      * description, and a sort reaches this bridge as a description change — so raising

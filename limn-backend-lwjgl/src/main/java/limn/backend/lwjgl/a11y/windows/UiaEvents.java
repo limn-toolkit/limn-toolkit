@@ -26,13 +26,21 @@ import java.util.concurrent.atomic.AtomicInteger;
  * dropped, because it is already covered by it. The overflow is logged once per collapse as a
  * WARNING, which is the signal &sect;13.19 names for a capacity set wrong.
  *
- * <p><b>The frame's end is the one thing that is never dropped</b> ({@link #endFrame}). It is not
- * an event and covers none: it is the publish boundary the drain thread flushes an owed
- * re-announcement at (&sect;2.4, semantics 4), and a boundary that a collapse could swallow would
- * leave that debt with nothing to flush it on a window whose scene then goes still. So it ignores
- * the collapsed flag, and when there is no room for it the queue collapses first &mdash; which is
- * the honest answer for a queue that is over capacity anyway &mdash; and the marker goes in behind
- * the collapse's own.
+ * <p><b>The frame's end is never dropped without a collapse taking its place</b>
+ * ({@link #endFrame}). It is not an event and covers none: it is the publish boundary the drain
+ * thread flushes an owed re-announcement at (&sect;2.4, semantics 4), and a boundary a collapse
+ * could swallow <em>silently</em> would leave that debt with nothing to flush it on a window whose
+ * scene then goes still. So the marker ignores the collapsed flag, and when there is no room for it
+ * the queue collapses first &mdash; which is the honest answer for a queue that is over capacity
+ * anyway &mdash; and the marker goes in behind the collapse's own.
+ *
+ * <p><b>What a collapse does take is a marker already waiting</b>, because {@link #collapse} clears
+ * the queue, and that is not a debt left unpaid (the precise claim, 2026-09-16): a collapse can
+ * only happen while a frame is handing events over, and the bridge marks every frame in which an
+ * offer was refused, so the frame whose collapse cleared an earlier frame's marker owes and offers
+ * one of its own behind that collapse. The earlier marker belonged to a frame that is over; what a
+ * later marker flushes is every debt still owed, not one frame's. So the count of markers a drain
+ * sees can fall, and the number of debts left unflushed cannot rise above zero.
  */
 final class UiaEvents {
 
@@ -84,13 +92,21 @@ final class UiaEvents {
 
     /**
      * Marks the end of a frame's accessibility step, from the user-interface thread, after every
-     * event of that frame has been offered. Never blocks and <b>never drops the marker</b>.
+     * event of that frame has been offered. Never blocks and <b>never leaves without putting a
+     * marker in</b>.
      *
      * <p>Unlike an event it ignores the collapsed flag: a collapse covers the events it swallowed,
-     * and it raises the very debt this marker exists to flush, so a marker the collapse dropped
+     * and it raises the very debt this marker exists to flush, so a marker the collapse swallowed
      * would be a debt nothing pays. When the queue has no room left the queue collapses first and
      * the marker goes in behind the collapse's own, which keeps both in order and costs a
      * re-read no over-capacity queue was going to avoid.
+     *
+     * <p>A marker <em>already waiting</em> is a different matter: {@link #collapse} clears the
+     * queue, so this frame's collapse can take the previous frame's end away with it. That frame is
+     * over and its debt, if it had one, is still owed — nothing clears a debt but the raise that
+     * pays it — and the frame that collapsed marks its own end for the same reason it collapsed,
+     * so the drain reaches a marker behind the collapse and flushes there. Fewer markers, never a
+     * debt left with none.
      */
     void endFrame() {
         if (queue.offer(FRAME_END)) {
@@ -105,6 +121,9 @@ final class UiaEvents {
      * up, so a drain thread that takes it knows every event offered since is covered; and the queue
      * is cleared first, so the marker is what it finds next rather than a page of events about the
      * same rows.
+     *
+     * <p>The clear takes an earlier frame's end with it where one was still waiting, which is the
+     * one way this queue loses a marker; {@link #endFrame} says why that leaves no debt unflushed.
      */
     private void collapse() {
         collapsed.set(true);
