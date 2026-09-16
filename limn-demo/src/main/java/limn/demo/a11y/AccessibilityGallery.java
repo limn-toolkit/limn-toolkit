@@ -812,6 +812,12 @@ public final class AccessibilityGallery {
         // "Contrast, locked" slider's role on the sliders page: a state variant, not a fourth
         // widget.
         page.add(Labelled.above("Servings, at the maximum", new Spinner(1, 8, 1).setValue(8)));
+        // And one at its minimum, because a fixture at max ratchets one predicate and the other
+        // three spinners here sit strictly inside their ranges: with the narrowing of the LOWER
+        // arrow backed out the ratchet stayed BUILD SUCCESSFUL while the same sabotage on the
+        // upper one cost six of its tests. A fresh spinner is at min by the constructor, which is
+        // exactly what this entry relies on and why it takes no setValue.
+        page.add(Labelled.above("Servings, at the minimum", new Spinner(1, 8, 1)));
         return new Built(page);
     }
 
