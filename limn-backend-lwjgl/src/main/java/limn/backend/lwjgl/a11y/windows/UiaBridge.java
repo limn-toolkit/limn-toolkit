@@ -661,6 +661,10 @@ public final class UiaBridge extends PlatformBridge {
             Uia.raiseAutomationEvent(element.pointer(), eventId);
         } else {
             raisePropertyChange(element, propertyId, event, node);
+            int also = alsoChangedProperty(event, node);
+            if (also != 0) {
+                raisePropertyChange(element, also, event, node);
+            }
         }
         // The one change a client that asked was owed. From here it is its subscription, or a
         // fresh ask, that keeps this window read.
@@ -1334,6 +1338,38 @@ public final class UiaBridge extends PlatformBridge {
             // A rectangle that moved is not raised (raise() says why, before it gets here).
             default -> 0;
         };
+    }
+
+    /**
+     * The <b>second</b> property one change moves, or {@code 0} for a change that moves one.
+     *
+     * <p>There is exactly one today, and it is decision 36's (2026-09-16): a sorted column header's
+     * direction is carried on this platform by {@code ItemStatus} <b>and</b> {@code HelpText},
+     * File Explorer's convention, and both are answered from the node's description
+     * ({@code UiaProperties}). So the description that moves when a column is re-sorted moves both,
+     * and a client that caches {@code ItemStatus} — the property the convention exists for — went
+     * on saying the old direction, because a sort reaches this bridge as a description change and
+     * {@code DESCRIPTION_CHANGED} raised {@code HelpText} alone. The integration log recorded the
+     * gap as "a sort arrives as a publish, not a state change", which is half right: it is not a
+     * state change, and it is not silent either.
+     *
+     * <p><b>The guard is the header row and not the direction</b>, because the change that ends a
+     * sort leaves the facet at {@code NONE} and the description empty, and that is precisely the
+     * moment a cached status is most wrong. An empty string is what {@code ItemStatus} already
+     * carries for "nothing to say" (the BUSY case writes it when busy clears). <b>And not while
+     * BUSY holds</b>, which is the same choice recorded beside the getter: busy owns the one string
+     * while it lasts, so the description moving underneath it does not move what a client reads.
+     *
+     * @param event what changed
+     * @param node  the node it changed on, or {@code null} when it is no longer in the tree
+     */
+    static int alsoChangedProperty(AccessibleEvent event, AccessibleNode node) {
+        if (event.type() != AccessibleEvent.Type.DESCRIPTION_CHANGED || node == null
+                || node.cell() == null || node.cell().row() != -1 // ADR 041 §7's header row
+                || node.has(Accessible.State.BUSY)) {
+            return 0;
+        }
+        return UiaIds.ITEM_STATUS;
     }
 
     /**

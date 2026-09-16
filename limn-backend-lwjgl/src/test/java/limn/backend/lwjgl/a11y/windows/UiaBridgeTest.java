@@ -1114,6 +1114,109 @@ class UiaBridgeTest {
     }
 
     /**
+     * Decision 36's remaining half on this bridge (2026-09-16). A sorted column header carries its
+     * direction in {@code ItemStatus} <b>and</b> {@code HelpText}, both answered from the node's
+     * description, and a sort reaches this bridge as a description change — so raising
+     * {@code HelpText} alone left a client that caches the property the convention exists for
+     * saying the old direction. Both are raised for a header cell; only {@code HelpText} for a data
+     * cell, which heads no column, and only {@code HelpText} while BUSY holds the one status
+     * string, which is the same choice recorded beside the getter.
+     */
+    @Test
+    void aSortedHeadersDescriptionMovesTheStatusThatCarriesItAndADataCellsDoesNot() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aTableSortedOnItsSecondColumn(false), false);
+            bridge.objectFor(2102);
+            bridge.objectFor(2201);
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2102,
+                    "Sorted ascending", "Sorted descending"));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2201,
+                    "Years since joining", "Years here"));
+            assertNotNull(awaitTrace(trace,
+                    l -> l.startsWith("raised DESCRIPTION_CHANGED for node 2201")));
+
+            bridge.publish(aTableSortedOnItsSecondColumn(true), false);
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2102,
+                    "Sorted descending", "Sorted ascending"));
+            assertNotNull(awaitTrace(trace, l -> trace.stream()
+                    .filter(x -> x.startsWith("raised DESCRIPTION_CHANGED for node 2102")).count() == 2));
+
+            assertEquals(java.util.List.of(
+                            "property 30013 changed -> 0x0",
+                            "property 30026 changed -> 0x0",
+                            "raised DESCRIPTION_CHANGED for node 2102",
+                            "property 30013 changed -> 0x0",
+                            "raised DESCRIPTION_CHANGED for node 2201",
+                            "property 30013 changed -> 0x0",
+                            "raised DESCRIPTION_CHANGED for node 2102"),
+                    linesOf(trace, l -> l.startsWith("property ")
+                            || l.startsWith("raised DESCRIPTION_CHANGED")).stream()
+                            .map(l -> l.replaceFirst(" in \\d+ us on .*", "")).toList(),
+                    "HelpText and ItemStatus on the header, HelpText alone on the data cell and "
+                            + "while busy holds the one status string: " + trace);
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * A table of two columns sorted ascending on the second, as ADR 041 §7 says a table publishes
+     * one: a header group, a data row whose cell has a description of its own, and a footer cell
+     * deliberately given a direction its facet has no business carrying.
+     *
+     * @param busy whether the sorted header is also busy
+     */
+    private static AccessibleTree aTableSortedOnItsSecondColumn(boolean busy) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int table = a.begin(2000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TABLE);
+        a.table(1, 2);
+        a.inherited(true, true, true, false, false);
+        int header = a.begin(2100, table, Locale.ENGLISH, 0, 0, 400, 30);
+        a.role(Accessible.Role.GROUP);
+        a.inherited(true, true, true, false, false);
+        for (int c = 0; c < 2; c++) {
+            a.begin(2101 + c, header, Locale.ENGLISH, c * 200, 0, 200, 30);
+            a.role(Accessible.Role.COLUMN_HEADER);
+            a.name(I18nString.literal(c == 0 ? "Name" : "Age"), Accessible.NameFrom.CONTENT);
+            a.cell(-1, c, c == 1 ? limn.accessibility.CellFacet.Sort.ASCENDING
+                    : limn.accessibility.CellFacet.Sort.NONE);
+            if (c == 1) {
+                a.description(I18nString.literal("Sorted ascending"));
+                if (busy) {
+                    a.state(Accessible.State.BUSY, true);
+                }
+            }
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        int row = a.begin(2200, table, Locale.ENGLISH, 0, 30, 400, 30);
+        a.role(Accessible.Role.ROW);
+        a.inherited(true, true, true, false, false);
+        a.begin(2201, row, Locale.ENGLISH, 200, 30, 200, 30);
+        a.role(Accessible.Role.CELL);
+        a.name(I18nString.literal("42"), Accessible.NameFrom.CONTENT);
+        a.description(I18nString.literal("Years since joining"));
+        a.cell(0, 1, limn.accessibility.CellFacet.Sort.ASCENDING);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    /**
      * Waits up to two seconds for the drain thread to be blocked in its take with nothing waiting:
      * the one moment at which it has certainly passed the place the old emptiness test stood.
      */

@@ -2565,6 +2565,24 @@ it; phase 5. Pinned by
 `UiaBridge.changedProperty` is untouched: a sort that moves arrives as a publish and not as a state
 change, so nothing raises an `ItemStatus` property change for it — worth one look in the same run.
 
+*(Amended 2026-09-16, fix round 3b: that last sentence was half right, and the half that was wrong is
+fixed.* A sort that moves is not a state change, and it is **not silent**: it moves the header cell's
+description, and the differ emits a `DESCRIPTION_CHANGED` for exactly that. What this bridge did with
+it was raise `HelpText` alone, so a client that caches `ItemStatus` — the property File Explorer's
+convention exists for — went on reading the direction the column used to be sorted in. A
+`DESCRIPTION_CHANGED` on a **cell of the header row** now raises `ItemStatus` as well as `HelpText`,
+with the same two strings, through a second mapping named `UiaBridge.alsoChangedProperty`; it is the
+only change today that moves two properties outside `raiseValue`. The guard is the header row and not
+the direction, because the change that *ends* a sort leaves the facet at `NONE` and the description
+empty, which is exactly when a cached status is most wrong, and an empty string is already what this
+property carries for "nothing to say" (the BUSY mapping writes it when busy clears). And nothing is
+raised while `BUSY` holds, which is the same choice as the getter's: busy owns the one string while
+it lasts. Pinned by
+`UiaBridgeTest.aSortedHeadersDescriptionMovesTheStatusThatCarriesItAndADataCellsDoesNot`, red three
+ways: with the `ItemStatus` arm removed, with the header-row guard dropped (a data cell's own
+description raised as a status) and with the busy guard dropped. Phase 5 still hears the composition
+choice above; it no longer has to ask whether the direction is announced at all.)
+
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `UiaRaiseNotificationEvent` and
 `UiaRaiseStructureChangedEvent` are bound and raised.** The event-flush row lists both; neither was
 bound, an `ANNOUNCEMENT` (node `0`) was mapped to the notification event id and then dropped at the
