@@ -4,6 +4,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleRelation;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.CellFacet;
 import limn.backend.AccessibilityBridge;
 
 import java.util.ArrayList;
@@ -794,9 +795,10 @@ final class AtspiTree {
     }
 
     /**
-     * A node's object attributes: {@code toolkit}, and where the facets carry them a row's
+     * A node's object attributes: {@code toolkit}, where the facets carry them a row's
      * {@code level}, {@code posinset} and {@code setsize} (L5; decision 4, semantics 6, settled
-     * linux-level-carrier).
+     * linux-level-carrier), and on a sorted column's header cell the direction its rows run in
+     * ({@code sort}; decision 36).
      *
      * <p>Orca 50.2 reads a tree item's level from the attribute {@code level} (one-based) before
      * any relation, and a member's position and set size from {@code posinset} and {@code setsize}
@@ -808,6 +810,18 @@ final class AtspiTree {
      * A zero is "no number" and publishes nothing — never "0 of 0" (semantics 6). Nothing announces
      * a change to them (decision 43): Orca 50.2's {@code object:attributes-changed} handler only
      * clears its cache (readings/fedora-orca-interface-calls.txt).
+     *
+     * <p>Orca 50.2 reads a sorted column's direction from the object attribute {@code sort}, and
+     * only on a node {@code AXUtilitiesRole.is_table_header} accepts: {@code none} or the key's
+     * absence is no direction, {@code ascending} and {@code descending} are spoken, and anything
+     * else is spoken as "other" (ax_utilities_table.py 259-272,
+     * readings/fedora-orca-interface-calls.txt). The key goes on the header cell of the sorted
+     * column and nowhere else. A cell in the header row is the only cell a client may read a
+     * direction off: a footer cell carries row {@code -2} and a data cell a row from zero, and
+     * neither is a header, whatever direction its facet holds. An unsorted header carries
+     * {@link CellFacet.Sort#NONE} and publishes no key rather than {@code sort=none}: Orca reads
+     * the two the same way and no GTK table publishes the second. The model carries no fourth
+     * value, so {@code other} is never written.
      */
     private static Map<Object, Object> attributesOf(AccessibleNode node) {
         Map<Object, Object> out = Atspi.attrs("toolkit", "limn");
@@ -821,6 +835,11 @@ final class AtspiTree {
             if (node.selectionItem().sizeOfSet() > 0) {
                 out.put("setsize", Integer.toString(node.selectionItem().sizeOfSet()));
             }
+        }
+        if (node.cell() != null && node.cell().row() == -1
+                && node.cell().sort() != CellFacet.Sort.NONE) {
+            out.put("sort", node.cell().sort() == CellFacet.Sort.ASCENDING
+                    ? "ascending" : "descending");
         }
         return out;
     }

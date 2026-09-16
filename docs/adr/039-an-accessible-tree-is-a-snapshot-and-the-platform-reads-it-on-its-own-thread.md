@@ -3089,7 +3089,8 @@ only when non-zero, so no node says "0 of 0". GTK 4.22.4 publishes `posinset` an
 rows the same way (readings/fedora-gtk4-column-sort.txt, Fedora KDE 44, 2026-09-15). No event announces
 a change to them (decision 43): Orca 50.2's `object:attributes-changed` handler only clears its cache
 (readings/fedora-orca-interface-calls.txt). A header's sort direction is not an attribute yet; see the
-sort amendment below.
+sort amendment below. *(Amended 2026-09-15, the fix round's integration: it is now — `sort` on the
+sorted column's header cell, and on no other node. That amendment's last paragraph says how.)*
 
 #### Amendment 2026-09-15 — `GrabFocus`, `GetAccessibleAtPoint` and `Introspect` are answered
 
@@ -3172,6 +3173,24 @@ carrier — a facet or a state on the header cell — that the three bridges rea
 bridge's to add alone while the Windows and macOS bridges are changed in parallel. Once it exists, this
 bridge answers `sort` = `ascending`/`descending` on that header cell in `GetAttributes` (§2.3's
 attributes amendment) and nothing when unsorted; until then a Linux reader hears the description.
+
+**Amended 2026-09-15 (the phase-3 fix round's integration): the carrier exists, and `sort` is
+answered.** The model fact the paragraph above waits on landed in the same round — `CellFacet.Sort`,
+`NONE`/`ASCENDING`/`DESCENDING` on the header cell of the sorted column (§1.2's amendment of this
+date, ADR 041 §7's) — but it landed on the model branch while the three bridge lanes were running,
+so each logged its own mapping as owed rather than compiling against a type its branch did not have.
+The mappings are the integration's, because none of them is a lane's judgement: each was specified
+whole in its lane's log, against a reading that lane had already taken. Here, `AtspiTree.attributesOf`
+publishes `sort` = `ascending` / `descending` on a cell in the header row whose direction is not
+`NONE`. The key goes nowhere else: an unsorted header publishes no key rather than `sort=none` —
+Orca reads the two the same and no GTK table on the guest publishes either — and a data cell or a
+footer cell is not a header whatever its facet holds, which is the guard and not the model's
+restraint, since `Table` sets a direction on the header alone. Orca's fourth value `other` is never
+written, because `CellFacet.Sort` has no fourth value to write it from. The description stays where
+it was, so a reader that ignores the attribute hears what it heard before. Pinned by
+`AtspiTreeTest.theSortedColumnsHeaderSaysItsDirectionAndNoOtherCellSaysAnything`, which gives the
+data cell and the footer cell a direction their facet has no business carrying. What a live Orca
+does with the attribute is phase 5's.
 
 ### 2.4 The events, side by side
 

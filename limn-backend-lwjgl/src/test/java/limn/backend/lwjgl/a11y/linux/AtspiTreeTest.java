@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.CellFacet;
 import limn.backend.AccessibilityBridge;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.BeforeEach;
@@ -1003,6 +1004,79 @@ class AtspiTreeTest {
                 "each number stands on its own");
         assertEquals(java.util.Map.of("toolkit", "limn"), call(Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE,
                 "GetAttributes", null).body[0]);
+    }
+
+    /**
+     * The sorted column's header cell says which way its rows run, as the object attribute
+     * {@code sort} (decision 36): Orca 50.2 reads {@code ascending} / {@code descending} there and
+     * nowhere else. The key is on that header alone: an unsorted header publishes no key rather
+     * than {@code sort=none}, and the data cell and the footer cell here are given a direction
+     * their facet has no business carrying — today's {@code Table} sets one on the header alone —
+     * so that the header-row guard is what keeps the key off them and not the model's restraint.
+     */
+    @Test
+    void theSortedColumnsHeaderSaysItsDirectionAndNoOtherCellSaysAnything() {
+        for (CellFacet.Sort sorted : new CellFacet.Sort[] {
+                CellFacet.Sort.ASCENDING, CellFacet.Sort.DESCENDING}) {
+            Accessibility a = new Accessibility();
+            a.beginWalk(400, 300, Locale.ENGLISH);
+            a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            a.role(Accessible.Role.WINDOW);
+            a.inherited(true, true, true, false, false);
+            int table = a.begin(6000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+            a.role(Accessible.Role.TABLE);
+            a.table(1, 2);
+            a.inherited(true, true, true, true, false);
+            int header = a.begin(6100, table, Locale.ENGLISH, 0, 0, 400, 30);
+            a.role(Accessible.Role.GROUP);
+            a.inherited(true, true, true, false, false);
+            for (int c = 0; c < 2; c++) {
+                a.begin(6101 + c, header, Locale.ENGLISH, c * 200, 0, 200, 30);
+                a.role(Accessible.Role.COLUMN_HEADER);
+                a.name(I18nString.literal(c == 0 ? "Name" : "Age"), Accessible.NameFrom.CONTENT);
+                a.cell(-1, c, c == 1 ? sorted : CellFacet.Sort.NONE);
+                a.inherited(true, true, true, false, false);
+                a.end();
+            }
+            a.end();
+            int row = a.begin(6200, table, Locale.ENGLISH, 0, 30, 400, 30);
+            a.role(Accessible.Role.ROW);
+            a.inherited(true, true, true, false, false);
+            for (int c = 0; c < 2; c++) {
+                a.begin(6201 + c, row, Locale.ENGLISH, c * 200, 30, 200, 30);
+                a.role(Accessible.Role.CELL);
+                a.name(I18nString.literal("r0c" + c), Accessible.NameFrom.CONTENT);
+                a.cell(0, c, c == 1 ? sorted : CellFacet.Sort.NONE);
+                a.inherited(true, true, true, false, false);
+                a.end();
+            }
+            a.end();
+            int footer = a.begin(6300, table, Locale.ENGLISH, 0, 60, 400, 30);
+            a.role(Accessible.Role.GROUP);
+            a.inherited(true, true, true, false, false);
+            a.begin(6301, footer, Locale.ENGLISH, 200, 60, 200, 30);
+            a.role(Accessible.Role.CELL);
+            a.name(I18nString.literal("Total 99"), Accessible.NameFrom.CONTENT);
+            a.cell(-2, 1, sorted);
+            a.inherited(true, true, true, false, false);
+            a.end();
+            a.end();
+            a.end();
+            a.end();
+            tree.set(a.publish(0, 0, 0, 1f, true));
+
+            String direction = sorted == CellFacet.Sort.ASCENDING ? "ascending" : "descending";
+            assertEquals(java.util.Map.of("toolkit", "limn", "sort", direction),
+                    call(path(6102), Atspi.I_ACCESSIBLE, "GetAttributes", null).body[0],
+                    "the sorted column's header carries the direction Orca reads");
+            for (int id : new int[] {6101, 6201, 6202, 6301}) {
+                assertEquals(java.util.Map.of("toolkit", "limn"), call(path(id),
+                        Atspi.I_ACCESSIBLE, "GetAttributes", null).body[0],
+                        "no sort key on " + id + ": an unsorted header says nothing rather than "
+                                + "sort=none, and a data cell and a footer cell are not headers "
+                                + "however their facet reads");
+            }
+        }
     }
 
     /**
