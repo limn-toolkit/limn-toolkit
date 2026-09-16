@@ -164,10 +164,19 @@ public final class UiaBridge extends PlatformBridge {
      * Why a re-announcement of the effective focus is owed — the cause the trace names — or
      * {@code null} when none is. Set by a sweep (this queue's collapse marker, or the model's
      * {@code INVALIDATED}) and cleared by {@link #reannounce}, which raises it at the tail's place:
-     * before the first event after the tail's {@code STRUCTURE_CHANGED}s, or when nothing more is
-     * waiting. Drain thread only.
+     * before the first event after the tail's {@code STRUCTURE_CHANGED}s, or at the frame's end.
+     * Drain thread only.
      */
     private String reannounceOwed;
+
+    /**
+     * Whether this frame handed over something that can leave a re-announcement owed — a collapse
+     * of this queue, or the model's own {@code INVALIDATED} — so that {@link #frameEnded} marks the
+     * boundary only in the frames where the drain thread can be waiting for one. A window whose
+     * frames are ordinary never wakes the drain thread for a marker it would discard.
+     * User-interface thread only: written by {@link #emit}, read and cleared by {@link #frameEnded}.
+     */
+    private boolean frameEndOwed;
 
     private UiaBridge(long hwnd, java.util.function.LongSupplier clock) {
         this.hwnd = hwnd;
@@ -249,6 +258,11 @@ public final class UiaBridge extends PlatformBridge {
     /** @return how many times the queue has collapsed since this bridge opened (§13.19). */
     int collapses() {
         return events.collapses();
+    }
+
+    /** @return how many events and markers are waiting to be drained, for tests. */
+    int eventsWaitingForTests() {
+        return events.size();
     }
 
     /** @return how many client event subscriptions cover this window right now. */
@@ -363,9 +377,37 @@ public final class UiaBridge extends PlatformBridge {
         if (closed) {
             return;
         }
-        events.offer(event);
+        boolean queued = events.offer(event);
+        // The two ways a re-announcement comes to be owed, both visible from here: this queue
+        // collapsed (or had already collapsed and swallowed this event), and the model's own
+        // collapse. Either way the frame's end has to be marked, because the tail that follows may
+        // be nothing but structure -- or nothing at all.
+        if (!queued || (event.type() == AccessibleEvent.Type.INVALIDATED && event.nodeId() == 0)) {
+            frameEndOwed = true;
+        }
         if (drain == null) {
             drain = Threads.daemon("limn-a11y-uia-drain", this::drainLoop);
+        }
+    }
+
+    /**
+     * <p>Marks the publish boundary an owed re-announcement is flushed at, and raises nothing
+     * itself: this bridge raises on a thread of its own and the frame's end is a fact that thread
+     * cannot see. It is handed over as a marker in the same queue the events went into, so it
+     * arrives behind every event of the frame — which is what makes the re-announcement's place in
+     * the tail an order rather than a race between the drain and the user-interface thread
+     * ({@link #reannounce}).
+     *
+     * <p>Only a frame that could leave a re-announcement owed is marked ({@link #frameEndOwed}),
+     * and only once a drain thread exists: a window nobody reads starts no thread here, and a
+     * window being read ordinarily does not wake one per frame for a marker with nothing to flush.
+     */
+    @Override
+    public void frameEnded() {
+        boolean owed = frameEndOwed;
+        frameEndOwed = false;
+        if (owed && !closed && drain != null) {
+            events.endFrame();
         }
     }
 
@@ -374,18 +416,31 @@ public final class UiaBridge extends PlatformBridge {
      * the registry against the published tree — every element whose node has left is released,
      * which is what the swallowed {@code NODE_DESTROYED}s would have done one by one (§1.10) —
      * followed by one invalidate-everything raise on the root, and then, <b>at the tail's place</b>,
-     * the re-announcement of the effective focus ({@link #reannounceOwed}).
+     * the re-announcement of the effective focus ({@link #reannounceOwed}) — before the first tail
+     * event that is not a {@code STRUCTURE_CHANGED}, or at the frame's end when there is none.
      */
     private void drainLoop() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                if (reannounceOwed != null && events.size() == 0) {
-                    // Nothing more is waiting, so the tail this re-announcement follows is over --
-                    // or had no event after its structure changes at all, which is what a collapse
-                    // that moved nothing but the tree's shape leaves. Owed is never dropped.
-                    reannounce();
-                }
                 AccessibleEvent event = events.take();
+                if (event == UiaEvents.FRAME_END) {
+                    // The frame that owed this marker is over and every event it emitted is
+                    // already behind us, so the tail this re-announcement follows is over -- or
+                    // had no event after its structure changes at all, which is what a collapse
+                    // that moved nothing but the tree's shape leaves. Owed is never dropped.
+                    // A caret and the selection move behind it are one field's, and the model
+                    // emits them one after the other, so the pair does not outlive the frame that
+                    // marked its end. Only a frame that could leave a debt is marked, which is
+                    // where that bound holds: across an ordinary frame's end -- this bridge is
+                    // handed nothing there -- a caret raised last still swallows a selection move
+                    // for the same node in the next frame, exactly as before the marker existed
+                    // (UiaBridgeTest.aMarkedFramesEndEndsTheCaretsPairingAndAnUnmarkedOnesDoesNot).
+                    caretJustRaised = 0;
+                    if (reannounceOwed != null) {
+                        reannounce();
+                    }
+                    continue;
+                }
                 long caret = caretJustRaised;
                 caretJustRaised = 0;
                 if (caret != 0 && event.type() == AccessibleEvent.Type.TEXT_SELECTION_CHANGED
@@ -441,29 +496,37 @@ public final class UiaBridge extends PlatformBridge {
      * last sweep says it. Each raise waits for the reader's handler (§13.28), so a second one is a
      * frame's budget spent saying what has just been said.
      *
-     * <p><b>The second flush point in {@link #drainLoop} — nothing more waiting — is a race the
-     * reader decides.</b> It tests the queue on this thread while the user-interface thread is
-     * still offering the tail one event at a time, so a drain that outruns the producer can flush
-     * between the collapse and the first tail {@code STRUCTURE_CHANGED} and re-announce early,
-     * which is the order this whole paragraph is about. Whenever the tail is already queued — how a
-     * publish hands it over — the order holds, and the debt is never dropped either way. <b>What
-     * phase 5 listens for</b> is the focus spoken before the shape of a large publish's tail, after
-     * an expand or a sort wide enough to collapse the queue. <b>The fix if it is heard</b> is to
-     * flush on a publish boundary rather than on emptiness: the model marks one already, {@code
-     * AccessibilityBridge#frameEnded}, called once per frame after every event of that frame has
-     * been emitted and not overridden here. It was not taken blind because it trades this race for
-     * a worse failure in one case: a marker offered into this same bounded queue can be swallowed
-     * by the queue's own collapse, and a scene that then runs no further frame would owe a
-     * re-announcement with nothing left to flush it. ADR 039 §2.4, 2026-09-15.
+     * <p><b>The second flush point is the frame's end, not an empty queue</b> (2026-09-16).
+     * Until today {@link #drainLoop} tested {@code events.size() == 0} on this thread while the
+     * user-interface thread was still offering the tail one event at a time, so a drain that
+     * outran the producer flushed between the collapse and the first tail {@code STRUCTURE_CHANGED}
+     * and re-announced early — the very order this javadoc is about, in the one case where nothing
+     * kept the two threads in step. The boundary the model already marks does keep them in step:
+     * {@link #frameEnded} is called once per frame after every event of that frame has been
+     * emitted, and this bridge hands it over as {@link UiaEvents#FRAME_END} into the same queue the
+     * events went into, so it arrives behind them however fast this thread runs.
      *
-     * <p><b>The Linux bridge does override it, and that is not the same trade.</b>
+     * <p>The reason it was not taken blind was that a marker in a bounded queue can be swallowed by
+     * that queue's own collapse, leaving the debt with nothing to flush it on a window whose scene
+     * then goes still. {@link UiaEvents#endFrame} is what answers that: the marker ignores the
+     * collapsed flag and collapses the queue rather than be dropped for want of room, so no frame
+     * ends without a marker going in. A collapse is always inside a frame — it can only happen
+     * while the scene is handing events over — and that frame's end follows it.
+     *
+     * <p><b>A collapse does clear a marker an earlier frame left waiting</b>, and that is not the
+     * failure above: a debt is cleared by the raise that pays it and by nothing else, and the frame
+     * whose collapse cleared the marker marks its own end (the offer it refused is one of the two
+     * things {@link #emit} sets {@link #frameEndOwed} on), so the next marker the drain takes
+     * flushes whatever is still owed. Pinned by
+     * {@code UiaBridgeTest.aCollapseThatClearsAnEarlierFramesEndStillPaysTheDebtAtItsOwn}.
+     *
+     * <p><b>The Linux bridge takes the same marker on a different trade.</b>
      * {@code AtspiBridge#frameEnded} reconciles there for the case a tail of nothing but structure
-     * signals leaves open, and it can, because nothing crosses a bounded queue to reach it: that
-     * bridge writes from a writer thread whose work is already queued when the frame ends, so the
-     * marker is read on the user-interface thread itself and no collapse can swallow it. Here the
-     * marker would have to be offered into the very queue whose collapse raised the debt. The two
-     * bridges answer the same semantics with the same order and take the marker differently because
-     * their queues differ, which is what §2.4's three columns are for.
+     * signals leaves open, and nothing crosses a bounded queue to reach it: that bridge writes from
+     * a writer thread whose work is already queued when the frame ends, so the marker is read on
+     * the user-interface thread itself. Here it has to travel the queue whose collapse raises the
+     * debt, which is why it travels it as a marker that a collapse cannot swallow. All three
+     * bridges now answer the same semantics in the same order at the same boundary.
      */
     private void reannounce() {
         String cause = reannounceOwed;
@@ -612,6 +675,10 @@ public final class UiaBridge extends PlatformBridge {
             Uia.raiseAutomationEvent(element.pointer(), eventId);
         } else {
             raisePropertyChange(element, propertyId, event, node);
+            int also = alsoChangedProperty(event, node);
+            if (also != 0) {
+                raisePropertyChange(element, also, event, node);
+            }
         }
         // The one change a client that asked was owed. From here it is its subscription, or a
         // fresh ask, that keeps this window read.
@@ -1288,17 +1355,94 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
-     * A change's value as the property carries it, where that is not the model's own type: BUSY
-     * moves as a boolean and ItemStatus is a string, the phrase while busy and empty after.
+     * The <b>second</b> property one change moves, or {@code 0} for a change that moves one.
+     *
+     * <p>There is exactly one today, and it is decision 36's (2026-09-16): a sorted column header's
+     * direction is carried on this platform by {@code ItemStatus} <b>and</b> {@code HelpText},
+     * File Explorer's convention, and both are answered from the node's description
+     * ({@code UiaProperties}). So the description that moves when a column is re-sorted moves both,
+     * and a client that caches {@code ItemStatus} — the property the convention exists for — went
+     * on saying the old direction, because a sort reaches this bridge as a description change and
+     * {@code DESCRIPTION_CHANGED} raised {@code HelpText} alone. The integration log recorded the
+     * gap as "a sort arrives as a publish, not a state change", which is half right: it is not a
+     * state change, and it is not silent either.
+     *
+     * <p><b>The guard is the header row and not the direction</b>, and it is deliberately wider
+     * than the getter's {@code isSortedHeader}, which also asks for a direction that is not
+     * {@code NONE}: the change that <em>ends</em> a sort leaves the facet at {@code NONE} and the
+     * description empty, and that is precisely the moment a cached status is most wrong, so a
+     * guard that asked the facet would go silent exactly there.
+     *
+     * <p><b>What a client reads in the gap between the two guards</b> is nothing, in both senses:
+     * the values this raises are the ones {@link UiaProperties#valueOf} answers, because they go
+     * through {@link #changedValue} (2026-09-16), so a header cell whose description is its own and
+     * whose column is not sorted — the first widget to write anything but a sort phrase there;
+     * {@code Table} writes only that — raises a change from nothing to nothing rather than
+     * announcing a status the element denies. The cost of the wider guard is that no-op change; the
+     * cost of the narrower one would be a stale direction that outlives the sort, and a client that
+     * re-reads finds the getter and the event saying the same thing either way.
+     *
+     * <p><b>And not while BUSY holds</b>, which is the same choice recorded beside the getter: busy
+     * owns the one string while it lasts, so the description moving underneath it does not move
+     * what a client reads. What busy leaves behind is the sort phrase again, and the
+     * {@code BUSY} change that clears it carries exactly that ({@link #changedValue}).
+     *
+     * @param event what changed
+     * @param node  the node it changed on, or {@code null} when it is no longer in the tree
+     */
+    static int alsoChangedProperty(AccessibleEvent event, AccessibleNode node) {
+        if (event.type() != AccessibleEvent.Type.DESCRIPTION_CHANGED || node == null
+                || node.cell() == null || node.cell().row() != -1 // ADR 041 §7's header row
+                || node.has(Accessible.State.BUSY)) {
+            return 0;
+        }
+        return UiaIds.ITEM_STATUS;
+    }
+
+    /**
+     * A change's value as the property carries it, where that is not the model's own type.
+     *
+     * <p>{@code ItemStatus} is the whole of it, because it is the one property here answered from
+     * two model facts at once: {@code BUSY}, which moves as a boolean, and a sorted column header's
+     * direction, which moves as a description. <b>What is raised is what
+     * {@link UiaProperties#valueOf} would answer</b> — that is the rule, and it is not decoration:
+     * a client caches the value a property change carries and re-reads the property when it does
+     * not, so an event and a getter that disagree leave it holding a status the element denies.
+     *
+     * <ul>
+     *   <li><b>Busy true</b> is the busy word, in the node's own language, which is what the getter
+     *       answers while the state holds.</li>
+     *   <li><b>Busy false</b> is whatever the node carries when it is not busy
+     *       ({@link UiaProperties#statusWhenNotBusy}): nothing for an ordinary item, and the sort
+     *       phrase for a header that is both busy and sorted — where until 2026-09-16 this returned
+     *       the empty string, so the moment busy cleared on a sorted header the client was told the
+     *       status was "" while {@code GetPropertyValue} answered "Sorted ascending". It is the
+     *       not-busy answer on both sides of the change: the node in the published tree carries
+     *       {@code BUSY} on the busy side, so asking the getter for the old value of a busy that has
+     *       just been set would answer the busy word twice.</li>
+     *   <li><b>A description</b> is the status only where the getter reads it as one, which is a
+     *       sorted header's ({@link UiaProperties#statusOf}); on any other header cell the change
+     *       carries nothing, which is what the element answers there.</li>
+     * </ul>
+     *
+     * <p>Nothing is the absence of a value and not an empty string: {@code null} is written as
+     * {@code VT_EMPTY}, which is exactly what the getter's {@code null} is written as.
      *
      * @param propertyId the property {@link #changedProperty} chose
      * @param value      the event's old or new value
-     * @param node       the node, for its locale, or {@code null} when it is gone
+     * @param node       the node, for its locale and its facets, or {@code null} when it is gone
      */
     static Object changedValue(int propertyId, Object value, AccessibleNode node) {
-        if (propertyId == UiaIds.ITEM_STATUS && value instanceof Boolean busy) {
+        if (propertyId != UiaIds.ITEM_STATUS) {
+            return value;
+        }
+        if (value instanceof Boolean busy) {
             return busy ? StateNames.of(Accessible.State.BUSY,
-                    node != null ? node.locale() : java.util.Locale.ENGLISH) : "";
+                    node != null ? node.locale() : java.util.Locale.ENGLISH)
+                    : UiaProperties.statusWhenNotBusy(node);
+        }
+        if (value instanceof String description) {
+            return UiaProperties.statusOf(node, description);
         }
         return value;
     }

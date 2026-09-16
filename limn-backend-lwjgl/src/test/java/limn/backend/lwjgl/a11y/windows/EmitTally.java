@@ -11,10 +11,16 @@ import java.util.Locale;
  * <p>A frame is what lies between two {@link #published() publishes}: the scene hands a bridge one
  * tree and then every event of that tree's difference, so the events that arrive after a publish
  * and before the next are that frame's, exactly. An emit is either <em>raised</em> — the bridge
- * held an element for the node, so the call went into {@code uiautomationcore} — or <em>skipped</em>,
- * because no client had ever asked for that node and there was nobody to tell. Only the raised
- * ones say what a raise costs; the skipped ones are a map lookup and are counted separately so
- * they cannot pull the median down.
+ * held an element for the node, so the drain will take it into {@code uiautomationcore} — or
+ * <em>skipped</em>, because no client had ever asked for that node and there was nobody to tell.
+ * The two are counted apart so a page of skips cannot pull the median down.
+ *
+ * <p><b>The times are the scene's and not the platform's</b> (corrected 2026-09-16). This javadoc
+ * said the raised ones "say what a raise costs", which was true before 2026-09-07 and is not now:
+ * the bridge offers into {@link UiaEvents} and returns, so what is timed here is the hand-over the
+ * frame pays for. What a raise costs is &sect;13.28's measurement with a reader attached. The
+ * <em>counts</em> — events per frame, and how many of them reach the platform at all — are what
+ * &sect;13.19 asks for and are unaffected.
  */
 final class EmitTally {
 

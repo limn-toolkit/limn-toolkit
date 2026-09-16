@@ -1005,6 +1005,343 @@ class UiaBridgeTest {
     }
 
     /**
+     * Semantics 4 and 7, the flush point closed 2026-09-16 (fix round 3b, item 1). The tail's place
+     * used to be found by testing this queue for emptiness on the drain thread while the
+     * user-interface thread was still offering the tail one event at a time: a drain that reached
+     * the top of its loop between the collapse and the first tail {@code STRUCTURE_CHANGED} saw an
+     * empty queue and re-announced the focus early, ahead of the shape the reader needs first. The
+     * boundary is now the frame's end ({@code AccessibilityBridge#frameEnded}), handed over as a
+     * marker behind every event of that frame.
+     *
+     * <p>What makes this a fact and not a race, in the other direction from
+     * {@link #theFocusIsReannouncedAfterTheTailsStructureEventsAndNotBeforeThem}: the test waits
+     * until the drain thread is <b>parked in its take</b> with an empty queue, which it can only
+     * reach by having passed the old emptiness test, and asserts nothing has been re-announced
+     * there. Then it offers the tail, as a producer slower than its drain does, and ends the frame.
+     */
+    @Test
+    void theFocusIsReannouncedAtTheFramesEndAndNotTheMomentTheQueueRunsDry() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aFocusedTable(true), false);
+            bridge.objectFor(1000);
+            bridge.noteAsked();
+            // A publish past the model's budget, whose tail the frame has not offered yet.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            assertNotNull(awaitTrace(trace, l -> l.equals("collapse: swept 0 elements")),
+                    "the sweep never ran: " + trace);
+            assertTrue(awaitDrainParked(bridge),
+                    "the drain never parked on an empty queue, so this proves nothing: " + trace);
+            synchronized (trace) {
+                assertTrue(trace.stream()
+                                .noneMatch(l -> l.startsWith("raised after the model's INVALIDATED")),
+                        "the focus was re-announced the moment the queue ran dry, ahead of a tail "
+                                + "the frame had not finished offering: " + trace);
+            }
+            bridge.emit(AccessibleEvent.structure(1000, java.util.List.of(child(1001, 0)),
+                    java.util.List.of(), java.util.List.of()));
+            bridge.frameEnded();
+
+            assertNotNull(awaitTrace(trace, l -> l.startsWith(
+                    "raised after the model's INVALIDATED for node 1003 in ")),
+                    "the cursor cell was never re-announced: " + trace);
+            java.util.List<String> order;
+            synchronized (trace) {
+                order = trace.stream()
+                        .filter(l -> l.startsWith("raised STRUCTURE_CHANGED as type")
+                                || l.startsWith("raised after the model's INVALIDATED"))
+                        .map(l -> l.replaceFirst(" -> 0x0 in \\d+ us on .*", "")
+                                .replaceFirst(" in \\d+ us on .*", ""))
+                        .toList();
+            }
+            assertEquals(java.util.List.of(
+                            "raised STRUCTURE_CHANGED as type 0 on node 1001 with the runtime id "
+                                    + "of node 1001",
+                            "raised after the model's INVALIDATED for node 1003"),
+                    order,
+                    "the tail's children first, the focus after, however fast the drain ran");
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * The failure the marker was not taken blind for, and why it does not happen: the frame's end
+     * is offered into the very queue whose collapse raised the debt, and a collapse swallows
+     * everything offered while its marker waits. It does not swallow this one
+     * ({@code UiaEvents#endFrame}) — so a collapse whose tail is nothing at all, on a window whose
+     * scene then goes still, still says where the user is.
+     */
+    @Test
+    void aCollapseWithNoTailAtAllIsStillFlushedByTheFramesEnd() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        // As in aCollapseSweepsElementsWhoseNodesHaveLeftAndInvalidatesTheRoot: a raise takes a few
+        // milliseconds with a reader attached, so the producer runs ahead of the drain into the
+        // bound, and the queue is still collapsed when the frame ends.
+        UiaWindow.trace = line -> {
+            trace.add(line);
+            if (line.startsWith("raised ")) {
+                try {
+                    Thread.sleep(2);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        };
+        try {
+            bridge.publish(aFocusedTable(true), false);
+            bridge.objectFor(1000);
+            bridge.noteAsked();
+            for (int i = 0; i <= UiaEvents.CAPACITY + 8; i++) {
+                bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000,
+                        "A window", "A window " + i));
+            }
+            assertEquals(1, bridge.collapses(), "the fixture: the queue collapsed");
+            bridge.frameEnded();
+            assertNotNull(awaitTrace(trace, l -> l.startsWith(
+                    "raised after this bridge's queue collapsed for node 1003 in ")),
+                    "the debt the collapse raised was never flushed: " + trace);
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * What a collapse's clear costs a marker already waiting, measured rather than argued (the
+     * review of this round, 2026-09-16). {@code UiaEvents#collapse} empties the queue, so a frame
+     * end waiting in it is discarded — "never dropped" is true of a marker being refused for want
+     * of room, and not of the queue as a whole.
+     *
+     * <p>It leaves no debt unflushed, and this is why: a debt is cleared by the raise that pays it
+     * and by nothing else, and the frame in which the collapse happened owes one of its own (its
+     * offers were refused), so it marks its end behind the collapse and the drain flushes there.
+     * The drain is held inside the first sweep for the whole of it, so the loss is certain and not
+     * a race: the first frame's marker is provably still waiting when the second frame's collapse
+     * clears it.
+     */
+    @Test
+    void aCollapseThatClearsAnEarlierFramesEndStillPaysTheDebtAtItsOwn() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        java.util.concurrent.CountDownLatch held = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicBoolean first = new java.util.concurrent.atomic.AtomicBoolean(true);
+        // The drain thread is stopped inside the first sweep and stays there until this test lets
+        // it go, which is what makes the first frame's marker certainly still in the queue.
+        UiaWindow.trace = line -> {
+            trace.add(line);
+            if (line.equals("collapse: swept 0 elements") && first.compareAndSet(true, false)) {
+                try {
+                    held.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        };
+        try {
+            bridge.publish(aFocusedTable(true), false);
+            bridge.objectFor(1000);
+            bridge.noteAsked();
+
+            // Frame 1: the model's own collapse, which owes a re-announcement and marks its end.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            assertNotNull(awaitTrace(trace, l -> l.equals("collapse: swept 0 elements")),
+                    "the drain never reached the sweep, so nothing is held: " + trace);
+            bridge.frameEnded();
+            assertEquals(1, bridge.eventsWaitingForTests(),
+                    "the first frame's end is waiting, and the drain is held before it");
+
+            // Frame 2: more events than the queue holds, so its collapse clears that marker.
+            for (int i = 0; i <= UiaEvents.CAPACITY + 8; i++) {
+                bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000,
+                        "A window", "A window " + i));
+            }
+            assertEquals(1, bridge.collapses(), "the fixture: this queue collapsed");
+            assertEquals(1, bridge.eventsWaitingForTests(),
+                    "the clear took the first frame's end with the events: what is waiting is the "
+                            + "collapse marker alone");
+            bridge.frameEnded();
+            assertEquals(2, bridge.eventsWaitingForTests(),
+                    "and the frame that collapsed marks its own end behind it");
+
+            held.countDown();
+            assertNotNull(awaitTrace(trace, l -> l.startsWith(
+                    "raised after this bridge's queue collapsed for node 1003 in ")),
+                    "the debt outlived the marker that was cleared and was never paid at the "
+                            + "next one: " + trace);
+        } finally {
+            held.countDown();
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * Decision 36's remaining half on this bridge (2026-09-16). A sorted column header carries its
+     * direction in {@code ItemStatus} <b>and</b> {@code HelpText}, both answered from the node's
+     * description, and a sort reaches this bridge as a description change — so raising
+     * {@code HelpText} alone left a client that caches the property the convention exists for
+     * saying the old direction. Both are raised for a header cell; only {@code HelpText} for a data
+     * cell and for a footer cell, neither of which heads a column, and only {@code HelpText} while
+     * BUSY holds the one status string, which is the same choice recorded beside the getter.
+     *
+     * <p><b>Which cell carries which trap</b> (fix round 3b's review, 2026-09-16): the data cell
+     * <em>and</em> the footer cell are each given a description of their own and a direction their
+     * facet has no business carrying, and a description change is driven on each, so the guard that
+     * keeps the status off them is this bridge's and not the model's restraint. The unsorted
+     * column's header is driven too: it is inside the guard, so both properties are raised for it
+     * — and the {@code ItemStatus} they raise carries nothing, because the values go through
+     * {@code changedValue} and that is what the element answers
+     * ({@code UiaPropertiesTest.whatAnItemStatusChangeCarriesIsWhatTheGetterAnswers}, which is
+     * where a value can be asserted; the trace sees only the property and the HRESULT).
+     */
+    @Test
+    void aSortedHeadersDescriptionMovesTheStatusThatCarriesItAndADataCellsDoesNot() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aTableSortedOnItsSecondColumn(false), false);
+            bridge.objectFor(2101);
+            bridge.objectFor(2102);
+            bridge.objectFor(2201);
+            bridge.objectFor(2301);
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2102,
+                    "Sorted ascending", "Sorted descending"));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2201,
+                    "Years since joining", "Years here"));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2301,
+                    "The column's total", "The column's average"));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2101,
+                    "Click to sort by name", "Click to sort by surname"));
+            assertNotNull(awaitTrace(trace,
+                    l -> l.startsWith("raised DESCRIPTION_CHANGED for node 2101")));
+
+            bridge.publish(aTableSortedOnItsSecondColumn(true), false);
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2102,
+                    "Sorted descending", "Sorted ascending"));
+            assertNotNull(awaitTrace(trace, l -> trace.stream()
+                    .filter(x -> x.startsWith("raised DESCRIPTION_CHANGED for node 2102")).count() == 2));
+
+            assertEquals(java.util.List.of(
+                            "property 30013 changed -> 0x0",
+                            "property 30026 changed -> 0x0",
+                            "raised DESCRIPTION_CHANGED for node 2102",
+                            "property 30013 changed -> 0x0",
+                            "raised DESCRIPTION_CHANGED for node 2201",
+                            "property 30013 changed -> 0x0",
+                            "raised DESCRIPTION_CHANGED for node 2301",
+                            "property 30013 changed -> 0x0",
+                            "property 30026 changed -> 0x0",
+                            "raised DESCRIPTION_CHANGED for node 2101",
+                            "property 30013 changed -> 0x0",
+                            "raised DESCRIPTION_CHANGED for node 2102"),
+                    linesOf(trace, l -> l.startsWith("property ")
+                            || l.startsWith("raised DESCRIPTION_CHANGED")).stream()
+                            .map(l -> l.replaceFirst(" in \\d+ us on .*", "")).toList(),
+                    "HelpText and ItemStatus on every cell of the header row, HelpText alone on "
+                            + "the data cell, on the footer cell and while busy holds the one "
+                            + "status string: " + trace);
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * A table of two columns sorted ascending on the second, as ADR 041 §7 says a table publishes
+     * one: a header group whose unsorted column carries a description of its own, a data row, and
+     * a footer — and the data cell and the footer cell are each given a description of their own
+     * <b>and</b> a direction their facet has no business carrying, so that a status kept off them
+     * is this bridge's guard and not the model's restraint. The same fixture as
+     * {@code UiaPropertiesTest}'s, which asserts what each of these cells answers.
+     *
+     * @param busy whether the sorted header is also busy
+     */
+    private static AccessibleTree aTableSortedOnItsSecondColumn(boolean busy) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int table = a.begin(2000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TABLE);
+        a.table(1, 2);
+        a.inherited(true, true, true, false, false);
+        int header = a.begin(2100, table, Locale.ENGLISH, 0, 0, 400, 30);
+        a.role(Accessible.Role.GROUP);
+        a.inherited(true, true, true, false, false);
+        for (int c = 0; c < 2; c++) {
+            a.begin(2101 + c, header, Locale.ENGLISH, c * 200, 0, 200, 30);
+            a.role(Accessible.Role.COLUMN_HEADER);
+            a.name(I18nString.literal(c == 0 ? "Name" : "Age"), Accessible.NameFrom.CONTENT);
+            a.cell(-1, c, c == 1 ? limn.accessibility.CellFacet.Sort.ASCENDING
+                    : limn.accessibility.CellFacet.Sort.NONE);
+            if (c == 1) {
+                a.description(I18nString.literal("Sorted ascending"));
+                if (busy) {
+                    a.state(Accessible.State.BUSY, true);
+                }
+            } else {
+                a.description(I18nString.literal("Click to sort by name"));
+            }
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        int row = a.begin(2200, table, Locale.ENGLISH, 0, 30, 400, 30);
+        a.role(Accessible.Role.ROW);
+        a.inherited(true, true, true, false, false);
+        a.begin(2201, row, Locale.ENGLISH, 200, 30, 200, 30);
+        a.role(Accessible.Role.CELL);
+        a.name(I18nString.literal("42"), Accessible.NameFrom.CONTENT);
+        a.description(I18nString.literal("Years since joining"));
+        a.cell(0, 1, limn.accessibility.CellFacet.Sort.ASCENDING);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        int footer = a.begin(2300, table, Locale.ENGLISH, 0, 60, 400, 30);
+        a.role(Accessible.Role.GROUP);
+        a.inherited(true, true, true, false, false);
+        a.begin(2301, footer, Locale.ENGLISH, 200, 60, 200, 30);
+        a.role(Accessible.Role.CELL);
+        a.name(I18nString.literal("Total 99"), Accessible.NameFrom.CONTENT);
+        a.description(I18nString.literal("The column's total"));
+        a.cell(-2, 1, limn.accessibility.CellFacet.Sort.DESCENDING);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    /**
+     * Waits up to two seconds for the drain thread to be blocked in its take with nothing waiting:
+     * the one moment at which it has certainly passed the place the old emptiness test stood.
+     */
+    private static boolean awaitDrainParked(UiaBridge bridge) {
+        long deadline = System.nanoTime() + 2_000_000_000L;
+        while (System.nanoTime() < deadline) {
+            Thread drain = bridge.drainThreadForTests();
+            if (drain != null && drain.getState() == Thread.State.WAITING
+                    && bridge.eventsWaitingForTests() == 0) {
+                return true;
+            }
+            Thread.onSpinWait();
+        }
+        return false;
+    }
+
+    /**
      * Decision 5: a focused field's cursor resolved into its native popup's tree. The focus change
      * is raised on the popup window's element, minted by the popup's bridge; that element says it
      * has the keyboard and the field does not; and the host root's GetFocus answers the popup's
@@ -1356,6 +1693,61 @@ class UiaBridgeTest {
                             .map(l -> l.replaceFirst(" in \\d+ us on .*", "")).toList(),
                     "three raises for four events: " + trace);
             assertFalse(bridge.owesAnEvent());
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * How far the frame's end bounds that pairing, exactly (the review of this round, 2026-09-16).
+     * A frame end clears the memory of the caret it raised, so a selection move arriving after it
+     * is a move of its own and is raised. <b>Only a frame that could leave a re-announcement owed
+     * is marked</b>, though — a collapse of this queue or the model's own INVALIDATED — so that is
+     * where the pairing is bounded to one frame; across an ordinary frame's end, which hands this
+     * bridge nothing, a caret raised at the end of one frame still swallows a selection move for
+     * the same node at the start of the next, as it did before the marker existed.
+     *
+     * <p>That is the behaviour and not an accident of it: the model emits the two for one field one
+     * after the other, so the pair is what a real frame carries (§2.4's CARET_MOVED row), and
+     * marking every frame would wake the drain thread once per frame on a window being read, for a
+     * marker with nothing to flush. Commit 47ac7b9d's message said the pairing is "within one
+     * frame" without that bound; this test is what the bound is.
+     */
+    @Test
+    void aMarkedFramesEndEndsTheCaretsPairingAndAnUnmarkedOnesDoesNot() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.TEXT_FIELD, false), false);
+            bridge.objectFor(1000);
+            bridge.objectFor(1001);
+            bridge.noteAsked();
+
+            // A marked frame: the model's own collapse is one of the two things that mark one.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.CARET_MOVED, 1001));
+            bridge.frameEnded();
+            // The next frame's selection move is its own: the marker ended the pair.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.TEXT_SELECTION_CHANGED, 1001));
+
+            // An ordinary frame hands this bridge no marker, so the pair still spans its end.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.CARET_MOVED, 1001));
+            bridge.frameEnded();
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.TEXT_SELECTION_CHANGED, 1001));
+
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000, "", "end"));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised NAME_CHANGED for node 1000")));
+            assertEquals(java.util.List.of(
+                            "raised CARET_MOVED for node 1001",
+                            "raised TEXT_SELECTION_CHANGED for node 1001",
+                            "raised CARET_MOVED for node 1001",
+                            "TEXT_SELECTION_CHANGED for node 1001 raised with its CARET_MOVED"),
+                    linesOf(trace, l -> l.contains("node 1001")).stream()
+                            .map(l -> l.replaceFirst(" in \\d+ us on .*", "")).toList(),
+                    "the marked frame's end broke the pair and the unmarked one did not: " + trace);
         } finally {
             UiaWindow.trace = before;
             bridge.detach();

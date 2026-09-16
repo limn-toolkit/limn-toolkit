@@ -188,12 +188,47 @@ final class UiaProperties {
                 if (node.has(Accessible.State.BUSY)) {
                     return StateNames.of(Accessible.State.BUSY, node.locale());
                 }
-                return isSortedHeader(node) && !node.description().isEmpty()
-                        ? node.description() : null;
+                return statusWhenNotBusy(node);
 
             default:
                 return null;
         }
+    }
+
+    /**
+     * What {@code ItemStatus} carries for a node that is <b>not</b> busy: a sorted column header's
+     * direction, as the phrase the model published, and nothing at all for every other node.
+     *
+     * <p>Package-private because the events half needs the same answer: a {@code BUSY} state that
+     * moves is raised as this property, and the value for the side of that change where busy does
+     * not hold has to be what {@link #valueOf} answers there, or a client is told the status is one
+     * thing and reads another ({@code UiaBridge#changedValue}). This is the not-busy answer and not
+     * {@code valueOf} itself because the node it is asked about is the one in the published tree,
+     * which carries {@code BUSY} on the busy side of the change: asking {@code valueOf} would
+     * answer the busy word for the old value of a busy that has just been set.
+     *
+     * @param node the node asked, or {@code null} when it has left the tree
+     * @return the status, or {@code null} for a node that has none
+     */
+    static String statusWhenNotBusy(AccessibleNode node) {
+        return statusOf(node, node == null ? "" : node.description());
+    }
+
+    /**
+     * The same, for a description this node had or is about to have rather than the one it carries
+     * now: the description itself where the node is a sorted column header, and nothing anywhere
+     * else. A {@code DESCRIPTION_CHANGED} on a header cell raises this property with the event's
+     * two descriptions, and they pass through here so that what is announced and what
+     * {@link #valueOf} answers cannot disagree.
+     *
+     * @param node        the node the description belongs to, or {@code null} when it has left the
+     *                    tree
+     * @param description the description at that moment
+     * @return the status that description makes, or {@code null} where it makes none
+     */
+    static String statusOf(AccessibleNode node, String description) {
+        return node != null && isSortedHeader(node) && description != null && !description.isEmpty()
+                ? description : null;
     }
 
     /**

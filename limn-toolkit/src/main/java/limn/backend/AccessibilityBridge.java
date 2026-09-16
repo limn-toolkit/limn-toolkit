@@ -110,8 +110,14 @@ public interface AccessibilityBridge {
      * frame that reentrant publish asked for need not publish anything.
      *
      * <p>Never called from inside a reentrant publish, nor from anywhere the platform is on the
-     * stack: it runs at the end of the frame step, where the ordinary publish runs. A bridge that
-     * raises on a thread of its own has nothing to do here, which is the default.
+     * stack: it runs at the end of the frame step, where the ordinary publish runs.
+     *
+     * <p><b>It is also the publish boundary a bridge that raises elsewhere reads</b> (amended
+     * 2026-09-16): a bridge draining on a thread of its own cannot see where one frame's events
+     * end and the next frame's begin, and the order it owes an assistive technology after a
+     * collapse — the shape of the tree first, then where the user is — is exactly that boundary.
+     * Such a bridge hands the marker to its own thread rather than acting here. The no-op default
+     * is for a bridge with neither obligation.
      */
     default void frameEnded() {
     }

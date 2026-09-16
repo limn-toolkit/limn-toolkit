@@ -225,13 +225,16 @@ class UiaPropertiesTest {
      * a reading. And the header row is what makes a header: the data cell and the footer cell here
      * are each given a direction their facet has no business carrying <b>and</b> a description of
      * their own, so the header-row guard — and neither the model's restraint nor an empty
-     * description — is what keeps a status off them.
+     * description — is what keeps a status off them. The unsorted column's header carries a
+     * description of its own for the other half of the same point: on a header cell it is the
+     * direction, and not the row, that decides whether the description is a status.
      */
     @Test
     void aSortedHeaderSaysItsDirectionInItsStatusAndInItsHelpTextAndBusyWinsOverBoth() {
         AccessibleTree tree = aTableSortedOnItsSecondColumn(false);
         assertNull(UiaProperties.valueOf(tree.find(2101), UiaIds.ITEM_STATUS),
-                "the unsorted column's header heads nothing sorted");
+                "the unsorted column's header heads nothing sorted, and the description it does "
+                        + "carry is its own and not a status");
         assertEquals("Sorted ascending", UiaProperties.valueOf(tree.find(2102), UiaIds.ITEM_STATUS),
                 "the model's phrase, resolved at publish where a locale scope was open");
         assertEquals("Sorted ascending", UiaProperties.valueOf(tree.find(2102), UiaIds.HELP_TEXT),
@@ -277,6 +280,11 @@ class UiaPropertiesTest {
             if (c == 1) {
                 a.description(I18nString.literal("Sorted ascending"));
                 if (busy) a.state(Accessible.State.BUSY, true);
+            } else {
+                // A header cell with a description of its own and no sort: the shape no widget
+                // publishes today (Table writes nothing but the sort phrase into a header's
+                // description) and the one the header-row guard has to answer nothing for.
+                a.description(I18nString.literal("Click to sort by name"));
             }
             a.inherited(true, true, true, false, false);
             a.end();
@@ -324,10 +332,73 @@ class UiaPropertiesTest {
         int property = UiaBridge.changedProperty(stopped, node);
         assertEquals(UiaIds.ITEM_STATUS, property);
         assertEquals("busy", UiaBridge.changedValue(property, Boolean.TRUE, node), "before");
-        assertEquals("", UiaBridge.changedValue(property, Boolean.FALSE, node),
-                "after: an empty status, which is the absence of one as a string");
+        assertNull(UiaBridge.changedValue(property, Boolean.FALSE, node),
+                "after: no status at all, which is what the getter answers for this item and is "
+                        + "written as the same VT_EMPTY");
+        assertNull(UiaProperties.valueOf(node, UiaIds.ITEM_STATUS), "the getter, for the same node");
         assertEquals(Boolean.TRUE, UiaBridge.changedValue(UiaIds.IS_ENABLED, Boolean.TRUE, node),
                 "and a property that is a boolean keeps the model's boolean");
+    }
+
+    /**
+     * The other half of decision 36's event mapping (fix round 3b, 2026-09-16): <b>what an
+     * {@code ItemStatus} change carries is what {@code GetPropertyValue} answers</b>, on every one
+     * of the three ways this property can move. A client caches the value an event carries and
+     * re-reads the property when it does not, so an event and a getter that disagree leave it
+     * holding a status the element denies — which is the whole reason the sort raises this property
+     * at all.
+     *
+     * <p>Until this round the {@code BUSY} clear answered the empty string for every node. On a
+     * header that is both busy and sorted that was wrong twice over: the client was told the status
+     * was "" the moment busy cleared, while the element answered the sort phrase — the stale status
+     * the sort mapping exists to prevent, raised by the mapping itself. And the description arms
+     * carried the event's raw strings, so a header cell whose description is its own would have
+     * announced it as a status the element denies.
+     */
+    @Test
+    void whatAnItemStatusChangeCarriesIsWhatTheGetterAnswers() {
+        AccessibleTree idle = aTableSortedOnItsSecondColumn(false);
+        AccessibleTree working = aTableSortedOnItsSecondColumn(true);
+        AccessibleNode sorted = idle.find(2102);
+        AccessibleNode sortedAndBusy = working.find(2102);
+        AccessibleNode plainHeader = idle.find(2101);
+        AccessibleNode dataCell = idle.find(2201);
+        AccessibleNode footerCell = idle.find(2301);
+
+        // Busy clears on a sorted header: the node in the published tree is no longer busy, and
+        // the status it is left with is the direction -- which is what the getter answers there.
+        assertEquals("Sorted ascending",
+                UiaBridge.changedValue(UiaIds.ITEM_STATUS, Boolean.FALSE, sorted),
+                "busy cleared on a sorted header leaves the phrase, not an empty status");
+        assertEquals(UiaProperties.valueOf(sorted, UiaIds.ITEM_STATUS),
+                UiaBridge.changedValue(UiaIds.ITEM_STATUS, Boolean.FALSE, sorted),
+                "the event and the getter, side by side");
+
+        // Busy sets on the same header: the node carries BUSY now, so the getter answers the busy
+        // word -- but the old value of that change is what the property carried before it.
+        assertEquals("busy", UiaBridge.changedValue(UiaIds.ITEM_STATUS, Boolean.TRUE, sortedAndBusy),
+                "the new value, in the node's own language");
+        assertEquals("Sorted ascending",
+                UiaBridge.changedValue(UiaIds.ITEM_STATUS, Boolean.FALSE, sortedAndBusy),
+                "the old value is the not-busy answer and not the busy word a second time");
+
+        // A description that moves is the status only where the getter reads it as one.
+        assertEquals("Sorted descending",
+                UiaBridge.changedValue(UiaIds.ITEM_STATUS, "Sorted descending", sorted),
+                "a sorted header's description is its status, at either end of the change");
+        assertNull(UiaBridge.changedValue(UiaIds.ITEM_STATUS, "Click to sort by name", plainHeader),
+                "a header cell whose column is not sorted answers no status, so its description "
+                        + "change announces none: the gap between the raise's guard (the header "
+                        + "row) and the getter's (a direction too)");
+        assertNull(UiaProperties.valueOf(plainHeader, UiaIds.ITEM_STATUS), "the getter agrees");
+        assertNull(UiaBridge.changedValue(UiaIds.ITEM_STATUS, "", sorted),
+                "and the description a sort's end leaves is no status either");
+
+        // The cells the raise never reaches, asked anyway: nothing here depends on that guard.
+        assertNull(UiaBridge.changedValue(UiaIds.ITEM_STATUS, "Years here", dataCell));
+        assertNull(UiaBridge.changedValue(UiaIds.ITEM_STATUS, "The column's total", footerCell));
+        assertNull(UiaBridge.changedValue(UiaIds.ITEM_STATUS, Boolean.FALSE, null),
+                "and a node that has left the tree carries no status at all");
     }
 
     @Test

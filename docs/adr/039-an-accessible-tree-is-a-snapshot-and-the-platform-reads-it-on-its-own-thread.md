@@ -2565,6 +2565,46 @@ it; phase 5. Pinned by
 `UiaBridge.changedProperty` is untouched: a sort that moves arrives as a publish and not as a state
 change, so nothing raises an `ItemStatus` property change for it — worth one look in the same run.
 
+*(Amended 2026-09-16, fix round 3b: that last sentence was half right, and the half that was wrong is
+fixed.* A sort that moves is not a state change, and it is **not silent**: it moves the header cell's
+description, and the differ emits a `DESCRIPTION_CHANGED` for exactly that. What this bridge did with
+it was raise `HelpText` alone, so a client that caches `ItemStatus` — the property File Explorer's
+convention exists for — went on reading the direction the column used to be sorted in. A
+`DESCRIPTION_CHANGED` on a **cell of the header row** now raises `ItemStatus` as well as `HelpText`,
+with the same two strings, through a second mapping named `UiaBridge.alsoChangedProperty`; it is the
+only change today that moves two properties outside `raiseValue`. The guard is the header row and not
+the direction, because the change that *ends* a sort leaves the facet at `NONE` and the description
+empty, which is exactly when a cached status is most wrong, and an empty string is already what this
+property carries for "nothing to say" (the BUSY mapping writes it when busy clears). And nothing is
+raised while `BUSY` holds, which is the same choice as the getter's: busy owns the one string while
+it lasts. Pinned by
+`UiaBridgeTest.aSortedHeadersDescriptionMovesTheStatusThatCarriesItAndADataCellsDoesNot`, red three
+ways: with the `ItemStatus` arm removed, with the header-row guard dropped (a data cell's own
+description raised as a status) and with the busy guard dropped. Phase 5 still hears the composition
+choice above; it no longer has to ask whether the direction is announced at all.)
+
+*(Amended again 2026-09-16, fix round 3b's review: the sentence above about the empty string was
+wrong, and the event half is closed with it.* This property has no "nothing to say" string: a node
+with no status answers `null`, written as `VT_EMPTY`, which is what the getter's own comment says
+("an item that is not busy has no status at all rather than a status saying it is idle"). The BUSY
+mapping wrote `""` when busy cleared, and on a header that is both busy and sorted that was the
+stale `ItemStatus` this whole amendment exists to prevent, raised by the mapping itself: the client
+was told the status was `""` the moment busy cleared, while `GetPropertyValue` answered
+"Sorted ascending". **The rule now is that what an `ItemStatus` change carries is what the getter
+answers**, on all three of its arms — the busy word while busy holds; for a busy that clears, the
+not-busy answer for that node (the sort phrase on a sorted header, nothing anywhere else); and for a
+description, the description only where the getter reads it as a status. It is the *not-busy* answer
+and not `GetPropertyValue` itself because the node in the published tree carries `BUSY` on the busy
+side of the change, so asking the getter for the old value of a busy just set would answer the busy
+word twice. The same rule closes the other gap in the pair of guards: the raise's guard is the
+header row while the getter also asks for a direction, so a header cell whose description is its own
+— no widget writes one today; `Table` writes only the sort phrase — raises a change from nothing to
+nothing instead of announcing a status the element denies. The wider guard stays, because the change
+that *ends* a sort leaves the facet at `NONE` and is exactly when a cached direction is most wrong.
+Pinned by `UiaPropertiesTest.whatAnItemStatusChangeCarriesIsWhatTheGetterAnswers` (red with the
+empty string put back, and red with the description arm removed) and by the bridge test above, which
+now drives a description change on the footer cell and on the unsorted column's header too.)
+
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `UiaRaiseNotificationEvent` and
 `UiaRaiseStructureChangedEvent` are bound and raised.** The event-flush row lists both; neither was
 bound, an `ANNOUNCEMENT` (node `0`) was mapped to the notification event id and then dropped at the
@@ -3346,6 +3386,44 @@ its whole frame there). Its cost is the reason it was not taken blind: a marker 
 same bounded queue can be swallowed by that queue's own collapse, and a bridge whose scene then runs
 no further frame would owe the re-announcement with nothing left to flush it — a dropped debt traded
 for a race. Whichever is worse is a question for a reader and not for a test.
+
+**Amended 2026-09-16 (fix round 3b, Windows item 1): that race is closed, and neither half of the
+trade was paid.** The second flush point is now the publish boundary and not an empty queue: the
+Windows bridge overrides `AccessibilityBridge#frameEnded` and hands the boundary over as
+`UiaEvents.FRAME_END`, a marker in the same queue the frame's events went into, so it arrives behind
+every one of them however fast the drain thread runs. The debt a collapse leaves is flushed when
+that marker is taken, and — unchanged — before the first tail event that is not a
+`STRUCTURE_CHANGED`, which is still where a tail with a focus, a cursor or a selection in it pays.
+The cost the paragraph above feared is answered by the marker itself rather than by accepting it:
+`UiaEvents#endFrame` ignores the collapsed flag (a collapse covers the events it swallowed, and it
+*raises* the debt this marker flushes, so it may not swallow the marker), and when the queue has no
+room it collapses the queue — the honest answer for a queue already over capacity — and puts the
+marker in behind the collapse's own. A collapse can only happen while a frame is handing events
+over, so that frame's end always follows it; a window whose scene then goes still has already been
+told. Only a frame that could leave a debt is marked, so an ordinary frame wakes the drain thread
+for nothing. Linux reaches the same boundary without a queue to cross (§2.3's `frameEnded` row);
+macOS posts its whole frame there. All three bridges now flush at the same boundary in the same
+order. Pinned by `UiaBridgeTest.theFocusIsReannouncedAtTheFramesEndAndNotTheMomentTheQueueRunsDry`
+(which waits for the drain to be parked in its take — the one place the old emptiness test had
+certainly already fired — and asserts nothing has been said yet),
+`aCollapseWithNoTailAtAllIsStillFlushedByTheFramesEnd`, and `UiaEventsTest`'s three marker cases.
+**Phase 5 no longer listens for the early focus**; what it still hears is the order itself.
+
+*(Amended 2026-09-16, fix round 3b's review: "the marker is never dropped" says more than the code
+does, and the true statement is the narrower one.)* A collapse **clears the queue**, so a frame end
+already waiting in it is discarded; what `UiaEvents#endFrame` guarantees is that no frame ends
+without a marker going in — refused for want of room, it collapses the queue and goes in behind the
+collapse's own. That is enough, because a debt is cleared by the raise that pays it and by nothing
+else, and the frame in which a collapse happened owes one of its own (`emit` sets the flag on the
+refused offer), so it marks its end behind that collapse and the drain flushes every debt still
+owed when it gets there. The count of markers a drain sees can fall; the number of debts left with
+none cannot rise above zero. Measured, not argued, by
+`UiaBridgeTest.aCollapseThatClearsAnEarlierFramesEndStillPaysTheDebtAtItsOwn`, which holds the drain
+inside the first sweep so the loss is certain, shows one marker waiting before the second frame's
+collapse and one after it, and then shows the re-announcement raised at the second frame's end (red
+with `endFrame` returning early while collapsed: "and the frame that collapsed marks its own end
+behind it ==> expected: <2> but was: <1>"); `UiaEventsTest.aFullQueueCollapsesRatherThanDropTheFramesEnd`
+now asserts the same arithmetic on the queue alone.
 
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-6's remainder): `CARET_MOVED` and
 `BOUNDS_CHANGED` as built.** `CARET_MOVED` is `Text_TextSelectionChanged`, as its row says, handled
@@ -4606,6 +4684,13 @@ listening, with a clean tree, after a re-stamp, after a publish:
 
 8. `bridge.frameEnded()`. One virtual call; `NONE` and every bridge that raises on a thread of its
    own inherit the no-op. Never from `republishNow()`.
+
+*(Amended 2026-09-16, fix round 3b: "every bridge that raises on a thread of its own inherits the
+no-op" is no longer true of any of them. A bridge that raises elsewhere still posts nothing here,
+but the frame's end is also the **publish boundary** the re-announcement of §2.4 is flushed at, and
+that is a fact a thread of the bridge's own cannot see: Linux reads the marker on this thread
+(§2.3), and Windows hands it into its own queue behind the frame's events (§2.4's 2026-09-16
+amendment). What the default still buys is a bridge with neither obligation.)*
 
 On macOS `frameEnded` first pays what a reentrant publish deferred (the re-push of the root's
 children and the boxes), then drains the queue: posts, the collapse's sweep, and — because the
