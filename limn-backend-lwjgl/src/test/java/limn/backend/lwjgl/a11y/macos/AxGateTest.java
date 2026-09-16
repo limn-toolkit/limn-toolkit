@@ -180,6 +180,13 @@ class AxGateTest {
             assertFalse(gate.allows(1108, range), range + " on a footer cell");
             assertFalse(gate.allows(1104, range), range + " on a row");
         }
+        assertTrue(gate.allows(1103, "accessibilitySortDirection"),
+                "a header cell answers AXSortDirection sorted or not, as a native sort button does");
+        for (int other : new int[] {1101, 1104, 1105, 1106, 1108, 1001}) {
+            assertFalse(gate.allows(other, "accessibilitySortDirection"),
+                    other + ": the native table, its columns, its rows and its cells all answered "
+                            + "AXError(-25205) for AXSortDirection");
+        }
         for (String selector : new String[] {"accessibilityHeader", "accessibilityColumnHeaderUIElements",
                 "accessibilityColumnIndexRange"}) {
             org.junit.jupiter.api.Assumptions.assumeTrue(limn.testing.AllocationProbe.isSupported());

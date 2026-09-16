@@ -68,6 +68,12 @@ final class AxGate {
             // A cell of a data row: the native table's header buttons answer neither range (read the
             // same day), and a footer cell is in no data row.
             case "accessibilityRowIndexRange", "accessibilityColumnIndexRange" -> AxGrid.isDataCell(node);
+            // A sorted column's direction (decision 36), on the header cells and nowhere else: the
+            // native table's three sort buttons each listed AXSortDirection, and the table, its
+            // columns and its rows all answered AXError(-25205) for it (read on the guest
+            // 2026-09-15, table-probe.swift). A header of an unsorted column still answers, with
+            // Unknown, as the probe's two unsorted headers did.
+            case "accessibilitySortDirection" -> AxGrid.isHeaderCell(node);
             // An outline row's disclosure, and nobody else's: a native outline row lists all four,
             // leaves included, and no AXExpanded (read on the guest 2026-09-15). A level of zero
             // publishes nothing (semantics 6), which here is the getter refused.
@@ -114,5 +120,6 @@ final class AxGate {
             "accessibilitySelectedCells", "accessibilityColumns", "accessibilityVisibleColumns",
             "accessibilitySelectedColumns", "accessibilityColumnHeaderUIElements", "accessibilityRowCount",
             "accessibilityColumnCount", "accessibilityRowIndexRange", "accessibilityColumnIndexRange",
-            "accessibilityCellForColumn:row:", "accessibilityLinkedUIElements", "accessibilityPerformAction:");
+            "accessibilityCellForColumn:row:", "accessibilityLinkedUIElements", "accessibilityPerformAction:",
+            "accessibilitySortDirection");
 }

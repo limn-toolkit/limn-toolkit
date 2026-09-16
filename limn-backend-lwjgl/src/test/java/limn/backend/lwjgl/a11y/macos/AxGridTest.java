@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.CellFacet;
 import limn.backend.lwjgl.a11y.ProbeWindow;
 import limn.components.table.Column;
 import limn.components.table.Table;
@@ -195,6 +196,54 @@ class AxGridTest {
         assertArrayEquals(f.elements(1003), f.grid().columnHeaderElements(f.node(1041)),
                 "the footer cell in column 0 is told column 0's header");
         assertNull(f.grid().columnHeaderElements(f.node(1020)), "a row is not a cell");
+    }
+
+    /**
+     * A sorted column's direction (decision 36), as the {@code NSAccessibilitySortDirection} number
+     * AppKit reads: 0 unknown, 1 ascending, 2 descending (the committed dump, lines 138-140). A
+     * header cell of an unsorted column answers 0 rather than refusing, which is what a native sort
+     * button does — every header of the probe's table listed {@code AXSortDirection} and the two
+     * unsorted ones answered {@code AXUnknownSortDirection} (readings/macos-table-probe.txt lines
+     * 275-291). The data cell and the footer cell here are given a direction their facet has no
+     * business carrying — today's {@code Table} sets one on the header alone — so that the gate and
+     * the getter, and not the model's restraint, are what keep a direction off them.
+     */
+    @Test
+    void aSortedColumnsHeaderAnswersItsDirectionAndAnUnsortedOneAnswersUnknown() {
+        Shape s = new Shape();
+        Accessibility a = s.a;
+        int table = s.open(1001, 0, Accessible.Role.TABLE, true);
+        a.table(1, 3);
+        int header = s.open(1002, table, Accessible.Role.GROUP, true);
+        CellFacet.Sort[] directions = {CellFacet.Sort.NONE, CellFacet.Sort.ASCENDING,
+                CellFacet.Sort.DESCENDING};
+        for (int c = 0; c < 3; c++) {
+            s.open(1003 + c, header, Accessible.Role.COLUMN_HEADER, true);
+            a.cell(-1, c, directions[c]);
+            a.end();
+        }
+        a.end();
+        int row = s.open(1010, table, Accessible.Role.ROW, true);
+        s.open(1011, row, Accessible.Role.CELL, true);
+        a.cell(0, 0, CellFacet.Sort.ASCENDING);
+        a.end();
+        a.end();
+        int footer = s.open(1020, table, Accessible.Role.GROUP, true);
+        s.open(1021, footer, Accessible.Role.CELL, true);
+        a.cell(-2, 0, CellFacet.Sort.DESCENDING);
+        a.end();
+        a.end();
+        a.end();
+        Fixture f = over(s.publish());
+
+        assertEquals(0, f.grid().sortDirection(f.node(1003)), "an unsorted header: Unknown, not a refusal");
+        assertEquals(1, f.grid().sortDirection(f.node(1004)), "NSAccessibilitySortDirectionAscending");
+        assertEquals(2, f.grid().sortDirection(f.node(1005)), "NSAccessibilitySortDirectionDescending");
+        assertEquals(0, f.grid().sortDirection(f.node(1011)),
+                "a data cell is no header, whatever its facet holds");
+        assertEquals(0, f.grid().sortDirection(f.node(1021)),
+                "a footer cell (row -2) is no header, whatever its facet holds");
+        assertEquals(0, f.grid().sortDirection(f.node(1001)), "a table is no header cell");
     }
 
     /**

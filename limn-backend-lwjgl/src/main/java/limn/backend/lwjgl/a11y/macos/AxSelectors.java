@@ -120,6 +120,10 @@ final class AxSelectors {
                 "accessibilityIndex")) {
             kinds.put(selector, Kind.INTEGER);
         }
+        // A sorted column's direction on its header cell (decision 36): -accessibilitySortDirection,
+        // q16@0:8, @protocol NSAccessibility required and answered by NSAccessibilityElement (the
+        // committed dump, lines 207, 303 and 399).
+        kinds.put("accessibilitySortDirection", Kind.INTEGER);
         kinds.put("accessibilityRowIndexRange", Kind.RANGE);
         kinds.put("accessibilityColumnIndexRange", Kind.RANGE);
         kinds.put("accessibilityCellForColumn:row:", Kind.ID_OF_TWO_INTEGERS);

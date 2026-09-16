@@ -212,6 +212,9 @@ let installedByTheBridge: [(String, String)] = [
     // A table's columns (M4): the two column lists on the table, and what a column element answers on
     // the class it is vended as.
     ("accessibilityVisibleColumns", "element"), ("accessibilitySelectedColumns", "element"),
+    // A sorted column's direction on its header cell (decision 36), added by the phase-3 fix
+    // round's integration once the model's CellFacet carried one.
+    ("accessibilitySortDirection", "element"),
     ("accessibilityRole", "column class"), ("accessibilityIndex", "column class"),
     ("accessibilityRows", "column class"), ("accessibilityVisibleRows", "column class"),
     ("accessibilityHeader", "column class"), ("accessibilityParent", "column class"),

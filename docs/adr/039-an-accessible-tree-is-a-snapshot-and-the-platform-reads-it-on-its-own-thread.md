@@ -2713,7 +2713,7 @@ the committed AppKit dump by `AxConstantsTest`, and answered only where `isAcces
 | `accessibilityNumberOfCharacters`, `accessibilitySelectedText`, `accessibilitySelectedTextRange`, `accessibilityStringForRange:`, `accessibilityRangeForLine:`, `accessibilityInsertionPointLineNumber` | **not installed** (the row said "`TextFacet`"): a text is read through `accessibilityValue` alone; owed |
 | `isAccessibilityModal` (a dialog's `AXModal`, the elided-root paragraph below) | **not installed**; owed |
 | `NSAccessibilityPostNotification` | at the end of the frame that emitted it (§1.10's amendment), not "the event flush"; `…WithUserInfo` for an announcement, on the window |
-| sort direction | not served: the model carries it only as the sorted header's localized description; the reading of `AXSortDirection` is in ADR 041 §7's note of this date |
+| sort direction | `accessibilitySortDirection` on a header cell and nowhere else, `NONE`/`ASCENDING`/`DESCENDING` → 0/1/2 (amended 2026-09-15, the fix round's integration; the row's "not served" held only while the model had no carrier) |
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a

@@ -464,6 +464,7 @@ final class AxElementClass {
         addLong("accessibilityRowCount", grid::rowCount);
         addLong("accessibilityColumnCount", grid::columnCount);
         addLong("accessibilityIndex", grid::index);
+        addLong("accessibilitySortDirection", grid::sortDirection);
         addRange("accessibilityRowIndexRange", grid::rowIndexRange);
         addRange("accessibilityColumnIndexRange", grid::columnIndexRange);
         CellAt cellAt = new CellAt() {

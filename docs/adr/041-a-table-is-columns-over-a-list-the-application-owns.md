@@ -655,6 +655,30 @@ whose cells now say which column they summarise. Pinned by `AxGridTest`'s
 `aTablesColumnHeadersAreTheUnionOverEveryGroupThatHoldsOne` and the restated
 `aDataCellsColumnHeaderIsTheHeaderGroupsChildAtItsColumnAndOtherRowsHaveNone`.
 
+**Amended 2026-09-15 (the fix round's integration): `AXSortDirection` is served, and the paragraph
+above's "the bridge maps nothing yet" is closed.** The model's carrier landed in the same round
+(`CellFacet.Sort`, the amendment of this date above), but on the model branch while the three bridge
+lanes were running, so each lane logged its own mapping as owed rather than compiling against a type
+its branch did not have; the mappings are the integration's, and each was written out whole in its
+lane's log against a reading that lane had already taken. On macOS: `accessibilitySortDirection`
+(`q16@0:8`, `@protocol NSAccessibility` required, answered by `NSAccessibilityElement` — the
+committed dump, lines 207, 303 and 399) answers `NONE` → 0, `ASCENDING` → 1, `DESCENDING` → 2, the
+`NSAccessibilitySortDirection` numbers the dump reads off the SDK (lines 138-140) and records in the
+same breath as exported by no symbol of this AppKit, so they are literals under ADR 039 §12.3's
+narrow exception. `AxGate` offers the attribute on a **header cell** and on nothing else, which is
+the probe's own shape rather than a rule invented here: each of the native table's three sort buttons
+listed `AXSortDirection` in its `AXAttributeNames`, and the table, its columns and its rows each
+answered `AXError(-25205)` for it (readings/macos-table-probe.txt lines 221-291). So a header of an
+unsorted column answers `AXUnknownSortDirection` rather than refusing, as two of the probe's three
+headers did, and `AxGate.NOT_ON_A_COLUMN` gains the selector so a column element cannot answer
+`NSAccessibilityElement`'s stored 0 where the native column answers an error. The dump script's
+`installedByTheBridge` gains the selector; the committed dump is **not** regenerated, because the
+encoding was already in its table. Pinned by
+`AxGridTest.aSortedColumnsHeaderAnswersItsDirectionAndAnUnsortedOneAnswersUnknown` and
+`AxGateTest.aHeaderACellLookupAndARangeAreOfferedOnlyWhereTheyHaveAnAnswer`. What a live VoiceOver
+speaks for it is phase 5's, and `AxNotifications` still has no row saying "the sort changed" — the
+model announces it as a change on the header — which is worth one look in the same run.
+
 ### 7.1 What the live clients found
 
 Two defects, both invisible to the headless tests because both are about what the platform's

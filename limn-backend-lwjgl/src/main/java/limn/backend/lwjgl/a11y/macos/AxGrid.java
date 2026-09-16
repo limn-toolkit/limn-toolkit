@@ -625,6 +625,42 @@ final class AxGrid {
 
     /**
      * @param node the node asked
+     * @return whether it is a cell of the header row, which is what answers {@code AXSortDirection}:
+     *         a native table's sort buttons list the attribute and its columns, its rows and the
+     *         table itself answer {@code AXError(-25205)} for it (read on the macOS 26.6.2 guest,
+     *         2026-09-15, {@code table-probe.swift}; readings/macos-table-probe.txt lines 221-276)
+     */
+    static boolean isHeaderCell(AccessibleNode node) {
+        return node.cell() != null && node.cell().row() == HEADER_ROW;
+    }
+
+    /**
+     * {@code accessibilitySortDirection} (decision 36): which way the rows of the column this header
+     * cell heads are running, as the {@code NSAccessibilitySortDirection} number AppKit reads.
+     *
+     * <p>A header cell that heads no sorted column answers {@code NSAccessibilitySortDirectionUnknown}
+     * rather than refusing, which is what a native sort button does: every header of the probe's
+     * table listed {@code AXSortDirection} in its {@code AXAttributeNames} and the two unsorted ones
+     * answered {@code AXUnknownSortDirection} while the sorted one answered
+     * {@code AXAscendingSortDirection} (readings/macos-table-probe.txt lines 275-291). The three
+     * numbers are literals under ADR 039 §12.3's narrow exception: the committed dump reads them
+     * off the SDK (0, 1, 2; lines 138-140) and records in the same breath that this AppKit exports
+     * no symbol for any of the three, so there is nothing for {@code dlsym} to find.
+     *
+     * @param node the node asked, gated by {@link AxGate} to a header cell
+     * @return 0 unsorted, 1 ascending, 2 descending
+     */
+    long sortDirection(AccessibleNode node) {
+        if (!isHeaderCell(node)) return 0;
+        return switch (node.cell().sort()) {
+            case ASCENDING -> 1;
+            case DESCENDING -> 2;
+            case NONE -> 0;
+        };
+    }
+
+    /**
+     * @param node the node asked
      * @return {@code accessibilityRowIndexRange}: a range of one at a data cell's row, or
      *         {@link #NOT_FOUND}
      */
