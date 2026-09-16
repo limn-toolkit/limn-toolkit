@@ -130,6 +130,26 @@ final class UiaProvider {
         }
 
         /**
+         * The <em>simple</em> element for a node another window's tree holds, which is what an
+         * element-valued property whose target is not in this window answers with (CRIT-2;
+         * ADR 039 §1.11): the opener of a native popup carries {@code CONTROLLER_FOR} naming the
+         * popup's root, which the platform put in a window of its own, and node identifiers have
+         * been process-wide since §1.3's 2026-09-14 amendment, so such a target is a real node and
+         * not a dangling number.
+         *
+         * <p>The simple interface and not the fragment one, for the reason
+         * {@link #simpleElementFor} gives: {@code LabeledBy}, {@code DescribedBy} and
+         * {@code ControllerFor} all declare {@code IRawElementProviderSimple**}.
+         *
+         * @param nodeId a node this tree does not hold
+         * @return its simple pointer, referenced for the caller, or {@code 0} when no window this
+         *         context knows holds it
+         */
+        default long simpleElementInAnotherWindowFor(long nodeId) {
+            return 0;
+        }
+
+        /**
          * The node of <em>this</em> tree that another window's effective focus names: the day of a
          * native popup whose opener's cursor resolved into it (decision 5). What this window's own
          * {@code GetFocus} answers when nothing of its own tree is focused, so that it agrees with
@@ -359,6 +379,16 @@ final class UiaProvider {
      * is the walk's free verb; an item publishes it where moving the cursor does not select
      * (decision 11). Until 2026-09-15 it was posted for any node, the root and a disabled button
      * included.
+     *
+     * <p><b>0x80040200 here is a choice and not a reading.</b> The two refusal numbers themselves
+     * were read on the guest 2026-09-13 (readings/windows-dump-uia-hresults.txt), but which of them
+     * {@code SetFocus} answers on a node that is not enabled was read 2026-09-15 and came back
+     * split: the Win32 controls' client-side {@code ProxySimple} throws
+     * {@code ElementNotEnabledException} for a disabled window and {@code InvalidOperationException}
+     * for an element that cannot take the keyboard, while WPF's {@code ElementProxy.SetFocus}
+     * checks no enabled bit at all (readings/windows-dump-uia-focus-and-scroll-item.txt). This
+     * bridge answers as it answers every other verb; {@link UiaPatternProviders#refusal} carries
+     * the reasoning and names it as Windows open question 1.
      */
     private static int setFocus(long nodeId, Context context) {
         AccessibleNode node = context.tree().find(nodeId);
@@ -474,19 +504,22 @@ final class UiaProvider {
         // declares (see Context.simpleElementFor). A node without the relation stays VT_EMPTY,
         // which is the platform's default for all three.
         //
-        // A target this window's tree does not hold answers no element (simpleElementFor says 0)
-        // and is left out rather than handed over: since node identifiers became process-wide
-        // (ADR 039 §1.3, 2026-09-14) the opener of a native popup carries CONTROLLER_FOR naming
-        // the popup's root in the OTHER window's tree, and a SAFEARRAY(VT_UNKNOWN) with a NULL
-        // entry is what UI Automation would otherwise have been given for it. Mapping such a
-        // target to the other HWND's provider (AccessibleTree.holds says which tree) is CRIT-2
-        // phase 3, the Windows lane's; until then the array is compacted and, when nothing of it
-        // is held here, the property is VT_EMPTY like a relation the node does not declare.
+        // A target another window's tree holds is handed back as THAT window's element, from that
+        // window's own provider (CRIT-2, 2026-09-15; ADR 039 §1.11's 2026-09-14 amendment): since
+        // node identifiers became process-wide (§1.3, 2026-09-14) the opener of a native popup
+        // carries CONTROLLER_FOR naming the popup's root in the OTHER window's tree, and a client
+        // asking a combo what it controls while the popup is open is asking exactly that. Until
+        // 2026-09-15 such a target was compacted away, so the property was VT_EMPTY -- a relation
+        // the node does not declare -- while Linux was already naming the popup's frame node.
+        //
+        // A target NO open window holds is still left out rather than handed over as a NULL entry,
+        // which is what UI Automation would otherwise be given: a SAFEARRAY(VT_UNKNOWN) whose
+        // entries SafeArrayDestroy releases one by one.
         if (propertyId == UiaIds.LABELED_BY) {
             long[] labels = UiaProperties.relatedNodes(node,
                     limn.accessibility.Accessible.Relation.LABELLED_BY);
             if (labels.length > 0) {
-                long element = context.simpleElementFor(labels[0]);
+                long element = relationElement(labels[0], context);
                 if (element != 0) {
                     UiaVariant.unknown(variant, 0, element);
                 }
@@ -501,7 +534,7 @@ final class UiaProvider {
                 long[] pointers = new long[targets.length];
                 int held = 0;
                 for (int i = 0; i < targets.length; i++) {
-                    long element = context.simpleElementFor(targets[i]);
+                    long element = relationElement(targets[i], context);
                     if (element != 0) {
                         pointers[held++] = element;
                     }
@@ -537,6 +570,39 @@ final class UiaProvider {
         }
         // Anything else, including null, is the VT_EMPTY already written.
         return UiaIds.S_OK;
+    }
+
+    /**
+     * One element-valued relation target, from whichever window holds it (CRIT-2).
+     *
+     * <p>{@code POPUP_FOR}, the mirror the popup's own root carries, is answered by no property
+     * here: UI Automation has no "popup for" among its element-valued properties, and the three
+     * this provider answers are the whole list {@link UiaProperties}' javadoc names. What a client
+     * follows from the popup back to its opener is the opener's own {@code ControllerFor}, which
+     * this now answers across the window boundary.
+     *
+     * <p><b>That absence is read and not assumed.</b> The platform's element-valued properties are
+     * {@code LabeledBy} (30018), {@code ControllerFor} (30104), {@code DescribedBy} (30105),
+     * {@code FlowsTo} (30106) and {@code FlowsFrom} (30148), and no member of
+     * {@code UIA_PropertyIds} has "popup" in its name at all: read off the guest's own
+     * {@code UIAutomationCore.dll} 7.2.26100.9278 on 2026-09-13
+     * (readings/windows-dump-uia-typelib-all-members.txt, {@code
+     * scripts/a11y/windows/dump-uia-typelib.ps1 -AllMembers}). Answering the opener as the popup's
+     * own {@code ControllerFor} instead would say the popup controls the field that opened it,
+     * which is the relation backwards. The settled list's Windows line reads "hands back a
+     * ControllerFor/PopupFor element from the other HWND's provider"; only the first half is
+     * answerable on this platform, and ADR 039 §1.11's 2026-09-15 amendment amends it on that
+     * point rather than leaving the departure in a javadoc. Pinned by
+     * {@code UiaProviderTest.aPopupForIsCarriedByNoPropertyBecauseThePlatformHasNone}.
+     *
+     * @param target  the node at the other end of the relation
+     * @param context what the slots read
+     * @return its simple pointer, referenced for the caller, or {@code 0} when no open window
+     *         holds the target at all
+     */
+    private static long relationElement(long target, Context context) {
+        long element = context.simpleElementFor(target);
+        return element != 0 ? element : context.simpleElementInAnotherWindowFor(target);
     }
 
     /**

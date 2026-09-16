@@ -207,6 +207,9 @@ class UiaPatternProvidersTest {
      *     1035 GROUP (the footer)  1036 CELL (-2,0)
      *   1030 TABLE 1x1, calendar-shaped: its ROW carries no position
      *     1031 ROW                 1032 CELL (0,0)
+     *   1050 TABLE 1x1 (the outer)
+     *     1051 ROW                 1052 TABLE 1x1 AND CELL (0,0): a table nested in a cell
+     *                                1053 ROW     1054 CELL (0,0)
      *   1040 SCROLL_PANE v 25% of 50%, scrolls vertically only
      *     1041 BUTTON [scroll into view]
      *     1042 SCROLL_BAR vertical 75 [0..300] [increment, decrement]
@@ -330,6 +333,20 @@ class UiaPatternProvidersTest {
         a.table(1, 1);
         int week = node(a, 1031, calendar, Accessible.Role.ROW);
         cell(a, 1032, week, Accessible.Role.CELL, 0, 0);
+        a.end();
+        a.end();
+        // A table nested in a cell of another: the one shape where starting the climb at the cell
+        // and starting it at the cell's parent disagree (semantics 2).
+        int outer = node(a, 1050, window, Accessible.Role.TABLE);
+        a.table(1, 1);
+        int outerRow = node(a, 1051, outer, Accessible.Role.ROW);
+        int inner = node(a, 1052, outerRow, Accessible.Role.TABLE);
+        a.cell(0, 0);
+        a.table(1, 1);
+        int innerRow = node(a, 1053, inner, Accessible.Role.ROW);
+        cell(a, 1054, innerRow, Accessible.Role.CELL, 0, 0);
+        a.end();
+        a.end();
         a.end();
         a.end();
         int pane = node(a, 1040, window, Accessible.Role.SCROLL_PANE);
@@ -1074,21 +1091,54 @@ class UiaPatternProvidersTest {
      * Semantics 3: a cell's column header is the header whose CellFacet column is the cell's, never
      * the header at the cell's column index among the group's children. Until 2026-09-15 it was the
      * latter, which in this fixture (headers in the order 1, 0) names the other column's header.
+     *
+     * <p><b>Extended 2026-09-15 (the settled split of semantics 3):</b> it is answered for a data
+     * cell and for a footer cell, and never for the header cell itself, which answered itself
+     * before — a header is not under its own column's header, and a client walking the array from
+     * a header walked back to where it started.
      */
     @Test
-    void aCellsHeaderItemsAreNoneForTheRowAndTheHeaderOfItsColumn() {
+    void aCellsHeaderItemsAreNoneForTheRowAndTheHeaderOfItsColumnAndNoneForAHeader() {
         long out = buffer();
         assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_ITEM_PATTERN, 1029, "GetRowHeaderItems", out));
         assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_ITEM_PATTERN, 1029, "GetColumnHeaderItems", out));
         assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_ITEM_PATTERN, 1032, "GetColumnHeaderItems", out));
         assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_ITEM_PATTERN, 1028, "GetColumnHeaderItems", out));
+        assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_ITEM_PATTERN, 1036, "GetColumnHeaderItems", out));
+        assertEquals(UiaIds.S_OK, get(UiaIds.TABLE_ITEM_PATTERN, 1022, "GetColumnHeaderItems", out));
         assertArrayEquals(new long[0], arrays.get(0));
         assertArrayEquals(new long[] {SIMPLE + 1023}, arrays.get(1), "column 1's header");
         assertArrayEquals(new long[0], arrays.get(2), "a grid with no header group has none");
         assertArrayEquals(new long[] {SIMPLE + 1022}, arrays.get(3), "column 0's header");
+        assertArrayEquals(new long[] {SIMPLE + 1022}, arrays.get(4),
+                "a footer cell is under its column's header too: it summarises that column");
+        assertArrayEquals(new long[0], arrays.get(5),
+                "and the header cell itself is under none, rather than under itself");
 
         goneFromTheTree();
         assertEquals(UiaIds.E_ELEMENT_NOT_AVAILABLE,
                 get(UiaIds.TABLE_ITEM_PATTERN, 1029, "GetColumnHeaderItems", out));
+    }
+
+    /**
+     * Semantics 2, the minor split settled 2026-09-15: the climb to a cell's table starts at the
+     * cell's <b>parent</b>. It bites on the one shape where the two readings disagree — a table
+     * nested inside a cell of another — and it bites twice: the inner table was its own containing
+     * grid, and the outer table's GetItem could not find it at all, because the cell's table was
+     * not the table asked. Linux and macOS started at the parent already.
+     */
+    @Test
+    void aNestedTablesOwnCellBelongsToTheTableAboveItAndNotToItself() {
+        long out = buffer();
+        assertEquals(UiaIds.S_OK, get(UiaIds.GRID_ITEM_PATTERN, 1052, "get_ContainingGrid", out));
+        assertEquals(SIMPLE + 1050, MemoryUtil.memGetAddress(out),
+                "the table above it, never the table it is");
+        assertEquals(SIMPLE + 1052, getItem(1050, 0, 0),
+                "and the outer table finds it at its own coordinates");
+
+        assertEquals(UiaIds.S_OK, get(UiaIds.GRID_ITEM_PATTERN, 1054, "get_ContainingGrid", out));
+        assertEquals(SIMPLE + 1052, MemoryUtil.memGetAddress(out),
+                "a cell inside the nested table belongs to the nested table");
+        assertEquals(SIMPLE + 1054, getItem(1052, 0, 0));
     }
 }

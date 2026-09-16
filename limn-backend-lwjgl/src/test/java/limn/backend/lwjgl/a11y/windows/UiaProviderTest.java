@@ -59,6 +59,9 @@ class UiaProviderTest {
     private final List<int[]> patternsAsked = new ArrayList<>();
     private final List<long[]> arraysMade = new ArrayList<>();
 
+    /** The nodes another open window of this process holds an element for (CRIT-2). */
+    private final java.util.Set<Long> otherWindowHolds = new java.util.HashSet<>();
+
     private final UiaProvider.Context context = new UiaProvider.Context() {
         @Override
         public AccessibleTree tree() {
@@ -103,6 +106,17 @@ class UiaProviderTest {
             // element-valued property was answered with and through which interface; and 0 for
             // a node this tree does not hold, which is the bridge's own answer (elementOf).
             return published.get().indexOf(nodeId) < 0 ? 0 : 0xE1E00000L + nodeId;
+        }
+
+        /**
+         * Stands for the bridge's {@code simpleElementInAnotherWindowFor} (CRIT-2): the pointer
+         * ANOTHER open window's provider hands back for a node of its own tree, named so that a
+         * case can tell it apart from one of this window's, and {@code 0} for a node no open
+         * window holds at all.
+         */
+        @Override
+        public long simpleElementInAnotherWindowFor(long nodeId) {
+            return otherWindowHolds.contains(nodeId) ? 0xF0E10000L + (nodeId & 0xFF) : 0;
         }
 
         @Override
@@ -311,11 +325,14 @@ class UiaProviderTest {
      * A window holding a combo box that opened a native popup: its {@code CONTROLLER_FOR} names
      * the popup's root, which is a node of the OTHER window's tree (process-wide identifiers,
      * ADR 039 §1.3 amended 2026-09-14); its caption is likewise held elsewhere, and its message
-     * is described by one node held here and one that is not. The identifiers are what a scene
-     * mints: a tag above a forty-two-bit serial, so a hand-written one below stands for the other
-     * window's.
+     * is described by one node held here, one the other window holds, and one no open window holds
+     * at all. The identifiers are what a scene mints: a tag above a forty-two-bit serial, so a
+     * hand-written one below stands for the other window's.
      */
     private void publishAWindowWithAComboWhosePopupIsAnotherWindow() {
+        otherWindowHolds.add(FOREIGN_POPUP_ROOT);
+        otherWindowHolds.add(FOREIGN_POPUP_ROOT + 1);
+        otherWindowHolds.add(FOREIGN_POPUP_ROOT + 2);
         Accessibility a = new Accessibility();
         a.beginWalk(400, 300, Locale.ENGLISH);
         a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
@@ -329,12 +346,22 @@ class UiaProviderTest {
         a.relation(Accessible.Relation.LABELLED_BY, FOREIGN_POPUP_ROOT + 1);
         a.relation(Accessible.Relation.DESCRIBED_BY, FOREIGN_POPUP_ROOT + 2);
         a.relation(Accessible.Relation.DESCRIBED_BY, 4002L);
+        a.relation(Accessible.Relation.DESCRIBED_BY, GONE_FROM_EVERY_WINDOW);
         a.inherited(true, true, true, true, false);
         a.end();
         a.begin(4002, 0, Locale.ENGLISH, 0, 40, 400, 20);
         a.role(Accessible.Role.LABEL);
         a.name(I18nString.literal("Pick a size"), Accessible.NameFrom.CONTENT);
         a.inherited(true, true, true, false, false);
+        a.end();
+        a.begin(4003, 0, Locale.ENGLISH, 0, 60, 400, 20);
+        a.role(Accessible.Role.TEXT_FIELD);
+        a.name(I18nString.literal("Notes"), Accessible.NameFrom.LABEL);
+        a.relation(Accessible.Relation.LABELLED_BY, GONE_FROM_EVERY_WINDOW);
+        // And a POPUP_FOR naming a node this window DOES hold, so that what the test below reads
+        // is the relation being carried by no property rather than a target nobody holds.
+        a.relation(Accessible.Relation.POPUP_FOR, 4001L);
+        a.inherited(true, true, true, true, false);
         a.end();
         a.end();
         a.resolveRelations((kind, target) -> (Long) target);
@@ -344,39 +371,105 @@ class UiaProviderTest {
     /** An identifier with another scene's tag in its high bits: nothing this tree holds. */
     private static final long FOREIGN_POPUP_ROOT = (7L << 42) | 5;
 
+    /** The same shape, for a node no open window of this process holds. */
+    private static final long GONE_FROM_EVERY_WINDOW = (9L << 42) | 11;
+
     /**
-     * A relation whose target lives in another window's tree is not handed to UI Automation as a
-     * NULL element: the array is compacted to the targets this tree holds, and a property none of
-     * whose targets are held here is the platform's empty default. This is what a native combo's
-     * opener carries on every arrow key while the popup is open; mapping the target to the other
-     * HWND's provider is CRIT-2 phase 3.
+     * CRIT-2, 2026-09-15: a relation target another window's tree holds is handed back as THAT
+     * window's element, from that window's own provider, and not compacted away. This is what a
+     * native combo's opener carries while its popup is open — {@code ControllerFor} naming the
+     * popup's root, which the platform put in a window of its own — and it is what Linux has named
+     * since phase 3. ADR 039 §1.11's 2026-09-14 amendment hands the per-platform half here.
+     *
+     * <p>A target NO open window holds is still left out rather than handed over as a NULL entry
+     * of a {@code SAFEARRAY(VT_UNKNOWN)}, which {@code SafeArrayDestroy} would release; a property
+     * whose every target is gone stays the platform's empty default.
      */
     @Test
-    void aRelationTargetAnotherWindowHoldsIsLeftOutRatherThanHandedOverAsNull() {
+    void aRelationTargetAnotherWindowHoldsIsHandedBackAsThatWindowsElement() {
         publishAWindowWithAComboWhosePopupIsAnotherWindow();
         long combo = elementFor(4001);
+        long field = elementFor(4003);
         long out = MemoryUtil.nmemAllocChecked(UiaVariant.SIZE);
         ByteBuffer variant = MemoryUtil.memByteBuffer(out, UiaVariant.SIZE);
         try {
             assertEquals(UiaIds.S_OK, callWithId(combo, GET_PROPERTY_VALUE, UiaIds.CONTROLLER_FOR, out));
-            assertEquals(UiaVariant.VT_EMPTY, UiaVariant.tagOf(variant, 0),
-                    "the popup's root is the other window's element: nothing to hand over here");
-            assertEquals(0, arraysMade.size(), "and no array holding a NULL was minted for it");
+            assertEquals((short) (UiaVariant.VT_ARRAY | UiaVariant.VT_UNKNOWN),
+                    UiaVariant.tagOf(variant, 0),
+                    "the popup's root is the other window's element, and a client asking the combo "
+                            + "what it controls is asking exactly that");
+            assertEquals(1, arraysMade.size());
+            assertEquals(1, arraysMade.get(0).length);
+            assertEquals(0xF0E10000L + (FOREIGN_POPUP_ROOT & 0xFF), arraysMade.get(0)[0],
+                    "handed over by the window that holds it, not minted here");
 
             assertEquals(UiaIds.S_OK, callWithId(combo, GET_PROPERTY_VALUE, UiaIds.LABELED_BY, out));
-            assertEquals(UiaVariant.VT_EMPTY, UiaVariant.tagOf(variant, 0),
-                    "a caption held elsewhere is no element either, rather than a NULL one");
+            assertEquals(UiaVariant.VT_UNKNOWN, UiaVariant.tagOf(variant, 0));
+            assertEquals(0xF0E10000L + ((FOREIGN_POPUP_ROOT + 1) & 0xFF),
+                    variant.getLong(UiaVariant.PAYLOAD),
+                    "a caption another window holds is that window's element too");
 
             assertEquals(UiaIds.S_OK, callWithId(combo, GET_PROPERTY_VALUE, UiaIds.DESCRIBED_BY, out));
             assertEquals((short) (UiaVariant.VT_ARRAY | UiaVariant.VT_UNKNOWN),
                     UiaVariant.tagOf(variant, 0));
-            assertEquals(1, arraysMade.size());
-            assertEquals(1, arraysMade.get(0).length,
-                    "compacted to the one target this tree holds");
-            assertEquals(0xE1E00000L + 4002, arraysMade.get(0)[0]);
-            for (long pointer : arraysMade.get(0)) {
+            assertEquals(2, arraysMade.size());
+            assertEquals(2, arraysMade.get(1).length,
+                    "both windows' targets, and the one no window holds compacted away");
+            assertEquals(0xF0E10000L + ((FOREIGN_POPUP_ROOT + 2) & 0xFF), arraysMade.get(1)[0]);
+            assertEquals(0xE1E00000L + 4002, arraysMade.get(1)[1]);
+            for (long pointer : arraysMade.get(1)) {
                 assertNotEquals(0L, pointer, "no NULL entry, which SafeArrayDestroy would release");
             }
+
+            assertEquals(UiaIds.S_OK, callWithId(field, GET_PROPERTY_VALUE, UiaIds.LABELED_BY, out));
+            assertEquals(UiaVariant.VT_EMPTY, UiaVariant.tagOf(variant, 0),
+                    "a target no open window holds is the platform's empty default, never a NULL "
+                            + "element");
+            assertEquals(2, arraysMade.size(), "and no array was minted for it");
+        } finally {
+            MemoryUtil.nmemFree(out);
+        }
+    }
+
+    /**
+     * The other half of CRIT-2's Windows answer, and a deliberate non-mapping rather than an
+     * omission: {@code POPUP_FOR} — the mirror a native popup's own root carries, naming the widget
+     * that opened it — is carried by no property of this platform.
+     *
+     * <p>UI Automation's property table has no "popup for": its element-valued properties are
+     * {@code LabeledBy} (30018), {@code ControllerFor} (30104), {@code DescribedBy} (30105),
+     * {@code FlowsTo} (30106) and {@code FlowsFrom} (30148), and no member of
+     * {@code UIA_PropertyIds} has "popup" in its name at all — read off the guest's own
+     * {@code UIAutomationCore.dll} 7.2.26100.9278 on 2026-09-13
+     * (readings/windows-dump-uia-typelib-all-members.txt). What a client follows from a popup back
+     * to its opener is the opener's {@code ControllerFor}, which the test above pins across the
+     * window boundary. The settled list's Windows line ("hands back a ControllerFor/PopupFor
+     * element from the other HWND's provider") is amended by ADR 039 §1.11's 2026-09-15 amendment
+     * on that point.
+     *
+     * <p>So this fails if a later lane invents a carrier for it — answering the opener as the
+     * popup's own {@code ControllerFor} would say the popup controls the field that opened it,
+     * which is the relation backwards.
+     */
+    @Test
+    void aPopupForIsCarriedByNoPropertyBecauseThePlatformHasNone() {
+        publishAWindowWithAComboWhosePopupIsAnotherWindow();
+        long popupRootStandIn = elementFor(4003);
+        long out = MemoryUtil.nmemAllocChecked(UiaVariant.SIZE);
+        ByteBuffer variant = MemoryUtil.memByteBuffer(out, UiaVariant.SIZE);
+        try {
+            int arraysBefore = arraysMade.size();
+            for (int property : new int[] {UiaIds.CONTROLLER_FOR, UiaIds.DESCRIBED_BY,
+                    UiaIds.LABELED_BY}) {
+                assertEquals(UiaIds.S_OK,
+                        callWithId(popupRootStandIn, GET_PROPERTY_VALUE, property, out));
+                assertEquals(UiaVariant.VT_EMPTY, UiaVariant.tagOf(variant, 0),
+                        "the node declares POPUP_FOR naming 4001, which THIS window holds, and no "
+                                + "element-valued property of this platform carries that relation: "
+                                + "property " + property + " must stay the platform's empty "
+                                + "default rather than answer the opener");
+            }
+            assertEquals(arraysBefore, arraysMade.size(), "and no array was minted for it");
         } finally {
             MemoryUtil.nmemFree(out);
         }

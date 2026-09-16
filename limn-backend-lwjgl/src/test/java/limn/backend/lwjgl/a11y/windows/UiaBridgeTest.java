@@ -893,6 +893,11 @@ class UiaBridgeTest {
      * WINDOWS-NEW-2, CRIT-3: the model's own collapse to INVALIDATED is swept like this queue's,
      * once per emit (the root-targeted INVALIDATED the sweep raises does not sweep again), and the
      * focus is re-announced after it, where before the event was dropped at node 0.
+     *
+     * <p><b>Restated 2026-09-15 (semantics 4, the re-announcement's place).</b> Each collapse here
+     * is followed by a tail event, as the model's own always is, because the re-announcement is now
+     * raised at the tail's place rather than the instant the sweep ends: two INVALIDATEDs emitted
+     * back to back with nothing between them would owe one re-announcement, not two.
      */
     @Test
     void theModelsInvalidatedSweepsOncePerEmitAndReannouncesTheFocus() {
@@ -906,7 +911,9 @@ class UiaBridgeTest {
             bridge.objectFor(1005);
             bridge.publish(aWindowWith(Accessible.Role.BUTTON, true, true), false);
             bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
             bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
             assertNotNull(awaitTrace(trace, l -> l.equals("collapse: swept 1 elements")),
                     "the cell's element went with its node: " + trace);
             java.util.function.Predicate<String> reannounced = l -> l.startsWith(
@@ -926,6 +933,73 @@ class UiaBridgeTest {
             assertTrue(bridge.holdsElementFor(1001), "and the re-announced button's was minted");
         } finally {
             UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * Semantics 4 as settled 2026-09-15: the re-announcement after a collapse comes <b>after</b>
+     * the tail's structure events, not before them. The model reserves that tail outside its event
+     * budget and sends it in decision 28's order — per-parent {@code STRUCTURE_CHANGED} first, then
+     * focus, cursor and selection (semantics 7) — and until today this bridge raised
+     * {@code AutomationFocusChanged} the instant its sweep finished, so a reader was told where the
+     * user is and only then told the shape of the tree under it.
+     *
+     * <p>The gate in the trace consumer is what makes the order a fact rather than a race: the
+     * drain thread stops inside its own "collapse: swept" line until the whole tail has been
+     * queued, which is what a publish hands over in one go.
+     */
+    @Test
+    void theFocusIsReannouncedAfterTheTailsStructureEventsAndNotBeforeThem() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        java.util.concurrent.CountDownLatch tailQueued = new java.util.concurrent.CountDownLatch(1);
+        UiaWindow.trace = line -> {
+            trace.add(line);
+            if (line.startsWith("collapse: swept")) {
+                try {
+                    tailQueued.await(2, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (InterruptedException stopped) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        };
+        try {
+            AccessibleTree tree = aFocusedTable(true);
+            bridge.publish(tree, false);
+            bridge.objectFor(1000);
+            bridge.noteAsked();
+            // A publish past the model's budget: INVALIDATED, then the reserved tail -- the
+            // window's children coalesced into one STRUCTURE_CHANGED, then the focus.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            bridge.emit(AccessibleEvent.structure(1000, java.util.List.of(child(1001, 0)),
+                    java.util.List.of(), java.util.List.of()));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+            tailQueued.countDown();
+
+            assertNotNull(awaitTrace(trace, l -> l.startsWith(
+                    "raised after the model's INVALIDATED for node 1003 in ")),
+                    "the cursor cell was never re-announced: " + trace);
+            java.util.List<String> order;
+            synchronized (trace) {
+                order = trace.stream()
+                        .filter(l -> l.startsWith("raised STRUCTURE_CHANGED as type")
+                                || l.startsWith("raised after the model's INVALIDATED"))
+                        .map(l -> l.replaceFirst(" -> 0x0 in \\d+ us on .*", "")
+                                .replaceFirst(" in \\d+ us on .*", ""))
+                        .toList();
+            }
+            assertEquals(java.util.List.of(
+                            "raised STRUCTURE_CHANGED as type 0 on node 1001 with the runtime id "
+                                    + "of node 1001",
+                            "raised after the model's INVALIDATED for node 1003"),
+                    order,
+                    "the tail's children first, the focus after: a reader told where the user is "
+                            + "before it is told the shape under it re-reads and asks again");
+        } finally {
+            UiaWindow.trace = before;
+            tailQueued.countDown();
             bridge.detach();
         }
     }

@@ -5,6 +5,7 @@ import limn.accessibility.RoleNames;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -125,6 +126,144 @@ class UiaConstantsTest {
                 "the marker UI Automation replaces with the host window's own runtime id");
         assertEquals(0x80040201, UiaIds.E_ELEMENT_NOT_AVAILABLE);
         assertEquals(0x80131509, UiaIds.E_INVALID_OPERATION);
+    }
+
+    /** The bridge's own source, where a platform number is used rather than declared. */
+    private static final java.nio.file.Path WINDOWS_PACKAGE = java.nio.file.Path.of(
+            "limn-backend-lwjgl/src/main/java/limn/backend/lwjgl/a11y/windows");
+
+    private static String sourceOf(String file) {
+        try {
+            return java.nio.file.Files.readString(
+                    limn.testing.RepositoryRoot.find().resolve(WINDOWS_PACKAGE).resolve(file),
+                    java.nio.charset.StandardCharsets.UTF_8);
+        } catch (java.io.IOException unreadable) {
+            throw new java.io.UncheckedIOException(unreadable);
+        }
+    }
+
+    /**
+     * One documented member of a source file: the javadoc that opens it, its signature and its
+     * body, from the {@code /**} that begins that javadoc to the one that begins the next member's.
+     *
+     * <p><b>Why a slice and not a count.</b> The ratchets below pin a citation <i>inside the member
+     * that uses the number</i> rather than counting occurrences over the whole file. A count goes
+     * red when a later lane does the very thing these tests exist to encourage — citing the same
+     * reading at a fourth honest use, or marking a third mapping as a choice — and it fails with a
+     * message that reads as if something had been removed. A ratchet that punishes what it asks for
+     * is one the next lane deletes, and then nothing pins anything.
+     */
+    private static String documentedMember(String file, String signature) {
+        String source = sourceOf(file);
+        int at = source.indexOf(signature);
+        assertTrue(at >= 0, file + " has no member spelled \"" + signature + "\", so the citation "
+                + "this test pins inside it is pinned nowhere: rename the signature here when the "
+                + "member is renamed, rather than leaving a test that passes over nothing");
+        assertTrue(source.indexOf(signature, at + 1) < 0,
+                file + " spells \"" + signature + "\" more than once, so the slice read here is "
+                        + "not certainly the member it means");
+        int javadoc = source.lastIndexOf("/**", at);
+        assertTrue(javadoc >= 0, file + "'s " + signature + " has no javadoc above it at all");
+        int next = source.indexOf("/**", at);
+        return source.substring(javadoc, next < 0 ? source.length() : next);
+    }
+
+    /**
+     * The comment block written above {@code anchor}, back to the blank line that opens it, for the
+     * one site below that is a {@code switch} arm rather than a member of its own.
+     */
+    private static String commentAbove(String file, String anchor) {
+        String source = sourceOf(file);
+        int at = source.indexOf(anchor);
+        assertTrue(at >= 0, file + " no longer contains \"" + anchor + "\", so the comment this "
+                + "test pins is pinned nowhere");
+        assertTrue(source.indexOf(anchor, at + 1) < 0,
+                file + " contains \"" + anchor + "\" more than once, so the block read here is not "
+                        + "certainly the one it means");
+        int from = source.lastIndexOf("\n\n", at);
+        return source.substring(from < 0 ? 0 : from, at);
+    }
+
+    /**
+     * §12.3: a platform number is cited where it is <b>used</b> and not only where it is declared.
+     * A reader of {@link UiaPatternProviders#refusal} — the one place that chooses between the two
+     * refusal HRESULTs, and the place every verb, setter and pattern entry point of this bridge
+     * routes its refusal through — should not have to open another file to learn that 0x80040200
+     * and 0x80131509 came off a guest and which script read them. The phase-3 critic listed both
+     * uses among the constants "without a reading (or a choice between disagreeing readings)".
+     *
+     * <p>The two direct uses outside it are {@code IScrollProvider}'s own refusal order. Each of the
+     * three is pinned in its own member, so that this fails for the use that lost its citation and
+     * names it, and so that a fourth use citing the same reading is an addition and not a failure.
+     */
+    @Test
+    void theTwoRefusalHresultsCiteTheirReadingWhereTheyAreUsed() {
+        for (String member : java.util.List.of("static int refusal(", "static int scroll(",
+                "static int setScrollPercent(")) {
+            assertTrue(documentedMember("UiaPatternProviders.java", member)
+                            .contains("readings/windows-dump-uia-hresults.txt"),
+                    "\"" + member + "\" in UiaPatternProviders.java answers "
+                            + "UIA_E_ELEMENTNOTENABLED or the managed InvalidOperationException "
+                            + "HResult without saying where the number came from: a number with no "
+                            + "reading beside it is one nobody can re-check, and the declaration "
+                            + "alone is another file away");
+        }
+    }
+
+    /**
+     * The one use of {@code UIA_E_ELEMENTNOTENABLED} no reading settles, marked as the choice it is
+     * (the settled list, 2026-09-15: "Windows answering 0x80040200 for a verb on a node that is not
+     * ENABLED is kept, the same reading as the setter case"). {@code SetFocus} and
+     * {@code ScrollIntoView} were read on the guest and came back split — the Win32 controls'
+     * client-side proxies refuse a disabled element first, WPF checks nothing — so what this bridge
+     * answers is argued rather than read, and all three places that answer it say so in the words
+     * §12.3 asks for: the refusal itself, the {@code ScrollIntoView} slot and {@code SetFocus}.
+     */
+    @Test
+    void setFocusAndScrollIntoViewMarkTheirRefusalAsAChoiceBetweenDisagreeingReadings() {
+        Map<String, String> answeredAt = new java.util.LinkedHashMap<>();
+        answeredAt.put("UiaPatternProviders.refusal",
+                documentedMember("UiaPatternProviders.java", "static int refusal("));
+        answeredAt.put("UiaPatternProviders' ScrollIntoView slot",
+                commentAbove("UiaPatternProviders.java",
+                        "case UiaIds.SCROLL_ITEM_PATTERN -> slots.put(\"ScrollIntoView\""));
+        answeredAt.put("UiaProvider.setFocus",
+                documentedMember("UiaProvider.java", "private static int setFocus("));
+
+        answeredAt.forEach((where, text) -> {
+            assertTrue(text.contains("readings/windows-dump-uia-focus-and-scroll-item.txt"),
+                    where + " answers SetFocus or ScrollIntoView without citing the reading that "
+                            + "found the platform's own providers disagreeing");
+            assertTrue(text.contains("choice and not a reading"),
+                    where + " does not mark that refusal as a choice: a number the guest did not "
+                            + "settle, presented as one it did, is what §12.3 calls a defect that "
+                            + "compiles");
+        });
+    }
+
+    /**
+     * The other two mappings the phase-3 critic listed as this bridge's own rather than a guest's —
+     * an announcement's kind and processing, and {@code Value.Value} raised when only the number
+     * moved — each marked a choice where it is made, with the reasoning beside it. The numbers they
+     * use are read (the five kinds, the six processings, the property ids); what is chosen is which
+     * of them a model fact becomes, and a reader of the mapping should be told which is which.
+     *
+     * <p>Pinned in each mapping's own member for {@link #documentedMember}'s reason: phase 5 is
+     * expected to revisit open questions 1, 4 and 8, and a third mapping honestly marked as a
+     * choice must be able to land without this test going red.
+     */
+    @Test
+    void theTwoMappingsThisBridgeChoseRatherThanReadSayThatTheyAreChoices() {
+        for (String member : java.util.List.of("static int[] notificationFor(",
+                "static int[] valueRaises(")) {
+            assertTrue(documentedMember("UiaBridge.java", member)
+                            .contains("choice and not a reading"),
+                    "\"" + member + "\" in UiaBridge.java is this bridge's reasoning and not a "
+                            + "guest's answer — the announcement's kind and processing (question 4), "
+                            + "Value.Value raised for a number-only move (open question 8) — and "
+                            + "must say so where the mapping is made: a mapping that reads like a "
+                            + "reading is one nobody revisits when a reader disagrees with it");
+        }
     }
 
     /** WINDOWS-NEW-11, read 2026-09-13 (readings/windows-dump-uia-marshalling.txt). */

@@ -2067,6 +2067,43 @@ by `NativePopupRelationTest` in the demo, where a `HeadlessBackend` opens the po
 second window: the list names the combo, the combo names the list, the calendar's card names the
 picker and the picker names the card; and a closed popup window leaves the picker with no mirror.
 
+**Amendment, 2026-09-15 (CRIT-2, the Windows half): a foreign relation target is handed back as the
+other window's element.** The 2026-09-14 amendment above left "what each platform then does with a
+foreign element" to phase 3, per platform, and the Windows bridge did nothing with it: a target its
+own tree did not hold answered no element, and the array was compacted — so a combo's
+`ControllerFor` was `VT_EMPTY` while its popup was open, the one moment it is worth asking, and a
+`LabeledBy` or `DescribedBy` held elsewhere was empty too. The bridge now asks the process's set of
+open bridges which one holds the target (`AccessibleTree#holds`, the same routing the cursor already
+used for decision 5) and hands back **that** window's element, through its *simple* interface, minted
+and referenced under that bridge's guard, so the whole-registry empty cannot free it under the
+caller. A target no open window holds is still left out rather than handed over as a `NULL` entry of
+a `SAFEARRAY(VT_UNKNOWN)`, which `SafeArrayDestroy` would release one by one. `POPUP_FOR`, the
+mirror the popup's own root carries, is answered by no property: UI Automation has no "popup for"
+among its element-valued properties, and what a client follows from the popup back to its opener is
+the opener's `ControllerFor`.
+
+**This amends the settled list on that point, and is not a divergence left in a javadoc.** The
+settlement of 2026-09-15 reads "Windows hands back a ControllerFor/PopupFor element from the other
+HWND's provider"; the `PopupFor` half is unanswerable here, and the absence is read rather than
+assumed. The platform's element-valued properties are `LabeledBy` (30018), `ControllerFor` (30104),
+`DescribedBy` (30105), `FlowsTo` (30106) and `FlowsFrom` (30148), and no member of `UIA_PropertyIds`
+carries "popup" in its name at all, read off the guest's own `UIAutomationCore.dll` 7.2.26100.9278
+on 2026-09-13 (`readings/windows-dump-uia-typelib-all-members.txt`). Answering the opener as the
+popup's own `ControllerFor` instead would say the popup controls the field that opened it, which is
+the relation backwards; the one carrier of the link on this platform is the opener's `ControllerFor`,
+which the amendment above delivers. AT-SPI's `ATSPI_RELATION_POPUP_FOR` and AppKit's own window
+object are unaffected: the two platforms that have a carrier keep publishing the pair. Pinned as a
+deliberate non-mapping by `UiaProviderTest.aPopupForIsCarriedByNoPropertyBecauseThePlatformHasNone`,
+which gives a node a `POPUP_FOR` naming a widget its **own** window holds and reads every
+element-valued property back empty — so a later lane that invents a carrier for it fails here and
+comes back to this paragraph.
+
+The cross-window half is pinned by
+`UiaProviderTest.aRelationTargetAnotherWindowHoldsIsHandedBackAsThatWindowsElement`, which restates
+`aRelationTargetAnotherWindowHoldsIsLeftOutRatherThanHandedOverAsNull` (2026-09-14), the case that
+pinned the compaction. The live half — a client reading `ControllerFor` on the opener and reaching
+the popup's element — is phase 5's.
+
 ### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
 
 ```
@@ -3204,6 +3241,42 @@ raised (`UiaBridgeTest.theFocusAlreadyAnnouncedIsNotRaisedAgainButIsReannouncedA
 guard across the platform call, so a client whose focus handler synchronously asked the host's
 `GetFocus` would wait for it; NVDA 2024.4.2's handler asks no such thing (reading §1), and phase 5
 watches for it.
+
+**Amended 2026-09-15 (phase-3 fix round; semantics 4 settled to one shape): the re-announcement is
+raised at the tail's place, after the tail's structure events.** The amendment above left it raised
+the instant the sweep finished — "after either the bridge re-raises the focus on the effective
+focus" — which is *before* the `STRUCTURE_CHANGED`s the model reserves outside its budget and sends
+next. Decision 28 and semantics 7 put the tail in one order, children first and then focus, cursor
+and selection, and a reader told where the user is and only then told that the tree under it changed
+re-reads and asks again. So the sweep now leaves the re-announcement **owed**, and the drain raises
+it before the first tail event that is not a `STRUCTURE_CHANGED`, or when nothing more is waiting —
+which is the case a collapse that moved only the tree's shape leaves, and the reason the debt is
+never simply dropped. Linux reconciles at the same place and macOS posts focus last in the frame;
+this is the third bridge joining them, and the semantics' three readings (integration log, phase-3
+critic, contradiction 1) are now one. **Two collapses with no tail between them owe one
+re-announcement, not two**: what the raise pays for is the element the sweep may have released under
+the reader, one raise after the last sweep says it, and each raise waits for the reader's handler
+(§13.28). Pinned by
+`UiaBridgeTest.theFocusIsReannouncedAfterTheTailsStructureEventsAndNotBeforeThem`;
+`theModelsInvalidatedSweepsOncePerEmitAndReannouncesTheFocus` was restated to follow each collapse
+with a tail event, as the model's own always is.
+
+**What that leaves open, and what a live run should listen for (recorded 2026-09-15, the fix round's
+review).** The second of the two flush points — "when nothing more is waiting" — is a queue-emptiness
+test made on the drain thread while the user-interface thread is still offering the tail one event
+at a time. A drain that reaches the top of its loop between the collapse and the first tail
+`STRUCTURE_CHANGED` sees an empty queue and re-announces early: the very order this amendment
+fixes, in the one case where the drain outruns the producer. The ordering is guaranteed whenever the
+tail is already queued, which is how a publish hands it over, and the debt is never dropped either
+way, so what remains is a race and not a lost re-announcement. **Phase 5 hears it as the focus
+spoken before the shape of a large publish's tail**, after an expand or a sort that collapses the
+queue. The fix if it is heard is to flush on a publish boundary instead of on emptiness: the model
+already marks one — `AccessibilityBridge#frameEnded`, which the scene calls once per frame after
+every event of that frame has been emitted, and which this bridge does not override (macOS posts
+its whole frame there). Its cost is the reason it was not taken blind: a marker offered into the
+same bounded queue can be swallowed by that queue's own collapse, and a bridge whose scene then runs
+no further frame would owe the re-announcement with nothing left to flush it — a dropped debt traded
+for a race. Whichever is worse is a question for a reader and not for a test.
 
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-6's remainder): `CARET_MOVED` and
 `BOUNDS_CHANGED` as built.** `CARET_MOVED` is `Text_TextSelectionChanged`, as its row says, handled

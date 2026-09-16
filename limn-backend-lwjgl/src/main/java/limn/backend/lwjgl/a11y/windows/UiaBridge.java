@@ -160,6 +160,15 @@ public final class UiaBridge extends PlatformBridge {
      */
     private long caretJustRaised;
 
+    /**
+     * Why a re-announcement of the effective focus is owed — the cause the trace names — or
+     * {@code null} when none is. Set by a sweep (this queue's collapse marker, or the model's
+     * {@code INVALIDATED}) and cleared by {@link #reannounce}, which raises it at the tail's place:
+     * before the first event after the tail's {@code STRUCTURE_CHANGED}s, or when nothing more is
+     * waiting. Drain thread only.
+     */
+    private String reannounceOwed;
+
     private UiaBridge(long hwnd, java.util.function.LongSupplier clock) {
         this.hwnd = hwnd;
         this.clock = clock;
@@ -364,11 +373,18 @@ public final class UiaBridge extends PlatformBridge {
      * The drain thread's whole life: take, raise, until stopped. A collapse marker is a sweep of
      * the registry against the published tree — every element whose node has left is released,
      * which is what the swallowed {@code NODE_DESTROYED}s would have done one by one (§1.10) —
-     * followed by one invalidate-everything raise on the root.
+     * followed by one invalidate-everything raise on the root, and then, <b>at the tail's place</b>,
+     * the re-announcement of the effective focus ({@link #reannounceOwed}).
      */
     private void drainLoop() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
+                if (reannounceOwed != null && events.size() == 0) {
+                    // Nothing more is waiting, so the tail this re-announcement follows is over --
+                    // or had no event after its structure changes at all, which is what a collapse
+                    // that moved nothing but the tree's shape leaves. Owed is never dropped.
+                    reannounce();
+                }
                 AccessibleEvent event = events.take();
                 long caret = caretJustRaised;
                 caretJustRaised = 0;
@@ -382,7 +398,7 @@ public final class UiaBridge extends PlatformBridge {
                 }
                 if (event == UiaEvents.COLLAPSE) {
                     sweepAndInvalidate();
-                    raiseFocus("after this bridge's queue collapsed", true);
+                    reannounceOwed = "after this bridge's queue collapsed";
                 } else if (event.type() == AccessibleEvent.Type.INVALIDATED
                         && event.nodeId() == 0) {
                     // The model's own collapse (§1.10): a publish wider than its budget, whose
@@ -390,15 +406,60 @@ public final class UiaBridge extends PlatformBridge {
                     // same sweep as this queue's, and the same re-announcement; the root-targeted
                     // INVALIDATED the sweep raises names the root and comes back through raise().
                     sweepAndInvalidate();
-                    raiseFocus("after the model's INVALIDATED", true);
+                    reannounceOwed = "after the model's INVALIDATED";
                 } else {
+                    if (reannounceOwed != null
+                            && event.type() != AccessibleEvent.Type.STRUCTURE_CHANGED) {
+                        // The tail's structure changes are over: decision 28's order is children
+                        // first, then focus, cursor and selection (semantics 7).
+                        reannounce();
+                    }
                     raise(event);
                 }
             }
         } catch (InterruptedException stopped) {
             // The user-interface thread is emptying the registry and asked this thread to leave
-            // first. Whatever is still queued is about a tree that is going away with it.
+            // first. Whatever is still queued is about a tree that is going away with it, and so
+            // is a re-announcement it owed.
         }
+    }
+
+    /**
+     * The re-announcement a sweep left owed, raised now (semantics 4 as settled 2026-09-15: every
+     * bridge re-announces the effective focus after the model's {@code INVALIDATED} and after its
+     * own queue collapse, <b>after</b> the tail's structure events and not before them).
+     *
+     * <p>Until 2026-09-15 it was raised the moment the sweep finished — before the
+     * {@code STRUCTURE_CHANGED}s the model reserves outside its budget and sends next (decision 28,
+     * semantics 7: children first, then focus, cursor and selection). A reader told where the user
+     * is and then told the shape of the tree under it re-reads and asks again; told in decision
+     * 28's order it does not. Linux reconciles at the same place and macOS posts focus last in the
+     * frame; this is the third bridge joining them.
+     *
+     * <p>Two collapses with no tail between them owe one re-announcement, not two: what the raise
+     * pays for is the element the sweep may have released under the reader, and one raise after the
+     * last sweep says it. Each raise waits for the reader's handler (§13.28), so a second one is a
+     * frame's budget spent saying what has just been said.
+     *
+     * <p><b>The second flush point in {@link #drainLoop} — nothing more waiting — is a race the
+     * reader decides.</b> It tests the queue on this thread while the user-interface thread is
+     * still offering the tail one event at a time, so a drain that outruns the producer can flush
+     * between the collapse and the first tail {@code STRUCTURE_CHANGED} and re-announce early,
+     * which is the order this whole paragraph is about. Whenever the tail is already queued — how a
+     * publish hands it over — the order holds, and the debt is never dropped either way. <b>What
+     * phase 5 listens for</b> is the focus spoken before the shape of a large publish's tail, after
+     * an expand or a sort wide enough to collapse the queue. <b>The fix if it is heard</b> is to
+     * flush on a publish boundary rather than on emptiness: the model marks one already, {@code
+     * AccessibilityBridge#frameEnded}, called once per frame after every event of that frame has
+     * been emitted and not overridden here. It was not taken blind because it trades this race for
+     * a worse failure in one case: a marker offered into this same bounded queue can be swallowed
+     * by the queue's own collapse, and a scene that then runs no further frame would owe a
+     * re-announcement with nothing left to flush it. ADR 039 §2.4, 2026-09-15.
+     */
+    private void reannounce() {
+        String cause = reannounceOwed;
+        reannounceOwed = null;
+        raiseFocus(cause, true);
     }
 
     /**
@@ -765,6 +826,19 @@ public final class UiaBridge extends PlatformBridge {
      * which is {@code All}: queued, none dropped for a later one. The enumerators were read on the
      * guest 2026-09-13 ({@link UiaIds#NOTIFICATION_KIND_OTHER}).
      *
+     * <p><b>The pairing itself is a choice and not a reading</b>, which the phase-3 critic listed
+     * among the constants this bridge added without one. What the guest settled is the five kinds
+     * and the six processings and their numbers; what no reading settles is which of them two
+     * model politenesses become, because the model's {@code Politeness} has no counterpart on the
+     * platform and no native control was found raising a notification to be copied. The reasoning
+     * is the one above, argued from the reader's own handler rather than from a provider: of the
+     * five kinds, four claim the announcement is about an item added, an item removed, an action
+     * completed or an action aborted, and the model asserts none of those, so {@code Other} is the
+     * only kind that is not a claim; and of the six processings, the two that cancel speech are
+     * where {@code ASSERTIVE}'s promise to interrupt can be kept, the important one because an
+     * interruption is by definition important. It is Windows open question 4, and phase 5 hears
+     * what NVDA does with each.
+     *
      * @param politeness the announcement's
      * @return the kind and the processing, in that order
      */
@@ -932,16 +1006,22 @@ public final class UiaBridge extends PlatformBridge {
      * found and referenced while the whole-registry empty cannot run, and not at all once this
      * bridge has left the open set, which its detach does before it empties.
      *
+     * <p>Since 2026-09-15 it also hands over the <b>simple</b> interface, for an element-valued
+     * relation property whose target lives here (CRIT-2): {@code ControllerFor} on the opener of a
+     * native popup names the popup's root, and the property declares
+     * {@code IRawElementProviderSimple**}.
+     *
      * @param nodeId a node of this bridge's tree
+     * @param iface  which of the node's interfaces the caller's out parameter declares
      * @return the pointer, referenced for the caller, or {@code 0} once this bridge is closing or
      *         the node has left
      */
-    private long handOverFromAnotherWindow(long nodeId) {
+    private long handOverFromAnotherWindow(long nodeId, UiaInterfaces.Vtable iface) {
         synchronized (vendGuard) {
             if (closed || !OPEN.contains(this)) {
                 return 0;
             }
-            return handOver(nodeId, UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT);
+            return handOver(nodeId, iface);
         }
     }
 
@@ -1081,6 +1161,18 @@ public final class UiaBridge extends PlatformBridge {
      * number, is not raised. The Value string is raised even when the number moved and the text
      * happened not to, because the event carries no text to compare: a Value vended from a value
      * facet is the number's spoken form, which moves with it.
+     *
+     * <p><b>That last half is a choice and not a reading</b> (Windows open question 8), listed by
+     * the phase-3 critic among this bridge's mappings that no guest settled. Nothing was read
+     * saying whether a provider whose number moved should also raise {@code Value.Value}; what was
+     * read is that NVDA 2024.4.2 reads a control's value from {@code Value} when it vends both
+     * patterns and maps both properties to its one {@code valueChange}
+     * (readings/nvda-2024.4.2-uia.md §3). The reasoning is that the event carries the two numbers
+     * and no text, so the alternative — raising {@code Value.Value} only when the text is known to
+     * have moved — cannot be computed from what the model sends, and the failure modes are not
+     * symmetric: a redundant raise costs one reader handler (§13.28), while a missing one leaves a
+     * spinner's "07:30" spoken as whatever it said before. Phase 5 hears whether a spinner step is
+     * spoken once or twice.
      *
      * @param event the {@code VALUE_CHANGED}
      * @param tree  the tree the node is read from
@@ -1453,7 +1545,21 @@ public final class UiaBridge extends PlatformBridge {
         @Override
         public long elementInAnotherWindowFor(long nodeId) {
             UiaBridge holder = openBridgeHolding(nodeId);
-            return holder == null ? 0 : holder.handOverFromAnotherWindow(nodeId);
+            return holder == null ? 0 : holder.handOverFromAnotherWindow(nodeId,
+                    UiaInterfaces.RAW_ELEMENT_PROVIDER_FRAGMENT);
+        }
+
+        /**
+         * <p>The same hand-over, through the simple interface the relation properties declare
+         * (CRIT-2): a {@code ControllerFor}, {@code LabeledBy} or {@code DescribedBy} target that
+         * another open window holds is that window's element, minted and referenced there, under
+         * that bridge's guard.
+         */
+        @Override
+        public long simpleElementInAnotherWindowFor(long nodeId) {
+            UiaBridge holder = openBridgeHolding(nodeId);
+            return holder == null ? 0 : holder.handOverFromAnotherWindow(nodeId,
+                    UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE);
         }
 
         @Override
