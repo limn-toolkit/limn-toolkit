@@ -1353,12 +1353,25 @@ public final class UiaBridge extends PlatformBridge {
      * gap as "a sort arrives as a publish, not a state change", which is half right: it is not a
      * state change, and it is not silent either.
      *
-     * <p><b>The guard is the header row and not the direction</b>, because the change that ends a
-     * sort leaves the facet at {@code NONE} and the description empty, and that is precisely the
-     * moment a cached status is most wrong. An empty string is what {@code ItemStatus} already
-     * carries for "nothing to say" (the BUSY case writes it when busy clears). <b>And not while
-     * BUSY holds</b>, which is the same choice recorded beside the getter: busy owns the one string
-     * while it lasts, so the description moving underneath it does not move what a client reads.
+     * <p><b>The guard is the header row and not the direction</b>, and it is deliberately wider
+     * than the getter's {@code isSortedHeader}, which also asks for a direction that is not
+     * {@code NONE}: the change that <em>ends</em> a sort leaves the facet at {@code NONE} and the
+     * description empty, and that is precisely the moment a cached status is most wrong, so a
+     * guard that asked the facet would go silent exactly there.
+     *
+     * <p><b>What a client reads in the gap between the two guards</b> is nothing, in both senses:
+     * the values this raises are the ones {@link UiaProperties#valueOf} answers, because they go
+     * through {@link #changedValue} (2026-09-16), so a header cell whose description is its own and
+     * whose column is not sorted — the first widget to write anything but a sort phrase there;
+     * {@code Table} writes only that — raises a change from nothing to nothing rather than
+     * announcing a status the element denies. The cost of the wider guard is that no-op change; the
+     * cost of the narrower one would be a stale direction that outlives the sort, and a client that
+     * re-reads finds the getter and the event saying the same thing either way.
+     *
+     * <p><b>And not while BUSY holds</b>, which is the same choice recorded beside the getter: busy
+     * owns the one string while it lasts, so the description moving underneath it does not move
+     * what a client reads. What busy leaves behind is the sort phrase again, and the
+     * {@code BUSY} change that clears it carries exactly that ({@link #changedValue}).
      *
      * @param event what changed
      * @param node  the node it changed on, or {@code null} when it is no longer in the tree
@@ -1373,17 +1386,49 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
-     * A change's value as the property carries it, where that is not the model's own type: BUSY
-     * moves as a boolean and ItemStatus is a string, the phrase while busy and empty after.
+     * A change's value as the property carries it, where that is not the model's own type.
+     *
+     * <p>{@code ItemStatus} is the whole of it, because it is the one property here answered from
+     * two model facts at once: {@code BUSY}, which moves as a boolean, and a sorted column header's
+     * direction, which moves as a description. <b>What is raised is what
+     * {@link UiaProperties#valueOf} would answer</b> — that is the rule, and it is not decoration:
+     * a client caches the value a property change carries and re-reads the property when it does
+     * not, so an event and a getter that disagree leave it holding a status the element denies.
+     *
+     * <ul>
+     *   <li><b>Busy true</b> is the busy word, in the node's own language, which is what the getter
+     *       answers while the state holds.</li>
+     *   <li><b>Busy false</b> is whatever the node carries when it is not busy
+     *       ({@link UiaProperties#statusWhenNotBusy}): nothing for an ordinary item, and the sort
+     *       phrase for a header that is both busy and sorted — where until 2026-09-16 this returned
+     *       the empty string, so the moment busy cleared on a sorted header the client was told the
+     *       status was "" while {@code GetPropertyValue} answered "Sorted ascending". It is the
+     *       not-busy answer on both sides of the change: the node in the published tree carries
+     *       {@code BUSY} on the busy side, so asking the getter for the old value of a busy that has
+     *       just been set would answer the busy word twice.</li>
+     *   <li><b>A description</b> is the status only where the getter reads it as one, which is a
+     *       sorted header's ({@link UiaProperties#statusOf}); on any other header cell the change
+     *       carries nothing, which is what the element answers there.</li>
+     * </ul>
+     *
+     * <p>Nothing is the absence of a value and not an empty string: {@code null} is written as
+     * {@code VT_EMPTY}, which is exactly what the getter's {@code null} is written as.
      *
      * @param propertyId the property {@link #changedProperty} chose
      * @param value      the event's old or new value
-     * @param node       the node, for its locale, or {@code null} when it is gone
+     * @param node       the node, for its locale and its facets, or {@code null} when it is gone
      */
     static Object changedValue(int propertyId, Object value, AccessibleNode node) {
-        if (propertyId == UiaIds.ITEM_STATUS && value instanceof Boolean busy) {
+        if (propertyId != UiaIds.ITEM_STATUS) {
+            return value;
+        }
+        if (value instanceof Boolean busy) {
             return busy ? StateNames.of(Accessible.State.BUSY,
-                    node != null ? node.locale() : java.util.Locale.ENGLISH) : "";
+                    node != null ? node.locale() : java.util.Locale.ENGLISH)
+                    : UiaProperties.statusWhenNotBusy(node);
+        }
+        if (value instanceof String description) {
+            return UiaProperties.statusOf(node, description);
         }
         return value;
     }

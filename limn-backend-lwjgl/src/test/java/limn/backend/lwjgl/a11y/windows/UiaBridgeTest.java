@@ -1119,8 +1119,18 @@ class UiaBridgeTest {
      * description, and a sort reaches this bridge as a description change — so raising
      * {@code HelpText} alone left a client that caches the property the convention exists for
      * saying the old direction. Both are raised for a header cell; only {@code HelpText} for a data
-     * cell, which heads no column, and only {@code HelpText} while BUSY holds the one status
-     * string, which is the same choice recorded beside the getter.
+     * cell and for a footer cell, neither of which heads a column, and only {@code HelpText} while
+     * BUSY holds the one status string, which is the same choice recorded beside the getter.
+     *
+     * <p><b>Which cell carries which trap</b> (fix round 3b's review, 2026-09-16): the data cell
+     * <em>and</em> the footer cell are each given a description of their own and a direction their
+     * facet has no business carrying, and a description change is driven on each, so the guard that
+     * keeps the status off them is this bridge's and not the model's restraint. The unsorted
+     * column's header is driven too: it is inside the guard, so both properties are raised for it
+     * — and the {@code ItemStatus} they raise carries nothing, because the values go through
+     * {@code changedValue} and that is what the element answers
+     * ({@code UiaPropertiesTest.whatAnItemStatusChangeCarriesIsWhatTheGetterAnswers}, which is
+     * where a value can be asserted; the trace sees only the property and the HRESULT).
      */
     @Test
     void aSortedHeadersDescriptionMovesTheStatusThatCarriesItAndADataCellsDoesNot() {
@@ -1130,14 +1140,20 @@ class UiaBridgeTest {
         UiaWindow.trace = trace::add;
         try {
             bridge.publish(aTableSortedOnItsSecondColumn(false), false);
+            bridge.objectFor(2101);
             bridge.objectFor(2102);
             bridge.objectFor(2201);
+            bridge.objectFor(2301);
             bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2102,
                     "Sorted ascending", "Sorted descending"));
             bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2201,
                     "Years since joining", "Years here"));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2301,
+                    "The column's total", "The column's average"));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2101,
+                    "Click to sort by name", "Click to sort by surname"));
             assertNotNull(awaitTrace(trace,
-                    l -> l.startsWith("raised DESCRIPTION_CHANGED for node 2201")));
+                    l -> l.startsWith("raised DESCRIPTION_CHANGED for node 2101")));
 
             bridge.publish(aTableSortedOnItsSecondColumn(true), false);
             bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.DESCRIPTION_CHANGED, 2102,
@@ -1152,12 +1168,18 @@ class UiaBridgeTest {
                             "property 30013 changed -> 0x0",
                             "raised DESCRIPTION_CHANGED for node 2201",
                             "property 30013 changed -> 0x0",
+                            "raised DESCRIPTION_CHANGED for node 2301",
+                            "property 30013 changed -> 0x0",
+                            "property 30026 changed -> 0x0",
+                            "raised DESCRIPTION_CHANGED for node 2101",
+                            "property 30013 changed -> 0x0",
                             "raised DESCRIPTION_CHANGED for node 2102"),
                     linesOf(trace, l -> l.startsWith("property ")
                             || l.startsWith("raised DESCRIPTION_CHANGED")).stream()
                             .map(l -> l.replaceFirst(" in \\d+ us on .*", "")).toList(),
-                    "HelpText and ItemStatus on the header, HelpText alone on the data cell and "
-                            + "while busy holds the one status string: " + trace);
+                    "HelpText and ItemStatus on every cell of the header row, HelpText alone on "
+                            + "the data cell, on the footer cell and while busy holds the one "
+                            + "status string: " + trace);
         } finally {
             UiaWindow.trace = before;
             bridge.detach();
@@ -1166,8 +1188,11 @@ class UiaBridgeTest {
 
     /**
      * A table of two columns sorted ascending on the second, as ADR 041 §7 says a table publishes
-     * one: a header group, a data row whose cell has a description of its own, and a footer cell
-     * deliberately given a direction its facet has no business carrying.
+     * one: a header group whose unsorted column carries a description of its own, a data row, and
+     * a footer — and the data cell and the footer cell are each given a description of their own
+     * <b>and</b> a direction their facet has no business carrying, so that a status kept off them
+     * is this bridge's guard and not the model's restraint. The same fixture as
+     * {@code UiaPropertiesTest}'s, which asserts what each of these cells answers.
      *
      * @param busy whether the sorted header is also busy
      */
@@ -1195,6 +1220,8 @@ class UiaBridgeTest {
                 if (busy) {
                     a.state(Accessible.State.BUSY, true);
                 }
+            } else {
+                a.description(I18nString.literal("Click to sort by name"));
             }
             a.inherited(true, true, true, false, false);
             a.end();
@@ -1208,6 +1235,17 @@ class UiaBridgeTest {
         a.name(I18nString.literal("42"), Accessible.NameFrom.CONTENT);
         a.description(I18nString.literal("Years since joining"));
         a.cell(0, 1, limn.accessibility.CellFacet.Sort.ASCENDING);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        int footer = a.begin(2300, table, Locale.ENGLISH, 0, 60, 400, 30);
+        a.role(Accessible.Role.GROUP);
+        a.inherited(true, true, true, false, false);
+        a.begin(2301, footer, Locale.ENGLISH, 200, 60, 200, 30);
+        a.role(Accessible.Role.CELL);
+        a.name(I18nString.literal("Total 99"), Accessible.NameFrom.CONTENT);
+        a.description(I18nString.literal("The column's total"));
+        a.cell(-2, 1, limn.accessibility.CellFacet.Sort.DESCENDING);
         a.inherited(true, true, true, false, false);
         a.end();
         a.end();

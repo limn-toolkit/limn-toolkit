@@ -2583,6 +2583,28 @@ ways: with the `ItemStatus` arm removed, with the header-row guard dropped (a da
 description raised as a status) and with the busy guard dropped. Phase 5 still hears the composition
 choice above; it no longer has to ask whether the direction is announced at all.)
 
+*(Amended again 2026-09-16, fix round 3b's review: the sentence above about the empty string was
+wrong, and the event half is closed with it.* This property has no "nothing to say" string: a node
+with no status answers `null`, written as `VT_EMPTY`, which is what the getter's own comment says
+("an item that is not busy has no status at all rather than a status saying it is idle"). The BUSY
+mapping wrote `""` when busy cleared, and on a header that is both busy and sorted that was the
+stale `ItemStatus` this whole amendment exists to prevent, raised by the mapping itself: the client
+was told the status was `""` the moment busy cleared, while `GetPropertyValue` answered
+"Sorted ascending". **The rule now is that what an `ItemStatus` change carries is what the getter
+answers**, on all three of its arms — the busy word while busy holds; for a busy that clears, the
+not-busy answer for that node (the sort phrase on a sorted header, nothing anywhere else); and for a
+description, the description only where the getter reads it as a status. It is the *not-busy* answer
+and not `GetPropertyValue` itself because the node in the published tree carries `BUSY` on the busy
+side of the change, so asking the getter for the old value of a busy just set would answer the busy
+word twice. The same rule closes the other gap in the pair of guards: the raise's guard is the
+header row while the getter also asks for a direction, so a header cell whose description is its own
+— no widget writes one today; `Table` writes only the sort phrase — raises a change from nothing to
+nothing instead of announcing a status the element denies. The wider guard stays, because the change
+that *ends* a sort leaves the facet at `NONE` and is exactly when a cached direction is most wrong.
+Pinned by `UiaPropertiesTest.whatAnItemStatusChangeCarriesIsWhatTheGetterAnswers` (red with the
+empty string put back, and red with the description arm removed) and by the bridge test above, which
+now drives a description change on the footer cell and on the unsorted column's header too.)
+
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `UiaRaiseNotificationEvent` and
 `UiaRaiseStructureChangedEvent` are bound and raised.** The event-flush row lists both; neither was
 bound, an `ANNOUNCEMENT` (node `0`) was mapped to the notification event id and then dropped at the
