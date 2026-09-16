@@ -174,11 +174,10 @@ class AxGridTest {
      * <p>WINDOW &gt; TABLE 1001 (2 rows, 1 column, selection) &gt; synthetic GROUP &gt; [ROW 1010
      * (1 of 2, selected) &gt; CELL 1011 (0, 0); ROW 1020 (2 of 2) &gt; CELL 1021 (1, 0)].
      */
-    @Test
-    void aTablesSelectedRowsAreTheMembersOfItsSelectionWhereverTheyHangUnderIt() {
+    private static AccessibleTree aTableWhoseRowsHangUnderASyntheticBody() {
         Shape s = new Shape();
         Accessibility a = s.a;
-        int table = s.open(1001, 0, Accessible.Role.TABLE, true);
+        s.open(1001, 0, Accessible.Role.TABLE, true);
         a.table(2, 1);
         a.selection(false, false);
         int body = s.child(7, Accessible.Role.GROUP);
@@ -193,7 +192,12 @@ class AxGridTest {
         }
         a.endChild();
         a.end();
-        Fixture f = over(s.publish());
+        return s.publish();
+    }
+
+    @Test
+    void aTablesSelectedRowsAreTheMembersOfItsSelectionWhereverTheyHangUnderIt() {
+        Fixture f = over(aTableWhoseRowsHangUnderASyntheticBody());
         AccessibleNode node = f.node(1001);
         assertEquals(AxGrid.SelectionShape.ROWS, f.grid().selectionShape(node),
                 "its members are rows, so AXSelectedRows is where its selection is read");
@@ -275,6 +279,96 @@ class AxGridTest {
             assertTrue(!AxGrid.outsideSubtreeOf(0, tree.node(i)),
                     "the window's block is the whole tree, so no walk from it is ever bounded early");
         }
+    }
+
+    /**
+     * <b>The contract the bound rests on</b>, held here because the model does not state it: in a tree
+     * the publish step walked, a node's descendants are one contiguous index block beginning at the
+     * node after it. {@code AxGrid.outsideSubtreeOf} reads that and nothing else, so if it ever stopped
+     * holding, members past the break would vanish from AXSelectedRows, AXSelectedChildren /
+     * AXSelectedCells, {@code selectionRows} and the settable gate — a wrong answer and not a slow one.
+     *
+     * <p>Why it is not simply true: {@link Accessibility#begin} is public and takes an arbitrary parent
+     * index with no check that it is the open node or one of its synthetic children, and
+     * {@code AccessibleTree}'s javadoc promises only "tree order, which is paint order". What makes it
+     * depth-first is the one caller's discipline — {@code AccessibleWalk} begins each widget under
+     * {@code host >= 0 ? host : into}, its synthetic host or its parent, between that parent and the
+     * parent's next sibling — and the publish step neither prunes nor reorders after it. So the
+     * invariant is the walk's, the bridge depends on it, and until it is stated where it is owned (one
+     * line on {@code AccessibleTree} or {@link Accessibility#begin}, or an assertion in publish — owed
+     * to the lane that owns {@code limn-toolkit}; named in fix round 3b's lane log) this case is what
+     * holds it: over both hand-built shapes and over a real {@code Table} the scene published.
+     *
+     * <p>The last third is the vacuity guard, and it is also the evidence for the paragraph above: a
+     * tree begun through the public API with a parent index that is not the open node splits a block in
+     * two, nothing rejects it, and the checker sees it.
+     */
+    @Test
+    void aNodesDescendantsAreOneContiguousBlockInEveryTreeThePublishStepWalks() {
+        assertEquals(-1, firstNodeOutsideItsAncestorsBlock(aTable()),
+                "the hand-built table, header, rows, cells, footer and the BUTTON beside them");
+        assertEquals(-1, firstNodeOutsideItsAncestorsBlock(aTableWhoseRowsHangUnderASyntheticBody()),
+                "a synthetic body between the table and its rows, which is the shape the member walk "
+                        + "exists for, and the model interns its child there");
+
+        AtomicLong nanos = new AtomicLong();
+        HeadlessUi ui = new HeadlessUi(nanos::get);
+        try {
+            List<Person> people = new ArrayList<>();
+            for (int i = 0; i < 5; i++) people.add(new Person("Person " + i, 20 + i));
+            Table<Person> table = new Table<>(List.of(
+                    Column.text("Name", Person::name).width(120),
+                    Column.numeric("Age", Person::age).width(60)));
+            table.setRows(people);
+            Scene scene = new Scene(table, nanos::get);
+            ProbeWindow window = new ProbeWindow();
+            AxBridge bridge = PlatformFreeBridges.make();
+            window.accessibility = bridge;
+            scene.bind(window);
+            scene.renderFrame(new NoopCanvas(400, 300));
+            AccessibleTree published = bridge.tree();
+            assertTrue(published.nodeCount() > 10, "the scene published a tree worth walking");
+            assertEquals(-1, firstNodeOutsideItsAncestorsBlock(published),
+                    "the real walk's own order, which is where the invariant actually comes from");
+        } finally {
+            ui.close();
+        }
+
+        Shape s = new Shape();
+        Accessibility a = s.a;
+        int split = s.open(1001, 0, Accessible.Role.TABLE, true);
+        a.end();
+        s.open(1050, 0, Accessible.Role.BUTTON, true);
+        a.end();
+        // Begun after the BUTTON and claiming the TABLE as its parent: the publish-step API takes any
+        // index, so this is the shape the walk's discipline — and nothing else — rules out.
+        s.open(1011, split, Accessible.Role.CELL, true);
+        a.end();
+        assertNotEquals(-1, firstNodeOutsideItsAncestorsBlock(s.publish()),
+                "a checker that could not see a broken block would hold nothing");
+    }
+
+    /**
+     * The first node that descends from some earlier node without lying in that node's contiguous
+     * block, or {@code -1} when every block is contiguous.
+     */
+    private static int firstNodeOutsideItsAncestorsBlock(AccessibleTree tree) {
+        for (int at = 0; at < tree.nodeCount(); at++) {
+            int last = at;
+            for (int i = at + 1; i < tree.nodeCount(); i++) {
+                if (!descendsFrom(tree, i, at)) continue;
+                if (i != last + 1) return i;
+                last = i;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean descendsFrom(AccessibleTree tree, int node, int ancestor) {
+        for (int p = tree.node(node).parent(); p != AccessibleNode.NONE; p = tree.node(p).parent()) {
+            if (p == ancestor) return true;
+        }
+        return false;
     }
 
     @Test

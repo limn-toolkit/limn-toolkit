@@ -233,11 +233,21 @@ final class AxGrid {
      * hang anywhere below. That is the residual the macOS phase-5 timing line measures — against the
      * subtree, not against the children.
      *
-     * <p>The bound is read off the walk's own index order, which is depth-first: a node is begun
-     * between its parent and its parent's next sibling, so a container's descendants are the
-     * contiguous block after it, and the first node after that block is a later sibling of the
-     * container or of one of its ancestors — whose parent index is therefore below the container's.
-     * <b>Not read off {@code nextSibling}</b>, which is a link and not an index: a widget cell hung
+     * <p><b>The contract this rests on, and where it is held.</b> A published node's descendants are
+     * one contiguous index block beginning at the node after it, so the first node past the block is a
+     * later sibling of the container or of one of its ancestors, whose parent index is below the
+     * container's. That is a property of the publish step's walk and not of the model's API:
+     * {@code Accessibility#begin} takes an arbitrary parent index and checks nothing, and
+     * {@code AccessibleTree} promises only "tree order, which is paint order". What makes it
+     * depth-first is {@code AccessibleWalk} beginning each widget under its synthetic host or its
+     * parent ({@code under = host >= 0 ? host : into}), between that parent and the parent's next
+     * sibling, and a publish that neither prunes nor reorders after it. Until the model states it
+     * where it is owned, {@code AxGridTest#aNodesDescendantsAreOneContiguousBlockInEveryTreeThePublishStepWalks}
+     * holds it — over two hand-built shapes, over a tree a real {@code Table} scene published, and
+     * with a deliberately broken tree to prove the check is not vacuous. If it ever stops holding, the
+     * members past the break vanish from every answer below rather than arriving late.
+     *
+     * <p><b>Not read off {@code nextSibling}</b>, which is a link and not an index: a widget cell hung
      * under a synthetic row is relinked among that row's cells by column at publish
      * (Accessibility.java's child pass), so a sibling link can point at a node begun earlier.
      *
