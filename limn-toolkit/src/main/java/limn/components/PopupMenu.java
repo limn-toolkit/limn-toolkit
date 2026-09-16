@@ -532,7 +532,10 @@ public final class PopupMenu {
         popupWindow = parentWindow.backend().createWindow(new WindowConfig(
                 "menu", w, h, false, false, false, true, true, true)); // undecorated, floating, transparent, focus-stealing
         parentWindow.registerChildPopup(popupWindow);
-        popupScene = new Scene(surface);
+        // The owner's clock as well as its rendering flags: this scene owns the fade-out that
+        // destroys the window, and a fade on the wall clock under an opener on an injected one
+        // never ends (Scene#clock).
+        popupScene = new Scene(surface, owner.clock());
         popupScene.inheritRenderingFlags(owner); // partial/debug follow the owner window
         popupScene.bind(popupWindow);
         popupScene.setBackground(Color.TRANSPARENT);

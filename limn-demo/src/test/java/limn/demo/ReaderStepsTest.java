@@ -5,7 +5,6 @@ import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.components.DisplayMode;
-import limn.components.Theme;
 import limn.components.date.CalendarView;
 import limn.components.date.DateField;
 import limn.components.date.DatePicker;
@@ -17,6 +16,7 @@ import limn.demo.a11y.AccessibilityGallery;
 import limn.demo.a11y.AccessibilityGallery.Entry;
 import limn.demo.a11y.AccessibilityGallery.Fact;
 import limn.demo.a11y.AccessibilityGallery.Step;
+import limn.demo.a11y.GalleryStrings;
 import limn.demo.a11y.HeadlessWindow;
 import limn.demo.a11y.ReaderDriver;
 import limn.demo.a11y.Transcript;
@@ -98,10 +98,12 @@ class ReaderStepsTest {
     private static final long BUSY_DEADLINE_MILLIS = 10_000;
 
     /**
-     * What is added to a window's fade, in wall time, before the next step is sent while a popup
-     * window exists: time for a frame to land after the fade has run out on a loaded machine.
+     * Frames rendered while a popup window is still open before the next step is sent: the same
+     * width the sibling suites settle with, nearly three times the eight frames
+     * {@code Theme.animWindow} (0.16 s) takes at the harness's 20 ms step, plus the one that
+     * destroys the window (NativePopupTeardownTest measures those nine).
      */
-    private static final long FADE_MARGIN_MILLIS = 100;
+    private static final int FRAMES_OF_A_WINDOW_FADE = 24;
 
     @Test
     void everyStepDeclaresWhatItLeaves() {
@@ -242,6 +244,11 @@ class ReaderStepsTest {
      * phase-3 fix round, 2026-09-15). The pass above only knows that something happened; this is
      * what phase 5 reads to know what a reader should have heard, and it is the one place in the
      * gallery where the application speaks rather than a node changing.
+     *
+     * <p>The two sentences come from {@link GalleryStrings} since decision 68, so this reads them
+     * from there: an English run hears the English they carry, and
+     * {@code ReaderEntryLanguageTest.theAnnouncementsSpeakTheRunsLanguage} hears the pt-BR a
+     * reader pass on a guest does.
      */
     @Test
     void theAnnouncementEntrySpeaksBothPolitenessLevels() {
@@ -265,9 +272,9 @@ class ReaderStepsTest {
             }
         }
         assertEquals(2, spoken.size(), "the two presses speak once each: " + spoken);
-        assertEquals("Saved", spoken.get(0).newValue());
+        assertEquals(GalleryStrings.SAVED.get(), spoken.get(0).newValue());
         assertEquals(Accessible.Politeness.POLITE, spoken.get(0).politeness());
-        assertEquals("Stopped, nothing was saved", spoken.get(1).newValue());
+        assertEquals(GalleryStrings.STOPPED.get(), spoken.get(1).newValue());
         assertEquals(Accessible.Politeness.ASSERTIVE, spoken.get(1).politeness(),
                 "both levels, because the three platforms map them to different values");
     }
@@ -377,11 +384,14 @@ class ReaderStepsTest {
     }
 
     /**
-     * Renders in wall time for a window's fade while a popup window exists. A popup's scene runs
-     * on the wall clock, not on the harness's scene time, and its fade-out is what closes its
-     * window (DatePicker#dismiss), so without this a picker reopened on the next step opens a
-     * second popup while the first is still published, and the field is the controller of both:
-     * a state the driver, whose steps are three seconds apart, never reaches.
+     * Renders out a window's fade while a popup window is still open, so the next step is sent to
+     * the scene the driver's own three seconds would send it to: a picker reopened while the last
+     * popup is still published leaves the field the controller of two of them, a state no run
+     * reaches.
+     *
+     * <p>In scene time since 2026-09-15. A popup's scene takes its opener's clock
+     * ({@code Scene#clock}), so the harness's frames advance the fade that closes the window, and
+     * this waited in wall time only because they did not.
      */
     private static void waitForWindowFades(Harness harness) {
         List<HeadlessWindow> windows = harness.windows();
@@ -392,18 +402,7 @@ class ReaderStepsTest {
         if (!popup) {
             return;
         }
-        long until = System.currentTimeMillis() + (long) (Theme.current().animWindow * 1000)
-                + FADE_MARGIN_MILLIS;
-        while (System.currentTimeMillis() < until) {
-            try {
-                Thread.sleep(20);
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            harness.settle(1);
-        }
-        harness.settle(2);
+        harness.settle(FRAMES_OF_A_WINDOW_FADE);
     }
 
     /**

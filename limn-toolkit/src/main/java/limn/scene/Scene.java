@@ -219,6 +219,25 @@ public final class Scene implements WindowInput {
     }
 
     /**
+     * The clock this scene's animations tick on, for a scene built to stand beside it.
+     *
+     * <p>A surface this scene opens in a window of its own — a combo's list, a menu's cascade, a
+     * date picker's calendar, a dialog's card — is the root of a <b>second</b> scene, and that
+     * scene owns the fade whose last frame destroys the window ({@link #fadeWindowOut}). Built on
+     * the wall clock while its opener runs on an injected one, that fade advances by real
+     * microseconds however much time the opener's clock is told has passed, so the window never
+     * goes: a headless harness could open a popup and never close it, and did (the accessibility
+     * gallery's, 2026-09-15). So the four surfaces pass this along, and a popup's time is its
+     * opener's time. With no clock injected both are {@link System#nanoTime}, which is every
+     * application.
+     *
+     * @return what this scene reads as now
+     */
+    public LongSupplier clock() {
+        return clock;
+    }
+
+    /**
      * Injectable clock (slow-handler instrumentation and animation ticks),
      * public so component tests can drive animations deterministically.
      */
