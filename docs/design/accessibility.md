@@ -64,15 +64,24 @@ delegate either onto a focusable child for the same reason. And **no hook's answ
 platform**: a bridge accepts or refuses a verb synchronously from the published snapshot, then
 posts, and the `false` a hook answers later is bookkeeping nobody hears. So the only refusal a
 reader can see is the published one — a node accepts exactly the parameterless verbs it publishes
-plus the setters its writable facets imply while it is enabled (`AccessibleNode#accepts`), and a
-widget that accepts a synonym publishes it. On a node that is not enabled — a disabled widget,
-anything under a disabled ancestor, and everything outside the layer that owns input (beneath an
-overlay of the scene, or in a window a native modal blocks) — the scene refuses every verb, and the
-walk withdraws them for you: every verb on each such node, a synthetic child you declared
-`disabled()` included, while its setters go with the enabled bit and its value and text keep the
-writability they have. Never publish a disabled field read-only: disabled and read-only are
-different facts. Do not gate a verb on whether your widget is enabled or on where your popup
-is drawn; gate it on the rest of your own state. The one exception is a popup's contents: an overlay
+plus the setters its writable facets imply while it is enabled and visible
+(`AccessibleNode#accepts`), and a widget that accepts a synonym publishes it. On a node the scene
+will not operate the walk withdraws every verb for you, and there are **three** reasons it will not,
+all read the same way: the widget or an ancestor is disabled (a synthetic child you declared
+`disabled()` included), the node is outside the layer that owns input (beneath an overlay of the
+scene, or in a window a native modal blocks), or **nobody can see it** — its own visible flag or an
+ancestor's is false, which is what an unselected tab's contents and a collapsed panel are. Setters go
+the same way, while the value and the text keep the writability they really have. Never publish a
+disabled field read-only: disabled and read-only are different facts.
+
+**Scrolled away is not hidden.** The third reason is visibility and never "has pixels on the glass":
+a control clipped out of a scroll viewport keeps every verb and every setter, and the scene reveals
+it and then performs, the way the two free verbs have always worked. Publish what your control
+offers and let the scene decide where it is; a widget that withheld a verb because it was scrolled
+out of view would be hiding a control the reader can reach.
+
+Do not gate a verb on whether your widget is enabled, on whether it is on screen, or on where your
+popup is drawn; gate it on the rest of your own state. The one exception is a popup's contents: an overlay
 of the scene and a window of its own are walked on their own chain, enabled whatever the control
 that opened them, exactly as the keyboard reaches them, so a popup whose contents must go inert with
 its opener guards on the opener's own flag and says so, narrowing its rows with `disabled()` as the

@@ -513,16 +513,20 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
     // ---------------------------------------------------------------------------- the overflow
 
     /**
-     * The cost this step records rather than hides. In an overflowing strip a header scrolled out
-     * of the viewport is published where it really is and without {@code SHOWING}, and the scene's
-     * action gate refuses an action whose owner is not showing — so the tabs a reader most needs
-     * are the ones its select cannot reach until something reveals them. There is no verb here
-     * that could rescue them: scroll-into-view is the walk's and is granted to a focusable widget,
-     * and an unselected header is not one. The routes back are in the source: selecting a visible
-     * neighbour scrolls the run, and the strip's list chevron opens a menu of every tab.
+     * In an overflowing strip a header scrolled out of the viewport is published where it really
+     * is and without {@code SHOWING}, and a reader can still select it: the scene reveals the
+     * header and then performs (decision 66, 2026-09-15).
+     *
+     * <p>This test recorded the opposite cost until that day — "the tabs a reader most needs are
+     * the ones its select cannot reach", with the routes back being a sighted user's (select a
+     * visible neighbour, or open the strip's list chevron). The header is not focusable, so it has
+     * no {@code SCROLL_INTO_VIEW} of its own and nothing on the node could have rescued it; the
+     * showing gate refused the verb the node published, which is the shape decision 66 struck
+     * everywhere at once. Scrolled away is not hidden: the header keeps {@code VISIBLE}, keeps its
+     * {@code SELECT}, and is brought back by the verb itself.
      */
     @Test
-    void anOverflowingStripPublishesRealBoxesAndRefusesTheTabItHasScrolledAway() throws Exception {
+    void anOverflowingStripRevealsAndSelectsTheTabItHasScrolledAway() throws Exception {
         bindTabs(200, "Tab A", "Tab B", "Tab C", "Tab D", "Tab E", "Tab F", "Tab G", "Tab H");
         Widget strip = pane.children().get(0);
 
@@ -542,33 +546,24 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
                 "the clip walk already intersects with every clipping ancestor, and the strip "
                         + "clips" + describe(tree()));
 
+        assertTrue(away.actions().has(Accessible.Action.SELECT),
+                "scrolled away is not hidden: the header keeps the verb it offers, because the "
+                        + "scene now performs it" + describe(tree()));
+
         assertTrue(perform(away.id(), Accessible.Action.SELECT, Accessible.Argument.NONE),
                 "the identifier is in the published tree, so the answer to the platform is "
-                        + "accepted; the refusal is a precondition re-checked on arrival");
+                        + "accepted; every precondition is re-checked on arrival");
         frame();
 
-        assertEquals(0, pane.selectedIndex(),
-                "an action whose owner is not showing is refused, which is the cost of an "
-                        + "overflowing strip and not a defect in the hook");
-        assertEquals(List.of(), selections);
-
-        pane.setSelectedIndex(7);
-        frame();
-        selections.clear();
-        bridge.events.clear();
+        assertEquals(6, pane.selectedIndex(),
+                "the scene revealed the header and then selected it, which is what the verb the "
+                        + "node published promised (decision 66)");
+        assertEquals(List.of(6), selections);
 
         AccessibleNode revealed = node("Tab G");
         assertEquals(away.id(), revealed.id(), "the same tab" + describe(tree()));
         assertTrue(revealed.has(Accessible.State.SHOWING),
-                "selecting a tab scrolls it into view, and its neighbour comes with it"
-                        + describe(tree()));
-
-        assertTrue(perform(revealed.id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
-        frame();
-
-        assertEquals(6, pane.selectedIndex(),
-                "the same select the gate refused a moment ago now runs");
-        assertEquals(List.of(6), selections);
+                "and it came into the viewport on the way" + describe(tree()));
     }
 
     // ------------------------------------------------------------------------- reading order

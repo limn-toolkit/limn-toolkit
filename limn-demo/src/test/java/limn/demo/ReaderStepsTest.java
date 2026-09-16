@@ -1,6 +1,7 @@
 package limn.demo;
 
 import limn.accessibility.Accessible;
+import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.components.DisplayMode;
@@ -65,7 +66,11 @@ class ReaderStepsTest {
      * {@code lanes/gallery-log.md} lists them. A script renamed here is renamed there too.
      */
     static final List<String> RECIPE_IDS = List.of(
-            "tree-loading", "table", "calendar", "date-field", "date-picker");
+            "tree-loading", "table", "calendar", "date-field", "date-picker",
+            // Added 2026-09-15 (brief item 4 of the phase-3 fix round): the only script that makes
+            // the application speak, so the three bridges' announcement paths can be heard in
+            // phase 5. The guest recipes owe a section for it.
+            "announcement");
 
     /** The widgets H2 (with DT8, B9 and T7) found no reader run could be pointed at. */
     private static final List<Class<?>> WIDGETS_A_READER_MUST_HEAR = List.of(
@@ -230,6 +235,41 @@ class ReaderStepsTest {
                 assertEquals(1, printed.size(), "the focus is placed once");
             }
         }
+    }
+
+    /**
+     * The announcement entry says what it announces, and in which politeness (brief item 4 of the
+     * phase-3 fix round, 2026-09-15). The pass above only knows that something happened; this is
+     * what phase 5 reads to know what a reader should have heard, and it is the one place in the
+     * gallery where the application speaks rather than a node changing.
+     */
+    @Test
+    void theAnnouncementEntrySpeaksBothPolitenessLevels() {
+        Entry entry = AccessibilityGallery.readerEntry("announcement");
+        List<AccessibleEvent> spoken = new ArrayList<>();
+        try (Harness harness = new Harness(Palette.LIGHT)) {
+            harness.show(entry);
+            Scene scene = harness.scenes.get(0);
+            harness.built.focus().requestFocus();
+            harness.settle();
+            HeadlessWindow window = harness.windows().get(0);
+            window.bridge().events.clear();
+            for (Step step : entry.reader().steps()) {
+                step.sendTo(scene);
+                harness.settle();
+            }
+            for (AccessibleEvent event : window.bridge().events) {
+                if (event.type() == AccessibleEvent.Type.ANNOUNCEMENT) {
+                    spoken.add(event);
+                }
+            }
+        }
+        assertEquals(2, spoken.size(), "the two presses speak once each: " + spoken);
+        assertEquals("Saved", spoken.get(0).newValue());
+        assertEquals(Accessible.Politeness.POLITE, spoken.get(0).politeness());
+        assertEquals("Stopped, nothing was saved", spoken.get(1).newValue());
+        assertEquals(Accessible.Politeness.ASSERTIVE, spoken.get(1).politeness(),
+                "both levels, because the three platforms map them to different values");
     }
 
     @TestFactory

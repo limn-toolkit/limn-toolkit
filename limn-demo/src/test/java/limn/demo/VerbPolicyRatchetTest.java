@@ -71,13 +71,54 @@ import static org.junit.jupiter.api.Assertions.fail;
  * sent {@code SET_VALUE} and {@code SET_TEXT}, and {@code SET_CARET} and {@code SET_SELECTION}
  * where it has a text facet, each with an argument that differs from what it publishes, and
  * something moves exactly when {@link AccessibleNode#accepts} says the node takes it.
- * {@link #SETTER_ALLOWLIST} names the one finding it holds open, under the same rule as the other
- * list.
+ * {@link #SETTER_ALLOWLIST} is empty since decision 66 struck its three lines.
+ *
+ * <p>And a fourth, which gives the parameterless half the setter pass's second direction
+ * (decision 66, 2026-09-15): <b>a verb a node publishes moves something when it is performed</b>,
+ * over the whole gallery rather than over one open layer. That is where a published verb the
+ * scene's gate refuses in silence shows up, which is what the showing axis was
+ * ({@code INCREMENT} on a slider in an unselected tab, {@code PRESS} on a button scrolled out of
+ * view), and neither of the two passes above can see it.
+ * {@link #movesNothingByDefinition} says which verbs are not asked and why, and
+ * {@link #PERFORMED_UNSEEN} carries the one finding it holds open under the same shrink-only rule.
  */
 class VerbPolicyRatchetTest {
 
     /** Frames rendered after a verb is posted: one to run it, one to publish what it changed. */
     private static final int FRAMES_AFTER_A_VERB = 2;
+
+    /**
+     * Frames rendered after a verb that may dismiss a surface, for the published-verb pass: long
+     * enough for a fade-out to finish and the window it was in to go.
+     *
+     * <p><b>Read, not guessed (2026-09-15, the phase-3 fix review).</b> Three numbers, in the order
+     * they were taken.
+     *
+     * <ol>
+     *   <li><b>What a surface actually takes.</b> Every surface in a window of its own leaves
+     *       through {@code Scene#fadeWindowOut(Theme.current().animWindow, destroy)} —
+     *       {@code ComboBox}, {@code PopupMenu}, {@code Dialog}, {@code DatePicker} — and
+     *       {@code Theme.animWindow} is {@code 0.16} s. {@code Harness#settle} steps scene time by
+     *       a fixed 20&nbsp;ms a frame, so the fade is <b>8 frames</b> and the destroy callback
+     *       runs on the ninth. 24 frames is 480&nbsp;ms: three times that, and longer than the
+     *       longest transition anywhere in the toolkit that a dismissal could still be waiting on
+     *       ({@code Theme.animTab} 0.22 s, {@code ScrollBar}'s 0.28 s fade-out).</li>
+     *   <li><b>It is the number the sibling suites already settle with</b>, for the same reason:
+     *       {@code AccessibleGalleryTest.SETTLE_FRAMES} and
+     *       {@code AccessibleTranscriptTest.SETTLE_FRAMES} are both 24 at the same 20&nbsp;ms step.
+     *       A second settle width in the same harness would be a second answer to one question.</li>
+     *   <li><b>It is not load-bearing either way today, which was measured rather than assumed.</b>
+     *       The suite is green at 2, 4, 8, 9, 24 and 400 frames (248 tests, 0 failures at each).
+     *       Below the fade it stays green because a dismissal announces its change on the frame it
+     *       starts, which is already "something moved"; above it, because the one thing that never
+     *       moves never starts moving. That upper run is the point: {@link #PERFORMED_UNSEEN}'s
+     *       popup is still open after 400 frames — 8 seconds of scene time, fifty fades — so the
+     *       entry records a headless-backend teardown that does not happen, not a test that ran out
+     *       of patience. Keep the width: a future entry whose dismissal shows up only once the
+     *       window is gone needs the frames this one does not.</li>
+     * </ol>
+     */
+    private static final int FRAMES_FOR_A_SURFACE_TO_GO = 24;
 
     /**
      * A node that accepts a verb it does not publish, owed to a named item. Matched by the entry
@@ -199,6 +240,44 @@ class VerbPolicyRatchetTest {
         return tests.stream();
     }
 
+    /**
+     * The parameterless half's other direction, the one the setter pass has had since fix round 2e
+     * and this one did not (decision 66, 2026-09-15): <b>a verb a node publishes moves something
+     * when it is performed.</b> The pass above proves a node refuses what it does not publish,
+     * which a walk that withdrew every verb from everything would satisfy; this is what refuses
+     * that walk, over the whole gallery rather than over one open layer.
+     *
+     * <p>It is what makes the showing axis a ratchet. GALLERY-NEW-1's parameterless half was
+     * exactly this shape — {@code INCREMENT} on a colour picker's sliders in a tab nobody selected,
+     * {@code PRESS} on a button scrolled out of a scroll view — a verb published, answered yes by
+     * {@code Host#perform} from the snapshot, and dropped by the scene's gate in silence. Neither
+     * the unpublished-verb pass nor the setter pass can see it.
+     *
+     * <p>The two free verbs are not asked, for the reason
+     * {@link #checkTheOpenLayerIsStillOperable} does not ask them: focusing a node that has the
+     * focus, and revealing one already in view, rightly move nothing. {@link #IDEMPOTENT} names
+     * the remaining verbs that mean "be in this state" rather than "do this thing", each on the
+     * nodes already in that state, and holds them to the same staleness rule as the two allowlists.
+     */
+    @TestFactory
+    Stream<DynamicTest> everyPublishedVerbMovesSomething() {
+        List<DynamicTest> tests = new ArrayList<>();
+        for (Entry entry : AccessibilityGallery.entries()) {
+            tests.add(DynamicTest.dynamicTest(entry.name(), () -> checkPublished(entry, false)));
+        }
+        return tests.stream();
+    }
+
+    /** The published-verb pass with every surface that can be an overlay of the scene as one. */
+    @TestFactory
+    Stream<DynamicTest> everyPublishedVerbMovesSomethingWithItsSurfacesInTheScene() {
+        List<DynamicTest> tests = new ArrayList<>();
+        for (Entry entry : AccessibilityGallery.entries()) {
+            tests.add(DynamicTest.dynamicTest(entry.name(), () -> checkPublished(entry, true)));
+        }
+        return tests.stream();
+    }
+
     /** The setter pass with every surface that can be an overlay of the scene presented as one. */
     @TestFactory
     Stream<DynamicTest> everySetterMovesSomethingExactlyWhenTheNodeAcceptsItWithItsSurfacesInTheScene() {
@@ -241,15 +320,178 @@ class VerbPolicyRatchetTest {
      * withholding, or the gate performing) is the orchestrator's call; the list can only shrink.
      */
     static final List<SetterExemption> SETTER_ALLOWLIST = List.of(
-            new SetterExemption("GALLERY-NEW-1", "Colour picker",
-                    Set.of(Accessible.Role.SLIDER, Accessible.Role.SPIN_BUTTON),
-                    Set.of("H", "S", "V", "C", "M", "Y", "K"), Accessible.Action.SET_VALUE),
-            new SetterExemption("GALLERY-NEW-1", "Colour picker button, open",
-                    Set.of(Accessible.Role.SLIDER, Accessible.Role.SPIN_BUTTON),
-                    Set.of("H", "S", "V", "C", "M", "Y", "K"), Accessible.Action.SET_VALUE),
-            new SetterExemption("GALLERY-NEW-1", "Video with its controls",
-                    Set.of(Accessible.Role.SLIDER), Set.of("Volume"),
-                    Accessible.Action.SET_VALUE));
+            // The three GALLERY-NEW-1 lines (a colour picker's H/S/V/C/M/Y/K sliders and spin
+            // buttons in a tab nobody selected, twice, and a hidden media bar's Volume slider)
+            // were struck on 2026-09-15 by decision 66: none of those nodes is VISIBLE, so none
+            // is published with a verb and none accepts a setter any more.
+    );
+
+    /**
+     * A verb that means "be in this state" rather than "do this thing", and so moves nothing when
+     * the node is already in it. Not an exemption for a defect: it is the same reason the two free
+     * verbs are never asked. It covers a node only while the state it names is already set, so it
+     * cannot hide a verb that does nothing on a node the state is clear on.
+     *
+     * @param verb  the verb
+     * @param state the state whose presence makes it a no-op
+     */
+    record Idempotent(Accessible.Action verb, Accessible.State state) {
+        boolean covers(AccessibleNode node, Accessible.Action sent) {
+            return verb == sent && node.has(state);
+        }
+    }
+
+    /**
+     * The verbs that are a state and not an act. {@code SELECT} and {@code ADD_TO_SELECTION} on a
+     * node already {@code SELECTED}: each is what the reader asked for already being true, and a
+     * widget that made a change to say so would be announcing a selection that did not move.
+     * {@code EXPAND} and {@code COLLAPSE} are not here: a node publishes {@code EXPAND} only while
+     * collapsed and {@code COLLAPSE} only while open (decision 2), so neither is ever asked of a
+     * node already there.
+     */
+    static final List<Idempotent> IDEMPOTENT = List.of(
+            new Idempotent(Accessible.Action.SELECT, Accessible.State.SELECTED),
+            new Idempotent(Accessible.Action.ADD_TO_SELECTION, Accessible.State.SELECTED));
+
+    /**
+     * Whether this verb on this node moves nothing <b>by definition</b> rather than because
+     * anything is wrong, so the published-verb pass does not ask it. Three shapes, and each one is
+     * a property of the node the pass can read rather than a name on a list:
+     *
+     * <ul>
+     *   <li>the two free verbs, for the reason {@link #checkTheOpenLayerIsStillOperable} does not
+     *       ask them: focusing what has the focus and revealing what is in view;</li>
+     *   <li>{@link #IDEMPOTENT}, a verb that names a state the node is already in;</li>
+     *   <li><b>a step past the end of a range.</b> {@code INCREMENT} on a value already at its
+     *       maximum and {@code DECREMENT} on one at its minimum are a no-op wherever the value
+     *       lives — a scroll bar parked at the top, a colour picker's alpha at 100. The range may
+     *       be the parent's: a spin button's {@code Increase} and {@code Decrease} chevrons are
+     *       children of the spinner and carry no value of their own, and pressing the dead one of
+     *       the pair does nothing. That last case is the loosest test here, because a chevron's
+     *       direction is not in the model: at a limit neither chevron is asked, so a broken live
+     *       one would go unseen. It is the shape decision 30 would rather close on the widget, by
+     *       narrowing the dead chevron with {@code Accessibility#disabled()} as a scroll chevron
+     *       with nothing left to scroll already is; until a widget lane does that, the pass does
+     *       not report it.</li>
+     * </ul>
+     */
+    private static boolean movesNothingByDefinition(AccessibleTree tree, AccessibleNode node,
+                                                    Accessible.Action verb) {
+        if (verb == Accessible.Action.FOCUS || verb == Accessible.Action.SCROLL_INTO_VIEW) {
+            return true;
+        }
+        for (Idempotent entry : IDEMPOTENT) {
+            if (entry.covers(node, verb)) {
+                return true;
+            }
+        }
+        limn.accessibility.ValueFacet own = node.value();
+        if (own != null && !own.empty()) {
+            return verb == Accessible.Action.INCREMENT && own.value() >= own.max()
+                    || verb == Accessible.Action.DECREMENT && own.value() <= own.min();
+        }
+        if (verb != Accessible.Action.PRESS || node.parent() == AccessibleNode.NONE) {
+            return false;
+        }
+        AccessibleNode parent = tree.node(node.parent());
+        limn.accessibility.ValueFacet range = parent.value();
+        return parent.role() == Accessible.Role.SPIN_BUTTON && range != null && !range.empty()
+                && (range.value() >= range.max() || range.value() <= range.min());
+    }
+
+    /**
+     * One entry, every node, every parameterless verb the node publishes. A verb that moved
+     * something restarts the entry, as an accepted verb does in the main pass, so the next one is
+     * asked of the tree the entry publishes at rest.
+     */
+    private static void checkPublished(Entry entry, boolean inScene) {
+        List<String> violations = new ArrayList<>();
+        Set<Exemption> used = new LinkedHashSet<>();
+        Run run = new Run(entry, inScene);
+        try {
+            for (int w = 0; w < run.windows.size(); w++) {
+                for (int i = 0; i < run.windows.get(w).bridge().tree().nodeCount(); i++) {
+                    for (Accessible.Action verb : Accessible.Action.values()) {
+                        AccessibleTree tree = run.windows.get(w).bridge().tree();
+                        AccessibleNode node = tree.node(i);
+                        if (!verb.isParameterless() || node.actions() == null
+                                || !node.actions().has(verb)
+                                || movesNothingByDefinition(tree, node, verb)) {
+                            continue;
+                        }
+                        Outcome outcome = run.perform(w, node.id(), verb,
+                                Accessible.Argument.NONE, FRAMES_FOR_A_SURFACE_TO_GO);
+                        if (outcome.refused()) {
+                            violations.add(describe(node) + " was refused " + verb + " by the "
+                                    + "host from the snapshot it was read from; the harness "
+                                    + "read a stale tree");
+                        } else if (!outcome.movedSomething()) {
+                            Exemption exemption = unseenFor(entry.name(), node, verb);
+                            if (exemption != null) {
+                                used.add(exemption);
+                            } else {
+                                violations.add(describe(node) + " publishes " + verb
+                                        + " and performing it moved nothing"
+                                        + (node.has(Accessible.State.SHOWING) ? ""
+                                        : " (it is published without SHOWING, which is decision "
+                                        + "66's axis: the scene must reveal it and perform)"));
+                            }
+                        }
+                        run.close();
+                        run = new Run(entry, inScene);
+                    }
+                }
+            }
+        } finally {
+            run.close();
+        }
+        if (!violations.isEmpty()) {
+            fail("gallery entry \"" + entry.name() + "\"" + (inScene ? " with its surfaces in the "
+                    + "scene" : "") + ": " + violations.size() + " published verb(s) the scene "
+                    + "does not perform (ADR 039 §1.5 and §1.9, amended 2026-09-15; decision 66): "
+                    + "a verb a node publishes is a promise every platform makes for it:\n  "
+                    + String.join("\n  ", violations));
+        }
+        for (Exemption exemption : PERFORMED_UNSEEN) {
+            if (exemption.entry().equals(entry.name()) && !used.contains(exemption)) {
+                fail("the performed-but-unseen entry " + exemption + " is stale: every node it "
+                        + "names in \"" + entry.name() + "\"" + (inScene ? " with its surfaces in "
+                        + "the scene" : "") + " now moves something the harness can see; strike "
+                        + "it off");
+            }
+        }
+    }
+
+    /**
+     * What the scene performs and this harness cannot see, each keyed by the item that owns the
+     * fix, under the same shrink-only rule as {@link #ALLOWLIST}: the moment the harness sees it,
+     * the entry is stale and the test says so.
+     *
+     * <p>One finding, recorded on 2026-09-15 by this pass's first run and older than it (the same
+     * four fail with the pre-decision-66 gate, checked by backing the gate out). In the popup menu
+     * that is a window of its own, pressing a row and cancelling the cascade both reach the
+     * widget and both return done — {@code Scene#performAccessibleAction} was instrumented and
+     * prints {@code done=true}, the input layer resolved to the {@code MenuSurface} itself — and
+     * twenty-four frames later the popup window is still open with the same tree. So what does not
+     * happen is the close, in the gallery's headless backend, for a popup that is a native window
+     * rather than an overlay of the scene: the same entry presented in the scene closes. It is not
+     * a verb policy defect and it is not this lane's: it belongs to whoever owns the headless
+     * backend's native-popup teardown, and phase 5 hears the real one on a guest.
+     */
+    static final List<Exemption> PERFORMED_UNSEEN = List.of(
+            new Exemption("headless native-popup teardown", "Popup menu, open",
+                    Accessible.Role.GROUP, "Menu", Set.of(Accessible.Action.CANCEL)),
+            new Exemption("headless native-popup teardown", "Popup menu, open",
+                    Accessible.Role.MENU_ITEM, null, Set.of(Accessible.Action.PRESS)));
+
+    private static Exemption unseenFor(String entry, AccessibleNode node, Accessible.Action verb) {
+        for (Exemption exemption : PERFORMED_UNSEEN) {
+            if (exemption.covers(entry, node, verb)) {
+                return exemption;
+            }
+        }
+        return null;
+    }
 
     /** The four setters, in the order they are sent to each node. */
     private static final List<Accessible.Action> SETTERS = List.of(Accessible.Action.SET_VALUE,
@@ -395,6 +637,9 @@ class VerbPolicyRatchetTest {
             AccessibilityGallery.entry(exemption.entry());
         }
         for (SetterExemption exemption : SETTER_ALLOWLIST) {
+            AccessibilityGallery.entry(exemption.entry());
+        }
+        for (Exemption exemption : PERFORMED_UNSEEN) {
             AccessibilityGallery.entry(exemption.entry());
         }
     }
@@ -857,6 +1102,18 @@ class VerbPolicyRatchetTest {
         /** {@link #perform(int, long, Accessible.Action)} with an argument, for a setter. */
         Outcome perform(int window, long nodeId, Accessible.Action verb,
                         Accessible.Argument argument) {
+            return perform(window, nodeId, verb, argument, FRAMES_AFTER_A_VERB);
+        }
+
+        /**
+         * {@link #perform(int, long, Accessible.Action, Accessible.Argument)} with the settle
+         * spelled out, for the published-verb pass: a verb that dismisses a surface in a window of
+         * its own — a popup menu's row, its {@code CANCEL} — moves nothing anybody can see in two
+         * frames, because what it started is a fade-out and the window is still there with the
+         * same tree. It has moved by the time the fade is over.
+         */
+        Outcome perform(int window, long nodeId, Accessible.Action verb,
+                        Accessible.Argument argument, int frames) {
             List<String> before = transcripts();
             int windowsBefore = harness.windows().size();
             changes.clear();
@@ -864,7 +1121,7 @@ class VerbPolicyRatchetTest {
             boolean accepted;
             try {
                 accepted = windows.get(window).bridge().host.perform(nodeId, verb, argument);
-                harness.settle(FRAMES_AFTER_A_VERB);
+                harness.settle(frames);
             } finally {
                 for (Subscription subscription : watching) {
                     subscription.cancel();

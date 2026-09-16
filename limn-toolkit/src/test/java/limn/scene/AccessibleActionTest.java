@@ -532,9 +532,15 @@ class AccessibleActionTest extends AccessibleTestBase {
                 "and the scene refuses the one sent anyway");
     }
 
-    /** The other half: a container clipped out of an ancestor performs nothing it claimed. */
+    /**
+     * The other half: a container clipped out of an ancestor is revealed, and then performs what
+     * it claimed (decision 66, 2026-09-15). It was refused until that day, which made the verb the
+     * child published a promise the scene broke — the row is visible through its ancestry and only
+     * clipped, so the answer is to bring the container back and perform, exactly as the two free
+     * verbs have always done.
+     */
     @Test
-    void aDelegatedVerbOnAChildOfAContainerClippedAwayIsRefused() throws Exception {
+    void aDelegatedVerbOnAChildOfAContainerClippedAwayIsRevealedAndPerformed() throws Exception {
         Group root = new Group();
         Rows pane = new Rows(); // a clipping box one row high, holding a spacer and then the list
         pane.clipTo = 20;
@@ -547,11 +553,39 @@ class AccessibleActionTest extends AccessibleTestBase {
         bind(root);
         frame();
         assertFalse(node("Row").has(Accessible.State.SHOWING), describe(tree()));
+        assertTrue(node("Row").has(Accessible.State.VISIBLE),
+                "clipped away is not hidden" + describe(tree()));
+        assertTrue(node("Row").actions().has(Accessible.Action.SELECT),
+                "so the claimed verb is published" + describe(tree()));
 
         performOffThread(node("Row").id(), Accessible.Action.SELECT, Accessible.Argument.NONE);
 
-        assertEquals(List.of(), rows.performed,
-                "the container is scrolled off the glass, so nothing it claimed is performed");
+        assertEquals(List.of("row 0: SELECT"), rows.performed,
+                "and the container performs it: the scene reveals what is only clipped");
+    }
+
+    /** And the axis that does refuse: a container nobody can see performs nothing and says so. */
+    @Test
+    void aDelegatedVerbOnAChildOfAnInvisibleContainerIsRefusedAndPublishesNothing()
+            throws Exception {
+        Group root = new Group();
+        Rows rows = new Rows();
+        Probe row = new Probe(Accessible.Role.BUTTON, "Row");
+        rows.add(row);
+        root.add(rows);
+        bind(root);
+        frame();
+        assertTrue(node("Row").actions().has(Accessible.Action.SELECT), describe(tree()));
+
+        rows.setVisible(false);
+        scene.requestRender();
+        frame();
+
+        assertFalse(node("Row").has(Accessible.State.VISIBLE), describe(tree()));
+        assertNull(node("Row").actions(),
+                "nothing under a widget nobody can see publishes a verb" + describe(tree()));
+        performOffThread(node("Row").id(), Accessible.Action.SELECT, Accessible.Argument.NONE);
+        assertEquals(List.of(), rows.performed, "and the one sent anyway is refused");
     }
 
     /**

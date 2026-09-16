@@ -16,6 +16,8 @@ import limn.components.date.DayMark;
 import limn.graphics.Color;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
+import limn.input.Keys;
+import limn.scene.Change;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -407,6 +409,92 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         perform(titleNode().id(), Accessible.Action.COLLAPSE, Accessible.Argument.NONE);
         assertEquals(CalendarView.View.DAYS, calendar.view(),
                 "Collapse comes straight back to the finest view, as Escape does");
+    }
+
+    /**
+     * GALLERY-NEW-2, 2026-09-15: after Ctrl (or Cmd) and Up climb out of the days, the month on
+     * show is the cursor at once, and a reader hears it.
+     *
+     * <p>It was nothing at all until this date: the view change cleared the chooser's cursor and
+     * only the first arrow placed it, so the tree published no {@code ACTIVE} cell in the grid a
+     * person was now standing in. A reader following the active descendant was told the grid had
+     * moved and not where it stood, and heard the first month only after an arrow that had already
+     * stepped past it. The reader recipes had to say "the months are shown" where every other step
+     * says where the cursor is.
+     */
+    @Test
+    void aClimbToTheMonthsLandsTheCursorOnTheMonthOnShowAndAnnouncesIt() {
+        CalendarView calendar = bindCalendar(Locale.US);
+        scene.requestFocus(calendar);
+        frame();
+        List<Change> heard = new ArrayList<>();
+        calendar.observeChanges((widget, change) -> heard.add(change));
+
+        key(Keys.UP, Accelerator.commandModifier());
+        frame();
+
+        assertEquals(CalendarView.View.MONTHS, calendar.view(), describe(tree()));
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
+        assertEquals(1, active.size(),
+                "one cell of the chooser is the cursor: " + describe(tree()));
+        assertEquals("Sep, on show", active.get(0).name(),
+                "and it is the month the grid is drawn for, not cell zero and not nothing"
+                        + describe(tree()));
+        assertEquals(tree().indexOf(active.get(0).id()),
+                tree().indexOf(tree().activeDescendant()),
+                "so the active descendant a reader follows lands on it" + describe(tree()));
+        assertTrue(heard.stream().anyMatch(change -> change.aspect() == Change.Aspect.ACTIVE),
+                "and the arrival is announced, as every other cursor move is: " + heard);
+
+        // Arriving is not moving: the first arrow steps one cell, it does not place the cursor.
+        key(Keys.RIGHT, 0);
+        frame();
+
+        assertEquals("Oct", nodesWith(Accessible.State.ACTIVE).get(0).name(), describe(tree()));
+    }
+
+    /** And the same on the second climb, where the cell on show is a year of the block. */
+    @Test
+    void aClimbToTheYearsLandsTheCursorOnTheYearOnShow() {
+        CalendarView calendar = bindCalendar(Locale.US);
+        scene.requestFocus(calendar);
+        frame();
+
+        key(Keys.UP, Accelerator.commandModifier());
+        key(Keys.UP, Accelerator.commandModifier());
+        frame();
+
+        assertEquals(CalendarView.View.YEARS, calendar.view(), describe(tree()));
+        assertEquals("2026, on show", nodesWith(Accessible.State.ACTIVE).get(0).name(),
+                "the year the calendar is showing, inside its block" + describe(tree()));
+    }
+
+    /**
+     * The fallback is the calendar's and the field is the user's: a caller that moves what is on
+     * show while the chooser stands moves the cursor with it, and an arrow that has placed the
+     * cursor pins it where the user put it.
+     */
+    @Test
+    void theCursorFollowsWhatIsOnShowUntilAnArrowHasMovedIt() {
+        CalendarView calendar = bindCalendar(Locale.US);
+        scene.requestFocus(calendar);
+        key(Keys.UP, Accelerator.commandModifier());
+        frame();
+        assertEquals("Sep, on show", nodesWith(Accessible.State.ACTIVE).get(0).name(),
+                describe(tree()));
+
+        calendar.setVisibleMonth(LocalDate.of(2028, 2, 10));
+        frame();
+
+        assertEquals("Feb, on show", nodesWith(Accessible.State.ACTIVE).get(0).name(),
+                "nobody has moved the cursor, so it is still whatever is on show" + describe(tree()));
+
+        key(Keys.RIGHT, 0);
+        calendar.setVisibleMonth(LocalDate.of(2028, 7, 10));
+        frame();
+
+        assertEquals("Mar", nodesWith(Accessible.State.ACTIVE).get(0).name(),
+                "once an arrow has put the cursor somewhere, it stays there" + describe(tree()));
     }
 
     @Test

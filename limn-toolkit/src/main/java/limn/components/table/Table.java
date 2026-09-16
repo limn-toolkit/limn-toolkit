@@ -2,6 +2,7 @@ package limn.components.table;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.accessibility.CellFacet;
 import limn.backend.Cursor;
 import limn.components.Accelerator;
 import limn.components.ScrollBar;
@@ -3572,13 +3573,23 @@ public class Table<T> extends Widget implements Scrollable {
                 a.bounds(left, 0, colW[s], headerH);
                 a.role(Accessible.Role.COLUMN_HEADER);
                 a.name(column.title(), Accessible.NameFrom.CONTENT);
-                a.cell(-1, s);
+                // The direction this column's rows run, on the cell that sorts them (decision 36,
+                // carrier settled 2026-09-15): the facet for the two platforms whose carrier is an
+                // enumeration (AT-SPI's `sort` attribute, AX's AXSortDirection), the localized
+                // phrase in the description below for the one whose carrier is a phrase (UIA's
+                // ItemStatus and HelpText, File Explorer's convention). Both, and not one of them:
+                // a bridge reads the snapshot on a platform's own thread where no locale scope is
+                // open, so a phrase has to be resolved here, and an enum is what the other two
+                // want rather than a string they would have to parse back.
+                boolean sorted = column.isSortable() && column == sortColumn
+                        && sortOrder != SortOrder.NONE;
+                a.cell(-1, s, !sorted ? CellFacet.Sort.NONE
+                        : sortOrder == SortOrder.ASCENDING ? CellFacet.Sort.ASCENDING
+                        : CellFacet.Sort.DESCENDING);
                 if (column.isSortable()) {
-                    // A press sorts, as a click does (decision 36 of 2026-09-14). The direction
-                    // the rows run is the sorted header's description until the platforms'
-                    // carriers of a sort direction have been read (phase 3).
+                    // A press sorts, as a click does (decision 36 of 2026-09-14).
                     a.action(Accessible.Action.PRESS);
-                    if (column == sortColumn && sortOrder != SortOrder.NONE) {
+                    if (sorted) {
                         a.description(sortOrder == SortOrder.ASCENDING
                                 ? TableStrings.SORTED_ASCENDING : TableStrings.SORTED_DESCENDING);
                     }

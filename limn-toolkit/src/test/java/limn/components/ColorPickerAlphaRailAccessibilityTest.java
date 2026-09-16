@@ -464,17 +464,20 @@ class ColorPickerAlphaRailAccessibilityTest extends AccessibleComponentTestBase 
         assertFalse(off.has(Accessible.State.SHOWING), describe(tree()));
         assertFalse(off.has(Accessible.State.FOCUSABLE),
                 "which is what the keyboard says about it too" + describe(tree()));
-        assertTrue(off.actions().has(Accessible.Action.INCREMENT),
-                "the verbs say what the control offers, and the missing SHOWING bit is what says "
-                        + "it is not on screen; §1.9's gate is what refuses on arrival, and a hook "
-                        + "that withheld them here would be a second answer to a question the "
-                        + "scene has already answered" + describe(tree()));
-        assertFalse(off.actions().has(Accessible.Action.FOCUS),
-                "the walk's two go with the tab stop" + describe(tree()));
+        assertNull(off.actions(),
+                "and it publishes no verb at all, because the scene refuses every verb on a node "
+                        + "that is not VISIBLE and a published verb the scene refuses is a promise "
+                        + "every platform breaks (decision 66, 2026-09-15). The withholding is the "
+                        + "walk's and not this hook's, so there is still one answer to the "
+                        + "question and the hook declares what the control offers"
+                        + describe(tree()));
+        assertFalse(off.accepts(Accessible.Action.SET_VALUE),
+                "and the writable value implies no setter either, on the same one reading"
+                        + describe(tree()));
         assertEquals(1f, picker.color().a(), "and the colour is opaque while the mode is off");
 
         // Accepted, because the identifier is in the published tree, and dead on arrival: the
-        // scene re-checks isShowing() on the thread that owns the widget and returns before the
+        // scene re-checks visibility on the thread that owns the widget and returns before the
         // hook is reached, which is the same wall the pointer and the keyboard hit.
         assertTrue(perform(id, Accessible.Action.INCREMENT, Accessible.Argument.NONE));
         assertTrue(perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfValue(90)));

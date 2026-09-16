@@ -274,18 +274,30 @@ public final class AccessibleNode {
      *
      * <p>A parameterless verb is accepted exactly when this node's {@link ActionFacet} publishes
      * it. A setter is implied by a facet, and only on a node that is
-     * {@link Accessible.State#ENABLED} (fix round 2e): {@link Accessible.Action#SET_VALUE} by a
+     * {@link Accessible.State#ENABLED} and {@link Accessible.State#VISIBLE} (fix round 2e and
+     * decision 66; the paragraph below): {@link Accessible.Action#SET_VALUE} by a
      * {@link ValueFacet} that is not read-only, {@link Accessible.Action#SET_TEXT} by a
      * {@link TextFacet} on a node without {@link Accessible.State#READ_ONLY}, and
      * {@link Accessible.Action#SET_CARET} and {@link Accessible.Action#SET_SELECTION} by any
      * {@link TextFacet}: moving the caret or selecting is reading, which read-only text allows and
      * which every text widget performs through its own caret whether or not it may be written
-     * (2026-09-15, correcting the round-2e wording that tied all three to writability). {@code ENABLED} is
-     * the operable bit on both of the axes the scene refuses on: the walk clears it on a disabled
-     * widget and under a disabled ancestor, on a synthetic child its owner narrowed, and on every
-     * node outside the layer that owns input (§1.13). So a disabled text field keeps
-     * {@code EDITABLE} and never gains {@code READ_ONLY} (§1.2: the two are never conflated), and
-     * still accepts no {@code SET_TEXT}. Allocates nothing.
+     * (2026-09-15, correcting the round-2e wording that tied all three to writability).
+     *
+     * <p><b>{@code ENABLED} and {@code VISIBLE} together are the operable bit</b>, on all three of
+     * the axes the scene refuses on (decision 66, 2026-09-15). The walk clears {@code ENABLED} on
+     * a disabled widget and under a disabled ancestor, on a synthetic child its owner narrowed,
+     * and on every node outside the layer that owns input (§1.13); it clears {@code VISIBLE} on a
+     * widget whose own flag or an ancestor's is false — an unselected tab's contents, a collapsed
+     * panel — which {@code Scene}'s gate refuses as squarely as it refuses a disabled one. Not
+     * {@code SHOWING}: a node that is visible and merely clipped out of a scroll viewport keeps
+     * every setter, because the scene reveals it and performs (the free verbs' path). So a
+     * disabled text field keeps {@code EDITABLE} and never gains {@code READ_ONLY} (§1.2: the two
+     * are never conflated), and still accepts no {@code SET_TEXT}; and a slider in a tab nobody
+     * selected keeps its writable value and accepts no {@code SET_VALUE}. The parameterless half
+     * needs no test of either bit: the walk takes every verb off such a node
+     * ({@code Accessibility#inoperableAt}), so the published list is already empty there, and this
+     * one reading is what {@code Scene#performAccessibleAction} re-checks on live widgets.
+     * Allocates nothing.
      *
      * @param action the verb
      * @return whether a platform may post it to this node; a bridge refuses it synchronously
@@ -293,12 +305,20 @@ public final class AccessibleNode {
      */
     public boolean accepts(Accessible.Action action) {
         return switch (action) {
-            case SET_VALUE -> value != null && !value.readOnly() && has(Accessible.State.ENABLED);
-            case SET_TEXT -> text != null
-                    && !has(Accessible.State.READ_ONLY) && has(Accessible.State.ENABLED);
-            case SET_CARET, SET_SELECTION -> text != null && has(Accessible.State.ENABLED);
+            case SET_VALUE -> value != null && !value.readOnly() && isOperable();
+            case SET_TEXT -> text != null && !has(Accessible.State.READ_ONLY) && isOperable();
+            case SET_CARET, SET_SELECTION -> text != null && isOperable();
             default -> actions != null && actions.has(action);
         };
+    }
+
+    /**
+     * The one fact {@link #accepts} and the scene's gate read: whether this node is one the scene
+     * will operate at all. Private because it is the inside of {@code accepts} and not a second
+     * question a bridge should learn to ask; the two states it reads are published.
+     */
+    private boolean isOperable() {
+        return has(Accessible.State.ENABLED) && has(Accessible.State.VISIBLE);
     }
 
     /** @return the index of this node's parent, or {@link #NONE} at a root */

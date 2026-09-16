@@ -929,7 +929,7 @@ public final class Scene implements WindowInput {
                 return publishedTree;
             }
             if (!accessibleNodesDirty) {
-                restampAccessibleTree();
+                restampAccessibleTree(true); // the platform's pump is on the stack: see the method
                 scheduleFrame();
                 return publishedTree;
             }
@@ -980,31 +980,31 @@ public final class Scene implements WindowInput {
             return;
         }
         boolean free = !synthetic && !delegated && owner.isFocusable() && isFreeVerb(action);
-        // The showing test is what stops a platform invoking a control that is not on the glass.
-        // The two free verbs are the exception, and have to be: a reader asks for SCROLL_INTO_VIEW
-        // precisely because the node is scrolled out of view, and Tab already reaches a widget
-        // below the fold and reveals it on arrival. They are gated on visibility instead, which is
-        // the same walk without the clip -- a widget inside an unselected tab is still refused.
-        // The same exception for a SCROLL_INTO_VIEW a container delegated onto a widget child
-        // (ADR 039 §1.5, amended 2026-09-14; decision 20): a list's cursor row kept outside the
-        // viewport is exactly the node a reader sends it to, and a showing gate would refuse
-        // the one verb whose purpose is the not-showing case.
-        // Every other delegated verb is gated on the container showing and the child visible by
-        // its own flag, not on the child showing (ADR 039 §1.5, amended 2026-09-15; decision 22
-        // read with semantics 5): the container performs it, and a kept cursor row outside the
-        // viewport publishes SELECT, EXPAND and the rest, which Host.perform has already said
-        // yes to. A container clipped off the glass is refused like any widget that is.
-        boolean revealing = free || (delegated
-                && action == limn.accessibility.Accessible.Action.SCROLL_INTO_VIEW);
-        boolean refused;
-        if (revealing) {
-            refused = !isVisibleThroughAncestry(owner);
-        } else if (delegated) {
-            refused = !owner.isVisible() || !container.isShowing();
-        } else {
-            refused = !owner.isShowing();
-        }
-        if (refused) {
+        // The showing axis of semantics 5, decision 66 (2026-09-15): ONE test for every verb, and
+        // it is visibility through the ancestry rather than showing.
+        //
+        // What it was until now: the free verbs were gated on visibility, and everything else on
+        // the owner showing (a delegated verb on the container showing). So a control merely
+        // scrolled out of a viewport published PRESS, INCREMENT and its setters -- the snapshot is
+        // the only synchronous authority a bridge has, and Host#perform had already said yes --
+        // and then this gate dropped the verb in silence. "Chapter 20" below the fold, the media
+        // bar's volume slider, a colour picker's rails in a scrolled panel: every one of them a
+        // control a reader is shown and cannot work.
+        //
+        // Both halves of the answer are here. A node that is visible through its ancestry and
+        // merely clipped is revealed and performed, which is what the free verbs have always done
+        // and what a sighted user gets by reaching for it. A node that is not visible at all --
+        // an unselected tab's contents, a collapsed panel -- is refused, and the walk publishes no
+        // verb and no setter there (AccessibleWalk's inoperableAt, AccessibleNode#accepts), so the
+        // refusal and the snapshot say one thing. That is what makes this gate and `accepts` one
+        // reading of one fact instead of two that drift.
+        //
+        // The delegated case needs no clause of its own any more. The container performs the verb
+        // and the child is the node the reader addressed; climbing from the child passes through
+        // the container, so one call covers both, and a container clipped off the glass is
+        // revealed rather than refused (which is what decision 20's kept cursor row wanted all
+        // along, and what SCROLL_INTO_VIEW was exempted for).
+        if (!isVisibleThroughAncestry(owner)) {
             return;
         }
         // The setters included: SET_VALUE and SET_TEXT on a disabled widget or under a disabled
@@ -1029,6 +1029,32 @@ public final class Scene implements WindowInput {
         Widget layer = accessibleInputLayer();
         if (layer == null || !isInSubtree(owner, layer)) {
             return;
+        }
+        // Revealed, and then performed (decision 66). Only what is clipped out of a viewport ever
+        // gets here not showing: everything not visible was refused above. The free verbs do
+        // their own revealing -- SCROLL_INTO_VIEW is the reveal, and requestFocus() reveals on
+        // arrival -- so they are left to it rather than made to do it twice. A widget with no
+        // scrollable ancestor is already in view and revealInView() is a no-op there, so this
+        // costs nothing in the ordinary case where the node was on the glass all along.
+        //
+        // Only for a verb the node published, read off the snapshot the reader was answered from.
+        // A reveal is a visible effect, and a verb the node never published has to move NOTHING:
+        // without this test, sending TOGGLE to a button scrolled out of view scrolled the pane
+        // and then refused the toggle, so "a node refuses every verb it does not publish" would
+        // have become "a node scrolls itself and then refuses", which is the promise
+        // VerbPolicyRatchetTest exists to hold.
+        // Whose box is revealed is whose showing the gate used to refuse on: the owner's for a
+        // verb the owner performs, and the container's for one it claimed on a child. A container
+        // that is on the glass and holds a child outside its own viewport reveals nothing, which
+        // is decision 22 as the tree lane settled it: the kept cursor row is expanded, selected
+        // and deselected where it stands, and SCROLL_INTO_VIEW is the one verb that moves the
+        // view, through the container's own hook, which knows where a recycled row really is.
+        Widget reveal = delegated ? container : owner;
+        if (!free && !reveal.isShowing()) {
+            limn.accessibility.AccessibleNode node = publishedTree.find(nodeId);
+            if (node != null && node.accepts(action)) {
+                reveal.revealInView();
+            }
         }
         boolean done;
         if (free) {
@@ -1152,7 +1178,7 @@ public final class Scene implements WindowInput {
             return;
         }
         if (!accessibleNodesDirty && !primingPublishOwed) {
-            restampAccessibleTree();
+            restampAccessibleTree(false); // a frame of the scene's own: nothing of the platform's
             return;
         }
         publishAccessibleTree(false);
@@ -1186,8 +1212,25 @@ public final class Scene implements WindowInput {
         announcements.clear();
     }
 
-    /** A window that moved changed no box in the tree; only where the tree is. */
-    private void restampAccessibleTree() {
+    /**
+     * A window that moved changed no box in the tree; only where the tree is.
+     *
+     * <p>The flag it hands {@link limn.backend.AccessibilityBridge#publish} is
+     * <b>{@code reentrant}</b>, never "something changed": a restamp that changed nothing has
+     * already returned above, and a bridge is told what it may touch, not what moved. The two
+     * callers answer it differently and that is the whole point of the parameter
+     * (2026-09-15, fix round 3, brief item 5). The frame's publish step is the scene's own
+     * thread with nothing of the platform's on the stack, so it is not reentrant and the bridge
+     * may sweep, re-push and drain. {@code Host#republishNow} is the other one, and its contract
+     * says in so many words that it "publishes reentrantly, so the bridge defers every registry
+     * obligation": it is called from inside the platform's own pump, standing on the elements a
+     * sweep would release. Passing {@code false} there — which this did until now, while the walk
+     * branch beside it passed {@code true} — invited a bridge to destroy, re-push and drain under
+     * the caller on the one path that costs four numbers and so looked harmless.
+     *
+     * @param reentrant whether the platform is on the stack, holding what this bridge vended
+     */
+    private void restampAccessibleTree(boolean reentrant) {
         accessibleHeaderDirty = false;
         limn.accessibility.AccessibleTree before = publishedTree;
         limn.accessibility.AccessibleTree after = before.restamp(
@@ -1199,7 +1242,7 @@ public final class Scene implements WindowInput {
             return;
         }
         publishedTree = after;
-        bridge.publish(after, false);
+        bridge.publish(after, reentrant);
         bridge.emit(limn.accessibility.AccessibleEvent.of(
                 limn.accessibility.AccessibleEvent.Type.BOUNDS_CHANGED, 0));
     }

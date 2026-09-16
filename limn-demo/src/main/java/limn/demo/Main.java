@@ -32,7 +32,7 @@ public final class Main {
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
             "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
-            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
+            "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-months-cursor", "dates-years-cursor", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
             "newcontrols", "newcontrols-light", "colorpicker", "colorpicker-light", "split",
             "split-light", "split-states", "split-states-light", "perf", "menu", "menu-dark",
@@ -270,11 +270,12 @@ public final class Main {
             } else if (scene.equals("dates-era") || scene.equals("dates-era-light")) {
                 widgetScene = DatesScene.era(scene.endsWith("-light"));
                 DatesScene.pinForCapture(screenshotMode, widgetScene);
-            } else if (scene.equals("dates-months") || scene.equals("dates-years")) {
+            } else if (scene.startsWith("dates-months") || scene.startsWith("dates-years")) {
                 widgetScene = DatesScene.create(false,
-                        scene.equals("dates-months")
+                        scene.startsWith("dates-months")
                                 ? limn.components.date.CalendarView.View.MONTHS
-                                : limn.components.date.CalendarView.View.YEARS);
+                                : limn.components.date.CalendarView.View.YEARS,
+                        scene.endsWith("-cursor"));
                 DatesScene.pinForCapture(screenshotMode, widgetScene);
             } else if (scene.equals("dates") || scene.equals("dates-light")
                     || scene.equals("dates-popup")) {

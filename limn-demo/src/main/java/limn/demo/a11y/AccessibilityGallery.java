@@ -563,6 +563,11 @@ public final class AccessibilityGallery {
                 new Entry("Tree with branches that load", List.of(limn.components.tree.Tree.class),
                         List.of(Role.TREE, Role.TREE_ITEM, Role.BUTTON),
                         AccessibilityGallery::treeThatLoads, ReaderScripts.TREE_LOADING),
+                // The one entry that speaks: nothing else in the gallery announces anything, so
+                // the three bridges' announcement paths had no scene to be heard on (brief item 4
+                // of the phase-3 fix round).
+                new Entry("Announcements", List.of(Button.class), List.of(Role.BUTTON),
+                        AccessibilityGallery::announcing, ReaderScripts.ANNOUNCEMENT),
                 new Entry("Calendar grid", List.of(CalendarView.class),
                         List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL, Role.BUTTON),
                         AccessibilityGallery::calendar, ReaderScripts.CALENDAR),
@@ -1031,6 +1036,44 @@ public final class AccessibilityGallery {
      * The month grid, wearing what a form asks of it: a bound, a filter and a mark, so a reader can
      * be checked against a day that is refused as well as against one that is not.
      */
+    /**
+     * The one entry that makes the application speak: two buttons whose handlers call
+     * {@code Scene#announce}, one politely and one assertively (brief item 4 of the phase-3 fix
+     * round, 2026-09-15).
+     *
+     * <p>Nothing else in the gallery announces anything, so the three bridges' announcement paths
+     * — a UIA notification, an AT-SPI {@code Announcement} and an {@code NSAccessibility}
+     * announcement posted on the window — had no scene to be heard on, and phase 5's "VoiceOver
+     * hearing an announcement posted on the window" had nothing to press. An announcement is the
+     * application speaking rather than a property of a node, so it cannot be reached by walking a
+     * tree: a run has to press something.
+     *
+     * <p>Both politeness levels, because the platforms map them to different values and a run that
+     * heard only one would leave the other unread. The buttons are ordinary buttons: what is being
+     * exercised is the scene's own path, not a widget's.
+     *
+     * <p><b>The two announced strings are the first thing decision 68 will owe a catalogue</b>
+     * (2026-09-15, unassigned as of this writing). Every other entry's English is a caption or a
+     * label — a word beside a widget, which a pt-BR run hears as a name — while these two are the
+     * only strings in the gallery a reader speaks as a <em>sentence</em>, straight through from
+     * the application. Until the en/pt-BR catalogue decision 68 asks for exists, phase 5's pt-BR
+     * pass hears an English sentence here and nowhere else, so these are the two entries to move
+     * first when it lands. {@code ReaderStepsTest.theAnnouncementEntrySpeaksBothPolitenessLevels}
+     * names both literals, so the catalogue cannot be added without that test being brought along.
+     */
+    private static Built announcing() {
+        Column page = page();
+        Button save = new Button("Save");
+        save.onAction(() -> save.scene().announce("Saved",
+                Accessible.Politeness.POLITE));
+        Button stop = new Button("Stop");
+        stop.onAction(() -> stop.scene().announce("Stopped, nothing was saved",
+                Accessible.Politeness.ASSERTIVE));
+        page.add(save);
+        page.add(stop);
+        return Built.focusing(page, save);
+    }
+
     private static Built calendar() {
         Column page = page();
         CalendarView calendar = new CalendarView();

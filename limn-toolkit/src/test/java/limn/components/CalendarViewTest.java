@@ -586,9 +586,12 @@ class CalendarViewTest extends ComponentTestBase {
         heard.clear();
         calendar.setGranularity(CalendarView.View.MONTHS);
         assertEquals(CalendarView.View.MONTHS, calendar.view(), "a month picker shows no days");
-        assertEquals(List.of(Change.of(Change.Aspect.VALUE, Change.Origin.ADJUSTMENT)), heard,
+        assertEquals(List.of(Change.of(Change.Aspect.VALUE, Change.Origin.ADJUSTMENT),
+                        Change.of(Change.Aspect.ACTIVE, Change.Origin.ADJUSTMENT)), heard,
                 "the level moved the view, and the calendar says so as its own adjustment"
-                        + " (nothing was selected, so no selection is dropped): " + heard);
+                        + " (nothing was selected, so no selection is dropped); the cursor is in "
+                        + "the grid, so the chooser cell it arrives on is announced after it "
+                        + "(GALLERY-NEW-2, 2026-09-15): " + heard);
 
         heard.clear();
         calendar.setGranularity(CalendarView.View.DAYS);

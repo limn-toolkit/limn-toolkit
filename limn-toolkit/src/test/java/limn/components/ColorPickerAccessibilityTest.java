@@ -483,15 +483,17 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                     "the walk's two verbs go with the tab stop, so nothing here offers to move "
                             + "the keyboard into a line that is off screen" + describe(tree()));
         }
-        assertTrue(line("A").get(2).actions().has(Accessible.Action.INCREMENT),
-                "and the stepper keeps its own two for the same reason the rail does"
+        assertNull(line("A").get(2).actions(),
+                "and the stepper publishes nothing for the same reason the rail does"
                         + describe(tree()));
-        assertTrue(line("A").get(1).actions().has(Accessible.Action.INCREMENT),
-                "the rail keeps its own two, because a verb list says what a control offers and "
-                        + "the missing SHOWING bit is what says it is not on screen; §1.9's gate "
-                        + "re-checks isShowing() on arrival and refuses, which is where the "
-                        + "unreachability is enforced. Pinned, with the refusal itself, by "
-                        + "limn.components.ColorPickerAlphaRailAccessibilityTest"
+        assertNull(line("A").get(1).actions(),
+                "the rail publishes no verb either: the line is not VISIBLE, and decision 66 "
+                        + "(2026-09-15) says the published list is empty on every node the scene "
+                        + "refuses -- a verb list that said INCREMENT here was a control a reader "
+                        + "is shown and the gate then refuses in silence. It is the VISIBLE bit "
+                        + "and not the SHOWING one: a rail merely scrolled out of a viewport keeps "
+                        + "its two and the scene reveals it before stepping. Pinned, with the "
+                        + "refusal itself, by limn.components.ColorPickerAlphaRailAccessibilityTest"
                         + describe(tree()));
         assertEquals(1f, picker.color().a(), "and the colour is opaque while it is off");
 

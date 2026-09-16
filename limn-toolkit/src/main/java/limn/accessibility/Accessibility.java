@@ -181,6 +181,7 @@ public final class Accessibility {
         boolean hasCell;
         int cellRow;
         int cellColumn;
+        CellFacet.Sort cellSort = CellFacet.Sort.NONE;
         boolean hasHierarchy;
         int level;
         int hierarchyRow;
@@ -277,6 +278,7 @@ public final class Accessibility {
             hasCell = false;
             cellRow = 0;
             cellColumn = 0;
+            cellSort = CellFacet.Sort.NONE;
             hasHierarchy = false;
             level = 0;
             hierarchyRow = 0;
@@ -946,10 +948,30 @@ public final class Accessibility {
      * @param column the column as shown, from zero
      */
     public void cell(int row, int column) {
+        cell(row, column, CellFacet.Sort.NONE);
+    }
+
+    /**
+     * Declares that this node is one cell of a table, at a row and a column as shown, and which
+     * way its column's rows are running.
+     *
+     * <p>The direction is a fact about a <b>header</b> cell and is meaningless anywhere else: it
+     * is the column's sort, and the header is the control a reader presses to change it (decision
+     * 36, carrier settled 2026-09-15). Every other cell declares {@link CellFacet.Sort#NONE}, and
+     * so does a header whose column is not the one the table is sorted by. The three bridges each
+     * carry it in their platform's own way; the localized phrase a header also puts in its
+     * description is not this, and neither replaces the other (ADR 041 §7).
+     *
+     * @param row    the row as shown, from zero, or {@code -1} for a cell of the header row
+     * @param column the column as shown, from zero
+     * @param sort   which way this column's rows run; never {@code null}
+     */
+    public void cell(int row, int column, CellFacet.Sort sort) {
         Slot s = slot();
         s.hasCell = true;
         s.cellRow = row;
         s.cellColumn = column;
+        s.cellSort = java.util.Objects.requireNonNull(sort, "sort");
     }
 
     /**
@@ -1210,8 +1232,8 @@ public final class Accessibility {
      * <p>A disabled child carries no verb: the publish step withdraws every verb from a node that
      * is not {@code ENABLED} ({@link #inoperableAt}, ADR 039 §1.5, amended 2026-09-15), so a
      * refused day may declare its {@code SELECT} and still publishes none, and a bridge reads the
-     * absence; a setter its facets would imply is implied only on an {@code ENABLED} node
-     * ({@link AccessibleNode#accepts}).
+     * absence; a setter its facets would imply is implied only on a node that is {@code ENABLED}
+     * and {@code VISIBLE} ({@link AccessibleNode#accepts}).
      *
      * @throws IllegalStateException if no synthetic child is open
      */
@@ -1614,9 +1636,12 @@ public final class Accessibility {
     /**
      * Whether the node at an index of the walk in progress is published {@code ENABLED}, as
      * {@link #inherited} or {@link #inheritedAt} settled it. Only the publish step reads it, after
-     * that call, to know whether the node is one {@link #inoperableAt} applies to; a widget never
-     * does. Asked from a describe hook it answers before the bit is settled, so it says nothing
-     * about the widget's own node or any child the hook declared.
+     * that call, as <em>half</em> of the question whether the node is one {@link #inoperableAt}
+     * applies to: since decision 66 (2026-09-15) a node that is not {@code VISIBLE} is inoperable
+     * too, and the publish step reads that axis off the owner's own visible flag rather than from
+     * here, because a synthetic child may narrow enabled and showing and there is no narrowing of
+     * visible. A widget never asks either. Asked from a describe hook this answers before the bit
+     * is settled, so it says nothing about the widget's own node or any child the hook declared.
      *
      * @param index the node's index in this walk
      * @return whether the node carries {@link Accessible.State#ENABLED}
@@ -1628,22 +1653,30 @@ public final class Accessibility {
     }
 
     /**
-     * Takes every verb off a node the scene will not operate, because it is not
-     * {@code ENABLED}: it or an ancestor is disabled, or it lies outside the layer that owns
-     * input &mdash; beneath an overlay of the scene, or in a window a native modal blocks
-     * (ADR 039 §1.5 and §1.13, amended 2026-09-15) &mdash; or it is a synthetic child its owner
-     * {@linkplain #disabled() narrowed}. The scene or the owner refuses every verb there, and the
-     * platform is answered from the snapshot (semantics 5), so the node publishes no verb &mdash;
-     * neither one it declared nor one its container claimed on it &mdash; and no key binding.
+     * Takes every verb off a node the scene will not operate, on any of the three axes it refuses
+     * on (ADR 039 §1.5, §1.9 and §1.13, amended 2026-09-15). The node is not {@code ENABLED} &mdash;
+     * it or an ancestor is disabled, or it lies outside the layer that owns input, beneath an
+     * overlay of the scene or in a window a native modal blocks, or it is a synthetic child its
+     * owner {@linkplain #disabled() narrowed} &mdash; or it is not {@code VISIBLE}: an unselected
+     * tab's contents, a collapsed panel, anything under a widget whose own visible flag is false
+     * (decision 66). The scene or the owner refuses every verb there, and the platform is answered
+     * from the snapshot (semantics 5), so the node publishes no verb &mdash; neither one it
+     * declared nor one its container claimed on it &mdash; and no key binding.
+     *
+     * <p><b>{@code VISIBLE} and never {@code SHOWING}.</b> A node that is visible and merely
+     * clipped out of a scroll viewport is not one of these: the scene reveals it and performs, the
+     * way the two free verbs always have, so it keeps every verb and every setter and this is not
+     * called on it.
      *
      * <p><b>Its setters are not touched here, and need not be</b> (ADR 039 §1.2 and §1.5, amended
-     * 2026-09-15, fix round 2e). A writable {@link ValueFacet} or a {@link TextFacet} without
-     * {@link Accessible.State#READ_ONLY} implies its setter only on a node that is
-     * {@code ENABLED} ({@link AccessibleNode#accepts}), and this node is not, so its value keeps
-     * the writability it really has and its text keeps its true {@code READ_ONLY}: a disabled
-     * field is an editable field that is disabled, never a read-only one. What the node says it
-     * is and holds is untouched. The publish step calls this after both describe hooks ran and
-     * after the delegate routing was read; a widget never does.
+     * 2026-09-15, fix round 2e and decision 66). A writable {@link ValueFacet} or a
+     * {@link TextFacet} without {@link Accessible.State#READ_ONLY} implies its setter only on a
+     * node that is {@code ENABLED} <em>and</em> {@code VISIBLE}
+     * ({@link AccessibleNode#accepts}), and this node is missing one of the two, so its value keeps
+     * the writability it really has and its text keeps its true {@code READ_ONLY}: a disabled field is
+     * an editable field that is disabled, never a read-only one, and so is a field in a tab nobody
+     * selected. What the node says it is and holds is untouched. The publish step calls this after
+     * both describe hooks ran and after the delegate routing was read; a widget never does.
      *
      * @param index the node's index in this walk
      * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
@@ -1819,7 +1852,8 @@ public final class Accessibility {
                 || (a.hasTable && (a.tableRowCount != b.tableRowCount
                         || a.tableColumnCount != b.tableColumnCount))
                 || a.hasCell != b.hasCell
-                || (a.hasCell && (a.cellRow != b.cellRow || a.cellColumn != b.cellColumn))
+                || (a.hasCell && (a.cellRow != b.cellRow || a.cellColumn != b.cellColumn
+                        || a.cellSort != b.cellSort))
                 || a.hasHierarchy != b.hasHierarchy
                 || (a.hasHierarchy && (a.level != b.level || a.hierarchyRow != b.hierarchyRow
                         || a.hierarchyRowCount != b.hierarchyRowCount))
@@ -2042,7 +2076,7 @@ public final class Accessibility {
                 s.hasWindow ? new WindowFacet(s.windowModal, s.windowCanMaximize,
                         s.windowCanMinimize, s.windowState) : null,
                 s.hasTable ? new TableFacet(s.tableRowCount, s.tableColumnCount) : null,
-                s.hasCell ? new CellFacet(s.cellRow, s.cellColumn) : null,
+                s.hasCell ? new CellFacet(s.cellRow, s.cellColumn, s.cellSort) : null,
                 s.hasHierarchy ? new HierarchyFacet(s.level, s.hierarchyRow, s.hierarchyRowCount)
                         : null,
                 s.verbs == 0 ? null : new ActionFacet(verbsOf(s.verbs), s.keyBinding),

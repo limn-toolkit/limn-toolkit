@@ -631,10 +631,14 @@ class ColorPickerChannelTrackAccessibilityTest extends AccessibleComponentTestBa
                     "an unselected notation's rails are no more reachable from a reader than from "
                             + "the keyboard, which is what keeps reading order equal to Tab order"
                             + describe(tree()));
-            assertTrue(node.actions().has(Accessible.Action.INCREMENT),
-                    "and every one of them keeps its verbs: a verb list says what a control "
-                            + "offers, and the missing SHOWING bit is what says it is not on "
-                            + "screen" + describe(tree()));
+            assertEquals(selected, node.actions() != null
+                            && node.actions().has(Accessible.Action.INCREMENT),
+                    "and only the selected notation's rails publish their verbs: an unselected "
+                            + "one is not VISIBLE, so the scene refuses everything on it and the "
+                            + "walk publishes no verb and no setter there (decision 66, "
+                            + "2026-09-15)" + describe(tree()));
+            assertEquals(selected, node.accepts(Accessible.Action.SET_VALUE),
+                    "the setter reads the same one fact" + describe(tree()));
         }
 
         AccessibleNode hidden = null;

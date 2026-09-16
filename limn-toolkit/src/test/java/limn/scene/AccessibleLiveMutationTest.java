@@ -51,6 +51,35 @@ class AccessibleLiveMutationTest extends AccessibleTestBase {
         assertEquals(ToggleFacet.State.ON, node("Wrap lines").toggle().state());
     }
 
+    /**
+     * A header cell whose column is turned round changes one component of one facet and nothing
+     * else in the node — no state, no name, no verb — so the differ has to compare it or the new
+     * direction is walked, found equal to the old tree, and never published (decision 36's carrier,
+     * 2026-09-15). In {@code Table} the phrase in the description moves with it and would have
+     * carried the publish; nothing makes that true of the next widget to sort something.
+     */
+    @Test
+    void aSortDirectionThatIsTheOnlyChangePublishesATree() {
+        Group root = new Group();
+        probe = new Probe(Accessible.Role.COLUMN_HEADER, "Name");
+        probe.cell = new limn.accessibility.CellFacet(-1, 0,
+                limn.accessibility.CellFacet.Sort.ASCENDING);
+        root.add(probe);
+        bind(root);
+        frame();
+        int published = bridge.published.size();
+
+        probe.cell = new limn.accessibility.CellFacet(-1, 0,
+                limn.accessibility.CellFacet.Sort.DESCENDING);
+        probe.invalidate();
+        frame();
+
+        assertEquals(published + 1, bridge.published.size(),
+                "the turned-round column reached the bridge: " + describe(tree()));
+        assertEquals(limn.accessibility.CellFacet.Sort.DESCENDING, node("Name").cell().sort(),
+                describe(tree()));
+    }
+
     @Test
     void aValueChangeCarriesTheValueItWasAndTheValueItIs() {
         bindProbe();
