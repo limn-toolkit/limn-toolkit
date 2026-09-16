@@ -622,6 +622,9 @@ public class Tree<T> extends Widget implements Scrollable {
      *
      * <p>Delivery is gated on the tree still being in a scene: a job that outlives the window it
      * was opened for must not rebuild rows nobody will paint.
+     *
+     * <p><b>The start and the end are announced</b> (decision 73 of 2026-09-16), because nothing
+     * else tells a reader: {@link #announceLoad} has the measurement.
      */
     private void startLoadIfNeeded(T node) {
         if (loaded.containsKey(node) || loading.containsKey(node) || model.children(node) != null) {
@@ -635,6 +638,12 @@ public class Tree<T> extends Widget implements Scrollable {
                 .onSuccess(children -> {
                     loading.remove(node);
                     loaded.put(node, children == null ? List.of() : List.copyOf(children));
+                    if (children == null || children.isEmpty()) {
+                        // The end of a load that found nothing. The row stays an open branch with
+                        // the "Empty" line under it (decision 45) and the line says so to the eye;
+                        // this says it to the ear, which nothing else did.
+                        announceLoad(TreeStrings.EMPTY_ANNOUNCEMENT, node);
+                    }
                     rebuildRows();
                     forgetRevealedPaths();
                     // What a refresh could not confirm under this row is verified now that the
@@ -665,7 +674,54 @@ public class Tree<T> extends Widget implements Scrollable {
                 })
                 .start();
         loading.put(node, job);
+        announceLoad(TreeStrings.LOADING_ANNOUNCEMENT, node);
         startSpinning();
+    }
+
+    /**
+     * Says one of the two load announcements, naming the branch (decision 73 of 2026-09-16).
+     *
+     * <p><b>Why an announcement and not a state.</b> The row already publishes {@code BUSY} while
+     * its load is out and the "Loading…" line is already drawn under it, and on 2026-09-16 both
+     * were measured saying nothing to anybody. {@code BUSY} reaches Windows as {@code ItemStatus}
+     * and NVDA 2024.4.2 has no handler for it — six raises, five received, none spoken — and the
+     * placeholder line is not focusable, so the cursor steps over it on every platform. The
+     * announcement path is the one route all three readers were measured speaking through on that
+     * same day, each saying {@code 'Salvo'} and {@code 'Interrompido, nada foi salvo'} from it. The
+     * visual line of decision 45 stays exactly as it is and stays unfocusable; this is beside it,
+     * not instead of it.
+     *
+     * <p>Polite, never assertive: a branch opening is not an interruption, and a tree whose rows
+     * load one after another would otherwise cut its own reader off mid-word.
+     *
+     * <p>Named from the model first and the row's cell second — the order a row's own name follows
+     * — because an announcement arrives with no context: "Loading" alone names nothing. A node
+     * neither route can name says nothing at all rather than "Loading " with a hole in it.
+     */
+    private void announceLoad(I18nString what, T node) {
+        limn.scene.Scene scene = scene();
+        if (scene == null) {
+            return; // nobody is listening, and the load is restarted when the tree is bound again
+        }
+        String name = announcementName(node);
+        if (name == null || name.isEmpty()) {
+            return;
+        }
+        scene.announce(what.format(name), Accessible.Politeness.POLITE);
+    }
+
+    /** What to call a node in an announcement: the model's name, else its cell's labels. */
+    private String announcementName(T node) {
+        I18nString named = model.nameOf(node);
+        if (named != null) {
+            return named.get();
+        }
+        for (int i = 0; i < mountedCount; i++) {
+            if (node.equals(mountedNodes[i])) {
+                return derivedName(i, mountedCells[i]);
+            }
+        }
+        return null;
     }
 
     private void cancelAllLoads() {

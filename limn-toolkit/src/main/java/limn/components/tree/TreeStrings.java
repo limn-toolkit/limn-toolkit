@@ -37,4 +37,21 @@ final class TreeStrings {
     // — without it an open row over nothing reads as a row that never loaded (decision 45 of
     // 2026-09-14).
     static final I18nString EMPTY = new I18nString("limn.tree.empty", "Empty");
+
+    // What a reader is TOLD when a lazy load begins and when it lands on nothing (decision 73 of
+    // 2026-09-16). The two lines above are drawn and stay exactly as they are, unfocusable; these
+    // are spoken, and they carry the branch's name because an announcement arrives with no
+    // context of its own.
+    //
+    // An announcement rather than a state, and the reason is measured rather than preferred. BUSY
+    // reaches Windows as ItemStatus and NVDA 2024.4.2 has no handler for it — 6 raises, 5
+    // received, 0 spoken — and the placeholder line is skipped by the cursor on every platform
+    // because it is not focusable, so a blind user opening a branch that takes a second was told
+    // nothing at all. The announcement path is the one route all three readers were measured
+    // speaking on the same day: NVDA, Orca and VoiceOver each said 'Salvo' and 'Interrompido,
+    // nada foi salvo' through it.
+    static final I18nString LOADING_ANNOUNCEMENT =
+            new I18nString("limn.tree.loadingAnnouncement", "Loading {0}");
+    static final I18nString EMPTY_ANNOUNCEMENT =
+            new I18nString("limn.tree.emptyAnnouncement", "{0} empty");
 }
