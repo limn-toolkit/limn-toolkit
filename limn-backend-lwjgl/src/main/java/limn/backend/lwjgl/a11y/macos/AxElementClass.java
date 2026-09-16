@@ -153,6 +153,12 @@ final class AxElementClass {
     /** The table, row and cell lookups the closures below wrap. */
     private final AxGrid grid;
     /**
+     * {@code AXDisclosing} and the five other attribute names a client asks settability about, each
+     * read off the running AppKit ({@link AxSetters#ATTRIBUTE_SYMBOLS}) and mapped to the setter a
+     * write to it would send; filled by {@link #installSettable()} and read on every ask.
+     */
+    private final java.util.Map<String, String> settableAttributes = new java.util.HashMap<>();
+    /**
      * Whether {@code NSAccessibilityElement} itself lacked a legacy entry point, so AXElementBusy was
      * not installed; named in the constructor's warning.
      */
@@ -381,8 +387,50 @@ final class AxElementClass {
         installFocusedElement();
         installActions();
         installSetters();
+        installSettable();
         installTable();
         installBusy();
+    }
+
+    /**
+     * What a client is told before it writes: {@code accessibilityIsAttributeSettable:}, answered from
+     * the very gate that decides whether the write is delivered ({@link AxGate#settable}).
+     *
+     * <p><b>Without this the telling cannot be made to match.</b> {@code AXUIElementIsAttributeSettable}
+     * asks {@code isAccessibilitySelectorAllowed:} and <b>discards a NO whenever the class itself
+     * implements the setter</b> — which is all six of ours — so every element answered settable for
+     * every one of them, a leaf row and an actionless static text included. What AppKit does after that
+     * NO is fall back to this legacy selector when the element answers it, and a client then reads its
+     * BOOL: settable unless both refuse. Read on the macOS 26.6.2 guest (25G83) 2026-09-16,
+     * {@code readings/macos-settable-mechanism-serve.txt} and {@code macos-settable-mechanism-read.txt};
+     * the element whose gate refused nothing was asked here for no setter attribute at all, and the one
+     * whose gate refused two was asked for exactly those two and answered no to both.
+     *
+     * <p><b>One class still, and this is why the shapes did not have to multiply.</b> The same reading
+     * carried two instances of a single class differing only in their nodes' answers, and they reported
+     * {@code AXDisclosing} differently — no on the leaf, YES on the branch — which is what a native
+     * {@code NSOutlineView} does with one row class ({@code readings/macos-outline-probe.txt}).
+     *
+     * <p>The names are read off the running AppKit and turned into text once, here, rather than
+     * per ask: the attribute arrives as an {@code NSString} and a comparison against six retained
+     * constants would be six message sends on a path AppKit walks for every attribute it cannot
+     * answer itself. An attribute not among them is not settable — measured, not defaulted: the same
+     * log shows this selector asked for {@code AXPosition} and {@code AXElementBusy} on every element,
+     * and the control with no hook reported both {@code no}.
+     */
+    private void installSettable() {
+        for (java.util.Map.Entry<String, String> attribute : AxSetters.ATTRIBUTE_SYMBOLS.entrySet()) {
+            settableAttributes.put(objc.javaString(objc.constant(attribute.getKey())), attribute.getValue());
+        }
+        AttributeGate settableGate = new AttributeGate() {
+            @Override public boolean invoke(long self, long cmd, long attribute) {
+                source.entered();
+                AccessibleNode node = source.nodeFor(self);
+                if (node == null || attribute == NULL) return false;
+                return AxGate.settable(grid, node, settableAttributes.get(objc.javaString(attribute)));
+            }
+        };
+        addMethod(elementClass, "accessibilityIsAttributeSettable:", settableGate);
     }
 
     /**
@@ -1035,6 +1083,30 @@ final class AxElementClass {
     private abstract static class SelectorGate extends Callback implements SelectorGateI, Shaped {
         protected SelectorGate() { super(SelectorGateI.DESCRIPTOR); }
         @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.BOOL_OF_SELECTOR; }
+    }
+
+    /**
+     * {@code (id self, SEL _cmd, id) -> BOOL}, encoding {@code B24@0:8@16}: the same register shape as
+     * {@link SelectorGateI}, and a different one all the same, because the argument is an
+     * {@code NSString} attribute name and not a selector. Kept apart so the install cannot put one
+     * closure under the other's encoding.
+     */
+    private interface AttributeGateI extends CallbackI {
+        Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(AttributeGateI.class, MethodHandles.lookup(),
+                APIUtil.apiCreateCIF(LibFFI.ffi_type_uint8, LibFFI.ffi_type_pointer,
+                        LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer));
+        @Override default Callback.Descriptor getDescriptor() { return DESCRIPTOR; }
+        @Override default void callback(long ret, long args) {
+            APIUtil.apiClosureRet(ret, invoke(ClosureArgs.pointer(args, 0),
+                    ClosureArgs.pointer(args, 1),
+                    ClosureArgs.pointer(args, 2)));
+        }
+        boolean invoke(long self, long cmd, long attribute);
+    }
+
+    private abstract static class AttributeGate extends Callback implements AttributeGateI, Shaped {
+        protected AttributeGate() { super(AttributeGateI.DESCRIPTOR); }
+        @Override public final AxSelectors.Kind kind() { return AxSelectors.Kind.BOOL_OF_ID; }
     }
 
     /** {@code (id self, SEL _cmd) -> NSInteger}, encoding {@code q16@0:8}. */

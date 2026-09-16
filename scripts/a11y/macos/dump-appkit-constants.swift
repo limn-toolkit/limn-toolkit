@@ -207,6 +207,9 @@ let installedByTheBridge: [(String, String)] = [
     ("setAccessibilityFocused:", "element"), ("setAccessibilitySelected:", "element"),
     ("setAccessibilityDisclosed:", "element"), ("setAccessibilityExpanded:", "element"),
     ("setAccessibilityValue:", "element"), ("setAccessibilitySelectedRows:", "element"),
+    // What a client is told before it writes (2026-09-16): AppKit discards the modern gate's NO for a
+    // setter the class implements, and falls back to this legacy selector when the element answers it.
+    ("accessibilityIsAttributeSettable:", "element"),
     // The legacy action pair, for AXScrollToVisible (MACOS-NEW-11).
     ("accessibilityActionNames", "element"), ("accessibilityPerformAction:", "element"),
     // A table's columns (M4): the two column lists on the table, and what a column element answers on

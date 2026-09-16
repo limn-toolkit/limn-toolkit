@@ -10,21 +10,34 @@ import java.util.List;
  * The setter half: which of the toolkit's verbs a reader's write to an attribute means, and on which
  * nodes the attribute is settable at all (MACOS-NEW-11; semantics 5).
  *
- * <p><b>Settable is NOT the gate's answer for the setter, and the write is.</b> Measured on the
- * guest 2026-09-16, inside Limn and again outside it with four {@code NSAccessibilityElement}
- * subclasses in one window: {@code AXUIElementIsAttributeSettable} does ask
- * {@code isAccessibilitySelectorAllowed:}, and when the class itself <em>implements</em> the setter
- * AppKit <b>discards the NO and reports settable anyway</b>. The gate's refusal is honoured only
- * for a selector the class does not implement. So every element of this class answers settable for
- * all five installed setters — a leaf row, a static text with no actions, all of them — while the
- * column element, whose class installs none, answers no to all five. What the gate DOES decide is
- * delivery: a refused write returns {@code AXError(0)} and <b>the setter is never entered</b>
- * (0 setter lines in the probe; a leaf's {@code AXDisclosing=YES} opened nothing, while a branch's
- * {@code AXDisclosing=NO} really closed it). So the rule below is right and is enforced where it
- * matters, and what is wrong is what a client is TOLD before it writes — a divergence from native
- * AppKit, where a leaf row answers {@code AXDisclosing settable=false} and a row answers
- * {@code AXFocused AXError(-25205)}. Readings: {@code macos-gate-setter-probe-serve.txt},
- * {@code macos-axgate-outline.txt}, {@code macos-axwrite-outline.txt}.
+ * <p><b>Settable is NOT the gate's answer alone: a client is told settable unless the modern gate
+ * AND the legacy {@code accessibilityIsAttributeSettable:} BOTH refuse.</b> Measured on the guest
+ * 2026-09-16 in two passes ({@code readings/macos-gate-setter-probe-read.txt}, then
+ * {@code readings/macos-settable-mechanism-serve.txt} and {@code -read.txt}: seven elements in one
+ * window, every ask logged). The modern gate alone cannot say no, because when the class itself
+ * <em>implements</em> the setter AppKit <b>discards the gate's NO and reports settable anyway</b> —
+ * which is all six setters here, so a leaf row and a static text with no actions both answered
+ * settable for every one of them. The legacy selector alone cannot say no either: the element whose
+ * gate refused nothing was never asked it for a setter attribute at all, because a gate YES ends the
+ * question. Only where both refuse does a client read {@code no}. So <b>the legacy selector is what
+ * makes the telling equal the gate</b>, and it is answered from {@link AxGate#allows} so the two
+ * cannot drift apart — not the modern gate doing it after all, which is the claim ADR 039 §2.2 and
+ * this javadoc withdrew earlier the same day.
+ *
+ * <p>The proof that per-element settability is expressible at all — which is why this is a hook and
+ * not one Objective-C class per shape — is two instances of <b>one</b> class in that reading,
+ * differing in nothing but the answers their nodes give: {@code AXDisclosing settable=no} on the
+ * leaf, {@code settable=YES} on the branch, and {@code AXFocused settable=no} on both. That is what
+ * a native {@code NSOutlineView}'s rows answer, one class and all (leaf {@code row#2} and
+ * {@code row#5} false, collapsed branch {@code row#4} and open branches {@code row#0}/{@code row#1}
+ * true, {@code readings/macos-outline-probe.txt}). The write path is untouched by it: in the same
+ * pass the branch's {@code AXDisclosing} write entered {@code setAccessibilityDisclosed:} and the
+ * leaf's did not.
+ *
+ * <p><b>Delivery was already right and still is</b>: a refused write returns {@code AXError(0)} and
+ * the setter is never entered (a leaf's {@code AXDisclosing=YES} opened nothing while a branch's
+ * {@code AXDisclosing=NO} really closed it, {@code macos-axwrite-outline.txt}). What was wrong was
+ * only what a client was TOLD before it wrote, and that is what the hook fixes.
  *
  * <p>The 2026-09-13 reading this paragraph used to cite was not wrong about what it saw: every
  * element it read left the setters to {@code NSAccessibilityElement}, which is the one case AppKit
@@ -67,6 +80,38 @@ final class AxSetters {
 
     private static final List<String> SELECTORS = List.of(FOCUSED, SELECTED, DISCLOSED, EXPANDED, VALUE,
             SELECTED_ROWS);
+
+    /**
+     * The attribute a client asks {@code AXUIElementIsAttributeSettable} about, and the setter a write
+     * to it would send — keyed by AppKit's exported symbol for the name, never by the name itself
+     * (§12.3), which {@link AxElementClass} resolves off the running AppKit and
+     * {@code AxConstantsTest} holds against the dump.
+     *
+     * <p>That AppKit asks {@code accessibilityIsAttributeSettable:} with exactly these names, and with
+     * the attribute name rather than the selector, is read and not assumed: the probe's log carries
+     * {@code AXDisclosing}, {@code AXSelected}, {@code AXValue}, {@code AXFocused}, {@code AXExpanded}
+     * and {@code AXSelectedRows}, each asked of the element whose gate had just refused its setter
+     * ({@code readings/macos-settable-mechanism-serve.txt}, 2026-09-16, macOS 26.6.2).
+     *
+     * <p><b>An attribute that is not here is not settable</b>, and that is a measured answer rather
+     * than a default. The same log shows AppKit asking this selector for {@code AXPosition} and
+     * {@code AXElementBusy} on every element, settable or not — attributes with no modern setter
+     * behind them — and the element that answered YES to those reported them settable, while the
+     * control with no hook at all reported both {@code no}. So a hook that said yes to what it does
+     * not know would hand a client two new lies in exchange for the ones it removes.
+     */
+    static final java.util.Map<String, String> ATTRIBUTE_SYMBOLS = java.util.Map.of(
+            "NSAccessibilityFocusedAttribute", FOCUSED,
+            "NSAccessibilitySelectedAttribute", SELECTED,
+            "NSAccessibilityDisclosingAttribute", DISCLOSED,
+            "NSAccessibilityExpandedAttribute", EXPANDED,
+            "NSAccessibilityValueAttribute", VALUE,
+            "NSAccessibilitySelectedRowsAttribute", SELECTED_ROWS);
+
+    /** @return every AppKit symbol this class names, for {@code AxConstantsTest} to hold to the dump. */
+    static java.util.Set<String> symbols() {
+        return ATTRIBUTE_SYMBOLS.keySet();
+    }
 
     /**
      * @return every setter this bridge installs; the same list every time, because the gate asks it on
