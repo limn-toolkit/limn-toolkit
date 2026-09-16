@@ -573,7 +573,14 @@ platform's own thread where no locale scope is open, so a phrase has to be resol
 an enumeration is what the other two want rather than a translated sentence they would parse back.
 No new string — `SORTED_ASCENDING` and `SORTED_DESCENDING` already ship in 21 locales — and Orca's
 fourth value `other` is left out, because nothing in this widget sorts that way. The three bridges'
-mappings are each their own lane's. Pinned by
+mappings are each their own lane's. *(Amended 2026-09-15, the fix round's integration: they were not,
+in the end — this carrier landed on the model's branch while the three bridge lanes were running, so
+each logged its mapping as owed rather than compile against a type its branch did not have, and all
+three landed together at the merge. Windows answers `ItemStatus` with the description this record
+keeps, beside the `HelpText` that already answered it, and a busy sorted header answers the busy word
+alone, which is marked in the source as a choice; macOS answers `AXSortDirection` 0/1/2 on a header
+cell; Linux answers the `sort` object attribute on the sorted header and publishes no key elsewhere.
+ADR 039 §2.1, §2.2 and §2.3 carry each, with the readings.)* Pinned by
 `TableAccessibilityTest.aSortedHeaderCarriesItsDirectionOnItsCellFacetAndKeepsThePhraseInItsDescription`
 and, for the differ, `AccessibleLiveMutationTest.aSortDirectionThatIsTheOnlyChangePublishesATree`.
 

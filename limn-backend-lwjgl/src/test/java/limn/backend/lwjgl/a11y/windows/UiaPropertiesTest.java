@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.accessibility.CellFacet;
 import limn.i18n.I18nString;
 import org.junit.jupiter.api.Test;
 
@@ -209,6 +210,103 @@ class UiaPropertiesTest {
         AccessibleNode idle = control(publish(Accessible.Role.TREE_ITEM, "Remote", null,
                 Accessible.State.ENABLED));
         assertNull(UiaProperties.valueOf(idle, UiaIds.ITEM_STATUS));
+    }
+
+    /**
+     * A sorted column's header says which way its rows run in its status string too (decision 36),
+     * because that is where the desktop puts one: File Explorer's own column header answers
+     * {@code ItemStatus} "Classificado (Crescente)" (read on the guest 2026-09-15,
+     * readings/windows-read-native-sort-direction.txt). The phrase is the model's — the description
+     * a sorted header already carries — because this bridge reads the snapshot with no locale scope
+     * open, and {@code HelpText} answers that same description, which is the settled list's "AND
+     * HelpText" half and needs no code of its own.
+     *
+     * <p>A busy sorted header answers the busy word alone, which the code marks as a choice and not
+     * a reading. And the header row is what makes a header: the data cell and the footer cell here
+     * are each given a direction their facet has no business carrying <b>and</b> a description of
+     * their own, so the header-row guard — and neither the model's restraint nor an empty
+     * description — is what keeps a status off them.
+     */
+    @Test
+    void aSortedHeaderSaysItsDirectionInItsStatusAndInItsHelpTextAndBusyWinsOverBoth() {
+        AccessibleTree tree = aTableSortedOnItsSecondColumn(false);
+        assertNull(UiaProperties.valueOf(tree.find(2101), UiaIds.ITEM_STATUS),
+                "the unsorted column's header heads nothing sorted");
+        assertEquals("Sorted ascending", UiaProperties.valueOf(tree.find(2102), UiaIds.ITEM_STATUS),
+                "the model's phrase, resolved at publish where a locale scope was open");
+        assertEquals("Sorted ascending", UiaProperties.valueOf(tree.find(2102), UiaIds.HELP_TEXT),
+                "the same description, which is the settled list's other half and was already true");
+        assertNull(UiaProperties.valueOf(tree.find(2201), UiaIds.ITEM_STATUS),
+                "a data cell has a description of its own and heads no column");
+        assertNull(UiaProperties.valueOf(tree.find(2301), UiaIds.ITEM_STATUS),
+                "a footer cell is no header, whatever direction its facet holds");
+
+        AccessibleTree busy = aTableSortedOnItsSecondColumn(true);
+        assertEquals("busy", UiaProperties.valueOf(busy.find(2102), UiaIds.ITEM_STATUS),
+                "a choice and not a reading: the busy word alone, never two phrases joined here");
+        assertEquals("Sorted ascending", UiaProperties.valueOf(busy.find(2102), UiaIds.HELP_TEXT),
+                "and the direction is still carried, which is why the choice costs a client nothing");
+    }
+
+    /**
+     * A table of two columns sorted ascending on the second, published the way ADR 041 §7 says a
+     * table publishes: a header group, a data row, and a footer whose cell is deliberately given a
+     * direction. The sorted header carries the phrase in its description, as {@code Table} does.
+     *
+     * @param busy whether the sorted header is also busy
+     */
+    private static AccessibleTree aTableSortedOnItsSecondColumn(boolean busy) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        int table = a.begin(2000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TABLE);
+        a.table(1, 2);
+        a.inherited(true, true, true, false, false);
+        int header = a.begin(2100, table, Locale.ENGLISH, 0, 0, 400, 30);
+        a.role(Accessible.Role.GROUP);
+        a.inherited(true, true, true, false, false);
+        for (int c = 0; c < 2; c++) {
+            a.begin(2101 + c, header, Locale.ENGLISH, c * 200, 0, 200, 30);
+            a.role(Accessible.Role.COLUMN_HEADER);
+            a.name(I18nString.literal(c == 0 ? "Name" : "Age"), Accessible.NameFrom.CONTENT);
+            a.cell(-1, c, c == 1 ? CellFacet.Sort.ASCENDING : CellFacet.Sort.NONE);
+            if (c == 1) {
+                a.description(I18nString.literal("Sorted ascending"));
+                if (busy) a.state(Accessible.State.BUSY, true);
+            }
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        int row = a.begin(2200, table, Locale.ENGLISH, 0, 30, 400, 30);
+        a.role(Accessible.Role.ROW);
+        a.inherited(true, true, true, false, false);
+        a.begin(2201, row, Locale.ENGLISH, 200, 30, 200, 30);
+        a.role(Accessible.Role.CELL);
+        a.name(I18nString.literal("42"), Accessible.NameFrom.CONTENT);
+        a.description(I18nString.literal("Years since joining"));
+        a.cell(0, 1, CellFacet.Sort.ASCENDING);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        int footer = a.begin(2300, table, Locale.ENGLISH, 0, 60, 400, 30);
+        a.role(Accessible.Role.GROUP);
+        a.inherited(true, true, true, false, false);
+        a.begin(2301, footer, Locale.ENGLISH, 200, 60, 200, 30);
+        a.role(Accessible.Role.CELL);
+        a.name(I18nString.literal("Total 99"), Accessible.NameFrom.CONTENT);
+        a.description(I18nString.literal("The column's total"));
+        a.cell(-2, 1, CellFacet.Sort.DESCENDING);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
     }
 
     /**

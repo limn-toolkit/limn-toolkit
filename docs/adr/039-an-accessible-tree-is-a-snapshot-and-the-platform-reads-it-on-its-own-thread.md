@@ -666,6 +666,12 @@ platform asks for. No new string: `TableStrings.SORTED_ASCENDING` and `SORTED_DE
 ship in all 21 locales. Orca's fourth value, `other`, is left out: nothing in the toolkit sorts that
 way, and a value no widget can produce is one no bridge could be tested against.
 
+*(Amended 2026-09-15, the fix round's integration: all three bridges now read it, each the way its
+platform asks — Windows `ItemStatus` from the description beside `HelpText` (§2.1), macOS
+`AXSortDirection` 0/1/2 (§2.2's table, ADR 041 §7), Linux the `sort` object attribute (§2.3). Each
+lane had logged its own mapping as owed, because this carrier landed on the model's branch while the
+three ran; none of the three could compile against it there.)*
+
 **Amendment, 2026-09-14: a `ValueFacet` can say it holds no number, and a value event is raised
 when the text moves.** A date segment nobody has typed into has a range, a displayed text and no
 number; the facet had no way to say so, so `DateField` published the minimum as if it were typed
@@ -2533,6 +2539,31 @@ direction a bridge could turn into `ItemStatus` without reading meaning into a d
 description only for an element of class `UIColumnHeader` (readings/nvda-2024.4.2-uia.md), while it
 reads `HelpText` as every element's description, so the description is what it speaks today, and a
 move to `ItemStatus` alone would silence it on Limn's headers.
+
+**Amended 2026-09-15 (the fix round's integration): it is carried now, and it is carried as both.**
+The model carrier this paragraph waits on landed in the same round (`CellFacet.Sort`, §1.2's
+amendment of this date), on the model branch while the three bridge lanes ran, so each lane logged
+its own mapping as owed rather than compiling against a type its branch lacked; the mappings are the
+integration's, each written out whole in its lane's log against a reading that lane had already
+taken. Here, `UiaProperties.valueOf` answers `ItemStatus` (30026) on a cell of the header row whose
+`Sort` is not `NONE`, with **the node's description** — the localized phrase the model resolved at
+publish, where a locale scope was open, which is the whole reason the model kept the description
+beside the enumeration the other two platforms read. `HelpText` (30013) needed no change: it already
+answers that same description, so the settled list's "`ItemStatus` **and** `HelpText`" is true of one
+string published once, and NVDA — which has no `ItemStatus` handler and reads `HelpText` as every
+element's description — keeps hearing exactly what it heard. The header row is what makes a header: a
+footer cell (`-2`) and a data cell head no column, whatever direction their facet carries.
+
+*A choice and not a reading, marked where it is made:* **a busy sorted header answers the busy word
+alone.** `ItemStatus` is one string and two facts want it; nothing on the guest reads on composing
+them (Explorer's header was not busy), and joining two translated fragments with punctuation chosen
+on a thread with no locale open would invent a sentence in twenty-one languages. Busy is the
+transient state the property exists for, and the direction is not lost while it holds, because
+`HelpText` still carries it. A live Narrator or Inspect run over a header that is both would settle
+it; phase 5. Pinned by
+`UiaPropertiesTest.aSortedHeaderSaysItsDirectionInItsStatusAndInItsHelpTextAndBusyWinsOverBoth`.
+`UiaBridge.changedProperty` is untouched: a sort that moves arrives as a publish and not as a state
+change, so nothing raises an `ItemStatus` property change for it — worth one look in the same run.
 
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `UiaRaiseNotificationEvent` and
 `UiaRaiseStructureChangedEvent` are bound and raised.** The event-flush row lists both; neither was

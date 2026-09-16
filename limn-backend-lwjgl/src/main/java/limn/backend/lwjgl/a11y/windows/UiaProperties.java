@@ -2,6 +2,7 @@ package limn.backend.lwjgl.a11y.windows;
 
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
+import limn.accessibility.CellFacet;
 import limn.accessibility.RoleNames;
 import limn.accessibility.StateNames;
 
@@ -162,12 +163,48 @@ final class UiaProperties {
             // UI Automation has no busy bit; ItemStatus is its field for "the state of this item" as
             // text a client reads out. So BUSY is a word here, in the node's own language, and an
             // item that is not busy has no status at all rather than a status saying it is idle.
+            //
+            // A sorted column's header says its direction here too (decision 36), because this is
+            // where the desktop puts one: File Explorer's own column header — a SplitButton (50031)
+            // of class UIColumnHeader — answers ItemStatus "Classificado (Crescente)" /
+            // "(Descrescente)", read on the guest 2026-09-15
+            // (readings/windows-read-native-sort-direction.txt). The phrase is the model's, taken
+            // from the node's description rather than built here: this method runs on a platform
+            // thread with no locale scope open and could not resolve one, which is why the model
+            // kept the description beside the enumeration the other two platforms read (ADR 041
+            // §7's amendment of this date). HelpText answers the same description already, which is
+            // the "AND HelpText" half of the settled list and needs no code: NVDA 2024.4.2 has no
+            // ItemStatus handler and speaks a description.
+            //
+            // A CHOICE AND NOT A READING: a busy sorted header answers the busy word alone. Nothing
+            // was read about composing the two — File Explorer's header was not busy, and no guest
+            // reading shows a client joining two status phrases — and joining two translated
+            // fragments with punctuation chosen here would invent a sentence in twenty-one
+            // languages from a thread with no locale. Busy is the transient state the property
+            // exists for; the direction is not lost while it holds, because HelpText carries it and
+            // is what the one reader measured on the guest speaks. What would settle it is a live
+            // Narrator or Inspect run over a header that is both (phase 5).
             case UiaIds.ITEM_STATUS:
-                return node.has(Accessible.State.BUSY)
-                        ? StateNames.of(Accessible.State.BUSY, node.locale()) : null;
+                if (node.has(Accessible.State.BUSY)) {
+                    return StateNames.of(Accessible.State.BUSY, node.locale());
+                }
+                return isSortedHeader(node) && !node.description().isEmpty()
+                        ? node.description() : null;
 
             default:
                 return null;
         }
+    }
+
+    /**
+     * @param node the node asked
+     * @return whether it is the header cell of a column the table is sorted on: a cell in the header
+     *         row (ADR 041 §7's {@code -1}) whose {@code CellFacet.Sort} is not {@code NONE}. A
+     *         footer cell carries {@code -2} and a data cell a row from zero, and neither heads a
+     *         column, whatever direction its facet holds
+     */
+    private static boolean isSortedHeader(AccessibleNode node) {
+        return node.cell() != null && node.cell().row() == -1
+                && node.cell().sort() != CellFacet.Sort.NONE;
     }
 }
