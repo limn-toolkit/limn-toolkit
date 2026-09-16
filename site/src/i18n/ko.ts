@@ -131,7 +131,7 @@ export const ko: Catalog = {
 
   "home.accessibility.heading": "같은 언어로, 소리 내어 읽힙니다",
   "home.accessibility.body":
-    "NVDA·VoiceOver·Orca는 각 플랫폼 고유의 접근성 API를 통해 Limn 창을 읽습니다. 애플리케이션에 플랫폼 코드는 없습니다. 모든 컨트롤은 인터페이스가 표시되는 언어로 역할·이름·상태와 함께 안내됩니다. 컨트롤에 이름을 붙이는 것은 호출 한 번입니다.",
+    "NVDA·VoiceOver·Orca는 각 플랫폼 고유의 접근성 API를 통해 Limn 창을 읽습니다. 애플리케이션에 플랫폼 코드는 없습니다. 모든 컨트롤은 인터페이스가 표시되는 언어로 역할·이름·상태를 스스로 알립니다. 컨트롤에 이름을 붙이는 것은 호출 한 번입니다.",
   "home.accessibility.link": "접근성 가이드 읽기",
   "home.accessibility.caption":
     "위의 폼을 화면 낭독기가 전달받는 그대로, 이 빌드 중에 캡처했습니다.",

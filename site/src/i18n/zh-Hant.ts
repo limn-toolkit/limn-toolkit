@@ -129,7 +129,7 @@ export const zhHant: Catalog = {
 
   "home.accessibility.heading": "用同樣的語言，讀出來",
   "home.accessibility.body":
-    "NVDA、VoiceOver 和 Orca 透過各平台自己的無障礙 API 讀取 Limn 視窗，你的應用程式無需任何平台程式碼。每個控制項都以介面所用的語言，連同角色、名稱和狀態被朗讀。為控制項命名只需一次呼叫。",
+    "NVDA、VoiceOver 和 Orca 透過各平台自己的無障礙 API 讀取 Limn 視窗，你的應用程式無需任何平台程式碼。每個控制項都以介面所用的語言，自己說出角色、名稱和狀態。為控制項命名只需一次呼叫。",
   "home.accessibility.link": "閱讀無障礙指南",
   "home.accessibility.caption":
     "上面的表單，正如螢幕閱讀器被告知的那樣，在本次建置中擷取。",
