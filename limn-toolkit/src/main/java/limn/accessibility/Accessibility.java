@@ -579,7 +579,8 @@ public final class Accessibility {
      * <p>Two groups of states are <b>refused</b> here rather than stored, and refused loudly,
      * the way {@link #action(Accessible.Action)} refuses a verb that takes an argument (ADR 039
      * §1.2, amended 2026-09-14). The states a facet expresses — checked, mixed, expanded,
-     * expandable, selected, read-only — are derived from that facet, so one fact keeps one home:
+     * expandable, selected, selectable, read-only — are derived from that facet, so one fact keeps
+     * one home:
      * declare the facet. The five the publish step owns — enabled, visible, showing, focusable and focused —
      * belong to the walk, because a widget's own flag answers only for itself while the tree has
      * to agree with a keyboard whose traversal stops at the first ancestor that is hidden or
@@ -597,7 +598,7 @@ public final class Accessibility {
         String owner = switch (state) {
             case CHECKED, MIXED -> "the toggle facet: call toggle()";
             case EXPANDED, EXPANDABLE -> "the expand facet: call expand()";
-            case SELECTED -> "the selection-item facet: call selectionItem()";
+            case SELECTED, SELECTABLE -> "the selection-item facet: call selectionItem()";
             case READ_ONLY -> "the text or value facet: pass readOnly there";
             case ENABLED, VISIBLE, SHOWING, FOCUSABLE, FOCUSED ->
                     "the publish step, which inherits it down the walk";
@@ -770,6 +771,20 @@ public final class Accessibility {
      * only its realized rows still reports the true row count, so a user hears where they are in
      * the data.
      *
+     * <p><b>The facet's presence is what makes the node {@link Accessible.State#SELECTABLE}</b>
+     * (ADR 039 §1.2, amended 2026-09-16; P5L-1), on every node that declares it, exactly as the
+     * expand facet's presence is what makes a node {@code EXPANDABLE} (semantics 9): declaring
+     * that you are one member of a selection <em>is</em> saying you can be selected, and neither
+     * bit is a widget's to set. Until this amendment <b>nothing in either module published
+     * it</b> — an uncut grep of both mains found two hits in the whole tree, the enum constant
+     * and the AT-SPI bit it maps to — so the state never left the model. The live cost was
+     * measured on Fedora 44 and Ubuntu 24.04 on 2026-09-16: after Ctrl+A, Orca resolved all five
+     * selected rows and discarded every one of them, <i>"believed to be layout only: … is not
+     * focusable, selectable, or expandable and lacks explicit name"</i>, and said nothing at all.
+     * Linux maps the bit ({@code AtspiStates}, bit 22); Windows carries the same fact through the
+     * SelectionItem pattern and macOS through {@code AXSelected}'s settability, so neither
+     * bridge changes.
+     *
      * @param selected      whether this member is selected
      * @param positionInSet its one-based position, or {@code 0} when it has none
      * @param sizeOfSet     how many members the set holds, or {@code 0} when that is unknown
@@ -781,6 +796,7 @@ public final class Accessibility {
         s.positionInSet = positionInSet;
         s.sizeOfSet = sizeOfSet;
         s.selectionContainerless = false;
+        s.states |= 1L << Accessible.State.SELECTABLE.ordinal();
         long bit = 1L << Accessible.State.SELECTED.ordinal();
         if (selected) {
             s.states |= bit;

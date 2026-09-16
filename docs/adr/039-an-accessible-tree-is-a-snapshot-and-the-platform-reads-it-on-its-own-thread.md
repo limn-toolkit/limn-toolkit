@@ -624,6 +624,43 @@ EXPANDED, EXPANDABLE, HAS_POPUP, READ_ONLY, EDITABLE, MULTI_LINE, PASSWORD, INVA
 BUSY, MODAL, ACTIVE, DEFAULT, HORIZONTAL, VERTICAL
 ```
 
+**Amendment, 2026-09-16 (fix round after phase 5): `SELECTABLE` is derived from the selection-item
+facet's presence, because until this date nothing published it at all.** The bit has been on the
+closed list since the record was written and **no widget, and no bridge, ever set it**: an uncut
+grep of both modules' `main` on 2026-09-16 found two hits in the whole tree, the enum constant in
+`Accessible` and the AT-SPI bit in `AtspiStates` that maps a state nobody produced. No headless
+test could see it, because none asserts a state nobody sets. The live cost was measured the same
+day on two guests: on Fedora 44 (Orca 50.2) and Ubuntu 24.04 (Orca 46.1), Ctrl+A over the gallery's
+table made Orca resolve all five selected rows and discard every one of them — *"believed to be
+layout only: … is not focusable, selectable, or expandable and lacks explicit name"* — so the
+select-all said **nothing**. The reader's verdict has four escapes and the rows met none of them.
+
+The rule is the one `EXPANDABLE` already lives under (semantics 9): **the facet's presence is the
+state**. A node that declares `SelectionItemFacet` is `SELECTABLE`, selected or not, container-bound
+or `containerless` — declaring you are one member of a selection *is* saying you can be selected —
+and `Accessibility#state` refuses the bit the way it refuses `SELECTED`, naming the facet that owns
+it. `STATE_CHANGED(SELECTABLE)` comes from the diff like every other bit, so a row that gains or
+loses the facet says so once.
+
+**No bridge changes.** Linux already maps it (`AtspiStates`, AT-SPI bit 22, and
+`AtspiEvents.detailOf` gives it the detail `selectable`); Windows carries the same fact through the
+SelectionItem pattern and has no property for it, so `UiaBridge.changedProperty` leaves it at `0`;
+macOS cannot carry it at all — a row there lists 26 attributes and none is "selectable",
+`AXSelected`'s settability being what says it, which Limn already answers (phase 5, macOS). This is
+therefore **a real model gap with a Linux cost and no macOS cost**, and it is recorded that way
+rather than as a defect of three bridges. Pinned by
+`AccessibleModelTest.selectableIsTheSelectionItemFacetsPresenceAndNeverAWidgetsToSet` and the
+refusal list in `aStateAFacetExpressesCannotBeSetBehindTheFacetsBack`; every transcript golden line
+carrying a selection item gained the word.
+
+**One thing this amendment does not decide.** `Table` and `Tree` publish a `SelectionItemFacet` on
+every row even in `SelectionMode.NONE`, because the facet is also where the spoken *n of m* lives,
+so their rows are now `SELECTABLE` in a mode where nothing can be selected. `CalendarView` does not
+— it publishes no item facet in `NONE` — so the three disagree. Whether a row in `NONE` should keep
+the numbering without the membership is a question for the owner and is left open here rather than
+answered in passing; the bit is strictly better than the silence it replaces either way, since such
+a row publishes no `SELECT` verb.
+
 **Amendment, 2026-09-14: the facet list is closed, checked, and twelve long.** The nine facets the
 first paragraph names were nine when it was written; ADR 041 added `TableFacet` and `CellFacet`
 without touching the sentence, and nothing read it (MODEL-NEW-5). Today a twelfth joins:

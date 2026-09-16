@@ -56,6 +56,15 @@ action row on Linux, an attribute on macOS — so each bridge derives its own vi
 facet. A widget that publishes a `ToggleFacet` gets `IToggleProvider`, `AXValue` and the AT-SPI
 `CHECKED` state without knowing that any of them exist.
 
+**A facet's *presence* is a fact of its own, and two states are derived from it.** A node carrying an
+`ExpandFacet` is `EXPANDABLE` whether it is open or closed, and a node carrying a
+`SelectionItemFacet` is `SELECTABLE` whether it is selected or not (the second since 2026-09-16, when
+three live readers found that nothing in either module had ever published it: Orca discards an
+unnamed row that is "not focusable, selectable, or expandable" as layout-only, so a select-all over
+five selected rows said nothing at all). Neither bit is a widget's to set — `Accessibility#state`
+refuses both and names the facet that owns them — and neither costs a bridge anything: Linux reads
+them as state bits, Windows as patterns, macOS as attributes or as a settable value.
+
 **Two free verbs come from the walk, not from the widget.** Every focusable node advertises `FOCUS`
 and `SCROLL_INTO_VIEW`, and the scene performs them itself through `requestFocus()` and
 `revealInView()`, *instead of* asking the widget's hook rather than after it. Do not implement them

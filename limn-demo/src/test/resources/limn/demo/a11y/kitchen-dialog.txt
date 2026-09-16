@@ -1,9 +1,9 @@
 == window "Limn kitchen sink" (blocked by a modal) ==
   1 window "Limn kitchen sink" (explicit) [disabled] window non-modal normal
   2   menu bar "Menu bar" [disabled, horizontal] selection=single
-  3     menu item "File" [disabled, expandable, has-popup] item 1 of 3 unselected collapsed
-  4     menu item "Edit" [disabled, expandable, has-popup] item 2 of 3 unselected collapsed
-  5     menu item "View" [disabled, expandable, has-popup] item 3 of 3 unselected collapsed
+  3     menu item "File" [disabled, selectable, expandable, has-popup] item 1 of 3 unselected collapsed
+  4     menu item "Edit" [disabled, selectable, expandable, has-popup] item 2 of 3 unselected collapsed
+  5     menu item "View" [disabled, selectable, expandable, has-popup] item 3 of 3 unselected collapsed
   6   heading "Limn UI: Kitchen Sink" [disabled]
   7   button "Load data" [disabled]
   8   progress bar "" [disabled, hidden, offscreen, read-only, horizontal] value=0 [0..100] read-only
@@ -12,19 +12,19 @@
  11   combo box "MEDIUM" [disabled, expandable, has-popup] value=2 [0..4 step 1] "MEDIUM" collapsed
  12   combo box "Dark" [disabled, expandable, has-popup] value=1 [0..14 step 1] "Dark" collapsed
  13   tab list "" [disabled, horizontal] selection=single required scroll h=0% view 60%
- 14     tab "Form" [disabled, selected] item 1 of 13 selected | controller for #30 "Form"
- 15     tab "Text" [disabled] item 2 of 13 unselected | controller for #40 "Text"
- 16     tab "Actions" [disabled] item 3 of 13 unselected | controller for #50 "Actions"
- 17     tab "Menus" [disabled] item 4 of 13 unselected | controller for #72 "Menus"
- 18     tab "List" [disabled] item 5 of 13 unselected | controller for #78 "List"
- 19     tab "Controls" [disabled] item 6 of 13 unselected | controller for #81 "Controls"
- 20     tab "3D" [disabled] item 7 of 13 unselected | controller for #111 "3D"
- 21     tab "Video" [disabled] item 8 of 13 unselected | controller for #120 "Video"
- 22     tab "Charts" [disabled] item 9 of 13 unselected | controller for #149 "Charts"
- 23     tab "Scripts" [disabled, offscreen] item 10 of 13 unselected | controller for #170 "Scripts"
- 24     tab "Icons" [disabled, offscreen] item 11 of 13 unselected | controller for #209 "Icons"
- 25     tab "Files" [disabled, offscreen] item 12 of 13 unselected | controller for #219 "Files"
- 26     tab "About" [disabled, offscreen] item 13 of 13 unselected | controller for #236 "About"
+ 14     tab "Form" [disabled, selectable, selected] item 1 of 13 selected | controller for #30 "Form"
+ 15     tab "Text" [disabled, selectable] item 2 of 13 unselected | controller for #40 "Text"
+ 16     tab "Actions" [disabled, selectable] item 3 of 13 unselected | controller for #50 "Actions"
+ 17     tab "Menus" [disabled, selectable] item 4 of 13 unselected | controller for #72 "Menus"
+ 18     tab "List" [disabled, selectable] item 5 of 13 unselected | controller for #78 "List"
+ 19     tab "Controls" [disabled, selectable] item 6 of 13 unselected | controller for #81 "Controls"
+ 20     tab "3D" [disabled, selectable] item 7 of 13 unselected | controller for #111 "3D"
+ 21     tab "Video" [disabled, selectable] item 8 of 13 unselected | controller for #120 "Video"
+ 22     tab "Charts" [disabled, selectable] item 9 of 13 unselected | controller for #149 "Charts"
+ 23     tab "Scripts" [disabled, offscreen, selectable] item 10 of 13 unselected | controller for #170 "Scripts"
+ 24     tab "Icons" [disabled, offscreen, selectable] item 11 of 13 unselected | controller for #209 "Icons"
+ 25     tab "Files" [disabled, offscreen, selectable] item 12 of 13 unselected | controller for #219 "Files"
+ 26     tab "About" [disabled, offscreen, selectable] item 13 of 13 unselected | controller for #236 "About"
  27   button "Previous tabs" (tooltip) [disabled]
  28   button "Next tabs" (tooltip) [disabled]
  29   button "All tabs" (tooltip) [disabled, has-popup]
@@ -112,8 +112,8 @@
 111   scroll pane "3D" (label) [disabled, hidden, offscreen] scroll none | labelled by #20 "3D"
 112     label "3D showcase: subsystem capabilities" [disabled, hidden, offscreen]
 113     radio group "" [disabled, hidden, offscreen, horizontal] selection=single required scroll none
-114       radio button "PBR" [disabled, hidden, offscreen, selected] item 1 of 2 selected
-115       radio button "Shadows" [disabled, hidden, offscreen] item 2 of 2 unselected
+114       radio button "PBR" [disabled, hidden, offscreen, selectable, selected] item 1 of 2 selected
+115       radio button "Shadows" [disabled, hidden, offscreen, selectable] item 2 of 2 unselected
 116     label "PBR metallic-roughness under 3 lights (directional + point + spot); click to select." [disabled, hidden, offscreen]
 117     combo box "Render 100%" desc "Renders the 3D target below device resolution and upsamples it; memory and fill cost fall with the square of the setting" [disabled, hidden, offscreen, expandable, has-popup] value=0 [0..3 step 1] "Render 100%" collapsed
 118     canvas "" desc "3D unavailable (no GPU backend)" [disabled, hidden, offscreen]
@@ -121,8 +121,8 @@
 120   scroll pane "Video" (label) [disabled, hidden, offscreen] scroll none | labelled by #21 "Video"
 121     label "Video: decoded planes, converted on the device" [disabled, hidden, offscreen]
 122     radio group "" [disabled, hidden, offscreen, horizontal] selection=single required scroll none
-123       radio button "Bars" [disabled, hidden, offscreen, selected] item 1 of 2 selected
-124       radio button "MP4" [disabled, hidden, offscreen] item 2 of 2 unselected
+123       radio button "Bars" [disabled, hidden, offscreen, selectable, selected] item 1 of 2 selected
+124       radio button "MP4" [disabled, hidden, offscreen, selectable] item 2 of 2 unselected
 125     video "Decoded planes uploaded to a video surface and composited as one quad" (tooltip) desc "Video unavailable (no GPU backend)" [disabled, hidden, offscreen]
 126     tool bar "" [disabled, hidden, offscreen, horizontal] | controller for #125 "Decoded planes uploaded to a video surface and composited as one quad"
 127       button "Pause" (tooltip) [disabled, hidden, offscreen]
@@ -137,9 +137,9 @@
 136     button "Open…" desc "Play a file from this machine through the installed decoders" [disabled, hidden, offscreen]
 137     button "Open in window…" desc "Play a file in a resizable window of its own" [disabled, hidden, offscreen]
 138     radio group "Letterbox inside the box, crop to cover it, or stretch to it" (tooltip) [disabled, hidden, offscreen, horizontal] selection=single required scroll none
-139       radio button "Contain" [disabled, hidden, offscreen, selected] item 1 of 3 selected
-140       radio button "Cover" [disabled, hidden, offscreen] item 2 of 3 unselected
-141       radio button "Fill" [disabled, hidden, offscreen] item 3 of 3 unselected
+139       radio button "Contain" [disabled, hidden, offscreen, selectable, selected] item 1 of 3 selected
+140       radio button "Cover" [disabled, hidden, offscreen, selectable] item 2 of 3 unselected
+141       radio button "Fill" [disabled, hidden, offscreen, selectable] item 3 of 3 unselected
 142     switch "Soundtrack" desc "Decode on a thread of its own and time the pictures by the audio" [disabled, hidden, offscreen, checked] toggle=on
 143     button "Audio" desc "Play the next audio track of this container, keeping the position" [disabled, hidden, offscreen]
 144     label "Colour bars in the studio BT.709 code table, 4:2:0. A wrong matrix or range does not read as \"slightly off\"; it reads as the wrong bars." [disabled, hidden, offscreen]
