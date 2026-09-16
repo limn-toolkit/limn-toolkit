@@ -136,6 +136,30 @@ what is left, so adding one and describing nothing fails the build. The list is 
 a widget you did not want to do — it is there so that what is left is *counted*, and the phase that
 emptied it is finished.
 
+## Where the reader's cursor is
+
+A window has one focused node, and inside a list, a table, a tree, a menu or a date field the user
+moves a *cursor* the platform focus never follows. The model publishes both and resolves them into
+one answer: `AccessibleTree#activeDescendant()` is the first `ACTIVE` node strictly below
+`focused()` in reading order, and `effectiveFocus()` is that descendant or, where there is none, the
+focused node itself. `ACTIVE` is published only while the owning widget holds the keyboard, so an
+unfocused list cannot claim the cursor, and exactly one `ACTIVE_DESCENDANT_CHANGED` per publish goes
+out, on the focused node, when its resolved descendant moves.
+
+**Each platform then does the native thing with it, and they do not agree**, which is why the model
+answers the question rather than the bridges:
+
+| | What the platform focus is | What the reader is told |
+| --- | --- | --- |
+| **Windows** | the item | `GetFocus` and `HasKeyboardFocus` answer `effectiveFocus()`, and `AutomationFocusChanged` is raised on it — NVDA reads `HasKeyboardFocus` live at that moment, so the tree must already say so |
+| **macOS** | the item | `accessibilityFocusedUIElement` and `isAccessibilityFocused` answer it; `FocusedUIElementChanged` is posted at application level |
+| **Linux** | the widget | `focused` stays on `focused()`; the item travels as `ActiveDescendantChanged` carrying its `(so)` reference |
+
+Two consequences a widget author feels. A focused list, table or tree keeps its cursor row realized
+even when a scroll takes it off screen, so the descendant never resolves to nothing; and where the
+cursor is inside a native popup window, it is resolved across the opener's relation into that
+window's tree, which is why node ids are process-wide.
+
 ## Identity
 
 Ids are minted over the **widget tree**, never over the published tree, and survive frames. A node
@@ -158,8 +182,23 @@ re-stamp, which is much cheaper and is what a window drag produces. Announcement
 flags and above the re-present guard, because an announcement is the application speaking rather
 than a property of a node — a frame that changes nothing in the tree still says what was queued.
 
+**The step has a last line, and it is a boundary rather than a drain.** `frameEnded()` runs however
+the step returned — after a re-present, with nothing listening, with a clean tree, after a re-stamp,
+after a publish — and it means "everything this frame had to say has been emitted". All three
+bridges use it and none for the same reason: macOS posts its whole frame's notifications there,
+Linux flushes a re-announcement owed by a queue collapse, and Windows hands the boundary into its
+own queue behind that frame's events so a drain thread cannot outrun the producer. It is never
+called from `republishNow()`, which is a reentrant publish and not a frame.
+
 `Scene#announce` is the only way anything is spoken that is not a node. There is no live-region
 model; a status label that updates silently stays silent until an application adds the call.
+
+**A surface opened in a window of its own runs on its opener's clock.** A combo's list, a popup
+menu, a dialog and a date picker's calendar build a scene of their own, and that scene takes the
+clock the opener's scene has. It matters because the last frame of such a surface's fade-out is what
+destroys its window: under an injected clock a scene of its own advanced by the microseconds the
+frames really took while the opener was told seconds had passed, so the fade never ended and the
+window never closed — a headless test then walks a popup that is not there any more.
 
 An action from a reader arrives on a platform thread, is checked against the published tree, and is
 then **posted to the user-interface thread**, where it re-checks its own preconditions before doing
@@ -234,6 +273,19 @@ encodings read with `class_getInstanceMethod` and `method_getTypeEncoding`.
 `AxRoles` therefore holds **symbol names** and not strings: `"NSAccessibilityButtonRole"`, resolved
 at run time. The one place the rule cannot be honoured is `NSAccessibilityPriority{Low,Medium,High}`
 — a C enum, not exported symbols — and those literals carry a comment saying so.
+
+**A fact two servers answer differently is a choice, and the choice is argued in the source.** Some
+of what a bridge must decide has no single reading to cite: GTK 3 and GTK 4 disagree about AT-SPI's
+paragraph boundary and about whether a property is read-only; both refuse a value the bridge has to
+answer something for. A citation is then not available and inventing one is worse than admitting it,
+so the comment says the word *choice*, names both servers, names what each answers, and says what
+would reverse it. The ratchets read the argument and not just the number:
+`AtspiConstantsTest` requires a reading or a marked choice at every constant,
+`UiaConstantsTest` requires the citation inside the method that uses it, and
+`AxConstantsTest` holds every selector and symbol against the committed dump **and** requires a
+`readings/` file in the comment above each fact answered off a guest rather than off that dump —
+prose being exactly where a fact that lives in a runtime rather than in an exported symbol has to be
+recorded, and exactly what a mechanical dump check is silent about.
 
 ### Role phrases
 
@@ -359,13 +411,17 @@ the line: it refuses a private IPv4 literal, a lab login and a `/Users/<name>` p
 
 ADR 039 §11 is the full list with the cost of each stated in terms of what a blind user loses. The
 ones most likely to be mistaken for bugs: no range-to-rectangle text geometry on any platform (so
-character review and braille cursor routing are degraded); no UI Automation `TextPattern`; a list
-row carries only the verbs its container delegated onto it (`SELECT`, and `SCROLL_INTO_VIEW` on a
-row whose cell cannot take the keyboard, for `ListView`; ADR 039 §11's "not per-row actuation" was
-reversed on 2026-09-14), so a reader cannot yet open a particular list row with the row's own verb —
-a tree row carries its own since the same day (`SELECT`, `ADD_TO_SELECTION` or `DESELECT`, `EXPAND`
-or `COLLAPSE`, `FOCUS`, `SCROLL_INTO_VIEW`, each by state; ADR 039 §7's `Tree` row), so a reader can
-open a particular tree row; no data table behind a chart; no occlusion model, so a scrim hand-rolled
+character review and braille cursor routing are degraded); no UI Automation `TextPattern`; **a row
+carries the verbs its container gives it, and how many that is differs by container** (ADR 039 §11's
+"not per-row actuation in a list" was reversed on 2026-09-14). A `Tree` row and a `Table` row each
+carry their own by-state set — `SELECT`, `ADD_TO_SELECTION` or `DESELECT`, `EXPAND` or `COLLAPSE`
+(tree only), `FOCUS`, `SCROLL_INTO_VIEW` — so a reader addresses a particular row and the container
+performs it. A `ListView` row carries `SELECT`, plus `SCROLL_INTO_VIEW` where its cell cannot take
+the keyboard, and no `FOCUS`, because there the cursor *is* the selection and a verb that moved one
+without the other would be a distinction the widget does not have. Activation stays on the
+container in all three: `PRESS` is published where there is a cursor and acts on the cursor row, so
+a reader opens the row it is standing on and not an arbitrary one. No data table behind a chart; no
+occlusion model, so a scrim hand-rolled
 inside a `Stack` is not modal to a reader where `pushOverlay` and `Dialog` are; no MSAA; and the
 system accessibility *settings* — high contrast, reduced motion, a system text scale — which are a
 different decision with a different shape and would tangle a tree with a theme.
