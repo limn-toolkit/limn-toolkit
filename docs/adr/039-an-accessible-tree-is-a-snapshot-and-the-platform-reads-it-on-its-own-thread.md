@@ -2632,7 +2632,16 @@ selected day stays under `AXSelectedCells` and a row that declares it belongs to
 write path reads the same set, so a client can write back what it read. `accessibilityRows` and
 `accessibilityVisibleRows` still answer a table's `ROW` children by structure (ADR 041 §7): "through
 synthetic ancestors" is a fact the model resolves once at publish and carries on a selection member
-and nowhere else, so no bridge can apply it to a row that is a member of nothing. *Recorded the same
+and nowhere else, so no bridge can apply it to a row that is a member of nothing. **That leaves the
+two row listings able to disagree, and the correction does not close it:** for every container Limn
+ships the selected rows are a subset of the rows, and in the synthetic-body shape they are not —
+`accessibilitySelectedRows` names a row `accessibilityRows` does not, which is incoherent for a
+client. Closing it needs a policy for `accessibilityRows` that no decision, ADR or reading settles
+(which nodes a table's row listing descends through) or a model that carries syntheticness or a row
+list into the snapshot; both are cross-bridge, Linux's `GetSelectedRows` half having the same shape,
+and both are the orchestrator's. Open, named at `AxGrid#selectedRows` and asserted in
+`AxGridTest.aTablesSelectedRowsAreTheMembersOfItsSelectionWhereverTheyHangUnderIt`, which pins
+`AXSelectedRows` naming a row `AXRows` answers nothing for; nothing Limn ships is in that shape today. *Recorded the same
 day (the macos-B review):* the native outline also answered
 `AXSelectedCells` — the `AXCell` its selected row holds — and an outline or a list here deliberately
 does not: a Limn row holds no cell element, its children being the application's own widgets, so the
@@ -5857,9 +5866,12 @@ green against the 2026-09-15 dump.
   disclosure. Both are now read on a native `NSTableView` rather than inferred from the outline;
   §2.2's macOS column and `AxNotifications` cite them.
 
-#### Amendment 2026-09-16 (fix round 3b) — a fourth macOS fact, and a citation ratchet for the prose
+#### Amendment 2026-09-16 (fix round 3b) — the fourth macOS fact without a filed reading, and a citation ratchet for the prose
 
-The fix-round critic found a fifth site, looser than the rule and not a value: `AxBridge#windowElement`
+The fix-round critic found one more, looser than the rule and not a value: the **fourth** fact this
+bridge answers off a guest with no file named behind it, after the three the amendment above settled,
+and the **fifth** entry of the ratchet's list below, whose other four already cited theirs.
+`AxBridge#windowElement`
 cited `-[NSView window]`'s encoding `@16@0:8` as "read on the guest with the other Foundation and AppKit
 messages, 2026-09-15" and named no file — leaving `AxBridge.java` the one file of this bridge with no
 `readings/` citation at all, on the very answer CRIT-2 had just made load-bearing (a relation naming

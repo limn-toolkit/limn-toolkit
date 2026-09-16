@@ -169,8 +169,15 @@ final class AxGrid {
      *
      * <p>{@link #rows} and {@link #visibleRows} still answer a table's {@code ROW} children by
      * structure (ADR 041 §7, semantics 2's "searched under T's {@code ROW} children") — they are
-     * asked what the grid holds, not what its selection is. The narrowing above is what keeps the
-     * selected rows a subset of them.
+     * asked what the grid holds, not what its selection is. The narrowing above keeps the selected
+     * rows a subset of them for every container Limn ships; <b>in the synthetic-body shape the two
+     * part</b> — {@code AXSelectedRows} names a row {@code AXRows} does not, which is incoherent for
+     * a client and is this round's one open question (fix round 3b's lane log, ADR 039 §2.2's
+     * 2026-09-16 correction). No bridge can close it: "through synthetic ancestors" is a fact the
+     * model resolves at publish and carries on a selection member and nowhere else, so closing it
+     * needs either a policy for {@code AXRows} that no decision, ADR or reading settles or a model
+     * that carries syntheticness into the snapshot. Both halves are asserted, the second
+     * deliberately, in {@code AxGridTest#aTablesSelectedRowsAreTheMembersOfItsSelectionWhereverTheyHangUnderIt}.
      *
      * @param node the node asked
      * @return the elements of its selected rows, in reading order; {@code null} for a node that is
@@ -369,8 +376,9 @@ final class AxGrid {
 
     /**
      * @param container a container whose selection is its rows
-     * @return whether a realized row among its children takes a selection verb now; allocates nothing,
-     *         because the gate asks it whenever a client asks whether the selected rows are settable
+     * @return whether a realized row of its selection, wherever it hangs under it, takes a selection
+     *         verb now; allocates nothing, because the gate asks it whenever a client asks whether
+     *         the selected rows are settable
      */
     boolean aRowTakesASelectionVerb(AccessibleNode container) {
         AccessibleTree tree = source.tree();
