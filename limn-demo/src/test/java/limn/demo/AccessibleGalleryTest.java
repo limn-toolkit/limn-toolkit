@@ -14,6 +14,7 @@ import limn.demo.a11y.HeadlessWindow;
 import limn.demo.a11y.Transcript;
 import limn.demo.site.FormExample;
 import limn.demo.site.LayoutExample;
+import limn.demo.site.TableExample;
 import limn.graphics.TextRulers;
 import limn.i18n.I18n;
 import limn.scene.ControlSize;
@@ -141,6 +142,7 @@ class AccessibleGalleryTest {
         Map<String, Supplier<Scene>> examples = new LinkedHashMap<>();
         examples.put("A form", FormExample::scene);
         examples.put("A window laid out", LayoutExample::scene);
+        examples.put("A table", TableExample::scene);
         List<DynamicTest> tests = new ArrayList<>();
         examples.forEach((name, example) -> {
             for (Palette palette : Palette.values()) {

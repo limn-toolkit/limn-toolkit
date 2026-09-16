@@ -58,6 +58,13 @@ is something the user asks for.
 out and back. Build the widget there; do not cache one per data item, or you have rebuilt
 the thing `ListView` exists to avoid.
 
+A list inside something that gives it no height of its own — a `Column`, a `ScrollView` — has to
+choose a height, and it asks for room for six rows. `setVisibleRows(n)` says how many you want
+instead; `Table` and `Tree` take the same call and ask for eight. The height comes from the
+theme's row height and not from an average of the rows built so far, so it does not change as you
+scroll. And a wheel that reaches the end of a list's own scroll passes to the scroller around it,
+so a list inside a page does not trap the wheel where its content stops.
+
 `onSelect` runs when the *user* moves the selection, by a click or the arrow keys, and not when
 your code does. `onActivate` is the *open this* gesture, which is Enter on the selected row or
 a double click. `activate()` from code is a caller's verb: it tells whoever is watching that the
@@ -111,12 +118,28 @@ writes it, symbol and side included, and `Column.of` takes any value with a form
 handed the table's locale. A numeric column takes any of `NumberFormats` for its cells and its
 footer alike: `prefix("R$ ")` for a fixed prefix, `decimals(2)`, `unit(" kg")`, `compact()`. Widths are a preferred width, a minimum, and a weight: every
 column gets its preferred width, and what is left of the viewport is shared among the
-weighted ones. A table wider than its viewport scrolls sideways; the header stays put.
+weighted ones. A table wider than its viewport scrolls sideways, and the header scrolls with the
+columns, because a title has to stay over the column it names. It is pinned vertically: the rows
+scroll under it.
 
-A click on a header sorts, cycling ascending, descending and your list's own order. The
-table sorts through a permutation and never touches your list, which is why the selection
-— a set of *model* rows — survives a sort. For rows a server orders, `onSortRequest` hands
-the click to you instead: reorder the list and call `refresh()`.
+A click on a header sorts, cycling ascending, descending and your list's own order. The table
+sorts through a permutation and never touches your list. The selection is by **record**, not by
+row number: a selected row stays selected through a sort, and through a `refresh()` that inserted
+rows above it, because the table follows the record rather than the index it was at. Records that
+are equal are matched by the order they occur in; where your records are mutable, or equal without
+being the same thing, name a key with `rowKey(Order::id)` and the table follows that instead. A
+record your list no longer holds leaves the selection, and a watcher hears it. For rows a server
+orders, `onSortRequest` hands the click to you instead: reorder the list and call `refresh()` —
+the selection survives that too.
+
+The header is also a keyboard stop where sorting is on. Tab moves onto it, Left and Right move
+along the columns, and Space sorts the column you are on, cycling the same three ways a click
+does; Tab again returns to the rows. A screen reader's cursor follows it onto the column title
+and back.
+
+<!-- phase-5: no screen reader has yet been heard over a table. What it says for a row, a cell, a
+     column header and a sort direction is what the three bridges publish and is owed a run on
+     each guest. -->
 
 A column may also put something in the **footer**, a summary row pinned under the rows the
 way the header is pinned over them: a text (`footer("Total")`), one of the aggregates a
@@ -126,11 +149,17 @@ row count any column can show (`footerCount()`), or a value you compute from all
 column has something for it, and it is recomputed on `setRows` and `refresh()`, never per frame.
 
 Three selection modes: `NONE`, `SINGLE` and `MULTI`, where Shift selects a range, the
-command modifier toggles one row and Ctrl+A or Cmd+A selects all. Whatever the mode, the
-arrow keys move a focus cell, which is what a screen reader's cursor stands on; Enter or a
-double click activates the lead row. `Column.widget` is the escape hatch for a cell that is
-a control — a switch, a button — and those cells are real children, mounted and released
-with their row.
+command modifier toggles one row and Ctrl+A or Cmd+A selects all. Whatever the mode, the arrow
+keys move a focus cell, which is what a screen reader's cursor stands on; Enter or a double click
+activates **the row the cursor is on**, which in `NONE` is the only thing that could be meant.
+Page Down moves the cursor to the foot of the view and pages from there, the way a native list
+does, so the first press of a long table scrolls by one row.
+
+`Column.widget` is the escape hatch for a cell that is a control — a switch, a button — and those
+cells are real children, mounted and released with their row, and published as cells of their row
+so a reader finds them by row and column like any other. A hidden column (`visible(false)`) builds
+no widget and publishes nothing at all; show or hide one and the table lays out again, so ask for
+a layout rather than a `refresh()` — the rows have not changed.
 
 :::tip[When the data changes]
 Call `refresh()` after your list's contents change, as with `ListView`: the sort is
@@ -175,19 +204,51 @@ yet answers `null`**, which is a different answer from an empty list. An empty l
 `null` is a promise. The row keeps its triangle, because a folder nobody has read is not a file,
 and opening it sends the tree to `load`, whose `Work` reads the folder off the UI thread and
 delivers on it. While it runs, the row shows a spinner where its triangle goes and a "Loading…"
-line where its children will be, and a screen reader hears the row as busy; you draw none of that,
-and the arrows walk past the line. Close the row before the job lands and the job is cancelled,
+line where its children will be, and the row publishes itself as busy; you draw none of that, and
+the arrows walk past the line. <!-- phase-5: no reader has yet been heard to speak the busy state
+on any platform; the state is published and the run that hears it is owed. --> Close the row before
+the job lands and the job is cancelled,
 since a result nobody is looking at is one nobody should pay for; what does land is kept, so
 opening the row again costs nothing. A load that fails closes the row rather than leaving it open
-and empty, which would say the folder has nothing in it. The example overrides `isLeaf` because an
-entry already knows whether it is a folder; left alone, the tree reads `children` and calls a node
-a leaf only when its children are known and there are none.
+and empty, which would say the folder has nothing in it. A load that returns *nothing* is a
+different answer again: the row stays open over a discreet "Empty" line, in the "Loading…" line's
+place, because a folder that has been read and is empty is not a folder nobody has read. An eager
+branch with no children shows the same line.
+
+The example overrides `isLeaf` because an entry already knows whether it is a folder; left alone,
+the tree reads `children` and calls a node a leaf only when its children are known and there are
+none.
+
+**A node appears once.** The tree's identity is the node's own `equals`, so the same node in two
+places would share one selection, one expanded state and one accessible identity; building the
+rows throws instead, naming the node, rather than letting a tree behave strangely in a way nobody
+traces back. Where your data really repeats — the same file under two folders — give the model a
+node that carries its path and not only its name.
 
 Up and Down walk the rows that are showing. **Right opens a closed row and steps into an open one;
-Left closes an open row and steps out to its parent.** In a right-to-left language the two swap,
-because the indent grows from the right there and deeper is to the left. Selection is by node
-rather than by row number, so it survives an expansion that renumbers every row below it, and a row
-hidden by a collapse is still selected when its parent opens again.
+Left closes an open row and steps out to its parent.** On an open row with nothing under it Right
+stays where it is, rather than stepping to a sibling or an uncle. In a right-to-left language the
+two swap, because the indent grows from the right there and deeper is to the left.
+
+**The cursor and the selection are two things.** The cursor is the row the keyboard is on, drawn
+with a thin ring around its cell and published as where a screen reader stands; the selection is
+what you have chosen. In `SINGLE` they move together. In `MULTI` — Shift for a range, the command
+modifier (Cmd on macOS, Ctrl elsewhere) to toggle one row, Ctrl+A or Cmd+A for every open row —
+the cursor can sit outside the selection, and `cursorNode()` answers it while `selectedNodes()`
+answers the set. `onSelect` is the user's response slot and takes no node for that reason: read
+`selectedNodes()` in it. `setSelectedNodes(…)`, `clearSelection()` and `selectAll()` are the
+code-side writes, and they reach a watcher rather than `onSelect`. Enter and a double click
+activate the cursor row, in every mode.
+
+Selection is by node rather than by row number, so it survives an expansion that renumbers every
+row below it, and a row hidden by a collapse is still selected when its parent opens again;
+collapsing the branch the cursor is in moves the cursor up to the row you collapsed, which is
+where you are looking.
+
+<!-- phase-5: the tree is the widget with the most owed to it. What a reader says for a row's
+     name, its level and its position among siblings, its verbs, the busy row and the empty row
+     has been measured headlessly and heard by nobody since the fixes; ADR 044 stays Proposed
+     until those runs are recorded. -->
 
 Rows are realized where the viewport reaches, as a `ListView`'s are, in the order of a walk over
 what is open, so a tree over a deep directory scrolls vertically the way a list does and costs what
@@ -196,7 +257,11 @@ never squeezed. Every level charges an indent and none gives it back, so past so
 would begin beyond the edge of the box, and squeezing the indent to keep it in would draw level
 twelve where level eight sits, flattening the very structure someone that deep is reading. The
 content grows as wide as the deepest open row needs instead, and the box scrolls over it: by the
-bar, by a sideways swipe on a trackpad, or by the wheel with Shift held.
+bar, by a sideways swipe on a trackpad, or by the wheel with Shift held. Moving the cursor onto a
+deep row scrolls sideways too, by the least that brings the row's triangle and the start of its
+cell into view, so End does not leave a name off the edge. How wide the deepest cell is allowed to
+be is the model's to say: `maxCellWidth()` is a cap — never more than what the box gives a root
+row — and left alone the tree guesses from a menu's minimum width.
 
 That has a price you can see. **Widening the content moves where a cell ellipsizes**, from the
 edge of the box to the edge of the content, so once a tree is deep enough to scroll sideways a long

@@ -13,9 +13,14 @@ register.
 
 Every widget describes itself. A button is a button, a check box says whether it is checked, a
 slider says its value and its range, a text field says what it holds and where the caret is, a
-list says how many rows it has and which one is selected, a dialog says it is modal and what it
-blocks. Focus moves are announced as they happen, and a value that changes under the keyboard
-is spoken from where the cursor stands.
+list says its true row count and which rows are selected, a dialog says it is modal and what it
+blocks. Focus moves are published as they happen, and inside a list, a table, a tree, a menu or a
+date field the *cursor* is published too, so a reader follows the arrow keys and not only the Tab
+key.
+
+<!-- phase-5: what each of the three readers actually speaks for a cursor move, a text field's
+     caret and a value change is being measured on the guests; until those runs are recorded this
+     paragraph says what the toolkit publishes, which is not the same as what was heard. -->
 
 The names are the same `I18nString`s the interface draws, so a screen reader speaks your
 application in the language it is displayed in. The word for each *role* — "button", "check
@@ -93,13 +98,26 @@ reader is told which window is the modal. A native dialog blocks its owner the s
 
 A popup — a combo box's list, a context menu, a menu bar's menu — is described where it
 actually lives: a translucent window of its own where the platform has one, and inside the
-scene where it does not. Either way the reader hears it open, reads its items, and hears it
-close.
+scene where it does not. A window of its own is not a tree of its own as far as the reader is
+concerned: the control that opened it points at it, and the cursor crosses into the popup's
+items, so arrowing through a combo's list is read item by item without leaving the field.
+
+<!-- phase-5: the cross-window cursor rests on three reader behaviours that have been reasoned
+     about and not yet measured — NVDA and VoiceOver accepting focus on an element of a window
+     that is not active, and Orca following an active-descendant reference into another frame. -->
 
 A list publishes its true row count and the rows it has realized, which is what makes a
 million-row list cost what twenty do under a screen reader as well as on screen. The row the
-keyboard is in stays realized across a page scroll, so a reader standing on it is not dropped
-to the window; arrow keys move the selection, and the selected row is always realized.
+keyboard is in stays realized even when a scroll takes it off screen, so a reader standing on it
+is not dropped to the window, and a verb addressed to it is performed where it stands. A list's
+rows carry `SELECT`; a tree's and a table's carry their own set by state — select, add to or
+remove from the selection, expand or collapse, move the cursor — so a reader addresses a
+particular row rather than the container.
+
+A control that is merely scrolled out of view keeps everything it offers: the scene reveals it
+and performs. A control nobody can see — in an unselected tab, in a collapsed panel, behind a
+modal — publishes no verb at all, which is how a reader is told "not now" instead of being told
+yes and hearing nothing happen.
 
 ## Check a screen before anyone hears it
 
@@ -112,17 +130,31 @@ what should clip it. The gallery is also a window you can open and read with a s
 ./gradlew :limn-demo:accessibilityGallery
 ```
 
-The transcript above is the other tool. It is what the demo's `Transcript` writes for a
-published tree — one line per node, no rectangles — and the demo keeps three of them as golden
-files, so a change that renames a control or drops a state fails a test before it reaches a
-reader. A transcript is short enough to read aloud, and reading it aloud is the review that
-finds what no rule names: a field named after its own value, a caption that captions nothing.
+The gallery also drives itself. `--reader <entry>` opens one entry alone in a window named for
+the run and sends that entry's declared steps a few seconds apart, with the clock and the locale
+pinned, so the same keystrokes reach the same screen on every machine and a recording of a screen
+reader can be read against the step lines it prints:
+
+```
+./gradlew :limn-demo:accessibilityGallery --args="--reader tree-loading"
+```
+
+The transcript above is the other tool. It is what the demo's `Transcript` writes for a published
+tree — one line per node, no rectangles — and the demo keeps four of them as golden files, so a
+change that renames a control or drops a state fails a test before it reaches a reader. A
+transcript is short enough to read aloud, and reading it aloud is the review that finds what no
+rule names: a field named after its own value, a caption that captions nothing.
 
 ## The edges
 
-Text is read and set whole. A reader can hear a field's contents and its caret, and a text
-field takes a value; review by character and braille cursor routing inside a field are not
-supported. A list publishes the rows it has realized rather than all of them, so a reader's
-own list navigation stops at what is on screen. The system accessibility settings — high
-contrast, reduced motion, a system text scale — are not surfaced to the toolkit; a theme
-built for high contrast is [yours to make](/docs/theming/), and the toolkit applies it.
+Text is read and set whole. A reader can hear a field's contents and its caret, move the caret
+and set the text; review by character and braille cursor routing inside a field are not supported,
+because no platform is given the rectangle of a range. A list publishes the rows it has realized
+rather than all of them, so a reader's own list navigation stops at what is on screen. The system
+accessibility settings — high contrast, reduced motion, a system text scale — are not surfaced to
+the toolkit; a theme built for high contrast is [yours to make](/docs/theming/), and the toolkit
+applies it.
+
+Your application has a name on Linux, where the desktop lists applications and not windows.
+`Backend#setApplicationName` sets it; without a call it is the first window's title, and a later
+window never renames it.
