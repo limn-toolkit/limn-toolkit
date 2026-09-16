@@ -179,6 +179,16 @@ mutate a tree and assert what did **not** change. It is also why a list that rec
 recycle the row the keyboard is in: a reader whose cursor follows the focus is standing on that
 node, and a scroll that deletes it drops the reader to the window.
 
+The rule is easy to state and was not followed everywhere. `CalendarView` keyed its day cells,
+week rows and week-number cells by their **position in the grid** until 2026-09-16, so paging a
+month renamed forty-two nodes rather than retiring and minting them — and that is precisely the
+"newly created" case above, read in reverse: a client told that a node it holds is now called
+something else believes the *thing* changed its name. NVDA 2024.4.2, subscribed to the focused
+element's name, spoke the incoming month's date before the focus had moved, in 6 of 7 paging
+events; Orca read a row mid-burst of 42 renames and said "1 de outubro" beside "4 de setembro". A
+day cell is keyed by its epoch day now. **The lesson is the ordering:** a synthetic child's key is
+as much an identity as a widget's, and "what it shows" is the only thing safe to key it by.
+
 ## How a frame publishes
 
 The publish is a step in the frame, run after layout and the hover update and before the paint
