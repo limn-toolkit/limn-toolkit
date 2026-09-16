@@ -45,6 +45,18 @@ public final class Labelled {
     }
 
     /**
+     * A caption above a control, in the language the scene is built in: what the accessibility
+     * gallery's reader entries caption themselves with (decision 68).
+     *
+     * @param caption the text
+     * @param control what it names, and what is placed
+     * @return the column holding both
+     */
+    public static Widget above(I18nString caption, Widget control) {
+        return above(caption, control, control);
+    }
+
+    /**
      * The same, for a caption that follows the language.
      *
      * @param caption the text

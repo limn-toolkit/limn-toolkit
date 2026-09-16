@@ -17,6 +17,7 @@ import limn.demo.a11y.AccessibilityGallery;
 import limn.demo.a11y.AccessibilityGallery.Entry;
 import limn.demo.a11y.AccessibilityGallery.Fact;
 import limn.demo.a11y.AccessibilityGallery.Step;
+import limn.demo.a11y.GalleryStrings;
 import limn.demo.a11y.HeadlessWindow;
 import limn.demo.a11y.ReaderDriver;
 import limn.demo.a11y.Transcript;
@@ -242,6 +243,11 @@ class ReaderStepsTest {
      * phase-3 fix round, 2026-09-15). The pass above only knows that something happened; this is
      * what phase 5 reads to know what a reader should have heard, and it is the one place in the
      * gallery where the application speaks rather than a node changing.
+     *
+     * <p>The two sentences come from {@link GalleryStrings} since decision 68, so this reads them
+     * from there: an English run hears the English they carry, and
+     * {@code ReaderEntryLanguageTest.theAnnouncementsSpeakTheRunsLanguage} hears the pt-BR a
+     * reader pass on a guest does.
      */
     @Test
     void theAnnouncementEntrySpeaksBothPolitenessLevels() {
@@ -265,9 +271,9 @@ class ReaderStepsTest {
             }
         }
         assertEquals(2, spoken.size(), "the two presses speak once each: " + spoken);
-        assertEquals("Saved", spoken.get(0).newValue());
+        assertEquals(GalleryStrings.SAVED.get(), spoken.get(0).newValue());
         assertEquals(Accessible.Politeness.POLITE, spoken.get(0).politeness());
-        assertEquals("Stopped, nothing was saved", spoken.get(1).newValue());
+        assertEquals(GalleryStrings.STOPPED.get(), spoken.get(1).newValue());
         assertEquals(Accessible.Politeness.ASSERTIVE, spoken.get(1).politeness(),
                 "both levels, because the three platforms map them to different values");
     }

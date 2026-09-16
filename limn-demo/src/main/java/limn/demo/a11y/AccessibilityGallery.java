@@ -97,6 +97,12 @@ import java.util.function.Supplier;
  * guest, and {@code ReaderStepsTest} runs every one headlessly, failing on a step that changes
  * nothing a reader could be told or leaves one of its facts untrue (decision 24 of the 2026-09-13
  * pass).
+ *
+ * <p>Those entries, and only those, speak the run's language: their captions, their labels, the
+ * mark on a calendar day and the two sentences the announcement entry says come from
+ * {@link GalleryStrings}, so a pt-BR reader pass (decision 65) hears no English (decision 68). The
+ * entries' data — the table's ranges, the tree's files — is not translated, for the reason
+ * {@link Fact} gives.
  */
 public final class AccessibilityGallery {
 
@@ -455,7 +461,11 @@ public final class AccessibilityGallery {
     /**
      * One named scene.
      *
-     * @param name      what the entry is called, in the picker and in a failure message
+     * @param name      what the entry is called, in a failure message and everywhere an entry is
+     *                  identified: {@code main}'s argument, an exemption's key, the title of the
+     *                  window a headless test binds it to. English, and stable. What the picker
+     *                  <em>shows</em> is {@link #label()}, which for an entry a reader run drives
+     *                  is the run's language (decision 68)
      * @param covers    the component classes whose accessibility hooks the scene exercises
      * @param publishes the roles the scene promises to put in the tree — what makes a cover
      *                  claim checkable: an entry that says it shows an open menu and publishes
@@ -476,6 +486,15 @@ public final class AccessibilityGallery {
         /** @return a fresh build of this entry */
         public Built build() {
             return factory.get();
+        }
+
+        /**
+         * @return what to show for this entry: the reader catalogue's name for one a reader run
+         *         drives, so the picker a reader is pointed at is in the run's language too
+         *         (decision 68), and the entry's own name for one no run drives
+         */
+        public I18nString label() {
+            return GalleryStrings.label(name);
         }
     }
 
@@ -982,7 +1001,7 @@ public final class AccessibilityGallery {
                         if (!file.kids().isEmpty()) {
                             row.add(new Label(String.valueOf(file.kids().size())).setMuted(true));
                         } else if (file.name().endsWith(".pdf")) {
-                            row.add(new Button("Open").setSecondary(true));
+                            row.add(new Button(GalleryStrings.OPEN).setSecondary(true));
                         }
                         return row;
                     }
@@ -990,7 +1009,8 @@ public final class AccessibilityGallery {
         tree.setSelectionMode(limn.components.tree.Tree.SelectionMode.MULTI);
         tree.expand(documents);
         tree.expand(documents.kids().get(0));
-        page.add(Labelled.above("Files", tree, new SizedBox(SizedBox.UNSET, 320, tree)));
+        page.add(Labelled.above(GalleryStrings.FILES, tree,
+                new SizedBox(SizedBox.UNSET, 320, tree)));
         return Built.focusing(page, tree);
     }
 
@@ -1006,13 +1026,14 @@ public final class AccessibilityGallery {
         record Range(String name, String continent, int summit, boolean visited) {
         }
         Table<Range> table = new Table<>(List.of(
-                limn.components.table.Column.text("Range", Range::name).width(120).weight(1)
-                        .footerCount(),
-                limn.components.table.Column.text("Continent", Range::continent).width(150),
-                limn.components.table.Column.numeric("Summit", Range::summit).width(100)
-                        .footerMax(),
-                limn.components.table.Column.<Range>widget("Visited", range ->
-                        new Checkbox(Checkbox.Variant.SWITCH, "Visited")
+                limn.components.table.Column.text(GalleryStrings.RANGE, Range::name)
+                        .width(120).weight(1).footerCount(),
+                limn.components.table.Column.text(GalleryStrings.CONTINENT, Range::continent)
+                        .width(150),
+                limn.components.table.Column.numeric(GalleryStrings.SUMMIT, Range::summit)
+                        .width(100).footerMax(),
+                limn.components.table.Column.<Range>widget(GalleryStrings.VISITED, range ->
+                        new Checkbox(Checkbox.Variant.SWITCH, GalleryStrings.VISITED)
                                 .setChecked(range.visited())).width(140).sortable(false)));
         table.setRows(List.of(
                 new Range("Alps", "Europe", 4808, true),
@@ -1027,7 +1048,7 @@ public final class AccessibilityGallery {
                 new Range("Zagros", "Asia", 4409, false)));
         table.setSelectionMode(Table.SelectionMode.MULTI);
         table.setSelectedRows(0, 2, 3); // the lead in view, so nothing scrolls before it is read
-        page.add(Labelled.above("Mountain ranges", table,
+        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, table,
                 new SizedBox(SizedBox.UNSET, 240, table)));
         return Built.focusing(page, table);
     }
@@ -1052,22 +1073,20 @@ public final class AccessibilityGallery {
      * heard only one would leave the other unread. The buttons are ordinary buttons: what is being
      * exercised is the scene's own path, not a widget's.
      *
-     * <p><b>The two announced strings are the first thing decision 68 will owe a catalogue</b>
-     * (2026-09-15, unassigned as of this writing). Every other entry's English is a caption or a
-     * label — a word beside a widget, which a pt-BR run hears as a name — while these two are the
-     * only strings in the gallery a reader speaks as a <em>sentence</em>, straight through from
-     * the application. Until the en/pt-BR catalogue decision 68 asks for exists, phase 5's pt-BR
-     * pass hears an English sentence here and nowhere else, so these are the two entries to move
-     * first when it lands. {@code ReaderStepsTest.theAnnouncementEntrySpeaksBothPolitenessLevels}
-     * names both literals, so the catalogue cannot be added without that test being brought along.
+     * <p><b>The two announced strings are the reason decision 68 was load-bearing</b> (landed
+     * 2026-09-15). Every other entry's English was a caption or a label — a word beside a widget,
+     * which a pt-BR run hears as a name — while these two are the only strings in the gallery a
+     * reader speaks as a <em>sentence</em>, straight through from the application, and a pt-BR pass
+     * heard them in English. They come from {@link GalleryStrings} like every other word a reader
+     * run is driven over, and {@code ReaderEntryLanguageTest} hears them in both languages.
      */
     private static Built announcing() {
         Column page = page();
-        Button save = new Button("Save");
-        save.onAction(() -> save.scene().announce("Saved",
+        Button save = new Button(GalleryStrings.SAVE);
+        save.onAction(() -> save.scene().announce(GalleryStrings.SAVED,
                 Accessible.Politeness.POLITE));
-        Button stop = new Button("Stop");
-        stop.onAction(() -> stop.scene().announce("Stopped, nothing was saved",
+        Button stop = new Button(GalleryStrings.STOP);
+        stop.onAction(() -> stop.scene().announce(GalleryStrings.STOPPED,
                 Accessible.Politeness.ASSERTIVE));
         page.add(save);
         page.add(stop);
@@ -1083,9 +1102,9 @@ public final class AccessibilityGallery {
         calendar.setMinDate(java.time.LocalDate.of(2026, 9, 2));
         calendar.setDateFilter(day -> day.getDayOfWeek() != java.time.DayOfWeek.SUNDAY);
         calendar.setDayMarks(day -> day.getDayOfMonth() == 21
-                ? DayMark.of(Theme.current().danger, I18nString.literal("holiday"))
+                ? DayMark.of(Theme.current().danger, GalleryStrings.HOLIDAY)
                 : null);
-        page.add(Labelled.above("Delivery date", calendar));
+        page.add(Labelled.above(GalleryStrings.DELIVERY_DATE, calendar));
         return Built.focusing(pinnedForReaders(page), calendar);
     }
 
@@ -1098,11 +1117,11 @@ public final class AccessibilityGallery {
         Column page = page();
         DateField date = new DateField();
         date.setDate(java.time.LocalDate.of(2026, 9, 9));
-        page.add(Labelled.above("Invoice date", date));
+        page.add(Labelled.above(GalleryStrings.INVOICE_DATE, date));
         DateField moment = new DateField().setGranularity(DateField.Granularity.MINUTE);
         moment.setDateTime(java.time.LocalDateTime.of(2026, 9, 9, 14, 30));
-        page.add(Labelled.above("Appointment", moment));
-        page.add(Labelled.above("Due date", new DateField()));
+        page.add(Labelled.above(GalleryStrings.APPOINTMENT, moment));
+        page.add(Labelled.above(GalleryStrings.DUE_DATE, new DateField()));
         return Built.focusing(pinnedForReaders(page), date);
     }
 
@@ -1127,11 +1146,11 @@ public final class AccessibilityGallery {
         Column page = page();
         DatePicker picker = new DatePicker();
         picker.setDate(java.time.LocalDate.of(2026, 9, 9));
-        page.add(Labelled.above("Delivery date", picker));
+        page.add(Labelled.above(GalleryStrings.DELIVERY_DATE, picker));
         DatePicker stay = DatePicker.ofRange();
         stay.setRange(new limn.components.date.DateRange(
                 java.time.LocalDate.of(2026, 9, 14), java.time.LocalDate.of(2026, 9, 25)));
-        page.add(Labelled.above("Stay", stay));
+        page.add(Labelled.above(GalleryStrings.STAY, stay));
         return Built.focusing(pinnedForReaders(page), picker.field());
     }
 
@@ -1146,7 +1165,9 @@ public final class AccessibilityGallery {
      * <p>The language is <b>not</b> pinned here (decision 65, 2026-09-15, which replaced the
      * en-US the entries declared from 2026-09-14): an entry speaks the process's, so the reader
      * driver's pt-BR — the guests' reader language — reaches every widget string, and the headless
-     * tests' English stays theirs. The captions are the entries' own English words either way.
+     * tests' English stays theirs. Since decision 68 the captions follow it too: an entry a reader
+     * run drives takes its captions, labels and marks from {@link GalleryStrings}, so a pt-BR pass
+     * is monolingual and an English one is unchanged.
      */
     private static Widget pinnedForReaders(Widget root) {
         limn.demo.DocumentationDay.pin(root);
@@ -1469,8 +1490,11 @@ public final class AccessibilityGallery {
 
             Column holder = new Column();
             holder.crossAlignment(Flex.CrossAlignment.STRETCH);
+            // Shown, not identified: an entry a reader run drives is listed in the run's language
+            // (decision 68), so a reader pointed at this window reads the list in the language it
+            // will hear the entry in; every other entry is listed by its own English name.
             ListView picker = new ListView(new Rows(
-                    entries.stream().map(Entry::name).toArray(String[]::new)));
+                    entries.stream().map(entry -> entry.label().get()).toArray(String[]::new)));
             picker.setAccessibleName("Entries");
             Row root = new Row();
             root.crossAlignment(Flex.CrossAlignment.STRETCH);
