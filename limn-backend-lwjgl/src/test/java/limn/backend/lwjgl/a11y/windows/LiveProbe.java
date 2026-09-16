@@ -38,10 +38,18 @@ import java.util.Locale;
  * The count is only meaningful with a reader attached — {@code emit} returns at its first line for
  * a node no client has asked for — so a timing run is an NVDA run.
  *
+ * <p><b>The bridge's own trace is separate and needs no probe</b> ({@link UiaTrace}):
+ * {@code -Dlimn.a11y.uia.trace=<file>} writes every call into {@code UIAutomationCore}, every
+ * decision not to raise, and every provider entry point a client called, one flushed line each,
+ * from any run of any application — the demo jar included. It is off unless that property is
+ * given. A timing run sets {@link UiaWindow#trace} as well, so the same lines also appear on
+ * standard output with the probe's own stamp.
+ *
  * <pre>
  * java -jar limn-a11y-windows-probe.jar
  * java -Dprobe.timing=true -Dprobe.cycle=scroll -Dprobe.tickMs=100 -jar limn-a11y-windows-probe.jar
  * java -Dprobe.timing=true -Dprobe.cycle=drag -Dprobe.tickMs=100 -jar limn-a11y-windows-probe.jar
+ * java -Dlimn.a11y.uia.trace=C:/limn/uia.log -jar limn-a11y-windows-probe.jar
  * </pre>
  */
 public final class LiveProbe {
@@ -60,6 +68,12 @@ public final class LiveProbe {
         say("user32 available:           " + UiaWindow.isAvailable());
         say("oleaut32 available:         " + UiaStrings.isAvailable());
         say("cycle=" + cycle + " tickMs=" + tickMs + " timing=" + timing);
+        // Said in the preflight, because a run that believed it was tracing and was not is the
+        // one failure a trace switch can have that nothing downstream reveals.
+        say("bridge trace:              "
+                + (System.getProperty(UiaTrace.PROPERTY) == null ? "off (-D" + UiaTrace.PROPERTY
+                        + "=<file> turns it on)" : System.getProperty(UiaTrace.PROPERTY)
+                        + (UiaTrace.file == null ? " -- NOT OPENED, see stderr" : " (open)")));
 
         try (Backend backend = new LwjglBackend()) {
             NativeWindow window = backend.createWindow(

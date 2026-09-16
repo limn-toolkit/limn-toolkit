@@ -299,9 +299,44 @@ public final class UiaBridge extends PlatformBridge {
      */
     @Override
     public boolean isListening() {
-        return listening(Uia.clientsAreListening(), advised.get(), lastAskedNanos,
-                clock.getAsLong(), owedAnEvent);
+        boolean anyone = Uia.clientsAreListening();
+        int standing = advised.get();
+        long now = clock.getAsLong();
+        boolean owed = owedAnEvent;
+        boolean answer = listening(anyone, standing, lastAskedNanos, now, owed);
+        if (UiaTrace.on()) {
+            sayGate(answer, anyone, standing, now, owed);
+        }
+        return answer;
     }
+
+    /**
+     * The gate's answer, traced <b>when it changes</b> and not once per frame.
+     *
+     * <p>This is asked on the user-interface thread of every damaged frame, sixty times a second
+     * on a window being read, and a line per frame would bury the raises it is there to explain.
+     * What a diagnosis asks of this gate is when it opened and when it shut, which is exactly the
+     * changes; the reason it gives is the whole of its input, the asked window's remainder
+     * included, so the line after it says why it moved. The first call always writes one, because
+     * a run that starts closed has to say so.
+     */
+    private void sayGate(boolean answer, boolean anyone, int standing, long now, boolean owed) {
+        Boolean last = lastGateSaid;
+        if (last != null && last == answer) {
+            return;
+        }
+        lastGateSaid = answer;
+        long left = ASKED_WINDOW_NANOS - (now - lastAskedNanos);
+        UiaTrace.line("GATE", "listening=" + answer + " anyoneInTheSession=" + anyone
+                + " advised=" + standing + " owedAnEvent=" + owed
+                + " askedWindowLeftMs=" + (left <= 0 ? "0" : left / 1_000_000));
+    }
+
+    /**
+     * What the gate last said through the trace, or {@code null} before it has said anything.
+     * Written only while the trace is on, on the user-interface thread.
+     */
+    private Boolean lastGateSaid;
 
     /**
      * The gate's decision, as a function of the four facts so that a machine with no UI
@@ -651,6 +686,9 @@ public final class UiaBridge extends PlatformBridge {
         if (element == null) {
             // Nothing has ever asked for this node, so no client is holding an element to be told
             // about. It will read whatever is current the first time it does ask.
+            if (UiaTrace.on()) {
+                UiaTrace.skipped(event.type().name(), event.nodeId(), "no-client-asked-for-it");
+            }
             return;
         }
         int propertyId = 0;
@@ -672,7 +710,11 @@ public final class UiaBridge extends PlatformBridge {
         }
         long started = System.nanoTime();
         if (eventId != 0) {
-            Uia.raiseAutomationEvent(element.pointer(), eventId);
+            int hresult = Uia.raiseAutomationEvent(element.pointer(), eventId);
+            if (UiaTrace.on()) {
+                UiaTrace.raised("UiaRaiseAutomationEvent", UiaTrace.event(eventId), tree(),
+                        event.nodeId(), true, hresult);
+            }
         } else {
             raisePropertyChange(element, propertyId, event, node);
             int also = alsoChangedProperty(event, node);
@@ -753,11 +795,19 @@ public final class UiaBridge extends PlatformBridge {
             return;
         }
         long started = System.nanoTime();
+        // Read before the raise, because the raise is what mints it: the trace's one answer to
+        // "was this element already in a client's hands or made for this event".
+        boolean held = UiaTrace.on() && owner.holdsElementFor(target);
         boolean raised = owner.raiseOnElement(target, true, owner != this, element ->
                 Uia.raiseAutomationEvent(element.pointer(), UiaIds.AUTOMATION_FOCUS_CHANGED));
         if (!raised) {
             UiaWindow.say("focus on node " + target + " has no element for " + cause);
             return;
+        }
+        if (UiaTrace.on()) {
+            UiaTrace.raised("UiaRaiseAutomationEvent",
+                    UiaTrace.event(UiaIds.AUTOMATION_FOCUS_CHANGED), owner.tree(), target, held,
+                    owner.lastRaiseHresult);
         }
         ANNOUNCED.set(now);
         // A raise that reached the platform: the one change a client that asked was owed.
@@ -789,6 +839,17 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
+     * The {@code HRESULT} of the last raise {@link #raiseOnElementUnguarded} ran on one of this
+     * bridge's elements, for the trace and for nothing else.
+     *
+     * <p>A field rather than a return value because the raise travels as a lambda and the caller
+     * that wants the number is in another method — and, when the focus resolved into a native
+     * popup, in another bridge. Volatile for that case: the writer is the other window's drain
+     * thread, inside this bridge's guard, and the reader is the line right after it.
+     */
+    private volatile int lastRaiseHresult;
+
+    /**
      * Runs a raise on this bridge's element for a node.
      *
      * @param nodeId            a node of this bridge's tree
@@ -800,7 +861,7 @@ public final class UiaBridge extends PlatformBridge {
      *         was not to be minted, or (from another window) this bridge is closing
      */
     private boolean raiseOnElement(long nodeId, boolean mint, boolean fromAnotherWindow,
-                                   java.util.function.Consumer<UiaElement> raise) {
+                                   java.util.function.ToIntFunction<UiaElement> raise) {
         if (!fromAnotherWindow) {
             return raiseOnElementUnguarded(nodeId, mint, raise);
         }
@@ -810,7 +871,7 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     private boolean raiseOnElementUnguarded(long nodeId, boolean mint,
-                                            java.util.function.Consumer<UiaElement> raise) {
+                                            java.util.function.ToIntFunction<UiaElement> raise) {
         if (tree().indexOf(nodeId) < 0) {
             return false;
         }
@@ -818,7 +879,7 @@ public final class UiaBridge extends PlatformBridge {
         if (element == null) {
             return false;
         }
-        raise.accept(element);
+        lastRaiseHresult = raise.applyAsInt(element);
         owedAnEvent = false;
         return true;
     }
@@ -878,7 +939,11 @@ public final class UiaBridge extends PlatformBridge {
                 continue;
             }
             long started = System.nanoTime();
-            Uia.raiseAutomationEvent(element.pointer(), (int) raise[0]);
+            int hresult = Uia.raiseAutomationEvent(element.pointer(), (int) raise[0]);
+            if (UiaTrace.on()) {
+                UiaTrace.raised("UiaRaiseAutomationEvent", UiaTrace.event((int) raise[0]), tree(),
+                        raise[1], true, hresult);
+            }
             anything = true;
             UiaWindow.say("raised SELECTION_CHANGED as event " + raise[0] + " for node " + raise[1]
                     + " of container " + event.nodeId() + " in "
@@ -948,6 +1013,7 @@ public final class UiaBridge extends PlatformBridge {
             UiaWindow.say("ANNOUNCEMENT not raised: this UI Automation has no notification event");
             return;
         }
+        boolean held = UiaTrace.on() && holdsElementFor(tree.root().id());
         UiaElement root = elementOf(tree.root().id());
         if (root == null) {
             return;
@@ -965,6 +1031,12 @@ public final class UiaBridge extends PlatformBridge {
             UiaStrings.free(activity);
         }
         owedAnEvent = false;
+        if (UiaTrace.on()) {
+            UiaTrace.raised("UiaRaiseNotificationEvent",
+                    UiaTrace.event(UiaIds.NOTIFICATION) + ' ' + UiaTrace.notification(how[0], how[1])
+                            + " said=" + UiaTrace.text(text),
+                    tree, tree.root().id(), held, hresult);
+        }
         UiaWindow.say("raised ANNOUNCEMENT kind " + how[0] + " processing " + how[1]
                 + " on the root " + tree.root().id() + " -> 0x" + Integer.toHexString(hresult)
                 + " in " + (System.nanoTime() - started) / 1_000 + " us on "
@@ -1051,6 +1123,8 @@ public final class UiaBridge extends PlatformBridge {
         long runtimeId = MemoryUtil.nmemAllocChecked(3L * Integer.BYTES);
         try {
             for (long[] raise : structureRaises(event, items)) {
+                boolean held = UiaTrace.on()
+                        && (raise[1] == event.nodeId() || holdsElementFor(raise[1]));
                 UiaElement on = raise[1] == event.nodeId() ? parent : elementOf(raise[1]);
                 if (on == null) {
                     continue;
@@ -1065,6 +1139,13 @@ public final class UiaBridge extends PlatformBridge {
                 // Paid before the trace says so, as every other raise here pays it: a reader of
                 // the trace (a test on another thread) must not find the line with the debt open.
                 owedAnEvent = false;
+                if (UiaTrace.on()) {
+                    UiaTrace.raised("UiaRaiseStructureChangedEvent",
+                            UiaTrace.event(UiaIds.STRUCTURE_CHANGED) + ' '
+                                    + UiaTrace.structureChange((int) raise[0])
+                                    + " runtimeIdOf=" + raise[2],
+                            tree, raise[1], held, hresult);
+                }
                 UiaWindow.say("raised STRUCTURE_CHANGED as type " + raise[0] + " on node " + raise[1]
                         + " with the runtime id of node " + raise[2] + " -> 0x"
                         + Integer.toHexString(hresult) + " in "
@@ -1198,6 +1279,9 @@ public final class UiaBridge extends PlatformBridge {
         UiaElement element = elements.peek(event.nodeId());
         if (element == null) {
             // As every property change: nothing asked for this node, so nothing is told.
+            if (UiaTrace.on()) {
+                UiaTrace.skipped(event.type().name(), event.nodeId(), "no-client-asked-for-it");
+            }
             return;
         }
         AccessibleTree tree = tree();
@@ -1298,15 +1382,18 @@ public final class UiaBridge extends PlatformBridge {
      * @param propertyId the property {@link #changedProperty} chose; never {@code 0} here
      * @param event      what moved
      * @param node       the node it moved on, or {@code null} when it has left the tree
+     * @return the {@code HRESULT}
      */
-    private void raisePropertyChange(UiaElement element, int propertyId, AccessibleEvent event,
-                                     AccessibleNode node) {
-        raisePropertyChange(element, propertyId, event.oldValue(), event.newValue(), node);
+    private int raisePropertyChange(UiaElement element, int propertyId, AccessibleEvent event,
+                                    AccessibleNode node) {
+        return raisePropertyChange(element, propertyId, event.oldValue(), event.newValue(), node);
     }
 
-    /** The same, with the two values given. */
-    private void raisePropertyChange(UiaElement element, int propertyId, Object oldValue,
-                                     Object newValue, AccessibleNode node) {
+    /** The same, with the two values given.
+     *
+     *  @return the {@code HRESULT} */
+    private int raisePropertyChange(UiaElement element, int propertyId, Object oldValue,
+                                    Object newValue, AccessibleNode node) {
         long before = MemoryUtil.nmemCallocChecked(1, UiaVariant.SIZE);
         long after = MemoryUtil.nmemCallocChecked(1, UiaVariant.SIZE);
         try {
@@ -1316,10 +1403,21 @@ public final class UiaBridge extends PlatformBridge {
             write(newOne, propertyId, changedValue(propertyId, newValue, node));
             int hresult = Uia.raisePropertyChangedEvent(element.pointer(), propertyId,
                     before, after);
+            if (UiaTrace.on()) {
+                // Always held: this bridge raises a property change only on an element a client
+                // already asked for, and the one raise that mints -- the focus change -- says so
+                // on its own line.
+                UiaTrace.raised("UiaRaiseAutomationPropertyChangedEvent",
+                        UiaTrace.property(propertyId)
+                                + " from=" + UiaTrace.value(changedValue(propertyId, oldValue, node))
+                                + " to=" + UiaTrace.value(changedValue(propertyId, newValue, node)),
+                        tree(), element.nodeId(), true, hresult);
+            }
             UiaWindow.say("property " + propertyId + " changed -> 0x"
                         + Integer.toHexString(hresult));
             freeIfString(oldOne);
             freeIfString(newOne);
+            return hresult;
         } finally {
             MemoryUtil.nmemFree(before);
             MemoryUtil.nmemFree(after);
@@ -1576,8 +1674,21 @@ public final class UiaBridge extends PlatformBridge {
         // handed over the tree it already had and let the gate do the rest read every value. The
         // priming publish is a truthful tree; the ask opens the gate (noteAsked), and the first
         // frame something moves publishes and raises it, outside anyone's call.
+        AccessibleTree tree = tree();
+        boolean held = UiaTrace.on() && tree.nodeCount() > 0 && holdsElementFor(tree.root().id());
         long root = rootElement();
-        return root == 0 ? 0 : Uia.returnRawElementProvider(hwnd, wparam, lparam, root);
+        long answer = root == 0 ? 0 : Uia.returnRawElementProvider(hwnd, wparam, lparam, root);
+        if (UiaTrace.on()) {
+            UiaTrace.line("CALL", "UiaReturnRawElementProvider hwnd=0x" + Long.toHexString(hwnd)
+                    + " wparam=0x" + Long.toHexString(wparam)
+                    + " lparam=" + (int) lparam
+                    + ' ' + (tree.nodeCount() == 0 ? "root=none" : UiaTrace.element(tree,
+                            tree.root().id()))
+                    + " element=" + (held ? "held" : "minted")
+                    + " provider=0x" + Long.toHexString(root)
+                    + " lresult=" + answer);
+        }
+        return answer;
     }
 
     /**
@@ -1636,7 +1747,12 @@ public final class UiaBridge extends PlatformBridge {
          */
         @Override
         public long hostProvider() {
-            return Uia.hostProviderFromHwnd(hwnd);
+            long provider = Uia.hostProviderFromHwnd(hwnd);
+            if (UiaTrace.on()) {
+                UiaTrace.line("CALL", "UiaHostProviderFromHwnd hwnd=0x" + Long.toHexString(hwnd)
+                        + " provider=0x" + Long.toHexString(provider));
+            }
+            return provider;
         }
 
         @Override

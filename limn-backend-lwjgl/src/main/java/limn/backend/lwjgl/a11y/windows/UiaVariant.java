@@ -174,4 +174,58 @@ final class UiaVariant {
     static short tagOf(ByteBuffer at, int offset) {
         return at.getShort(offset);
     }
+
+    /**
+     * What a filled {@code VARIANT} says, as one word for the trace.
+     *
+     * <p>The tag by name, then the value where the union holds one outright and the pointer where
+     * it holds a reference. A {@code VT_BSTR} is the one case worth reading back, because the
+     * string is what a reader speaks and a line saying only {@code 0x1f4a20} answers nothing —
+     * and it is read <b>only where {@code oleaut32} opened</b>, which is the only machine where
+     * the payload is a real {@code BSTR}: {@link UiaStrings#system()} answers {@code 0} for every
+     * string elsewhere, and this leaves the tag {@code VT_EMPTY} there, so no other machine ever
+     * reaches the four bytes in front of the pointer.
+     *
+     * @param at     the buffer holding the structure
+     * @param offset where the structure begins
+     * @param limit  the longest string to repeat
+     * @return the description, which allocates and is therefore for a caller behind a trace gate
+     */
+    static String describe(ByteBuffer at, int offset, int limit) {
+        short tag = tagOf(at, offset);
+        return switch (tag) {
+            case VT_EMPTY -> "VT_EMPTY";
+            case VT_I4 -> "VT_I4(" + at.getInt(offset + PAYLOAD) + ')';
+            case VT_R8 -> "VT_R8(" + at.getDouble(offset + PAYLOAD) + ')';
+            case VT_BOOL -> "VT_BOOL(" + (at.getShort(offset + PAYLOAD) != FALSE) + ')';
+            case VT_BSTR -> "VT_BSTR(" + bstrText(at.getLong(offset + PAYLOAD), limit) + ')';
+            case VT_UNKNOWN -> "VT_UNKNOWN(0x"
+                    + Long.toHexString(at.getLong(offset + PAYLOAD)) + ')';
+            default -> "tag" + tag + "(0x" + Long.toHexString(at.getLong(offset + PAYLOAD)) + ')';
+        };
+    }
+
+    /**
+     * @param bstr  the pointer written into the union
+     * @param limit the longest string to repeat
+     * @return the string in quotes, or the pointer where it may not be read
+     */
+    private static String bstrText(long bstr, int limit) {
+        if (bstr == 0 || !UiaStrings.isAvailable()) {
+            return "0x" + Long.toHexString(bstr);
+        }
+        // A BSTR's length in BYTES sits in the four immediately before the pointer, and the data
+        // is UTF-16. Guarded against a length that is not one a string could have, because a log
+        // line must never be the thing that walks off the end of a buffer.
+        int bytes = org.lwjgl.system.MemoryUtil.memGetInt(bstr - 4);
+        if (bytes < 0 || bytes > 1 << 20 || (bytes & 1) != 0) {
+            return "0x" + Long.toHexString(bstr) + " length" + bytes;
+        }
+        int units = Math.min(bytes / 2, limit);
+        StringBuilder text = new StringBuilder(units);
+        for (int i = 0; i < units; i++) {
+            text.append((char) org.lwjgl.system.MemoryUtil.memGetShort(bstr + (long) i * 2));
+        }
+        return '"' + text.toString().replace('\n', ' ') + (units < bytes / 2 ? "…\"" : "\"");
+    }
 }

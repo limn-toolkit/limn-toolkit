@@ -265,15 +265,29 @@ final class UiaProvider {
     static Map<String, CallbackI> adviseEventsSlots(Context context) {
         return Map.of(
                 "AdviseEventAdded",
-                (UiaCom.PIP) (self, eventId, properties) -> {
-                    context.eventAdvised(eventId, int32sOf(properties), true);
-                    return UiaIds.S_OK;
-                },
+                (UiaCom.PIP) (self, eventId, properties) -> advise(eventId, properties, true,
+                        context),
                 "AdviseEventRemoved",
-                (UiaCom.PIP) (self, eventId, properties) -> {
-                    context.eventAdvised(eventId, int32sOf(properties), false);
-                    return UiaIds.S_OK;
-                });
+                (UiaCom.PIP) (self, eventId, properties) -> advise(eventId, properties, false,
+                        context));
+    }
+
+    /**
+     * One subscription arriving or leaving, traced <b>whole</b>.
+     *
+     * <p>The most valuable two lines in the file, and the reason this half of the instrumentation
+     * exists: the 2026-09-16 Windows reading could not say what NVDA had subscribed to, only that
+     * it heard nothing. The event and the property array are what a client asks for, by name and
+     * number, on the thread it asked from.
+     */
+    private static int advise(int eventId, long properties, boolean added, Context context) {
+        int[] ids = int32sOf(properties);
+        context.eventAdvised(eventId, ids, added);
+        if (UiaTrace.on()) {
+            UiaTrace.inbound(added ? "AdviseEventAdded" : "AdviseEventRemoved",
+                    UiaTrace.event(eventId) + ' ' + UiaTrace.properties(ids), UiaIds.S_OK);
+        }
+        return UiaIds.S_OK;
     }
 
     /**
@@ -308,13 +322,13 @@ final class UiaProvider {
 
     private static int navigate(long nodeId, int direction, long out, Context context) {
         if (out == 0) {
-            return UiaIds.E_NO_INTERFACE;
+            return refused("Navigate", direction, nodeId, UiaIds.E_NO_INTERFACE);
         }
         MemoryUtil.memPutAddress(out, 0);
         AccessibleTree tree = context.tree();
         int index = tree.indexOf(nodeId);
         if (index < 0) {
-            return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+            return refused("Navigate", direction, nodeId, UiaIds.E_ELEMENT_NOT_AVAILABLE);
         }
         int found = UiaFragment.navigate(tree, index, direction);
         // Nothing in that direction is a null and S_OK: a client walks until it is told there is
@@ -322,7 +336,50 @@ final class UiaProvider {
         if (found != AccessibleNode.NONE) {
             MemoryUtil.memPutAddress(out, context.elementFor(tree.node(found).id()));
         }
+        if (UiaTrace.on()) {
+            UiaTrace.inbound("Navigate", UiaTrace.direction(direction) + " from=" + nodeId
+                    + " answer=" + (found == AccessibleNode.NONE ? "none"
+                            : UiaTrace.element(tree, tree.node(found).id())), UiaIds.S_OK);
+        }
         return UiaIds.S_OK;
+    }
+
+    /**
+     * Says that {@code Navigate} answered a failure, and answers it.
+     *
+     * <p>The formatting is inside the gate and not at the call site, which is the rule the whole
+     * of this instrumentation is written to: with the trace off nothing here allocates a string,
+     * a {@code StringBuilder} or a boxed number.
+     *
+     * @param entryPoint the member
+     * @param direction  which way it was asked to go
+     * @param nodeId     the node it was asked on
+     * @param hresult    what it answers
+     * @return that {@code HRESULT}
+     */
+    private static int refused(String entryPoint, int direction, long nodeId, int hresult) {
+        if (UiaTrace.on()) {
+            UiaTrace.inbound(entryPoint, UiaTrace.direction(direction) + " from=" + nodeId
+                    + " answer=none", hresult);
+        }
+        return hresult;
+    }
+
+    /**
+     * The same for an entry point whose whole question is the node, or the root's two, which are
+     * asked of a window and carry none.
+     *
+     * @param entryPoint the member
+     * @param nodeId     the node it was asked on, or {@code 0} for the root's own two
+     * @param hresult    what it answers
+     * @return that {@code HRESULT}
+     */
+    private static int refused(String entryPoint, long nodeId, int hresult) {
+        if (UiaTrace.on()) {
+            UiaTrace.inbound(entryPoint, (nodeId == 0 ? "" : "node=" + nodeId + ' ')
+                    + "answer=none", hresult);
+        }
+        return hresult;
     }
 
     private static int runtimeId(long nodeId, long out, Context context) {
@@ -403,15 +460,22 @@ final class UiaProvider {
 
     private static int fragmentRoot(long out, Context context) {
         if (out == 0) {
-            return UiaIds.E_NO_INTERFACE;
+            return refused("get_FragmentRoot", 0, UiaIds.E_NO_INTERFACE);
         }
-        MemoryUtil.memPutAddress(out, context.rootElement());
+        long root = context.rootElement();
+        MemoryUtil.memPutAddress(out, root);
+        if (UiaTrace.on()) {
+            AccessibleTree tree = context.tree();
+            UiaTrace.inbound("get_FragmentRoot", "answer=" + (tree.nodeCount() == 0 ? "none"
+                    : UiaTrace.element(tree, tree.root().id())) + " provider=0x"
+                    + Long.toHexString(root), UiaIds.S_OK);
+        }
         return UiaIds.S_OK;
     }
 
     private static int elementFromPoint(double x, double y, long out, Context context) {
         if (out == 0) {
-            return UiaIds.E_NO_INTERFACE;
+            return refused("ElementProviderFromPoint", 0, UiaIds.E_NO_INTERFACE);
         }
         MemoryUtil.memPutAddress(out, 0);
         AccessibleTree tree = context.tree();
@@ -421,13 +485,35 @@ final class UiaProvider {
         if (found != AccessibleNode.NONE) {
             MemoryUtil.memPutAddress(out, context.elementFor(tree.node(found).id()));
         }
+        if (UiaTrace.on()) {
+            UiaTrace.inbound("ElementProviderFromPoint", "x=" + x + " y=" + y + " answer="
+                    + (found == AccessibleNode.NONE ? "none"
+                            : UiaTrace.element(tree, tree.node(found).id())), UiaIds.S_OK);
+        }
         return UiaIds.S_OK;
     }
 
     private static int focus(long out, Context context) {
         if (out == 0) {
-            return UiaIds.E_NO_INTERFACE;
+            return refused("GetFocus", 0, UiaIds.E_NO_INTERFACE);
         }
+        int answer = focusing(out, context);
+        if (UiaTrace.on()) {
+            // The node is named by identifier alone and not described: what a fragment root
+            // answers here may be a node of ANOTHER window's tree (decision 5, a cursor resolved
+            // into a native popup), and describing it against this tree would say "gone" about a
+            // node that is perfectly alive next door.
+            AccessibleTree tree = context.tree();
+            long provider = MemoryUtil.memGetAddress(out);
+            UiaTrace.inbound("GetFocus", "effectiveFocus=" + tree.effectiveFocus()
+                    + " cursorFromAnotherWindow=" + context.cursorFromAnotherWindow()
+                    + " answer=" + (provider == 0 ? "none" : "0x" + Long.toHexString(provider)),
+                    answer);
+        }
+        return answer;
+    }
+
+    private static int focusing(long out, Context context) {
         MemoryUtil.memPutAddress(out, 0);
         AccessibleTree tree = context.tree();
         int focused = UiaFragment.focus(tree);
@@ -468,18 +554,23 @@ final class UiaProvider {
      */
     private static int patternProvider(long nodeId, int patternId, long out, Context context) {
         if (out == 0) {
-            return UiaIds.E_NO_INTERFACE;
+            return refused("GetPatternProvider", nodeId, UiaIds.E_NO_INTERFACE);
         }
         MemoryUtil.memPutAddress(out, 0);
         AccessibleTree tree = context.tree();
         AccessibleNode node = tree.find(nodeId);
         if (node == null) {
-            return UiaIds.E_ELEMENT_NOT_AVAILABLE;
+            return refused("GetPatternProvider", nodeId, UiaIds.E_ELEMENT_NOT_AVAILABLE);
         }
-        if (!UiaPatterns.supports(tree, node, patternId)) {
-            return UiaIds.S_OK;
+        boolean vends = UiaPatterns.supports(tree, node, patternId);
+        if (vends) {
+            MemoryUtil.memPutAddress(out, context.patternProviderFor(nodeId, patternId));
         }
-        MemoryUtil.memPutAddress(out, context.patternProviderFor(nodeId, patternId));
+        if (UiaTrace.on()) {
+            UiaTrace.inbound("GetPatternProvider", UiaTrace.pattern(patternId) + " node=" + nodeId
+                    + " answer=" + (vends ? "0x" + Long.toHexString(MemoryUtil.memGetAddress(out))
+                            : "notVended"), UiaIds.S_OK);
+        }
         return UiaIds.S_OK;
     }
 
@@ -489,6 +580,23 @@ final class UiaProvider {
      * at it anyway.
      */
     private static int propertyValue(long nodeId, int propertyId, long out, Context context) {
+        int answer = propertyValueAnswering(nodeId, propertyId, out, context);
+        if (UiaTrace.on()) {
+            // Named by identifier and not described, unlike a raise: a reader asks this dozens of
+            // times per node and the node's role and name are established by the lines around it.
+            // What is repeated is the variant's own tag and value -- which is what the provider
+            // hands the client and nothing more, so a masked password stays masked here.
+            UiaTrace.inbound("GetPropertyValue", UiaTrace.property(propertyId) + " node=" + nodeId
+                    + " answer=" + (out == 0 ? "none"
+                            : UiaVariant.describe(MemoryUtil.memByteBuffer(out, UiaVariant.SIZE), 0,
+                                    UiaTrace.STRING_LIMIT)), answer);
+        }
+        return answer;
+    }
+
+    /** The answer itself, so that {@link #propertyValue} can say what it was. */
+    private static int propertyValueAnswering(long nodeId, int propertyId, long out,
+                                              Context context) {
         if (out == 0) {
             return UiaIds.E_NO_INTERFACE;
         }

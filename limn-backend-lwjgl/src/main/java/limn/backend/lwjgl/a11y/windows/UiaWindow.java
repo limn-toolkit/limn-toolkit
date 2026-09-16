@@ -40,15 +40,16 @@ final class UiaWindow {
      * <p>This message is the one link in the chain that cannot be observed from the outside: if it
      * does not arrive, or the answer is refused, a client simply falls back to the window's default
      * provider and everything looks almost right. So the live probe sets this and reads the log.
+     *
+     * <p><b>The in-process sink, and not the only one.</b> It is here because this is where it has
+     * been since the bridge was written and where its tests read it; the file a guest run names
+     * with {@code -Dlimn.a11y.uia.trace} is {@link UiaTrace#file}, and every line reaches both.
      */
     static volatile java.util.function.Consumer<String> trace;
 
-    /** Writes to {@link #trace} if anything is listening; the bridge's own notes go through here too. */
+    /** Writes to whatever is listening; the bridge's own notes go through here too. */
     static void say(String what) {
-        java.util.function.Consumer<String> to = trace;
-        if (to != null) {
-            to.accept(what);
-        }
+        UiaTrace.note(what);
     }
 
     private static final SharedLibrary USER32 =
