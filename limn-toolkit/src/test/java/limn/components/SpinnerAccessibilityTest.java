@@ -668,6 +668,50 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         assertNull(arrows().get(0).actions(), describe(tree()));
     }
 
+    /**
+     * The case the narrowing's first round covered only by accident: with an <em>edit open</em>, a
+     * press on the arrow at its bound used to move the value anyway and be acknowledged for it.
+     * {@code Scene#performAccessibleAction} gates a synthetic press on the OWNER's enabled chain
+     * and never reads the child's own withdrawn verb, so a stale snapshot's press reaches the hook;
+     * the hook then committed the typed number before discovering it could not step, and
+     * {@code value != before} answered true for the commit alone — an {@code INVOKED} spoken for a
+     * dead arrow, and the application's handler called twice, on a spinner already at {@code max}.
+     * The hook now reads the same two bounds the publish step reads, before any side effect at all.
+     * The no-edit cases above cannot see this: there {@code commitEdit} has nothing to commit and
+     * the clamp inside {@link Spinner#nudge} hides the missing refusal.
+     */
+    @Test
+    void anArrowAtItsBoundRefusesEvenWithAnEditOpen() throws Exception {
+        bindSpinner(new Spinner(0, 99, 1).setValue(99));
+        AccessibleNode up = arrows().get(0);
+        type('5');
+        assertEquals(99.0, spinner.value(),
+                "typing does not commit, so the fixture really is an open edit over the bound");
+        changed.clear();
+        bridge.events.clear();
+
+        assertFalse(up.accepts(Accessible.Action.PRESS), describe(tree()));
+        perform(up.id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        frame();
+
+        assertEquals(99.0, spinner.value(),
+                "a press the node does not publish adopts no typed number and takes no step");
+        assertEquals(List.of(), changed,
+                "and reaches the application's handler not once, let alone twice: " + changed);
+        assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED),
+                "a refused press is not acknowledged: " + bridge.events);
+        assertEquals(List.of(), valueEvents(), bridge.events.toString());
+
+        // The other half is live at max and keeps the commit-then-step it is documented for, so
+        // what the refusal costs is exactly the dead arrow and nothing else.
+        assertTrue(perform(arrows().get(1).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE), describe(tree()));
+        frame();
+        assertEquals(4.0, spinner.value(),
+                "reaching for a live arrow commits the typed 5 and then steps it down");
+        assertEquals(List.of(5.0, 4.0), changed, changed.toString());
+    }
+
     @Test
     void aVerbTheSpinnerDoesNotOfferIsRefused() throws Exception {
         bindSpinner(new Spinner(0, 99, 1).setValue(7));

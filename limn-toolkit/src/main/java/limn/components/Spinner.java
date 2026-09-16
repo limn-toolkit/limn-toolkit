@@ -1635,15 +1635,23 @@ public class Spinner extends Widget {
      * acknowledgement a press owes; the value change reaches a reader as the next publish's
      * difference.
      *
-     * <p><b>The answer is whether anything moved</b>, which is what makes a press on an arrow at
-     * its bound honest (decision 69, 2026-09-16). Such an arrow publishes no verb, so a press can
-     * only arrive here from a platform working off a stale snapshot, and the one before this
-     * answered every press with {@code true} and had the scene acknowledge a dead arrow with an
-     * {@code INVOKED} a reader would speak. It is read off the value rather than off {@link #nudge}
-     * alone because {@link #commitEdit} above it can move the value too: reaching for the arrows is
-     * leaving the text, verbatim what a click on this box does, and a press that adopted a typed
-     * number and then could not step did change something. {@code SegmentedControl}'s dead chevron
-     * answers the same way, by whether the scroll moved.
+     * <p><b>An arrow at its bound is refused here too</b> (decision 69, 2026-09-16), by the same
+     * two bounds the hook publishes and before {@code commitEdit} or anything else runs. Such an
+     * arrow publishes no verb, so a press can only arrive from a platform working off a stale
+     * snapshot — but nothing between that platform and this method rereads the node:
+     * {@code Scene#performAccessibleAction} gates a synthetic press on the <em>owner's</em> enabled
+     * chain, which a narrowed child does not narrow. Until 2026-09-16 the refusal was left to the
+     * answer alone, and with an edit open there was nothing to refuse it: the press committed the
+     * typed number on the way to a step it could not take, so the value moved, the application's
+     * handler ran and the scene spoke an {@code INVOKED} for a dead arrow.
+     *
+     * <p><b>The answer is then whether anything moved</b>, kept as the second line of defence for
+     * a live arrow that clamps anyway (a NaN bound, a snap grid that lands on the value it left).
+     * It is read off the value rather than off {@link #nudge} alone because {@link #commitEdit}
+     * above it can move the value too: reaching for the arrows is leaving the text, verbatim what a
+     * click on this box does, and a press that adopted a typed number and then could not step did
+     * change something. {@code SegmentedControl}'s dead chevron answers the same way, by whether
+     * the scroll moved.
      *
      * @param key    which half, and any other key is refused
      * @param action what was asked, which for these two is a press and nothing else
@@ -1662,6 +1670,17 @@ public class Spinner extends Widget {
         } else if (key == DOWN_BUTTON) {
             direction = -1;
         } else {
+            return false;
+        }
+        // The publish step's own two bounds, read again here and BEFORE any side effect, because
+        // nothing upstream checks them for a synthetic child: Scene#performAccessibleAction gates
+        // a synthetic press on the OWNER's enabled chain and never consults the child's withdrawn
+        // verb, so a platform working off a stale snapshot reaches this method whatever the node
+        // said. Without this line a press on the dead arrow with an edit open committed the typed
+        // number on its way to a step it could not take -- the value moved, the application's
+        // handler was called, and `value != before` answered true for the commit alone, which is
+        // the INVOKED decision 69 exists to stop a reader speaking of a dead arrow.
+        if (direction > 0 ? !(value < max) : !(value > min)) {
             return false;
         }
         double before = value;
