@@ -455,6 +455,15 @@ public final class UiaBridge extends PlatformBridge {
      * a worse failure in one case: a marker offered into this same bounded queue can be swallowed
      * by the queue's own collapse, and a scene that then runs no further frame would owe a
      * re-announcement with nothing left to flush it. ADR 039 §2.4, 2026-09-15.
+     *
+     * <p><b>The Linux bridge does override it, and that is not the same trade.</b>
+     * {@code AtspiBridge#frameEnded} reconciles there for the case a tail of nothing but structure
+     * signals leaves open, and it can, because nothing crosses a bounded queue to reach it: that
+     * bridge writes from a writer thread whose work is already queued when the frame ends, so the
+     * marker is read on the user-interface thread itself and no collapse can swallow it. Here the
+     * marker would have to be offered into the very queue whose collapse raised the debt. The two
+     * bridges answer the same semantics with the same order and take the marker differently because
+     * their queues differ, which is what §2.4's three columns are for.
      */
     private void reannounce() {
         String cause = reannounceOwed;
