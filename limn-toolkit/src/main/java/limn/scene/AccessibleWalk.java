@@ -154,11 +154,20 @@ final class AccessibleWalk {
      *
      * <p>For the one bridge that can be asked whether its window has accessibility at all before
      * the first frame runs ({@link limn.backend.AccessibilityBridge#needsRootBeforeTheFirstFrame}).
-     * Every fact it publishes — the role, the title, the modal bit, the window's own size — is one
-     * the window already has at a bind; the widgets are left out precisely because they do not have
-     * theirs yet, and a zero-size rectangle at the origin is not a truth about a widget. The window
-     * node keeps {@link #windowNodeId}, so the next walk describes the same element rather than
-     * retiring the one a client has already subscribed to.
+     * The widgets are left out precisely because they have no boxes yet, and a zero-size rectangle
+     * at the origin is not a truth about a widget. The window node keeps {@link #windowNodeId}, so
+     * the next walk describes the same element rather than retiring the one a client has already
+     * subscribed to.
+     *
+     * <p><b>It is this instant's snapshot and not a forecast, and for a window bound before it is
+     * used that matters.</b> Every popup, menu and dialog binds, then positions, then pushes
+     * modality and shows, so a walk at the bind reads a window that is not on screen yet, not on
+     * the modal stack yet, and still wherever the desktop first put it (2026-09-16 review, which
+     * found this claiming otherwise). The first two are read rather than assumed — the state bits
+     * from {@code isVisible()}, the modal bit from {@code isModal()} — the origin is stamped from
+     * the window as it stands, and all three are re-read on the first frame, one turn of the pump
+     * later, where the difference carries whatever moved. Publishing a tree early is only worth
+     * anything while what it says is true when it is said.
      *
      * @param scene       the scene to describe
      * @param sceneWidth  the window's width in logical points, which layout has not yet confirmed
@@ -220,12 +229,17 @@ final class AccessibleWalk {
         // §1.13, amended 2026-09-15), so what is published operable and what is performed cannot
         // be two readings of the overlay stack.
         Widget layer = scene.accessibleInputLayer();
-        builder.inherited(layer != null, true, true, false, false);
+        // VISIBLE and SHOWING are unconditional for a walk of the contents, because a frame is what
+        // triggers one and a window that is drawing a frame is on screen. A window-only walk runs
+        // at the bind instead, and every popup, menu and dialog is created hidden and bound before
+        // it is shown -- so there the bit is read from the window rather than assumed.
+        boolean onScreen = contents || window == null || window.isVisible();
+        builder.inherited(layer != null, onScreen, onScreen, false, false);
 
         if (!contents) {
-            // The window alone, and the tail below still runs: it resolves relations there are none
-            // of and counts the one node, which is what leaves the builder in the state the next
-            // walk's comparison reads.
+            // The window alone. The tail still runs -- it closes the node, counts it, and resolves
+            // relations there are none of -- and what leaves the builder in the state the next
+            // walk's comparison reads is publish()'s own swap, exactly as on the frame path.
             builder.end();
             count = builder.nodeCount();
             builder.resolveRelations(resolver);

@@ -23,9 +23,13 @@ import limn.backend.AccessibilityBridge;
  *       user-interface thread sleeps; macOS gets a plain map with a thread assertion because every
  *       callback there <em>is</em> the user-interface thread; Linux addresses nodes by object path
  *       and vends no objects at all.</li>
- *   <li><b>The listening gate is not here.</b> Windows asks the platform, Linux knows whether it is
- *       embedded, and macOS's only honest answer is "someone has asked" — which is why it is also
- *       the only one that wants a priming publish.</li>
+ *   <li><b>The listening gate is not here.</b> Linux knows whether it is embedded and can ask its
+ *       desktop, so it pays nothing for a window nothing reads. macOS's only honest answer is
+ *       "someone has asked", and Windows' process-wide flag is honest only in the negative, so its
+ *       real gate is this window's own subscriptions and asks — which is why <em>both</em> want a
+ *       priming publish: a gate of that shape cannot open until a client has something to ask
+ *       about. Windows wants one thing more, a root before the first frame, because there the
+ *       asking is a message that is not repeated (§3.1).</li>
  * </ul>
  *
  * <p><b>The snapshot is {@code volatile} for all three, and that is a small concession by one of

@@ -2,6 +2,7 @@ package limn.scene;
 
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
+import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.testing.RecordingAccessibilityBridge;
 import org.junit.jupiter.api.Test;
@@ -114,6 +115,62 @@ class AccessibleLifecycleTest extends AccessibleTestBase {
                 "the contents arrived under a different window node than the one a client was "
                         + "handed at the bind, so whatever subscribed to that one is subscribed to "
                         + "an element that no longer exists");
+    }
+
+    /**
+     * Every popup, menu and dialog is created hidden, bound, positioned, and only then shown, so a
+     * walk at the bind is describing a window that is not on screen. §1.1's snapshot is worth
+     * publishing early only while what it says is true when it is said.
+     */
+    @Test
+    void theBindTreeOfAWindowNotYetShownSaysItIsNotShowing() {
+        bridge = new RecordingAccessibilityBridge();
+        bridge.needsPriming = true;  // the Windows bridge answers yes to both
+        bridge.needsRootAtBind = true;
+        window = new RecordingWindow();
+        window.accessibility = bridge;
+        window.visible = false; // as PopupMenu, ComboBox, Dialog and DatePicker all bind it
+        window.logicalWidth = 200;
+        window.logicalHeight = 100;
+        scene = new Scene(sceneWithAButton(), nanos::get);
+        scene.bind(window);
+
+        AccessibleNode root = bridge.published.get(0).root();
+        assertFalse(root.has(Accessible.State.VISIBLE),
+                "a window bound before it is shown was published as if it were on screen");
+        assertFalse(root.has(Accessible.State.SHOWING));
+
+        window.visible = true;
+        frame();
+
+        assertTrue(tree().root().has(Accessible.State.VISIBLE),
+                "and the first frame after the show has to carry the change");
+    }
+
+    /**
+     * The bind publish runs a whole difference, and a difference that is computed and thrown away
+     * is a difference nobody hears. `WINDOW_ACTIVATED` is reserved when the window node first
+     * arrives `ACTIVE`, and only then — so a first frame that finds it active already reserves
+     * nothing, and on Windows that is the event that raises focus into the window.
+     */
+    @Test
+    void theBindPublishDoesNotSwallowTheWindowsOwnActivation() {
+        bridge = new RecordingAccessibilityBridge();
+        bridge.needsPriming = true;  // the Windows bridge answers yes to both
+        bridge.needsRootAtBind = true;
+        window = new RecordingWindow();
+        window.accessibility = bridge;
+        window.logicalWidth = 400;
+        window.logicalHeight = 300;
+        scene = new Scene(sceneWithAButton(), nanos::get);
+        // An embedder that knows the window has focus before it binds the scene into it.
+        scene.windowFocusChanged(true);
+        scene.inputBatchEnded();
+        scene.bind(window);
+        frame();
+
+        assertEquals(1, bridge.countOf(AccessibleEvent.Type.WINDOW_ACTIVATED),
+                "the window became active and nothing said so");
     }
 
     @Test

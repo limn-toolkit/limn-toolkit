@@ -1810,7 +1810,7 @@ public final class UiaBridge extends PlatformBridge {
         //
         // 2026-09-16: that measurement's two runs are no longer evidence for anything, and what
         // this answers when it has nothing was the defect. Ten runs of one build with the trace on
-        // split five spoken and five silent, and the line that decided every one of them is this
+        // split four spoken and six silent, and the line that decided every one of them is this
         // one: a run whose two asks both fell before the first publish answered 0 twice, and
         // AdviseEventAdded(AUTOMATION_FOCUS_CHANGED) then never arrived, so every focus event of
         // that run was raised S_OK into a subscription nobody had made — which is exactly

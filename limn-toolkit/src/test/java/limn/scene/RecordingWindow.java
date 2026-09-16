@@ -126,7 +126,10 @@ final class RecordingWindow implements NativeWindow {
     @Override public void show() { }
     @Override public void hide() { }
     @Override public void focus() { }
-    @Override public boolean isVisible() { return true; }
+    /** Every popup, menu and dialog is created hidden and shown after its scene is bound. */
+    boolean visible = true;
+
+    @Override public boolean isVisible() { return visible; }
     @Override public void enterFullscreen(int width, int height, int refreshRate) { }
     @Override public void exitFullscreen() { }
     @Override public boolean isFullscreen() { return false; }

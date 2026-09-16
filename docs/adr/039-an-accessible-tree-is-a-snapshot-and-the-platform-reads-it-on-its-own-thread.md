@@ -1556,8 +1556,8 @@ that the id is in the currently published snapshot — an immutable read, safe f
 one refusal that can honestly be immediate — posts the identifier with `Ui.post`, and returns. The
 id-to-`(owner widget, synthetic key)` map is read **inside the posted task, on the UI thread that owns
 it**, which calls the widget's own `onAccessibilityAction` or `onSyntheticAction` hook (§1.5) and
-raises `INVOKED` when a `PRESS` succeeded. **Nothing in `limn-toolkit` calls a bridge except the seven
-members of §5.2 — `publish`, `emit`, `attach` and `detach`, which tell it something, and
+raises `INVOKED` when a `PRESS` succeeded. **Nothing in `limn-toolkit` calls a bridge except the eight
+members of §5.2 — `publish`, `emit`, `frameEnded`, `attach` and `detach`, which tell it something, and
 `isListening`, `needsPrimingPublish` and `needsRootBeforeTheFirstFrame`, which only ask it something;
 nothing in a bridge touches a
 widget, a scene or a window; and everything a platform asks of the toolkit arrives through the four
@@ -1565,8 +1565,9 @@ widget, a scene or a window; and everything a platform asks of the toolkit arriv
 rather than elided because the scene asks the first of them on **every frame** (§5.3 step 2) and the
 other two once per bind: they are the gate §6's whole cost argument rests on, they return a constant
 on `NONE`, and a seam sentence that left them out would be describing a cheaper interface than the
-one this record specifies. (Six members until 2026-09-16, when §3.1's measurement added the third
-question.) Every row of §2 that says "posted" means this call. All three
+one this record specifies. (This sentence said "six members" and named six until 2026-09-16, omitting
+`frameEnded`, which `Scene` has called once a frame since MACOS-NEW-8; §3.1's measurement then added
+the third question, and both are counted here now.) Every row of §2 that says "posted" means this call. All three
 platforms accept the asynchrony:
 `IInvokeProvider::Invoke` is defined as permitted to be asynchronous, `Action.DoAction` returns a
 boolean, and `accessibilityPerformPress` returns a `BOOL`. The boolean means **accepted**, not
@@ -2863,7 +2864,10 @@ zero, and `layoutPass` runs only from the frame path — so a tree built there d
 as a zero-size box at the origin, and the elements pushed from it would be a window full of nothing,
 in the corner. §5.3 gives the scene a priming publish on its first frame instead, after `layoutPass`,
 and §5.2 makes `republishNow()` refuse to describe a scene that has never laid out at all. Same one
-walk per window, one frame later, against geometry that exists.
+walk per window, one frame later, against geometry that exists. (Amended 2026-09-16: "not at bind" is
+about the *scene*, and stays true on every platform. Windows publishes the window's own node there —
+one node, whose role, title and size are facts of the window and not of a layout — for the message
+§3.1 describes; macOS neither needs nor gets it.)
 
 *And not once.* The pushed array is a snapshot AppKit holds; nothing re-derives it. Pushing it once
 and never again freezes the top of the tree at whatever the first frame contained, while the
@@ -3873,7 +3877,8 @@ with no lock on either side.
 **Where the first snapshot comes from, which is the one thing a per-frame publish cannot supply.**
 `UiaClientsAreListening()` is false on every frame drawn before a client attaches — that is what it
 is for — and the loop sleeps in `glfwWaitEvents` and renders only windows that asked for a frame. So
-at the instant `WM_GETOBJECT` arrives there has never been a publish, and a bridge that could only
+at the instant `WM_GETOBJECT` arrives there has never been a publish (no longer so since 2026-09-16:
+the bind publishes the window's own node, which is what the amendment below is), and a bridge that could only
 wait for the next frame would return a root provider with nothing behind it. Worse, the calls that
 follow are immediate and synchronous: the spike recorded 160 provider calls on the main thread inside
 `UiaReturnRawElementProvider` itself — `get_ProviderOptions`, `get_HostRawElementProvider`,
@@ -3902,8 +3907,11 @@ it has no provider at all; a client told that does not ask again, `AdviseEventAd
 `UIA_AutomationFocusChangedEventId` never reaches the root, and every focus event raised for the rest
 of that window's life returns `S_OK` into a subscription nobody made, while the same client keeps
 receiving the bridge's other events through its global handler and keeps getting an answer to every
-question it asks. Ten runs of one build split five spoken and five silent on exactly that line: one
-`0` before the first `65536` and the reader speaks, two `0`s and it is silent; four runs with the
+question it asks. Ten runs of one build split four spoken and six silent on exactly that line: one
+`0` before the first `65536` and the reader speaks, two `0`s and it is silent, ten runs out of ten.
+What separated them was not our own latency but when the client's *second* ask arrived — 55–149 ms in
+the silent runs, answered within 2 ms, against 248 and 267 ms in two of the speaking ones, while the
+other two speaking runs carry no second client ask at all. Four runs with the
 reader started after the first publish spoke four times out of four. It is also what the 2026-09-07
 paragraph above was watching — "announced the window and never anything in it" is the *symptom of
 answering nothing*, and at a base rate of one speaking run in fourteen, two runs could not tell the
@@ -4334,7 +4342,7 @@ public interface AccessibilityBridge {
     /**
      * Whether this bridge needs one tree on the scene's first frame even though nothing is
      * listening yet, because its own listening gate cannot open until it has elements to
-     * offer. True on macOS (§2.2) and, since 2026-09-15, on Windows; false on Linux, which can
+     * offer. True on macOS (§2.2) and, since 2026-09-05, on Windows; false on Linux, which can
      * ask its desktop whether anything is reading and so pays no walk for a window an assistive
      * technology never touches.
      */
@@ -4419,8 +4427,9 @@ public interface AccessibilityBridge {
          * requests one for the never-laid-out case below too. The only call that requests
          * nothing is the one that published nothing because nothing was dirty, and that call
          * defers nothing either. Returns the currently published tree unchanged — which on a
-         * scene that has never laid out is the empty tree — rather than describing geometry
-         * that does not exist yet.
+         * scene that has never laid out is the empty tree, or, for a bridge that asked for a
+         * root before the first frame, the window's own node (2026-09-16) — rather than
+         * describing geometry that does not exist yet.
          */
         AccessibleTree republishNow();
 
@@ -4512,9 +4521,17 @@ publishes nothing, requests a frame and returns the empty tree — there is no t
 about a window whose widgets have no boxes. If layout has merely gone *dirty* since the last pass, it
 publishes against the last settled boxes and requests a frame, as it already did: stale boxes from a
 real layout are a bounded error that the next frame corrects, and zeros are not an error at all,
-they are a fabrication. On Windows the distinction costs nothing, because a window that a client can
+they are a fabrication. ~~On Windows the distinction costs nothing, because a window that a client can
 attach to is a window that has painted, and a window that has painted has laid out. It bites only in
-the interval between `bind` and the first frame, which is exactly where the macOS push used to be.
+the interval between `bind` and the first frame, which is exactly where the macOS push used to be.~~
+**Measured false on 2026-09-16, and it is the interval that cost the reader.** A client does not wait
+for a window to paint: NVDA's `WM_GETOBJECT` reaches the window 36–116 ms after the bridge goes in
+front of the window procedure, and the first frame publishes 305–523 ms after that — so the interval
+between `bind` and the first frame is not where the distinction is cheap, it is where a client
+decides, once and for the life of the window, whether to listen at all (§3.1). `republishNow()` still
+answers no tree there, for the reason above, which is why the answer to the message cannot come from
+it: `bind` publishes the window's own node instead, and that is the tree `republishNow()` then returns
+unchanged.
 
 ### 5.3 How the scene feeds it
 
@@ -4587,7 +4604,7 @@ paint passes, the scene runs one step:
 2. `live = bridge.isListening()`; if false **and no priming publish is owed**, return. One virtual
    call, and `NONE` returns a constant. A priming publish is owed only on the first frame after a
    bind and only when `bridge.needsPrimingPublish()` said so at bind — which is macOS and, since
-   2026-09-15, Windows, both for the same reason: their honest gate is "someone has asked", and it
+   2026-09-05, Windows, both for the same reason: their honest gate is "someone has asked", and it
    cannot open before the platform has been handed something to ask about. Linux answers `false`,
    because its desktop can be asked directly, so §6's promise that it pays nothing for an untouched
    window is exact there. (Until 2026-09-16 this line read "macOS and nothing else", which Windows'
@@ -4804,9 +4821,9 @@ platform says someone is listening. Here is exactly what runs in each state.
 
 **No bridge at all** — headless tests, `StubWindow`, `RecordingWindow`, any backend whose window
 returns `NONE`. Per frame: one virtual call to `isListening()` on a constant object, returning `false`
-from a `default` method. Nothing else — no walk, no builder, no map, no allocation. Per bind: one
-further call to `needsPrimingPublish()`, which `NONE` also answers from a `default`, and which
-therefore never causes a walk. Per widget: one nullable reference field, never read.
+from a `default` method. Nothing else — no walk, no builder, no map, no allocation. Per bind: two
+further calls, `needsPrimingPublish()` and (since 2026-09-16) `needsRootBeforeTheFirstFrame()`, which
+`NONE` also answers from `default`s, and which therefore never cause a walk. Per widget: one nullable reference field, never read.
 
 **A bridge attached, nobody listening** — a Windows machine with no assistive technology running, a
 GNOME session with accessibility off, a macOS process no client has queried. Per frame: one
@@ -4821,9 +4838,12 @@ GNOME session with accessibility off, a macOS process no client has queried. Per
   entered — `accessibilityChildren`, `accessibilityTitle`, `accessibilityRole`, any of them. There is
   no equivalent of `UiaClientsAreListening` — `AXIsProcessTrusted()` answers whether *we* may act as a
   client, which is a different question — so "someone has asked" is the honest gate. **This platform
-  alone pays something before the gate opens:** one tree walk on the scene's **first frame**, to have
-  elements to push onto the content view at all (§2.2). Not at bind, where the scene has never laid
-  out and every box would be zero (§5.2). After that walk and until a client touches one of those
+  pays something before the gate opens** — as, since 2026-09-05, does Windows, whose per-window gate
+  has the same shape; the sentence here read "this platform alone" until 2026-09-16 — one tree walk
+  on the scene's **first frame**, to have elements to push onto the content view at all (§2.2). Not
+  at bind, where the scene has never laid out and every box would be zero (§5.2). (The window's own
+  node *is* published at bind on Windows, and only there: one node, no walk of the scene, for the
+  message §3.1 describes.) After that walk and until a client touches one of those
   elements, a frame does nothing here either.
 - **Linux:** `org.a11y.Status.IsEnabled` on the session bus, **watched** — a session-bus connection
   and one parked daemon thread per process from the first window's bridge on, however this bullet
@@ -5764,7 +5784,7 @@ have.
 | `AccessibleRecyclingTest` | scrolling a `ListView` past its pool size and back leaves row 3's identifier on row 3, and never on the cell that visited row 9 |
 | `AccessibleIdentityTest` | **the §1.3 regression gate.** Giving a transparent ancestor a name mid-run changes the tree's shape and **no identifier below it**; the events are structural, not a wave of `NODE_DESTROYED`. The same for making a scaffold widget focusable — which also fails outright until `setFocusable` invalidates (§8) — and for pushing an overlay above a subtree. A key derived from the published parent fails every case |
 | `AccessibleInheritedStateTest` | disabling a container publishes every descendant without `ENABLED` and without `FOCUSABLE`, hiding one publishes every descendant without `VISIBLE`, and in both cases the `FOCUSABLE` set still equals what `focusTraverse` can reach — never the enabled set, which the scene under test makes larger on purpose by holding a `Label` and a `Separator`. And the transparency verdict does not move: a disabled form grows no `GROUP` nodes (§1.6) |
-| `AccessibleLifecycleTest` (named `AccessibleFirstFrameTest` here until 2026-09-16; the behaviour was always in the lifecycle test) | a scene bound to a window publishes nothing at `bind` — where it has never laid out — and publishes a tree with real boxes on its **first frame**, with `republishNow()` called between the two returning the empty tree rather than a tree of zero-size rectangles (§5.2). And the priming publish is paid only by a bridge that asked for it: a double answering `needsPrimingPublish() == false` and never listening receives nothing, ever. Since 2026-09-16 it also pins the other half: a bridge answering `needsRootBeforeTheFirstFrame()` is handed the window's own node at the bind — one node, the window's role, title and size — and the first frame's tree carries the **same** window identifier, because a root retired between the two would leave a client's subscription on an element that no longer exists (§3.1) |
+| `AccessibleLifecycleTest` (named `AccessibleFirstFrameTest` here until 2026-09-16; the behaviour was always in the lifecycle test) | a scene bound to a window publishes nothing at `bind` **unless its bridge asked for a root there** (the clause is new on 2026-09-16; for every other bridge the sentence is unchanged) — where it has never laid out — and publishes a tree with real boxes on its **first frame**, with `republishNow()` called between the two returning the empty tree rather than a tree of zero-size rectangles (§5.2). And the priming publish is paid only by a bridge that asked for it: a double answering `needsPrimingPublish() == false` and never listening receives nothing, ever. Since 2026-09-16 it also pins the other half: a bridge answering `needsRootBeforeTheFirstFrame()` is handed the window's own node at the bind — one node, the window's role, title and size — and the first frame's tree carries the **same** window identifier, because a root retired between the two would leave a client's subscription on an element that no longer exists (§3.1) |
 | `AccessibleAnnounceTest` | `announce` on an idle scene with a listening bridge reaches the bridge without any other frame being scheduled by anything else — the frame `announce` itself bought; and an announcement is delivered on a frame where the tree did not change, and on a re-present frame |
 | `AccessibleRegistryTest` | over `RecordingAccessibilityBridge`'s own id-keeping double: an event-queue collapse hands the bridge enough to release every node that went away, and a second scene bound over the same window leaves the double holding zero elements (§1.10, §5.3) |
 | `AccessibleWindowMoveTest` | moving the window re-stamps the tree, keeps every node id, emits one window-level `BOUNDS_CHANGED`, and **walks no nodes** — the assertion that separates `requestRestamp` from `requestRepublish`, counted the way the measure-count tests count measures |
@@ -6132,8 +6152,14 @@ loses its citation again.
    **the bridge attached now costs what no bridge costs**, 0.11 ms an animated frame and 0.8 % idle
    CPU on both sides, where the flag-gated walk had cost 0.8 ms. And with NVDA, the VM's window in
    front of the host's: `'Limn accessibility probe', 'janela'`, `'deslizante', '41'`, `'42'` …
-   `'79'`, one per tick. Two things the runs found beside the gate: a publish inside the ask, sync or
-   requested, silences NVDA for good (§3.1, corrected); and every run made with the VM window behind
+   `'79'`, one per tick. Two things the runs found beside the gate: ~~a publish inside the ask, sync
+   or requested, silences NVDA for good~~ — **withdrawn 2026-09-16: what silences NVDA for good is
+   answering the ask with no provider, which is what a bridge with no tree did; those two runs could
+   not tell that apart from the publish they were testing, at a base rate of one speaking run in
+   fourteen (§3.1's amendment, and the ten traced runs behind it). The rule that nothing is published
+   inside the message stands on its own grounds — a difference raised into a reader's own call is a
+   reentrancy this record refuses everywhere — and is no longer carried by this measurement** — and
+   every run made with the VM window behind
    another on the host was worthless, because Parallels then holds the guest's foreground with
    `prl_cc_fgproxy` and a reader follows the foreground — which is not a bridge fact and is in the
    lab notes rather than here.

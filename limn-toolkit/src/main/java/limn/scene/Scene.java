@@ -361,11 +361,16 @@ public final class Scene implements WindowInput {
         // attach() and not a tree: at this instant the scene has never laid out, so every box in
         // it would be a zero-size rectangle at the origin. The first frame is where the boxes are.
         this.bridge.attach(accessibilityHost());
-        publishTheWindowNodeIfOwed();
         window.setInput(this);
         this.renderRequester = window::requestFrame;
         window.setFrameCallback((renderer, frame) ->
                 renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs()));
+        // Last, and after the two calls that make this window usable. It walks and publishes, which
+        // is more than the rest of this method does, and a bind that threw here would leave the
+        // window holding neither input nor a frame callback — a window that is up, attached and
+        // dead. Nothing above it waits for it: the frame it would be read from cannot run until the
+        // pump turns, which is after bind returns (2026-09-16 review).
+        publishTheWindowNodeIfOwed();
     }
 
     /**
@@ -379,10 +384,13 @@ public final class Scene implements WindowInput {
      * and is told no does not ask again — measured, with the count of runs it decided, in
      * {@link limn.backend.AccessibilityBridge#needsRootBeforeTheFirstFrame}.
      *
-     * <p><b>Published and not emitted.</b> The difference between no tree and this one is that a
-     * window appeared, which is the platform's own news to carry and not a fact any client has been
-     * told anything else about; the first frame's difference is measured from this tree, so nothing
-     * that happens to this window goes unsaid.
+     * <p><b>Emitted like any other publish.</b> A first draft published without emitting, on the
+     * reasoning that a window appearing is the platform's own news; what that actually dropped was
+     * {@code WINDOW_ACTIVATED}, which the difference reserves when the window node arrives already
+     * {@code ACTIVE} and which the first frame then cannot reserve again because by then it was
+     * active before (2026-09-16 review, measured on a scene bound while focused). On Windows that
+     * is the event that raises focus into the window — the same silence this whole change is about.
+     * A publish emits what its own difference found, here as everywhere.
      */
     private void publishTheWindowNodeIfOwed() {
         if (window == null || !bridge.needsRootBeforeTheFirstFrame()) {
@@ -396,6 +404,10 @@ public final class Scene implements WindowInput {
                 window.supportsAbsolutePositioning());
         publishedTree = tree;
         bridge.publish(tree, false);
+        List<limn.accessibility.AccessibleEvent> events = accessibleWalk.builder().events();
+        for (int i = 0; i < events.size(); i++) {
+            bridge.emit(events.get(i));
+        }
     }
 
     /**

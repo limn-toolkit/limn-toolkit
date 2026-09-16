@@ -55,10 +55,12 @@ public interface AccessibilityBridge {
      * Whether this bridge needs one tree on the scene's first frame even though nothing is
      * listening yet, because its own listening gate cannot open until it has elements to offer.
      *
-     * <p>Asked once, when a scene binds. True only where the platform has no equivalent of "is
-     * anyone listening" and the honest gate is "someone has asked", which cannot open before the
-     * platform has been handed something to ask about. False everywhere else, so no other platform
-     * pays a walk for a window an assistive technology never touches.
+     * <p>Asked once, when a scene binds. True where the honest gate is "someone has asked", which
+     * cannot open before the platform has been handed something to ask about: macOS, which has no
+     * equivalent of "is anyone listening" at all, and Windows, whose process-wide flag is only
+     * reliable in the negative and whose per-window half needs an element for a client to reach.
+     * False on Linux, which can ask its desktop directly and so pays no walk for a window an
+     * assistive technology never touches.
      *
      * @return whether this bridge is owed one tree on the first frame regardless
      */
@@ -74,17 +76,21 @@ public interface AccessibilityBridge {
      * itself, in a message, and a window that answers "nothing here" is not asked again: the client
      * subscribes to no events, and every event raised for the rest of that window's life is
      * delivered to nobody while the window keeps answering every question it is asked. Measured on
-     * the Windows 11 guest, 2026-09-16: the reader asks twice, milliseconds apart, within 141 ms of
-     * the bind, and the first frame publishes 305-523 ms later, so ten runs of one build split five
-     * silent and five spoken on nothing but which side of the first frame those two asks fell
+     * the Windows 11 guest, 2026-09-16: the reader's first ask reaches the window 36-116 ms after
+     * the bridge goes in front of the window procedure and is answered 50-141 ms in, its second
+     * follows within milliseconds, and the first frame publishes 305-523 ms later — so ten runs of
+     * one build split four spoken and six silent on nothing but whether a second ask happened to
+     * arrive after that first publish (it did in two runs, ~200 ms late, and in two more the reader
+     * simply never asked twice). One {@code 0} answer before the first real one and the reader
+     * speaks; two and it is silent, in ten runs out of ten
      * (`.claude/pending/2026-09-13/readings/phase5-windows-diagnosis/evidence-table.txt`).
      *
      * <p><b>What it is owed is the window node alone, and not the scene.</b> No layout has run at a
      * bind, so every widget is a zero-size rectangle at the origin and a tree of those is worse than
-     * none — it reads perfectly and hit-tests nowhere (ADR 039 §13.21). The window's role, its title
-     * and the size it already has are true at that instant, and the identifier they are published
-     * under is the one every later walk reuses, so the element a client subscribes to here is the
-     * element the contents arrive under.
+     * none — it reads perfectly and hit-tests nowhere (ADR 039 §5.2, and §2.2 for the platform that
+     * measured it). The window's role, its title and the size it already has are true at that
+     * instant, and the identifier they are published under is the one every later walk reuses, so
+     * the element a client subscribes to here is the element the contents arrive under.
      *
      * @return whether this bridge is owed the window's own node the moment a scene binds
      */
@@ -209,10 +215,12 @@ public interface AccessibilityBridge {
          * to happen. The only call that asks for nothing is the one that published nothing because
          * nothing was dirty, and that call defers nothing either.
          *
-         * <p>On a scene that has never laid out it publishes nothing, asks for a frame and returns
-         * the empty tree, rather than describing geometry that does not exist: a window whose every
-         * control is a zero-size rectangle in the corner is worse than a window with nothing in it,
-         * because it looks like an answer.
+         * <p>On a scene that has never laid out it publishes nothing and asks for a frame, rather
+         * than describing geometry that does not exist: a window whose every control is a zero-size
+         * rectangle in the corner is worse than a window with nothing in it, because it looks like
+         * an answer. What it returns there is whatever is currently published, which is the empty
+         * tree — or, for a bridge that answered {@link #needsRootBeforeTheFirstFrame}, the window's
+         * own node, which is the one thing about a window that is true before it lays out.
          *
          * @return the currently published tree
          */

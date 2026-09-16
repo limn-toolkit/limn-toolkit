@@ -214,7 +214,10 @@ platform and each one is the most honest question that platform can answer — L
 desktop whether assistive technology is running at all; Windows and macOS can only know that
 something has asked, which is why both owe a **priming publish**: the gate cannot open before the
 platform has been handed something to ask about. A bridge that is not listening allocates nothing
-and walks nothing. It starts no thread either, with one deliberate exception: Linux's switch moves while
+and walks nothing — after the bind, that is: on Windows the bind itself publishes the window's own
+node, one node and no walk of the scene, because there a client asks whether the window has
+accessibility at all in a message that arrives long before the first frame and is not repeated
+(2026-09-16). It starts no thread either, with one deliberate exception: Linux's switch moves while
 an application runs, so the process keeps one session connection and one parked thread watching it
 (`AtspiStatusWatch`), and a window opened before the screen reader becomes readable when it starts.
 
@@ -364,7 +367,11 @@ desktop with no reader — seventeen processes held a UI Automation handler on t
 tools among them — so a bridge gated on it walks every damaged frame for nobody. The per-window
 answer is `IRawElementProviderAdviseEvents` on the root, plus the ask itself. And **never publish
 inside `WM_GETOBJECT`**: hand over the tree you have. A publish there raises the difference into the
-reader's own call, and NVDA never spoke again.
+reader's own call, which is a reentrancy the design refuses everywhere. (The clause that used to
+follow — "and NVDA never spoke again" — was withdrawn on 2026-09-16: what silenced NVDA was
+*answering that message with no provider at all*, which is what a window with no tree did for the
+first 300-500 ms of its life. **So have a tree before the message can arrive**: the bind publishes
+the window's own node.)
 
 **A raise is not a fire-and-forget on Windows.** `UiaRaise*` returns after every subscribed
 client's handler has run, and NVDA's handler calls back into the provider before it returns —
