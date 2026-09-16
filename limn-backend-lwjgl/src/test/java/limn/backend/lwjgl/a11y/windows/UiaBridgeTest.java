@@ -1700,6 +1700,61 @@ class UiaBridgeTest {
     }
 
     /**
+     * How far the frame's end bounds that pairing, exactly (the review of this round, 2026-09-16).
+     * A frame end clears the memory of the caret it raised, so a selection move arriving after it
+     * is a move of its own and is raised. <b>Only a frame that could leave a re-announcement owed
+     * is marked</b>, though — a collapse of this queue or the model's own INVALIDATED — so that is
+     * where the pairing is bounded to one frame; across an ordinary frame's end, which hands this
+     * bridge nothing, a caret raised at the end of one frame still swallows a selection move for
+     * the same node at the start of the next, as it did before the marker existed.
+     *
+     * <p>That is the behaviour and not an accident of it: the model emits the two for one field one
+     * after the other, so the pair is what a real frame carries (§2.4's CARET_MOVED row), and
+     * marking every frame would wake the drain thread once per frame on a window being read, for a
+     * marker with nothing to flush. Commit 47ac7b9d's message said the pairing is "within one
+     * frame" without that bound; this test is what the bound is.
+     */
+    @Test
+    void aMarkedFramesEndEndsTheCaretsPairingAndAnUnmarkedOnesDoesNot() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aWindowWith(Accessible.Role.TEXT_FIELD, false), false);
+            bridge.objectFor(1000);
+            bridge.objectFor(1001);
+            bridge.noteAsked();
+
+            // A marked frame: the model's own collapse is one of the two things that mark one.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.CARET_MOVED, 1001));
+            bridge.frameEnded();
+            // The next frame's selection move is its own: the marker ended the pair.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.TEXT_SELECTION_CHANGED, 1001));
+
+            // An ordinary frame hands this bridge no marker, so the pair still spans its end.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.CARET_MOVED, 1001));
+            bridge.frameEnded();
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.TEXT_SELECTION_CHANGED, 1001));
+
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000, "", "end"));
+            assertNotNull(awaitTrace(trace, l -> l.startsWith("raised NAME_CHANGED for node 1000")));
+            assertEquals(java.util.List.of(
+                            "raised CARET_MOVED for node 1001",
+                            "raised TEXT_SELECTION_CHANGED for node 1001",
+                            "raised CARET_MOVED for node 1001",
+                            "TEXT_SELECTION_CHANGED for node 1001 raised with its CARET_MOVED"),
+                    linesOf(trace, l -> l.contains("node 1001")).stream()
+                            .map(l -> l.replaceFirst(" in \\d+ us on .*", "")).toList(),
+                    "the marked frame's end broke the pair and the unmarked one did not: " + trace);
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
      * WINDOWS-NEW-6's remainder: a rectangle that moved is raised neither per node nor in bulk
      * (node 0), and both say so; before, the bulk one returned at node 0 without a trace line.
      * Nothing raised is nothing paid.

@@ -428,7 +428,14 @@ public final class UiaBridge extends PlatformBridge {
                     // already behind us, so the tail this re-announcement follows is over -- or
                     // had no event after its structure changes at all, which is what a collapse
                     // that moved nothing but the tree's shape leaves. Owed is never dropped.
-                    caretJustRaised = 0; // a caret and its selection are one field's, in one frame
+                    // A caret and the selection move behind it are one field's, and the model
+                    // emits them one after the other, so the pair does not outlive the frame that
+                    // marked its end. Only a frame that could leave a debt is marked, which is
+                    // where that bound holds: across an ordinary frame's end -- this bridge is
+                    // handed nothing there -- a caret raised last still swallows a selection move
+                    // for the same node in the next frame, exactly as before the marker existed
+                    // (UiaBridgeTest.aMarkedFramesEndEndsTheCaretsPairingAndAnUnmarkedOnesDoesNot).
+                    caretJustRaised = 0;
                     if (reannounceOwed != null) {
                         reannounce();
                     }
