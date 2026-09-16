@@ -709,8 +709,10 @@ public final class UiaBridge extends PlatformBridge {
             }
         }
         long started = System.nanoTime();
+        long elapsedUs;
         if (eventId != 0) {
             int hresult = Uia.raiseAutomationEvent(element.pointer(), eventId);
+            elapsedUs = microsSince(started);
             if (UiaTrace.on()) {
                 UiaTrace.raised("UiaRaiseAutomationEvent", UiaTrace.event(eventId), tree(),
                         event.nodeId(), true, hresult);
@@ -722,6 +724,7 @@ public final class UiaBridge extends PlatformBridge {
             if (also != 0) {
                 alsoHresult = raisePropertyChange(element, also, event, node);
             }
+            elapsedUs = microsSince(started);
             sayPropertyChange(event.nodeId(), propertyId, event.oldValue(), event.newValue(), node,
                     hresult);
             if (also != 0) {
@@ -736,8 +739,24 @@ public final class UiaBridge extends PlatformBridge {
             caretJustRaised = event.nodeId();
         }
         UiaWindow.say("raised " + event.type() + " for node " + event.nodeId() + " in "
-                    + (System.nanoTime() - started) / 1_000 + " us on "
-                    + Thread.currentThread().getName());
+                    + elapsedUs + " us on " + Thread.currentThread().getName());
+    }
+
+    /**
+     * How long a raise took, <b>not counting what the trace then spent writing it down</b>.
+     *
+     * <p>Every raise site reads this the instant the platform call answers and before it says
+     * anything, because a line can be a flushed write to a file when a guest run named one
+     * (-Dlimn.a11y.uia.trace) and a flushed line is easily in the hundreds of microseconds — the
+     * same order as the number itself. ADR 039 §13.28's "2.5 ms median, one of 50 ms" is read off
+     * these notes, and an instrument that inflates the measurement it is read beside is worse than
+     * no instrument (2026-09-16 review; the memory rule measure-against-a-noise-floor).
+     *
+     * @param started a {@link System#nanoTime} reading from before the call
+     * @return the microseconds since, as the notes print them
+     */
+    private static long microsSince(long started) {
+        return (System.nanoTime() - started) / 1_000;
     }
 
     /**
@@ -807,6 +826,7 @@ public final class UiaBridge extends PlatformBridge {
         boolean held = UiaTrace.on() && owner.holdsElementFor(target);
         long raised = owner.raiseOnElement(target, true, owner != this, element ->
                 Uia.raiseAutomationEvent(element.pointer(), UiaIds.AUTOMATION_FOCUS_CHANGED));
+        long elapsedUs = microsSince(started);
         if (raised == NOT_RAISED) {
             UiaWindow.say("focus on node " + target + " has no element for " + cause);
             return;
@@ -820,8 +840,7 @@ public final class UiaBridge extends PlatformBridge {
         // A raise that reached the platform: the one change a client that asked was owed.
         owedAnEvent = false;
         UiaWindow.say("raised " + cause + " for node " + target
-                + (owner != this ? " in another window" : "") + " in "
-                + (System.nanoTime() - started) / 1_000 + " us on "
+                + (owner != this ? " in another window" : "") + " in " + elapsedUs + " us on "
                 + Thread.currentThread().getName());
         if (!now.equals(last)) {
             if (last != null) {
@@ -981,14 +1000,14 @@ public final class UiaBridge extends PlatformBridge {
             }
             long started = System.nanoTime();
             int hresult = Uia.raiseAutomationEvent(element.pointer(), (int) raise[0]);
+            long elapsedUs = microsSince(started);
             if (UiaTrace.on()) {
                 UiaTrace.raised("UiaRaiseAutomationEvent", UiaTrace.event((int) raise[0]), tree(),
                         raise[1], true, hresult);
             }
             anything = true;
             UiaWindow.say("raised SELECTION_CHANGED as event " + raise[0] + " for node " + raise[1]
-                    + " of container " + event.nodeId() + " in "
-                    + (System.nanoTime() - started) / 1_000 + " us on "
+                    + " of container " + event.nodeId() + " in " + elapsedUs + " us on "
                     + Thread.currentThread().getName());
         }
         if (anything) {
@@ -1065,8 +1084,10 @@ public final class UiaBridge extends PlatformBridge {
         long activity = UiaStrings.system().allocate("");
         long started = System.nanoTime();
         int hresult;
+        long elapsedUs;
         try {
             hresult = Uia.raiseNotificationEvent(root.pointer(), how[0], how[1], display, activity);
+            elapsedUs = microsSince(started);
         } finally {
             UiaStrings.free(display);
             UiaStrings.free(activity);
@@ -1080,8 +1101,7 @@ public final class UiaBridge extends PlatformBridge {
         }
         UiaWindow.say("raised ANNOUNCEMENT kind " + how[0] + " processing " + how[1]
                 + " on the root " + tree.root().id() + " -> 0x" + Integer.toHexString(hresult)
-                + " in " + (System.nanoTime() - started) / 1_000 + " us on "
-                + Thread.currentThread().getName());
+                + " in " + elapsedUs + " us on " + Thread.currentThread().getName());
     }
 
     /**
@@ -1177,6 +1197,7 @@ public final class UiaBridge extends PlatformBridge {
                 long started = System.nanoTime();
                 int hresult = Uia.raiseStructureChangedEvent(on.pointer(), (int) raise[0],
                         runtimeId, id.length);
+                long elapsedUs = microsSince(started);
                 // Paid before the trace says so, as every other raise here pays it: a reader of
                 // the trace (a test on another thread) must not find the line with the debt open.
                 owedAnEvent = false;
@@ -1189,8 +1210,7 @@ public final class UiaBridge extends PlatformBridge {
                 }
                 UiaWindow.say("raised STRUCTURE_CHANGED as type " + raise[0] + " on node " + raise[1]
                         + " with the runtime id of node " + raise[2] + " -> 0x"
-                        + Integer.toHexString(hresult) + " in "
-                        + (System.nanoTime() - started) / 1_000 + " us on "
+                        + Integer.toHexString(hresult) + " in " + elapsedUs + " us on "
                         + Thread.currentThread().getName());
             }
         } finally {
@@ -1349,14 +1369,14 @@ public final class UiaBridge extends PlatformBridge {
             to[at] = text ? valueString(node) : event.newValue();
             hresults[at] = raisePropertyChange(element, properties[at], from[at], to[at], node);
         }
+        long elapsedUs = microsSince(started);
         for (int at = 0; at < properties.length; at++) {
             sayPropertyChange(event.nodeId(), properties[at], from[at], to[at], node, hresults[at]);
             raised.append(raised.length() == 0 ? "" : ", ").append(properties[at]);
         }
         owedAnEvent = false;
         UiaWindow.say("raised " + event.type() + " for node " + event.nodeId() + " as [" + raised
-                + "] in " + (System.nanoTime() - started) / 1_000 + " us on "
-                + Thread.currentThread().getName());
+                + "] in " + elapsedUs + " us on " + Thread.currentThread().getName());
     }
 
     /**

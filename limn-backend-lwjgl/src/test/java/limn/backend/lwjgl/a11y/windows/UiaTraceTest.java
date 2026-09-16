@@ -197,6 +197,60 @@ class UiaTraceTest {
     }
 
     /**
+     * The microseconds a raise reports are the platform call's, not the trace's.
+     *
+     * <p>The bridge has always printed how long a raise took, and ADR 039 §13.28's "2.5 ms median,
+     * one of 50 ms" is read off those notes — the reader's own handler runs inside the call. The
+     * trace's lines were being written inside the same interval (2026-09-16 review), so turning the
+     * instrument on inflated the one latency number this bridge produces, and the guest run had no
+     * way to tell the two apart.
+     *
+     * <p>Measured against a sink that takes a tenth of a second per line, which is not a plausible
+     * disk but is the same shape as one and is unmistakable in the number: the reported figure has
+     * to stay under half of one line's cost, while the raise's own work here is a no-op call and
+     * some model reads. Both shapes are covered — the direct raise (INVOKED, one
+     * {@code UiaRaiseAutomationEvent}) and the property path (NAME_CHANGED, which writes two lines
+     * of its own before the note carrying the number).
+     */
+    @Test
+    void theMicrosecondsARaiseReportsExcludeWhatTheTraceSpentWritingItDown() {
+        long perLineMs = 100;
+        List<String> said = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        Consumer<String> before = UiaWindow.trace;
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        try {
+            bridge.publish(aFocusedButton(), false);
+            bridge.objectFor(1001);
+            bridge.noteAsked();
+            UiaWindow.trace = line -> {
+                said.add(line);
+                try {
+                    Thread.sleep(perLineMs);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            };
+
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVOKED, 1001));
+            bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1001,
+                    "Save", "Save as"));
+
+            for (String what : List.of("INVOKED", "NAME_CHANGED")) {
+                String note = await(said,
+                        l -> l.startsWith("raised " + what + " for node 1001 in "));
+                assertNotNull(note, what + " was never raised: " + said);
+                long micros = Long.parseLong(note.replaceFirst(".* in (\\d+) us on .*", "$1"));
+                assertTrue(micros < perLineMs * 1_000 / 2,
+                        "the " + what + " raise reports " + micros + " us, which is the sink's "
+                                + perLineMs + " ms a line and not the raise: " + note);
+            }
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
      * A raise's answer carries its {@code HRESULT} back on the caller's stack, whole, and is
      * distinguishable from a raise that never ran.
      *

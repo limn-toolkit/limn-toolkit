@@ -55,6 +55,13 @@ import java.util.function.Consumer;
  * moment, which is what aligns this file with a screen reader's own log. The in-process sink gets
  * the line without the stamp, because that is the form this bridge's tests have always read.
  *
+ * <p><b>The microseconds a {@code NOTE} reports for a raise</b> — {@code raised FOCUS_CHANGED for
+ * node 1001 in 2314 us} — are measured around the platform call alone and exclude everything this
+ * class then spends writing the lines beside them. ADR 039 §13.28's figure for how long a raise
+ * waits for a reader's handler (2.5 ms median, one of 50 ms) is read off those notes, and one
+ * flushed line to a file on the guest is of the same order as the number; an instrument that
+ * inflates the measurement it is read beside would be worse than none.
+ *
  * <p>Strings a line repeats — a node's name, a property's answer — are cut to
  * {@value #STRING_LIMIT} characters. They are the values the provider itself would hand a client,
  * so a password field's masked text stays masked here; nothing is read from anywhere the client
