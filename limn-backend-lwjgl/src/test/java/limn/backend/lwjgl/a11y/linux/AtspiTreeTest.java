@@ -379,6 +379,115 @@ class AtspiTreeTest {
     }
 
     /**
+     * A table's selection is read by climbing the selection container rule (semantics 1; the
+     * orchestrator's 2026-09-16 ratification), never by looking among the table's direct
+     * {@code ROW} children for the {@code SELECTED} bit, which was wrong in both directions.
+     *
+     * <p>The three real rows here hang under a body the widget draws rather than under the table
+     * itself — what a widget owning a viewport of its own publishes. The publish still resolves
+     * each row's container to the table, because the climb passes through a synthetic ancestor
+     * that carries no {@code SelectionFacet}, so the table's selection is exactly what it would be
+     * with the rows hung directly; a scan of the table's own children, though, finds none of them.
+     * Alongside them sits a row that <em>is</em> a direct child and carries {@code SELECTED} while
+     * declaring that no node holds its selection ({@code containerlessSelectionItem}, the
+     * {@code RadioButton} shape) — the one way a snapshot can carry a selected direct {@code ROW}
+     * child that is no member of this table.
+     *
+     * <p>Reading the bit answered both the wrong way round: row 1 was not selected and row 3 was,
+     * and a client's add and remove had no row to name at all. The container is resolved once at
+     * publish and is the only fact a snapshot carries about where a member hangs, which is why the
+     * lookup a write uses falls back to it too.
+     */
+    @Test
+    void aTablesSelectedRowsAreItsMembersWhereverTheyHangAndNeverItsDirectRowChildren() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int table = a.begin(8000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TABLE);
+        a.table(4, 2);
+        a.selection(true, false);
+        a.inherited(true, true, true, true, false);
+        a.child(1);
+        a.bounds(0, 0, 400, 120);
+        a.role(Accessible.Role.GROUP);
+        for (int r = 0; r < 3; r++) {
+            a.child(10 + r);
+            a.bounds(0, r * 30, 400, 30);
+            a.role(Accessible.Role.ROW);
+            a.selectionItem(r == 1, r + 1, 4);
+            a.action(Accessible.Action.SELECT, Accessible.Action.DESELECT);
+            for (int c = 0; c < 2; c++) {
+                a.child(c);
+                a.bounds(c * 200, r * 30, 200, 30);
+                a.role(Accessible.Role.CELL);
+                a.name(I18nString.literal("r" + r + "c" + c), Accessible.NameFrom.CONTENT);
+                a.cell(r, c);
+                a.endChild();
+            }
+            a.endChild();
+        }
+        a.endChild();
+        int loose = a.begin(8300, table, Locale.ENGLISH, 0, 90, 400, 30);
+        a.role(Accessible.Role.ROW);
+        a.containerlessSelectionItem(true, 4, 4);
+        a.action(Accessible.Action.SELECT);
+        a.inherited(true, true, true, false, false);
+        for (int c = 0; c < 2; c++) {
+            a.begin(8301 + c, loose, Locale.ENGLISH, c * 200, 90, 200, 30);
+            a.role(Accessible.Role.CELL);
+            a.name(I18nString.literal("r3c" + c), Accessible.NameFrom.CONTENT);
+            a.cell(3, c);
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        a.end();
+        a.end();
+        AccessibleTree published = a.publish(0, 0, 0, 1f, true);
+        tree.set(published);
+
+        List<AccessibleNode> rows = new ArrayList<>();
+        for (int i = 0; i < published.nodeCount(); i++) {
+            if (published.node(i).role() == Accessible.Role.ROW) {
+                rows.add(published.node(i));
+            }
+        }
+        assertEquals(4, rows.size(), "three rows under the body and the loose one");
+        assertEquals(List.of(8300L), published.children(published.node(published.indexOf(8000)))
+                .stream().filter(child -> child.role() == Accessible.Role.ROW)
+                .map(AccessibleNode::id).toList(),
+                "the only ROW among the table's own children is the one that is no member");
+
+        assertEquals(List.of(1), call(path(8000), Atspi.I_TABLE, "GetSelectedRows", null).body[0],
+                "the member the publish resolved to this table, at its cells' row; not the "
+                        + "selected direct child that declared it has no container");
+        assertEquals(1, ((DBus.Variant) call(path(8000), Atspi.I_PROPS, "Get", "ss", Atspi.I_TABLE,
+                "NSelectedRows").body[0]).value, "and NSelectedRows counts that same set");
+        assertEquals(true, call(path(8000), Atspi.I_TABLE, "IsRowSelected", "i", 1).body[0],
+                "row 1 is selected though it is no child of the table");
+        assertEquals(false, call(path(8000), Atspi.I_TABLE, "IsRowSelected", "i", 3).body[0],
+                "and row 3 is not, though it is a child of the table carrying SELECTED");
+        assertEquals(true, call(path(8000), Atspi.I_TABLE, "IsSelected", "ii", 1, 0).body[0],
+                "IsSelected's row half asks the same question");
+        assertEquals(false, call(path(8000), Atspi.I_TABLE, "IsSelected", "ii", 3, 0).body[0],
+                "and answers no for a row that is no member, whose cells carry nothing either");
+        assertEquals(List.of(true, 1, 0, 1, 1, true),
+                List.of(call(path(8000), Atspi.I_TABLE, "GetRowColumnExtentsAtIndex", "i", 2).body),
+                "as does the selected flag of the extents at index 2");
+        assertEquals(List.of(true, 3, 0, 1, 1, false),
+                List.of(call(path(8000), Atspi.I_TABLE, "GetRowColumnExtentsAtIndex", "i", 6).body),
+                "and at index 6, the loose row's first cell");
+
+        assertEquals(true, call(path(8000), Atspi.I_TABLE, "AddRowSelection", "i", 2).body[0]);
+        assertEquals(true, call(path(8000), Atspi.I_TABLE, "RemoveRowSelection", "i", 1).body[0]);
+        assertEquals(List.of(rows.get(2).id() + ":SELECT", rows.get(1).id() + ":DESELECT"),
+                performed, "a write names the row the same rule found");
+    }
+
+    /**
      * A list whose first child is its scroll bar, holding four rows of which two are selected and one
      * offers nothing: the shape of a Tree or a ListView, where a child index and a selected-member
      * index are not the same number.
