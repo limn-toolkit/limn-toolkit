@@ -716,10 +716,17 @@ public final class UiaBridge extends PlatformBridge {
                         event.nodeId(), true, hresult);
             }
         } else {
-            raisePropertyChange(element, propertyId, event, node);
+            int hresult = raisePropertyChange(element, propertyId, event, node);
             int also = alsoChangedProperty(event, node);
+            int alsoHresult = 0;
             if (also != 0) {
-                raisePropertyChange(element, also, event, node);
+                alsoHresult = raisePropertyChange(element, also, event, node);
+            }
+            sayPropertyChange(event.nodeId(), propertyId, event.oldValue(), event.newValue(), node,
+                    hresult);
+            if (also != 0) {
+                sayPropertyChange(event.nodeId(), also, event.oldValue(), event.newValue(), node,
+                        alsoHresult);
             }
         }
         // The one change a client that asked was owed. From here it is its subscription, or a
@@ -834,6 +841,10 @@ public final class UiaBridge extends PlatformBridge {
         long raised = owner.raiseOnElement(side.nodeId(), false, owner != this, element ->
                 raisePropertyChange(element, UiaIds.HAS_KEYBOARD_FOCUS, !has, has, null));
         if (raised != NOT_RAISED) {
+            // Outside the raise, which held the owner's guard when the cursor is in another
+            // window, and against the owner's tree, which is the one holding the node.
+            owner.sayPropertyChange(side.nodeId(), UiaIds.HAS_KEYBOARD_FOCUS, !has, has, null,
+                    hresultOf(raised));
             UiaWindow.say("raised HasKeyboardFocus " + has + " for node " + side.nodeId());
         }
     }
@@ -1327,13 +1338,20 @@ public final class UiaBridge extends PlatformBridge {
         }
         long started = System.nanoTime();
         StringBuilder raised = new StringBuilder();
-        for (int propertyId : properties) {
-            if (propertyId == UiaIds.VALUE_VALUE) {
-                raisePropertyChange(element, propertyId, null, valueString(node), node);
-            } else {
-                raisePropertyChange(element, propertyId, event.oldValue(), event.newValue(), node);
-            }
-            raised.append(raised.length() == 0 ? "" : ", ").append(propertyId);
+        // The two values each property was raised with, kept so that the lines can be said after
+        // the raises rather than between them (sayPropertyChange).
+        Object[] from = new Object[properties.length];
+        Object[] to = new Object[properties.length];
+        int[] hresults = new int[properties.length];
+        for (int at = 0; at < properties.length; at++) {
+            boolean text = properties[at] == UiaIds.VALUE_VALUE;
+            from[at] = text ? null : event.oldValue();
+            to[at] = text ? valueString(node) : event.newValue();
+            hresults[at] = raisePropertyChange(element, properties[at], from[at], to[at], node);
+        }
+        for (int at = 0; at < properties.length; at++) {
+            sayPropertyChange(event.nodeId(), properties[at], from[at], to[at], node, hresults[at]);
+            raised.append(raised.length() == 0 ? "" : ", ").append(properties[at]);
         }
         owedAnEvent = false;
         UiaWindow.say("raised " + event.type() + " for node " + event.nodeId() + " as [" + raised
@@ -1421,6 +1439,9 @@ public final class UiaBridge extends PlatformBridge {
 
     /** The same, with the two values given.
      *
+     *  <p><b>It says nothing itself</b>; {@link #sayPropertyChange} is the other half and every
+     *  caller runs it once the raise is done. See there for why the two are apart.
+     *
      *  @return the {@code HRESULT} */
     private int raisePropertyChange(UiaElement element, int propertyId, Object oldValue,
                                     Object newValue, AccessibleNode node) {
@@ -1433,18 +1454,6 @@ public final class UiaBridge extends PlatformBridge {
             write(newOne, propertyId, changedValue(propertyId, newValue, node));
             int hresult = Uia.raisePropertyChangedEvent(element.pointer(), propertyId,
                     before, after);
-            if (UiaTrace.on()) {
-                // Always held: this bridge raises a property change only on an element a client
-                // already asked for, and the one raise that mints -- the focus change -- says so
-                // on its own line.
-                UiaTrace.raised("UiaRaiseAutomationPropertyChangedEvent",
-                        UiaTrace.property(propertyId)
-                                + " from=" + UiaTrace.value(changedValue(propertyId, oldValue, node))
-                                + " to=" + UiaTrace.value(changedValue(propertyId, newValue, node)),
-                        tree(), element.nodeId(), true, hresult);
-            }
-            UiaWindow.say("property " + propertyId + " changed -> 0x"
-                        + Integer.toHexString(hresult));
             freeIfString(oldOne);
             freeIfString(newOne);
             return hresult;
@@ -1452,6 +1461,46 @@ public final class UiaBridge extends PlatformBridge {
             MemoryUtil.nmemFree(before);
             MemoryUtil.nmemFree(after);
         }
+    }
+
+    /**
+     * Says that a property change was raised: the {@code RAISE} line and the bridge's own note.
+     *
+     * <p><b>Apart from the raise, because a line can be a flushed write to a file and the raise can
+     * be under a lock.</b> {@code raiseKeyboardFocus} reaches the platform through
+     * {@link #raiseOnElement} with {@code fromAnotherWindow} set, which holds the popup bridge's
+     * {@code vendGuard} — and the whole-registry empty takes that same guard on the user-interface
+     * thread. With the lines written inside the raise, as they were until 2026-09-16, turning the
+     * trace on put a flushed disk write inside that guard and the user-interface thread could wait
+     * behind it. Everything a line needs is known once the raise has answered, so nothing is lost
+     * by saying it afterwards.
+     *
+     * <p>Described against the tree of the bridge that <em>owns</em> the node, which is why the
+     * node arrives as an identifier rather than as the element: a {@code HasKeyboardFocus} change
+     * on a cursor that resolved into a native popup is raised on that window's element, and this
+     * bridge's own tree would have called the node gone.
+     *
+     * @param nodeId     the node the change was raised on, of this bridge's tree
+     * @param propertyId the property
+     * @param oldValue   the model's value before, as the raise was given it
+     * @param newValue   and after
+     * @param node       the node it moved on, or {@code null} when it has left the tree
+     * @param hresult    what the raise answered
+     */
+    private void sayPropertyChange(long nodeId, int propertyId, Object oldValue, Object newValue,
+                                   AccessibleNode node, int hresult) {
+        if (UiaTrace.on()) {
+            // Always held: this bridge raises a property change only on an element a client
+            // already asked for, and the one raise that mints -- the focus change -- says so
+            // on its own line.
+            UiaTrace.raised("UiaRaiseAutomationPropertyChangedEvent",
+                    UiaTrace.property(propertyId)
+                            + " from=" + UiaTrace.value(changedValue(propertyId, oldValue, node))
+                            + " to=" + UiaTrace.value(changedValue(propertyId, newValue, node)),
+                    tree(), nodeId, true, hresult);
+        }
+        UiaWindow.say("property " + propertyId + " changed -> 0x"
+                    + Integer.toHexString(hresult));
     }
 
     /**

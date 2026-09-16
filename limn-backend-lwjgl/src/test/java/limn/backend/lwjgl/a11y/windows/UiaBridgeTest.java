@@ -1457,6 +1457,57 @@ class UiaBridgeTest {
     }
 
     /**
+     * A raise that reaches the platform through another window's guard writes no trace line while
+     * it holds it (2026-09-16 review).
+     *
+     * <p>A {@code HasKeyboardFocus} change on a cursor that resolved into a native popup goes
+     * through {@code raiseOnElement} with {@code fromAnotherWindow} set, which holds that bridge's
+     * {@code vendGuard} for the duration of the raise — and {@code invalidateEverythingVended},
+     * the whole-registry empty, takes the same guard on the <b>user-interface thread</b>. A trace
+     * line is a flushed write to a file when a guest run named one, so a line written inside that
+     * region puts disk I/O between the user-interface thread and its next frame. The lines are
+     * said after the raise instead, which loses nothing: everything they carry is known by then.
+     *
+     * <p>The sink here asks {@link Thread#holdsLock} at the moment it is called, which is the
+     * question itself and not a proxy for it.
+     */
+    @Test
+    void aRaiseThroughAnotherWindowsGuardSaysNothingWhileItHoldsIt() {
+        TwoWindows windows = TwoWindows.aFieldWithItsCursorInAPopup();
+        UiaBridge host = UiaBridge.withoutTheGate(0x1234);
+        UiaBridge popup = UiaBridge.withoutTheGate(0x5678);
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.List<String> underTheGuard = synchronizedTrace();
+        Object guard = popup.vendGuardForTests();
+        try {
+            popup.publish(windows.popupTree(), false);
+            host.publish(windows.hostTree(), false);
+            host.noteAsked();
+            UiaWindow.trace = line -> {
+                if (Thread.holdsLock(guard)) {
+                    underTheGuard.add(Thread.currentThread().getName() + ": " + line);
+                }
+                trace.add(line);
+            };
+
+            host.emit(AccessibleEvent.property(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED,
+                    windows.field(), 0L, windows.day()));
+
+            assertNotNull(awaitTrace(trace, l -> l.equals("raised HasKeyboardFocus true for node "
+                            + windows.day())),
+                    "the fixture: the keyboard focus went to the popup's day: " + trace);
+            assertEquals(java.util.List.of(), java.util.List.copyOf(underTheGuard),
+                    "said while holding the popup's guard, which the user-interface thread's own "
+                            + "empty waits for: " + trace);
+        } finally {
+            UiaWindow.trace = before;
+            host.detach();
+            popup.detach();
+        }
+    }
+
+    /**
      * §3.4, review of windows-A: the host's GetFocus reaches the popup bridge's registry from the
      * host's RPC thread, through the host's provider, which the popup's detach does not disconnect.
      * So it waits for the popup's guard, the one its whole-registry empty frees under, exactly as a
