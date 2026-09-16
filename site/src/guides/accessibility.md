@@ -110,9 +110,10 @@ A list publishes its true row count and the rows it has realized, which is what 
 million-row list cost what twenty do under a screen reader as well as on screen. The row the
 keyboard is in stays realized even when a scroll takes it off screen, so a reader standing on it
 is not dropped to the window, and a verb addressed to it is performed where it stands. A list's
-rows carry `SELECT`; a tree's and a table's carry their own set by state — select, add to or
-remove from the selection, expand or collapse, move the cursor — so a reader addresses a
-particular row rather than the container.
+rows carry `SELECT`; a tree's and a table's carry their own set by state — a tree's row: select,
+add to or remove from the selection, expand or collapse, move the cursor; a table's the same set
+without expand or collapse, which only a tree row has — so a reader addresses a particular row
+rather than the container.
 
 A control that is merely scrolled out of view keeps everything it offers: the scene reveals it
 and performs. A control nobody can see — in an unselected tab, in a collapsed panel, behind a
