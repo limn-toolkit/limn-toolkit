@@ -5460,6 +5460,24 @@ while GTK 4 exports under `/org/gtk/application/<app>/a11y/<uuid>` and is read b
 so the prefix is this bridge's namespace, chosen to match the ATK bridge, and not a protocol
 constant. A reference on this bus is an `(so)` pair a client follows without parsing.
 
+*(Amended 2026-09-15, the review of that change. **A sixth site**: the application object answering
+`org.a11y.atspi.Component` at all is a choice against both toolkits — GTK 3.24.52 through
+at-spi2-atk 2.60.6 answers `UnknownMethod` on `/org/a11y/atspi/accessible/root` and logs
+`impl_GetExtents: assertion 'ATK_IS_COMPONENT (user_data)' failed` doing it
+(`readings/fedora-gtk3-interface-replies.txt` lines 3-9 and 33-36), GTK 4.22.4 answers
+`UnknownMethod` because its application object serves no such interface
+(`readings/fedora-gtk4-interface-replies.txt` lines 25-28), and the ATK bridge disagrees with itself
+by answering that interface's `version` property `1` on the same root. This bridge answers the first
+frame's box, because of the two halves it is the one that cannot cost a client anything; whether any
+client is misled by a root that answers `Component` is a phase-5 reading and the condition for
+reversing it. It was argued in `AtspiTree.applicationComponent`'s javadoc and added to the test's
+list. **And the test asserts more of the rule than the word.** Its first cut required only a file
+under `readings/` and the word "choice", both of which one site already carried before its argument
+was written — so that entry could not have gone red for the defect it guards. A choice site must now
+also name **both servers** it read, and, where the disagreement is over a name rather than a value,
+the name it did **not** answer with. What a test cannot check is whether a reason is a good one; the
+javadoc says so in as many words, so nobody reads a green run as a claim about the reasoning.)*
+
 ---
 
 ## 13. Risks and open edges

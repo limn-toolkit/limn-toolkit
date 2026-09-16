@@ -244,9 +244,8 @@ final class AtspiTree {
             return accessible(m, root, at);
         }
         if (Atspi.I_COMPONENT.equals(iface)) {
-            // The application object answers Component too. A client asks the root for its extents
-            // before it walks anything, and an error there stops the walk at the first step rather
-            // than degrading: libatspi reports the failure and abandons the subtree.
+            // The application object answers Component too, which both toolkits refuse: a choice,
+            // with its readings and its reasoning, in applicationComponent's javadoc.
             return at == null ? applicationComponent(m) : component(m, at);
         }
         if (Atspi.I_ACTION.equals(iface) && at != null) {
@@ -465,8 +464,30 @@ final class AtspiTree {
 
     /**
      * The application's own rectangle: its first frame's, or nothing before any window has
-     * published. The application object has no geometry of its own; a client asks for it only to
-     * learn that the walk may go on, and the first window is what it walks into.
+     * published. The application object has no geometry of its own, and the first window is what a
+     * walk from it goes into.
+     *
+     * <p><b>Serving {@code Component} here at all is a choice against both toolkits, and this is the
+     * reasoning</b> (ADR 039 §12.3's rule for a fact two servers answer differently; the phase-3
+     * critic's list, where this was the sixth site). Read on the Fedora KDE 44 guest, 2026-09-15:
+     * GTK 3.24.52 through at-spi2-atk 2.60.6 answers {@code GetExtents}, {@code GetPosition} and
+     * {@code GetSize} on {@code /org/a11y/atspi/accessible/root} with
+     * {@code org.freedesktop.DBus.Error.UnknownMethod}, its own bridge logging
+     * {@code impl_GetExtents: assertion 'ATK_IS_COMPONENT (user_data) ' failed} as it does
+     * (readings/fedora-gtk3-interface-replies.txt lines 3-9 and 33-36); GTK 4.22.4 answers
+     * {@code UnknownMethod} too, for the plainer reason that its application object serves no such
+     * interface at all ("Nenhuma interface org.a11y.atspi.Component",
+     * readings/fedora-gtk4-interface-replies.txt lines 25-28). The two agree on the refusal and
+     * differ on the reason — and the ATK bridge disagrees with itself, since that same root answers
+     * the interface's {@code version} property with 1 (line 56 of the same reading).
+     *
+     * <p>The rectangle is answered anyway, because of the two halves it is the one that cannot cost
+     * a client anything: a client that never asks the root for a box is unaffected, and one that
+     * does gets the first frame's box rather than an error at the first step of a walk, from an
+     * object that is not drawn anywhere and whose box can only be one of its windows'. Nothing in
+     * this bridge turns on it. What would settle it is a client seen needing the box or misled by
+     * it — a root that answers {@code Component} treated as a window — which is a phase-5 reading,
+     * and the choice to reverse if it comes back the other way.
      */
     private DBus.Msg applicationComponent(DBus.Msg m) {
         List<Frame> frames = frames();

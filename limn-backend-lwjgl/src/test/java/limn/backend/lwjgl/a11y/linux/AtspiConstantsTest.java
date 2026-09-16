@@ -153,22 +153,43 @@ class AtspiConstantsTest {
         }
     }
 
-    /** The five sites the phase-3 critic listed as uncited, or as choices with no reasoning. */
+    /**
+     * The six sites the phase-3 critic listed as uncited, or as choices with no reasoning: the file,
+     * the declaration, and then every phrase the comment above it must carry, lower-cased.
+     *
+     * <p>Each site names what its own entry was written for, and not a word that was there anyway.
+     * A choice must name <b>both</b> servers it read, because a choice is a disagreement and a
+     * comment that names one server has not recorded one; where the disagreement is over a name
+     * rather than a value, the comment must also say which name it did <b>not</b> answer with,
+     * since that is the whole of the argument. (The review of this test's first cut: asserting only
+     * "readings/" and the word "choice" left the {@code setValue} entry green at the commit before
+     * it was written, because both were already there and the piece that was missing was the
+     * argument for the error name.)
+     */
     private static final java.util.List<String[]> CITED_OR_ARGUED = java.util.List.of(
-            new String[] {"Atspi.java", "static final String PATH_ACCESSIBLE", ""},
-            new String[] {"Atspi.java", "static final int INTERFACE_VERSION", "choice"},
-            new String[] {"DBus.java", "static final String PROPERTY_READ_ONLY", "choice"},
-            new String[] {"AtspiTree.java", "private DBus.Msg setValue(", "choice"},
-            new String[] {"AtspiText.java", "final class AtspiText", "choice"});
+            new String[] {"Atspi.java", "static final String PATH_ACCESSIBLE", "readings/"},
+            new String[] {"Atspi.java", "static final int INTERFACE_VERSION",
+                    "readings/", "choice", "gtk 3", "gtk 4"},
+            new String[] {"DBus.java", "static final String PROPERTY_READ_ONLY",
+                    "readings/", "choice", "gtk 3", "gtk 4", "invalidargs"},
+            new String[] {"AtspiTree.java", "private DBus.Msg setValue(",
+                    "readings/", "choice", "gtk 3", "gtk 4", "not {@code propertyreadonly}"},
+            new String[] {"AtspiTree.java", "private DBus.Msg applicationComponent(",
+                    "readings/", "choice", "gtk 3", "gtk 4", "unknownmethod"},
+            new String[] {"AtspiText.java", "final class AtspiText",
+                    "readings/", "choice", "gtk 3", "gtk 4"});
 
     /**
      * Every platform fact this bridge answers from either cites the reading it came from or says,
-     * in the comment beside it, that it is a choice between readings that disagree and why that
-     * half was taken (ADR 039 §12.2's rule for platform constants; the phase-3 critic's list).
+     * in the comment beside it, that it is a choice between readings that disagree, which two
+     * servers disagreed, and why that half was taken (ADR 039 §12.3's rule; the phase-3 critic's
+     * list).
      *
      * <p>A ratchet on the comment and not on a value, because that is where the defect is: a number
      * or a name nobody can trace is one the next reader has to re-derive from a guest, and a choice
-     * with no reasoning is one the next reader will quietly reverse.
+     * with no reasoning is one the next reader will quietly reverse. It is a citation-and-argument
+     * ratchet and nothing more — no assertion here can tell a true reason from a plausible one, and
+     * the phrases below are the parts of the argument a machine can check.
      */
     @Test
     void thePlatformFactsWithoutOneReadingSayWhichHalfWasTakenAndWhy() throws java.io.IOException {
@@ -178,20 +199,29 @@ class AtspiConstantsTest {
             java.util.List<String> lines = java.nio.file.Files.readAllLines(
                     source.resolve(site[0]), java.nio.charset.StandardCharsets.UTF_8);
             String comment = commentAbove(lines, site[1]).toLowerCase(java.util.Locale.ROOT);
-            assertTrue(comment.contains("readings/"), site[0] + ": " + site[1]
-                    + " must cite the reading it came from, by its file under readings/");
-            assertTrue(site[2].isEmpty() || comment.contains(site[2]), site[0] + ": " + site[1]
-                    + " is a choice between readings that disagree, and the comment must say so "
-                    + "and say why that half was taken");
+            for (int i = 2; i < site.length; i++) {
+                assertTrue(comment.contains(site[i]), site[0] + ": " + site[1]
+                        + ("readings/".equals(site[i])
+                                ? " must cite the reading it came from, by its file under readings/"
+                                : " is a choice between readings that disagree, so its comment must"
+                                        + " say so, name both servers it read and say why that half"
+                                        + " was taken — and it does not contain \"" + site[i]
+                                        + "\""));
+            }
         }
     }
 
     /**
-     * The comment block directly above a declaration.
+     * The comment block directly above a declaration, as one line.
+     *
+     * <p>The markers and the wrapping are taken out — every run of whitespace becomes one space —
+     * so that a phrase this test looks for is found whether or not the author's line ended in the
+     * middle of it. ("What GTK\n3.24.52's ATK bridge" is the comment that taught it: the phrase
+     * "GTK 3" is in the prose and was not in the joined text.)
      *
      * @param lines       the source
      * @param declaration what the declaration's line contains
-     * @return every line of the block above it, joined; the empty string when there is none
+     * @return the block above it, unwrapped; the empty string when there is none
      */
     private static String commentAbove(java.util.List<String> lines, String declaration) {
         int at = -1;
@@ -207,9 +237,9 @@ class AtspiConstantsTest {
             if (!line.startsWith("//") && !line.startsWith("*") && !line.startsWith("/*")) {
                 break;
             }
-            out.insert(0, line + "\n");
+            out.insert(0, line.replaceFirst("^(//+|/\\*+|\\*+)", "") + " ");
         }
-        return out.toString();
+        return out.toString().replaceAll("\\s+", " ");
     }
 
     @Test
