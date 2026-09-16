@@ -372,6 +372,17 @@ class VerbPolicyRatchetTest {
      *       lives — a scroll bar parked at the top, a colour picker's alpha at 100.</li>
      * </ul>
      *
+     * <p><b>The third shape is looser than its own sentence</b> (noted 2026-09-16): "a no-op
+     * wherever the value lives" is not true of every value-bearing node in the toolkit, because
+     * {@code DateField}'s segments <em>wrap</em> — {@code DateField#step} is
+     * {@code min + Math.floorMod(current - min + delta, span)}, and its {@code onSyntheticAction}
+     * says an assistive technology rolls over a segment's bounds exactly as Up and Down do. So a
+     * minute segment at 59 offering {@code INCREMENT} does move the value, to 00, and is skipped
+     * here for a reason that does not hold of it. Nothing is wrong today: over-skipping loses
+     * coverage and never fails a live widget wrongly, and the gallery's date entries are asked
+     * every other verb. Tightening it means asking the node whether it wraps, which nothing in the
+     * model carries, so it is left as a known gap rather than guessed at.
+     *
      * <p>There was a fourth, and decision 69 struck it on 2026-09-16: a {@code PRESS} on a node
      * whose <em>parent</em> is a {@code SPIN_BUTTON} at a bound. A spinner's {@code Increase} and
      * {@code Decrease} arrows carry no value of their own, so the dead one of the pair used to

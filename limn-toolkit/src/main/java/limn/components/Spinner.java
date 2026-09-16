@@ -1450,10 +1450,18 @@ public class Spinner extends Widget {
      * owner has now declined to ask a reader to make. It is heard on every spinner in the toolkit,
      * twenty-two arrows in a colour picker among them.
      *
-     * <p>The two predicates are {@code paintButtons}' own, {@code value < max} and
-     * {@code value > min}, read from the same fields in the same pass: the arrow a reader is told
-     * is unavailable is exactly the one drawn in {@code disabledText}, and the node cannot say
-     * operable where the pixels say dead. They are also exactly right about the verb, because
+     * <p>The two predicates are the bound halves of {@code paintButtons}' own, {@code value < max}
+     * and {@code value > min}, read from the same fields in the same pass: the arrow a reader is
+     * told is unavailable is exactly the one drawn in {@code disabledText}, and the node cannot say
+     * operable where the pixels say dead. The paint's conditions are {@code enabled && value < max}
+     * and {@code enabled && value > min}, and the {@code enabled} half is deliberately not repeated
+     * here: it is the publish step's, which inherits the owner's {@code ENABLED} down onto every
+     * synthetic child and lets this method narrow and never widen
+     * ({@link limn.accessibility.Accessibility#disabled()}), so a disabled spinner's two arrows are
+     * published without {@code ENABLED} and without their {@code PRESS} whatever the value — which
+     * the kitchen dialog's transcript shows, four {@code button "Increase" [disabled, ...]} rows
+     * with no actions. So the two conditions agree by inheritance, not by being the same
+     * expression, and this hook has only the bound to read. They are also exactly right about the verb, because
      * nothing here wraps: {@link #nudge} goes through {@link #settle}, which clamps to the bound
      * and returns false when the value did not move, and reaches {@code max} from anywhere below
      * it whatever the snap grid. A spinner whose own node is {@code INCREMENT}-at-{@code max} is
