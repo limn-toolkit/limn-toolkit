@@ -25,6 +25,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  * the window" (&sect;1.10's collapse). Everything offered while the marker is still waiting is
  * dropped, because it is already covered by it. The overflow is logged once per collapse as a
  * WARNING, which is the signal &sect;13.19 names for a capacity set wrong.
+ *
+ * <p><b>The frame's end is the one thing that is never dropped</b> ({@link #endFrame}). It is not
+ * an event and covers none: it is the publish boundary the drain thread flushes an owed
+ * re-announcement at (&sect;2.4, semantics 4), and a boundary that a collapse could swallow would
+ * leave that debt with nothing to flush it on a window whose scene then goes still. So it ignores
+ * the collapsed flag, and when there is no room for it the queue collapses first &mdash; which is
+ * the honest answer for a queue that is over capacity anyway &mdash; and the marker goes in behind
+ * the collapse's own.
  */
 final class UiaEvents {
 
@@ -42,6 +50,13 @@ final class UiaEvents {
 
     /** The marker a collapse leaves; never offered by a caller and never raised as itself. */
     static final AccessibleEvent COLLAPSE = AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, -1);
+
+    /**
+     * The marker {@link #endFrame} leaves: the frame's accessibility step is over and every event
+     * of that frame is already behind it in this queue. Never raised as itself; read by the drain
+     * thread as the publish boundary an owed re-announcement is flushed at.
+     */
+    static final AccessibleEvent FRAME_END = AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, -2);
 
     private static final System.Logger LOG = System.getLogger(UiaEvents.class.getName());
 
@@ -63,9 +78,35 @@ final class UiaEvents {
         if (queue.size() < CAPACITY && queue.offer(event)) {
             return true;
         }
-        // Overflow. The marker goes in AFTER the flag is up, so a drain thread that takes it
-        // knows every event offered since is covered; and the queue is cleared first, so the
-        // marker is what it finds next rather than a page of events about the same rows.
+        collapse();
+        return false;
+    }
+
+    /**
+     * Marks the end of a frame's accessibility step, from the user-interface thread, after every
+     * event of that frame has been offered. Never blocks and <b>never drops the marker</b>.
+     *
+     * <p>Unlike an event it ignores the collapsed flag: a collapse covers the events it swallowed,
+     * and it raises the very debt this marker exists to flush, so a marker the collapse dropped
+     * would be a debt nothing pays. When the queue has no room left the queue collapses first and
+     * the marker goes in behind the collapse's own, which keeps both in order and costs a
+     * re-read no over-capacity queue was going to avoid.
+     */
+    void endFrame() {
+        if (queue.offer(FRAME_END)) {
+            return;
+        }
+        collapse();
+        queue.offer(FRAME_END);
+    }
+
+    /**
+     * Empties the queue and leaves the collapse marker in it. The marker goes in AFTER the flag is
+     * up, so a drain thread that takes it knows every event offered since is covered; and the queue
+     * is cleared first, so the marker is what it finds next rather than a page of events about the
+     * same rows.
+     */
+    private void collapse() {
         collapsed.set(true);
         queue.clear();
         queue.offer(COLLAPSE);
@@ -73,7 +114,6 @@ final class UiaEvents {
         LOG.log(System.Logger.Level.WARNING, "accessibility event queue collapsed: more than "
                 + CAPACITY + " events were waiting to be raised (collapse #" + n
                 + "); the registry is being swept and the window re-read whole instead");
-        return false;
     }
 
     /**

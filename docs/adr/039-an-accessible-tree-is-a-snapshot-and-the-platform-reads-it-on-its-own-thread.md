@@ -3347,6 +3347,28 @@ same bounded queue can be swallowed by that queue's own collapse, and a bridge w
 no further frame would owe the re-announcement with nothing left to flush it — a dropped debt traded
 for a race. Whichever is worse is a question for a reader and not for a test.
 
+**Amended 2026-09-16 (fix round 3b, Windows item 1): that race is closed, and neither half of the
+trade was paid.** The second flush point is now the publish boundary and not an empty queue: the
+Windows bridge overrides `AccessibilityBridge#frameEnded` and hands the boundary over as
+`UiaEvents.FRAME_END`, a marker in the same queue the frame's events went into, so it arrives behind
+every one of them however fast the drain thread runs. The debt a collapse leaves is flushed when
+that marker is taken, and — unchanged — before the first tail event that is not a
+`STRUCTURE_CHANGED`, which is still where a tail with a focus, a cursor or a selection in it pays.
+The cost the paragraph above feared is answered by the marker itself rather than by accepting it:
+`UiaEvents#endFrame` ignores the collapsed flag (a collapse covers the events it swallowed, and it
+*raises* the debt this marker flushes, so it may not swallow the marker), and when the queue has no
+room it collapses the queue — the honest answer for a queue already over capacity — and puts the
+marker in behind the collapse's own. A collapse can only happen while a frame is handing events
+over, so that frame's end always follows it; a window whose scene then goes still has already been
+told. Only a frame that could leave a debt is marked, so an ordinary frame wakes the drain thread
+for nothing. Linux reaches the same boundary without a queue to cross (§2.3's `frameEnded` row);
+macOS posts its whole frame there. All three bridges now flush at the same boundary in the same
+order. Pinned by `UiaBridgeTest.theFocusIsReannouncedAtTheFramesEndAndNotTheMomentTheQueueRunsDry`
+(which waits for the drain to be parked in its take — the one place the old emptiness test had
+certainly already fired — and asserts nothing has been said yet),
+`aCollapseWithNoTailAtAllIsStillFlushedByTheFramesEnd`, and `UiaEventsTest`'s three marker cases.
+**Phase 5 no longer listens for the early focus**; what it still hears is the order itself.
+
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-6's remainder): `CARET_MOVED` and
 `BOUNDS_CHANGED` as built.** `CARET_MOVED` is `Text_TextSelectionChanged`, as its row says, handled
 together with `TEXT_SELECTION_CHANGED` (the settled unmapped-and-window-level-events item): the model
@@ -4606,6 +4628,13 @@ listening, with a clean tree, after a re-stamp, after a publish:
 
 8. `bridge.frameEnded()`. One virtual call; `NONE` and every bridge that raises on a thread of its
    own inherit the no-op. Never from `republishNow()`.
+
+*(Amended 2026-09-16, fix round 3b: "every bridge that raises on a thread of its own inherits the
+no-op" is no longer true of any of them. A bridge that raises elsewhere still posts nothing here,
+but the frame's end is also the **publish boundary** the re-announcement of §2.4 is flushed at, and
+that is a fact a thread of the bridge's own cannot see: Linux reads the marker on this thread
+(§2.3), and Windows hands it into its own queue behind the frame's events (§2.4's 2026-09-16
+amendment). What the default still buys is a bridge with neither obligation.)*
 
 On macOS `frameEnded` first pays what a reentrant publish deferred (the re-push of the root's
 children and the boxes), then drains the queue: posts, the collapse's sweep, and — because the

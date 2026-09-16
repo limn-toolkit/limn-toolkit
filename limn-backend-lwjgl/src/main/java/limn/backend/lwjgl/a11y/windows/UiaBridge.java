@@ -164,10 +164,19 @@ public final class UiaBridge extends PlatformBridge {
      * Why a re-announcement of the effective focus is owed — the cause the trace names — or
      * {@code null} when none is. Set by a sweep (this queue's collapse marker, or the model's
      * {@code INVALIDATED}) and cleared by {@link #reannounce}, which raises it at the tail's place:
-     * before the first event after the tail's {@code STRUCTURE_CHANGED}s, or when nothing more is
-     * waiting. Drain thread only.
+     * before the first event after the tail's {@code STRUCTURE_CHANGED}s, or at the frame's end.
+     * Drain thread only.
      */
     private String reannounceOwed;
+
+    /**
+     * Whether this frame handed over something that can leave a re-announcement owed — a collapse
+     * of this queue, or the model's own {@code INVALIDATED} — so that {@link #frameEnded} marks the
+     * boundary only in the frames where the drain thread can be waiting for one. A window whose
+     * frames are ordinary never wakes the drain thread for a marker it would discard.
+     * User-interface thread only: written by {@link #emit}, read and cleared by {@link #frameEnded}.
+     */
+    private boolean frameEndOwed;
 
     private UiaBridge(long hwnd, java.util.function.LongSupplier clock) {
         this.hwnd = hwnd;
@@ -249,6 +258,11 @@ public final class UiaBridge extends PlatformBridge {
     /** @return how many times the queue has collapsed since this bridge opened (§13.19). */
     int collapses() {
         return events.collapses();
+    }
+
+    /** @return how many events and markers are waiting to be drained, for tests. */
+    int eventsWaitingForTests() {
+        return events.size();
     }
 
     /** @return how many client event subscriptions cover this window right now. */
@@ -363,9 +377,37 @@ public final class UiaBridge extends PlatformBridge {
         if (closed) {
             return;
         }
-        events.offer(event);
+        boolean queued = events.offer(event);
+        // The two ways a re-announcement comes to be owed, both visible from here: this queue
+        // collapsed (or had already collapsed and swallowed this event), and the model's own
+        // collapse. Either way the frame's end has to be marked, because the tail that follows may
+        // be nothing but structure -- or nothing at all.
+        if (!queued || (event.type() == AccessibleEvent.Type.INVALIDATED && event.nodeId() == 0)) {
+            frameEndOwed = true;
+        }
         if (drain == null) {
             drain = Threads.daemon("limn-a11y-uia-drain", this::drainLoop);
+        }
+    }
+
+    /**
+     * <p>Marks the publish boundary an owed re-announcement is flushed at, and raises nothing
+     * itself: this bridge raises on a thread of its own and the frame's end is a fact that thread
+     * cannot see. It is handed over as a marker in the same queue the events went into, so it
+     * arrives behind every event of the frame — which is what makes the re-announcement's place in
+     * the tail an order rather than a race between the drain and the user-interface thread
+     * ({@link #reannounce}).
+     *
+     * <p>Only a frame that could leave a re-announcement owed is marked ({@link #frameEndOwed}),
+     * and only once a drain thread exists: a window nobody reads starts no thread here, and a
+     * window being read ordinarily does not wake one per frame for a marker with nothing to flush.
+     */
+    @Override
+    public void frameEnded() {
+        boolean owed = frameEndOwed;
+        frameEndOwed = false;
+        if (owed && !closed && drain != null) {
+            events.endFrame();
         }
     }
 
@@ -374,18 +416,24 @@ public final class UiaBridge extends PlatformBridge {
      * the registry against the published tree — every element whose node has left is released,
      * which is what the swallowed {@code NODE_DESTROYED}s would have done one by one (§1.10) —
      * followed by one invalidate-everything raise on the root, and then, <b>at the tail's place</b>,
-     * the re-announcement of the effective focus ({@link #reannounceOwed}).
+     * the re-announcement of the effective focus ({@link #reannounceOwed}) — before the first tail
+     * event that is not a {@code STRUCTURE_CHANGED}, or at the frame's end when there is none.
      */
     private void drainLoop() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                if (reannounceOwed != null && events.size() == 0) {
-                    // Nothing more is waiting, so the tail this re-announcement follows is over --
-                    // or had no event after its structure changes at all, which is what a collapse
-                    // that moved nothing but the tree's shape leaves. Owed is never dropped.
-                    reannounce();
-                }
                 AccessibleEvent event = events.take();
+                if (event == UiaEvents.FRAME_END) {
+                    // The frame that owed this marker is over and every event it emitted is
+                    // already behind us, so the tail this re-announcement follows is over -- or
+                    // had no event after its structure changes at all, which is what a collapse
+                    // that moved nothing but the tree's shape leaves. Owed is never dropped.
+                    caretJustRaised = 0; // a caret and its selection are one field's, in one frame
+                    if (reannounceOwed != null) {
+                        reannounce();
+                    }
+                    continue;
+                }
                 long caret = caretJustRaised;
                 caretJustRaised = 0;
                 if (caret != 0 && event.type() == AccessibleEvent.Type.TEXT_SELECTION_CHANGED
@@ -441,29 +489,30 @@ public final class UiaBridge extends PlatformBridge {
      * last sweep says it. Each raise waits for the reader's handler (§13.28), so a second one is a
      * frame's budget spent saying what has just been said.
      *
-     * <p><b>The second flush point in {@link #drainLoop} — nothing more waiting — is a race the
-     * reader decides.</b> It tests the queue on this thread while the user-interface thread is
-     * still offering the tail one event at a time, so a drain that outruns the producer can flush
-     * between the collapse and the first tail {@code STRUCTURE_CHANGED} and re-announce early,
-     * which is the order this whole paragraph is about. Whenever the tail is already queued — how a
-     * publish hands it over — the order holds, and the debt is never dropped either way. <b>What
-     * phase 5 listens for</b> is the focus spoken before the shape of a large publish's tail, after
-     * an expand or a sort wide enough to collapse the queue. <b>The fix if it is heard</b> is to
-     * flush on a publish boundary rather than on emptiness: the model marks one already, {@code
-     * AccessibilityBridge#frameEnded}, called once per frame after every event of that frame has
-     * been emitted and not overridden here. It was not taken blind because it trades this race for
-     * a worse failure in one case: a marker offered into this same bounded queue can be swallowed
-     * by the queue's own collapse, and a scene that then runs no further frame would owe a
-     * re-announcement with nothing left to flush it. ADR 039 §2.4, 2026-09-15.
+     * <p><b>The second flush point is the frame's end, not an empty queue</b> (2026-09-16).
+     * Until today {@link #drainLoop} tested {@code events.size() == 0} on this thread while the
+     * user-interface thread was still offering the tail one event at a time, so a drain that
+     * outran the producer flushed between the collapse and the first tail {@code STRUCTURE_CHANGED}
+     * and re-announced early — the very order this javadoc is about, in the one case where nothing
+     * kept the two threads in step. The boundary the model already marks does keep them in step:
+     * {@link #frameEnded} is called once per frame after every event of that frame has been
+     * emitted, and this bridge hands it over as {@link UiaEvents#FRAME_END} into the same queue the
+     * events went into, so it arrives behind them however fast this thread runs.
      *
-     * <p><b>The Linux bridge does override it, and that is not the same trade.</b>
+     * <p>The reason it was not taken blind was that a marker in a bounded queue can be swallowed by
+     * that queue's own collapse, leaving the debt with nothing to flush it on a window whose scene
+     * then goes still. {@link UiaEvents#endFrame} is what answers that: the marker ignores the
+     * collapsed flag and collapses the queue rather than be dropped for want of room, so it is the
+     * one thing here that is never dropped. A collapse is always inside a frame — it can only
+     * happen while the scene is handing events over — and that frame's end follows it.
+     *
+     * <p><b>The Linux bridge takes the same marker on a different trade.</b>
      * {@code AtspiBridge#frameEnded} reconciles there for the case a tail of nothing but structure
-     * signals leaves open, and it can, because nothing crosses a bounded queue to reach it: that
-     * bridge writes from a writer thread whose work is already queued when the frame ends, so the
-     * marker is read on the user-interface thread itself and no collapse can swallow it. Here the
-     * marker would have to be offered into the very queue whose collapse raised the debt. The two
-     * bridges answer the same semantics with the same order and take the marker differently because
-     * their queues differ, which is what §2.4's three columns are for.
+     * signals leaves open, and nothing crosses a bounded queue to reach it: that bridge writes from
+     * a writer thread whose work is already queued when the frame ends, so the marker is read on
+     * the user-interface thread itself. Here it has to travel the queue whose collapse raises the
+     * debt, which is why it travels it as a marker that a collapse cannot swallow. All three
+     * bridges now answer the same semantics in the same order at the same boundary.
      */
     private void reannounce() {
         String cause = reannounceOwed;

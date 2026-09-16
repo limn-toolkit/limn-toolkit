@@ -1005,6 +1005,132 @@ class UiaBridgeTest {
     }
 
     /**
+     * Semantics 4 and 7, the flush point closed 2026-09-16 (fix round 3b, item 1). The tail's place
+     * used to be found by testing this queue for emptiness on the drain thread while the
+     * user-interface thread was still offering the tail one event at a time: a drain that reached
+     * the top of its loop between the collapse and the first tail {@code STRUCTURE_CHANGED} saw an
+     * empty queue and re-announced the focus early, ahead of the shape the reader needs first. The
+     * boundary is now the frame's end ({@code AccessibilityBridge#frameEnded}), handed over as a
+     * marker behind every event of that frame.
+     *
+     * <p>What makes this a fact and not a race, in the other direction from
+     * {@link #theFocusIsReannouncedAfterTheTailsStructureEventsAndNotBeforeThem}: the test waits
+     * until the drain thread is <b>parked in its take</b> with an empty queue, which it can only
+     * reach by having passed the old emptiness test, and asserts nothing has been re-announced
+     * there. Then it offers the tail, as a producer slower than its drain does, and ends the frame.
+     */
+    @Test
+    void theFocusIsReannouncedAtTheFramesEndAndNotTheMomentTheQueueRunsDry() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.publish(aFocusedTable(true), false);
+            bridge.objectFor(1000);
+            bridge.noteAsked();
+            // A publish past the model's budget, whose tail the frame has not offered yet.
+            bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            assertNotNull(awaitTrace(trace, l -> l.equals("collapse: swept 0 elements")),
+                    "the sweep never ran: " + trace);
+            assertTrue(awaitDrainParked(bridge),
+                    "the drain never parked on an empty queue, so this proves nothing: " + trace);
+            synchronized (trace) {
+                assertTrue(trace.stream()
+                                .noneMatch(l -> l.startsWith("raised after the model's INVALIDATED")),
+                        "the focus was re-announced the moment the queue ran dry, ahead of a tail "
+                                + "the frame had not finished offering: " + trace);
+            }
+            bridge.emit(AccessibleEvent.structure(1000, java.util.List.of(child(1001, 0)),
+                    java.util.List.of(), java.util.List.of()));
+            bridge.frameEnded();
+
+            assertNotNull(awaitTrace(trace, l -> l.startsWith(
+                    "raised after the model's INVALIDATED for node 1003 in ")),
+                    "the cursor cell was never re-announced: " + trace);
+            java.util.List<String> order;
+            synchronized (trace) {
+                order = trace.stream()
+                        .filter(l -> l.startsWith("raised STRUCTURE_CHANGED as type")
+                                || l.startsWith("raised after the model's INVALIDATED"))
+                        .map(l -> l.replaceFirst(" -> 0x0 in \\d+ us on .*", "")
+                                .replaceFirst(" in \\d+ us on .*", ""))
+                        .toList();
+            }
+            assertEquals(java.util.List.of(
+                            "raised STRUCTURE_CHANGED as type 0 on node 1001 with the runtime id "
+                                    + "of node 1001",
+                            "raised after the model's INVALIDATED for node 1003"),
+                    order,
+                    "the tail's children first, the focus after, however fast the drain ran");
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * The failure the marker was not taken blind for, and why it does not happen: the frame's end
+     * is offered into the very queue whose collapse raised the debt, and a collapse swallows
+     * everything offered while its marker waits. It does not swallow this one
+     * ({@code UiaEvents#endFrame}) — so a collapse whose tail is nothing at all, on a window whose
+     * scene then goes still, still says where the user is.
+     */
+    @Test
+    void aCollapseWithNoTailAtAllIsStillFlushedByTheFramesEnd() {
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = synchronizedTrace();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        // As in aCollapseSweepsElementsWhoseNodesHaveLeftAndInvalidatesTheRoot: a raise takes a few
+        // milliseconds with a reader attached, so the producer runs ahead of the drain into the
+        // bound, and the queue is still collapsed when the frame ends.
+        UiaWindow.trace = line -> {
+            trace.add(line);
+            if (line.startsWith("raised ")) {
+                try {
+                    Thread.sleep(2);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        };
+        try {
+            bridge.publish(aFocusedTable(true), false);
+            bridge.objectFor(1000);
+            bridge.noteAsked();
+            for (int i = 0; i <= UiaEvents.CAPACITY + 8; i++) {
+                bridge.emit(AccessibleEvent.property(AccessibleEvent.Type.NAME_CHANGED, 1000,
+                        "A window", "A window " + i));
+            }
+            assertEquals(1, bridge.collapses(), "the fixture: the queue collapsed");
+            bridge.frameEnded();
+            assertNotNull(awaitTrace(trace, l -> l.startsWith(
+                    "raised after this bridge's queue collapsed for node 1003 in ")),
+                    "the debt the collapse raised was never flushed: " + trace);
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /**
+     * Waits up to two seconds for the drain thread to be blocked in its take with nothing waiting:
+     * the one moment at which it has certainly passed the place the old emptiness test stood.
+     */
+    private static boolean awaitDrainParked(UiaBridge bridge) {
+        long deadline = System.nanoTime() + 2_000_000_000L;
+        while (System.nanoTime() < deadline) {
+            Thread drain = bridge.drainThreadForTests();
+            if (drain != null && drain.getState() == Thread.State.WAITING
+                    && bridge.eventsWaitingForTests() == 0) {
+                return true;
+            }
+            Thread.onSpinWait();
+        }
+        return false;
+    }
+
+    /**
      * Decision 5: a focused field's cursor resolved into its native popup's tree. The focus change
      * is raised on the popup window's element, minted by the popup's bridge; that element says it
      * has the keyboard and the field does not; and the host root's GetFocus answers the popup's
