@@ -2622,7 +2622,18 @@ of rows; `accessibilitySelectedCells` for a grid whose members are cells, a cale
 `accessibilitySelectedChildren` for anything else holding one, a tab strip — each answered from the
 selected members whose selection container it is, wherever they hang, and each refused where it is
 not the container's shape, as the native outline answers `AXSelectedRows` and no
-`AXSelectedChildren`. *Recorded the same day (the macos-B review):* the native outline also answered
+`AXSelectedChildren`. **Corrected 2026-09-16 (fix round 3b; the phase-3 critic's semantics-1
+minor):** `accessibilitySelectedRows` did not read that rule — it answered the container's direct
+`ROW` children carrying `SELECTED`, which names the same elements for every container Limn ships and
+parts from the rule at the first whose rows hang under a synthetic body. It now walks the members
+`accessibilitySelectedChildren` walks, narrowed to the members that are rows, so a calendar's
+selected day stays under `AXSelectedCells` and a row that declares it belongs to no container
+(`containerlessSelectionItem`) is none of the table's selected rows; the `setAccessibilitySelectedRows:`
+write path reads the same set, so a client can write back what it read. `accessibilityRows` and
+`accessibilityVisibleRows` still answer a table's `ROW` children by structure (ADR 041 §7): "through
+synthetic ancestors" is a fact the model resolves once at publish and carries on a selection member
+and nowhere else, so no bridge can apply it to a row that is a member of nothing. *Recorded the same
+day (the macos-B review):* the native outline also answered
 `AXSelectedCells` — the `AXCell` its selected row holds — and an outline or a list here deliberately
 does not: a Limn row holds no cell element, its children being the application's own widgets, so the
 answer would repeat the rows under a cell's attribute or name an arbitrary widget, and the native

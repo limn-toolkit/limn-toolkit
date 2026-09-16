@@ -73,6 +73,9 @@ class AxGridTest {
     private static final class Shape {
         final Accessibility a = new Accessibility();
 
+        /** How many slots have been begun, so {@link #child} can say which index its is. */
+        private int begun = 1;
+
         Shape() {
             a.beginWalk(480, 320, Locale.ENGLISH);
             a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 480, 320);
@@ -83,9 +86,25 @@ class AxGridTest {
 
         int open(long id, int parent, Accessible.Role role, boolean showing) {
             int index = a.begin(id, parent, Locale.ENGLISH, 0, 0, 40, 20);
+            begun = index + 1;
             a.role(role);
             a.name(I18nString.literal(role + " " + id), Accessible.NameFrom.CONTENT);
             a.inherited(true, true, showing, false, false);
+            return index;
+        }
+
+        /**
+         * A synthetic child of the node being described — the one kind of ancestor the selection
+         * container rule climbs through, so a member below it still belongs to the container above
+         * it. Closed with {@code a.endChild()}; its id is interned by the walk, which is why this
+         * hands back its index instead.
+         */
+        int child(long key, Accessible.Role role) {
+            a.child(key);
+            int index = begun++;
+            a.role(role);
+            a.name(I18nString.literal(role + " " + key), Accessible.NameFrom.CONTENT);
+            a.inherited(true, true, true, false, false);
             return index;
         }
 
@@ -145,6 +164,84 @@ class AxGridTest {
                 "the header and footer groups are not rows");
         assertArrayEquals(f.elements(1010, 1020), f.grid().visibleRows(table));
         assertArrayEquals(f.elements(1010), f.grid().selectedRows(table));
+    }
+
+    /**
+     * Semantics 1, the phase-3 critic's minor, closed 2026-09-16: a selected row is a member of the
+     * container's selection wherever it hangs, and this table's rows hang under a synthetic body
+     * group rather than under the table itself.
+     *
+     * <p>WINDOW &gt; TABLE 1001 (2 rows, 1 column, selection) &gt; synthetic GROUP &gt; [ROW 1010
+     * (1 of 2, selected) &gt; CELL 1011 (0, 0); ROW 1020 (2 of 2) &gt; CELL 1021 (1, 0)].
+     */
+    @Test
+    void aTablesSelectedRowsAreTheMembersOfItsSelectionWhereverTheyHangUnderIt() {
+        Shape s = new Shape();
+        Accessibility a = s.a;
+        int table = s.open(1001, 0, Accessible.Role.TABLE, true);
+        a.table(2, 1);
+        a.selection(false, false);
+        int body = s.child(7, Accessible.Role.GROUP);
+        long[] ids = {1010, 1020};
+        for (int r = 0; r < ids.length; r++) {
+            int row = s.open(ids[r], body, Accessible.Role.ROW, true);
+            a.selectionItem(r == 0, r + 1, 2);
+            s.open(ids[r] + 1, row, Accessible.Role.CELL, true);
+            a.cell(r, 0);
+            a.end();
+            a.end();
+        }
+        a.endChild();
+        a.end();
+        Fixture f = over(s.publish());
+        AccessibleNode node = f.node(1001);
+        assertEquals(AxGrid.SelectionShape.ROWS, f.grid().selectionShape(node),
+                "its members are rows, so AXSelectedRows is where its selection is read");
+        assertArrayEquals(f.elements(1010), f.grid().selectedRows(node),
+                "the selected member, found through the synthetic group the container rule climbs; "
+                        + "reading the table's direct ROW children finds none at all");
+        // The remaining half of this shape is AXRows, which still answers the table's ROW children
+        // by structure (ADR 041 §7) and so answers nothing here. The bridge cannot close that half:
+        // "through synthetic ancestors" is a fact only the model carries, and it carries it on a
+        // selection member and nowhere else. Named in the lane log as a question, not fixed here.
+        assertArrayEquals(new long[0], f.grid().rows(node));
+    }
+
+    /**
+     * Semantics 1 again, the other half: membership decides, not the {@code SELECTED} bit, and a
+     * member that is not a row is not a selected row.
+     *
+     * <p>WINDOW &gt; TABLE 1001 (1 row, 7 columns, selection) &gt; [synthetic ROW &gt; CELL 1011
+     * (0, 0, selected — a calendar's day, whose container is the calendar); ROW 1020 (selected,
+     * declaring it belongs to no container)].
+     */
+    @Test
+    void aSelectedMemberThatIsNoRowAndASelectedRowThatIsNoMemberAreBothLeftOut() {
+        Shape s = new Shape();
+        Accessibility a = s.a;
+        int table = s.open(1001, 0, Accessible.Role.TABLE, true);
+        a.table(1, 7);
+        a.selection(false, false);
+        int week = s.child(7, Accessible.Role.ROW);
+        s.open(1011, week, Accessible.Role.CELL, true);
+        a.cell(0, 0);
+        a.selectionItem(true, 15, 30);
+        a.end();
+        a.endChild();
+        s.open(1020, table, Accessible.Role.ROW, true);
+        a.containerlessSelectionItem(true, 1, 1);
+        a.end();
+        a.end();
+        Fixture f = over(s.publish());
+        AccessibleNode node = f.node(1001);
+        assertEquals(AxGrid.SelectionShape.CELLS, f.grid().selectionShape(node),
+                "the first member carries a cell facet, so its selection is read as AXSelectedCells");
+        assertArrayEquals(f.elements(1011), f.grid().selectedMembers(node),
+                "the day is the container's selected member");
+        assertTrue(f.node(1020).has(Accessible.State.SELECTED), "and the ROW carries SELECTED");
+        assertArrayEquals(new long[0], f.grid().selectedRows(node),
+                "yet neither is a selected row: the day is a member and no row, and the ROW is a "
+                        + "row and a member of nothing");
     }
 
     @Test

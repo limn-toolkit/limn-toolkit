@@ -114,6 +114,64 @@ class AxSettersTest {
         return new Outline(new AxGrid(bridge), tree);
     }
 
+    /**
+     * WINDOW &gt; TREE 1010 (multi) &gt; synthetic GROUP &gt; TREE_ITEM 1011 (selected), 1012: the
+     * container rule's one shape that parts from "the container's direct children", climbed through
+     * a synthetic ancestor that holds no selection of its own.
+     */
+    private static Outline anOutlineWithASyntheticBody() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int outline = a.begin(1010, 0, Locale.ENGLISH, 0, 0, 200, 90);
+        a.role(Accessible.Role.TREE);
+        a.selection(true, false);
+        a.inherited(true, true, true, true, false);
+        a.child(7);
+        int body = outline + 1;   // the slot child() just began, the next one after the outline's
+        a.role(Accessible.Role.GROUP);
+        a.inherited(true, true, true, false, false);
+        for (int i = 0; i < 2; i++) {
+            boolean selected = i == 0;
+            a.begin(1011 + i, body, Locale.ENGLISH, 0, 30L * i, 200, 30);
+            a.role(Accessible.Role.TREE_ITEM);
+            a.name(I18nString.literal("row " + i), Accessible.NameFrom.CONTENT);
+            a.selectionItem(selected, i + 1, 2);
+            a.hierarchy(1, i + 1, 2);
+            if (selected) a.action(Accessible.Action.SELECT, Accessible.Action.DESELECT);
+            else a.action(Accessible.Action.SELECT, Accessible.Action.ADD_TO_SELECTION);
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.endChild();
+        a.end();
+        a.end();
+        AccessibleTree tree = a.publish(0, 0, 0, 1f, true);
+        AxBridge bridge = PlatformFreeBridges.make();
+        bridge.publish(tree, false);
+        return new Outline(new AxGrid(bridge), tree);
+    }
+
+    @Test
+    void aSelectedRowsWriteReachesTheRowsThatHangUnderASyntheticBody() {
+        Outline o = anOutlineWithASyntheticBody();
+        assertEquals(1010, o.tree().node(o.node(1011).selectionContainer()).id(),
+                "the rule climbed the synthetic group: these rows are the outline's members");
+        assertTrue(AxSetters.offers(o.grid(), o.node(1010), AxSetters.SELECTED_ROWS),
+                "a row taking a selection verb is found wherever it hangs under its container, so the "
+                        + "selected rows read settable here as they do when the rows are its children");
+        assertEquals(List.of(row(1012, Accessible.Action.SELECT)),
+                AxSetters.forSelectedRows(o.grid(), o.node(1010), List.of(o.node(1012))),
+                "one row replaces the selection, as it does when the rows are the outline's children");
+        assertEquals(List.of(row(1012, Accessible.Action.ADD_TO_SELECTION)),
+                AxSetters.forSelectedRows(o.grid(), o.node(1010),
+                        List.of(o.node(1011), o.node(1012))),
+                "and the difference against the rows already selected is read from the same set, so a "
+                        + "client can write back exactly what AXSelectedRows handed it (semantics 1)");
+    }
+
     private static List<AxSetters.RowSetting> write(Outline o, long... rows) {
         List<AccessibleNode> written = new java.util.ArrayList<>();
         for (long row : rows) written.add(o.node(row));
