@@ -265,7 +265,13 @@ final class AtspiStatusWatch implements Runnable {
         String owner = newOwnerIn(m);
         if (owner != null) {
             if (owner.isEmpty()) {
-                sink.enabled(false);  // the launcher left, and its accessibility bus with it
+                // The launcher left, and its accessibility bus with it. Reported because this watch
+                // reports the switch and not a policy; recorded nowhere, because decision 67's
+                // reader of it acts on the rising edge alone. So nothing here tears an embedded
+                // application down: a connection that dies with the bus is noticed by that
+                // connection (AtspiApplication#connectionLost), which is the only path that can
+                // tell a dead bus from a desktop setting somebody turned off.
+                sink.enabled(false);
             } else {
                 readAgain = true;  // a launcher arrived: its switch is read, not assumed
             }

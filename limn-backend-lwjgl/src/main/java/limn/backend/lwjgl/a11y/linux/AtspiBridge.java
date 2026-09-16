@@ -167,7 +167,9 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
 
     @Override
     public boolean isListening() {
-        // The desktop's own flag as the watch last read it, and not "are we on the bus yet". This
+        // The desktop's own flag as it has EVER been read true, and not "are we on the bus yet" and
+        // not the value the watch read last: a false after a true is recorded nowhere (decision 67,
+        // AtspiApplication#enabled), so this answers yes for the life of the process once it has. This
         // platform is the one that can be asked whether anything is reading, which is what §6 wants
         // a gate to be — and making it depend on being embedded would be a cycle with no way in:
         // the bus is joined on the first publish, and a scene publishes only when something is

@@ -188,10 +188,12 @@ final class AtspiApplication {
     private final AtomicBoolean joining = new AtomicBoolean();
     private volatile String name = "";
     /**
-     * Whether the desktop has ever said assistive technology is running. Watch thread writes, and
-     * only ever from false to true (decision 67; {@link #enabled(boolean)}).
+     * Whether the desktop has ever said assistive technology is running. Written once, from false to
+     * true, by whichever thread sees the first true (decision 67; {@link #enabled(boolean)}); read
+     * once a frame by {@link AtspiBridge#isListening()}, which is the same volatile read a plain
+     * field was.
      */
-    private volatile boolean enabled;
+    private final AtomicBoolean enabled = new AtomicBoolean();
     private final AtomicBoolean watching = new AtomicBoolean();
     /**
      * Joins that failed, or connections lost before {@link #STEADY_NANOS}, since the last one that
@@ -271,7 +273,7 @@ final class AtspiApplication {
 
     /** @return whether the desktop has said assistive technology is running (and never unsaid it) */
     boolean isEnabled() {
-        return enabled;
+        return enabled.get();
     }
 
     /**
@@ -306,13 +308,16 @@ final class AtspiApplication {
      * still running on the connection it is still reading. The cost of staying is one embedded
      * connection and its two threads, which ADR 039 §6 records.
      *
+     * <p>The rising edge is taken with a compare-and-set, so the "any thread" above is true as
+     * written: the process has one status thread today, and a check-then-set on a plain field would
+     * let a second caller ask every window to publish a second time.
+     *
      * @param on the switch's value; a false is ignored once a true has been seen
      */
     void enabled(boolean on) {
-        if (!on || enabled) {
+        if (!on || !enabled.compareAndSet(false, true)) {
             return;
         }
-        enabled = true;
         askEveryWindowToPublish();
     }
 
@@ -942,7 +947,7 @@ final class AtspiApplication {
      * a thread start.
      */
     private void requestJoin() {
-        if (!enabled) {
+        if (!enabled.get()) {
             return;
         }
         if (!joining.compareAndSet(false, true)) {
