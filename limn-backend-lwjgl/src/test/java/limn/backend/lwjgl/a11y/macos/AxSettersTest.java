@@ -20,8 +20,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The setter half (MACOS-NEW-11; semantics 5): each write is the verb the node accepts, or nothing,
- * and each attribute is settable exactly where that holds — the gate's answer for the setter, which is
- * what AppKit reads as settable (read on the guest, 2026-09-13).
+ * and each attribute is written exactly where that holds.
+ *
+ * <p><b>What this pins is the write, not what a client is told before it.</b> Measured on the guest
+ * 2026-09-16, inside Limn and again outside it: AppKit asks the gate at settability time and
+ * <b>discards a NO whenever the class implements the setter</b>, so every element of the node class
+ * reads as settable for all five installed setters however this gate answers. The refusal is honoured
+ * where it matters — a refused write returns {@code AXError(0)} and the setter is never entered — and
+ * that is what these assertions are about. See {@link AxSetters}'s own note and ADR 039 §2.2's
+ * amendment of that date.
  */
 @ExtendWith(PlatformFreeBridges.class)
 class AxSettersTest {
@@ -221,7 +228,8 @@ class AxSettersTest {
         assertNull(AxSetters.forSelectedRows(o.grid(), o.node(1030), List.of(o.node(1031))),
                 "and nothing offered is nothing written");
         assertTrue(AxGate.allows(o.grid(), o.node(1010), AxSetters.SELECTED_ROWS),
-                "the gate's answer for the setter is what a client reads as settable");
+                "the gate is what decides whether a write is delivered; what a client reads as "
+                        + "settable is AppKit's own answer once the setter is installed (2026-09-16)");
         assertFalse(AxGate.allows(o.grid(), o.node(1030), AxSetters.SELECTED_ROWS));
         Outline inert = anOutline(true, false);
         assertFalse(AxSetters.offers(inert.grid(), inert.node(1010), AxSetters.SELECTED_ROWS),

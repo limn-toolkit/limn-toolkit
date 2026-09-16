@@ -2745,9 +2745,26 @@ half* (MACOS-NEW-11; semantics 5): `setAccessibilityFocused:` YES posts `FOCUS`;
 and `setAccessibilityExpanded:` (anything else that opens) YES `EXPAND`, NO `COLLAPSE`;
 `setAccessibilityValue:` a string as `SET_TEXT` to a text, a number as `SET_VALUE` and a string as
 `SET_VALUE` of text to a writable value — each posted only where `AccessibleNode#accepts` holds for
-that verb, never waited for. **Settable is the gate's answer for the setter** (read on the guest
+that verb, never waited for. ~~**Settable is the gate's answer for the setter** (read on the guest
 2026-09-13), so each of these is offered exactly where its write would post, AXDisclosing only on a
-row that can open as the native outline's is, and every other `setAccessibility…` selector —
+row that can open as the native outline's is~~ — **measured false on 2026-09-16, and the sentence is
+wrong in both halves.** `AXUIElementIsAttributeSettable` does ask `isAccessibilitySelectorAllowed:`,
+and when the class itself *implements* the setter **AppKit discards the NO and reports settable
+anyway**; the gate's refusal is honoured only for a selector the class does not implement. Proved
+twice: inside Limn every element of the node class — a leaf row, a table row, a static text with no
+actions — answers settable for all five installed setters while the **column** element, whose class
+installs none, answers no to all five; and outside Limn, with four `NSAccessibilityElement`
+subclasses in one window, the subclass that overrides the setters reports settable against a gate
+logged saying NO, and the one that inherits them reports not settable against the same NO. What the
+gate really decides is **delivery**: a refused write returns `AXError(0)` and the setter is never
+entered (0 setter lines in the probe; a leaf's `AXDisclosing=YES` opened nothing, a branch's
+`AXDisclosing=NO` really closed it, 9 rows to 5). So the rule is enforced where it matters and what
+is wrong is what a client is **told before it writes** — a divergence from native AppKit, where a
+leaf row answers `AXDisclosing settable=false` and a row answers `AXFocused AXError(-25205)`. The
+2026-09-13 reading was not wrong about what it saw: every element it read left the setters to
+`NSAccessibilityElement`, which is the one case AppKit honours. Readings:
+`macos-gate-setter-probe-serve.txt`, `macos-axgate-outline.txt`, `macos-axwrite-outline.txt`.
+And every other `setAccessibility…` selector —
 `NSAccessibilityElement`'s stored setters, which a client read as settable on every element, `AXRole`
 included — is refused on every node. The setters are installed only together with the gate. *Corrected
 the same day (the macos-B review; MACOS-NEW-11's last setter):* `setAccessibilitySelectedRows:` is

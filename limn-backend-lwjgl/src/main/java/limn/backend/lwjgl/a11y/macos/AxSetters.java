@@ -10,7 +10,25 @@ import java.util.List;
  * The setter half: which of the toolkit's verbs a reader's write to an attribute means, and on which
  * nodes the attribute is settable at all (MACOS-NEW-11; semantics 5).
  *
- * <p><b>Settable is the gate's answer for the setter.</b> Read on the macOS 26.6.2 guest, 2026-09-13
+ * <p><b>Settable is NOT the gate's answer for the setter, and the write is.</b> Measured on the
+ * guest 2026-09-16, inside Limn and again outside it with four {@code NSAccessibilityElement}
+ * subclasses in one window: {@code AXUIElementIsAttributeSettable} does ask
+ * {@code isAccessibilitySelectorAllowed:}, and when the class itself <em>implements</em> the setter
+ * AppKit <b>discards the NO and reports settable anyway</b>. The gate's refusal is honoured only
+ * for a selector the class does not implement. So every element of this class answers settable for
+ * all five installed setters — a leaf row, a static text with no actions, all of them — while the
+ * column element, whose class installs none, answers no to all five. What the gate DOES decide is
+ * delivery: a refused write returns {@code AXError(0)} and <b>the setter is never entered</b>
+ * (0 setter lines in the probe; a leaf's {@code AXDisclosing=YES} opened nothing, while a branch's
+ * {@code AXDisclosing=NO} really closed it). So the rule below is right and is enforced where it
+ * matters, and what is wrong is what a client is TOLD before it writes — a divergence from native
+ * AppKit, where a leaf row answers {@code AXDisclosing settable=false} and a row answers
+ * {@code AXFocused AXError(-25205)}. Readings: {@code macos-gate-setter-probe-serve.txt},
+ * {@code macos-axgate-outline.txt}, {@code macos-axwrite-outline.txt}.
+ *
+ * <p>The 2026-09-13 reading this paragraph used to cite was not wrong about what it saw: every
+ * element it read left the setters to {@code NSAccessibilityElement}, which is the one case AppKit
+ * honours. Read on the macOS 26.6.2 guest, 2026-09-13
  * ({@code scripts/a11y/macos/selector-allowed-probe.swift}): {@code AXUIElementIsAttributeSettable}
  * asks {@code isAccessibilitySelectorAllowed:} about the <em>setter</em> selector, and with a gate that
  * says yes to it every attribute that has an {@code NSAccessibilityElement} setter reports settable —
