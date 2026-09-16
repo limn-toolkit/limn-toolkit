@@ -12,6 +12,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.lwjgl.system.MemoryUtil;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -192,6 +193,50 @@ class UiaTraceTest {
                         + Thread.currentThread().getName(),
                 advise.replaceFirst("^\\+[0-9.]+ ", ""),
                 "the advise line: " + advise);
+    }
+
+    /**
+     * A property value no file system can be opened for leaves the trace off, says so on standard
+     * error, and — the whole point — throws nothing.
+     *
+     * <p>This routine runs in {@link UiaTrace}'s own initialization, which the first
+     * {@code UiaWindow.say} of a window's subclassing triggers on the user-interface thread.
+     * Anything thrown out of it leaves {@code UiaWindow.attach} with an
+     * {@code ExceptionInInitializerError} and the window never opens: the switch would kill the
+     * application it was turned on to diagnose, on the one run the operator has to spend.
+     *
+     * <p>The three unusable shapes are the ones a command line produces: a character no path may
+     * hold (on Windows {@code < > " | ? *} and, everywhere, {@code NUL} — a stray quote or
+     * wildcard), a directory where a file was meant, and a file under a directory that is not
+     * there. The first is the one that was fatal: {@code InvalidPathException} is an
+     * {@code IllegalArgumentException} and no kind of {@code IOException}.
+     */
+    @Test
+    void anUnusablePathLeavesTheTraceOffAndSaysSoInsteadOfThrowing(@TempDir Path dir)
+            throws IOException {
+        Path missing = dir.resolve("no-such-directory").resolve("uia.log");
+        // In the middle of the name and not at its end, where String.trim() would take it off:
+        // trim removes everything up to and including the space, this character included.
+        String nul = dir + java.io.File.separator + "uia" + (char) 0 + ".log";
+        java.io.PrintStream beforeErr = System.err;
+        java.io.ByteArrayOutputStream said = new java.io.ByteArrayOutputStream();
+        System.setErr(new java.io.PrintStream(said, true, StandardCharsets.UTF_8));
+        try {
+            assertNull(UiaTrace.opened(nul), "a path holding a character no path may hold");
+            assertNull(UiaTrace.opened(dir.toString()), "a directory is not a file to write to");
+            assertNull(UiaTrace.opened(missing.toString()), "no directory to write into");
+            assertNull(UiaTrace.opened(null), "nothing asked for");
+            assertNull(UiaTrace.opened("   "), "nor by an empty -D");
+        } finally {
+            System.setErr(beforeErr);
+        }
+        String printed = said.toString(StandardCharsets.UTF_8);
+        assertEquals(3, printed.lines().count(), "one line per unusable path: " + printed);
+        assertTrue(printed.contains("[uia] cannot write the trace to " + missing),
+                "the line names the path the operator typed: " + printed);
+        assertTrue(printed.contains("InvalidPathException"),
+                "and what was wrong with it: " + printed);
+        assertFalse(Files.exists(missing), "nothing was created for a path that cannot be opened");
     }
 
     /** Everything a client and a scene can make this bridge do, for the silent exercise. */

@@ -5,7 +5,6 @@ import limn.accessibility.AccessibleTree;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
@@ -322,23 +321,40 @@ final class UiaTrace {
         return name == null ? String.valueOf(id) : name + '(' + id + ')';
     }
 
+    /** Opens the file {@link #PROPERTY} names, or answers {@code null}. */
+    private static Consumer<String> openFromProperty() {
+        return opened(System.getProperty(PROPERTY));
+    }
+
     /**
-     * Opens the file the property names, or answers {@code null}.
+     * Opens the file a property value names, or answers {@code null}.
      *
      * <p>Appended to rather than truncated, with a header naming the wall clock it opened at: one
      * path reused by two runs then reads as two runs rather than as one run with its first half
      * missing, and the header is what a reader aligns the monotonic stamps against. A path that
      * cannot be opened leaves the trace off and says so on standard error — the alternative is a
      * live run that believes it is tracing and writes nothing.
+     *
+     * <p><b>It answers {@code null} for every unusable path and throws for none</b>, which is not
+     * belt and braces: this runs in this class's initialization, which the first {@link
+     * UiaWindow#say} of a window's subclassing triggers on the user-interface thread, so anything
+     * thrown here leaves {@code UiaWindow.attach} with an {@code ExceptionInInitializerError} and
+     * the window never opens. {@code Path.of} is the one that surprises — an invalid path is an
+     * {@link java.nio.file.InvalidPathException}, which is an {@code IllegalArgumentException} and
+     * no kind of {@code IOException}, and on Windows {@code < > " | ? *} are all invalid: a stray
+     * quote or wildcard in the guest's command line is enough. A diagnostic switch that can take
+     * the process down is worse than no switch, because the operator has one run to spend.
+     *
+     * @param path what the property said, which may be {@code null}, blank, or unusable
+     * @return the sink, or {@code null} for no trace
      */
-    private static Consumer<String> openFromProperty() {
-        String path = System.getProperty(PROPERTY);
+    static Consumer<String> opened(String path) {
         if (path == null || path.isBlank()) {
             return null;
         }
         try {
             return writingTo(Path.of(path.trim()));
-        } catch (IOException | UncheckedIOException cannot) {
+        } catch (RuntimeException | IOException cannot) {
             System.err.println("[uia] cannot write the trace to " + path + ": " + cannot);
             return null;
         }
