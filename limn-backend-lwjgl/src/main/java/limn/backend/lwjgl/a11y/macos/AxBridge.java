@@ -356,6 +356,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     @Override
     public void detach() {
         close(this);
+        forgetAnnouncedFocusOf(this);
         teardown.clear();
         detaching = true;
         try {
@@ -513,6 +514,102 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         return false;
     }
 
+    // ---- the last effective focus this process announced (semantics 4) -------------------------
+
+    /**
+     * Which bridge announced which node. A node of one window is never a node of another (§1.3), so
+     * the pair is what identifies an announcement; the bridge half is there because a window that
+     * closes and a window that detaches must not leave a stale memory matching a later window's node.
+     */
+    private record Announced(AxBridge bridge, long nodeId) {
+    }
+
+    /**
+     * The last effective focus this <em>process</em> announced, or {@code null} for none.
+     *
+     * <p>Semantics 4, settled across the three bridges on 2026-09-15: one memory for the whole
+     * process, because the platform focus is one. A frame whose focus or cursor event names what was
+     * announced already posts nothing — VoiceOver is told "where the user is changed", and saying it
+     * again of the same node is a move a reader has no reason to re-read. A re-announcement after
+     * the model's {@code INVALIDATED} or after this bridge's own queue collapse goes out whatever it
+     * names, because the sweep may have released the element the reader was standing on. Forgotten
+     * when nothing is focused in any open window, on {@code WINDOW_DEACTIVATED} and when the bridge
+     * that owns it detaches.
+     *
+     * <p><b>What the forgetting buys here, which is not what it buys on Windows.</b> A bare return
+     * to this window posts nothing of ours on this platform: {@code WINDOW_ACTIVATED} maps to no
+     * notification (§2.4's macOS column is AppKit's own {@code MainWindowChanged} and
+     * {@code FocusedWindowChanged}, and {@code AxNotificationsTest.theWindowEventsAreAppKitsOwnAndNotOurs}
+     * pins the null), and a client asks {@code accessibilityFocusedUIElement}, which is answered
+     * live. Windows has no window-activation event of its own — §2.4's Windows cell for this row
+     * <em>is</em> "focus change into the window" — so {@code UiaBridge} raises the focus there and
+     * needs the memory cleared for it to be heard. What the forgetting buys on this bridge is the
+     * next focus event after the return: a node that arrives holding the focus is a
+     * {@code FOCUS_CHANGED} even when it is the node announced before
+     * ({@code Accessibility#diff}, WINDOWS-NEW-12), so a window whose content was rebuilt while the
+     * user was in another application announces where the user is again, rather than being silenced
+     * by a memory made while VoiceOver's cursor was somewhere else entirely.
+     *
+     * <p>Before this the bridge kept no memory and posted once per frame that drained a focus event,
+     * and after every sweep; the lane argued it was not a defect because the post names no element
+     * and the client asks. The settlement is that the three bridges hold one shape, and it is this.
+     */
+    private static final java.util.concurrent.atomic.AtomicReference<Announced> ANNOUNCED =
+            new java.util.concurrent.atomic.AtomicReference<>();
+
+    private static void forgetAnnouncedFocusOf(AxBridge bridge) {
+        Announced last = ANNOUNCED.get();
+        if (last != null && last.bridge() == bridge) ANNOUNCED.set(null);
+    }
+
+    /** @return the memory, for the tests that pin what it holds; {@code null} for none */
+    static long announcedFocusNode() {
+        Announced last = ANNOUNCED.get();
+        return last == null ? 0 : last.nodeId();
+    }
+
+    /**
+     * Where this bridge would say the user is right now: the same resolution
+     * {@link #focusedElement()} makes, as a pair rather than as an element, so that asking it costs
+     * no mint.
+     *
+     * @return the owning bridge and node, or {@code null} when there is nowhere to send a reader
+     */
+    private Announced effectiveFocusNow() {
+        AccessibleTree tree = tree();
+        long effective = tree.effectiveFocus();
+        if (effective != 0) {
+            if (tree.indexOf(effective) >= 0) return new Announced(this, effective);
+            AxBridge holder = openBridgeHolding(effective);
+            return holder == null ? null : new Announced(holder, effective);
+        }
+        long cursor = cursorFromAnotherWindow();
+        return cursor == 0 ? null : new Announced(this, cursor);
+    }
+
+    /**
+     * Says where the user is, unless the process has already said exactly that.
+     *
+     * @param reannouncement whether a sweep is asking, which posts whatever it names
+     * @return whether a notification went out
+     */
+    private boolean announceFocus(boolean reannouncement) {
+        Announced now = effectiveFocusNow();
+        Consumer<String> to = trace;
+        if (now == null) {
+            ANNOUNCED.set(null);
+            if (to != null) to.accept("no focus to announce");
+            return false;
+        }
+        if (!reannouncement && now.equals(ANNOUNCED.get())) {
+            if (to != null) to.accept("focus on node " + now.nodeId() + " already announced");
+            return false;
+        }
+        ANNOUNCED.set(now);
+        post(applicationElement(), FOCUS_POSTING);
+        return true;
+    }
+
     /** @return another open bridge whose published tree holds the node, or {@code null} */
     private AxBridge openBridgeHolding(long nodeId) {
         for (AxBridge other : openBridges) {
@@ -601,21 +698,58 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         return elements.elementFor(tree().node(parent).id());
     }
 
+    /**
+     * {@code accessibilityLinkedUIElements}: what every relation of this node names.
+     *
+     * <p><b>A target in another window is answered through that window's bridge</b> (CRIT-2;
+     * §1.11's 2026-09-14 amendment, whose per-platform half is this). Identifiers are process-wide
+     * (§1.3), so a native popup's {@code POPUP_FOR} and the opener's mirror {@code CONTROLLER_FOR}
+     * name nodes across windows; an element belongs to the window whose tree it stands for, exactly
+     * as a cursor's does in {@link #focusedElement()}, so it is minted in that bridge's registry and
+     * not in ours. Until this it was skipped, and the opener named nothing at all.
+     */
     @Override
     public long[] linkedElementsOf(AccessibleNode node) {
         AccessibleTree tree = tree();
         List<Long> linked = new ArrayList<>();
         for (var relation : node.relations()) {
-            int index = tree.indexOf(relation.target());
-            // The window root is not vended (§2.2), so a relation resolving to it has no element
+            long target = relation.target();
+            int index = tree.indexOf(target);
+            // Our own window root is not vended (§2.2), so a relation resolving to it has no element
             // of ours to name; §1.11 drops that case before it reaches a bridge, and this is the
-            // same rule applied to a target that left the tree between publish and ask.
-            if (index <= 0) continue;
-            linked.add(elements.elementFor(relation.target()));
+            // same rule applied here.
+            if (index == 0) continue;
+            if (index > 0) {
+                linked.add(elements.elementFor(target));
+                continue;
+            }
+            // Not in this tree: another open window's, or a target that left between publish and ask.
+            AxBridge holder = openBridgeHolding(target);
+            if (holder == null) continue;
+            long element = holder.elementForForeignRelation(target);
+            if (element != 0) linked.add(element);
         }
         long[] answer = new long[linked.size()];
         for (int i = 0; i < answer.length; i++) answer[i] = linked.get(i);
         return answer;
+    }
+
+    /**
+     * The element this bridge answers for a node of its tree that another window's relation names.
+     *
+     * <p>The root is the case §1.11 wrote the rule for: a native popup's root <em>is</em> that
+     * window's root, and the opener's {@code CONTROLLER_FOR} names it — so the answer is "the object
+     * AppKit already vends for that window, which is the same object the elision defers to and is
+     * reachable from the content view the bridge holds", the content view's {@code -window}. Every
+     * other node is an ordinary element of this registry.
+     *
+     * @param nodeId a node of this bridge's published tree
+     * @return its element, or {@code 0} when the node has left the tree or the view is in no window
+     */
+    private long elementForForeignRelation(long nodeId) {
+        int index = tree().indexOf(nodeId);
+        if (index < 0) return 0;
+        return index == 0 ? windowElement() : elements.elementFor(nodeId);
     }
 
     // ---- the publish path ------------------------------------------------------------------------
@@ -729,7 +863,12 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * one; and after a sweep — the queue's collapse or the model's {@code INVALIDATED} — it is posted
      * whether or not an event said so, because the sweep may have released the element a reader
      * stood on and nothing else would send it back (semantics 4). Last, so that a reader told of a
-     * selection or an expansion in the same frame lands on the cursor after hearing it.
+     * selection or an expansion in the same frame lands on the cursor after hearing it — which is
+     * the collapse tail's order too, structure first and focus after.
+     *
+     * <p>And it goes out only when it says something new: {@link #ANNOUNCED} is the process's memory
+     * of the last effective focus announced, and a frame whose focus event names it again posts
+     * nothing. A sweep's re-announcement ignores the memory, for the reason above.
      */
     private boolean drain() {
         // Timed, because §13.19's macOS half is "what does one frame's drain cost with a reader
@@ -752,6 +891,14 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             if (event.type() == AccessibleEvent.Type.INVALIDATED) swept = true;
             if (event.type() == AccessibleEvent.Type.NODE_DESTROYED) {
                 noteDestroyed(event.nodeId());
+                continue;
+            }
+            if (event.type() == AccessibleEvent.Type.WINDOW_DEACTIVATED) {
+                // Nothing is posted — AppKit speaks for the window it vends (§2.2) — and what
+                // changes is the memory: the focus has gone elsewhere, and the next focus event
+                // here is announced even when it names what was announced before it went. The
+                // window coming back posts nothing by itself on this platform; see ANNOUNCED.
+                ANNOUNCED.set(null);
                 continue;
             }
             AxNotifications.Posting posting = AxNotifications.of(event);
@@ -816,14 +963,11 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             // The pushed array may name elements that were just released, and comparing it against
             // a fresh list would then hand AppKit a freed pointer. Forgetting it forces a re-push.
             pushed = new long[0];
-            if (tree().effectiveFocus() != 0 || cursorFromAnotherWindow() != 0) {
-                focusOwed = true;
-            }
+            // Whatever it names, and whether or not an event said so (semantics 4): the sweep may
+            // have released the element the reader stood on.
+            focusOwed = true;
         }
-        if (focusOwed) {
-            post(applicationElement(), FOCUS_POSTING);
-            postedNow++;
-        }
+        if (focusOwed && announceFocus(swept)) postedNow++;
         lastDrainNanos = System.nanoTime() - started;
         lastDrainDrained = drained.size();
         lastDrainPosted = postedNow;
@@ -874,9 +1018,15 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * flipping — a lazy load landing under a row already open, a refresh, a model adding roots — and a
      * list's and a table's with no expansion at all; a native outline posted {@code AXRowCountChanged}
      * on itself when its rows changed (read on the macOS 26.6.2 guest, 2026-09-15,
-     * {@code scripts/a11y/macos/outline-probe.swift}, for a disclosure, the one trigger read). The count
-     * is the model's, not the realized rows': a scroll changes which rows are realized and not how many
-     * the widget has.
+     * {@code scripts/a11y/macos/outline-probe.swift}, for a disclosure).
+     *
+     * <p><b>The triggers that are not a disclosure are read too</b>, which the phase-3 critic listed as
+     * inferred: a native {@code NSTableView} whose data source gained a row and then lost two, each
+     * followed by {@code reloadData()} and with no row expanding or collapsing anywhere, delivered
+     * {@code AXRowCountChanged} on the table and on the application both times (2026-09-15,
+     * {@code scripts/a11y/macos/list-probe.swift}). So a lazy load, a refresh and a model adding roots
+     * are that same trigger. The count is the model's, not the realized rows': a scroll changes which
+     * rows are realized and not how many the widget has.
      */
     private void noteRowCountChanges(AccessibleTree before, AccessibleTree now) {
         if (before.nodeCount() == 0 || now.nodeCount() == 0) return;
@@ -992,13 +1142,22 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * content view's {@code -window} ({@code @16@0:8}, read on the guest with the other Foundation and
      * AppKit messages, 2026-09-15). Zero when the view is in no window.
      */
-    private long windowElement() {
+    long windowElement() {
         // Off AppKit, a number that stands for it, as the application element's does.
-        if (objc == null) return SYNTHETIC_WINDOW;
+        if (objc == null) return syntheticWindow;
         return ObjC.msg(contentView, "window");
     }
 
-    private static final long SYNTHETIC_WINDOW = 0x2;
+    /**
+     * Off AppKit, one number per bridge stands for its window, so that two windows of one process are
+     * told apart where a real one would be: a relation naming another window's elided root is answered
+     * with that window's object, and a test of it that could not distinguish the two windows would
+     * pass on the wrong one. A test sentinel, not a platform constant.
+     */
+    private final long syntheticWindow = SYNTHETIC_WINDOWS.getAndAdd(0x10);
+
+    private static final java.util.concurrent.atomic.AtomicLong SYNTHETIC_WINDOWS =
+            new java.util.concurrent.atomic.AtomicLong(0x2);
 
     /** The one application-level notification: the focused element changed. */
     private static final AxNotifications.Posting FOCUS_POSTING =

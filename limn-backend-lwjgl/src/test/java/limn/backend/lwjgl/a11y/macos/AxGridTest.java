@@ -183,13 +183,91 @@ class AxGridTest {
 
     @Test
     void aDataCellsColumnHeaderIsTheHeaderGroupsChildAtItsColumnAndOtherRowsHaveNone() {
+        // Restated 2026-09-15 (semantics 3, settled after phase 3): a footer cell is answered its
+        // column's header, where this bridge answered it for data cells alone. A footer cell is in a
+        // column — it is the summary that column pins under its rows — and a reader that asks which
+        // column it is in was told nothing. A header cell still answers none: it would answer itself.
         Fixture f = over(aTable());
         assertArrayEquals(f.elements(1004), f.grid().columnHeaderElements(f.node(1022)));
         assertArrayEquals(f.elements(1003), f.grid().columnHeaderElements(f.node(1031)),
                 "a row that is not showing is still in the grid");
         assertNull(f.grid().columnHeaderElements(f.node(1004)), "a header cell (row -1) has none");
-        assertNull(f.grid().columnHeaderElements(f.node(1041)), "a footer cell (row -2) has none");
+        assertArrayEquals(f.elements(1003), f.grid().columnHeaderElements(f.node(1041)),
+                "the footer cell in column 0 is told column 0's header");
         assertNull(f.grid().columnHeaderElements(f.node(1020)), "a row is not a cell");
+    }
+
+    /**
+     * Semantics 3, settled after phase 3: the table-level header list is the union over every direct
+     * group child that carries a header cell, not the first such group alone — the shape a table
+     * takes when it splits frozen columns from scrolling ones. Windows' GetColumnHeaders was already
+     * the union; this bridge read one group.
+     */
+    @Test
+    void aTablesColumnHeadersAreTheUnionOverEveryGroupThatHoldsOne() {
+        Shape s = new Shape();
+        Accessibility a = s.a;
+        int table = s.open(1001, 0, Accessible.Role.TABLE, true);
+        a.table(1, 3);
+        int frozen = s.open(1002, table, Accessible.Role.GROUP, true);
+        s.open(1003, frozen, Accessible.Role.COLUMN_HEADER, true);
+        a.cell(-1, 0);
+        a.end();
+        a.end();
+        int scrolling = s.open(1006, table, Accessible.Role.GROUP, true);
+        for (int c : new int[] {1, 2}) {
+            s.open(1006 + c, scrolling, Accessible.Role.COLUMN_HEADER, true);
+            a.cell(-1, c);
+            a.end();
+        }
+        a.end();
+        int row = s.open(1010, table, Accessible.Role.ROW, true);
+        for (int c = 0; c < 3; c++) {
+            s.open(1011 + c, row, Accessible.Role.CELL, true);
+            a.cell(0, c);
+            a.end();
+        }
+        a.end();
+        a.end();
+        Fixture f = over(s.publish());
+        assertArrayEquals(f.elements(1003, 1007, 1008), f.grid().columnHeaderElements(f.node(1001)),
+                "every group's header cells, in the order the groups stand in");
+        assertEquals(f.element(1002), f.grid().header(f.node(1001)),
+                "accessibilityHeader still names one group, the first that holds a header cell");
+        assertArrayEquals(f.elements(1008), f.grid().columnHeaderElements(f.node(1013)),
+                "and a cell's own header is matched by column across the groups, as it already was");
+    }
+
+    /**
+     * Semantics 2, settled after phase 3: a row's index is read off a cell whose nearest table is the
+     * table the row is a row of. A row that carries a table facet of its own makes its children that
+     * nested table's cells, and their row numbers say nothing about where this row stands in the
+     * outer one — which is the rule {@code cellAt} already applied and {@code index} did not.
+     */
+    @Test
+    void aRowWhoseCellsBelongToANestedTableHasNoIndexOfItsOwn() {
+        Shape s = new Shape();
+        Accessibility a = s.a;
+        int table = s.open(1001, 0, Accessible.Role.TABLE, true);
+        a.table(2, 1);
+        int nested = s.open(1010, table, Accessible.Role.ROW, true);
+        a.table(9, 1);                     // the row is a table in its own right
+        s.open(1011, nested, Accessible.Role.CELL, true);
+        a.cell(7, 0);                      // row 7 OF THE NESTED TABLE, not of the outer one
+        a.end();
+        a.end();
+        int plain = s.open(1020, table, Accessible.Role.ROW, true);
+        s.open(1021, plain, Accessible.Role.CELL, true);
+        a.cell(1, 0);
+        a.end();
+        a.end();
+        a.end();
+        Fixture f = over(s.publish());
+        assertEquals(AxGrid.NOT_FOUND[0], f.grid().index(f.node(1010)),
+                "the nested table's row 7 is not this row's place in the table above it");
+        assertEquals(1, f.grid().index(f.node(1020)), "and an ordinary row is numbered as before");
+        assertEquals(0, f.grid().cellAt(f.node(1001), 0, 7),
+                "cellAt read the same rule already: the outer table has no row 7");
     }
 
     @Test
@@ -221,7 +299,12 @@ class AxGridTest {
         assertArrayEquals(AxGrid.NOT_FOUND, f.grid().columnIndexRange(f.node(1041)));
         assertArrayEquals(AxGrid.NOT_FOUND, f.grid().rowIndexRange(f.node(1050)));
         assertArrayEquals(AxGrid.NOT_FOUND, f.grid().columnIndexRange(f.node(1050)));
+        // NSNotFound is NSIntegerMax, which on a 64-bit NSInteger is Long.MAX_VALUE: read from the
+        // running Foundation on the macOS 26.6.2 guest on 2026-09-15 (list-probe.swift), and read
+        // back through the AX API from an NSAccessibilityElement that answers it for AXIndex.
         assertEquals(Long.MAX_VALUE, AxGrid.NOT_FOUND[0], "NSNotFound");
+        assertEquals("0x7fffffffffffffff", "0x" + Long.toHexString(AxGrid.NOT_FOUND[0]),
+                "the number an out-of-process client read for such an element's AXIndex");
     }
 
     @Test

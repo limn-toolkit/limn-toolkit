@@ -2104,6 +2104,25 @@ The cross-window half is pinned by
 pinned the compaction. The live half — a client reading `ControllerFor` on the opener and reaching
 the popup's element — is phase 5's.
 
+**Amendment, 2026-09-15 (CRIT-2, the macOS half): the bridge answers a foreign target, and what it
+answers for an elided root is the window.** Phase 3 built the model half above and the Linux half,
+and left `AxBridge#linkedElementsOf` skipping any target its own tree does not hold — so a date
+field's `CONTROLLER_FOR` on the calendar window it had opened came back as an empty
+`AXLinkedUIElements`, and the popup was nameable from nowhere. It now routes the target the way
+`focusedElement()` routes a cursor: through the process's set of open bridges, to the one whose
+published tree holds it, minting there, because an element belongs to the window whose tree it
+stands for. Where the target is that window's **root**, which §2.2 elides, the answer is the object
+AppKit vends for that window — the content view's `-window`, whose `@16@0:8` was read with the other
+messages on the macOS 26.6.2 guest — which is the paragraph above applied rather than bent. A target
+no open window holds is still dropped. Pinned by
+`AxBridgeTest.aRelationTargetAnotherWindowHoldsIsAnsweredThroughThatWindowsBridge`.
+
+**What this does not buy on macOS, and why.** The mirror direction stays unreachable here: the
+popup's root carries `POPUP_FOR` on the opener, and that root is exactly the node AppKit's own window
+object stands for, so there is no element of ours for a client to ask it on. A reader walks the link
+from the opener outwards only. Nothing is lost that this platform ever had, and §13.27's probe is
+still what would decide whether AppKit can be made to carry the other direction.
+
 ### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
 
 ```
@@ -3626,6 +3645,46 @@ returns: neither is an accessibility callback, so no pool of AppKit's is on the 
 `-XstartOnFirstThread` main thread what they autoreleased was never freed — an announcement's objects
 were still alive 120 polled frames later, about five blocks a frame, and none with the pool (read on the
 macOS 26.6.2 guest, 25G83, 2026-09-15, `scripts/a11y/macos/AutoreleaseProbe.java`; the macos-C review).
+
+**Amendment, 2026-09-15 (semantics 4, one shape on all three bridges): the macOS bridge keeps the
+memory too.** Phase 3 left three readings of "each bridge remembers the last effective focus it
+announced": Windows one memory per process, Linux one per window sending only differences, and macOS
+none at all — it posted one `FocusedUIElementChanged` per frame that drained a focus or cursor event,
+and again after every sweep. The lane argued that as not a defect, because the post names no element
+and the client asks `accessibilityFocusedUIElement`, which is answered live. The orchestrator settled
+one shape instead, and this bridge now holds it: **one memory for the whole process**, because the
+platform focus is one; a focus or cursor event resolving to the node already announced posts nothing;
+the model's `INVALIDATED` and the bridge's own queue collapse re-announce whatever they name, because
+the sweep may have released the element the reader stood on; and the memory is forgotten when nothing
+is focused in any open window, on `WINDOW_DEACTIVATED` (which still posts nothing of ours) and when
+the bridge that owns it detaches, so that a return is announced however little moved while away.
+
+Two consequences worth stating. The answer is resolved exactly as `focusedElement()` resolves it, so
+a cursor that lives in another window's tree is remembered as **that** window's node and a second
+window asking about the same cursor does not announce it twice. And a focus event over a tree that
+stamps no focus now posts nothing, where before it posted: there is nowhere to send a reader, and
+Windows' `raiseFocus` has always behaved this way. Pinned by
+`AxFocusTest.anEffectiveFocusAlreadyAnnouncedIsNotAnnouncedAgainUntilASweepAsksForIt` and
+`aDeactivatedWindowAndAnEmptyFocusBothForgetWhatWasAnnounced`. The tail's order is unchanged and is
+semantics 7's: structure first, focus last in the frame.
+
+**Amended again 2026-09-15 (the fix round's review of the amendment above): what the forgetting buys
+on this platform.** The clause *"so that a return is announced however little moved while away"* is
+withdrawn for macOS: it is Windows' sentence, and it is true there because §2.4's Windows cell for
+`WINDOW_ACTIVATED`/`WINDOW_DEACTIVATED` **is** the focus change — UI Automation has no window
+activation event of its own, so `UiaBridge` raises the focus on the return and the cleared memory is
+what lets that raise be heard. This bridge posts nothing for either event and is right not to: the
+macOS cell is AppKit's own `MainWindowChanged` and `FocusedWindowChanged`, the null mapping is
+deliberate and pinned (`AxNotificationsTest.theWindowEventsAreAppKitsOwnAndNotOurs`), and a client
+that wants to know where the user now is asks `accessibilityFocusedUIElement`, which is answered
+live. So a bare return — activation back, nothing moved — announces nothing here, and adding a post
+for it would be inventing a notification no reading asked for. What the forgetting does buy is the
+**next focus event** after the return: a node that arrives holding the focus is a `FOCUS_CHANGED`
+even when it is the node announced before (this section's 2026-09-14 amendment, WINDOWS-NEW-12), so a window whose
+content was rebuilt while the user was in another application says where the user is again instead
+of being silenced by a memory made while VoiceOver's cursor was in another process entirely. The
+test now pins both halves: the activation posts nothing and leaves the memory empty, and the focus
+event after it is announced though it names what was announced before.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
@@ -5712,6 +5771,30 @@ was written — so that entry could not have gone red for the defect it guards. 
 also name **both servers** it read, and, where the disagreement is over a name rather than a value,
 the name it did **not** answer with. What a test cannot check is whether a reason is a good one; the
 javadoc says so in as many words, so nobody reads a green run as a claim about the reasoning.)*
+
+#### Amendment 2026-09-15 (the fix round) — the three macOS facts that were still without a reading
+
+The phase-3 critic's completeness pass listed three things this bridge uses that no reading named.
+Two of them turned out to be read already; one was not, and now is. The dump was **not** regenerated
+again: nothing in the fix round adds an AppKit symbol or a selector, and `AxConstantsTest` stays
+green against the 2026-09-15 dump.
+
+- **`NSNotFound` as `AXIndex`** (`AxGrid.NOT_FOUND`, `Long.MAX_VALUE`) had no reading, and it is not
+  an exported symbol for `dlsym` to find — it is `NSIntegerMax`, the constants rule's narrow case
+  again. It is read instead through the platform's own behaviour, which is stronger:
+  `scripts/a11y/macos/list-probe.swift` prints `NSNotFound` from the running Foundation
+  (`9223372036854775807`, `0x7fffffffffffffff`, equal to `NSIntegerMax` on a 64-bit `NSInteger`) and
+  hangs an `NSAccessibilityElement` answering `NSNotFound` for `accessibilityIndex` off a plain
+  view's children — how this bridge vends every element — which an out-of-process client reads back
+  as `AXIndex=9223372036854775807`, `objCType=q`. `readings/macos-list-probe.txt`.
+- **`-[NSObject isKindOfClass:]` `B24@0:8#16` and `-[NSNumber stringValue]` `@16@0:8`** were read on
+  the guest on 2026-09-15 with the other Foundation messages and are cited in `AxElementClass#isKindOf`'s
+  javadoc; the critic's list was out of date. Re-read at the fix round's HEAD and byte-identical:
+  `readings/macos-foundation-messages-probe-3.txt`. Not a defect.
+- The same run settled the two macOS entries the critic filed as **choices between readings**: a
+  native list's selection notification and `AXRowCountChanged` on a trigger that is not a
+  disclosure. Both are now read on a native `NSTableView` rather than inferred from the outline;
+  §2.2's macOS column and `AxNotifications` cite them.
 
 ---
 

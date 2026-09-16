@@ -638,6 +638,23 @@ changes anything for today's `Table`, which nests no table in a cell; both are p
 `UiaPatternProvidersTest.aNestedTablesOwnCellBelongsToTheTableAboveItAndNotToItself` and
 `aCellsHeaderItemsAreNoneForTheRowAndTheHeaderOfItsColumnAndNoneForAHeader`.
 
+**Amended 2026-09-15 (semantics 2 and 3, the three splits closed after phase 3).** The paragraph
+above describes the macOS lookups as phase 3 built them, and the three bridges read three of their
+corners differently; the orchestrator settled one reading and this bridge now holds it. A **row's
+`AXIndex`** is its cells' row only where that cell's nearest table is the table the row is a row of,
+so a row that carries a table facet of its own — a nested table — has no index rather than its
+nested cells' row numbers (`cellAt` already applied that rule, and `index` did not). A **table's
+`accessibilityColumnHeaderUIElements`** is the union over every direct group child that carries a
+`CellFacet(-1, c)`, not the first such group alone; `accessibilityHeader` still names one group, the
+first, since AppKit asks there for one element. And a **cell's own column header** is answered for
+data cells and footer cells and never for a header cell, which would answer itself; a footer cell —
+the summary a column pins under its rows — was told nothing about its column here. None of the three
+changes what today's `Table` publishes, which is one header group, no nested tables, and a footer
+whose cells now say which column they summarise. Pinned by `AxGridTest`'s
+`aRowWhoseCellsBelongToANestedTableHasNoIndexOfItsOwn`,
+`aTablesColumnHeadersAreTheUnionOverEveryGroupThatHoldsOne` and the restated
+`aDataCellsColumnHeaderIsTheHeaderGroupsChildAtItsColumnAndOtherRowsHaveNone`.
+
 ### 7.1 What the live clients found
 
 Two defects, both invisible to the headless tests because both are about what the platform's

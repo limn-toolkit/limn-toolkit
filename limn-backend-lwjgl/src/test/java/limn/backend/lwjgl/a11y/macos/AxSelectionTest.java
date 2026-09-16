@@ -205,6 +205,47 @@ class AxSelectionTest {
                         + "selected or its active flip; the tab whose strip said nothing is still told");
     }
 
+    /**
+     * A LIST is a table of rows here, so its selection is posted as {@code AXSelectedRowsChanged}.
+     * That was inferred from the outline reading until 2026-09-15 and is now read on a native
+     * {@code NSTableView} used as a list ({@code scripts/a11y/macos/list-probe.swift},
+     * `readings/macos-list-probe.txt`): writing {@code AXSelected} on one of its rows delivered
+     * {@code AXSelectedRowsChanged} to an observer on the table and to one on the application, and
+     * that view vends no {@code AXSelectedChildren} at all.
+     */
+    @Test
+    void aListsSelectionIsPostedAsTheRowsNotificationAsANativeListPostsIt() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("w"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        int list = open(a, 1001, 0, Accessible.Role.LIST);
+        a.selection(false, false);
+        for (int i = 0; i < 2; i++) {
+            open(a, 1002 + i, list, Accessible.Role.LIST_ITEM);
+            a.selectionItem(i == 0, i + 1, 2);
+            a.end();
+        }
+        a.end();
+        a.end();
+        AccessibleTree tree = a.publish(0, 0, 0, 1f, true);
+
+        AxBridge bridge = PlatformFreeBridges.make();
+        List<String> trace = new ArrayList<>();
+        bridge.trace(trace::add);
+        bridge.publish(tree, false);
+        assertEquals(AxGrid.SelectionShape.ROWS, new AxGrid(bridge).selectionShape(tree.find(1001)),
+                "a list holding a selection answers its rows, as an outline does");
+        bridge.emit(AccessibleEvent.selection(1001, false, new long[] {1003}, new long[] {1002}));
+        bridge.frameEnded();
+        assertEquals(List.of("NSAccessibilitySelectedRowsChangedNotification"),
+                trace.stream().filter(line -> line.startsWith("posted "))
+                        .map(line -> line.substring("posted ".length())).toList(),
+                "and is told of a change the way the native list is: the rows notification, not children");
+    }
+
     @Test
     void theSelectionNotificationsAreNamedForTheConstantsTest() {
         assertTrue(AxNotifications.symbols().contains("NSAccessibilitySelectedRowsChangedNotification"));
