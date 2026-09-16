@@ -1398,12 +1398,18 @@ final class AtspiTree {
      * The realized selected members of a container, in reading order: every node the publish
      * resolved to this container ({@link AccessibleNode#selectionContainer}) whose selection item
      * is selected. Members follow their container in a snapshot, so the scan starts there.
+     *
+     * <p>A container the snapshot does not hold has no members: {@code NONE} is also what an
+     * unresolved container reads as, so the scan must not start from it.
      */
     private static List<AccessibleNode> selectedMembersOf(AccessibleTree tree,
                                                           AccessibleNode container) {
         List<AccessibleNode> out = new ArrayList<>();
         int from = tree.indexOf(container.id());
-        for (int i = Math.max(0, from + 1); i < tree.nodeCount(); i++) {
+        if (from == AccessibleNode.NONE) {
+            return out;
+        }
+        for (int i = from + 1; i < tree.nodeCount(); i++) {
             AccessibleNode candidate = tree.node(i);
             if (candidate.selectionContainer() == from && candidate.selectionItem() != null
                     && candidate.selectionItem().selected()) {
@@ -1423,7 +1429,9 @@ final class AtspiTree {
      * realized has no node, so {@code GetAccessibleAt} on it answers the null object, which is the
      * degradation ADR 039 §4.1 already accepts for a client that walks a long list. A cell is found
      * by its {@code CellFacet} and a row by its cells' — never by a row's position in a selection,
-     * which a calendar's week rows do not carry (LINUX-NEW-10) — column headers by
+     * which a calendar's week rows do not carry (LINUX-NEW-10). Which rows are <em>selected</em> is
+     * a different question and is answered by the selection container rule (semantics 1), never by
+     * looking for direct {@code ROW} children carrying {@code SELECTED}; column headers by
      * {@code CellFacet(-1, c)} among the table's direct group children, which a footer's row −2
      * never matches (LINUX-NEW-11), and row headers are none.
      */
@@ -1470,12 +1478,15 @@ final class AtspiTree {
                 return DBus.Msg.ret(m, "ai", new ArrayList<>());
             case "IsRowSelected": {
                 AccessibleNode row = rowAt(tree, node, arg(m, 0));
-                return DBus.Msg.ret(m, "b", row != null && row.has(Accessible.State.SELECTED));
+                return DBus.Msg.ret(m, "b", row != null && isSelectedMemberOf(tree, row, node));
             }
             case "IsSelected": {
+                // The row half asks the container rule, like GetSelectedRows; the cell half reads
+                // the cell's own bit, because the cell was located by semantics 2 -- its nearest
+                // table is this one -- and SELECTED is published from no facet but its own.
                 AccessibleNode row = rowAt(tree, node, arg(m, 0));
                 AccessibleNode cell = cellAt(tree, node, arg(m, 0), arg(m, 1));
-                return DBus.Msg.ret(m, "b", row != null && row.has(Accessible.State.SELECTED)
+                return DBus.Msg.ret(m, "b", row != null && isSelectedMemberOf(tree, row, node)
                         || cell != null && cell.has(Accessible.State.SELECTED));
             }
             case "IsColumnSelected":
@@ -1499,7 +1510,7 @@ final class AtspiTree {
                 // Six out arguments, not one struct: libatspi reads "biiiib" and refuses a reply
                 // whose signature is "(biiiib)", as it refused GetRowColumnSpan on the Fedora guest.
                 return DBus.Msg.ret(m, "biiiib", valid, row, column, 1, 1,
-                        rowNode != null && rowNode.has(Accessible.State.SELECTED)
+                        rowNode != null && isSelectedMemberOf(tree, rowNode, node)
                                 || cell != null && cell.has(Accessible.State.SELECTED));
             }
             default:
@@ -1626,7 +1637,20 @@ final class AtspiTree {
         return -1;
     }
 
-    /** The realized row shown at {@code row}, found by its cells; null when unrealized. */
+    /**
+     * The realized row shown at {@code row}, found by its cells: a {@code ROW} child of the table,
+     * or — when the table's rows are not its children — the row standing at that index among the
+     * members the publish resolved to this table (semantics 1). Null when the walk has realized no
+     * such row.
+     *
+     * <p>The second half is what lets a selection write name a row a widget hangs under a body of
+     * its own, so that {@code AddRowSelection} reaches the row {@code IsRowSelected} reports. It is
+     * the selection's own members and nothing wider, because {@link
+     * AccessibleNode#selectionContainer} is the one fact a snapshot carries about where a member
+     * hangs: a bridge cannot re-walk the climb, since a node does not say it is synthetic. A cell
+     * lookup has no such fallback — a cell carries no container of its own — and stays semantics
+     * 2's scan of the table's row children.
+     */
     private static AccessibleNode rowAt(AccessibleTree tree, AccessibleNode table, int row) {
         if (row < 0) {
             return null;
@@ -1634,6 +1658,14 @@ final class AtspiTree {
         for (AccessibleNode child : tree.children(table)) {
             if (child.role() == Accessible.Role.ROW && rowIndexOf(tree, table, child) == row) {
                 return child;
+            }
+        }
+        int from = tree.indexOf(table.id());
+        for (int i = from + 1; from != AccessibleNode.NONE && i < tree.nodeCount(); i++) {
+            AccessibleNode member = tree.node(i);
+            if (member.selectionContainer() == from && member.role() == Accessible.Role.ROW
+                    && rowIndexOf(tree, table, member) == row) {
+                return member;
             }
         }
         return null;
@@ -1663,11 +1695,28 @@ final class AtspiTree {
         return null;
     }
 
+    /**
+     * The selected rows of a table (semantics 1, the orchestrator's 2026-09-16 ratification): the
+     * members the publish resolved to this table that are selected and stand at a row of it,
+     * wherever they hang.
+     *
+     * <p>Not its direct {@code ROW} children carrying {@code SELECTED}, which was wrong twice over.
+     * A row a widget hangs under a body of its own is still this table's member — the climb passes
+     * through a synthetic ancestor carrying no {@code SelectionFacet} — and a scan of the table's
+     * own children never sees it; and a {@code ROW} whose {@code SELECTED} came from a nearer
+     * container is no row of <em>this</em> table's selection. Everything else on the bus already
+     * reads the rule ({@code NSelectedChildren}, {@code GetSelectedChild}, {@code IsChildSelected}),
+     * and these three were the last readers of the bit.
+     *
+     * <p>A selected member standing at no row of this table — a calendar's day cell, whose
+     * container is the grid (LINUX-NEW-10) — is no selected row: it has no row index to be
+     * reported at, and its week row is not selected.
+     */
     private static List<AccessibleNode> selectedRowsOf(AccessibleTree tree, AccessibleNode table) {
         List<AccessibleNode> out = new ArrayList<>();
-        for (AccessibleNode child : tree.children(table)) {
-            if (child.role() == Accessible.Role.ROW && child.has(Accessible.State.SELECTED)) {
-                out.add(child);
+        for (AccessibleNode member : selectedMembersOf(tree, table)) {
+            if (member.role() == Accessible.Role.ROW && rowIndexOf(tree, table, member) >= 0) {
+                out.add(member);
             }
         }
         return out;
