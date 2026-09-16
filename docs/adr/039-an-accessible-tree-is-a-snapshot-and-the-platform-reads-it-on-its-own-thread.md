@@ -2662,7 +2662,27 @@ of rows; `accessibilitySelectedCells` for a grid whose members are cells, a cale
 `accessibilitySelectedChildren` for anything else holding one, a tab strip — each answered from the
 selected members whose selection container it is, wherever they hang, and each refused where it is
 not the container's shape, as the native outline answers `AXSelectedRows` and no
-`AXSelectedChildren`. *Recorded the same day (the macos-B review):* the native outline also answered
+`AXSelectedChildren`. **Corrected 2026-09-16 (fix round 3b; the phase-3 critic's semantics-1
+minor):** `accessibilitySelectedRows` did not read that rule — it answered the container's direct
+`ROW` children carrying `SELECTED`, which names the same elements for every container Limn ships and
+parts from the rule at the first whose rows hang under a synthetic body. It now walks the members
+`accessibilitySelectedChildren` walks, narrowed to the members that are rows, so a calendar's
+selected day stays under `AXSelectedCells` and a row that declares it belongs to no container
+(`containerlessSelectionItem`) is none of the table's selected rows; the `setAccessibilitySelectedRows:`
+write path reads the same set, so a client can write back what it read. `accessibilityRows` and
+`accessibilityVisibleRows` still answer a table's `ROW` children by structure (ADR 041 §7): "through
+synthetic ancestors" is a fact the model resolves once at publish and carries on a selection member
+and nowhere else, so no bridge can apply it to a row that is a member of nothing. **That leaves the
+two row listings able to disagree, and the correction does not close it:** for every container Limn
+ships the selected rows are a subset of the rows, and in the synthetic-body shape they are not —
+`accessibilitySelectedRows` names a row `accessibilityRows` does not, which is incoherent for a
+client. Closing it needs a policy for `accessibilityRows` that no decision, ADR or reading settles
+(which nodes a table's row listing descends through) or a model that carries syntheticness or a row
+list into the snapshot; both are cross-bridge, Linux's `GetSelectedRows` half having the same shape,
+and both are the orchestrator's. Open, named at `AxGrid#selectedRows` and asserted in
+`AxGridTest.aTablesSelectedRowsAreTheMembersOfItsSelectionWhereverTheyHangUnderIt`, which pins
+`AXSelectedRows` naming a row `AXRows` answers nothing for; nothing Limn ships is in that shape today. *Recorded the same
+day (the macos-B review):* the native outline also answered
 `AXSelectedCells` — the `AXCell` its selected row holds — and an outline or a list here deliberately
 does not: a Limn row holds no cell element, its children being the application's own widgets, so the
 answer would repeat the rows under a cell's attribute or name an arbitrary widget, and the native
@@ -5930,6 +5950,31 @@ green against the 2026-09-15 dump.
   native list's selection notification and `AXRowCountChanged` on a trigger that is not a
   disclosure. Both are now read on a native `NSTableView` rather than inferred from the outline;
   §2.2's macOS column and `AxNotifications` cite them.
+
+#### Amendment 2026-09-16 (fix round 3b) — the fourth macOS fact without a filed reading, and a citation ratchet for the prose
+
+The fix-round critic found one more, looser than the rule and not a value: the **fourth** fact this
+bridge answers off a guest with no file named behind it, after the three the amendment above settled,
+and the **fifth** entry of the ratchet's list below, whose other four already cited theirs.
+`AxBridge#windowElement`
+cited `-[NSView window]`'s encoding `@16@0:8` as "read on the guest with the other Foundation and AppKit
+messages, 2026-09-15" and named no file — leaving `AxBridge.java` the one file of this bridge with no
+`readings/` citation at all, on the very answer CRIT-2 had just made load-bearing (a relation naming
+another window's elided root is answered with that window's object). The reading existed all along:
+`readings/macos-foundation-messages-probe-2.txt` line 15, re-read byte-identical at the fix round's HEAD
+as `-3.txt` line 27. The javadoc now names both.
+
+**Why this needed a ratchet and not just an edit.** macOS's own guard, `AxConstantsTest`, holds every
+selector and symbol against the committed dump — mechanically stronger than anything the other two
+bridges have, and completely silent about prose, which is where a fact that lives in a guest's
+Objective-C runtime rather than in AppKit's exported symbols has to be recorded. Windows and Linux each
+landed a citation ratchet in the fix round that would have caught this; macOS had none.
+`AxConstantsTest.everyFactReadOffAGuestRatherThanOffTheDumpCitesItsReading` is that ratchet, shaped like
+Linux's: an explicit list of the sites answering from a guest rather than from the dump, each required to
+carry a `readings/` file in the comment above it, and `windowElement` additionally required to quote the
+encoding it read. A list and not a scan, because no assertion can tell a platform fact from a toolkit one
+by reading the source; what it can do is hold the sites a reviewer has already found, so none of them
+loses its citation again.
 
 ---
 

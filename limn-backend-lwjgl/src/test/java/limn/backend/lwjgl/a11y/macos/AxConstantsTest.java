@@ -185,6 +185,139 @@ class AxConstantsTest {
                         + "at run time and not a compile error.");
     }
 
+    /**
+     * The sites of this bridge that answer from a message or a value read off a guest rather than
+     * from the committed dump: the file, the declaration, and every phrase the comment above it must
+     * carry, lower-cased.
+     *
+     * <p>Kept explicit, as the Linux bridge's list is, because no assertion can tell a platform fact
+     * from a toolkit one by reading the source. What it can do is hold the sites a reviewer has
+     * already found, so none of them loses its citation again.
+     *
+     * <p>{@code AxBridge.java} entered the list on 2026-09-16: the phase-3 fix-round critic found
+     * {@code windowElement}'s {@code -window} encoding cited as "read on the guest … 2026-09-15" with
+     * no file behind it, and {@code AxBridge.java} the one file of this package with no
+     * {@code readings/} citation at all — a legibility gap on the bridge whose own regeneration ratchet
+     * checks selectors and symbols against the dump and is silent about prose.
+     */
+    private static final java.util.List<String[]> CITED = java.util.List.of(
+            new String[] {"AxBridge.java", "long windowElement()", "readings/", "@16@0:8"},
+            new String[] {"AxActions.java", "Map<String, String> ACTION_SYMBOL", "readings/"},
+            new String[] {"AxGrid.java", "static boolean isHeaderCell(", "readings/"},
+            new String[] {"AxGrid.java", "long sortDirection(", "readings/"},
+            new String[] {"AxGate.java", "final class AxGate", "readings/"});
+
+    /** A citation in a comment: {@code readings/<file>}, up to the first space or punctuation. */
+    private static final Pattern CITATION = Pattern.compile("readings/([A-Za-z0-9._\\-]+)");
+
+    /**
+     * Every one of those sites cites the reading it came from, by its file under {@code readings/}
+     * (ADR 039 §12.3's rule, as the Linux bridge's
+     * {@code AtspiConstantsTest#thePlatformFactsWithoutOneReadingSayWhichHalfWasTakenAndWhy} holds it),
+     * <b>and the file it names is a file that exists</b>.
+     *
+     * <p>A ratchet on the comment and not on a value: the value is what the dump and the two tests
+     * above already hold, and what they cannot hold is a fact that lives in a guest's Objective-C
+     * runtime rather than in AppKit's exported symbols. For those, the citation is the whole of the
+     * evidence, and a citation nobody can follow costs the next reader a guest.
+     *
+     * <p><b>Which is why the substring is not enough</b> (the phase-3 fix round's review, 2026-09-16):
+     * its first cut required only the token {@code readings/} above each site, so a citation naming a
+     * file nobody ever wrote passed — exactly the failure the rule exists to prevent. Every citation is
+     * now resolved against the readings trees themselves.
+     *
+     * <p><b>What this half cannot do, and says so rather than pretending.</b> The readings are not in
+     * the repository: {@code .claude/} is ignored, so a clone and a continuous-integration checkout
+     * have none, and a worktree has none of its own — it reaches the main checkout's only because it
+     * lives under it. So the directories are searched for by walking up from the repository root
+     * ({@code .claude/pending/<round>/readings}, any round, so a later round's tree resolves too), and
+     * where none is found this half cannot run and the substring half stands alone. It runs where the
+     * citations are written, which is where a wrong one is introduced. One consequence to know about:
+     * a citation wrapped across two source lines in the middle of its file name reads here as a name
+     * that resolves to nothing, so keep a {@code readings/<file>} on one line.
+     *
+     * <p>A second limit, older than this half and true of the whole case: the source files it reads
+     * are not inputs Gradle tracks, so a commit that edits only a comment leaves the test task up to
+     * date and this does not run. It runs whenever anything the task does track changes, and always
+     * under the round's closing {@code check --rerun-tasks} — which is how its red proof was taken.
+     */
+    @Test
+    void everyFactReadOffAGuestRatherThanOffTheDumpCitesItsReading() throws IOException {
+        java.nio.file.Path source = limn.testing.RepositoryRoot.find()
+                .resolve("limn-backend-lwjgl/src/main/java/limn/backend/lwjgl/a11y/macos");
+        java.util.List<java.nio.file.Path> readings = readingsDirectories();
+        for (String[] site : CITED) {
+            java.util.List<String> lines = java.nio.file.Files.readAllLines(
+                    source.resolve(site[0]), StandardCharsets.UTF_8);
+            String above = commentAbove(lines, site[1]);
+            String comment = above.toLowerCase(java.util.Locale.ROOT);
+            for (int i = 2; i < site.length; i++) {
+                assertTrue(comment.contains(site[i]), site[0] + ": " + site[1]
+                        + ("readings/".equals(site[i])
+                                ? " answers from a guest and not from the committed dump, so its"
+                                        + " comment must cite the reading it came from, by its file"
+                                        + " under readings/"
+                                : " must quote what was read — \"" + site[i] + "\" is not in the"
+                                        + " comment above it"));
+            }
+            if (readings.isEmpty()) continue;
+            Matcher cited = CITATION.matcher(above);
+            while (cited.find()) {
+                String file = cited.group(1);
+                assertTrue(readings.stream().anyMatch(at -> java.nio.file.Files.exists(at.resolve(file))),
+                        site[0] + ": " + site[1] + " cites readings/" + file + ", and no such file is"
+                                + " in " + readings + ". A citation nobody can follow costs the next"
+                                + " reader a guest, which is what this list is for.");
+            }
+        }
+    }
+
+    /**
+     * The readings trees this checkout can see: {@code .claude/pending/<round>/readings} under the
+     * repository root or under any directory above it, which is how a worktree finds the main
+     * checkout's. Empty where there are none, which the caller treats as "cannot run" and not as
+     * "nothing is cited".
+     *
+     * @return the directories, in the order found
+     * @throws IOException if a directory that exists cannot be listed
+     */
+    private static java.util.List<java.nio.file.Path> readingsDirectories() throws IOException {
+        java.util.List<java.nio.file.Path> found = new java.util.ArrayList<>();
+        for (java.nio.file.Path at = limn.testing.RepositoryRoot.find(); at != null; at = at.getParent()) {
+            java.nio.file.Path pending = at.resolve(".claude").resolve("pending");
+            if (!java.nio.file.Files.isDirectory(pending)) continue;
+            try (java.util.stream.Stream<java.nio.file.Path> rounds = java.nio.file.Files.list(pending)) {
+                rounds.map(round -> round.resolve("readings"))
+                        .filter(java.nio.file.Files::isDirectory)
+                        .forEach(found::add);
+            }
+        }
+        return found;
+    }
+
+    /**
+     * The comment block directly above a declaration, as one line, markers and wrapping taken out so
+     * a phrase is found whether or not the author's line ended in the middle of it.
+     *
+     * @param lines       the source
+     * @param declaration what the declaration's line contains
+     * @return the block above it, unwrapped; the empty string when there is none
+     */
+    private static String commentAbove(java.util.List<String> lines, String declaration) {
+        int at = -1;
+        for (int i = 0; i < lines.size() && at < 0; i++) {
+            if (lines.get(i).contains(declaration)) at = i;
+        }
+        assertTrue(at >= 0, "no declaration containing " + declaration);
+        StringBuilder out = new StringBuilder();
+        for (int i = at - 1; i >= 0; i--) {
+            String line = lines.get(i).trim();
+            if (!line.startsWith("//") && !line.startsWith("*") && !line.startsWith("/*")) break;
+            out.insert(0, line.replaceFirst("^(//+|/\\*+|\\*+)", "") + " ");
+        }
+        return out.toString().replaceAll("\\s+", " ");
+    }
+
     @Test
     void theSymbolsTheDumpRecordsAsAbsentAreNotUsed() {
         Dump dump = read();

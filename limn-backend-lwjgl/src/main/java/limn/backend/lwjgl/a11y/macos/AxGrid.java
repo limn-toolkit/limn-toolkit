@@ -152,14 +152,111 @@ final class AxGrid {
     }
 
     /**
+     * {@code accessibilitySelectedRows}: <b>membership by the selection container rule</b>
+     * (semantics 1), narrowed to the members that are rows — not the direct {@code ROW} children
+     * that happen to carry {@code SELECTED}, which is what this answered until 2026-09-16.
+     *
+     * <p>Two facts separate the two readings, and the rule decides both. A selected row is a
+     * <em>member of this container's selection</em>, so it counts wherever it hangs below the
+     * container and a {@code ROW} child that is a member of nothing — a calendar's week row, which
+     * carries no selection item — never does; and a member that is not a row is not a selected row,
+     * so a calendar's selected day, whose container is the calendar itself and whose element belongs
+     * under {@code AXSelectedCells}, is left out here. The two readings name the same elements for
+     * every container Limn ships today, which is why the phase-3 critic recorded this as its minor;
+     * they part on the first container whose selected members are not its direct {@code ROW}
+     * children. {@link #selectedMembers} (AXSelectedChildren) already read the rule, and this now
+     * reads it through the same walk, so the two cannot drift apart.
+     *
+     * <p>{@link #rows} and {@link #visibleRows} still answer a table's {@code ROW} children by
+     * structure (ADR 041 §7, semantics 2's "searched under T's {@code ROW} children") — they are
+     * asked what the grid holds, not what its selection is. The narrowing above keeps the selected
+     * rows a subset of them for every container Limn ships; <b>in the synthetic-body shape the two
+     * part</b> — {@code AXSelectedRows} names a row {@code AXRows} does not, which is incoherent for
+     * a client and is this round's one open question (fix round 3b's lane log, ADR 039 §2.2's
+     * 2026-09-16 correction). No bridge can close it: "through synthetic ancestors" is a fact the
+     * model resolves at publish and carries on a selection member and nowhere else, so closing it
+     * needs either a policy for {@code AXRows} that no decision, ADR or reading settles or a model
+     * that carries syntheticness into the snapshot. Both halves are asserted, the second
+     * deliberately, in {@code AxGridTest#aTablesSelectedRowsAreTheMembersOfItsSelectionWhereverTheyHangUnderIt}.
+     *
      * @param node the node asked
-     * @return {@code accessibilitySelectedRows}: those rows that are {@code SELECTED}, or
-     *         {@code null}
+     * @return the elements of its selected rows, in reading order; {@code null} for a node that is
+     *         no table of rows
      */
     long[] selectedRows(AccessibleNode node) {
         if (!isRowContainer(node)) return null;
-        NodeFilter row = rowOf(node);
-        return childrenOf(node, child -> row.keep(child) && child.has(Accessible.State.SELECTED));
+        return selectedUnder(node, this::isRow);
+    }
+
+    /**
+     * The realized members of {@code container}'s selection that are selected and that
+     * {@code filter} keeps, wherever they hang under it (semantics 1), in reading order.
+     *
+     * <p>The membership test is the model's own resolution of the rule: it climbed to the nearest
+     * ancestor holding a selection facet once, at publish, and left the answer on every member, so
+     * the bridge reads an index and never climbs again.
+     */
+    private long[] selectedUnder(AccessibleNode container, NodeFilter filter) {
+        AccessibleTree tree = source.tree();
+        int at = tree.indexOf(container.id());
+        if (at == AccessibleNode.NONE) return new long[0];
+        long[] found = new long[4];
+        int count = 0;
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
+            AccessibleNode member = tree.node(i);
+            if (outsideSubtreeOf(at, member)) break;
+            if (member.selectionContainer() != at || !member.has(Accessible.State.SELECTED)) continue;
+            if (!filter.keep(member)) continue;
+            if (count == found.length) found = java.util.Arrays.copyOf(found, count * 2);
+            found[count++] = source.elementFor(member.id());
+        }
+        return java.util.Arrays.copyOf(found, count);
+    }
+
+    /**
+     * Whether a walk that started at the container at {@code at} has left that container's own
+     * subtree, which is the bound every walk over its members takes. <b>Asked on the node the walk
+     * already holds</b>, so the bound is the walk's own single pass and not a pre-pass over the same
+     * span before it.
+     *
+     * <p>Every such walk reads the model's already-resolved {@code selectionContainer}, so scanning
+     * this block and scanning the whole tree answer the same thing; what differs is the cost, and the
+     * gate pays it on every ask. {@code AxGate} asks {@link #aRowTakesASelectionVerb} whenever a
+     * client wants to know whether the selected rows are settable, and VoiceOver asks continuously —
+     * the cost CRIT-5 was about. A container near the top of a scene would otherwise be walked to the
+     * end of the tree each time.
+     *
+     * <p><b>What the bound does not give back.</b> It restores the cost against the tail of the tree
+     * and not against what these answers cost before 2026-09-16: the gate's ask read the container's
+     * direct children then ({@link #childrenOf}, O(rows)) and reads its whole subtree now, O(rows ×
+     * cells) for a table, because membership is now the selection container rule and a member can
+     * hang anywhere below. That is the residual the macOS phase-5 timing line measures — against the
+     * subtree, not against the children.
+     *
+     * <p><b>The contract this rests on, and where it is held.</b> A published node's descendants are
+     * one contiguous index block beginning at the node after it, so the first node past the block is a
+     * later sibling of the container or of one of its ancestors, whose parent index is below the
+     * container's. That is a property of the publish step's walk and not of the model's API:
+     * {@code Accessibility#begin} takes an arbitrary parent index and checks nothing, and
+     * {@code AccessibleTree} promises only "tree order, which is paint order". What makes it
+     * depth-first is {@code AccessibleWalk} beginning each widget under its synthetic host or its
+     * parent ({@code under = host >= 0 ? host : into}), between that parent and the parent's next
+     * sibling, and a publish that neither prunes nor reorders after it. Until the model states it
+     * where it is owned, {@code AxGridTest#aNodesDescendantsAreOneContiguousBlockInEveryTreeThePublishStepWalks}
+     * holds it — over two hand-built shapes, over a tree a real {@code Table} scene published, and
+     * with a deliberately broken tree to prove the check is not vacuous. If it ever stops holding, the
+     * members past the break vanish from every answer below rather than arriving late.
+     *
+     * <p><b>Not read off {@code nextSibling}</b>, which is a link and not an index: a widget cell hung
+     * under a synthetic row is relinked among that row's cells by column at publish
+     * (Accessibility.java's child pass), so a sibling link can point at a node begun earlier.
+     *
+     * @param at   the container's index
+     * @param node the node the walk has reached
+     * @return whether it is past the container's block, so the walk stops
+     */
+    static boolean outsideSubtreeOf(int at, AccessibleNode node) {
+        return node.parent() < at;
     }
 
     // ---- disclosure: an outline's rows open and close (M1) ----------------------------------------
@@ -284,8 +381,10 @@ final class AxGrid {
         if (container.table() == null) return SelectionShape.CHILDREN;
         AccessibleTree tree = source.tree();
         int at = tree.indexOf(container.id());
-        for (int i = at + 1; at != AccessibleNode.NONE && i < tree.nodeCount(); i++) {
+        if (at == AccessibleNode.NONE) return SelectionShape.ROWS;
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
             AccessibleNode member = tree.node(i);
+            if (outsideSubtreeOf(at, member)) break;
             if (member.selectionContainer() == at) {
                 return member.cell() != null ? SelectionShape.CELLS : SelectionShape.ROWS;
             }
@@ -295,17 +394,18 @@ final class AxGrid {
 
     /**
      * @param container a container whose selection is its rows
-     * @return whether a realized row among its children takes a selection verb now; allocates nothing,
-     *         because the gate asks it whenever a client asks whether the selected rows are settable
+     * @return whether a realized row of its selection, wherever it hangs under it, takes a selection
+     *         verb now; allocates nothing, because the gate asks it whenever a client asks whether
+     *         the selected rows are settable
      */
     boolean aRowTakesASelectionVerb(AccessibleNode container) {
         AccessibleTree tree = source.tree();
         int at = tree.indexOf(container.id());
         if (at == AccessibleNode.NONE) return false;
-        for (int child = tree.node(at).firstChild(); child != AccessibleNode.NONE;
-                child = tree.node(child).nextSibling()) {
-            AccessibleNode row = tree.node(child);
-            if (row.selectionContainer() != at) continue;
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
+            AccessibleNode row = tree.node(i);
+            if (outsideSubtreeOf(at, row)) break;
+            if (row.selectionContainer() != at || !isRow(row)) continue;
             if (row.accepts(Accessible.Action.SELECT) || row.accepts(Accessible.Action.ADD_TO_SELECTION)
                     || row.accepts(Accessible.Action.DESELECT)) return true;
         }
@@ -314,17 +414,19 @@ final class AxGrid {
 
     /**
      * @param container a container whose selection is its rows
-     * @return the realized members of its selection among its children, in order: the rows a
-     *         selected-rows write can name
+     * @return the realized rows of its selection, wherever they hang under it, in reading order:
+     *         the rows a selected-rows write can name, which is the set {@link #selectedRows} is
+     *         read from, so a client can write back exactly what it read
      */
     java.util.List<AccessibleNode> selectionRows(AccessibleNode container) {
         AccessibleTree tree = source.tree();
         int at = tree.indexOf(container.id());
         java.util.List<AccessibleNode> rows = new java.util.ArrayList<>();
         if (at == AccessibleNode.NONE) return rows;
-        for (int child = tree.node(at).firstChild(); child != AccessibleNode.NONE;
-                child = tree.node(child).nextSibling()) {
-            if (tree.node(child).selectionContainer() == at) rows.add(tree.node(child));
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
+            AccessibleNode row = tree.node(i);
+            if (outsideSubtreeOf(at, row)) break;
+            if (row.selectionContainer() == at && isRow(row)) rows.add(row);
         }
         return rows;
     }
@@ -337,19 +439,7 @@ final class AxGrid {
      * @return their elements, or {@code null} for a node holding no selection
      */
     long[] selectedMembers(AccessibleNode node) {
-        if (node.selection() == null) return null;
-        AccessibleTree tree = source.tree();
-        int at = tree.indexOf(node.id());
-        if (at == AccessibleNode.NONE) return null;
-        long[] found = new long[4];
-        int count = 0;
-        for (int i = at + 1; i < tree.nodeCount(); i++) {
-            AccessibleNode member = tree.node(i);
-            if (member.selectionContainer() != at || !member.has(Accessible.State.SELECTED)) continue;
-            if (count == found.length) found = java.util.Arrays.copyOf(found, count * 2);
-            found[count++] = source.elementFor(member.id());
-        }
-        return java.util.Arrays.copyOf(found, count);
+        return node.selection() == null ? null : selectedUnder(node, member -> true);
     }
 
     // ---- columns: elements that stand for no node (M4; decision 34) --------------------------------
