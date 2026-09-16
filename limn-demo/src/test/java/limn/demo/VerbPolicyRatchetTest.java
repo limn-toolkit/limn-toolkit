@@ -89,8 +89,34 @@ class VerbPolicyRatchetTest {
 
     /**
      * Frames rendered after a verb that may dismiss a surface, for the published-verb pass: long
-     * enough for a fade-out to finish and the window it was in to go. Two frames are not: a popup
-     * menu one frame after its row is pressed is still there, with the same tree.
+     * enough for a fade-out to finish and the window it was in to go.
+     *
+     * <p><b>Read, not guessed (2026-09-15, the phase-3 fix review).</b> Three numbers, in the order
+     * they were taken.
+     *
+     * <ol>
+     *   <li><b>What a surface actually takes.</b> Every surface in a window of its own leaves
+     *       through {@code Scene#fadeWindowOut(Theme.current().animWindow, destroy)} —
+     *       {@code ComboBox}, {@code PopupMenu}, {@code Dialog}, {@code DatePicker} — and
+     *       {@code Theme.animWindow} is {@code 0.16} s. {@code Harness#settle} steps scene time by
+     *       a fixed 20&nbsp;ms a frame, so the fade is <b>8 frames</b> and the destroy callback
+     *       runs on the ninth. 24 frames is 480&nbsp;ms: three times that, and longer than the
+     *       longest transition anywhere in the toolkit that a dismissal could still be waiting on
+     *       ({@code Theme.animTab} 0.22 s, {@code ScrollBar}'s 0.28 s fade-out).</li>
+     *   <li><b>It is the number the sibling suites already settle with</b>, for the same reason:
+     *       {@code AccessibleGalleryTest.SETTLE_FRAMES} and
+     *       {@code AccessibleTranscriptTest.SETTLE_FRAMES} are both 24 at the same 20&nbsp;ms step.
+     *       A second settle width in the same harness would be a second answer to one question.</li>
+     *   <li><b>It is not load-bearing either way today, which was measured rather than assumed.</b>
+     *       The suite is green at 2, 4, 8, 9, 24 and 400 frames (248 tests, 0 failures at each).
+     *       Below the fade it stays green because a dismissal announces its change on the frame it
+     *       starts, which is already "something moved"; above it, because the one thing that never
+     *       moves never starts moving. That upper run is the point: {@link #PERFORMED_UNSEEN}'s
+     *       popup is still open after 400 frames — 8 seconds of scene time, fifty fades — so the
+     *       entry records a headless-backend teardown that does not happen, not a test that ran out
+     *       of patience. Keep the width: a future entry whose dismissal shows up only once the
+     *       window is gone needs the frames this one does not.</li>
+     * </ol>
      */
     private static final int FRAMES_FOR_A_SURFACE_TO_GO = 24;
 
