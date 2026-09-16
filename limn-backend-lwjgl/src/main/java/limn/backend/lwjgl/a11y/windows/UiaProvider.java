@@ -205,7 +205,7 @@ final class UiaProvider {
     static Map<String, CallbackI> simpleSlots(long nodeId, Context context) {
         return Map.of(
                 "get_ProviderOptions",
-                (UiaCom.PP) (self, out) -> providerOptions(out),
+                (UiaCom.PP) (self, out) -> providerOptions(nodeId, out),
                 "GetPatternProvider",
                 (UiaCom.PIP) (self, patternId, out) -> patternProvider(nodeId, patternId, out,
                         context),
@@ -232,7 +232,7 @@ final class UiaProvider {
                 "get_BoundingRectangle",
                 (UiaCom.PP) (self, out) -> boundingRectangle(nodeId, out, context),
                 "GetEmbeddedFragmentRoots",
-                (UiaCom.PP) (self, out) -> embeddedFragmentRoots(out),
+                (UiaCom.PP) (self, out) -> embeddedFragmentRoots(nodeId, out),
                 "SetFocus",
                 (UiaCom.P) self -> setFocus(nodeId, context),
                 "get_FragmentRoot",
@@ -382,7 +382,22 @@ final class UiaProvider {
         return hresult;
     }
 
+    /**
+     * <p>How UI Automation establishes an element's identity, so it is among the first things a
+     * client that arrives asks and among the last it stops asking: traced for that reason, with the
+     * same two failures {@code Navigate} names.
+     */
     private static int runtimeId(long nodeId, long out, Context context) {
+        int answer = runtimeIdAnswering(nodeId, out, context);
+        if (UiaTrace.on()) {
+            UiaTrace.inbound("GetRuntimeId", UiaTrace.element(context.tree(), nodeId)
+                    + " answer=" + (answer == UiaIds.S_OK ? "runtimeId" : "none"), answer);
+        }
+        return answer;
+    }
+
+    /** The answer itself, so that {@link #runtimeId} can say what it was. */
+    private static int runtimeIdAnswering(long nodeId, long out, Context context) {
         if (out == 0) {
             return UiaIds.E_NO_INTERFACE;
         }
@@ -401,7 +416,7 @@ final class UiaProvider {
      */
     private static int boundingRectangle(long nodeId, long out, Context context) {
         if (out == 0) {
-            return UiaIds.E_NO_INTERFACE;
+            return refused("get_BoundingRectangle", nodeId, UiaIds.E_NO_INTERFACE);
         }
         double[] box = {0, 0, 0, 0};
         AccessibleTree tree = context.tree();
@@ -412,6 +427,10 @@ final class UiaProvider {
         for (int i = 0; i < 4; i++) {
             MemoryUtil.memPutDouble(out + (long) i * 8, box[i]);
         }
+        if (UiaTrace.on()) {
+            UiaTrace.inbound("get_BoundingRectangle", "node=" + nodeId + " answer=["
+                    + box[0] + ',' + box[1] + ',' + box[2] + ',' + box[3] + ']', UiaIds.S_OK);
+        }
         return UiaIds.S_OK;
     }
 
@@ -420,11 +439,15 @@ final class UiaProvider {
      * the platform put in a window of its own is that window's fragment root and is found through
      * the desktop rather than through here.
      */
-    private static int embeddedFragmentRoots(long out) {
+    private static int embeddedFragmentRoots(long nodeId, long out) {
         if (out == 0) {
-            return UiaIds.E_NO_INTERFACE;
+            return refused("GetEmbeddedFragmentRoots", nodeId, UiaIds.E_NO_INTERFACE);
         }
         MemoryUtil.memPutAddress(out, 0);
+        if (UiaTrace.on()) {
+            UiaTrace.inbound("GetEmbeddedFragmentRoots", "node=" + nodeId + " answer=none",
+                    UiaIds.S_OK);
+        }
         return UiaIds.S_OK;
     }
 
@@ -448,6 +471,18 @@ final class UiaProvider {
      * the reasoning and names it as Windows open question 1.
      */
     private static int setFocus(long nodeId, Context context) {
+        int answer = setFocusAnswering(nodeId, context);
+        if (UiaTrace.on()) {
+            // A client ACTING on the widget and not reading it, which is why this one is described
+            // whole: what it was asked on, and whether the request was posted or refused.
+            UiaTrace.inbound("SetFocus", UiaTrace.element(context.tree(), nodeId) + " answer="
+                    + (answer == UiaIds.S_OK ? "posted" : "refused"), answer);
+        }
+        return answer;
+    }
+
+    /** The answer itself, so that {@link #setFocus} can say what it was. */
+    private static int setFocusAnswering(long nodeId, Context context) {
         AccessibleNode node = context.tree().find(nodeId);
         if (node == null) {
             return UiaIds.E_ELEMENT_NOT_AVAILABLE;
@@ -539,11 +574,17 @@ final class UiaProvider {
      * Server-side, always: this provider runs inside the process it describes, which is what lets a
      * call reach the widget tree at all.
      */
-    private static int providerOptions(long out) {
+    private static int providerOptions(long nodeId, long out) {
         if (out == 0) {
-            return UiaIds.E_NO_INTERFACE;
+            return refused("get_ProviderOptions", nodeId, UiaIds.E_NO_INTERFACE);
         }
         MemoryUtil.memPutInt(out, UiaIds.PROVIDER_OPTIONS_SERVER_SIDE_PROVIDER);
+        if (UiaTrace.on()) {
+            // The first thing UI Automation asks of an element it has been handed, so an IN line
+            // for it is the earliest evidence in the file that a client's process arrived.
+            UiaTrace.inbound("get_ProviderOptions", "node=" + nodeId + " answer=SERVER_SIDE("
+                    + UiaIds.PROVIDER_OPTIONS_SERVER_SIDE_PROVIDER + ')', UiaIds.S_OK);
+        }
         return UiaIds.S_OK;
     }
 
@@ -721,11 +762,18 @@ final class UiaProvider {
      */
     private static int hostProvider(long nodeId, long out, Context context) {
         if (out == 0) {
-            return UiaIds.E_NO_INTERFACE;
+            return refused("get_HostRawElementProvider", nodeId, UiaIds.E_NO_INTERFACE);
         }
         AccessibleTree tree = context.tree();
         boolean isRoot = tree.nodeCount() > 0 && tree.root().id() == nodeId;
-        MemoryUtil.memPutAddress(out, isRoot ? context.hostProvider() : 0);
+        long host = isRoot ? context.hostProvider() : 0;
+        MemoryUtil.memPutAddress(out, host);
+        if (UiaTrace.on()) {
+            // The CALL line from UiaHostProviderFromHwnd sits inside this one, for the root; every
+            // other node answers none without asking the platform anything.
+            UiaTrace.inbound("get_HostRawElementProvider", "node=" + nodeId + " answer="
+                    + (host == 0 ? "none" : "0x" + Long.toHexString(host)), UiaIds.S_OK);
+        }
         return UiaIds.S_OK;
     }
 }

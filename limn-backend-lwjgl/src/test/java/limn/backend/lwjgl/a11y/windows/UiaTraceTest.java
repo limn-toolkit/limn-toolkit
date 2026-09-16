@@ -320,6 +320,73 @@ class UiaTraceTest {
         assertFalse(Files.exists(missing), "nothing was created for a path that cannot be opened");
     }
 
+    /**
+     * Every member of the four interfaces a client calls into says that it was called — which is
+     * what makes the absence of an {@code IN} line evidence of anything.
+     *
+     * <p>The decisive negative reading a live run takes from this file is "NVDA's process never
+     * reached this provider". Until the 2026-09-16 review that reading was unsound: identity
+     * ({@code GetRuntimeId}), geometry ({@code get_BoundingRectangle}), the options every element
+     * is asked for first and the client's own {@code SetFocus} all answered in silence, so a reader
+     * that arrived and walked only those left an empty column. This is the ratchet: a member added
+     * to any of these four interfaces without a line of its own fails here rather than quietly
+     * widening the silence again.
+     *
+     * <p>The pattern members are deliberately not in it — some thirty-five slots across
+     * {@code UiaPatternProviders}, which are what a client calls once it has decided to act. What
+     * the file's {@code IN} column means is therefore exactly "the members of
+     * {@code IRawElementProviderSimple}, {@code Fragment}, {@code FragmentRoot} and
+     * {@code AdviseEvents}", and the next reading should say so rather than read silence as
+     * absence.
+     */
+    @Test
+    void everyMemberOfTheFourInboundInterfacesSaysThatItWasCalled() {
+        List<String> said = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+        Consumer<String> before = UiaWindow.trace;
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        long out = MemoryUtil.nmemCallocChecked(1, 64);
+        try {
+            bridge.publish(aFocusedButton(), false);
+            UiaProvider.Context context = bridge.contextForTests();
+            java.util.Map<String, org.lwjgl.system.CallbackI> slots = new java.util.TreeMap<>();
+            slots.putAll(UiaProvider.simpleSlots(1001, context));
+            slots.putAll(UiaProvider.fragmentSlots(1001, context));
+            slots.putAll(UiaProvider.fragmentRootSlots(context));
+            slots.putAll(UiaProvider.adviseEventsSlots(context));
+            assertEquals(14, slots.size(), "the four interfaces' members: " + slots.keySet());
+            UiaWindow.trace = said::add;
+            for (java.util.Map.Entry<String, org.lwjgl.system.CallbackI> slot : slots.entrySet()) {
+                said.clear();
+                callSlot(slot.getValue(), out);
+                assertTrue(said.stream().anyMatch(l -> l.startsWith("IN " + slot.getKey() + ' ')),
+                        "a client called " + slot.getKey() + " and the trace says nothing: " + said);
+            }
+        } finally {
+            UiaWindow.trace = before;
+            MemoryUtil.nmemFree(out);
+            bridge.detach();
+        }
+    }
+
+    /**
+     * Calls one slot through the Java interface its vtable entry implements, with arguments no
+     * member can refuse to answer for: a zeroed out parameter big enough for the widest of them,
+     * and {@code 0} wherever the member takes an identifier or a coordinate.
+     */
+    private static void callSlot(org.lwjgl.system.CallbackI slot, long out) {
+        if (slot instanceof UiaCom.P self) {
+            self.invoke(0);
+        } else if (slot instanceof UiaCom.PP two) {
+            two.invoke(0, out);
+        } else if (slot instanceof UiaCom.PIP three) {
+            three.invoke(0, 0, out);
+        } else if (slot instanceof UiaCom.PDDP four) {
+            four.invoke(0, 0, 0, out);
+        } else {
+            org.junit.jupiter.api.Assertions.fail("no way to call a " + slot.getClass());
+        }
+    }
+
     /** Everything a client and a scene can make this bridge do, for the silent exercise. */
     private static void exercise(UiaBridge bridge) {
         bridge.publish(aFocusedButton(), false);

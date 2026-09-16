@@ -39,14 +39,22 @@ import java.util.function.Consumer;
  *   <li>{@code RAISE} — one call into {@code UiaRaise*}: which entry point, the event or property
  *       by name and number, the node with its role, name and runtime id, whether the element was
  *       minted for this raise or already held, the {@code HRESULT}, and the thread.</li>
- *   <li>{@code CALL} — the two {@code UIAutomationCore} entry points that are not raises:
- *       {@code UiaReturnRawElementProvider} and {@code UiaHostProviderFromHwnd}.</li>
+ *   <li>{@code CALL} — the {@code UIAutomationCore} entry points that are not raises:
+ *       {@code UiaReturnRawElementProvider}, {@code UiaHostProviderFromHwnd} and
+ *       {@code UiaDisconnectProvider}.</li>
  *   <li>{@code SKIP} — something the bridge decided <em>not</em> to raise, and why.</li>
  *   <li>{@code GATE} — the per-frame listening decision, written when it changes: the process-wide
  *       flag, the standing subscriptions, the owed event and how much of the asked window is
  *       left.</li>
  *   <li>{@code IN} — a provider entry point a client called, with the caller's thread and the
- *       answer. {@code AdviseEventAdded}/{@code AdviseEventRemoved} are the decisive ones.</li>
+ *       answer. {@code AdviseEventAdded}/{@code AdviseEventRemoved} are the decisive ones.
+ *       <b>Every member of the four interfaces an element serves writes one</b> — all fourteen of
+ *       {@code IRawElementProviderSimple}, {@code IRawElementProviderFragment},
+ *       {@code IRawElementProviderFragmentRoot} and {@code IRawElementProviderAdviseEvents},
+ *       pinned by {@code UiaTraceTest.everyMemberOfTheFourInboundInterfacesSaysThatItWasCalled}.
+ *       The <b>pattern</b> members ({@link UiaPatternProviders}, some thirty-five slots: an
+ *       invoke, a toggle, a value written, a scroll) write none, so a file with no {@code IN} line
+ *       says that no client read this provider — not that none acted on it.</li>
  *   <li>{@code NOTE} — the bridge's own older notes, which the file carries unchanged.</li>
  * </ul>
  *
@@ -160,9 +168,14 @@ final class UiaTrace {
     /**
      * One provider entry point a client called.
      *
-     * <p>Every entry writes one, the failing returns included: the question a live run puts to
-     * this half of the trace is whether a reader's process reaches this provider at all, and an
-     * entry that answered {@code UIA_E_ELEMENTNOTAVAILABLE} reached it.
+     * <p>Every member of the four interfaces writes one, the failing returns included: the
+     * question a live run puts to this half of the trace is whether a reader's process reaches
+     * this provider at all, and an entry that answered {@code UIA_E_ELEMENTNOTAVAILABLE} reached
+     * it. That is why identity ({@code GetRuntimeId}), geometry
+     * ({@code get_BoundingRectangle}) and the options every element is asked for first
+     * ({@code get_ProviderOptions}) are here too, though none of them says anything about a widget:
+     * a client that arrived and was rejected early may have called nothing else, and an empty
+     * column would then be read as a client that never arrived.
      *
      * @param entryPoint the COM member, by its declared name
      * @param detail     what it was asked and what it answered

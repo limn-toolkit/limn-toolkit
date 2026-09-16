@@ -1705,17 +1705,38 @@ public final class UiaBridge extends PlatformBridge {
      * <p>Our own root provider, and not the window's: the host provider is UI Automation's own
      * and every reference to it was handed over already.
      */
-    private void disconnectRootProvider() {
+    private String disconnectRootProvider() {
         long provider = rootProviderForDisconnect;
-        if (provider != 0) {
-            rootProviderForDisconnect = 0;
-            // Whether the registry still holds the object behind the pointer, read before the
-            // call: the trace says so, and the test that pins this order reads the trace.
-            boolean alive = objects.containsKey(provider);
-            Uia.disconnectProvider(provider);
-            UiaWindow.say("disconnected root provider 0x" + Long.toHexString(provider)
-                        + " alive=" + alive);
+        if (provider == 0) {
+            return null;
         }
+        rootProviderForDisconnect = 0;
+        // Whether the registry still holds the object behind the pointer, read before the
+        // call: the trace says so, and the test that pins this order reads the trace.
+        boolean alive = objects.containsKey(provider);
+        Uia.disconnectProvider(provider);
+        return "0x" + Long.toHexString(provider) + " alive=" + alive;
+    }
+
+    /**
+     * Says that {@code UiaDisconnectProvider} was called, in both vocabularies: the {@code CALL}
+     * line every {@code UIAutomationCore} entry point writes, and the note this bridge has always
+     * written here.
+     *
+     * <p>Said by the caller, once the guard is released: the empty holds {@code vendGuard} on the
+     * user-interface thread and a line is a flushed write to a file when a guest run named one.
+     *
+     * @param what the pointer and whether the registry still held it, or {@code null} when there
+     *             was nothing to disconnect
+     */
+    private static void sayDisconnected(String what) {
+        if (what == null) {
+            return;
+        }
+        if (UiaTrace.on()) {
+            UiaTrace.line("CALL", "UiaDisconnectProvider provider=" + what);
+        }
+        UiaWindow.say("disconnected root provider " + what);
     }
 
     /**
@@ -1741,15 +1762,17 @@ public final class UiaBridge extends PlatformBridge {
                 java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         // And any other window's drain thread raising on one of these elements, or RPC thread
         // handing one over, finishes first (raiseOnElement, handOverFromAnotherWindow).
+        String disconnected;
         synchronized (vendGuard) {
             // Then, while every closure the platform may call back through is still there.
-            disconnectRootProvider();
+            disconnected = disconnectRootProvider();
             distinct.addAll(objects.values());
             objects.clear();
             elements.empty();
             distinct.forEach(UiaObject::free);
             ANNOUNCED.updateAndGet(last -> last != null && last.owner() == this ? null : last);
         }
+        sayDisconnected(disconnected);
         UiaWindow.say("freed " + distinct.size() + " objects");
     }
 

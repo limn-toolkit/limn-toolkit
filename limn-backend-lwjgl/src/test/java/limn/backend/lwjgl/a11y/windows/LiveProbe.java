@@ -40,9 +40,9 @@ import java.util.Locale;
  *
  * <p><b>The bridge's own trace is separate and needs no probe</b> ({@link UiaTrace}):
  * {@code -Dlimn.a11y.uia.trace=<file>} writes every call into {@code UIAutomationCore}, every
- * decision not to raise, and every provider entry point a client called, one flushed line each,
- * from any run of any application — the demo jar included. It is off unless that property is
- * given. A timing run sets {@link UiaWindow#trace} as well, so the same lines also appear on
+ * decision not to raise, and every call a client made into the four interfaces an element serves
+ * (the pattern members are not traced), one flushed line each, from any run of any application —
+ * the demo jar included. It is off unless that property is given. A timing run sets {@link UiaWindow#trace} as well, so the same lines also appear on
  * standard output with the probe's own stamp.
  *
  * <pre>
