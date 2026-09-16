@@ -185,6 +185,81 @@ class AxConstantsTest {
                         + "at run time and not a compile error.");
     }
 
+    /**
+     * The sites of this bridge that answer from a message or a value read off a guest rather than
+     * from the committed dump: the file, the declaration, and every phrase the comment above it must
+     * carry, lower-cased.
+     *
+     * <p>Kept explicit, as the Linux bridge's list is, because no assertion can tell a platform fact
+     * from a toolkit one by reading the source. What it can do is hold the sites a reviewer has
+     * already found, so none of them loses its citation again.
+     *
+     * <p>{@code AxBridge.java} entered the list on 2026-09-16: the phase-3 fix-round critic found
+     * {@code windowElement}'s {@code -window} encoding cited as "read on the guest … 2026-09-15" with
+     * no file behind it, and {@code AxBridge.java} the one file of this package with no
+     * {@code readings/} citation at all — a legibility gap on the bridge whose own regeneration ratchet
+     * checks selectors and symbols against the dump and is silent about prose.
+     */
+    private static final java.util.List<String[]> CITED = java.util.List.of(
+            new String[] {"AxBridge.java", "long windowElement()", "readings/", "@16@0:8"},
+            new String[] {"AxActions.java", "Map<String, String> ACTION_SYMBOL", "readings/"},
+            new String[] {"AxGrid.java", "static boolean isHeaderCell(", "readings/"},
+            new String[] {"AxGrid.java", "long sortDirection(", "readings/"},
+            new String[] {"AxGate.java", "final class AxGate", "readings/"});
+
+    /**
+     * Every one of those sites cites the reading it came from, by its file under {@code readings/}
+     * (ADR 039 §12.3's rule, as the Linux bridge's
+     * {@code AtspiConstantsTest#thePlatformFactsWithoutOneReadingSayWhichHalfWasTakenAndWhy} holds it).
+     *
+     * <p>A ratchet on the comment and not on a value: the value is what the dump and the two tests
+     * above already hold, and what they cannot hold is a fact that lives in a guest's Objective-C
+     * runtime rather than in AppKit's exported symbols. For those, the citation is the whole of the
+     * evidence, and a citation nobody can follow costs the next reader a guest.
+     */
+    @Test
+    void everyFactReadOffAGuestRatherThanOffTheDumpCitesItsReading() throws IOException {
+        java.nio.file.Path source = limn.testing.RepositoryRoot.find()
+                .resolve("limn-backend-lwjgl/src/main/java/limn/backend/lwjgl/a11y/macos");
+        for (String[] site : CITED) {
+            java.util.List<String> lines = java.nio.file.Files.readAllLines(
+                    source.resolve(site[0]), StandardCharsets.UTF_8);
+            String comment = commentAbove(lines, site[1]).toLowerCase(java.util.Locale.ROOT);
+            for (int i = 2; i < site.length; i++) {
+                assertTrue(comment.contains(site[i]), site[0] + ": " + site[1]
+                        + ("readings/".equals(site[i])
+                                ? " answers from a guest and not from the committed dump, so its"
+                                        + " comment must cite the reading it came from, by its file"
+                                        + " under readings/"
+                                : " must quote what was read — \"" + site[i] + "\" is not in the"
+                                        + " comment above it"));
+            }
+        }
+    }
+
+    /**
+     * The comment block directly above a declaration, as one line, markers and wrapping taken out so
+     * a phrase is found whether or not the author's line ended in the middle of it.
+     *
+     * @param lines       the source
+     * @param declaration what the declaration's line contains
+     * @return the block above it, unwrapped; the empty string when there is none
+     */
+    private static String commentAbove(java.util.List<String> lines, String declaration) {
+        int at = -1;
+        for (int i = 0; i < lines.size() && at < 0; i++) {
+            if (lines.get(i).contains(declaration)) at = i;
+        }
+        assertTrue(at >= 0, "no declaration containing " + declaration);
+        StringBuilder out = new StringBuilder();
+        for (int i = at - 1; i >= 0; i--) {
+            String line = lines.get(i).trim();
+            if (!line.startsWith("//") && !line.startsWith("*") && !line.startsWith("/*")) break;
+            out.insert(0, line.replaceFirst("^(//+|/\\*+|\\*+)", "") + " ");
+        }
+        return out.toString().replaceAll("\\s+", " ");
+    }
+
     @Test
     void theSymbolsTheDumpRecordsAsAbsentAreNotUsed() {
         Dump dump = read();

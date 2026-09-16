@@ -5857,6 +5857,28 @@ green against the 2026-09-15 dump.
   disclosure. Both are now read on a native `NSTableView` rather than inferred from the outline;
   §2.2's macOS column and `AxNotifications` cite them.
 
+#### Amendment 2026-09-16 (fix round 3b) — a fourth macOS fact, and a citation ratchet for the prose
+
+The fix-round critic found a fifth site, looser than the rule and not a value: `AxBridge#windowElement`
+cited `-[NSView window]`'s encoding `@16@0:8` as "read on the guest with the other Foundation and AppKit
+messages, 2026-09-15" and named no file — leaving `AxBridge.java` the one file of this bridge with no
+`readings/` citation at all, on the very answer CRIT-2 had just made load-bearing (a relation naming
+another window's elided root is answered with that window's object). The reading existed all along:
+`readings/macos-foundation-messages-probe-2.txt` line 15, re-read byte-identical at the fix round's HEAD
+as `-3.txt` line 27. The javadoc now names both.
+
+**Why this needed a ratchet and not just an edit.** macOS's own guard, `AxConstantsTest`, holds every
+selector and symbol against the committed dump — mechanically stronger than anything the other two
+bridges have, and completely silent about prose, which is where a fact that lives in a guest's
+Objective-C runtime rather than in AppKit's exported symbols has to be recorded. Windows and Linux each
+landed a citation ratchet in the fix round that would have caught this; macOS had none.
+`AxConstantsTest.everyFactReadOffAGuestRatherThanOffTheDumpCitesItsReading` is that ratchet, shaped like
+Linux's: an explicit list of the sites answering from a guest rather than from the dump, each required to
+carry a `readings/` file in the comment above it, and `windowElement` additionally required to quote the
+encoding it read. A list and not a scan, because no assertion can tell a platform fact from a toolkit one
+by reading the source; what it can do is hold the sites a reviewer has already found, so none of them
+loses its citation again.
+
 ---
 
 ## 13. Risks and open edges

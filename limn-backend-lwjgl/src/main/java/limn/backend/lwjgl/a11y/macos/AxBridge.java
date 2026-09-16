@@ -1139,8 +1139,16 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
 
     /**
      * The window AppKit vends for this scene, the subject of what is about the whole window: the
-     * content view's {@code -window} ({@code @16@0:8}, read on the guest with the other Foundation and
-     * AppKit messages, 2026-09-15). Zero when the view is in no window.
+     * content view's {@code -window}. Zero when the view is in no window.
+     *
+     * <p>{@code -[NSView window]} is encoded {@code @16@0:8} — an object returned, no argument beyond
+     * self and the selector — read on the macOS 26.6.2 guest (25G83) on 2026-09-15 with the other
+     * Foundation and AppKit messages, {@code scripts/a11y/macos/foundation-messages-probe.swift},
+     * recorded in readings/macos-foundation-messages-probe-2.txt line 15 and re-read byte-identical
+     * at the fix round's HEAD in readings/macos-foundation-messages-probe-3.txt line 27. The citation
+     * was prose without a file until 2026-09-16 (the phase-3 fix-round critic), which mattered once
+     * CRIT-2 made this answer load-bearing: it is what a relation naming another window's elided root
+     * hands back.
      */
     long windowElement() {
         // Off AppKit, a number that stands for it, as the application element's does.
