@@ -171,7 +171,11 @@ same rule, and whether that feels right is the live check decision 44 names.
 
 Three modes: `NONE`, `SINGLE` and `MULTI`. Selection is a set of **model** indices — not view
 positions, so a sort does not change what is selected — held in a `BitSet`, with the lead row the
-last one the user acted on. `MULTI` is the platform's own grammar: a click selects one, Shift-click
+last one the user acted on. (**Narrowed 2026-09-14, decision 23**, the amendment below: model
+indices are what the selection *is between two refreshes* and what `selectedRows()` answers; across
+a `refresh()` the selection, the lead, the focus cell and the range anchor are followed by
+**record**, because holding them by number moved them onto whatever records the new list put at
+those numbers.) `MULTI` is the platform's own grammar: a click selects one, Shift-click
 selects the range from the lead, the command modifier toggles one, and Ctrl+A or Cmd+A selects all.
 `onSelect` fires once per change with no argument; `selectedRows()` answers the set and
 `selectedRow()` the lead, and both are model indices.
@@ -181,10 +185,13 @@ the arrow keys move. It is what Left and Right mean in a table, and it is what a
 cursor stands on: a reader walks a table cell by cell, and a table whose keyboard moved only by row
 would leave the reader and the sighted user on different things. The focus cell's row is the lead row; moving it
 with an unshifted arrow moves the selection with it in `SINGLE` and `MULTI`, as every desktop
-table does, and does nothing to the selection in `NONE`.
+table does, and does nothing to the selection in `NONE`. (**Both sentences were reversed on
+2026-09-14**, by the two amendments below: the cursor row and the lead are separate fields — the
+cursor is the lead in `SINGLE` and may differ from it in `MULTI` after a toggle or a Shift range,
+and a sort carries both with their records instead of leaving them on a view position.)
 
 Enter, and a double click on a row, fire `onActivate` with the lead row, the "open this" gesture
-`ListView` has. Cell selection — a rectangle of cells, as a spreadsheet has — is not in this
+`ListView` has. (**Reversed 2026-09-14, decision 32**, below: they open the **cursor** row.) Cell selection — a rectangle of cells, as a spreadsheet has — is not in this
 record; §10.
 
 **Amended 2026-09-14 (decision 32 of the 2026-09-13 pass).** Enter and a double click open the
@@ -203,7 +210,9 @@ go with their records through the permutation, in `applySort`, and the move is a
 sort the focus row is revealed with the least scroll that shows it — at the foot of the viewport
 when it moved down, at the top when it moved up, not at all when it stayed in view — as every
 other write that moves the focus cell does (decision 40); a row below the realized run is now
-placed as the last row in view by every reveal, where before it was placed first. Pinned by
+placed as the last row in view by every reveal, where before it was placed first (**"every reveal"
+narrowed 2026-09-15**, the amendment below: the Page keys move the view a page with the cursor
+instead of revealing it, and the least-scroll reveal is the sort's, End's and code's). Pinned by
 `TableTest.aSortCarriesTheFocusCellAndTheRangeAnchorWithTheirRecords`,
 `TableTest.aSortRevealsTheFocusRowWithTheLeastScroll` and
 `TableAccessibilityTest.aSortKeepsTheCursorOnTheRecordItWasOn`. The renders the owner reviews
@@ -464,7 +473,9 @@ Save.
   built it) and open a `Dialog`, or a form beside or below the table, that shows the
   whole record as a form — every field labelled, validated as forms are (`TextField.Validation`),
   saved on an explicit action. On save, change the application's list and call `refresh()`; the
-  selection is by model row and stays where it was.
+  selection stays on the records it held — by record across a `refresh()` since decision 23 of
+  2026-09-14 (§3's amendment of that date), not by model row as this sentence first said, which is
+  what makes it survive an insert or a reorder in the saved list and not only an in-place edit.
 - **Master and detail.** Keep the form open in a `SplitPane` beside the table, bound to the lead
   row through `onSelect`, so the user moves through records with the arrow keys and edits each in
   a form that never moves. This is the shape a settings screen or an admin screen usually wants.
