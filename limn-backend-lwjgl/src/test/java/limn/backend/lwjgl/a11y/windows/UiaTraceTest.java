@@ -21,6 +21,7 @@ import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -193,6 +194,32 @@ class UiaTraceTest {
                         + Thread.currentThread().getName(),
                 advise.replaceFirst("^\\+[0-9.]+ ", ""),
                 "the advise line: " + advise);
+    }
+
+    /**
+     * A raise's answer carries its {@code HRESULT} back on the caller's stack, whole, and is
+     * distinguishable from a raise that never ran.
+     *
+     * <p>The number used to travel in a volatile field written inside the popup bridge's guard and
+     * read after it (2026-09-16 review): two windows' drain threads raising a focus into the same
+     * popup bridge (decision 5) could interleave between the write and the read, and the trace
+     * would print the other thread's number. It cannot be raced here — this machine has no
+     * {@code UIAutomationCore}, so every raise answers {@code S_OK} and no two threads could be
+     * told apart — so what is pinned is the mechanism that replaced it: the failures a live raise
+     * can answer all survive the round trip, and none of them reads as "it did not run".
+     */
+    @Test
+    void aRaisesHresultTravelsBackWholeAndIsNotTheAnswerForARaiseThatDidNotRun() {
+        for (int hresult : new int[] {UiaIds.S_OK, UiaIds.E_ELEMENT_NOT_AVAILABLE,
+                UiaIds.E_NO_INTERFACE, UiaIds.E_INVALID_OPERATION, -1, Integer.MIN_VALUE,
+                Integer.MAX_VALUE}) {
+            long answer = UiaBridge.ran(hresult);
+            assertEquals(hresult, UiaBridge.hresultOf(answer),
+                    "the HRESULT 0x" + Integer.toHexString(hresult) + " did not survive the trip");
+            assertNotEquals(UiaBridge.NOT_RAISED, answer,
+                    "a raise that answered 0x" + Integer.toHexString(hresult)
+                            + " reads as a raise that never ran");
+        }
     }
 
     /**

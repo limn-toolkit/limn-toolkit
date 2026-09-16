@@ -798,16 +798,16 @@ public final class UiaBridge extends PlatformBridge {
         // Read before the raise, because the raise is what mints it: the trace's one answer to
         // "was this element already in a client's hands or made for this event".
         boolean held = UiaTrace.on() && owner.holdsElementFor(target);
-        boolean raised = owner.raiseOnElement(target, true, owner != this, element ->
+        long raised = owner.raiseOnElement(target, true, owner != this, element ->
                 Uia.raiseAutomationEvent(element.pointer(), UiaIds.AUTOMATION_FOCUS_CHANGED));
-        if (!raised) {
+        if (raised == NOT_RAISED) {
             UiaWindow.say("focus on node " + target + " has no element for " + cause);
             return;
         }
         if (UiaTrace.on()) {
             UiaTrace.raised("UiaRaiseAutomationEvent",
                     UiaTrace.event(UiaIds.AUTOMATION_FOCUS_CHANGED), owner.tree(), target, held,
-                    owner.lastRaiseHresult);
+                    hresultOf(raised));
         }
         ANNOUNCED.set(now);
         // A raise that reached the platform: the one change a client that asked was owed.
@@ -831,57 +831,87 @@ public final class UiaBridge extends PlatformBridge {
      */
     private void raiseKeyboardFocus(Announced side, boolean has) {
         UiaBridge owner = side.owner();
-        boolean raised = owner.raiseOnElement(side.nodeId(), false, owner != this, element ->
+        long raised = owner.raiseOnElement(side.nodeId(), false, owner != this, element ->
                 raisePropertyChange(element, UiaIds.HAS_KEYBOARD_FOCUS, !has, has, null));
-        if (raised) {
+        if (raised != NOT_RAISED) {
             UiaWindow.say("raised HasKeyboardFocus " + has + " for node " + side.nodeId());
         }
     }
 
     /**
-     * The {@code HRESULT} of the last raise {@link #raiseOnElementUnguarded} ran on one of this
-     * bridge's elements, for the trace and for nothing else.
-     *
-     * <p>A field rather than a return value because the raise travels as a lambda and the caller
-     * that wants the number is in another method — and, when the focus resolved into a native
-     * popup, in another bridge. Volatile for that case: the writer is the other window's drain
-     * thread, inside this bridge's guard, and the reader is the line right after it.
+     * What {@link #raiseOnElement} answers when no raise ran at all, which is not an
+     * {@code HRESULT} and must not be read as one.
      */
-    private volatile int lastRaiseHresult;
+    static final long NOT_RAISED = 0;
+
+    /**
+     * The bit an answer carries over its {@code HRESULT} to say the raise ran.
+     *
+     * <p>The answer is sixty-four bits wide for exactly this: an {@code HRESULT} uses all
+     * thirty-two of its own — {@code S_OK} is {@code 0} and a failure is negative — so there is no
+     * spare value in an {@code int} to mean "it did not run". With the bit above them, every
+     * {@code HRESULT} travels back whole and {@link #NOT_RAISED} collides with none of them.
+     */
+    private static final long RAN = 1L << 32;
+
+    /**
+     * @param hresult what the platform answered
+     * @return the answer of a raise that ran
+     */
+    static long ran(int hresult) {
+        return RAN | (hresult & 0xFFFF_FFFFL);
+    }
+
+    /**
+     * @param answer what {@link #raiseOnElement} gave back, which must not be {@link #NOT_RAISED}
+     * @return the {@code HRESULT} inside it
+     */
+    static int hresultOf(long answer) {
+        return (int) answer;
+    }
 
     /**
      * Runs a raise on this bridge's element for a node.
+     *
+     * <p><b>The {@code HRESULT} travels back on the caller's own stack</b>, which is why the answer
+     * is not a boolean. It was a volatile field until 2026-09-16, read by {@link #raiseFocus} after
+     * the guard around the write had been released: two windows' drain threads raising a focus into
+     * the same popup bridge (decision 5) could interleave between the write and the read, and the
+     * trace would then print the other thread's number — in exactly the case the field was
+     * introduced for, on the one column the next guest run is told to grep first.
      *
      * @param nodeId            a node of this bridge's tree
      * @param mint              whether to mint the element when no client holds it
      * @param fromAnotherWindow whether another window's drain thread is the caller, which takes
      *                          this bridge's guard so the whole-registry empty waits for it
      * @param raise             the platform call
-     * @return whether it ran: {@code false} when the node has left, the element is not held and
-     *         was not to be minted, or (from another window) this bridge is closing
+     * @return {@link #ran} of what the platform answered, or {@link #NOT_RAISED} when the node has
+     *         left, the element is not held and was not to be minted, or (from another window) this
+     *         bridge is closing
      */
-    private boolean raiseOnElement(long nodeId, boolean mint, boolean fromAnotherWindow,
-                                   java.util.function.ToIntFunction<UiaElement> raise) {
+    private long raiseOnElement(long nodeId, boolean mint, boolean fromAnotherWindow,
+                                java.util.function.ToIntFunction<UiaElement> raise) {
         if (!fromAnotherWindow) {
             return raiseOnElementUnguarded(nodeId, mint, raise);
         }
         synchronized (vendGuard) {
-            return !closed && OPEN.contains(this) && raiseOnElementUnguarded(nodeId, mint, raise);
+            return !closed && OPEN.contains(this)
+                    ? raiseOnElementUnguarded(nodeId, mint, raise) : NOT_RAISED;
         }
     }
 
-    private boolean raiseOnElementUnguarded(long nodeId, boolean mint,
-                                            java.util.function.ToIntFunction<UiaElement> raise) {
+    private long raiseOnElementUnguarded(long nodeId, boolean mint,
+                                         java.util.function.ToIntFunction<UiaElement> raise) {
         if (tree().indexOf(nodeId) < 0) {
-            return false;
+            return NOT_RAISED;
         }
         UiaElement element = mint ? elementOf(nodeId) : elements.peek(nodeId);
         if (element == null) {
-            return false;
+            return NOT_RAISED;
         }
-        lastRaiseHresult = raise.applyAsInt(element);
+        int hresult = raise.applyAsInt(element);
         owedAnEvent = false;
-        return true;
+        return ran(hresult);
     }
 
     /**
