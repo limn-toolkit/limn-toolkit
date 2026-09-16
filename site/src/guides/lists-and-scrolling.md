@@ -152,8 +152,8 @@ Three selection modes: `NONE`, `SINGLE` and `MULTI`, where Shift selects a range
 command modifier toggles one row and Ctrl+A or Cmd+A selects all. Whatever the mode, the arrow
 keys move a focus cell, which is what a screen reader's cursor stands on; Enter or a double click
 activates **the row the cursor is on**, which in `NONE` is the only thing that could be meant.
-Page Down moves the cursor to the foot of the view and pages from there, the way a native list
-does, so the first press of a long table scrolls by one row.
+Page Down and Page Up move the cursor a page of rows and the view moves with it, so the cursor
+keeps its place on screen; both clamp at the ends.
 
 `Column.widget` is the escape hatch for a cell that is a control — a switch, a button — and those
 cells are real children, mounted and released with their row, and published as cells of their row
