@@ -274,7 +274,8 @@ public final class AccessibleNode {
      *
      * <p>A parameterless verb is accepted exactly when this node's {@link ActionFacet} publishes
      * it. A setter is implied by a facet, and only on a node that is
-     * {@link Accessible.State#ENABLED} (fix round 2e): {@link Accessible.Action#SET_VALUE} by a
+     * {@link Accessible.State#ENABLED} and {@link Accessible.State#VISIBLE} (fix round 2e and
+     * decision 66; the paragraph below): {@link Accessible.Action#SET_VALUE} by a
      * {@link ValueFacet} that is not read-only, {@link Accessible.Action#SET_TEXT} by a
      * {@link TextFacet} on a node without {@link Accessible.State#READ_ONLY}, and
      * {@link Accessible.Action#SET_CARET} and {@link Accessible.Action#SET_SELECTION} by any

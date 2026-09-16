@@ -1098,6 +1098,9 @@ modal-blocked, inside the input root, the container still the child's parent —
 `AccessibleActionTest` (a clipped child of a showing container performs; a hidden child and a
 child of a container clipped away do not), `TreeAccessibilityTest` and
 `ListViewAccessibilityTest` (the kept row's verbs, wheeled out of the box).
+**Superseded the same day (decision 66; the amendment of that date below):** a container that is
+only scrolled away is revealed and the verb performed, not refused, and the `AccessibleActionTest`
+case this paragraph names was renamed with the policy.
 
 **Amendment, 2026-09-14: a composite says which child carries a label bound to it (decision 55;
 DATES-NEW-12).** A form's caption is bound to the widget the application holds — a `DatePicker` —
@@ -1213,9 +1216,12 @@ took the setters off an inoperable node by publishing its value read-only and it
 which conflated the two bits §1.2 keeps apart and reversed §7's `TextField` warning ("never
 `READ_ONLY` from disabled"): a reader would say "read-only" of a field that is only disabled, or
 only behind a dialog. The sentence now reads: **such a facet implies its setter only on a node that
-is `ENABLED`.** Whether a node is operable is read off the snapshot alone and needs nothing new. For
-the input-layer axis four carriers were weighed — a new `State` (an inert bit), a flag on
-`AccessibleNode`, an empty action list, and `ENABLED` itself — and `ENABLED` is taken. §1.13 has
+is `ENABLED`.** (**Amended the same day by decision 66, the amendment below: `ENABLED` and
+`VISIBLE`**; the "marks exactly the nodes §1.9's gate refuses on" clause of this paragraph is read
+with `VISIBLE` beside it since that date.) Whether a node is operable is read off the snapshot
+alone and needs nothing new. For the input-layer axis four carriers were weighed — a new `State`
+(an inert bit), a flag on `AccessibleNode`, an empty action list, and `ENABLED` itself — and
+`ENABLED` is taken. §1.13 has
 cleared it on every node outside the layer that owns input since the record was written, and the
 walk of fix round 2d publishes it clear on a disabled widget, under a disabled ancestor and on a
 narrowed synthetic child, so it marks exactly the nodes §1.9's gate refuses on; it allocates nothing
@@ -1251,6 +1257,64 @@ while every text widget performs both through its own caret whether or not it ma
 without `READ_ONLY`; `SET_CARET` and `SET_SELECTION` need any `TextFacet`; all three need `ENABLED`.**
 `AccessibleModalTest.aReadOnlyTextTakesACaretAndASelectionButNoTextAndADisabledOneTakesNone` pins it,
 and was red with the round-2e rule.
+
+**Amendment, 2026-09-15 (decision 66, phase-3 fix round): the operable bit is `ENABLED` *and*
+`VISIBLE`, and a delegated verb on a container that is only scrolled away is revealed rather than
+refused.** §1.9's amendment of this date gives the rule and the reasoning; four facts recorded in
+*this* section are reversed by it, and this is where they were written.
+
+1. **The delegated-showing amendment above is superseded.** "`Scene#perform` now refuses it when the
+   container is not showing" read the right question through the wrong bit. A container merely
+   clipped out of a viewport is visible through its ancestry, and a verb published on its child is
+   one the snapshot promised a reader; refusing it on arrival is the silent drop semantics 5 forbids,
+   which is the very thing that amendment was written to close on the child's side. The gate now
+   reads **visibility through the ancestry** for every verb — free, delegated and plain alike — and
+   where the node is visible and not showing it **reveals and then performs**: `revealInView()` on
+   the container for a verb the container claimed, which is exactly the box whose `isShowing()` that
+   amendment refused on. A container on the glass holding a child outside its own viewport still
+   reveals nothing, so decision 22's kept cursor row is expanded and selected where it stands, and
+   only a container that is itself off the glass moves. What stays refused is what nobody can see: a
+   child hidden by its own flag, and now also a child of a container that is not visible. The test
+   the paragraph above names was renamed with the policy —
+   `AccessibleActionTest.aDelegatedVerbOnAChildOfAContainerClippedAwayIsRefused` is now
+   `…IsRevealedAndPerformed` and asserts the row was selected where it used to assert that nothing
+   was — and `aDelegatedVerbOnAChildOfAnInvisibleContainerIsRefusedAndPublishesNothing` is its twin,
+   holding the other half. A delegated `SCROLL_INTO_VIEW` keeps its visibility gate, and it is no
+   longer an exception to anything: every verb has that gate now.
+2. **"Such a facet implies its setter only on a node that is `ENABLED`" now reads "only on a node
+   that is `ENABLED` and `VISIBLE`."** `AccessibleNode#accepts` reads both bits through one private
+   `isOperable()`, and §1.9's gate re-reads the same fact on the live widget, so the snapshot and the
+   scene stay one reading of one fact. A slider in a tab nobody selected keeps its writable value and
+   its true `READ_ONLY` — the two bits §1.2 keeps apart are still apart — and accepts no
+   `SET_VALUE`. The amendment directly above travels with it: `SET_CARET` and `SET_SELECTION` need
+   any `TextFacet` and the operable bit, which is now both states, because moving a caret is reading
+   and there is nothing to read in text nobody can see. **Not `SHOWING`:** a node that is visible and
+   merely clipped keeps every setter, because the scene reveals it and performs.
+3. **The four-carriers rationale keeps its conclusion and loses one clause.** `ENABLED` is still the
+   carrier chosen for the input-layer axis, for the three reasons given there: a new `State` would
+   join §1.2's closed list and need a truthful mapping on all three platforms, a flag on the node
+   would be a second name for one fact, and an empty action list cannot be the fact because a node
+   with no verb may still take a setter. What no longer holds is "so it marks exactly the nodes
+   §1.9's gate refuses on": since this date the gate refuses on visibility too, and it is `ENABLED`
+   **and** `VISIBLE` together that mark exactly that set. The third axis needed no carrier of its
+   own — `VISIBLE` has been published on every node from the widget's own predicate since the first
+   walk (§1.2, and "what a widget gets for free" below) — which is why it cost nothing the other two
+   had not already paid.
+4. **The free verbs' exception is gone; only their reveal is still theirs.** "The gate in §1.9 needs
+   one exception for them, and only one … so the two are gated on visibility instead" (below)
+   describes the gate as it was: now every verb is gated on visibility, so `FOCUS` and
+   `SCROLL_INTO_VIEW` are no longer exceptional there. What remains theirs alone is the reveal —
+   `SCROLL_INTO_VIEW` *is* the reveal and `requestFocus()` reveals on arrival — so the gate leaves
+   them to it rather than revealing twice.
+
+The withdrawal happens in the same place as the other two axes, which is the point of it:
+`AccessibleWalk` calls `Accessibility#inoperableAt` on `!ownEnabled || !ownVisible` for the widget's
+own node and on `!isEnabledAt(i) || !ownVisible` for every synthetic child it drew, reading
+visibility from the **owner** because a child may narrow enabled (`Accessibility#disabled`) and
+showing (`#offScreen`) and there is no narrowing of visible. `Accessibility#inoperableAt`'s and
+`#isEnabledAt`'s contract javadoc name the third axis as of this amendment. Pinned by the tests
+§1.9's amendment of this date lists, and ratcheted over the gallery by
+`VerbPolicyRatchetTest.everyPublishedVerbMovesSomething`.
 
 **What a widget gets for free, with no override at all:** bounds from `x/y/width/height`; `ENABLED`,
 `FOCUSABLE`, `FOCUSED`, `VISIBLE` and `SHOWING` from the existing predicates; `locale()` for the
