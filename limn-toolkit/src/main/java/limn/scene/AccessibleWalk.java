@@ -548,17 +548,27 @@ final class AccessibleWalk {
         keys[slot] = childKey;
         delegated[slot] = builder.delegatedVerbsAt(slot);
         delegates[slot] = delegated[slot] == 0 ? null : parent;
-        if (!ownEnabled) {
+        if (!ownEnabled || !ownVisible) {
             // A node that is not ENABLED is one the scene refuses every verb on (§1.9), so nothing
             // there is published operable (semantics 5; §1.5 and §1.13, amended 2026-09-15): no
             // verb the widget or its container declared. Its setters need no withdrawal and get
-            // none: a writable facet implies one only on an ENABLED node, so the value keeps its
-            // writability and the text its true READ_ONLY (§1.2, fix round 2e), and a bridge
-            // reads the missing bit. One flag for both of the reasons it is clear -- the widget or
-            // an ancestor is disabled, or it lies outside the layer that owns input -- because it
-            // is the flag the ENABLED bit is published from. After the transparency test above, so
-            // a node that offered only verbs keeps its place in the tree while it is refused; the
-            // gate refuses a routed verb while it is.
+            // none: a writable facet implies one only on an ENABLED and VISIBLE node, so the value
+            // keeps its writability and the text its true READ_ONLY (§1.2, fix round 2e), and a
+            // bridge reads the missing bit. One flag for both of the reasons it is clear -- the
+            // widget or an ancestor is disabled, or it lies outside the layer that owns input --
+            // because it is the flag the ENABLED bit is published from. After the transparency
+            // test above, so a node that offered only verbs keeps its place in the tree while it
+            // is refused; the gate refuses a routed verb while it is.
+            //
+            // The showing axis joins the other two here (decision 66, 2026-09-15; §1.9 and §1.13's
+            // amendment of that day), and it is the VISIBLE flag and not the SHOWING one. A node
+            // nobody can reach -- the contents of a tab that is not selected, a collapsed panel,
+            // anything under a widget whose own visible flag is false -- publishes no verb and no
+            // setter, because the scene refuses every verb there and a published verb the scene
+            // refuses is a promise every platform breaks. A node that IS visible and merely
+            // clipped out of a scroll viewport keeps everything: the scene reveals it and performs,
+            // the way the two free verbs have always worked, so a reader may press "Chapter 20"
+            // below the fold instead of being told about a button that does nothing.
             builder.inoperableAt(slot);
         }
         boolean showing = widget.isShowing();
@@ -570,10 +580,14 @@ final class AccessibleWalk {
             // describe hook finished with them. Focusable and focused are not passed on, because a
             // thing a widget paints is not a tab stop and never holds the keyboard.
             builder.inheritedAt(i, ownEnabled, ownVisible, showing);
-            if (!builder.isEnabledAt(i)) {
+            if (!builder.isEnabledAt(i) || !ownVisible) {
                 // The same rule, read off the bit just published: a synthetic child is refused
                 // with its owner, and so is one its owner narrowed (a refused day, decision 30)
-                // or one under such a child.
+                // or one under such a child. Visibility is read from the owner rather than from
+                // the child's published bit, because it is the owner's whole and undivided: a
+                // synthetic child may narrow enabled (disabled()) and showing (offScreen()) and
+                // there is no narrowing of visible, so inheritedAt writes the owner's flag onto
+                // every one of them (decision 66).
                 builder.inoperableAt(i);
             }
         }

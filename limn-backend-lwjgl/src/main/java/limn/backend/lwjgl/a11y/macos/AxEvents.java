@@ -33,7 +33,7 @@ final class AxEvents {
      * How many events one frame's difference may carry before it is collapsed.
      *
      * <p>Set from §13.19's two measurements rather than from the 8 ms rule alone, which is what it
-     * was until they existed. Taken on the macOS 26.6.2 guest (192.168.64.2, 2026-09-07, the
+     * was until they existed. Taken on the macOS 26.6.2 guest (2026-09-07, the
      * software-GL window, VoiceOver attached and reading), with the live probe's
      * {@code -Dprobe.timing=true -Dprobe.cycle=scroll} and {@code drag} at a 100 ms tick:
      *

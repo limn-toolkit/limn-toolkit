@@ -2,6 +2,7 @@ package limn.backend.lwjgl.a11y.windows;
 
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
+import limn.accessibility.CellFacet;
 import limn.accessibility.RoleNames;
 import limn.accessibility.StateNames;
 
@@ -116,8 +117,11 @@ final class UiaProperties {
                 return node.has(Accessible.State.ENABLED);
             case UiaIds.IS_KEYBOARD_FOCUSABLE:
                 return node.has(Accessible.State.FOCUSABLE);
-            case UiaIds.HAS_KEYBOARD_FOCUS:
-                return node.has(Accessible.State.FOCUSED);
+            // HAS_KEYBOARD_FOCUS is not answered here: since 2026-09-15 it is where the user is,
+            // the tree's effective focus (semantics 4), which a node alone cannot say -- the
+            // focused table is FOCUSED and does not have it, its ACTIVE cell does. The provider
+            // answers it from the tree (UiaProvider.Context#hasKeyboardFocus), as it answers the
+            // element-valued properties below.
 
             // The inversion §1.2 warns about: a node scrolled out of a viewport is VISIBLE and not
             // SHOWING, and UI Automation's word for that state is IsOffscreen. Answering it from
@@ -139,15 +143,103 @@ final class UiaProperties {
                 return node.role() == Accessible.Role.DIALOG
                         || node.role() == Accessible.Role.ALERT;
 
+            // Semantics 6 (decision 4; W4, CRIT-6): "n of m" from the selection item's numbers and
+            // the depth from the hierarchy facet, each only when it is not zero, which is the
+            // model's "no number" and a client's too (NVDA 2024.4.2 uses each only when positive,
+            // readings/nvda-2024.4.2-uia.md §2). The level passes through: the platform's base is
+            // one, read off a native Win32 tree on 2026-09-15 (UiaIds#LEVEL). NVDA ignores Level on
+            // a tree item and counts TreeItem ancestors instead, which is why UiaFragment nests
+            // tree rows; the property is for every other client.
+            case UiaIds.POSITION_IN_SET:
+                return node.selectionItem() != null && node.selectionItem().positionInSet() > 0
+                        ? Integer.valueOf(node.selectionItem().positionInSet()) : null;
+            case UiaIds.SIZE_OF_SET:
+                return node.selectionItem() != null && node.selectionItem().sizeOfSet() > 0
+                        ? Integer.valueOf(node.selectionItem().sizeOfSet()) : null;
+            case UiaIds.LEVEL:
+                return node.hierarchy() != null && node.hierarchy().level() > 0
+                        ? Integer.valueOf(node.hierarchy().level()) : null;
+
             // UI Automation has no busy bit; ItemStatus is its field for "the state of this item" as
             // text a client reads out. So BUSY is a word here, in the node's own language, and an
             // item that is not busy has no status at all rather than a status saying it is idle.
+            //
+            // A sorted column's header says its direction here too (decision 36), because this is
+            // where the desktop puts one: File Explorer's own column header — a SplitButton (50031)
+            // of class UIColumnHeader — answers ItemStatus "Classificado (Crescente)" /
+            // "(Descrescente)", read on the guest 2026-09-15
+            // (readings/windows-read-native-sort-direction.txt). The phrase is the model's, taken
+            // from the node's description rather than built here: this method runs on a platform
+            // thread with no locale scope open and could not resolve one, which is why the model
+            // kept the description beside the enumeration the other two platforms read (ADR 041
+            // §7's amendment of this date). HelpText answers the same description already, which is
+            // the "AND HelpText" half of the settled list and needs no code: NVDA 2024.4.2 has no
+            // ItemStatus handler and speaks a description.
+            //
+            // A CHOICE AND NOT A READING: a busy sorted header answers the busy word alone. Nothing
+            // was read about composing the two — File Explorer's header was not busy, and no guest
+            // reading shows a client joining two status phrases — and joining two translated
+            // fragments with punctuation chosen here would invent a sentence in twenty-one
+            // languages from a thread with no locale. Busy is the transient state the property
+            // exists for; the direction is not lost while it holds, because HelpText carries it and
+            // is what the one reader measured on the guest speaks. What would settle it is a live
+            // Narrator or Inspect run over a header that is both (phase 5).
             case UiaIds.ITEM_STATUS:
-                return node.has(Accessible.State.BUSY)
-                        ? StateNames.of(Accessible.State.BUSY, node.locale()) : null;
+                if (node.has(Accessible.State.BUSY)) {
+                    return StateNames.of(Accessible.State.BUSY, node.locale());
+                }
+                return statusWhenNotBusy(node);
 
             default:
                 return null;
         }
+    }
+
+    /**
+     * What {@code ItemStatus} carries for a node that is <b>not</b> busy: a sorted column header's
+     * direction, as the phrase the model published, and nothing at all for every other node.
+     *
+     * <p>Package-private because the events half needs the same answer: a {@code BUSY} state that
+     * moves is raised as this property, and the value for the side of that change where busy does
+     * not hold has to be what {@link #valueOf} answers there, or a client is told the status is one
+     * thing and reads another ({@code UiaBridge#changedValue}). This is the not-busy answer and not
+     * {@code valueOf} itself because the node it is asked about is the one in the published tree,
+     * which carries {@code BUSY} on the busy side of the change: asking {@code valueOf} would
+     * answer the busy word for the old value of a busy that has just been set.
+     *
+     * @param node the node asked, or {@code null} when it has left the tree
+     * @return the status, or {@code null} for a node that has none
+     */
+    static String statusWhenNotBusy(AccessibleNode node) {
+        return statusOf(node, node == null ? "" : node.description());
+    }
+
+    /**
+     * The same, for a description this node had or is about to have rather than the one it carries
+     * now: the description itself where the node is a sorted column header, and nothing anywhere
+     * else. A {@code DESCRIPTION_CHANGED} on a header cell raises this property with the event's
+     * two descriptions, and they pass through here so that what is announced and what
+     * {@link #valueOf} answers cannot disagree.
+     *
+     * @param node        the node the description belongs to, or {@code null} when it has left the
+     *                    tree
+     * @param description the description at that moment
+     * @return the status that description makes, or {@code null} where it makes none
+     */
+    static String statusOf(AccessibleNode node, String description) {
+        return node != null && isSortedHeader(node) && description != null && !description.isEmpty()
+                ? description : null;
+    }
+
+    /**
+     * @param node the node asked
+     * @return whether it is the header cell of a column the table is sorted on: a cell in the header
+     *         row (ADR 041 §7's {@code -1}) whose {@code CellFacet.Sort} is not {@code NONE}. A
+     *         footer cell carries {@code -2} and a data cell a row from zero, and neither heads a
+     *         column, whatever direction its facet holds
+     */
+    private static boolean isSortedHeader(AccessibleNode node) {
+        return node.cell() != null && node.cell().row() == -1
+                && node.cell().sort() != CellFacet.Sort.NONE;
     }
 }

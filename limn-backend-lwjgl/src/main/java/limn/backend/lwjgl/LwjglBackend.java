@@ -502,10 +502,52 @@ public final class LwjglBackend implements Backend {
         };
     }
 
+    /** The name {@link #setApplicationName} was given, or null for the default. */
+    private volatile String applicationName;
+
+    /** The title of the first window this backend created; the application's name by default. */
+    private volatile String firstWindowTitle;
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Handed to every window's accessibility bridge as it opens, and to the process's AT-SPI
+     * application at once when windows already have one (decision 56).
+     */
+    @Override
+    public void setApplicationName(String name) {
+        this.applicationName = java.util.Objects.requireNonNull(name, "name");
+        limn.backend.lwjgl.a11y.Bridges.nameApplication(name);
+    }
+
+    /** @return what the desktop should call this application now: the given name, or the default */
+    String applicationName() {
+        return applicationNameOf(applicationName, firstWindowTitle);
+    }
+
+    /**
+     * The rule decision 56 settled, apart from any window: the name an application was given,
+     * otherwise its first window's title, otherwise nothing.
+     *
+     * @param given            the name set, or null
+     * @param firstWindowTitle the first window's title, or null before any window
+     * @return the name to publish; never null
+     */
+    static String applicationNameOf(String given, String firstWindowTitle) {
+        if (given != null) {
+            return given;
+        }
+        return firstWindowTitle != null ? firstWindowTitle : "";
+    }
+
     @Override
     public NativeWindow createWindow(WindowConfig config) {
         uiRuntime.checkUiThread();
         ensureOpen();
+        if (firstWindowTitle == null) {
+            // Before the window exists, so the name its own bridge is opened with is already this.
+            firstWindowTitle = config.title();
+        }
         LwjglWindow window = new LwjglWindow(this, config);
         windows.add(window);
         if (graphicsInfo == null) {

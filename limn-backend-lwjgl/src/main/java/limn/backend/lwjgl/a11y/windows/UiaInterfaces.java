@@ -1,6 +1,10 @@
 package limn.backend.lwjgl.a11y.windows;
 
+import org.lwjgl.system.MemoryUtil;
+
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The COM interfaces this bridge serves: each one's identifier, and the order of its vtable.
@@ -46,8 +50,34 @@ final class UiaInterfaces {
 
         /** @return the identifier in the byte order a {@code QueryInterface} argument carries */
         byte[] iidBytes() {
-            return UiaInterfaces.iidBytes(iid);
+            return iidBytesOf(iid).clone();
         }
+
+        /**
+         * Whether the sixteen bytes at an address are this interface's identifier: what
+         * {@code QueryInterface} asks of every interface it might answer, so it reads native memory
+         * against bytes parsed once per identifier and allocates nothing.
+         *
+         * @param riid the address of a {@code GUID}
+         * @return whether it is this identifier
+         */
+        boolean isIidAt(long riid) {
+            byte[] bytes = iidBytesOf(iid);
+            for (int i = 0; i < bytes.length; i++) {
+                if (MemoryUtil.memGetByte(riid + i) != bytes[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    /** Each identifier's bytes, parsed the first time they are wanted; never handed out. */
+    private static final Map<String, byte[]> IID_BYTES = new ConcurrentHashMap<>();
+
+    private static byte[] iidBytesOf(String canonical) {
+        byte[] bytes = IID_BYTES.get(canonical);
+        return bytes != null ? bytes : IID_BYTES.computeIfAbsent(canonical, UiaInterfaces::iidBytes);
     }
 
     static final Vtable RAW_ELEMENT_PROVIDER_SIMPLE = new Vtable(

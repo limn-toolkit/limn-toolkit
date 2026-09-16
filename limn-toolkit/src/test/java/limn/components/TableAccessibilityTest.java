@@ -850,8 +850,58 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         scene.keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
         scene.inputBatchEnded();
         frame();
-        assertEquals(new CellFacet(-1, 1), nodesWith(Accessible.State.ACTIVE).get(0).cell(),
-                "the header's cursor remembers the pressed column: " + describe(tree()));
+        assertEquals(new CellFacet(-1, 1, CellFacet.Sort.ASCENDING),
+                nodesWith(Accessible.State.ACTIVE).get(0).cell(),
+                "the header's cursor remembers the pressed column, and that header now carries "
+                        + "the direction its press set: " + describe(tree()));
+    }
+
+    // ------------------------------------------------------------------ the sort direction (36)
+
+    /**
+     * Decision 36's carrier, settled 2026-09-15: the direction a sorted column's rows run is a
+     * component of the header cell's {@code CellFacet}, so the two platforms whose carrier is an
+     * enumeration read a fact rather than parse a phrase. The localized phrase stays in the
+     * header's description beside it, for the one platform whose carrier is a phrase: a bridge
+     * reads the snapshot where no locale scope is open and could not build one.
+     */
+    @Test
+    void aSortedHeaderCarriesItsDirectionOnItsCellFacetAndKeepsThePhraseInItsDescription()
+            throws InterruptedException {
+        bindTable(30);
+
+        for (AccessibleNode header : childrenOf(headerGroup())) {
+            assertEquals(CellFacet.Sort.NONE, header.cell().sort(),
+                    "nothing is sorted yet" + describe(tree()));
+            assertEquals("", header.description(), describe(tree()));
+        }
+
+        assertTrue(perform(childrenOf(headerGroup()).get(0).id(), Accessible.Action.PRESS, null));
+        frame();
+
+        assertEquals(new CellFacet(-1, 0, CellFacet.Sort.ASCENDING),
+                childrenOf(headerGroup()).get(0).cell(),
+                "the pressed header is the sorted one" + describe(tree()));
+        assertEquals("Sorted ascending", childrenOf(headerGroup()).get(0).description(),
+                "and the phrase stands beside it, for the platform that carries words"
+                        + describe(tree()));
+        assertEquals(CellFacet.Sort.NONE, childrenOf(headerGroup()).get(1).cell().sort(),
+                "a header of a column nobody sorted by says NONE, not nothing" + describe(tree()));
+
+        assertTrue(perform(childrenOf(headerGroup()).get(0).id(), Accessible.Action.PRESS, null));
+        frame();
+
+        assertEquals(CellFacet.Sort.DESCENDING, childrenOf(headerGroup()).get(0).cell().sort(),
+                "a second press turns the column round" + describe(tree()));
+        assertEquals("Sorted descending", childrenOf(headerGroup()).get(0).description(),
+                describe(tree()));
+
+        for (AccessibleNode cell : nodesWith(Accessible.State.SHOWING)) {
+            if (cell.cell() != null && cell.cell().row() >= 0) {
+                assertEquals(CellFacet.Sort.NONE, cell.cell().sort(),
+                        "a data cell is not a header and sorts nothing" + describe(tree()));
+            }
+        }
     }
 
     @Test

@@ -58,12 +58,15 @@ class TreeReaderRowNamesTest {
 
     @Test
     void everyRowOfTheReaderSceneHasANameReadFromItsCell() {
-        TreeScene.Built built = TreeScene.reader();
+        // The reader run's tree since 2026-09-15 (decision 24): the gallery entry that replaced
+        // TreeScene.reader(), whose first rows and cells it keeps.
+        limn.demo.a11y.AccessibilityGallery.Built built = limn.demo.a11y.AccessibilityGallery
+                .readerEntry("tree-loading").build();
         HeadlessWindow window = backend.open("Limn tree", 800, 640);
-        built.scene().bind(window);
+        new limn.scene.Scene(built.root(), () -> nanos).bind(window);
         window.frame();
         window.desktopFocus(true);
-        built.afterLayout().run();
+        built.focus().requestFocus();
         settle(window);
 
         AccessibleTree tree = window.bridge().tree();

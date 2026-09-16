@@ -2,6 +2,14 @@
 
 - **Status:** Proposed, 2026-09-12. Phase 1 is the widget and its three-platform accessibility;
   §8 says what is deliberately not in it and §9 what each later phase is.
+  **Still Proposed as of 2026-09-16, deliberately (decision 60 of the 2026-09-13 pass).** The
+  amendments of 2026-09-14 and 2026-09-15 are written: the widget's keyboard, selection, identity,
+  loading and damage rules, and the three bridges' outline mapping. What is missing is the thing
+  this record is about — §4's findings are what three readers said on 2026-09-13 about a build that
+  predates every fix in this pass, and no reader has spoken the tree since. **Acceptance follows the
+  phase-5 reader runs**, one guest at a time over the gallery's `tree` and `tree-loading` entries,
+  and the status line will then record what each reader heard, as ADRs 041 and 042 record theirs.
+  Until then §4 is read as a plan plus a stale transcript, not as a verified mapping.
 - **Date:** 2026-09-12
 - **Scope:** the toolkit's first tree: what its model is, how a row is expanded and how children
   that are not there yet arrive, how it virtualizes, what the keyboard does, how a screen reader
@@ -276,6 +284,31 @@ with the two facets is phase 3's: Windows publishes UIA `Level` (30154, read off
 derives level from `TreeItem` ancestors; Linux publishes the `level`/`posinset`/`setsize` object
 attributes Orca 50.2 reads first; macOS answers `accessibilityDisclosureLevel` from the level and
 `accessibilityIndex` from the row. A zero in any of the three publishes nothing on any platform.
+**Amended 2026-09-15 (phase 3, Windows): built as planned.** `Level`, `PositionInSet` and
+`SizeOfSet` are answered from the two facets, and navigation nests each `TreeItem` under the nearest
+earlier row of a lower level. The level passes through unchanged: a native Win32 tree view answers
+`Level` 1 for its root items, read on the guest 2026-09-15 (ADR 039 §2.1, amended the same day,
+`UiaTreeRowsTest`).
+
+**Amended 2026-09-15 (review of the Windows phase-3 work): the nesting holds only while a row's
+ancestor rows are published.** Navigation nests a row under an earlier row only through unbroken
+flat row indices, so the cursor row kept realized off screen (decision 22) is never taken for the
+parent of the viewport's rows. A branch scrolled so that its own row is above the viewport leaves its
+visible child rows with no published parent row: they hang under the tree, and NVDA 2024.4.2, which
+counts `TreeItem` ancestors, says a lower level for them than the one this widget publishes. This
+widget could close it by keeping the ancestor rows of its first mounted row realized, as it keeps the
+cursor row; that is not decided here (ADR 039 §2.1, amended the same day).
+
+**Amendment, 2026-09-15: the macOS half is built, on the platform's own bases.** A native
+NSOutlineView was read through the AX API on the macOS 26.6.2 guest first
+(`scripts/a11y/macos/outline-probe.swift`): its rows answer `AXIndex` and `AXDisclosureLevel` from
+**zero**, `AXDisclosing` (settable only on a row that can open), `AXDisclosedByRow` and
+`AXDisclosedRows`, and no `AXExpanded`; the outline answers `AXRows` and no `AXRowCount`; opening a
+row posts `AXRowExpanded` on the row and `AXRowCountChanged` on the outline, and selecting one
+`AXSelectedRowsChanged` on the outline. The bridge now vends the same: the outline's rows are its
+realized items, a row's index is the hierarchy row less one and its disclosure level the level less
+one, and the cursor row is the focused element. So the 2026-09-13 run's "the outline answers no
+`AXRows`, and the rows answer no disclosure" is history; what VoiceOver speaks for it is phase 5's.
 
 **Amendment, 2026-09-14: a tree item always has a name.** The L4 baseline on the Fedora guest read
 every row of the reader scene as `name=''`: the demo's cells are composites — an icon, a label and
@@ -337,10 +370,28 @@ visible headless and most of it not caused by the tree:
 - **All three.** Two seconds after Remote's load was due, none of the three clients saw its
   children in the tree.
 
-The recipes are `scripts/a11y/linux/run-tree-reader.sh` with `tree-check.py`,
-`scripts/a11y/windows/walk-the-tree.ps1`, and `scripts/a11y/macos/guest-tree-reader.sh` with
-`axoutline.swift`. Until these are fixed and re-run, the tree is readable by a client and not yet
-navigable by a person using a screen reader.
+The versioned half of those recipes is the platform clients: `scripts/a11y/linux/tree-check.py`,
+`scripts/a11y/windows/walk-the-tree.ps1` and `scripts/a11y/macos/axoutline.swift`, each run against
+the demo started by the gallery's `--reader` driver. The runners that brought a particular guest up
+around them are not in this repository (decision 17 of the 2026-09-13 pass, ADR 039 §12.2): they
+carried a VM's address, login and home paths, and their copies live outside the tree. Until the
+clients are re-run against the fixed bridges, the tree is readable by a client and not yet navigable
+by a person using a screen reader.
+
+**Amendment, 2026-09-15: the scene those runs drove is the accessibility gallery's now.**
+`TreeScene.reader()` and the fifteen arrows inline in `Main` are gone (decision 24 of the
+2026-09-13 pass). `--scene tree-reader` is kept as a spelling of `--reader tree-loading`, the one
+reader driver, which builds the gallery entry "Tree with branches that load" alone in a window
+titled "Limn accessibility gallery", focuses the tree and sends its declared steps three seconds
+apart. Its first rows and cells are the old scene's, in the same order, so steps 1 to 15 are the
+same arrows landing on the same rows and the recipes' step numbers keep their meaning; steps 16
+to 21 add Trash, whose load finds nothing, and Empty folder. What changed for a recipe: the
+window title (it was "Limn UI: Kitchen Sink"), the step line (`--- step N KEYS - label
+focus=Widget`, still starting `--- step N `), the language (pt-BR unless `--locale` says
+otherwise, the guests' reader language), and a default exit five seconds after the last step,
+so an `--exit-after 62000` left in a recipe ends the run before step 21. The long tail of 24
+archive rows and the fourteen-level chain are not in the gallery entry: they were there for the
+captures, and the runs never reached them. `ReaderStepsTest` holds every step headlessly.
 
 **Later the same day: two of those findings have one cause, and it was the widget's.** A realized
 row's cell was bound to its row's index, and nothing re-bound it when opening, closing or loading

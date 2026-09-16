@@ -554,7 +554,9 @@ public final class Dialog {
         panel.setInheritanceHost(inheritanceHostFor(owner));
         // A scene gives the panel a text ruler so it can be measured to size
         // the window; it is then bound to the modal window.
-        modalScene = new Scene(panel);
+        // On the owner's clock, so the fade-out that destroys this window — and completes the
+        // dialog's future — advances with it (Scene#clock).
+        modalScene = new Scene(panel, owner.clock());
         modalScene.inheritRenderingFlags(owner); // partial/debug follow the owner window
         // Opaque styles fill with the surface color; translucent shows the
         // desktop through the transparent framebuffer's rounded corners.

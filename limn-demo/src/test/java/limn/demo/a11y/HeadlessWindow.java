@@ -175,6 +175,15 @@ public final class HeadlessWindow implements NativeWindow {
         input.inputBatchEnded();
     }
 
+    /**
+     * @return the scene bound to this window — the entry's own, or the one a widget built for a
+     *         popup, a dialog or a menu it opened as a window of its own — or {@code null} before
+     *         one is bound
+     */
+    public limn.scene.Scene scene() {
+        return input instanceof limn.scene.Scene bound ? bound : null;
+    }
+
     /** @return the bridge that kept the newest tree this window's scene published */
     public CapturingBridge bridge() {
         return bridge;

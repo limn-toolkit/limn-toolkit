@@ -8,6 +8,7 @@ macOS: Version 26.6.2 (Build 25G83)
   NSAccessibilityColorWellRole = "AXColorWell"
   NSAccessibilityColumnRole = "AXColumn"
   NSAccessibilityComboBoxRole = "AXComboBox"
+  NSAccessibilityDisclosureTriangleRole = "AXDisclosureTriangle"
   NSAccessibilityDrawerRole = "AXDrawer"
   NSAccessibilityGroupRole = "AXGroup"
   NSAccessibilityImageRole = "AXImage"
@@ -78,16 +79,65 @@ macOS: Version 26.6.2 (Build 25G83)
   NSAccessibilityMovedNotification = "AXMoved"
   NSAccessibilityPriorityKey = "AXPriorityKey"
   NSAccessibilityResizedNotification = "AXResized"
+  NSAccessibilityRowCollapsedNotification = "AXRowCollapsed"
   NSAccessibilityRowCountChangedNotification = "AXRowCountChanged"
+  NSAccessibilityRowExpandedNotification = "AXRowExpanded"
+  NSAccessibilitySelectedCellsChangedNotification = "AXSelectedCellsChanged"
   NSAccessibilitySelectedChildrenChangedNotification = "AXSelectedChildrenChanged"
   NSAccessibilitySelectedColumnsChangedNotification = "AXSelectedColumnsChanged"
   NSAccessibilitySelectedRowsChangedNotification = "AXSelectedRowsChanged"
   NSAccessibilitySelectedTextChangedNotification = "AXSelectedTextChanged"
   NSAccessibilityTitleChangedNotification = "AXTitleChanged"
   NSAccessibilityUIElementDestroyedNotification = "AXUIElementDestroyed"
+  NSAccessibilityUIElementsKey = "AXUIElementsKey"
   NSAccessibilityValueChangedNotification = "AXValueChanged"
   NSAccessibilityWindowCreatedNotification = "AXWindowCreated"
   !! NOT EXPORTED BY THIS APPKIT: NSAccessibilityPriorityHigh, NSAccessibilityPriorityLow, NSAccessibilityPriorityMedium, NSAccessibilitySortDirectionAscending, NSAccessibilitySortDirectionDescending, NSAccessibilitySortDirectionUnknown
+
+==== attribute names ====
+  NSAccessibilityChildrenAttribute = "AXChildren"
+  NSAccessibilityColumnCountAttribute = "AXColumnCount"
+  NSAccessibilityColumnsAttribute = "AXColumns"
+  NSAccessibilityDisclosedByRowAttribute = "AXDisclosedByRow"
+  NSAccessibilityDisclosedRowsAttribute = "AXDisclosedRows"
+  NSAccessibilityDisclosingAttribute = "AXDisclosing"
+  NSAccessibilityDisclosureLevelAttribute = "AXDisclosureLevel"
+  NSAccessibilityExpandedAttribute = "AXExpanded"
+  NSAccessibilityFocusedAttribute = "AXFocused"
+  NSAccessibilityFocusedUIElementAttribute = "AXFocusedUIElement"
+  NSAccessibilityHeaderAttribute = "AXHeader"
+  NSAccessibilityIndexAttribute = "AXIndex"
+  NSAccessibilityRoleAttribute = "AXRole"
+  NSAccessibilityRowCountAttribute = "AXRowCount"
+  NSAccessibilityRowsAttribute = "AXRows"
+  NSAccessibilitySelectedAttribute = "AXSelected"
+  NSAccessibilitySelectedCellsAttribute = "AXSelectedCells"
+  NSAccessibilitySelectedChildrenAttribute = "AXSelectedChildren"
+  NSAccessibilitySelectedColumnsAttribute = "AXSelectedColumns"
+  NSAccessibilitySelectedRowsAttribute = "AXSelectedRows"
+  NSAccessibilitySortDirectionAttribute = "AXSortDirection"
+  NSAccessibilityValueAttribute = "AXValue"
+  NSAccessibilityVisibleColumnsAttribute = "AXVisibleColumns"
+  NSAccessibilityVisibleRowsAttribute = "AXVisibleRows"
+
+==== action names ====
+  NSAccessibilityCancelAction = "AXCancel"
+  NSAccessibilityConfirmAction = "AXConfirm"
+  NSAccessibilityDecrementAction = "AXDecrement"
+  NSAccessibilityIncrementAction = "AXIncrement"
+  NSAccessibilityPickAction = "AXPick"
+  NSAccessibilityPressAction = "AXPress"
+  NSAccessibilityRaiseAction = "AXRaise"
+  NSAccessibilityScrollToVisibleAction = "AXScrollToVisible"
+  NSAccessibilityShowMenuAction = "AXShowMenu"
+
+==== C enum values (compiled in from the SDK headers; no symbol exists to dlsym) ====
+  NSAccessibilityPriorityLow = 10  (enum NSAccessibilityPriorityLevel)
+  NSAccessibilityPriorityMedium = 50  (enum NSAccessibilityPriorityLevel)
+  NSAccessibilityPriorityHigh = 90  (enum NSAccessibilityPriorityLevel)
+  NSAccessibilitySortDirectionUnknown = 0  (enum NSAccessibilitySortDirection)
+  NSAccessibilitySortDirectionAscending = 1  (enum NSAccessibilitySortDirection)
+  NSAccessibilitySortDirectionDescending = 2  (enum NSAccessibilitySortDirection)
 
 ==== selector type encodings ====
   -accessibilityRole  @16@0:8  (from NSAccessibilityElement)
@@ -158,3 +208,298 @@ macOS: Version 26.6.2 (Build 25G83)
   -accessibilityColumnTitles  @16@0:8  (from NSAccessibilityElement)
   -accessibilityDisclosureLevel  q16@0:8  (from NSAccessibilityElement)
   -accessibilityOrientation  q16@0:8  (from NSAccessibilityElement)
+  -isAccessibilityDisclosed  B16@0:8  (from NSAccessibilityElement)
+  -setAccessibilityDisclosed:  v20@0:8B16  (from NSAccessibilityElement)
+  -accessibilityDisclosedRows  @16@0:8  (from NSAccessibilityElement)
+  -setAccessibilityDisclosedRows:  v24@0:8@16  (from NSAccessibilityElement)
+  -accessibilityDisclosedByRow  @16@0:8  (from NSAccessibilityElement)
+  -setAccessibilityDisclosedByRow:  v24@0:8@16  (from NSAccessibilityElement)
+  -setAccessibilityDisclosureLevel:  v24@0:8q16  (from NSAccessibilityElement)
+  -isAccessibilityExpanded  B16@0:8  (from NSAccessibilityElement)
+  -setAccessibilityExpanded:  v20@0:8B16  (from NSAccessibilityElement)
+  -setAccessibilityValue:  v24@0:8@16  (from NSAccessibilityElement)
+  -setAccessibilitySelectedChildren:  v24@0:8@16  (from NSAccessibilityElement)
+  -setAccessibilityColumns:  v24@0:8@16  (from NSAccessibilityElement)
+  -accessibilityAttributeNames  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityAttributeValue:  @24@0:8@16  (from NSAccessibilityElement)
+  -accessibilityIsAttributeSettable:  B24@0:8@16  (from NSView)
+  -accessibilitySetValue:forAttribute:  v32@0:8@16@24  (from NSView)
+  -accessibilityParameterizedAttributeNames  @16@0:8  (from NSAccessibilityElement)
+  -accessibilityAttributeValue:forParameter:  @32@0:8@16@24  (from NSAccessibilityElement)
+  -accessibilityActionDescription:  @24@0:8@16  (from NSView)
+  -accessibilityPerformAction:  v24@0:8@16  (from NSView)
+  -accessibilityIsIgnored  B16@0:8  (from NSView)
+  -accessibilityArrayAttributeCount:  Q24@0:8@16  (from NSAccessibilityElement)
+  -accessibilityArrayAttributeValues:index:maxCount:  @40@0:8@16Q24Q32  (from NSAccessibilityElement)
+  -accessibilityIndexOfChild:  Q24@0:8@16  (from NSAccessibilityElement)
+
+==== owning class (class_copyMethodList, walked up from NSAccessibilityElement) ====
+  chain: NSAccessibilityElement < NSObject
+  fallback chain when that one has none: NSView < NSResponder < NSObject
+  -accessibilityRole  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityRole]
+  -accessibilitySubrole  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilitySubrole]
+  -accessibilityRoleDescription  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityRoleDescription]
+  -accessibilityTitle  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityTitle]
+  -accessibilityLabel  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityLabel]
+  -accessibilityHelp  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityHelp]
+  -accessibilityValue  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityValue]
+  -accessibilityMinValue  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityMinValue]
+  -accessibilityMaxValue  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityMaxValue]
+  -accessibilityChildren  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityChildren]
+  -accessibilityParent  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityParent]
+  -accessibilityFocusedUIElement  answered by NSView (NOT in NSAccessibilityElement's chain; found walking NSView's)  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSView(NSViewAccessibility) accessibilityFocusedUIElement]
+  -isAccessibilityElement  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement isAccessibilityElement]
+  -isAccessibilityEnabled  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement isAccessibilityEnabled]
+  -isAccessibilityFocused  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement isAccessibilityFocused]
+  -setAccessibilityFocused:  answered by NSAccessibilityElement  v20@0:8B16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityFocused:]
+  -accessibilitySelectedChildren  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilitySelectedChildren]
+  -accessibilityHitTest:  answered by NSAccessibilityElement  @32@0:8{CGPoint=dd}16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityHitTest:]
+  -accessibilityIdentifier  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityIdentifier]
+  -accessibilityFrame  answered by NSAccessibilityElement  {CGRect={CGPoint=dd}{CGSize=dd}}16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityFrame]
+  -accessibilityFrameInParentSpace  answered by NSAccessibilityElement  {CGRect={CGPoint=dd}{CGSize=dd}}16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityFrameInParentSpace]
+  -setAccessibilityFrameInParentSpace:  answered by NSAccessibilityElement  v48@0:8{CGRect={CGPoint=dd}{CGSize=dd}}16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityFrameInParentSpace:]
+  -setAccessibilityChildren:  answered by NSAccessibilityElement  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityChildren:]
+  -accessibilityPerformPress  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityPerformPress]
+  -accessibilityPerformIncrement  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityPerformIncrement]
+  -accessibilityPerformDecrement  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityPerformDecrement]
+  -accessibilityPerformShowMenu  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityPerformShowMenu]
+  -accessibilityPerformPick  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityPerformPick]
+  -accessibilityPerformCancel  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityPerformCancel]
+  -accessibilityPerformConfirm  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityPerformConfirm]
+  -accessibilityNumberOfCharacters  answered by NSAccessibilityElement  q16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityNumberOfCharacters]
+  -accessibilitySelectedText  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilitySelectedText]
+  -accessibilitySelectedTextRange  answered by NSAccessibilityElement  {_NSRange=QQ}16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilitySelectedTextRange]
+  -accessibilityStringForRange:  answered by NSAccessibilityElement  @32@0:8{_NSRange=QQ}16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityStringForRange:]
+  -accessibilityRangeForLine:  answered by NSAccessibilityElement  {_NSRange=QQ}24@0:8q16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityRangeForLine:]
+  -accessibilityInsertionPointLineNumber  answered by NSAccessibilityElement  q16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityInsertionPointLineNumber]
+  -accessibilityLinkedUIElements  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityLinkedUIElements]
+  -setAccessibilityLinkedUIElements:  answered by NSAccessibilityElement  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityLinkedUIElements:]
+  -isAccessibilityModal  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement isAccessibilityModal]
+  -setAccessibilityModal:  answered by NSAccessibilityElement  v20@0:8B16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityModal:]
+  -accessibilityWindow  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityWindow]
+  -isAccessibilitySelectorAllowed:  answered by NSAccessibilityElement  B24@0:8:16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement isAccessibilitySelectorAllowed:]
+  -accessibilityActionNames  answered by NSView (NOT in NSAccessibilityElement's chain; found walking NSView's)  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSView(NSViewAccessibility) accessibilityActionNames]
+  -accessibilityPerformRaise  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityPerformRaise]
+  -accessibilityRows  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityRows]
+  -accessibilityColumns  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityColumns]
+  -accessibilityVisibleRows  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityVisibleRows]
+  -accessibilityVisibleColumns  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityVisibleColumns]
+  -accessibilitySelectedRows  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilitySelectedRows]
+  -setAccessibilitySelectedRows:  answered by NSAccessibilityElement  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilitySelectedRows:]
+  -accessibilitySelectedColumns  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilitySelectedColumns]
+  -accessibilityHeader  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityHeader]
+  -accessibilityRowCount  answered by NSAccessibilityElement  q16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityRowCount]
+  -accessibilityColumnCount  answered by NSAccessibilityElement  q16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityColumnCount]
+  -accessibilityColumnHeaderUIElements  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityColumnHeaderUIElements]
+  -accessibilityRowHeaderUIElements  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityRowHeaderUIElements]
+  -accessibilityVisibleCells  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityVisibleCells]
+  -accessibilitySelectedCells  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilitySelectedCells]
+  -accessibilityCellForColumn:row:  answered by NSAccessibilityElement  @32@0:8q16q24  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityCellForColumn:row:]
+  -accessibilityRowIndexRange  answered by NSAccessibilityElement  {_NSRange=QQ}16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityRowIndexRange]
+  -accessibilityColumnIndexRange  answered by NSAccessibilityElement  {_NSRange=QQ}16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityColumnIndexRange]
+  -accessibilityIndex  answered by NSAccessibilityElement  q16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityIndex]
+  -isAccessibilitySelected  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement isAccessibilitySelected]
+  -setAccessibilitySelected:  answered by NSAccessibilityElement  v20@0:8B16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilitySelected:]
+  -accessibilitySortDirection  answered by NSAccessibilityElement  q16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilitySortDirection]
+  -accessibilityColumnTitles  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityColumnTitles]
+  -accessibilityDisclosureLevel  answered by NSAccessibilityElement  q16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityDisclosureLevel]
+  -accessibilityOrientation  answered by NSAccessibilityElement  q16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityOrientation]
+  -isAccessibilityDisclosed  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement isAccessibilityDisclosed]
+  -setAccessibilityDisclosed:  answered by NSAccessibilityElement  v20@0:8B16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityDisclosed:]
+  -accessibilityDisclosedRows  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityDisclosedRows]
+  -setAccessibilityDisclosedRows:  answered by NSAccessibilityElement  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityDisclosedRows:]
+  -accessibilityDisclosedByRow  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityDisclosedByRow]
+  -setAccessibilityDisclosedByRow:  answered by NSAccessibilityElement  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityDisclosedByRow:]
+  -setAccessibilityDisclosureLevel:  answered by NSAccessibilityElement  v24@0:8q16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityDisclosureLevel:]
+  -isAccessibilityExpanded  answered by NSAccessibilityElement  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement isAccessibilityExpanded]
+  -setAccessibilityExpanded:  answered by NSAccessibilityElement  v20@0:8B16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityExpanded:]
+  -setAccessibilityValue:  answered by NSAccessibilityElement  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityValue:]
+  -setAccessibilitySelectedChildren:  answered by NSAccessibilityElement  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilitySelectedChildren:]
+  -setAccessibilityColumns:  answered by NSAccessibilityElement  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement setAccessibilityColumns:]
+  -accessibilityAttributeNames  answered by NSAccessibilityElement  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityAttributeNames]
+  -accessibilityAttributeValue:  answered by NSAccessibilityElement  @24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSAccessibilityElement accessibilityAttributeValue:]
+  -accessibilityIsAttributeSettable:  answered by NSView (NOT in NSAccessibilityElement's chain; found walking NSView's)  B24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSView(NSViewAccessibility) accessibilityIsAttributeSettable:]
+  -accessibilitySetValue:forAttribute:  answered by NSView (NOT in NSAccessibilityElement's chain; found walking NSView's)  v32@0:8@16@24  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSView(NSViewAccessibility) accessibilitySetValue:forAttribute:]
+  -accessibilityParameterizedAttributeNames  answered by NSObject  @16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSObject(NSObjectAccessibilityAttributeAccessAdditions) accessibilityParameterizedAttributeNames]
+  -accessibilityAttributeValue:forParameter:  answered by NSObject  @32@0:8@16@24  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSObject(NSObjectAccessibilityAttributeAccessAdditions) accessibilityAttributeValue:forParameter:]
+  -accessibilityActionDescription:  answered by NSView (NOT in NSAccessibilityElement's chain; found walking NSView's)  @24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSView(NSViewAccessibility) accessibilityActionDescription:]
+  -accessibilityPerformAction:  answered by NSView (NOT in NSAccessibilityElement's chain; found walking NSView's)  v24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSView(NSViewAccessibility) accessibilityPerformAction:]
+  -accessibilityIsIgnored  answered by NSView (NOT in NSAccessibilityElement's chain; found walking NSView's)  B16@0:8  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSView(NSViewAccessibility) accessibilityIsIgnored]
+  -accessibilityArrayAttributeCount:  answered by NSObject  Q24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSObject(NSObjectAccessibilityAttributeAccessAdditions) accessibilityArrayAttributeCount:]
+  -accessibilityArrayAttributeValues:index:maxCount:  answered by NSObject  @40@0:8@16Q24Q32  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSObject(NSObjectAccessibilityAttributeAccessAdditions) accessibilityArrayAttributeValues:index:maxCount:]
+  -accessibilityIndexOfChild:  answered by NSObject  Q24@0:8@16  image /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit symbol -[NSObject(NSObjectAccessibilityAttributeAccessAdditions) accessibilityIndexOfChild:]
+
+==== protocol declarations (protocol_copyMethodDescriptionList, instance side, not recursive) ====
+  protocols: NSAccessibility, NSAccessibilityButton, NSAccessibilityCheckBox, NSAccessibilityColor, NSAccessibilityContainsTransientUI, NSAccessibilityCustomElementDataProvider, NSAccessibilityElement, NSAccessibilityGroup, NSAccessibilityImage, NSAccessibilityLayoutArea, NSAccessibilityLayoutItem, NSAccessibilityList, NSAccessibilityNavigableStaticText, NSAccessibilityOutline, NSAccessibilityProgressIndicator, NSAccessibilityRadioButton, NSAccessibilityRow, NSAccessibilitySlider, NSAccessibilityStaticText, NSAccessibilityStepper, NSAccessibilitySwitch, NSAccessibilityTable, NSAccessibilityToolbarTitleActionDelegate
+  !! NO SUCH PROTOCOL IN THIS RUNTIME: NSAccessibilityElementLoading
+  -accessibilityRole  @protocol NSAccessibility required @16@0:8
+  -accessibilitySubrole  @protocol NSAccessibility required @16@0:8
+  -accessibilityRoleDescription  @protocol NSAccessibility required @16@0:8
+  -accessibilityTitle  @protocol NSAccessibility required @16@0:8
+  -accessibilityLabel  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityButton required @16@0:8  | @protocol NSAccessibilityImage required @16@0:8  | @protocol NSAccessibilityLayoutArea required @16@0:8  | @protocol NSAccessibilitySlider required @16@0:8  | @protocol NSAccessibilityStepper required @16@0:8  | @protocol NSAccessibilityTable required @16@0:8
+  -accessibilityHelp  @protocol NSAccessibility required @16@0:8
+  -accessibilityValue  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityCheckBox required @16@0:8  | @protocol NSAccessibilityProgressIndicator required @16@0:8  | @protocol NSAccessibilityRadioButton required @16@0:8  | @protocol NSAccessibilitySlider required @16@0:8  | @protocol NSAccessibilityStaticText required @16@0:8  | @protocol NSAccessibilityStepper optional @16@0:8  | @protocol NSAccessibilitySwitch required @16@0:8
+  -accessibilityMinValue  @protocol NSAccessibility required @16@0:8
+  -accessibilityMaxValue  @protocol NSAccessibility required @16@0:8
+  -accessibilityChildren  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityLayoutArea required @16@0:8
+  -accessibilityParent  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityElement required @16@0:8
+  -accessibilityFocusedUIElement  @protocol NSAccessibilityLayoutArea required @16@0:8
+  -isAccessibilityElement  @protocol NSAccessibility required B16@0:8
+  -isAccessibilityEnabled  @protocol NSAccessibility required B16@0:8
+  -isAccessibilityFocused  @protocol NSAccessibility required B16@0:8  | @protocol NSAccessibilityElement optional B16@0:8
+  -setAccessibilityFocused:  @protocol NSAccessibility required v20@0:8B16
+  -accessibilitySelectedChildren  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityLayoutArea required @16@0:8
+  -accessibilityHitTest:  declared by no NSAccessibility protocol
+  -accessibilityIdentifier  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityElement optional @16@0:8
+  -accessibilityFrame  @protocol NSAccessibility required {CGRect={CGPoint=dd}{CGSize=dd}}16@0:8  | @protocol NSAccessibilityElement required {CGRect={CGPoint=dd}{CGSize=dd}}16@0:8
+  -accessibilityFrameInParentSpace  declared by no NSAccessibility protocol
+  -setAccessibilityFrameInParentSpace:  declared by no NSAccessibility protocol
+  -setAccessibilityChildren:  @protocol NSAccessibility required v24@0:8@16
+  -accessibilityPerformPress  @protocol NSAccessibility required B16@0:8  | @protocol NSAccessibilityButton required B16@0:8  | @protocol NSAccessibilityToolbarTitleActionDelegate optional B16@0:8
+  -accessibilityPerformIncrement  @protocol NSAccessibility required B16@0:8  | @protocol NSAccessibilitySlider required B16@0:8  | @protocol NSAccessibilityStepper required B16@0:8  | @protocol NSAccessibilitySwitch optional B16@0:8
+  -accessibilityPerformDecrement  @protocol NSAccessibility required B16@0:8  | @protocol NSAccessibilitySlider required B16@0:8  | @protocol NSAccessibilityStepper required B16@0:8  | @protocol NSAccessibilitySwitch optional B16@0:8
+  -accessibilityPerformShowMenu  @protocol NSAccessibility required B16@0:8
+  -accessibilityPerformPick  @protocol NSAccessibility required B16@0:8
+  -accessibilityPerformCancel  @protocol NSAccessibility required B16@0:8
+  -accessibilityPerformConfirm  @protocol NSAccessibility required B16@0:8
+  -accessibilityNumberOfCharacters  @protocol NSAccessibility required q16@0:8
+  -accessibilitySelectedText  @protocol NSAccessibility required @16@0:8
+  -accessibilitySelectedTextRange  @protocol NSAccessibility required {_NSRange=QQ}16@0:8
+  -accessibilityStringForRange:  @protocol NSAccessibility required @32@0:8{_NSRange=QQ}16  | @protocol NSAccessibilityNavigableStaticText required @32@0:8{_NSRange=QQ}16
+  -accessibilityRangeForLine:  @protocol NSAccessibility required {_NSRange=QQ}24@0:8q16  | @protocol NSAccessibilityNavigableStaticText required {_NSRange=QQ}24@0:8q16
+  -accessibilityInsertionPointLineNumber  @protocol NSAccessibility required q16@0:8
+  -accessibilityLinkedUIElements  @protocol NSAccessibility required @16@0:8
+  -setAccessibilityLinkedUIElements:  @protocol NSAccessibility required v24@0:8@16
+  -isAccessibilityModal  @protocol NSAccessibility required B16@0:8
+  -setAccessibilityModal:  @protocol NSAccessibility required v20@0:8B16
+  -accessibilityWindow  @protocol NSAccessibility required @16@0:8
+  -isAccessibilitySelectorAllowed:  @protocol NSAccessibility required B24@0:8:16
+  -accessibilityActionNames  declared by no NSAccessibility protocol
+  -accessibilityPerformRaise  @protocol NSAccessibility required B16@0:8
+  -accessibilityRows  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityTable required @16@0:8
+  -accessibilityColumns  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityTable optional @16@0:8
+  -accessibilityVisibleRows  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityTable optional @16@0:8
+  -accessibilityVisibleColumns  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityTable optional @16@0:8
+  -accessibilitySelectedRows  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityTable optional @16@0:8
+  -setAccessibilitySelectedRows:  @protocol NSAccessibility required v24@0:8@16  | @protocol NSAccessibilityTable optional v24@0:8@16
+  -accessibilitySelectedColumns  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityTable optional @16@0:8
+  -accessibilityHeader  @protocol NSAccessibility required @16@0:8
+  -accessibilityRowCount  @protocol NSAccessibility required q16@0:8
+  -accessibilityColumnCount  @protocol NSAccessibility required q16@0:8
+  -accessibilityColumnHeaderUIElements  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityTable optional @16@0:8
+  -accessibilityRowHeaderUIElements  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityTable optional @16@0:8
+  -accessibilityVisibleCells  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityTable optional @16@0:8
+  -accessibilitySelectedCells  @protocol NSAccessibility required @16@0:8  | @protocol NSAccessibilityTable optional @16@0:8
+  -accessibilityCellForColumn:row:  @protocol NSAccessibility required @32@0:8q16q24
+  -accessibilityRowIndexRange  @protocol NSAccessibility required {_NSRange=QQ}16@0:8
+  -accessibilityColumnIndexRange  @protocol NSAccessibility required {_NSRange=QQ}16@0:8
+  -accessibilityIndex  @protocol NSAccessibility required q16@0:8  | @protocol NSAccessibilityRow required q16@0:8
+  -isAccessibilitySelected  @protocol NSAccessibility required B16@0:8
+  -setAccessibilitySelected:  @protocol NSAccessibility required v20@0:8B16
+  -accessibilitySortDirection  @protocol NSAccessibility required q16@0:8
+  -accessibilityColumnTitles  @protocol NSAccessibility required @16@0:8
+  -accessibilityDisclosureLevel  @protocol NSAccessibility required q16@0:8  | @protocol NSAccessibilityRow optional q16@0:8
+  -accessibilityOrientation  @protocol NSAccessibility required q16@0:8
+  -isAccessibilityDisclosed  @protocol NSAccessibility required B16@0:8
+  -setAccessibilityDisclosed:  @protocol NSAccessibility required v20@0:8B16
+  -accessibilityDisclosedRows  @protocol NSAccessibility required @16@0:8
+  -setAccessibilityDisclosedRows:  @protocol NSAccessibility required v24@0:8@16
+  -accessibilityDisclosedByRow  @protocol NSAccessibility required @16@0:8
+  -setAccessibilityDisclosedByRow:  @protocol NSAccessibility required v24@0:8@16
+  -setAccessibilityDisclosureLevel:  @protocol NSAccessibility required v24@0:8q16
+  -isAccessibilityExpanded  @protocol NSAccessibility required B16@0:8
+  -setAccessibilityExpanded:  @protocol NSAccessibility required v20@0:8B16
+  -setAccessibilityValue:  @protocol NSAccessibility required v24@0:8@16
+  -setAccessibilitySelectedChildren:  @protocol NSAccessibility required v24@0:8@16
+  -setAccessibilityColumns:  @protocol NSAccessibility required v24@0:8@16
+  -accessibilityAttributeNames  declared by no NSAccessibility protocol
+  -accessibilityAttributeValue:  declared by no NSAccessibility protocol
+  -accessibilityIsAttributeSettable:  declared by no NSAccessibility protocol
+  -accessibilitySetValue:forAttribute:  declared by no NSAccessibility protocol
+  -accessibilityParameterizedAttributeNames  declared by no NSAccessibility protocol
+  -accessibilityAttributeValue:forParameter:  declared by no NSAccessibility protocol
+  -accessibilityActionDescription:  declared by no NSAccessibility protocol
+  -accessibilityPerformAction:  declared by no NSAccessibility protocol
+  -accessibilityIsIgnored  declared by no NSAccessibility protocol
+  -accessibilityArrayAttributeCount:  declared by no NSAccessibility protocol
+  -accessibilityArrayAttributeValues:index:maxCount:  declared by no NSAccessibility protocol
+  -accessibilityIndexOfChild:  declared by no NSAccessibility protocol
+
+==== selectors containing ["ScrollToVisible", "Disclos", "Expanded"] (own method lists of both chains, NSWindow's and NSApplication's; every protocol above) ====
+  -_effectiveToolbarStyleAssumingExpandedIfHidden  NSWindow q16@0:8
+  -accessibilityDisclosedByRow  NSAccessibilityElement @16@0:8  | NSResponder @16@0:8  | @protocol NSAccessibility required @16@0:8
+  -accessibilityDisclosedRows  NSAccessibilityElement @16@0:8  | NSResponder @16@0:8  | @protocol NSAccessibility required @16@0:8
+  -accessibilityDisclosureLevel  NSAccessibilityElement q16@0:8  | NSResponder q16@0:8  | @protocol NSAccessibility required q16@0:8  | @protocol NSAccessibilityRow optional q16@0:8
+  -isAccessibilityDisclosed  NSAccessibilityElement B16@0:8  | NSResponder B16@0:8  | @protocol NSAccessibility required B16@0:8
+  -isAccessibilityExpanded  NSAccessibilityElement B16@0:8  | NSResponder B16@0:8  | @protocol NSAccessibility required B16@0:8
+  -setAccessibilityDisclosed:  NSAccessibilityElement v20@0:8B16  | NSResponder v20@0:8B16  | @protocol NSAccessibility required v20@0:8B16
+  -setAccessibilityDisclosedByRow:  NSAccessibilityElement v24@0:8@16  | NSResponder v24@0:8@16  | @protocol NSAccessibility required v24@0:8@16
+  -setAccessibilityDisclosedRows:  NSAccessibilityElement v24@0:8@16  | NSResponder v24@0:8@16  | @protocol NSAccessibility required v24@0:8@16
+  -setAccessibilityDisclosureLevel:  NSAccessibilityElement v24@0:8q16  | NSResponder v24@0:8q16  | @protocol NSAccessibility required v24@0:8q16
+  -setAccessibilityExpanded:  NSAccessibilityElement v20@0:8B16  | NSResponder v20@0:8B16  | @protocol NSAccessibility required v20@0:8B16
+
+==== selectors the bridge installs (AxSelectors), looked up as AxObjC.encodingOf does ====
+  -accessibilityRole  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilitySubrole  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityTitle  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityLabel  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [7 protocol declaration(s)]
+  -accessibilityHelp  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityRoleDescription  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityValue  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [8 protocol declaration(s)]
+  -accessibilityIdentifier  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityChildren  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityParent  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityLinkedUIElements  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -isAccessibilityElement  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -isAccessibilityEnabled  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -isAccessibilityFocused  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityHitTest:  @32@0:8{CGPoint=dd}16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [no NSAccessibility protocol declares it]
+  -accessibilityFocusedUIElement  @16@0:8  (from NSView)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityFocusedUIElement  @16@0:8  (from NSView)  on the content view subclass  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityPerformPress  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [3 protocol declaration(s)]
+  -accessibilityPerformConfirm  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityPerformIncrement  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [4 protocol declaration(s)]
+  -accessibilityPerformDecrement  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [4 protocol declaration(s)]
+  -accessibilityPerformShowMenu  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityPerformCancel  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -isAccessibilitySelectorAllowed:  B24@0:8:16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityRows  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityVisibleRows  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilitySelectedRows  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityColumns  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityHeader  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityColumnHeaderUIElements  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityRowCount  q16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityColumnCount  q16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityIndex  q16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityRowIndexRange  {_NSRange=QQ}16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityColumnIndexRange  {_NSRange=QQ}16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityCellForColumn:row:  @32@0:8q16q24  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -isAccessibilitySelected  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityAttributeValue:  @24@0:8@16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [no NSAccessibility protocol declares it]
+  -accessibilityAttributeNames  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [no NSAccessibility protocol declares it]
+  -accessibilitySelectedChildren  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilitySelectedCells  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -isAccessibilityDisclosed  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityDisclosureLevel  q16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityDisclosedByRow  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityDisclosedRows  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -isAccessibilityExpanded  B16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -setAccessibilityFocused:  v20@0:8B16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -setAccessibilitySelected:  v20@0:8B16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -setAccessibilityDisclosed:  v20@0:8B16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -setAccessibilityExpanded:  v20@0:8B16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -setAccessibilityValue:  v24@0:8@16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [1 protocol declaration(s)]
+  -setAccessibilitySelectedRows:  v24@0:8@16  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityActionNames  @16@0:8  (from NSView)  on the element  [in the encodings table]  [no NSAccessibility protocol declares it]
+  -accessibilityPerformAction:  v24@0:8@16  (from NSView)  on the element  [in the encodings table]  [no NSAccessibility protocol declares it]
+  -accessibilityVisibleColumns  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilitySelectedColumns  @16@0:8  (from NSAccessibilityElement)  on the element  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityRole  @16@0:8  (from NSAccessibilityElement)  on the column class  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityIndex  q16@0:8  (from NSAccessibilityElement)  on the column class  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityRows  @16@0:8  (from NSAccessibilityElement)  on the column class  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityVisibleRows  @16@0:8  (from NSAccessibilityElement)  on the column class  [in the encodings table]  [2 protocol declaration(s)]
+  -accessibilityHeader  @16@0:8  (from NSAccessibilityElement)  on the column class  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityParent  @16@0:8  (from NSAccessibilityElement)  on the column class  [in the encodings table]  [2 protocol declaration(s)]
+  -isAccessibilitySelectorAllowed:  B24@0:8:16  (from NSAccessibilityElement)  on the column class  [in the encodings table]  [1 protocol declaration(s)]
+  -accessibilityActionNames  @16@0:8  (from NSView)  on the column class  [in the encodings table]  [no NSAccessibility protocol declares it]

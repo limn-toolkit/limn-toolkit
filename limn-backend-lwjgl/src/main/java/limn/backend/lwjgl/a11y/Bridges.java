@@ -16,9 +16,12 @@ import limn.backend.Platform;
  * artifact and never install it, with no symptom but silence. That failure mode is now
  * unreachable: the bridges ship with the backend, and the backend connects them.
  *
- * <p><b>Nothing here opens anything on a machine that is not listening.</b> Each factory reads its
- * own gate first, before a registry, a socket or a thread exists: UI Automation is asked whether it
- * is present, AT-SPI is asked whether the desktop has assistive technology switched on, and macOS —
+ * <p><b>Nothing here opens anything on a machine that is not listening, with one stated
+ * exception.</b> Each factory reads its own gate first, before a registry, a socket or a thread
+ * exists: UI Automation is asked whether it is present; AT-SPI's switch moves while an application
+ * runs, so the process keeps one session-bus connection and one parked thread watching it (decision
+ * 29, ADR 039 §6) and opens nothing more until it says yes, while a process with no session bus
+ * gets nothing at all; and macOS —
  * the one platform with no such question (§6) — checks only that AppKit is reachable and that the
  * window has a handle, then costs one tree walk on the scene's first frame and nothing after.
  *
@@ -56,6 +59,26 @@ public final class Bridges {
     }
 
     /**
+     * Renames the application wherever a platform's accessibility tree names applications, for a
+     * name the backend was given after its first window opened. Only AT-SPI2 has such a name; the
+     * other two platforms name an application from the process and read nothing here.
+     *
+     * @param applicationName what the desktop should call this process
+     */
+    public static void nameApplication(String applicationName) {
+        if (refusedByApplication()) {
+            return;
+        }
+        try {
+            if (Platform.current().isLinux()) {
+                AtspiBridge.nameApplication(applicationName);
+            }
+        } catch (Throwable refusedByThePlatform) {
+            // A name is not worth a failure; the next window's bridge carries it anyway.
+        }
+    }
+
+    /**
      * <p><b>The handle must be a real one or zero, and there is no third case this can defend
      * against.</b> Two of these factories send a message to the object it names, and a message to a
      * pointer that is neither is undefined behaviour that no {@code catch} reaches — a test that
@@ -66,7 +89,9 @@ public final class Bridges {
      * @param nativeHandle    the window's own handle, or zero on a platform the backend has not
      *                        been taught
      * @param applicationName what the desktop should call this application, for the platforms that
-     *                        publish a name
+     *                        publish a name: the backend's application name, by default the title
+     *                        of its first window (decision 56). On Linux every window of the process
+     *                        is a frame of that one application
      * @return a bridge for this platform, or {@link AccessibilityBridge#NONE}
      */
     public static AccessibilityBridge openFor(long nativeHandle, String applicationName) {
@@ -82,7 +107,7 @@ public final class Bridges {
                 case MACOS -> AxBridge.openIfEnabled(nativeHandle);
                 // The one that needs no handle: it addresses nodes by object path over a socket and
                 // never touches the window.
-                case LINUX -> AtspiBridge.openIfEnabled(applicationName);
+                case LINUX -> AtspiBridge.open(applicationName);
                 default -> AccessibilityBridge.NONE;
             };
         } catch (Throwable refusedByThePlatform) {

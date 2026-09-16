@@ -218,6 +218,11 @@ public final class Transcript {
             out.append(" cell ").append(cell.row() == -1 ? "header"
                     : cell.row() == -2 ? "footer" : String.valueOf(cell.row()))
                     .append(',').append(cell.column());
+            if (cell.sort() != CellFacet.Sort.NONE) {
+                // Decision 36's carrier: printed only where it says something, so the line of
+                // every cell that is not a sorted header is the line it always was.
+                out.append(" sort ").append(cell.sort().name().toLowerCase(Locale.ROOT));
+            }
         }
         HierarchyFacet hierarchy = node.hierarchy();
         if (hierarchy != null) {

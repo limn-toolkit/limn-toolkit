@@ -5,167 +5,154 @@ import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 import limn.backend.lwjgl.a11y.PlatformBridge;
 
-import java.io.IOException;
-
 /**
- * Reads a Limn window to a screen reader on Linux, over AT-SPI2.
+ * Reads a Limn window to a screen reader on Linux, over AT-SPI2: one window's facade onto the
+ * process's one AT-SPI application ({@link AtspiApplication}, ADR 039 §2.3).
  *
- * <p>Hand one to a window and its scene publishes into the desktop's accessibility tree; hand it
- * nothing and there is no cost at all, which is the arrangement the seam already has for a backend
- * with no accessibility. An application installs it by returning it from its window's
+ * <p>Hand one to a window and its scene publishes into the desktop's accessibility tree as a frame
+ * of the application; hand it nothing and there is no cost at all, which is the arrangement the
+ * seam already has for a backend with no accessibility. The backend installs it from the window's
  * {@code accessibility()}.
  *
  * <p><b>Nothing here is native.</b> The platform accessibility API on this system is not a C API:
  * it is a D-Bus protocol, and this module speaks it over {@code java.nio.channels.SocketChannel}
  * and {@code java.net.UnixDomainSocketAddress}. No JNI, no libffi, no LWJGL, no third-party jar.
  *
- * <p><b>The gate is the desktop's own switch, and it is read before anything is opened.</b>
+ * <p><b>The gate is the desktop's own switch, and it is watched, not read once.</b>
  * {@code org.a11y.Status.IsEnabled} on the session bus says whether assistive technology is running
- * at all. While it is false this bridge opens no connection to the accessibility bus and starts no
- * thread, so a machine with no screen reader pays one property read for the life of the window. It
- * is never "a client asked us something recently": Orca registers for a focus change and then calls
- * nothing until one fires, so a gate of that shape goes silent exactly when the interface is being
- * used.
+ * at all, and it moves while applications run: a screen reader started after this window turns it
+ * on. The process keeps one session connection and one parked thread following it
+ * ({@link AtspiStatusWatch}, decision 29). While it has never been true no connection to the
+ * accessibility bus is opened, no scene walks and no frame is spent; the first true asks every
+ * window for a publish, and there it stays: <b>once embedded, embedded for the life of the
+ * process</b> (decision 67), as a GTK application is once {@code atk-bridge} has loaded. A false
+ * afterwards changes nothing, because it never means what a teardown would need it to mean:
+ * neither Orca 50.2 nor 46.1 ever writes the switch false
+ * (readings/fedora-orca-switch-writes.txt, readings/ubuntu-orca-switch-writes.txt), so a reader
+ * that quits leaves it on, and a false that does arrive — the desktop's own accessibility setting
+ * — can arrive while a reader is still reading us (ADR 039 §6). The gate is never "a client asked
+ * us something recently": Orca registers for a focus change and then calls nothing until one
+ * fires, so a gate of that shape goes silent exactly when the interface is being used.
  *
- * <p><b>Three threads, and which one may do what is the whole of the concurrency design.</b> The
- * user-interface thread publishes snapshots and enqueues events and blocks on nothing. The reader
- * thread answers every inbound call from every client, computing each answer from the tree()
- * snapshot, so it never touches a widget and never blocks. The writer thread performs every write.
- * A reply written from the reader thread would park the one thread serving every client the moment
- * a peer stopped draining, which a well-behaved client cannot even detect it is causing.
+ * <p><b>Which thread may do what is the whole of the concurrency design.</b> The user-interface
+ * thread publishes snapshots and enqueues events and blocks on nothing. The status thread follows
+ * the switch. A short-lived joiner thread joins the accessibility bus. On that bus the reader thread
+ * answers every inbound call from every client, computing each answer from the published snapshots,
+ * so it never touches a widget and never blocks, and the writer thread performs every write. A reply
+ * written from the reader thread would park the one thread serving every client the moment a peer
+ * stopped draining, which a well-behaved client cannot even detect it is causing.
  */
-public final class AtspiBridge extends PlatformBridge {
+public final class AtspiBridge extends PlatformBridge implements AtspiTree.Window {
 
-    /** The session-bus object that says whether assistive technology is running. */
-    private static final String STATUS_NAME = "org.a11y.Bus";
-    private static final String STATUS_PATH = "/org/a11y/bus";
-    private static final String STATUS_IFACE = "org.a11y.Status";
+    private final AtspiApplication application;
 
-    private final boolean enabled;
-    private volatile boolean embedded;
-    private volatile DBus.Conn connection;
-    private final AtspiTree objects;
+    /** Whether the application's window table holds this facade. User-interface thread. */
+    boolean member;
+    /** Whether clients have been told this window is a frame of the application. UI thread. */
+    boolean shownAsFrame;
+    /** The node id this window was announced as, so its departure names the same object. UI thread. */
+    long frameId;
+    /** The name this window was announced with, which its {@code Destroy} carries. UI thread. */
+    String frameName = "";
+    /**
+     * The node a {@code focused} 1 was sent for in this publish since the reader's locus last
+     * moved to this frame, or 0. UI thread. Cleared by every publish, and by the frame's
+     * {@code active} 1 or its {@code Activate}, either of which moves Orca 50.2's locus to the
+     * frame; so a survivor's gain is not sent twice in one publish, and a focus said before the
+     * locus moved is said again after it.
+     */
+    long focusSaid;
+    /** The descendant an {@code ActiveDescendantChanged} named on the same terms, or 0. UI thread. */
+    long cursorSaid;
+    /** Whether this publish sent the frame's own {@code StateChanged active} 1. UI thread. */
+    boolean frameActiveSaid;
+    /**
+     * The join this window's {@link #reconcileOwed} belongs to, so an owe raised on a connection
+     * clients no longer hold is not paid on the next one. UI thread. What was <em>announced</em> is
+     * not remembered here: the last effective focus is one memory for the process and lives on
+     * {@link AtspiApplication} (semantics 4, settled 2026-09-15), because the platform focus is one.
+     */
+    int reconcileGeneration;
+    /**
+     * Whether the model's {@code INVALIDATED} or a refused signal left the focus and cursor to be
+     * reconciled at the tail's place: before the first tail event after the structure signals, or,
+     * when the publish carried none, at {@link #frameEnded()} — and, for a refusal that came after
+     * that, before this window's next publish replaces its tree. UI thread.
+     */
+    boolean reconcileOwed;
+    /**
+     * The tree this window published before its current one, which a bit this platform derives
+     * (COLLAPSED) is diffed against when its events arrive. UI thread: written by the publish and
+     * read by the emits that follow it; the reader thread never reads it.
+     */
+    AccessibleTree previousTree = AccessibleTree.EMPTY;
 
-    private AtspiBridge(boolean enabled, String applicationName) {
-        this.enabled = enabled;
-        // Both suppliers read the superclass's fields through its accessors. A field of the same
-        // name declared here would shadow the one attach() writes and never be assigned, which is
-        // what once made every DoAction on this platform answer false.
-        this.objects = new AtspiTree(this::tree, this::host, applicationName);
+    AtspiBridge(AtspiApplication application) {
+        this.application = application;
     }
 
     /**
-     * Opens a bridge if the desktop says assistive technology is running, and otherwise nothing.
+     * Opens a window's bridge onto the process's application, or nothing on a machine where the
+     * switch cannot be watched.
      *
-     * <p>The gate is read here, once, before a socket to the accessibility bus is opened or a
-     * thread is started: a window on a machine with no screen reader is meant to cost a property
-     * read and never a connection. A session bus that cannot be reached at all — a headless
-     * process, a container with no D-Bus — is not an error and answers no.
+     * <p>Nothing is read and nothing is opened on the calling thread, which is the scene's bind on
+     * the user-interface thread: the process's status watch is started (once) and reads the switch
+     * on its own thread, and until it says yes this bridge is not listening. A process with no
+     * session bus it can reach — headless, a container, a CI runner — gets {@link
+     * AccessibilityBridge#NONE} and no thread at all.
      *
-     * @return a bridge, or {@link AccessibilityBridge#NONE} when accessibility is switched off or
-     *         the session bus cannot be asked
+     * @param applicationName what the desktop calls this process (decision 56: the backend's
+     *                        application name, by default its first window's title)
+     * @return a bridge, or {@link AccessibilityBridge#NONE} when there is no session bus to watch
      */
-    public static AccessibilityBridge openIfEnabled(String applicationName) {
-        Boolean on = readStatusFlag("IsEnabled");
-        if (on == null || !on) {
+    public static AccessibilityBridge open(String applicationName) {
+        String session = System.getenv("DBUS_SESSION_BUS_ADDRESS");
+        if (!AtspiStatusWatch.canWatch(session)) {
             return AccessibilityBridge.NONE;
         }
         // The bus is NOT joined here. See publish(): an application that registers before it has a
         // tree is an application some desktops refuse to list.
-        return new AtspiBridge(true, applicationName);
+        AtspiApplication application = AtspiApplication.process();
+        application.name(applicationName);
+        application.watchStatus(session);
+        return application.window();
     }
 
     /**
-     * Joins the accessibility bus and hands the registry this window's plug.
+     * Renames the process's application object, for a name the backend was given after its windows
+     * opened.
      *
-     * <p>The sequence the spike proved on the guest, and its order is not free: the address of the
-     * accessibility bus comes from the session bus, our own name on it comes from {@code Hello},
-     * and the handler has to be exported <em>before</em> {@code Embed}, because the registry may
-     * call back the moment it has the plug. A failure at any step leaves this window with no
-     * accessibility rather than a half-joined connection, which is why it answers a boolean and
-     * the caller falls back to {@link AccessibilityBridge#NONE}.
-     *
-     * @return whether this process is now an AT-SPI2 application
+     * @param applicationName the new name
      */
-    private boolean connect() {
-        String session = System.getenv("DBUS_SESSION_BUS_ADDRESS");
-        if (session == null) {
-            return false;
-        }
-        try (DBus.Conn bus = DBus.Conn.open(session)) {
-            bus.hello();
-            Object[] address = bus.callArgs("org.a11y.Bus", "/org/a11y/bus", "org.a11y.Bus",
-                    "GetAddress", null);
-            if (address.length == 0 || !(address[0] instanceof String where)) {
-                return false;
-            }
-            DBus.Conn a11y = DBus.Conn.open(where);
-            objects.busName(a11y.hello());
-            // Before Embed, and on every path rather than one: the registry and the reader walk
-            // from the root by introspection, and a path with no handler answers UnknownMethod,
-            // which a client reads as a broken application rather than as an absent node.
-            a11y.exportFallback(objects::handle);
-            Object[] socket = a11y.callArgs(Atspi.REGISTRY, Atspi.PATH_ROOT, Atspi.I_SOCKET,
-                    "Embed", "(so)", (Object) objects.rootRef().toStruct());
-            if (socket.length > 0) {
-                objects.desktop(DBus.Ref.of(socket[0]));
-            }
-            this.connection = a11y;
-            this.embedded = true;
-            return true;
-        } catch (IOException | RuntimeException e) {
-            return false;
-        }
-    }
-
-    /**
-     * Reads one boolean property of {@code org.a11y.Status} off the session bus.
-     *
-     * @param name the property
-     * @return its value, or {@code null} when the bus or the property cannot be reached
-     */
-    private static Boolean readStatusFlag(String name) {
-        String address = System.getenv("DBUS_SESSION_BUS_ADDRESS");
-        if (address == null) {
-            return null;
-        }
-        try (DBus.Conn session = DBus.Conn.open(address)) {
-            // Hello first, always: the bus routes nothing for a connection that has not asked for
-            // its name, so every later call would sit unanswered until the timeout.
-            session.hello();
-            Object[] out = session.callArgs(STATUS_NAME, STATUS_PATH, DBus.I_PROPS_NAME, "Get",
-                    "ss", STATUS_IFACE, name);
-            Object value = out.length == 0 ? null : out[0];
-            if (value instanceof DBus.Variant variant) {
-                value = variant.value;
-            }
-            return value instanceof Boolean b ? b : null;
-        } catch (IOException | RuntimeException e) {
-            return null;
-        }
+    public static void nameApplication(String applicationName) {
+        AtspiApplication.process().name(applicationName);
     }
 
     /**
      * The same bridge without asking the desktop whether accessibility is on, so that the rules
      * above can be exercised on a machine that has no accessibility bus — which is most of them.
      *
-     * <p>Package-private and not a way to install a bridge anywhere: it joins no bus until it is
-     * published to, and on a machine with none that attempt fails and leaves it unconnected.
+     * <p>Package-private and not a way to install a bridge anywhere: it is a window of an
+     * application of its own, not the process's, and joins no bus until it is published to; on a
+     * machine with none that attempt fails and leaves it unconnected.
      *
      * @return a bridge that believes the desktop said yes
      */
     static AtspiBridge withoutTheGate() {
-        return new AtspiBridge(true, "a test");
+        AtspiApplication application = AtspiApplication.forThisMachine();
+        application.name("a test");
+        application.enabled(true);
+        return application.window();
     }
 
     /** @return the object-path handler a client's calls are answered by. For tests. */
     AtspiTree objects() {
-        return objects;
+        return application.objects();
     }
 
-    /** @return whether this bridge has joined the accessibility bus yet. For tests. */
+    /** @return whether this bridge's application has joined the accessibility bus. For tests. */
     boolean isOnTheBus() {
-        return connection != null;
+        return application.isJoined();
     }
 
     /**
@@ -175,18 +162,25 @@ public final class AtspiBridge extends PlatformBridge {
      *         making it at a moment when there was a tree
      */
     int joinAttempts() {
-        return joinAttempts;
+        return application.joinAttempts();
     }
-
-    private int joinAttempts;
 
     @Override
     public boolean isListening() {
-        // The desktop's own flag, and not "are we on the bus yet". This platform is the one that
-        // can be asked whether anything is reading, which is what §6 wants a gate to be — and
-        // making it depend on being embedded would be a cycle with no way in: the bus is joined on
-        // the first publish, and a scene publishes only when something is listening.
-        return enabled;
+        // The desktop's own flag as it has EVER been read true, and not "are we on the bus yet" and
+        // not the value the watch read last: a false after a true is recorded nowhere (decision 67,
+        // AtspiApplication#enabled), so this answers yes for the life of the process once it has. This
+        // platform is the one that can be asked whether anything is reading, which is what §6 wants
+        // a gate to be — and making it depend on being embedded would be a cycle with no way in:
+        // the bus is joined on the first publish, and a scene publishes only when something is
+        // listening. One volatile read per frame.
+        return application.isEnabled();
+    }
+
+    @Override
+    public void attach(Host host) {
+        super.attach(host);
+        application.attached(this);
     }
 
     @Override
@@ -200,18 +194,24 @@ public final class AtspiBridge extends PlatformBridge {
 
     @Override
     protected void releasePlatformHalf() {
-        DBus.Conn open = connection;
-        connection = null;
-        embedded = false;
-        if (open != null) {
-            // close() on this connection throws nothing: the window is going away, a socket that
-            // will not shut politely is not its problem, and both threads on it are daemons.
-            open.close();
-        }
+        previousTree = AccessibleTree.EMPTY;
+        reconcileOwed = false;
+        // The window leaves the application; the application lets the connection go when it was
+        // the last one (AtspiApplication#detached).
+        application.detached(this);
     }
 
     @Override
     public void publish(AccessibleTree tree, boolean reentrant) {
+        // One volatile write, and it is the whole of what the reader thread reads. Reentrancy
+        // costs nothing here because nothing is released, re-pushed or drained on this path: the
+        // tree published a moment ago is answered from until this one replaces it.
+        //
+        // A reconcile the last publish owed and never reached (its tail had no event after the
+        // structure signals) runs first, against the tree it was owed for.
+        application.publishing(this);
+        previousTree = tree();
+        super.publish(tree, reentrant);
         // Joined here rather than at construction, and only once there is something to show.
         //
         // Fedora 44 is what found this. Its at-spi2-core 2.60 registry reads an application AS IT
@@ -221,43 +221,20 @@ public final class AtspiBridge extends PlatformBridge {
         // first and reads later, so registering with an empty tree looked correct there for every
         // run this bridge has ever had. Registering before there is a tree was always wrong; only
         // one of the two desktops minded.
-        if (connection == null && tree.nodeCount() > 0) {
-            joinAttempts++;
-            connect();
-        }
-        // One volatile write, and it is the whole of what the reader thread reads. Reentrancy
-        // costs nothing here because nothing is released, re-pushed or drained on this path:
-        // the tree published a moment ago is answered from until this one replaces it.
-        super.publish(tree, reentrant);
+        application.published(this, tree);
     }
 
     @Override
     public void emit(AccessibleEvent event) {
-        DBus.Conn open = connection;
-        if (open == null || !embedded) {
-            return;
-        }
-        AtspiEvents.Signal signal = AtspiEvents.of(event);
-        if (signal == null) {
-            return;  // nothing on this platform carries it; better silent than approximate
-        }
-        try {
-            // From the node the event is about, so a client that subscribed by path hears it, and
-            // as a signal rather than a reply, so it is the one kind this connection may refuse
-            // when a peer has stopped draining.
-            open.sendSignal(DBus.Msg.signal(pathOf(event.nodeId()), signal.iface(),
-                    signal.member(), AtspiEvents.SIGNATURE,
-                    AtspiEvents.body(signal, objects.rootRef())));
-        } catch (IOException e) {
-            // The writer thread reports its own failures and the connection closes itself; an
-            // event lost to a dying socket is not worth a second report from the frame that
-            // raised it.
-        }
+        application.emit(this, event);
     }
 
-    /** The object path an event's node is tree() at; node zero's is the application's. */
-    private String pathOf(long nodeId) {
-        return nodeId == 0 ? Atspi.PATH_ROOT : "/org/a11y/atspi/accessible/" + nodeId;
+    @Override
+    public void frameEnded() {
+        // Nothing is posted here — this bridge writes from its own writer thread, and every signal
+        // of this frame has already been queued. What is owed is the re-announcement of the focus
+        // and the cursor after a collapse whose tail held nothing after its structure signals
+        // (semantics 4): it belongs to this frame, not to whenever the tree next changes.
+        application.frameEnded(this);
     }
-
 }

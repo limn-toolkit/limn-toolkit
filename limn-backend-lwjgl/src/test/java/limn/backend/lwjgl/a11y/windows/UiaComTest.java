@@ -156,6 +156,47 @@ class UiaComTest {
         }
     }
 
+    /** IScrollProvider's Scroll: two four-byte enumerations by value, in order. */
+    @Test
+    void twoIntegersArriveAsThemselvesInOrder() {
+        AtomicReference<int[]> seen = new AtomicReference<>();
+        UiaCom.PII slot = (self, horizontal, vertical) -> {
+            seen.set(new int[] {horizontal, vertical});
+            return 7;
+        };
+        UiaCom.Instance made = UiaCom.instantiate(List.of(slot));
+        try {
+            int hresult = JNI.invokePI(made.pointer(), 3, 1, UiaCom.slotOf(made.pointer(), 0));
+
+            assertEquals(7, hresult);
+            assertEquals(3, seen.get()[0], "the horizontal amount first");
+            assertEquals(1, seen.get()[1], "and the vertical second");
+        } finally {
+            UiaCom.release(made);
+        }
+    }
+
+    /** IScrollProvider's SetScrollPercent: two doubles and nothing after them. */
+    @Test
+    void twoDoublesAndNoOutParameterArriveAsThemselves() {
+        AtomicReference<double[]> seen = new AtomicReference<>();
+        UiaCom.PDD slot = (self, horizontal, vertical) -> {
+            seen.set(new double[] {horizontal, vertical});
+            return 0;
+        };
+        UiaCom.Instance made = UiaCom.instantiate(List.of(slot));
+        try {
+            // No JNI helper takes a pointer and two doubles alone: the one with a trailing pointer
+            // is used, whose extra register the two-double closure never reads.
+            JNI.callPPI(made.pointer(), 25.5, -1.0, 0L, UiaCom.slotOf(made.pointer(), 0));
+
+            assertEquals(25.5, seen.get()[0]);
+            assertEquals(-1.0, seen.get()[1]);
+        } finally {
+            UiaCom.release(made);
+        }
+    }
+
     /**
      * The property the whole design rests on: the slots are distinguished by position and by
      * nothing else, so a vtable in the wrong order calls the wrong method with the right

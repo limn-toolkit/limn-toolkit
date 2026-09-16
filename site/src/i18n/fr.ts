@@ -133,7 +133,7 @@ export const fr: Catalog = {
 
   "home.accessibility.heading": "Lu à voix haute, dans ces mêmes langues",
   "home.accessibility.body":
-    "NVDA, VoiceOver et Orca lisent une fenêtre Limn par l’API d’accessibilité de chaque plate-forme, sans code de plate-forme dans votre application. Chaque contrôle est annoncé avec son rôle, son nom et son état, dans la langue d’affichage de l’interface. Nommer un contrôle, c’est un appel.",
+    "NVDA, VoiceOver et Orca lisent une fenêtre Limn par l’API d’accessibilité de chaque plate-forme, sans code de plate-forme dans votre application. Chaque contrôle se décrit avec son rôle, son nom et son état, dans la langue d’affichage de l’interface. Nommer un contrôle, c’est un appel.",
   "home.accessibility.link": "Lire le guide d’accessibilité",
   "home.accessibility.caption":
     "Le formulaire ci-dessus, tel qu’un lecteur d’écran en est informé, capturé pendant cette compilation.",

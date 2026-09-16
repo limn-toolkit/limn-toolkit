@@ -714,16 +714,20 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
         frame();
 
         assertFalse(saturationAxis().has(Accessible.State.SHOWING), describe(tree()));
-        assertTrue(saturationAxis().actions().has(Accessible.Action.INCREMENT),
-                "the verb list says what the control offers, and the missing SHOWING bit is what "
-                        + "says it is not on screen" + describe(tree()));
+        assertFalse(saturationAxis().has(Accessible.State.VISIBLE), describe(tree()));
+        assertNull(saturationAxis().actions(),
+                "a picker hidden by its own flag publishes no verb: the scene refuses every one "
+                        + "of them there, and the snapshot a bridge answers from says so "
+                        + "(decision 66, 2026-09-15)" + describe(tree()));
+        assertFalse(saturationAxis().accepts(Accessible.Action.SET_VALUE),
+                "and no setter either" + describe(tree()));
 
         perform(saturation, Accessible.Action.INCREMENT, Accessible.Argument.NONE);
         perform(saturation, Accessible.Action.SET_VALUE, new Accessible.Argument.OfValue(90));
         frame();
 
         assertEquals(0.4f, picker.color().saturation(), 0.01f,
-                "the scene's own gate re-checks isShowing() on arrival, which is where an "
+                "the scene's own gate re-checks visibility on arrival, which is where an "
                         + "unreachable control is refused rather than in the hook");
         assertEquals(List.of(), changed);
         assertEquals(List.of(), committed);

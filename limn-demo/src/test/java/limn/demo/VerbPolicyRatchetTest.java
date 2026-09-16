@@ -9,15 +9,10 @@ import limn.demo.a11y.AccessibilityGallery;
 import limn.demo.a11y.AccessibilityGallery.Entry;
 import limn.demo.a11y.HeadlessWindow;
 import limn.demo.a11y.Transcript;
-import limn.components.ColorPickerButton;
-import limn.components.ComboBox;
 import limn.components.DisplayMode;
-import limn.components.MenuBar;
-import limn.components.date.DatePicker;
 import limn.concurrent.Subscription;
 import limn.scene.Change;
 import limn.scene.Scene;
-import limn.scene.Widget;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
@@ -40,7 +35,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * widget that publishes a verb it refuses is a promise every platform breaks. This test performs,
  * on every node of every gallery entry, every parameterless verb the node does <em>not</em>
  * publish, and asserts that nothing moved: the transcript of every window is the same afterwards,
- * and the entry's scene announced no change.
+ * no window opened or closed, and no scene bound to any of the entry's windows announced a change.
+ * A verb the host refuses from the snapshot is not "nothing moved" and not "accepted" either: it is
+ * reported on its own ({@link Outcome}).
  *
  * <p>The published verbs themselves are each widget's own test's business; this is the
  * complement, and it is what stops a synonym being accepted in silence.
@@ -69,11 +66,64 @@ import static org.junit.jupiter.api.Assertions.fail;
  * item that owns the fix. An entry there is held to the opposite promise: the moment its node
  * refuses everything it did not publish, the entry is stale and the test says so, so the list
  * can only shrink.
+ *
+ * <p>A third pass, in both runs, holds the setters (phase 3 addendum, 2026-09-15): every node is
+ * sent {@code SET_VALUE} and {@code SET_TEXT}, and {@code SET_CARET} and {@code SET_SELECTION}
+ * where it has a text facet, each with an argument that differs from what it publishes, and
+ * something moves exactly when {@link AccessibleNode#accepts} says the node takes it.
+ * {@link #SETTER_ALLOWLIST} is empty since decision 66 struck its three lines.
+ *
+ * <p>And a fourth, which gives the parameterless half the setter pass's second direction
+ * (decision 66, 2026-09-15): <b>a verb a node publishes moves something when it is performed</b>,
+ * over the whole gallery rather than over one open layer. That is where a published verb the
+ * scene's gate refuses in silence shows up, which is what the showing axis was
+ * ({@code INCREMENT} on a slider in an unselected tab, {@code PRESS} on a button scrolled out of
+ * view), and neither of the two passes above can see it.
+ * {@link #movesNothingByDefinition} says which verbs are not asked and why, and
+ * {@link #PERFORMED_UNSEEN}, which carried its one finding under the same shrink-only rule, is
+ * empty since that finding was fixed.
  */
 class VerbPolicyRatchetTest {
 
     /** Frames rendered after a verb is posted: one to run it, one to publish what it changed. */
     private static final int FRAMES_AFTER_A_VERB = 2;
+
+    /**
+     * Frames rendered after a verb that may dismiss a surface, for the published-verb pass: long
+     * enough for a fade-out to finish and the window it was in to go.
+     *
+     * <p><b>Read, not guessed (2026-09-15, the phase-3 fix review).</b> Three numbers, in the order
+     * they were taken.
+     *
+     * <ol>
+     *   <li><b>What a surface actually takes.</b> Every surface in a window of its own leaves
+     *       through {@code Scene#fadeWindowOut(Theme.current().animWindow, destroy)} —
+     *       {@code ComboBox}, {@code PopupMenu}, {@code Dialog}, {@code DatePicker} — and
+     *       {@code Theme.animWindow} is {@code 0.16} s. {@code Harness#settle} steps scene time by
+     *       a fixed 20&nbsp;ms a frame, so the fade is <b>8 frames</b> and the destroy callback
+     *       runs on the ninth. 24 frames is 480&nbsp;ms: three times that, and longer than the
+     *       longest transition anywhere in the toolkit that a dismissal could still be waiting on
+     *       ({@code Theme.animTab} 0.22 s, {@code ScrollBar}'s 0.28 s fade-out).</li>
+     *   <li><b>It is the number the sibling suites already settle with</b>, for the same reason:
+     *       {@code AccessibleGalleryTest.SETTLE_FRAMES} and
+     *       {@code AccessibleTranscriptTest.SETTLE_FRAMES} are both 24 at the same 20&nbsp;ms step.
+     *       A second settle width in the same harness would be a second answer to one question.</li>
+     *   <li><b>It became load-bearing on 2026-09-15, and the floor was measured rather than
+     *       assumed.</b> Re-run at five widths once a popup's scene came to run on its opener's
+     *       clock ({@code Scene#clock}) and its window therefore really went: 248 tests, 0 failures
+     *       at 9, 24 and 400 frames, and <b>2 failures at 2 and at 8</b> — "Popup menu, open" in
+     *       both runs, four published verbs that "moved nothing": the cascade's {@code CANCEL} and
+     *       {@code PRESS} on each of Cut, Copy and Paste. That is exactly the fade: what a
+     *       dismissal in a window of its own changes is the window's opacity, which no tree
+     *       publishes, so nothing a harness can read moves until the destroy — the ninth frame, the
+     *       fade's eight plus the one that runs the callback. Before that fix the same four were
+     *       still unseen at 400 frames, and were carried as {@link #PERFORMED_UNSEEN}.
+     *       24 is nearly three times that floor — room for every other transition a dismissal could
+     *       be waiting on — and is green at the top of the range too, so nothing depends on the
+     *       upper end.</li>
+     * </ol>
+     */
+    private static final int FRAMES_FOR_A_SURFACE_TO_GO = 24;
 
     /**
      * A node that accepts a verb it does not publish, owed to a named item. Matched by the entry
@@ -175,10 +225,428 @@ class VerbPolicyRatchetTest {
         return tests.stream();
     }
 
+    /**
+     * The setters' half of semantics 5 (fix round 2e review; gallery brief, phase 3 addendum a):
+     * on every node of every entry, {@code SET_VALUE} and {@code SET_TEXT} are sent with an
+     * argument that differs from what the node publishes, and {@code SET_CARET} and
+     * {@code SET_SELECTION} too wherever a text facet exists, and something moves exactly when
+     * {@link AccessibleNode#accepts} says the node takes that setter. {@code accepts} is the
+     * toolkit's one reading of "does this node accept this verb now" and every bridge refuses
+     * through it, so a widget that performs a setter its node does not accept is one a platform
+     * invokes against the snapshot's word, and one that accepts a setter and does nothing is a
+     * promise every platform breaks.
+     */
+    @TestFactory
+    Stream<DynamicTest> everySetterMovesSomethingExactlyWhenTheNodeAcceptsIt() {
+        List<DynamicTest> tests = new ArrayList<>();
+        for (Entry entry : AccessibilityGallery.entries()) {
+            tests.add(DynamicTest.dynamicTest(entry.name(), () -> checkSetters(entry, false)));
+        }
+        return tests.stream();
+    }
+
+    /**
+     * The parameterless half's other direction, the one the setter pass has had since fix round 2e
+     * and this one did not (decision 66, 2026-09-15): <b>a verb a node publishes moves something
+     * when it is performed.</b> The pass above proves a node refuses what it does not publish,
+     * which a walk that withdrew every verb from everything would satisfy; this is what refuses
+     * that walk, over the whole gallery rather than over one open layer.
+     *
+     * <p>It is what makes the showing axis a ratchet. GALLERY-NEW-1's parameterless half was
+     * exactly this shape — {@code INCREMENT} on a colour picker's sliders in a tab nobody selected,
+     * {@code PRESS} on a button scrolled out of a scroll view — a verb published, answered yes by
+     * {@code Host#perform} from the snapshot, and dropped by the scene's gate in silence. Neither
+     * the unpublished-verb pass nor the setter pass can see it.
+     *
+     * <p>The two free verbs are not asked, for the reason
+     * {@link #checkTheOpenLayerIsStillOperable} does not ask them: focusing a node that has the
+     * focus, and revealing one already in view, rightly move nothing. {@link #IDEMPOTENT} names
+     * the remaining verbs that mean "be in this state" rather than "do this thing", each on the
+     * nodes already in that state, and holds them to the same staleness rule as the two allowlists.
+     */
+    @TestFactory
+    Stream<DynamicTest> everyPublishedVerbMovesSomething() {
+        List<DynamicTest> tests = new ArrayList<>();
+        for (Entry entry : AccessibilityGallery.entries()) {
+            tests.add(DynamicTest.dynamicTest(entry.name(), () -> checkPublished(entry, false)));
+        }
+        return tests.stream();
+    }
+
+    /** The published-verb pass with every surface that can be an overlay of the scene as one. */
+    @TestFactory
+    Stream<DynamicTest> everyPublishedVerbMovesSomethingWithItsSurfacesInTheScene() {
+        List<DynamicTest> tests = new ArrayList<>();
+        for (Entry entry : AccessibilityGallery.entries()) {
+            tests.add(DynamicTest.dynamicTest(entry.name(), () -> checkPublished(entry, true)));
+        }
+        return tests.stream();
+    }
+
+    /** The setter pass with every surface that can be an overlay of the scene presented as one. */
+    @TestFactory
+    Stream<DynamicTest> everySetterMovesSomethingExactlyWhenTheNodeAcceptsItWithItsSurfacesInTheScene() {
+        List<DynamicTest> tests = new ArrayList<>();
+        for (Entry entry : AccessibilityGallery.entries()) {
+            tests.add(DynamicTest.dynamicTest(entry.name(), () -> checkSetters(entry, true)));
+        }
+        return tests.stream();
+    }
+
+    /**
+     * A setter that a node accepts by {@link AccessibleNode#accepts} and the scene refuses
+     * anyway, owed to a named finding. Covers a node only while it is published without
+     * {@code SHOWING}, the one axis the found defect is on, so it cannot hide a showing node that
+     * accepts and does nothing.
+     *
+     * @param item   the finding that owns the fix
+     * @param entry  the gallery entry's name
+     * @param roles  the roles of the nodes it covers
+     * @param names  their names
+     * @param setter the setter those nodes accept and the scene refuses
+     */
+    record SetterExemption(String item, String entry, Set<Accessible.Role> roles, Set<String> names,
+                           Accessible.Action setter) {
+        boolean covers(String inEntry, AccessibleNode node, Accessible.Action sent) {
+            return entry.equals(inEntry) && setter == sent && roles.contains(node.role())
+                    && names.contains(node.name()) && !node.has(Accessible.State.SHOWING);
+        }
+    }
+
+    /**
+     * GALLERY-NEW-1, found by the setter pass's first run (2026-09-15) and not this lane's to
+     * settle: a widget that is not showing — a colour picker's sliders in a tab that is not
+     * selected, a media bar's volume slider while the bar is hidden — is published
+     * {@code ENABLED} with a writable value, so it accepts {@code SET_VALUE}, and
+     * {@code Scene#performAccessibleAction} refuses every verb but the two free ones on an owner
+     * that is not showing. The same gate refuses the parameterless verbs such nodes publish
+     * ({@code INCREMENT} on those sliders, {@code PRESS} on a button scrolled out of a scroll
+     * view), which the unpublished-verb pass above cannot see. Which side moves (the walk
+     * withholding, or the gate performing) is the orchestrator's call; the list can only shrink.
+     */
+    static final List<SetterExemption> SETTER_ALLOWLIST = List.of(
+            // The three GALLERY-NEW-1 lines (a colour picker's H/S/V/C/M/Y/K sliders and spin
+            // buttons in a tab nobody selected, twice, and a hidden media bar's Volume slider)
+            // were struck on 2026-09-15 by decision 66: none of those nodes is VISIBLE, so none
+            // is published with a verb and none accepts a setter any more.
+    );
+
+    /**
+     * A verb that means "be in this state" rather than "do this thing", and so moves nothing when
+     * the node is already in it. Not an exemption for a defect: it is the same reason the two free
+     * verbs are never asked. It covers a node only while the state it names is already set, so it
+     * cannot hide a verb that does nothing on a node the state is clear on.
+     *
+     * @param verb  the verb
+     * @param state the state whose presence makes it a no-op
+     */
+    record Idempotent(Accessible.Action verb, Accessible.State state) {
+        boolean covers(AccessibleNode node, Accessible.Action sent) {
+            return verb == sent && node.has(state);
+        }
+    }
+
+    /**
+     * The verbs that are a state and not an act. {@code SELECT} and {@code ADD_TO_SELECTION} on a
+     * node already {@code SELECTED}: each is what the reader asked for already being true, and a
+     * widget that made a change to say so would be announcing a selection that did not move.
+     * {@code EXPAND} and {@code COLLAPSE} are not here: a node publishes {@code EXPAND} only while
+     * collapsed and {@code COLLAPSE} only while open (decision 2), so neither is ever asked of a
+     * node already there.
+     */
+    static final List<Idempotent> IDEMPOTENT = List.of(
+            new Idempotent(Accessible.Action.SELECT, Accessible.State.SELECTED),
+            new Idempotent(Accessible.Action.ADD_TO_SELECTION, Accessible.State.SELECTED));
+
+    /**
+     * Whether this verb on this node moves nothing <b>by definition</b> rather than because
+     * anything is wrong, so the published-verb pass does not ask it. Three shapes, and each one is
+     * a property of the node the pass can read rather than a name on a list:
+     *
+     * <ul>
+     *   <li>the two free verbs, for the reason {@link #checkTheOpenLayerIsStillOperable} does not
+     *       ask them: focusing what has the focus and revealing what is in view;</li>
+     *   <li>{@link #IDEMPOTENT}, a verb that names a state the node is already in;</li>
+     *   <li><b>a step past the end of a range.</b> {@code INCREMENT} on a value already at its
+     *       maximum and {@code DECREMENT} on one at its minimum are a no-op wherever the value
+     *       lives — a scroll bar parked at the top, a colour picker's alpha at 100. The range may
+     *       be the parent's: a spin button's {@code Increase} and {@code Decrease} chevrons are
+     *       children of the spinner and carry no value of their own, and pressing the dead one of
+     *       the pair does nothing. That last case is the loosest test here, because a chevron's
+     *       direction is not in the model: at a limit neither chevron is asked, so a broken live
+     *       one would go unseen. It is the shape decision 30 would rather close on the widget, by
+     *       narrowing the dead chevron with {@code Accessibility#disabled()} as a scroll chevron
+     *       with nothing left to scroll already is; until a widget lane does that, the pass does
+     *       not report it.</li>
+     * </ul>
+     */
+    private static boolean movesNothingByDefinition(AccessibleTree tree, AccessibleNode node,
+                                                    Accessible.Action verb) {
+        if (verb == Accessible.Action.FOCUS || verb == Accessible.Action.SCROLL_INTO_VIEW) {
+            return true;
+        }
+        for (Idempotent entry : IDEMPOTENT) {
+            if (entry.covers(node, verb)) {
+                return true;
+            }
+        }
+        limn.accessibility.ValueFacet own = node.value();
+        if (own != null && !own.empty()) {
+            return verb == Accessible.Action.INCREMENT && own.value() >= own.max()
+                    || verb == Accessible.Action.DECREMENT && own.value() <= own.min();
+        }
+        if (verb != Accessible.Action.PRESS || node.parent() == AccessibleNode.NONE) {
+            return false;
+        }
+        AccessibleNode parent = tree.node(node.parent());
+        limn.accessibility.ValueFacet range = parent.value();
+        return parent.role() == Accessible.Role.SPIN_BUTTON && range != null && !range.empty()
+                && (range.value() >= range.max() || range.value() <= range.min());
+    }
+
+    /**
+     * One entry, every node, every parameterless verb the node publishes. A verb that moved
+     * something restarts the entry, as an accepted verb does in the main pass, so the next one is
+     * asked of the tree the entry publishes at rest.
+     */
+    private static void checkPublished(Entry entry, boolean inScene) {
+        List<String> violations = new ArrayList<>();
+        Set<Exemption> used = new LinkedHashSet<>();
+        Run run = new Run(entry, inScene);
+        try {
+            for (int w = 0; w < run.windows.size(); w++) {
+                for (int i = 0; i < run.windows.get(w).bridge().tree().nodeCount(); i++) {
+                    for (Accessible.Action verb : Accessible.Action.values()) {
+                        AccessibleTree tree = run.windows.get(w).bridge().tree();
+                        AccessibleNode node = tree.node(i);
+                        if (!verb.isParameterless() || node.actions() == null
+                                || !node.actions().has(verb)
+                                || movesNothingByDefinition(tree, node, verb)) {
+                            continue;
+                        }
+                        Outcome outcome = run.perform(w, node.id(), verb,
+                                Accessible.Argument.NONE, FRAMES_FOR_A_SURFACE_TO_GO);
+                        if (outcome.refused()) {
+                            violations.add(describe(node) + " was refused " + verb + " by the "
+                                    + "host from the snapshot it was read from; the harness "
+                                    + "read a stale tree");
+                        } else if (!outcome.movedSomething()) {
+                            Exemption exemption = unseenFor(entry.name(), node, verb);
+                            if (exemption != null) {
+                                used.add(exemption);
+                            } else {
+                                violations.add(describe(node) + " publishes " + verb
+                                        + " and performing it moved nothing"
+                                        + (node.has(Accessible.State.SHOWING) ? ""
+                                        : " (it is published without SHOWING, which is decision "
+                                        + "66's axis: the scene must reveal it and perform)"));
+                            }
+                        }
+                        run.close();
+                        run = new Run(entry, inScene);
+                    }
+                }
+            }
+        } finally {
+            run.close();
+        }
+        if (!violations.isEmpty()) {
+            fail("gallery entry \"" + entry.name() + "\"" + (inScene ? " with its surfaces in the "
+                    + "scene" : "") + ": " + violations.size() + " published verb(s) the scene "
+                    + "does not perform (ADR 039 §1.5 and §1.9, amended 2026-09-15; decision 66): "
+                    + "a verb a node publishes is a promise every platform makes for it:\n  "
+                    + String.join("\n  ", violations));
+        }
+        for (Exemption exemption : PERFORMED_UNSEEN) {
+            if (exemption.entry().equals(entry.name()) && !used.contains(exemption)) {
+                fail("the performed-but-unseen entry " + exemption + " is stale: every node it "
+                        + "names in \"" + entry.name() + "\"" + (inScene ? " with its surfaces in "
+                        + "the scene" : "") + " now moves something the harness can see; strike "
+                        + "it off");
+            }
+        }
+    }
+
+    /**
+     * What the scene performs and this harness cannot see, each keyed by the item that owns the
+     * fix, under the same shrink-only rule as {@link #ALLOWLIST}: the moment the harness sees it,
+     * the entry is stale and the test says so.
+     *
+     * <p><b>Empty since 2026-09-15.</b> Its one finding — in "Popup menu, open", a popup that is a
+     * window of its own, pressing a row and cancelling the cascade both reached the widget, both
+     * returned done, and the window was still open with the same tree twenty-four frames later, and
+     * four hundred — was the harness defect it was diagnosed as, and it was in the toolkit rather
+     * than in the backend: the cascade's own scene was built with no clock, so the real-time fade
+     * whose last frame destroys the window advanced by the microseconds the frames actually took
+     * while its opener's clock was told that seconds had passed. A surface opened in a window of its
+     * own now takes its opener's clock ({@code Scene#clock}), the two exemptions went stale, and
+     * this list holds the promise the other way round: the moment the harness sees what the scene
+     * performed, an entry here is stale and the test says so.
+     */
+    static final List<Exemption> PERFORMED_UNSEEN = List.of(
+            // The two "headless native-popup teardown" lines (a cascade's GROUP accepting CANCEL
+            // and its MENU_ITEM rows accepting PRESS, each moving nothing a harness could see)
+            // were struck on 2026-09-15: the popup's scene runs on its opener's clock, its
+            // fade-out ends, and the window it destroys is gone by the ninth frame
+            // (NativePopupTeardownTest).
+    );
+
+    private static Exemption unseenFor(String entry, AccessibleNode node, Accessible.Action verb) {
+        for (Exemption exemption : PERFORMED_UNSEEN) {
+            if (exemption.covers(entry, node, verb)) {
+                return exemption;
+            }
+        }
+        return null;
+    }
+
+    /** The four setters, in the order they are sent to each node. */
+    private static final List<Accessible.Action> SETTERS = List.of(Accessible.Action.SET_VALUE,
+            Accessible.Action.SET_TEXT, Accessible.Action.SET_CARET, Accessible.Action.SET_SELECTION);
+
+    /**
+     * One entry, every node, every setter with a changed argument. A setter that moved something
+     * restarts the entry, as an accepted verb does in the main pass.
+     */
+    private static void checkSetters(Entry entry, boolean inScene) {
+        List<String> violations = new ArrayList<>();
+        Set<SetterExemption> used = new LinkedHashSet<>();
+        Run run = new Run(entry, inScene);
+        try {
+            for (int w = 0; w < run.windows.size(); w++) {
+                for (int i = 0; i < run.windows.get(w).bridge().tree().nodeCount(); i++) {
+                    for (Accessible.Action setter : SETTERS) {
+                        AccessibleNode node = run.windows.get(w).bridge().tree().node(i);
+                        Accessible.Argument changed = changedArgument(node, setter);
+                        if (changed == null) {
+                            continue;
+                        }
+                        boolean accepts = node.accepts(setter);
+                        Outcome outcome = run.perform(w, node.id(), setter, changed);
+                        if (outcome.refused()) {
+                            violations.add(describe(node) + " was refused " + setter + " " + changed
+                                    + " by the host from the snapshot it was read from; the "
+                                    + "harness read a stale tree");
+                        } else if (accepts && !outcome.movedSomething()) {
+                            SetterExemption exemption = setterExemptionFor(entry.name(), node,
+                                    setter);
+                            if (exemption != null) {
+                                used.add(exemption);
+                            } else {
+                                violations.add(describe(node) + " accepts " + setter + " and "
+                                        + changed + " moved nothing: " + setterFacts(node));
+                            }
+                        } else if (!accepts && outcome.movedSomething()) {
+                            violations.add(describe(node) + " does not accept " + setter + " ("
+                                    + setterFacts(node) + ") and " + changed + " moved something: "
+                                    + outcome.moved());
+                        }
+                        if (outcome.refused() || outcome.movedSomething()) {
+                            run.close();
+                            run = new Run(entry, inScene);
+                        }
+                    }
+                }
+            }
+        } finally {
+            run.close();
+        }
+        if (!violations.isEmpty()) {
+            fail("gallery entry \"" + entry.name() + "\"" + (inScene ? " with its surfaces in the "
+                    + "scene" : "") + ": " + violations.size() + " setter(s) whose effect "
+                    + "disagrees with AccessibleNode#accepts (semantics 5, amended 2026-09-15):\n  "
+                    + String.join("\n  ", violations));
+        }
+        for (SetterExemption exemption : SETTER_ALLOWLIST) {
+            if (exemption.entry().equals(entry.name()) && !used.contains(exemption)) {
+                fail("the setter allowlist entry " + exemption + " is stale: no node it names in \""
+                        + entry.name() + "\"" + (inScene ? " with its surfaces in the scene" : "")
+                        + " accepts that setter and moves nothing any more; strike it off");
+            }
+        }
+    }
+
+    private static SetterExemption setterExemptionFor(String entry, AccessibleNode node,
+                                                      Accessible.Action setter) {
+        for (SetterExemption exemption : SETTER_ALLOWLIST) {
+            if (exemption.covers(entry, node, setter)) {
+                return exemption;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * An argument that differs from what the node publishes for {@code setter}, or {@code null}
+     * where none can: a caret or a selection in an empty text has nowhere else to go. A node with
+     * no facet for the setter is still sent one, which it must refuse.
+     */
+    static Accessible.Argument changedArgument(AccessibleNode node, Accessible.Action setter) {
+        return switch (setter) {
+            case SET_VALUE -> {
+                limn.accessibility.ValueFacet value = node.value();
+                if (value == null) {
+                    yield new Accessible.Argument.OfValue(1);
+                }
+                if (value.empty()) {
+                    yield new Accessible.Argument.OfValue(value.min());
+                }
+                if (value.max() > value.min()) {
+                    yield new Accessible.Argument.OfValue(
+                            value.value() == value.min() ? value.max() : value.min());
+                }
+                yield new Accessible.Argument.OfValue(value.value() + 1);
+            }
+            case SET_TEXT -> new Accessible.Argument.OfText(
+                    node.text() == null ? "changed" : node.text().text() + " changed");
+            case SET_CARET -> {
+                limn.accessibility.TextFacet text = node.text();
+                if (text == null) {
+                    yield new Accessible.Argument.OfRange(0, 0);
+                }
+                int length = text.text().length();
+                if (length == 0) {
+                    yield null;
+                }
+                int to = text.caretOffset() != 0 ? 0 : length;
+                yield new Accessible.Argument.OfRange(to, to);
+            }
+            case SET_SELECTION -> {
+                limn.accessibility.TextFacet text = node.text();
+                if (text == null) {
+                    yield new Accessible.Argument.OfRange(0, 1);
+                }
+                int length = text.text().length();
+                if (length == 0) {
+                    yield null;
+                }
+                boolean whole = Math.min(text.selectionStart(), text.selectionEnd()) == 0
+                        && Math.max(text.selectionStart(), text.selectionEnd()) == length;
+                yield whole ? new Accessible.Argument.OfRange(0, 1)
+                        : new Accessible.Argument.OfRange(0, length);
+            }
+            default -> throw new IllegalArgumentException(setter + " is not a setter");
+        };
+    }
+
+    /** What {@code accepts} reads for a setter, for a message. */
+    private static String setterFacts(AccessibleNode node) {
+        return "value=" + node.value() + ", text=" + (node.text() == null ? "none"
+                : "\"" + node.text().text() + "\"") + ", enabled="
+                + node.has(Accessible.State.ENABLED) + ", readOnly="
+                + node.has(Accessible.State.READ_ONLY);
+    }
+
     /** An exemption names an entry that exists, so a renamed entry cannot orphan one in silence. */
     @Test
     void everyExemptionNamesAGalleryEntry() {
         for (Exemption exemption : ALLOWLIST) {
+            AccessibilityGallery.entry(exemption.entry());
+        }
+        for (SetterExemption exemption : SETTER_ALLOWLIST) {
+            AccessibilityGallery.entry(exemption.entry());
+        }
+        for (Exemption exemption : PERFORMED_UNSEEN) {
             AccessibilityGallery.entry(exemption.entry());
         }
     }
@@ -215,17 +683,25 @@ class VerbPolicyRatchetTest {
                         if (node.actions() != null && node.actions().has(verb)) {
                             continue;
                         }
-                        String moved = run.perform(w, node.id(), verb);
-                        if (moved == null) {
+                        Outcome outcome = run.perform(w, node.id(), verb);
+                        if (outcome.refused()) {
+                            // Not a node accepting anything, and not nothing either: the node
+                            // was read off the tree this very run published.
+                            violations.add(describe(node) + " was refused " + verb + " by the "
+                                    + "host from the snapshot it was read from; the harness "
+                                    + "read a stale tree"
+                                    + (outcome.movedSomething() ? ", and " + outcome.moved() : ""));
+                        } else if (!outcome.movedSomething()) {
                             continue;
-                        }
-                        Exemption exemption = exemptionFor(entry.name(), node, verb);
-                        if (exemption != null) {
-                            used.add(exemption);
                         } else {
-                            violations.add(describe(node) + " accepted " + verb
-                                    + ", which it does not publish (" + published(node) + "): "
-                                    + moved);
+                            Exemption exemption = exemptionFor(entry.name(), node, verb);
+                            if (exemption != null) {
+                                used.add(exemption);
+                            } else {
+                                violations.add(describe(node) + " accepted " + verb
+                                        + ", which it does not publish (" + published(node)
+                                        + "): " + outcome.moved());
+                            }
                         }
                         // Whatever it did, it did: start the entry over so the next verb is
                         // asked of the tree the entry publishes at rest.
@@ -239,8 +715,9 @@ class VerbPolicyRatchetTest {
         }
         if (!violations.isEmpty()) {
             fail("gallery entry \"" + entry.name() + "\": " + violations.size()
-                    + " node(s) accepted a verb they do not publish (ADR 039 §1.5, amended "
-                    + "2026-09-14: a node accepts exactly the parameterless verbs it publishes):\n  "
+                    + " unpublished verb(s) accepted, or refused by the host from a snapshot the "
+                    + "node was read from (ADR 039 §1.5, amended 2026-09-14: a node accepts "
+                    + "exactly the parameterless verbs it publishes):\n  "
                     + String.join("\n  ", violations));
         }
         for (Exemption exemption : ALLOWLIST) {
@@ -353,7 +830,10 @@ class VerbPolicyRatchetTest {
                             || verb == Accessible.Action.SCROLL_INTO_VIEW) {
                         continue;
                     }
-                    if (run.perform(w, node.id(), verb) != null) {
+                    // A refusal from the snapshot moved nothing in the scene, whatever else it
+                    // is, so it cannot stand for an operable layer.
+                    Outcome outcome = run.perform(w, node.id(), verb);
+                    if (!outcome.refused() && outcome.movedSomething()) {
                         return;
                     }
                 }
@@ -499,29 +979,61 @@ class VerbPolicyRatchetTest {
 
     // -------------------------------------------------------------------------- one build
 
-    /** One build of an entry, settled, with the entry's scene watched for changes. */
+    /**
+     * What one verb sent through a bridge's host did, kept in two halves that mean different
+     * things (gallery brief item 5, 2026-09-15). A {@code refused} verb never reached the scene:
+     * the host answered no from the snapshot, which it does only for a node the snapshot no longer
+     * holds, and which is a harness that read a stale tree, not a node accepting anything. A
+     * {@code moved} description is a side effect: a change some scene announced, a window opened
+     * or closed, a transcript that differs.
+     *
+     * @param refused whether {@code Host#perform} refused the verb synchronously
+     * @param moved   what moved, or {@code null} when nothing did
+     */
+    record Outcome(boolean refused, String moved) {
+        boolean movedSomething() {
+            return moved != null;
+        }
+    }
+
+    /** One build of an entry, settled, with every window's scene watched while a verb runs. */
     private static final class Run implements AutoCloseable {
         final Harness harness = new Harness(Palette.LIGHT);
         final List<HeadlessWindow> windows;
         final List<String> changes = new ArrayList<>();
-        private final Subscription watching;
 
         Run(Entry entry, boolean inScene) {
             windows = new ArrayList<>(harness.show(inScene ? inTheScene(entry) : entry));
-            Scene scene = harness.scenes.get(0);
             if (inScene) {
                 openAMenuBar(windows.get(0));
             }
-            watching = scene.observeChanges((source, change) -> {
-                if (change.aspect() != Change.Aspect.LAYOUT) {
-                    changes.add(change.aspect() + "/" + change.origin() + " on "
-                            + source.getClass().getSimpleName());
-                }
-            });
             // Whatever the settle left in flight is not this test's: a verb is asked of a scene
             // that has gone quiet, and only what it does after that counts.
             harness.settle(FRAMES_AFTER_A_VERB);
-            changes.clear();
+        }
+
+        /**
+         * Watches every scene bound to a window the backend holds now: the entry's, and a native
+         * popup's, a dialog's or a menu's that the entry opened as a window of its own. Until the
+         * phase-1 critic's reading only the entry's first scene was watched, so a verb accepted
+         * inside a second window that announced a change and left the transcripts equal passed.
+         */
+        private List<Subscription> watchEveryScene() {
+            List<Subscription> watching = new ArrayList<>();
+            for (HeadlessWindow window : harness.windows()) {
+                Scene scene = window.scene();
+                if (scene == null) {
+                    continue;
+                }
+                String where = "window \"" + window.title() + "\"";
+                watching.add(scene.observeChanges((source, change) -> {
+                    if (change.aspect() != Change.Aspect.LAYOUT) {
+                        changes.add(change.aspect() + "/" + change.origin() + " on "
+                                + source.getClass().getSimpleName() + " in " + where);
+                    }
+                }));
+            }
+            return watching;
         }
 
         /**
@@ -533,24 +1045,9 @@ class VerbPolicyRatchetTest {
         private static Entry inTheScene(Entry entry) {
             return new Entry(entry.name(), entry.covers(), entry.publishes(), () -> {
                 AccessibilityGallery.Built built = entry.build();
-                presentInScene(built.root());
+                AccessibilityGallery.present(built.root(), DisplayMode.IN_SCENE);
                 return built;
-            });
-        }
-
-        private static void presentInScene(Widget widget) {
-            if (widget instanceof ComboBox combo) {
-                combo.setDisplayMode(DisplayMode.IN_SCENE);
-            } else if (widget instanceof DatePicker picker) {
-                picker.setDisplayMode(DisplayMode.IN_SCENE);
-            } else if (widget instanceof MenuBar bar) {
-                bar.setDisplayMode(DisplayMode.IN_SCENE);
-            } else if (widget instanceof ColorPickerButton button) {
-                button.setPickerDisplayMode(DisplayMode.IN_SCENE);
-            }
-            for (Widget child : widget.children()) {
-                presentInScene(child);
-            }
+            }, entry.reader());
         }
 
         /**
@@ -600,21 +1097,45 @@ class VerbPolicyRatchetTest {
         }
 
         /**
-         * Performs one verb on one node the way a bridge does, and reads what moved.
+         * Performs one verb on one node the way a bridge does, and reads what moved in every
+         * window.
          *
-         * @return {@code null} when nothing moved; otherwise what did, for the message
+         * @return whether the host refused it, and what moved
          */
-        String perform(int window, long nodeId, Accessible.Action verb) {
+        Outcome perform(int window, long nodeId, Accessible.Action verb) {
+            return perform(window, nodeId, verb, Accessible.Argument.NONE);
+        }
+
+        /** {@link #perform(int, long, Accessible.Action)} with an argument, for a setter. */
+        Outcome perform(int window, long nodeId, Accessible.Action verb,
+                        Accessible.Argument argument) {
+            return perform(window, nodeId, verb, argument, FRAMES_AFTER_A_VERB);
+        }
+
+        /**
+         * {@link #perform(int, long, Accessible.Action, Accessible.Argument)} with the settle
+         * spelled out, for the published-verb pass: a verb that dismisses a surface in a window of
+         * its own — a popup menu's row, its {@code CANCEL} — moves nothing anybody can see in two
+         * frames, because what it started is a fade-out and the window is still there with the
+         * same tree. It has moved by the time the fade is over.
+         */
+        Outcome perform(int window, long nodeId, Accessible.Action verb,
+                        Accessible.Argument argument, int frames) {
             List<String> before = transcripts();
             int windowsBefore = harness.windows().size();
-            boolean accepted = windows.get(window).bridge().host.perform(
-                    nodeId, verb, Accessible.Argument.NONE);
-            harness.settle(FRAMES_AFTER_A_VERB);
+            changes.clear();
+            List<Subscription> watching = watchEveryScene();
+            boolean accepted;
+            try {
+                accepted = windows.get(window).bridge().host.perform(nodeId, verb, argument);
+                harness.settle(frames);
+            } finally {
+                for (Subscription subscription : watching) {
+                    subscription.cancel();
+                }
+            }
             List<String> after = transcripts();
             StringBuilder moved = new StringBuilder();
-            if (!accepted) {
-                moved.append("the host refused it from the snapshot; ");
-            }
             if (!changes.isEmpty()) {
                 moved.append("the scene announced ").append(changes).append("; ");
             }
@@ -628,7 +1149,7 @@ class VerbPolicyRatchetTest {
                             .append(firstDifference(before.get(w), after.get(w))).append("; ");
                 }
             }
-            return moved.isEmpty() ? null : moved.toString();
+            return new Outcome(!accepted, moved.isEmpty() ? null : moved.toString());
         }
 
         private List<String> transcripts() {
@@ -666,7 +1187,6 @@ class VerbPolicyRatchetTest {
                 return;
             }
             closed = true;
-            watching.cancel();
             harness.close();
         }
     }
@@ -677,6 +1197,11 @@ class VerbPolicyRatchetTest {
         for (Exemption exemption : ALLOWLIST) {
             assertTrue(exemption.item().matches("[A-Z]+(-[A-Z]+)*-?[0-9]+.*|decision [0-9]+.*"),
                     "an allowlist entry is keyed by the item or decision that owns the fix: "
+                            + exemption);
+        }
+        for (SetterExemption exemption : SETTER_ALLOWLIST) {
+            assertTrue(exemption.item().matches("[A-Z]+(-[A-Z]+)*-?[0-9]+.*"),
+                    "a setter allowlist entry is keyed by the finding that owns the fix: "
                             + exemption);
         }
     }

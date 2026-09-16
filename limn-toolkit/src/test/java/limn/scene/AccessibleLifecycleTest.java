@@ -198,6 +198,53 @@ class AccessibleLifecycleTest extends AccessibleTestBase {
         assertSame(tree(), same);
     }
 
+    /**
+     * The re-stamp branch of {@code republishNow} is the same call as the walk branch beside it,
+     * and hands the tree over the same way. A restamp is four numbers rather than a walk, which is
+     * why it was the branch that went unread: the bridge is still handed the tree from inside the
+     * platform's own pump, standing on the elements a sweep would release (brief item 5,
+     * 2026-09-15).
+     */
+    @Test
+    void aReentrantRestampIsHandedOverAsReentrantAsAReentrantWalk() {
+        bind(sceneWithAButton());
+        frame();
+
+        // The window moved, which changes no box in the tree, only where the tree is -- and then
+        // the platform asks from inside its own callback, before the frame that would restamp.
+        window.setScreenPosition(300, 120);
+        bridge.host.requestRestamp();
+        runtime.drain();     // requestRestamp is safe from any thread, so it posts the flag
+        bridge.reentrant.clear();
+        window.frameRequests = 0;
+
+        AccessibleTree stamped = bridge.host.republishNow();
+
+        assertEquals(1, bridge.reentrant.size(), "the restamp published");
+        assertTrue(bridge.reentrant.get(0),
+                "and it was handed over with the platform on the stack, like the walk branch");
+        assertEquals(300, stamped.screenX(), "the answer is the moved window's");
+        assertTrue(window.frameRequests >= 1,
+                "a deferred obligation needs a frame that is going to happen");
+    }
+
+    /** The frame's own re-stamp is nobody's callback, and the bridge may sweep on it. */
+    @Test
+    void theFramesRestampIsNotReentrant() {
+        bind(sceneWithAButton());
+        frame();
+
+        window.setScreenPosition(300, 120);
+        bridge.host.requestRestamp();
+        runtime.drain();
+        bridge.reentrant.clear();
+        frame();
+
+        assertEquals(1, bridge.reentrant.size(), "the restamp published");
+        assertFalse(bridge.reentrant.get(0),
+                "on the scene's own frame nothing of the platform's is on the stack");
+    }
+
     @Test
     void aDescribePassNeitherLaysOutNorMutatesTheTree() {
         Group root = sceneWithAButton();

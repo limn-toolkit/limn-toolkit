@@ -133,7 +133,7 @@ export const de: Catalog = {
 
   "home.accessibility.heading": "Vorgelesen, in denselben Sprachen",
   "home.accessibility.body":
-    "NVDA, VoiceOver und Orca lesen ein Limn-Fenster über die Barrierefreiheits-API der jeweiligen Plattform, ohne Plattformcode in Ihrer Anwendung. Jedes Steuerelement wird mit Rolle, Name und Zustand angesagt, in der Sprache, in der die Oberfläche angezeigt wird. Ein Steuerelement zu benennen ist ein Aufruf.",
+    "NVDA, VoiceOver und Orca lesen ein Limn-Fenster über die Barrierefreiheits-API der jeweiligen Plattform, ohne Plattformcode in Ihrer Anwendung. Jedes Steuerelement beschreibt sich mit Rolle, Name und Zustand, in der Sprache, in der die Oberfläche angezeigt wird. Ein Steuerelement zu benennen ist ein Aufruf.",
   "home.accessibility.link": "Zum Leitfaden zur Barrierefreiheit",
   "home.accessibility.caption":
     "Das Formular oben, so wie es einem Screenreader mitgeteilt wird, aufgenommen während dieses Builds.",

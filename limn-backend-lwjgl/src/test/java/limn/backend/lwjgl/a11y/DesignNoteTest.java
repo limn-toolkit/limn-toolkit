@@ -51,7 +51,7 @@ class DesignNoteTest {
             "NSAccessibilityElement", "NSAccessibilityPriority", "NSAccessibilityButtonRole",
             "AXValue", "accessibilityTitle", "accessibilityLabel", "accessibilityRoleDescription",
             "accessibilityFocusedUIElement", "class_getInstanceMethod", "method_getTypeEncoding",
-            "dlsym",
+            "dlsym", "FocusedUIElementChanged",
             // UI Automation and Win32
             "IToggleProvider", "TextPattern", "GetFocus", "UiaClientsAreListening", "WM_GETOBJECT",
             // AT-SPI2 and D-Bus

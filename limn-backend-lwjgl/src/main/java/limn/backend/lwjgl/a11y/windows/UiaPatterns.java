@@ -20,15 +20,17 @@ import limn.accessibility.AccessibleTree;
  * reader would find a named element whose contents it cannot read, cannot set, and cannot report as
  * read-only.
  *
- * <p><b>{@code ScrollItem} is the one answer that is not about this node.</b> It says "I can be
- * scrolled into view", which is true of a node whose ancestor scrolls and false of one nobody can
- * move — so it is the only row here that walks the tree, and it walks it upward through the links
- * §1.4 stores rather than scanning anything.
+ * <p><b>{@code ScrollItem} is the node's own verb.</b> It says "I can be scrolled into view", and
+ * since 2026-09-15 it is vended only where the node publishes {@code SCROLL_INTO_VIEW} (semantics 5,
+ * WINDOWS-NEW-7): until then it was vended on any node with a scrollable ancestor, which offered a
+ * client a move a list or tree row's widget refused while the client was told it was done.
  *
- * <p><b>An in-scene dialog vends no {@code Window} pattern</b>, which is why {@code WindowFacet} and
- * not the role is what decides it: vending {@code IWindowProvider} from a node with no HWND
- * advertises {@code Close()}, {@code SetVisualState()} and {@code CanMaximize} over an overlay that
- * has none of them. What such a dialog says instead is {@code IsDialog}, and that is a property.
+ * <p><b>No node vends {@code Window} or {@code Transform}.</b> The window's root answers
+ * {@code get_HostRawElementProvider} with the provider UI Automation made for its HWND, and that
+ * host provider serves both patterns for the real window (the probe's {@code [Window,Transform]}
+ * came from it); this bridge serves neither interface, so claiming them here answered a client's
+ * {@code GetPatternProvider} with a null (W1). An in-scene dialog, which has no HWND, says what it is
+ * with {@code IsDialog}, a property.
  */
 final class UiaPatterns {
 
@@ -36,8 +38,9 @@ final class UiaPatterns {
     }
 
     /**
-     * @param tree      the published tree the node came from, for the one row that needs an
-     *                  ancestor
+     * @param tree      the published tree the node came from; no row reads it since ScrollItem
+     *                  became the node's own verb (2026-09-15), kept so a row that needs the tree
+     *                  again does not change every caller
      * @param node      the node being asked
      * @param patternId one of {@link UiaIds}' pattern ids
      * @return whether this node vends that pattern
@@ -84,7 +87,10 @@ final class UiaPatterns {
                 return node.scroll() != null;
 
             case UiaIds.SCROLL_ITEM_PATTERN:
-                return hasAScrollableAncestor(tree, node);
+                // The verb, not a scrollable ancestor: a row whose widget does not reveal it would
+                // otherwise be offered to a client as a move that does nothing.
+                return node.actions() != null
+                        && node.actions().has(Accessible.Action.SCROLL_INTO_VIEW);
 
             case UiaIds.GRID_PATTERN:
             case UiaIds.TABLE_PATTERN:
@@ -98,30 +104,12 @@ final class UiaPatterns {
                 // in the grid a client counts.
                 return node.cell() != null && node.cell().row() >= 0;
 
-            case UiaIds.WINDOW_PATTERN:
-            case UiaIds.TRANSFORM_PATTERN:
-                // Both from the same facet, and only a real window carries one: the two describe
-                // moving, sizing and closing, which is what an HWND can do and an overlay cannot.
-                return node.window() != null;
-
             default:
                 // Text among them, deferred by §11, and every pattern this toolkit has no facet
                 // for. Silence is the right answer: a client takes it as "this control cannot do
-                // that", which is true.
+                // that", which is true. Window and Transform too: the HWND's host provider serves
+                // them for the real window, and this bridge serves neither interface.
                 return false;
         }
-    }
-
-    /**
-     * @return whether any ancestor of {@code node} scrolls, walking the links §1.4 stores rather
-     *         than scanning a child list
-     */
-    private static boolean hasAScrollableAncestor(AccessibleTree tree, AccessibleNode node) {
-        for (int at = node.parent(); at != AccessibleNode.NONE; at = tree.node(at).parent()) {
-            if (tree.node(at).scroll() != null) {
-                return true;
-            }
-        }
-        return false;
     }
 }

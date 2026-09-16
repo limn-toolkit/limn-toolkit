@@ -51,6 +51,39 @@ class OutboundTest {
                         + "dropped signal only costs it an event it will be told about again");
     }
 
+    /**
+     * The reserved tail is never refused because the ordinary backlog is full (decision 28:
+     * "Outbound carries a kind flag so it never drops the tail"), and has a bound of its own so a
+     * writer that never writes is still not a leak.
+     */
+    @Test
+    void aTailSignalIsAcceptedWhateverTheOrdinaryBacklogAndHasABoundOfItsOwn() throws Exception {
+        Outbound out = new Outbound();
+        for (int i = 0; i < Outbound.SIGNAL_BOUND; i++) {
+            out.offerSignal(message(i));
+        }
+        assertFalse(out.offerSignal(message(0)), "the ordinary backlog is full");
+        assertTrue(out.offerTailSignal(message(1)),
+                "and the focus the reader must hear still goes in");
+
+        for (int i = 1; i < Outbound.TAIL_BOUND; i++) {
+            assertTrue(out.offerTailSignal(message(i)), "under the tail's own bound, " + i);
+        }
+        assertFalse(out.offerTailSignal(message(0)), "past it, refused");
+        assertEquals(2, out.dropped());
+
+        // Drain the ordinary signals first: they were queued first.
+        for (int i = 0; i < Outbound.SIGNAL_BOUND; i++) {
+            out.take();
+            out.written();
+        }
+        assertFalse(out.offerTailSignal(message(0)),
+                "an ordinary signal written releases no tail slot");
+        out.take();
+        out.written();
+        assertTrue(out.offerTailSignal(message(0)), "a tail signal written releases one");
+    }
+
     @Test
     void writingASignalReleasesItsSlotAndWritingAReplyReleasesNothing() throws Exception {
         Outbound out = new Outbound();

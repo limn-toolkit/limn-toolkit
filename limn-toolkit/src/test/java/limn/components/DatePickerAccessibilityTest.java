@@ -321,4 +321,42 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(picker.isOpen(), "a CANCEL sent anyway reopens nothing");
         assertEquals(LocalDate.of(2026, 9, 9), picker.date(), "and moves nothing");
     }
+
+    /**
+     * GALLERY-NEW-2, 2026-09-15, in the presentation this class can drive: with the calendar an
+     * overlay of the scene, Ctrl (or Cmd) and Up climb to the months and the month on show is the
+     * cursor at once — so the tree's effective focus, which the reader follows across the field
+     * and the overlay, lands on a month rather than on nothing. The native presentation's half is
+     * limn-demo's {@code DatePickerNativePopupTest}, over a backend that can open the window.
+     */
+    @Test
+    void aClimbToTheMonthsInTheSceneLandsTheEffectiveFocusOnTheMonthOnShow()
+            throws InterruptedException {
+        bindCaptioned(new DatePicker(), "Data de entrega");
+        picker.open();
+        frame();
+        // The reader puts the cursor in the grid first, as its recipe does: in this presentation
+        // the overlay's own group holds the focus until something inside asks for it.
+        AccessibleNode ninth = nodesOf(Accessible.Role.CELL).stream()
+                .filter(cell -> cell.name().startsWith("9 de setembro")).findFirst()
+                .orElseThrow(() -> new AssertionError(describe(tree())));
+        assertTrue(perform(ninth.id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        frame();
+        assertEquals(ninth.id(), tree().effectiveFocus(), describe(tree()));
+
+        scene.keyEvent(limn.input.Keys.UP, true, false, Accelerator.commandModifier());
+        scene.keyEvent(limn.input.Keys.UP, false, false, Accelerator.commandModifier());
+        scene.inputBatchEnded();
+        frame();
+
+        List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE).stream()
+                .filter(node -> node.role() == Accessible.Role.CELL).toList();
+        assertEquals(1, active.size(), "one chooser cell is the cursor: " + describe(tree()));
+        assertTrue(active.get(0).name().toLowerCase(PT_BR).startsWith("set"),
+                "September, the month the calendar was showing: " + active.get(0).name()
+                        + describe(tree()));
+        assertEquals(active.get(0).id(), tree().effectiveFocus(),
+                "and it is what a reader is told: the cursor is the effective focus"
+                        + describe(tree()));
+    }
 }

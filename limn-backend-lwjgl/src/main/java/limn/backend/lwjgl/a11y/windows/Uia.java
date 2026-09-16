@@ -53,6 +53,26 @@ final class Uia {
     private static final long DISCONNECT_PROVIDER =
             NativeLibraries.address(CORE, "UiaDisconnectProvider");
 
+    /**
+     * {@code UiaRaiseNotificationEvent(provider, NotificationKind, NotificationProcessing,
+     * displayString, activityId)}, or {@code 0}. Optional, outside {@link #isAvailable}: an older
+     * Windows lacks it, and an announcement it cannot raise costs nothing else. Read on the
+     * Windows 11 ARM64 guest on 2026-09-13 (readings/windows-dump-uia-entry-points.txt): exported,
+     * ordinal 97, not forwarded; the managed P/Invoke declares (provider, Int32 enum, Int32 enum,
+     * String, String) with {@code CharSet=Unicode}, {@code PreserveSig=True}, returning Int32.
+     */
+    private static final long RAISE_NOTIFICATION =
+            NativeLibraries.address(CORE, "UiaRaiseNotificationEvent");
+
+    /**
+     * {@code UiaRaiseStructureChangedEvent(provider, StructureChangeType, int* runtimeId,
+     * int runtimeIdLen)}, or {@code 0}. Optional, like the notification. Read on the same guest on
+     * 2026-09-13 (readings/windows-dump-uia-entry-points.txt): exported, ordinal 98, not forwarded;
+     * the managed P/Invoke declares (provider, Int32 enum, Int32[], Int32) returning Int32.
+     */
+    private static final long RAISE_STRUCTURE_CHANGED =
+            NativeLibraries.address(CORE, "UiaRaiseStructureChangedEvent");
+
 
 
     /**
@@ -139,6 +159,51 @@ final class Uia {
             return UiaIds.S_OK;
         }
         return JNI.invokePPPI(provider, propertyId, before, after, RAISE_PROPERTY_CHANGED);
+    }
+
+    /** @return whether this machine's UI Automation exports UiaRaiseNotificationEvent */
+    static boolean canRaiseNotifications() {
+        return isAvailable() && RAISE_NOTIFICATION != 0;
+    }
+
+    /**
+     * Something the application said, for every client listening for notifications.
+     *
+     * <p>Both strings travel as {@code BSTR}s the caller allocated and frees after the call: the
+     * managed provider API hands the entry point a {@code CharSet=Unicode} {@code String}, which is
+     * a null-terminated UTF-16 pointer, and a {@code BSTR} is one of those with its length in front.
+     *
+     * @param provider      the element it is raised on
+     * @param kind          a {@code NotificationKind}
+     * @param processing    a {@code NotificationProcessing}
+     * @param displayString the text, as a {@code BSTR}
+     * @param activityId    the activity, as a {@code BSTR}
+     * @return the {@code HRESULT}, or {@code S_OK} where nothing could be raised
+     */
+    static int raiseNotificationEvent(long provider, int kind, int processing, long displayString,
+                                      long activityId) {
+        if (!canRaiseNotifications() || provider == 0) {
+            return UiaIds.S_OK;
+        }
+        return JNI.invokePPPI(provider, kind, processing, displayString, activityId,
+                RAISE_NOTIFICATION);
+    }
+
+    /**
+     * A change to the children of an element, for every client listening for structure changes.
+     *
+     * @param provider      the element it is raised on
+     * @param type          a {@code StructureChangeType}
+     * @param runtimeId     the address of the runtime id's integers
+     * @param runtimeIdLen  how many there are
+     * @return the {@code HRESULT}, or {@code S_OK} where nothing could be raised
+     */
+    static int raiseStructureChangedEvent(long provider, int type, long runtimeId,
+                                          int runtimeIdLen) {
+        if (!isAvailable() || RAISE_STRUCTURE_CHANGED == 0 || provider == 0) {
+            return UiaIds.S_OK;
+        }
+        return JNI.invokePPI(provider, type, runtimeId, runtimeIdLen, RAISE_STRUCTURE_CHANGED);
     }
 
     /**

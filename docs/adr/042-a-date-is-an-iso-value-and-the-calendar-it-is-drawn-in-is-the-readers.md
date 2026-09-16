@@ -3,6 +3,13 @@
 - **Status:** Accepted, 2026-09-09; phase 1 implemented. §11 says what lands in the first phase and
   what is deliberately left out of it, and §12 what has been verified against a live client and what
   is still owed.
+  **Revised through the 2026-09-13 accessibility pass** (amendments dated 2026-09-14 and 2026-09-15
+  throughout): the granularity API of decisions 12, 47 and 51 (§2's table); the typed and pasted
+  date, the two-digit-year window and the era's own width (§3); the refused day the cursor stops on
+  (§5); and most of §8, where the empty segment's word, the day's "15 of 30", the chooser's "on
+  show", the picker's label target and the expand verbs all moved. **No screen reader has yet spoken
+  a date widget** (DT8): the three reader entries exist and the runs are phase 5's, so §8 is what
+  the code publishes and not what a reader was heard to say.
 - **Date:** 2026-09-09
 - **Scope:** the toolkit's first date widgets: what value they exchange with the application, which
   calendar system they draw, how a date is typed, how a month grid is laid out, selected, bounded,
@@ -292,7 +299,9 @@ letter only while the block crosses an era ("H31", "R2"), and the title names bo
 
 The month is paged by the two header buttons, by PageUp and PageDown, and by arrowing off an edge.
 Arrow keys move by a day and a week, Home and End go to the first and last day **of the week**
-(they name a position in a row, so they mirror with the row; §8), and the focused day is a *cursor*
+(this parenthesis said "they name a position in a row, so they mirror with the row; §8" and was
+**corrected 2026-09-14**, below: they name the first and last day of the week, not a side of it, so
+they do **not** mirror, and the cross-reference is §9), and the focused day is a *cursor*
 that is not the selection: it moves with the arrows and commits with Enter or Space. A grid where
 arrowing selected would fire a form's handler seven times crossing a week.
 
@@ -309,12 +318,16 @@ had and this record did not name (`CalendarViewAccessibilityTest.shiftWithAnArro
 `DateField` and on `DatePicker`, which fans out to both of its parts. A day outside the bounds or
 refused by the filter is drawn disabled, is skipped by the keyboard cursor, refuses a click, and is
 published to a screen reader without a `SELECT` verb — the same "a dead control carries no verb"
-rule `SegmentedControl` states for a scroll arrow it cannot use.
+rule `SegmentedControl` states for a scroll arrow it cannot use. (**"Skipped by the keyboard cursor"
+was reversed 2026-09-14**, decision 30, the amendment below: the cursor stops on a refused day,
+which is published disabled and carries no verb, because a skip leaves a hole nobody is told about.)
 
 The field enforces the same three, and enforces them at a different moment: a typed date that is out
 of range or refused does not silently snap to the nearest legal day. It is held, the field publishes
-`VALIDITY` as invalid with a message, and the value the application reads stays what it was.
-Snapping is the behaviour that loses a user's typing without telling them.
+`VALIDITY` as invalid with a message, and the value the application reads stays what it was
+(**corrected 2026-09-14**, below: `date()` answers the out-of-range date that was typed, and
+`isValid()` says separately that it is not acceptable). Snapping is the behaviour that loses a
+user's typing without telling them.
 
 The predicate is called during paint, once per visible cell, and is documented as such: it must be
 cheap and it must be pure. A filter that hits a database is a filter that stalls a frame.
@@ -436,6 +449,28 @@ and the year chooser now have ranges of their own, and the sentence before holds
 three views.)
 Pinned by `CalendarViewAccessibilityTest.theChooserNamesTheCellOnShowAndAMonthPickerSaysItWithASelectionInstead`,
 `thePagingButtonsSayWhatTheyPageInEveryView` and `dayAndChooserCellsAreDifferentNodes`.
+
+**Amendment, 2026-09-15 (GALLERY-NEW-2): a chooser somebody has climbed into has a cursor from the
+first frame, and it is the cell on show.** The view change cleared the chooser's cursor and only
+the first arrow placed it, so after Ctrl (or Cmd) and Up the months were drawn with **no cursor
+ring at all** and **no cell published `ACTIVE`** — a reader following the active descendant was
+told the grid had moved and not where it now stood, and heard the first month only after an arrow
+that had already stepped past it; the two reader recipes had to say "the months are shown" where
+every other step names where the cursor is. The cursor is now answered rather than written: until
+an arrow (or a reader's `FOCUS`) has moved it, it is `currentChooserCell()`, the month of the month
+being drawn or the year of the year block. Answered and not written, because the field is the
+user's and the fallback is the calendar's: `setVisibleMonth` while a chooser stands moves what is
+on show and must move this with it, and paging with the cursor already placed must not. The climb
+announces the arrival as an `ACTIVE` change where the grid holds the keyboard, which is the same
+test the describe pass makes, so what is announced and what the tree says are one answer. Arriving
+is not moving: the first arrow steps one cell, as it always did. Pinned by
+`CalendarViewAccessibilityTest.aClimbToTheMonthsLandsTheCursorOnTheMonthOnShowAndAnnouncesIt`,
+`aClimbToTheYearsLandsTheCursorOnTheYearOnShow` and
+`theCursorFollowsWhatIsOnShowUntilAnArrowHasMovedIt`, and in both of the picker's presentations by
+`DatePickerAccessibilityTest.aClimbToTheMonthsInTheSceneLandsTheEffectiveFocusOnTheMonthOnShow`
+and limn-demo's
+`DatePickerNativePopupTest.aClimbToTheMonthsInAWindowOfItsOwnLandsTheEffectiveFocusOnTheMonthOnShow`.
+Step 12 of the `calendar` recipe and step 7 of `date-picker` now name the month the climb lands on.
 
 **The picker.** The field's subtree, the popup's, and one synthetic `BUTTON` for the calendar
 affordance with `EXPANDED` on the picker itself.

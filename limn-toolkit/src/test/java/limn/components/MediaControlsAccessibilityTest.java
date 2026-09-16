@@ -671,8 +671,10 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(hidden.has(Accessible.State.SHOWING), describe(tree()));
         assertFalse(hidden.has(Accessible.State.FOCUSABLE),
                 "a hidden control is never announced as a tab stop" + describe(tree()));
-        assertFalse(hidden.actions().has(Accessible.Action.FOCUS),
-                "and offers no focus verb" + describe(tree()));
+        assertNull(hidden.actions(),
+                "and offers no verb at all, not even PRESS: the scene refuses every verb on a "
+                        + "node that is not VISIBLE, so the snapshot a bridge answers from "
+                        + "publishes none (decision 66, 2026-09-15)" + describe(tree()));
 
         controls.setSound(MediaControls.Sound.ON);
         frame();

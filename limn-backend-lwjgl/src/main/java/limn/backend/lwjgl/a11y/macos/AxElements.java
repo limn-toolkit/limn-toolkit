@@ -91,7 +91,8 @@ final class AxElements {
     }
 
     /**
-     * Forgets and releases one node's object: the {@code NODE_DESTROYED} path.
+     * Forgets and releases one node's object: the {@code NODE_DESTROYED} path, which
+     * {@code AxBridge}'s frame end takes for a destroyed node still absent from the tree.
      *
      * <p>It posts nothing. AppKit posts {@code AXUIElementDestroyed} itself when an element goes
      * away, and the phase 7 probe run measured that ours arrived on top of that once per client

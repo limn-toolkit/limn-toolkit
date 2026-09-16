@@ -16,10 +16,13 @@ import java.util.Locale;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * The minimal setter refusal fix round 2e put in front of phase 3 (semantics 5, amended
- * 2026-09-15): {@code Value.SetValue} and {@code RangeValue.SetValue} post nothing to a node that
- * is not {@code ENABLED} and answer {@code UIA_E_INVALIDOPERATION}, while {@code IsReadOnly} stays
- * the facet's truth, so a disabled field is never reported read-only. Driven through the slots
+ * The setter refusal on the disabled axis (semantics 5, amended 2026-09-15): {@code Value.SetValue}
+ * and {@code RangeValue.SetValue} post nothing to a node that is not {@code ENABLED} and answer
+ * {@code UIA_E_ELEMENTNOTENABLED} (0x80040200, read on the guest 2026-09-13), while
+ * {@code IsReadOnly} stays the facet's truth, so a disabled field is never reported read-only.
+ * Written by fix round 2e with {@code 0x80131509}; phase 3's Windows lane replaced the minimal
+ * refusal with the candidate gate and the code the platform's own providers answer first (read as
+ * IL 2026-09-15, readings/windows-dump-uia-provider-conventions.txt §1b). Driven through the slots
  * themselves, which are plain Java callbacks until a client calls them through a vtable.
  */
 class UiaSetterRefusalTest {
@@ -120,13 +123,13 @@ class UiaSetterRefusalTest {
                 .get("SetValue")).invoke(0, 0);
     }
 
-    private short isReadOnly(int patternId, long nodeId) {
+    private int isReadOnly(int patternId, long nodeId) {
         long out = MemoryUtil.nmemAllocChecked(8);
         try {
             int hr = ((UiaCom.PP) UiaPatternProviders.slotsFor(patternId, nodeId, context)
                     .get("get_IsReadOnly")).invoke(0, out);
             assertEquals(UiaIds.S_OK, hr);
-            return MemoryUtil.memGetShort(out);
+            return MemoryUtil.memGetInt(out);
         } finally {
             MemoryUtil.nmemFree(out);
         }
@@ -136,14 +139,14 @@ class UiaSetterRefusalTest {
     void aNodeThatIsNotEnabledIsRefusedEverySetterAndIsStillNotReadOnly() {
         publish(false);
 
-        assertEquals(UiaIds.E_INVALID_OPERATION, rangeSetValue(),
+        assertEquals(UiaIds.E_ELEMENT_NOT_ENABLED, rangeSetValue(),
                 "a disabled slider's RangeValue.SetValue is refused synchronously");
-        assertEquals(UiaIds.E_INVALID_OPERATION, valueSetValue(),
+        assertEquals(UiaIds.E_ELEMENT_NOT_ENABLED, valueSetValue(),
                 "and a disabled field's Value.SetValue");
         assertEquals(List.of(), posted, "and nothing reaches the toolkit");
-        assertEquals(UiaVariant.FALSE, isReadOnly(UiaIds.RANGE_VALUE_PATTERN, 1001),
+        assertEquals(UiaIds.BOOL_FALSE, isReadOnly(UiaIds.RANGE_VALUE_PATTERN, 1001),
                 "while the value is still not read-only: disabled is not read-only (§1.2)");
-        assertEquals(UiaVariant.FALSE, isReadOnly(UiaIds.VALUE_PATTERN, 1002));
+        assertEquals(UiaIds.BOOL_FALSE, isReadOnly(UiaIds.VALUE_PATTERN, 1002));
     }
 
     @Test

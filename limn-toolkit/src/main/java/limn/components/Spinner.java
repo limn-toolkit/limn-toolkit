@@ -1436,9 +1436,22 @@ public class Spinner extends Widget {
      * <p><b>Nothing here reads the hover region, the held direction or the focus fade.</b> The
      * fade damages this widget on every frame it runs for and the hover moves on every pointer
      * crossing, so a hook that published either would re-copy the whole tree for a mouse the reader
-     * is not using. The two arrow nodes cannot say they are dimmed at a bound for the same reason
-     * the rest of this holds: a declared {@code ENABLED} is ignored, and a reader infers the bound
-     * from the value against the bounds it was given.
+     * is not using.
+     *
+     * <p><b>The two arrow nodes do not say they are dimmed at a bound, and the reason they gave is
+     * out of date</b> (checked 2026-09-15). What this said until now was that a declared
+     * {@code ENABLED} is ignored, so a reader infers the bound from the value against the bounds
+     * it was given. The first half stopped being true on 2026-09-14: decision 30 gave a synthetic
+     * child {@link limn.accessibility.Accessibility#disabled()}, a narrowing-only declaration, and
+     * a refused calendar day and {@code SegmentedControl}'s dead chevron were both narrowed with
+     * it. So the route exists, and the value this hook already reads says which arrow is dead: at
+     * {@code max} the upper one presses and steps nothing, and {@code VerbPolicyRatchetTest} has
+     * to skip its published {@code PRESS} as one that "moves nothing by definition". Whether a
+     * stepper's arrow at a bound should go on to publish not-{@code ENABLED} and no verb is an
+     * open question — the model lane raised it as a candidate for decision 30 on 2026-09-15 and
+     * the round's critic left it with the owner, since decision 30 names the calendar day and the
+     * segmented control's chevron and not this — and only the second half of the old reason still
+     * argues for today's answer. Do not read this paragraph as a settled "no".
      *
      * <p><b>The tree does not model the inline edit.</b> There is no text facet, so the node always
      * publishes the committed value and its display form: while the user is typing, what a reader

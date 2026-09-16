@@ -521,6 +521,41 @@ public class CalendarView extends Widget {
         chooserCursor = -1;
         markNeedsLayout();
         notifyChange(Change.of(Change.Aspect.VALUE, origin));
+        if (wanted != View.DAYS && focusHere(Part.GRID)) {
+            // The grid a person is standing in now has a cell they are standing on, and it is the
+            // one on show (GALLERY-NEW-2, 2026-09-15): effectiveChooserCursor answers it from this
+            // frame on, so the climb out of the days is a cursor arriving and is announced as one.
+            // Arriving is not moving -- the cell is not stepped, only landed on -- which is the
+            // rule enterPart states for the descent and this is the same rule for the climb.
+            notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
+        }
+    }
+
+    /**
+     * The chooser cell the cursor is on: the one an arrow put it on, or, until one has,
+     * <b>the cell that matches what is on show</b> &mdash; the month of the month being drawn, the
+     * year of the year block (GALLERY-NEW-2, 2026-09-15).
+     *
+     * <p>{@link #chooserCursor} is {@code -1} from the moment a view change until the first arrow,
+     * and that number reached the paint and the describe pass. So after Ctrl (or Cmd) and Up
+     * climbed out of the days the months were drawn with <b>no cursor at all</b>: no ring, and no
+     * cell published {@link Accessible.State#ACTIVE}, so a reader following the active descendant
+     * was told the grid had moved and not where it now stood, and heard the first month only after
+     * an arrow that had already stepped past it.
+     *
+     * <p>Answered here rather than by writing the field at the view change, because the field is
+     * the user's and the fallback is the calendar's: {@code setVisibleMonth} moves what is on show
+     * and must move this with it, while paging with the cursor already placed must not. It is the
+     * same value {@code chooserKey} writes into the field on the first arrow, read one frame
+     * earlier.
+     *
+     * @return the cell index, or {@code -1} in {@link View#DAYS}, which has no chooser cell
+     */
+    private int effectiveChooserCursor() {
+        if (view == View.DAYS) {
+            return -1;
+        }
+        return chooserCursor >= 0 ? chooserCursor : Math.max(0, currentChooserCell());
     }
 
     /** @return the finest view this calendar picks in; {@link View#DAYS} unless it was changed */
@@ -1190,7 +1225,7 @@ public class CalendarView extends Widget {
         } else if (view == View.DAYS) {
             damageDay(cursor);
         } else {
-            damageCell(chooserCursor);
+            damageCell(effectiveChooserCursor());
         }
     }
 
@@ -1739,7 +1774,7 @@ public class CalendarView extends Widget {
             Color ink = !offered ? theme.disabledText : stands == 2 ? theme.onPrimary : theme.text;
             canvas.drawText(line, left + (cellW - line.metrics().width()) / 2,
                     top + (cellH - fm.height()) / 2 + fm.ascent(), ink);
-            if (focus > 0.001f && i == chooserCursor) {
+            if (focus > 0.001f && i == effectiveChooserCursor()) {
                 float gap = Strokes.FOCUS_GAP_INDICATOR;
                 canvas.drawRoundRect(left + gap, top + gap, cellW - 2 * gap, cellH - 2 * gap,
                         radius, Strokes.FOCUS_RING_THIN, theme.focusRing.withAlpha(focus));
@@ -2378,7 +2413,7 @@ public class CalendarView extends Widget {
             if (view == View.DAYS) {
                 damageDay(cursor);
             } else {
-                damageCell(chooserCursor);
+                damageCell(effectiveChooserCursor());
             }
         }
     }
@@ -2715,7 +2750,7 @@ public class CalendarView extends Widget {
                 // The cell on show is not marked with a state here: CHECKED is the toggle
                 // facet's and the builder refuses it. Its name carries the word instead
                 // (decision 48), built with the labels in rebuildGrid.
-                if (index == chooserCursor && focusHere(Part.GRID)) {
+                if (index == effectiveChooserCursor() && focusHere(Part.GRID)) {
                     a.state(Accessible.State.ACTIVE);
                 }
                 a.endChild();

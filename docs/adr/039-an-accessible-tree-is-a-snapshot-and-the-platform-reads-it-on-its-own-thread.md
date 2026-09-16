@@ -646,6 +646,32 @@ ToggleFacet, ValueFacet, SelectionFacet, SelectionItemFacet, ExpandFacet, TextFa
 WindowFacet, TableFacet, CellFacet, HierarchyFacet, ActionFacet
 ```
 
+**Amendment, 2026-09-15 (decision 36's carrier): `CellFacet` gains a sort direction, and the closed
+list does not move.** A sorted column's direction was published only as a localized phrase in the
+header's description, which the three bridges each read and could not use: two of them carry a
+direction as an enumeration (Orca's `sort` object attribute, `AXSortDirection`) and would have had
+to parse a translated sentence back into one. So `CellFacet` becomes
+`(int row, int column, Sort sort)` with `Sort` = `NONE | ASCENDING | DESCENDING`, meaningful on a
+header cell (row `-1`) and `NONE` everywhere else — **no new facet and no new `State`**, so the list
+above and §1.1's state list stand as they are. `Accessibility#cell(row, column, sort)` declares it
+and the two-argument call is the same call with `NONE`; the differ compares it, so a column turned
+round republishes even when nothing else about the node moved.
+
+The phrase **stays** in the description beside it, and that is not duplication: a bridge reads the
+snapshot on a platform's own thread with no locale scope open and could not build a phrase there, and
+Windows's carrier *is* a phrase (`ItemStatus`, File Explorer's convention, plus `HelpText` because
+NVDA 2024.4.2 has no `ItemStatus` handler and speaks a description). The enumeration serves the two
+platforms that want a fact, the phrase the one that wants words, and each bridge takes the one its
+platform asks for. No new string: `TableStrings.SORTED_ASCENDING` and `SORTED_DESCENDING` already
+ship in all 21 locales. Orca's fourth value, `other`, is left out: nothing in the toolkit sorts that
+way, and a value no widget can produce is one no bridge could be tested against.
+
+*(Amended 2026-09-15, the fix round's integration: all three bridges now read it, each the way its
+platform asks — Windows `ItemStatus` from the description beside `HelpText` (§2.1), macOS
+`AXSortDirection` 0/1/2 (§2.2's table, ADR 041 §7), Linux the `sort` object attribute (§2.3). Each
+lane had logged its own mapping as owed, because this carrier landed on the model's branch while the
+three ran; none of the three could compile against it there.)*
+
 **Amendment, 2026-09-14: a `ValueFacet` can say it holds no number, and a value event is raised
 when the text moves.** A date segment nobody has typed into has a range, a displayed text and no
 number; the facet had no way to say so, so `DateField` published the minimum as if it were typed
@@ -1062,8 +1088,12 @@ routing, the key, the gate on the child and on the container still holding it),
 `ListViewAccessibilityTest` and `TreeAccessibilityTest` (a row's `SELECT` selects that row, from
 the user, once).
 
-**Amendment, 2026-09-15: a delegated verb is gated on the container showing, not the child
-(decision 22 read with semantics 5).** "Gates the verb on the child's node exactly as it gates
+**Amendment, 2026-09-15, superseded the same day by decision 66 (the amendment below): a delegated
+verb is gated on the container, not the child.** Recorded whole because it is the step that found the
+defect; what it got right is that the gate belongs on the container, and what decision 66 corrected
+the same day is the bit it read the container with — `SHOWING` rather than visibility through the
+ancestry, so a container merely scrolled away refused a verb it had published instead of revealing
+and performing it. Read the paragraph with that correction applied throughout. "Gates the verb on the child's node exactly as it gates
 every verb" above made the kept cursor row of decision 22 — published outside the viewport, not
 `SHOWING`, still `ACTIVE` — a row whose `SELECT`, `ADD_TO_SELECTION`, `DESELECT`, `EXPAND`,
 `COLLAPSE` and `FOCUS` (`Tree`) and `SELECT` (`ListView`) `Host#perform` accepted and the posted
@@ -1078,7 +1108,6 @@ modal-blocked, inside the input root, the container still the child's parent —
 `AccessibleActionTest` (a clipped child of a showing container performs; a hidden child and a
 child of a container clipped away do not), `TreeAccessibilityTest` and
 `ListViewAccessibilityTest` (the kept row's verbs, wheeled out of the box).
-
 **Amendment, 2026-09-14: a composite says which child carries a label bound to it (decision 55;
 DATES-NEW-12).** A form's caption is bound to the widget the application holds — a `DatePicker` —
 and the node a reader arrives at is the field inside it, so `Label#setLabelFor(picker)` named an
@@ -1186,16 +1215,21 @@ controls inside keep performing their verbs through the fade: an open `DatePicke
 layer published `CANCEL` through its fade (§7's `DatePicker.ScenePopup` row), and an open
 `ColorPickerButton`.
 
-**Amendment, 2026-09-15 (fix round 2e): a facet implies its setter only on an `ENABLED` node.**
+**Amendment, 2026-09-15 (fix round 2e), widened the same day by decision 66: a facet implies its
+setter only on a node that is `ENABLED` — and, from the decision-66 amendment below, `VISIBLE` too.**
+Read "`ENABLED`" as "`ENABLED` and `VISIBLE`" everywhere in this paragraph, including its
+"marks exactly the nodes §1.9's gate refuses on" clause; the reasoning below is unchanged by the
+widening, which added an axis rather than replacing one.
 Semantics 5 above says a writable `ValueFacet` implies `SET_VALUE` and a non-read-only `TextFacet`
 implies `SET_TEXT`, `SET_CARET` and `SET_SELECTION`. Fix rounds 2c and 2d kept that sentence and
 took the setters off an inoperable node by publishing its value read-only and its text `READ_ONLY`,
 which conflated the two bits §1.2 keeps apart and reversed §7's `TextField` warning ("never
 `READ_ONLY` from disabled"): a reader would say "read-only" of a field that is only disabled, or
 only behind a dialog. The sentence now reads: **such a facet implies its setter only on a node that
-is `ENABLED`.** Whether a node is operable is read off the snapshot alone and needs nothing new. For
-the input-layer axis four carriers were weighed — a new `State` (an inert bit), a flag on
-`AccessibleNode`, an empty action list, and `ENABLED` itself — and `ENABLED` is taken. §1.13 has
+is `ENABLED`.** Whether a node is operable is read off the snapshot
+alone and needs nothing new. For the input-layer axis four carriers were weighed — a new `State`
+(an inert bit), a flag on `AccessibleNode`, an empty action list, and `ENABLED` itself — and
+`ENABLED` is taken. §1.13 has
 cleared it on every node outside the layer that owns input since the record was written, and the
 walk of fix round 2d publishes it clear on a disabled widget, under a disabled ancestor and on a
 narrowed synthetic child, so it marks exactly the nodes §1.9's gate refuses on; it allocates nothing
@@ -1231,6 +1265,64 @@ while every text widget performs both through its own caret whether or not it ma
 without `READ_ONLY`; `SET_CARET` and `SET_SELECTION` need any `TextFacet`; all three need `ENABLED`.**
 `AccessibleModalTest.aReadOnlyTextTakesACaretAndASelectionButNoTextAndADisabledOneTakesNone` pins it,
 and was red with the round-2e rule.
+
+**Amendment, 2026-09-15 (decision 66, phase-3 fix round): the operable bit is `ENABLED` *and*
+`VISIBLE`, and a delegated verb on a container that is only scrolled away is revealed rather than
+refused.** §1.9's amendment of this date gives the rule and the reasoning; four facts recorded in
+*this* section are reversed by it, and this is where they were written.
+
+1. **The delegated-showing amendment above is superseded.** "`Scene#perform` now refuses it when the
+   container is not showing" read the right question through the wrong bit. A container merely
+   clipped out of a viewport is visible through its ancestry, and a verb published on its child is
+   one the snapshot promised a reader; refusing it on arrival is the silent drop semantics 5 forbids,
+   which is the very thing that amendment was written to close on the child's side. The gate now
+   reads **visibility through the ancestry** for every verb — free, delegated and plain alike — and
+   where the node is visible and not showing it **reveals and then performs**: `revealInView()` on
+   the container for a verb the container claimed, which is exactly the box whose `isShowing()` that
+   amendment refused on. A container on the glass holding a child outside its own viewport still
+   reveals nothing, so decision 22's kept cursor row is expanded and selected where it stands, and
+   only a container that is itself off the glass moves. What stays refused is what nobody can see: a
+   child hidden by its own flag, and now also a child of a container that is not visible. The test
+   the paragraph above names was renamed with the policy —
+   `AccessibleActionTest.aDelegatedVerbOnAChildOfAContainerClippedAwayIsRefused` is now
+   `…IsRevealedAndPerformed` and asserts the row was selected where it used to assert that nothing
+   was — and `aDelegatedVerbOnAChildOfAnInvisibleContainerIsRefusedAndPublishesNothing` is its twin,
+   holding the other half. A delegated `SCROLL_INTO_VIEW` keeps its visibility gate, and it is no
+   longer an exception to anything: every verb has that gate now.
+2. **"Such a facet implies its setter only on a node that is `ENABLED`" now reads "only on a node
+   that is `ENABLED` and `VISIBLE`."** `AccessibleNode#accepts` reads both bits through one private
+   `isOperable()`, and §1.9's gate re-reads the same fact on the live widget, so the snapshot and the
+   scene stay one reading of one fact. A slider in a tab nobody selected keeps its writable value and
+   its true `READ_ONLY` — the two bits §1.2 keeps apart are still apart — and accepts no
+   `SET_VALUE`. The amendment directly above travels with it: `SET_CARET` and `SET_SELECTION` need
+   any `TextFacet` and the operable bit, which is now both states, because moving a caret is reading
+   and there is nothing to read in text nobody can see. **Not `SHOWING`:** a node that is visible and
+   merely clipped keeps every setter, because the scene reveals it and performs.
+3. **The four-carriers rationale keeps its conclusion and loses one clause.** `ENABLED` is still the
+   carrier chosen for the input-layer axis, for the three reasons given there: a new `State` would
+   join §1.2's closed list and need a truthful mapping on all three platforms, a flag on the node
+   would be a second name for one fact, and an empty action list cannot be the fact because a node
+   with no verb may still take a setter. What no longer holds is "so it marks exactly the nodes
+   §1.9's gate refuses on": since this date the gate refuses on visibility too, and it is `ENABLED`
+   **and** `VISIBLE` together that mark exactly that set. The third axis needed no carrier of its
+   own — `VISIBLE` has been published on every node from the widget's own predicate since the first
+   walk (§1.2, and "what a widget gets for free" below) — which is why it cost nothing the other two
+   had not already paid.
+4. **The free verbs' exception is gone; only their reveal is still theirs.** "The gate in §1.9 needs
+   one exception for them, and only one … so the two are gated on visibility instead" (below)
+   describes the gate as it was: now every verb is gated on visibility, so `FOCUS` and
+   `SCROLL_INTO_VIEW` are no longer exceptional there. What remains theirs alone is the reveal —
+   `SCROLL_INTO_VIEW` *is* the reveal and `requestFocus()` reveals on arrival — so the gate leaves
+   them to it rather than revealing twice.
+
+The withdrawal happens in the same place as the other two axes, which is the point of it:
+`AccessibleWalk` calls `Accessibility#inoperableAt` on `!ownEnabled || !ownVisible` for the widget's
+own node and on `!isEnabledAt(i) || !ownVisible` for every synthetic child it drew, reading
+visibility from the **owner** because a child may narrow enabled (`Accessibility#disabled`) and
+showing (`#offScreen`) and there is no narrowing of visible. `Accessibility#inoperableAt`'s and
+`#isEnabledAt`'s contract javadoc name the third axis as of this amendment. Pinned by the tests
+§1.9's amendment of this date lists, and ratcheted over the gallery by
+`VerbPolicyRatchetTest.everyPublishedVerbMovesSomething`.
 
 **What a widget gets for free, with no override at all:** bounds from `x/y/width/height`; `ENABLED`,
 `FOCUSABLE`, `FOCUSED`, `VISIBLE` and `SHOWING` from the existing predicates; `locale()` for the
@@ -1314,6 +1406,20 @@ same reason: marking something pending without buying a frame is a no-op with a 
 buys the frame only when a bridge is attached and listening; with nothing listening the entry is
 still enqueued and still bounded, so an application's diagnostics do not depend on a reader being
 present, but no frame is spent on speech nobody will hear.
+
+**Amendment, 2026-09-15 (phase-3 fix round, brief item 4): there is something to press.** Every
+other fact in this record is reachable by walking a tree, and an announcement is not: it is the
+application speaking, so a live run has to make it speak. Nothing in the toolkit or the demo called
+`announce`, so the three bridges' announcement paths — a UIA notification, an AT-SPI
+`Announcement`, an `NSAccessibility` announcement posted on the window (§2.1–2.3) — had no scene to
+be heard on, and phase 5's "VoiceOver hearing an announcement posted on the window" had nothing to
+press. The accessibility gallery gains an `Announcements` entry: two buttons whose handlers call
+`announce`, one `POLITE` and one `ASSERTIVE`, with the reader script `announcement` pressing both.
+Both levels, because the three platforms map them to different values and a run that heard one would
+leave the other unread. `ReaderStepsTest` holds it twice over: the script's two presses change
+nothing in any tree, so the "every step changes something or announces something" rule passes on the
+announcement alone and a scene that stopped announcing fails as a silent step, and
+`theAnnouncementEntrySpeaksBothPolitenessLevels` names the two strings and the two levels.
 
 ### 1.6 Transparent and ignored are different, and both are needed
 
@@ -1535,6 +1641,41 @@ superseded: pinned by
 `AccessibleActionTest.aVerbInsideAnOverlayIsReadOnTheOverlaysOwnChainAsTheKeyboardReadsIt` and
 `DialogPanelAccessibilityTest.overADisabledOwnerTheTreeTheKeyboardThePointerAndAReaderAgree`.
 
+**Amendment, 2026-09-15 (decision 66): the showing test becomes a visibility test, and what is only
+clipped is revealed and performed.** "That `isShowing()` is true, not `isVisible()`" stood from the
+first draft, with the two free verbs exempted from it. It is wrong in both halves.
+
+It is wrong about a control **scrolled out of a viewport**. That node is visible through its
+ancestry — nothing hid it, a pane clipped it — it publishes the verbs it offers, `Host#perform`
+answers yes from the snapshot, and this gate then dropped the verb in silence. A reader was shown
+"Chapter 20" below the fold, the media bar's Volume slider, a colour picker's rails in a scrolled
+panel, and could work none of them; the two verbs that were exempted are exactly the two that make
+the case obvious, because `SCROLL_INTO_VIEW` is asked for precisely when the node is not showing.
+So every verb takes the free verbs' path: the gate reads **visibility through the ancestry**, and
+where the node is visible and not showing the scene **reveals it and then performs** — `revealInView()`
+on the owner, or on the container for a verb it claimed, which is whose `isShowing()` the gate used
+to refuse on. A container that is on the glass and holds a child outside its own viewport reveals
+nothing, so decision 22's kept cursor row is still expanded and selected where it stands.
+
+It is wrong about the other half too, by leaving it in the gate alone. A control **nobody can see** —
+an unselected tab's contents, a collapsed panel, anything under a widget whose own visible flag is
+false — was published with its verbs and its setters and refused on arrival, which is the same
+broken promise. `VISIBLE` now joins `ENABLED` as the operable bit: the walk takes every verb off such
+a node through the same `Accessibility#inoperableAt` as the disabled and input-layer axes (§1.5's
+amendment of this date), and `AccessibleNode#accepts` implies a setter only on a node that is
+`ENABLED` **and** `VISIBLE`. The snapshot and this gate are then one reading of one fact, which is
+what semantics 5 asks for. The reveal itself is gated on `accepts`, because a reveal is a visible
+effect and a verb the node never published must move nothing at all.
+
+Pinned by `ScrollViewAccessibilityTest.aButtonScrolledOutOfTheViewportPublishesItsPressAndIsRevealedAndPressed`
+and `aControlNobodyCanSeePublishesNoVerbAndNoSetterAndPerformsNothing`,
+`TabbedPaneTabHeaderAccessibilityTest.anOverflowingStripRevealsAndSelectsTheTabItHasScrolledAway`,
+`AccessibleActionTest.aDelegatedVerbOnAChildOfAContainerClippedAwayIsRevealedAndPerformed` and its
+invisible-container twin, and ratcheted over the whole gallery by
+`VerbPolicyRatchetTest.everyPublishedVerbMovesSomething` — the parameterless half's second direction,
+which the setter pass has had since fix round 2e and which is where a published verb this gate
+refuses in silence shows up. `VerbPolicyRatchetTest.SETTER_ALLOWLIST` is empty as of this amendment.
+
 Parameterless verbs live in `ActionFacet`: `PRESS`, `TOGGLE`, `EXPAND`, `COLLAPSE`, `SELECT`,
 `DESELECT`, `SHOW_MENU`, `INCREMENT`, `DECREMENT`, `SCROLL_INTO_VIEW`, `FOCUS`, `CANCEL`. Each
 carries a localized name, because `Action.GetActions` returns `a(sss)` — name, description, key
@@ -1645,7 +1786,10 @@ Linux one needed anyway:
   three. **It runs on the thread that handles the collapse** — the drain thread on Windows, the UI
   thread on macOS — which is also the thread that owns removal there (§3.4). On Linux there is
   nothing to sweep, because nothing is retained per node: the collapse is one `Cache.AddAccessible`
-  for the root and the client re-reads.
+  for the root and the client re-reads. *(Amended 2026-09-15: not so. libatspi 2.60.6 reconciles
+  a cached child list only from `ChildrenChanged` and a cached state only from `StateChanged`, so
+  one root item re-reads nothing; the Linux bridge sends nothing for `INVALIDATED` and relies on
+  the reserved tail's structure signals and says the focus again — §2.4's amendment of this date.)*
 - **Windows and Linux drain on a thread of the bridge's own, and on Linux that is emphatically not
   the reader thread.** The Windows spike raised an event from an RPC thread and from inside `Invoke`
   and got `S_OK` both times, so a raise does not need the UI thread, and the Windows bridge starts
@@ -1824,6 +1968,22 @@ pointing here: §9.2's answer to ADR 040's §6.1 ("an active descendant on its c
 surface's cursor" in both — a column has no cursor of its own since this amendment, and the one
 `ACTIVE_DESCENDANT_CHANGED` per arrow key that row promises is still one, on the surface.
 
+#### Amendment 2026-09-15 — macOS posts when the frame ends, not when the tree next changes
+
+**What was wrong (MACOS-NEW-8).** "It gets a per-frame budget" above was true of the budget and not
+of the moment. The macOS bridge drained its queue at the top of `publish`, and the scene publishes
+only when the walk found a difference (§5.3 step 6), so the events of one change were posted inside
+the publish of the *next* change, against a tree that had already moved on, and the last change
+before a pause was not posted until something else changed. Announcements, which the scene emits
+without publishing, waited the same way. `--scene tree-reader` steps three seconds apart were each
+told to VoiceOver at the following step; the phase 7 probe hid it by changing the tree every tick.
+Windows and Linux were never affected: their raises leave `emit` for a thread of their own.
+
+**The rule.** The seam gains `AccessibilityBridge#frameEnded()` (§5.3's amendment of this date), called
+at the end of every frame's accessibility step and never from a reentrant publish. The macOS bridge
+drains there, after the frame's own events, and pays there whatever a reentrant publish deferred.
+"Per frame" now means the frame that emitted the events.
+
 ### 1.11 A popup's contents are described where they actually live
 
 ADR 028's two mountings survive into the accessibility tree unchanged, because pretending otherwise
@@ -1846,9 +2006,17 @@ measured against the wrong window's origin, and would break `ElementProviderFrom
 `accessibilityHitTest:` and `GetAccessibleAtPoint` in the native mounting.
 
 In both mountings the popup's root carries a `POPUP_FOR` relation to the node that opened it, and the
-opener carries the mirror `CONTROLLER_FOR`, so a client walking either direction finds the other. The
-opener is already known: every popup, menu and dialog calls `Widget#setInheritanceHost` on its root
-today for the size, direction and locale chain, and §8 makes that link readable.
+opener carries the mirror `CONTROLLER_FOR`. **In the model both directions exist; only one platform
+publishes both** (ratified 2026-09-16 on the two bridges' own readings, and the reason is per
+platform, in the CRIT-2 amendments below). **Linux** publishes the pair, `ATSPI_RELATION_POPUP_FOR`
+and its mirror, so a client there walks either direction. **Windows** publishes the opener's
+`ControllerFor` into the popup and nothing back, because UI Automation has no element-valued property
+that carries "popup for" at all. **macOS** publishes `AXLinkedUIElements` from the opener only,
+because the popup's root is the node AppKit's own window object stands for and there is no element of
+ours to ask it on. The one-way link is enough for what depends on it: the cursor crossing into a
+native popup resolves from the opener's side (semantics 4), never from the mirror. The opener is
+already known: every popup, menu and dialog calls `Widget#setInheritanceHost` on its root today for
+the size, direction and locale chain, and §8 makes that link readable.
 
 **A relation target is resolved to the nearest published ancestor, and dropped when there is none.**
 The inheritance host is an *axis-resolution* host, not an accessibility parent, and the two disagree
@@ -1914,6 +2082,62 @@ to become, AppKit's own window object where the root is elided) is phase 3's, pe
 by `NativePopupRelationTest` in the demo, where a `HeadlessBackend` opens the popup as a real
 second window: the list names the combo, the combo names the list, the calendar's card names the
 picker and the picker names the card; and a closed popup window leaves the picker with no mirror.
+
+**Amendment, 2026-09-15 (CRIT-2, the Windows half): a foreign relation target is handed back as the
+other window's element.** The 2026-09-14 amendment above left "what each platform then does with a
+foreign element" to phase 3, per platform, and the Windows bridge did nothing with it: a target its
+own tree did not hold answered no element, and the array was compacted — so a combo's
+`ControllerFor` was `VT_EMPTY` while its popup was open, the one moment it is worth asking, and a
+`LabeledBy` or `DescribedBy` held elsewhere was empty too. The bridge now asks the process's set of
+open bridges which one holds the target (`AccessibleTree#holds`, the same routing the cursor already
+used for decision 5) and hands back **that** window's element, through its *simple* interface, minted
+and referenced under that bridge's guard, so the whole-registry empty cannot free it under the
+caller. A target no open window holds is still left out rather than handed over as a `NULL` entry of
+a `SAFEARRAY(VT_UNKNOWN)`, which `SafeArrayDestroy` would release one by one. `POPUP_FOR`, the
+mirror the popup's own root carries, is answered by no property: UI Automation has no "popup for"
+among its element-valued properties, and what a client follows from the popup back to its opener is
+the opener's `ControllerFor`.
+
+**This amends the settled list on that point, and is not a divergence left in a javadoc.** The
+settlement of 2026-09-15 reads "Windows hands back a ControllerFor/PopupFor element from the other
+HWND's provider"; the `PopupFor` half is unanswerable here, and the absence is read rather than
+assumed. The platform's element-valued properties are `LabeledBy` (30018), `ControllerFor` (30104),
+`DescribedBy` (30105), `FlowsTo` (30106) and `FlowsFrom` (30148), and no member of `UIA_PropertyIds`
+carries "popup" in its name at all, read off the guest's own `UIAutomationCore.dll` 7.2.26100.9278
+on 2026-09-13 (`readings/windows-dump-uia-typelib-all-members.txt`). Answering the opener as the
+popup's own `ControllerFor` instead would say the popup controls the field that opened it, which is
+the relation backwards; the one carrier of the link on this platform is the opener's `ControllerFor`,
+which the amendment above delivers. AT-SPI's `ATSPI_RELATION_POPUP_FOR` and AppKit's own window
+object are unaffected: the two platforms that have a carrier keep publishing the pair. Pinned as a
+deliberate non-mapping by `UiaProviderTest.aPopupForIsCarriedByNoPropertyBecauseThePlatformHasNone`,
+which gives a node a `POPUP_FOR` naming a widget its **own** window holds and reads every
+element-valued property back empty — so a later lane that invents a carrier for it fails here and
+comes back to this paragraph.
+
+The cross-window half is pinned by
+`UiaProviderTest.aRelationTargetAnotherWindowHoldsIsHandedBackAsThatWindowsElement`, which restates
+`aRelationTargetAnotherWindowHoldsIsLeftOutRatherThanHandedOverAsNull` (2026-09-14), the case that
+pinned the compaction. The live half — a client reading `ControllerFor` on the opener and reaching
+the popup's element — is phase 5's.
+
+**Amendment, 2026-09-15 (CRIT-2, the macOS half): the bridge answers a foreign target, and what it
+answers for an elided root is the window.** Phase 3 built the model half above and the Linux half,
+and left `AxBridge#linkedElementsOf` skipping any target its own tree does not hold — so a date
+field's `CONTROLLER_FOR` on the calendar window it had opened came back as an empty
+`AXLinkedUIElements`, and the popup was nameable from nowhere. It now routes the target the way
+`focusedElement()` routes a cursor: through the process's set of open bridges, to the one whose
+published tree holds it, minting there, because an element belongs to the window whose tree it
+stands for. Where the target is that window's **root**, which §2.2 elides, the answer is the object
+AppKit vends for that window — the content view's `-window`, whose `@16@0:8` was read with the other
+messages on the macOS 26.6.2 guest — which is the paragraph above applied rather than bent. A target
+no open window holds is still dropped. Pinned by
+`AxBridgeTest.aRelationTargetAnotherWindowHoldsIsAnsweredThroughThatWindowsBridge`.
+
+**What this does not buy on macOS, and why.** The mirror direction stays unreachable here: the
+popup's root carries `POPUP_FOR` on the opener, and that root is exactly the node AppKit's own window
+object stands for, so there is no element of ours for a client to ask it on. A reader walks the link
+from the opener outwards only. Nothing is lost that this platform ever had, and §13.27's probe is
+still what would decide whether AppKit can be made to carry the other direction.
 
 ### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
 
@@ -2039,6 +2263,20 @@ dispatched to the child's own hook instead of the container's. The walk now reco
 first and withdraws publication after; while the overlay is up §1.9's layer gate refuses the verb.
 Pinned by `AccessibleActionTest.aDelegatedVerbSentAfterAnOverlayClosedStillReachesTheContainer`.
 
+**Amended 2026-09-15 (decision 66): the third axis, and the place all three meet.** This section's
+argument — a control the scene will not operate must say so in the tree, or the reader offers a whole
+interface that does nothing — is not about modals. It is about every reason the scene refuses, and
+there are three: the widget or an ancestor is disabled, the node lies outside the layer that owns
+input, and **nobody can see it**. The third was still only enforced: a slider in a tab nobody
+selected, a hidden media bar's Volume, a button under a widget whose visible flag is false, each
+published `ENABLED` with its verbs and its writable value, and each refused on arrival with nothing
+said about why — the defect of the first paragraph above, one axis over. The walk now withdraws
+verbs from a node published without `VISIBLE` through the same `Accessibility#inoperableAt` call, and
+`AccessibleNode#accepts` reads `ENABLED` and `VISIBLE` together (§1.9's amendment of this date).
+`VISIBLE` and not `SHOWING`: a node merely clipped out of a scroll viewport keeps everything and is
+revealed by the gate before it is performed. Ratcheted over the gallery by
+`VerbPolicyRatchetTest.everyPublishedVerbMovesSomething`.
+
 ---
 
 ## 2. The three platforms, interface by interface
@@ -2102,6 +2340,280 @@ pointer-sized and narrow arguments plus the return letter, and `SafeArrayCreateV
 must be zeroed whole — 24 bytes — before every write, because leaving `VT_EMPTY` over a stale payload
 is a latent crash in a caller that trusts the union.
 
+**Amended 2026-09-15 (phase 3, Windows; decision 1, semantics 4; W3, LAB-NEW-4): `GetFocus` and
+`HasKeyboardFocus` answer where the user is.** The row above says `GetFocus` answers "the focused
+node", and so did the code: the focused table, tree, list or calendar, never the row, cell, day or
+segment its cursor is on, and `HasKeyboardFocus` was the node's own `FOCUSED` bit. Both now answer
+the tree's effective focus (`AccessibleTree#effectiveFocus`, the active descendant or the focused
+node): a focused table's cursor cell has the keyboard and the table does not, because NVDA 2024.4.2
+takes a focus change only from a sender that answers `HasKeyboardFocus` true when it reads it, live,
+after the event (readings/nvda-2024.4.2-uia.md §1). Where the cursor resolved into a native popup's
+tree (decision 5), `GetFocus` hands over that window's fragment pointer from that window's own
+provider, and that element is the one answering `HasKeyboardFocus` true. `HasKeyboardFocus` is
+therefore answered by the provider from the tree, not by the per-node property table.
+**Amended again 2026-09-15 (review of that change):** the popup window's own root answered
+`GetFocus` with a null — nothing of its tree is focused — while its day answered `HasKeyboardFocus`
+true, so one provider contradicted itself. A root whose tree has no effective focus of its own now
+answers the node of its tree that another open window's effective focus names
+(`UiaBridgeTest.aCursorInAnotherWindowsTreeIsRaisedAndAnsweredThroughThatWindowsProvider`). Whether
+UI Automation and NVDA accept either answer — a focus element in another window's fragment tree, or
+the focus on a window that is not the active one — is decision 5's live assumption, measured first in
+phase 5.
+
+**Amended 2026-09-15 (phase 3, Windows; decisions 9, 10; semantics 1 and 5; W1's Selection half,
+WINDOWS-NEW-9, WINDOWS-NEW-11): `ISelectionProvider` is served, and the `SelectionItem` verbs are
+candidate lists.** The row above lists `ISelectionProvider` as "to be built"; the pattern was
+claimed from `SelectionFacet` and a client's `GetPatternProvider` got a null. `GetSelection` now
+answers a `SAFEARRAY` of simple pointers to the realized selected members whose selection container,
+resolved once at publish (`AccessibleNode#selectionContainer`), is this node — a selected row the
+widget has not realized is not listed (§4.1) — and `get_CanSelectMultiple`/`get_IsSelectionRequired`
+answer the facet. `get_SelectionContainer` answers that same resolved container, where it had
+climbed to any ancestor with a selection. `Select` posts `SELECT`, `AddToSelection` the first of
+`ADD_TO_SELECTION`, `SELECT` the node publishes, `RemoveFromSelection` `DESELECT`; a node publishing
+none of its list is refused with `0x80131509` and nothing is posted (it had posted `SELECT` for
+both of the first two, whatever the node published). Every `BOOL*` getter writes four bytes of `1`
+or `0`, read on the guest (readings/windows-dump-uia-marshalling.txt); it had written a
+`VARIANT_BOOL`'s two.
+
+**Amended 2026-09-15 (phase 3, Windows; decision 39, semantics 5; W1's Scroll half,
+WINDOWS-NEW-7): `IScrollProvider` is served, `ScrollItem` is the node's verb, and no node claims
+`Window` or `Transform`.** The pattern row above says "Scroll ← `ScrollFacet`; ScrollItem ← a
+scrollable ancestor; Window and Transform ← `WindowFacet`", and the interface row lists
+`IScrollProvider` and `IWindowProvider` as "to be built"; the Scroll, Window and Transform patterns
+were claimed and a client's `GetPatternProvider` got a null for each. As built:
+- **Scroll's getters** answer the scroll facet as the platform's own `ScrollViewerAutomationPeer`
+  does, read as IL on the guest (readings/windows-dump-uia-provider-conventions.txt §1): a percent is
+  the facet's times 100 on an axis that scrolls and `UIA_ScrollPatternNoScroll` (−1, read 2026-09-13)
+  on one that does not; a view size is a percent on either axis (100 for nothing to scroll); the two
+  `BOOL*` flags are four bytes.
+- **`Scroll(h, v)`** maps each `ScrollAmount` (read 2026-09-13) to that axis's `SCROLL_BAR` child's
+  published stepping verb, posted on the bar: `SmallIncrement`/`SmallDecrement` →
+  `INCREMENT`/`DECREMENT`; `LargeIncrement`/`LargeDecrement` → the page verbs decision 39 names "if
+  published", which the model does not have, so a large step is refused; `NoAmount` leaves the axis.
+  **`SetScrollPercent(h, v)`** posts `SET_VALUE` on the axis's bar, its own range scaled by the percent,
+  where the bar accepts one (`AccessibleNode#accepts`); `NoScroll` leaves the axis. The refusals come in
+  the peer's order: `UIA_E_ELEMENTNOTENABLED` (0x80040200, read 2026-09-13) for a node that is not
+  `ENABLED`, then `0x80131509` for an axis asked to move that cannot scroll, then (percent only)
+  `0x80131502`, the managed `ArgumentOutOfRangeException` (read 2026-09-15), for a percent outside
+  0..100 or not a number, then `0x80131509` for an axis with no bar or a bar that does not publish the
+  verb or take the value. Both axes pass every check before either is posted. The scroll bar's own
+  step is one viewport (`ScrollBar`), so a client's small step moves a page; that is decision 39 as
+  written, recorded for phase 5's client runs.
+- **`ScrollItem`** is vended only on a node publishing `SCROLL_INTO_VIEW`, and `ScrollIntoView` posts
+  it through the same candidate gate (semantics 5); it had been vended on any node with a scrollable
+  ancestor and posted whatever the node published.
+- **`Window` and `Transform`** are claimed by no node: the root answers `get_HostRawElementProvider`
+  with the provider UI Automation made for the HWND, which serves both for the real window (the
+  probe's `[Window,Transform]` came from it), and this bridge serves neither interface. An in-scene
+  dialog still says `IsDialog`. `UiaPatternsTest.everyPatternANodeCanClaimIsOneThisBridgeServes` now
+  fails for any claim with no interface behind it.
+
+**Amended 2026-09-15 (review of the Windows phase-3 work): which items lose `ScrollItem`.** Vending
+`ScrollItem` only with `SCROLL_INTO_VIEW` takes it from every item whose widget does not publish that
+verb, and at this date that is most of them. `ListView` rows and `Tree` rows publish it (decision 20),
+and a focusable widget gets it free from the walk, but a `Table`'s synthetic `ROW` publishes `SELECT`,
+`ADD_TO_SELECTION`/`DESELECT` and `FOCUS` and its synthetic cells `FOCUS` only, and a `CalendarView`'s
+day cells `SELECT` and `FOCUS`: none of them vends `ScrollItem` on Windows, so a client asking a table
+row or cell, or a day, to scroll into view finds no pattern. Decision 20 says tree and list rows
+publish `SCROLL_INTO_VIEW` "like Table", which reads as though a table row did; it does not. Owed to
+the `Table` and dates widgets under decision 20 (ADR 041 §7, ADR 042), not to this bridge, which vends
+the pattern the moment the verb is published.
+
+**Amended 2026-09-15 (phase 3, Windows; decisions 2, 7, 20, semantics 5 as amended the same day;
+W6, TREE-MISS-8, WINDOWS-NEW-10, CRIT-7): every verb and setter goes through
+`AccessibleNode#accepts`.** The rows above say `SetFocus` "posted `FOCUS`" and `Invoke` "posted
+`PRESS`", and the pattern slots posted `TOGGLE`, `EXPAND`, `COLLAPSE` and `SET_TEXT` the same way,
+whatever the node published; fix round 2e's `refusedSetter` refused a setter on a node not `ENABLED`
+and nothing else. As built: `Invoke` [`PRESS`], `Toggle` [`TOGGLE`], `Expand` [`EXPAND`], `Collapse`
+[`COLLAPSE`], `SetFocus` [`FOCUS`], `ScrollIntoView` [`SCROLL_INTO_VIEW`] and the `SelectionItem` lists
+post the first verb the node publishes on the snapshot of the call. `Value.SetValue` posts `SET_TEXT`
+on a node with a text facet and `SET_VALUE` carrying the text on a value facet (a spinner's "07:30",
+a combo's item), and `RangeValue.SetValue` posts `SET_VALUE`, each only where `accepts` says the
+node takes it (a writable facet on an `ENABLED` node). A verb or setter the node does not accept is
+refused synchronously and nothing is posted: with `UIA_E_ELEMENTNOTENABLED` (0x80040200) when the
+node is not `ENABLED` — disabled, under a disabled ancestor, outside the layer that owns input — and
+`0x80131509` when it is enabled and does not offer it. The not-enabled code for the **verbs** as well
+as the setters (the addendum names the setters) is the platform's own order, read as IL on the guest
+2026-09-15 (readings/windows-dump-uia-provider-conventions.txt §1b): `ButtonAutomationPeer.Invoke`,
+`ToggleButtonAutomationPeer.Toggle`, `ExpanderAutomationPeer`'s and `TreeViewItemAutomationPeer`'s
+`Expand`/`Collapse`, `SelectorItemAutomationPeer`'s three verbs, `TextBoxAutomationPeer.SetValue` and
+`RangeBaseAutomationPeer.SetValue` all throw `ElementNotEnabledException` before anything else, and
+`InvalidOperationException` only after. Not followed from that reading: `TextBoxAutomationPeer`
+answers a read-only text box's `SetValue` with `ElementNotEnabledException` too; this bridge answers a
+read-only but enabled node `0x80131509`, as semantics 5 words it. `Value.get_IsReadOnly` is the
+`READ_ONLY` state, which the model derives from a value facet's `readOnly` (`Accessibility#value`), so
+it already answered the facet's writability. The Expand/Collapse, Toggle and Value patterns are still
+vended from their facets, because their state is what a reader reads; a verb delegated to a container
+(a tree row's `EXPAND`) is posted on the row's id and the scene routes it (decision 7).
+
+**Amended 2026-09-15 (review of the Windows phase-3 work): the not-enabled order is read for the
+entry points named, and `SetFocus` and `ScrollIntoView` were read afterwards and differ between
+providers.** The amendment above calls the not-enabled-first order "the platform's own order, read as
+IL" for every verb; its reading covers the peers it lists and no `SetFocus` body, and its `ScrollItem`
+listing named a type that does not implement the interface. Both were then read on the same guest
+(`scripts/a11y/windows/dump-uia-focus-and-scroll-item.ps1`,
+readings/windows-dump-uia-focus-and-scroll-item.txt, UIAutomationCore.dll 7.2.26100.9457, 4.8.9347
+assemblies), and the platform's providers do not agree. The client-side proxies of the Win32 controls
+keep the order: `ProxySimple`'s `IRawElementProviderFragment.SetFocus` throws
+`ElementNotEnabledException` (0x80040200) when the window is not enabled and
+`InvalidOperationException` (0x80131509) when the element is not keyboard-focusable; `ListViewItem`'s
+and `WindowsTabItem`'s `ScrollIntoView` throw `ElementNotEnabledException` before
+`InvalidOperationException` for a container that cannot scroll. WPF checks no enabled bit on either:
+`ElementProxy.SetFocus` reaches `UIElementAutomationPeer.SetFocusCore`, which throws
+`InvalidOperationException` when `UIElement.Focus()` refuses (as it does for a disabled element), and
+`ListBoxItemAutomationPeer`, `DataGridItemAutomationPeer`, `TreeViewItemAutomationPeer` and the
+list-box and tree-view item proxies scroll whatever the item's state. This bridge keeps
+`UIA_E_ELEMENTNOTENABLED` first for both, the Win32 proxies' order and the one every other entry
+point here follows, pinned by `UiaFragmentProviderTest.setFocusReachesTheToolkitOnlyWhereTheNodePublishesFocusAndSaysSoWhenTheNodeHasGone`
+and `UiaPatternProvidersTest.scrollIntoViewIsPostedOnlyWhereTheNodePublishesIt`; which of the two
+answers a client prefers is not read, and the choice is put to the owner with the verbs'.
+
+**Amended 2026-09-15 (phase 3, Windows; decision 4, semantics 6; W4, CRIT-6): position, set size and
+level are answered, and tree rows nest in navigation.** The `GetPropertyValue` row names neither
+`PositionInSet` nor `Level`, and the `Navigate` row says "the stored links"; every selection item's
+position answered `VT_EMPTY`, and a tree's rows, published flat under the tree, were all its
+children. As built: `PositionInSet` (30152) and `SizeOfSet` (30153) are the `SelectionItemFacet`'s
+numbers and `Level` (30154, read from UIAutomationCore.dll's type library 2026-09-13) the
+`HierarchyFacet`'s, each an integer and `VT_EMPTY` for a zero. The level passes through unchanged:
+the platform's base was read off native trees on the guest 2026-09-15
+(`scripts/a11y/windows/read-native-tree-levels.ps1`, readings/windows-read-native-tree-levels.txt):
+a Win32 tree view answers `Level` 1 for its root items, 2 and 3 below, and `PositionInSet`/`SizeOfSet`
+one-based among siblings; a WPF 4.8 tree answers 0 for all three (UIA's default for a provider that
+answers nothing). **`Navigate` nests `TREE_ITEM` rows**: a row with a positive level has as its parent
+the nearest earlier sibling row of a lower level, or the node it hangs under when there is none (a
+row whose parent row is not realized); a row's children are its own children, then the later sibling
+rows whose parent that makes it; every other node keeps the stored links. NVDA 2024.4.2 counts a tree
+item's `TreeItem` ancestors for its level and overwrites UIA's `Level` with that count
+(readings/nvda-2024.4.2-uia.md §2), and both native trees nest their items in the raw view, so this is
+what makes NVDA say the right level. Structure changes keep naming the stored parent (a removed row's
+`ChildRemoved` goes to the tree), which a client re-reading the tree reconciles; `UiaFragmentTest`
+holds navigation to one consistent tree reaching every node once, and `UiaTreeRowsTest` a real
+`Tree`'s rows' ancestor counts to their published levels. **Recorded as seen:** through the COM client
+the Win32 tree's items answered `ControlType` Tree and an empty `Name` in that reading, while the
+managed client read them as `TreeItem`s with their names; it bears on no number used here.
+
+**Amended 2026-09-15 (review of the Windows phase-3 work; decision 22): a row nests only through
+unbroken row indices, and a row whose parent row is not published is heard a level too high up.**
+The amendment above takes "the nearest earlier sibling row of a lower level" wherever it stands. A
+`Tree` publishes only its mounted rows and the cursor row it keeps realized off screen while focused
+(decision 22), so that row need not be the row's parent: with a root row kept as the cursor and the
+viewport inside another root's children, those children nested under the cursor row. Now the search
+walks back only while each earlier row carries the flat row index right above the one before it
+(`HierarchyFacet#row`); at a gap, or on a row whose index is unknown (0), it stops and the row hangs
+under its stored parent (`UiaFragmentTest.aRowNestsOnlyUnderARowItsUnbrokenRowIndicesReach`,
+`UiaTreeRowsTest.theKeptCursorRowIsNeverTheParentOfTheRowsInTheViewport`). **The consequence a
+reader hears:** once a `Tree` is scrolled so that a branch's own row is above the viewport, that
+branch's visible child rows have no published parent row and hang under the tree, so NVDA 2024.4.2,
+which counts `TreeItem` ancestors and overwrites `Level` with the count, says a lower level than the
+published one (a level-2 row read as level 1; measured headlessly for a tree scrolled 1000 px into an
+80-row branch, `UiaTreeRowsTest.aTreeScrolledIntoABranchNestsNoRowUnderARowThatIsNotItsParent`). The
+`Level` property still answers the true number, for a client that reads it. A wrong level was
+preferred to a wrong parent: the first is heard only for rows whose branch is scrolled away, the
+second put rows under another branch at a plausible level. What would close it is the widget keeping
+the ancestor rows of its first mounted row realized, as it keeps the cursor row; that is the `Tree`'s
+to decide (ADR 044 §4), and phase 5 hears the degradation on `--scene tree-reader` scrolled into a
+branch.
+
+**Amended 2026-09-15 (phase 3, Windows; decision 8, semantics 2 and 3; WINDOWS-NEW-8, TABLE-NEW-11):
+cells and headers are found by `CellFacet`.** The Grid/Table rows above say `GetItem` answers "a
+realized cell" and "column headers are the header group's children", and the column header item is
+"that grid's header group's child at the cell's column". As built until this date, `GetItem` matched a
+`ROW` child by its `SelectionItemFacet` position (row + 1), so a calendar, whose week rows carry no
+position, answered no day, and a row whose position is not its view index answered the wrong one;
+the header group was the table's *first* `GROUP` child, so a footer or any other group ahead of it
+was answered as the headers; and a cell's header item was the header at the cell's column index among
+the group's children. Now: `GetItem(r, c)` answers the node with `CellFacet(r, c)` among the children
+of the table's `ROW` children whose nearest table is this one (a widget cell under its synthetic row
+included), null for a negative row or an unrealized one; `GetColumnHeaders` answers, in reading order,
+every `CellFacet(-1, c)` child of the table's direct `GROUP` children, a footer's `-2` cells never; and
+`GetColumnHeaderItems` answers the header whose `CellFacet` column is the cell's.
+
+**Amended 2026-09-15/16 (phase 3, Windows, and the two fix rounds after it; decision 36): a sorted
+header says its direction in `ItemStatus` beside `HelpText`.** Written in three passes — read first,
+then carried, then made to raise — and folded here as one.
+
+*The reading.* UI Automation has no sort-direction property (none in UIAutomationCore.dll's type
+library, read 2026-09-13), so it was read off native headers on the Windows 11 guest (10.0.26200,
+UIAutomationCore.dll 7.2.26100.9457, .NET Framework 4.8 (Release 533509, 4.8.09221; UIA and WPF
+assemblies 4.8.9347, WinForms 4.8.9325); 2026-09-15,
+`scripts/a11y/windows/read-native-sort-direction.ps1`, readings/windows-read-native-sort-direction.txt):
+one column sorted each way and one not, every property id 30000-30200 read through the COM client.
+**File Explorer's details view carries it in `ItemStatus` (30026)** of the sorted column's header — a
+`SplitButton` (50031) of class `UIColumnHeader` under a `Header` — as a localized phrase ("Classificado
+(Crescente)", "Classificado (Descrescente)" on that pt-BR guest, switching with `SortColumns` and
+nothing else changing), and answers no `ItemStatus` on the others. **A WPF `DataGrid` (`SortDirection`),
+a WinForms `DataGridView` (`SortGlyphDirection`) and a Win32 list view (header format flags) carry
+nothing**: no property differs between their sorted and unsorted headers, and the managed peers' and
+proxies' IL (same reading, part 1) reads no direction. So the platform's carrier is Explorer's, a
+status phrase on the header. NVDA 2024.4.2 reads `ItemStatus` as a description only for an element of
+class `UIColumnHeader` (readings/nvda-2024.4.2-uia.md), while it reads `HelpText` as every element's
+description — which is why a move to `ItemStatus` **alone** would silence it on Limn's headers, and
+why both are answered.
+
+*What is answered.* `UiaProperties.valueOf` answers `ItemStatus` (30026) on a cell of the header row
+whose `Sort` is not `NONE`, with **the node's description** — the localized phrase the model resolved
+at publish, where a locale scope was open, which is the whole reason `CellFacet` kept the description
+beside the enumeration the other two platforms read (§1.2's amendment of 2026-09-15). `HelpText`
+(30013) needed no change: it already answers that same description, so the settled list's "`ItemStatus`
+**and** `HelpText`" is true of one string published once, and NVDA keeps hearing exactly what it heard.
+The header row is what makes a header: a footer cell (`-2`) and a data cell head no column, whatever
+direction their facet carries.
+
+*A choice and not a reading, marked where it is made:* **a busy sorted header answers the busy word
+alone.** `ItemStatus` is one string and two facts want it; nothing on the guest reads on composing them
+(Explorer's header was not busy), and joining two translated fragments with punctuation chosen on a
+thread with no locale open would invent a sentence in twenty-one languages. Busy is the transient state
+the property exists for, and the direction is not lost while it holds, because `HelpText` still carries
+it. A live Narrator or Inspect run over a header that is both would settle it; phase 5. Pinned by
+`UiaPropertiesTest.aSortedHeaderSaysItsDirectionInItsStatusAndInItsHelpTextAndBusyWinsOverBoth`.
+
+*What raises it.* This record said for a day that nothing did — "a sort arrives as a publish and not as
+a state change" — and that was half right. A sort that moves is not a state change and it is **not
+silent**: it moves the header cell's description, and the differ emits a `DESCRIPTION_CHANGED` for
+exactly that. The bridge raised `HelpText` alone, so a client that caches `ItemStatus` — the property
+File Explorer's convention exists for — went on reading the direction the column used to be sorted in.
+A `DESCRIPTION_CHANGED` on a **cell of the header row** now raises `ItemStatus` as well as `HelpText`,
+through a second mapping named `UiaBridge.alsoChangedProperty`; it is the only change today that moves
+two properties outside `raiseValue`.
+
+*And what a change carries is what the getter answers* — the rule that replaced this amendment's own
+first attempt at it (2026-09-16, the fix round's review). That attempt said an empty string is what
+`ItemStatus` carries for "nothing to say". It is not: a node with no status answers `null`, written as
+`VT_EMPTY`, which is what the getter's own comment says ("an item that is not busy has no status at all
+rather than a status saying it is idle"). The `BUSY` mapping wrote `""` when busy cleared, and on a
+header that is both busy and sorted that was the stale `ItemStatus` this whole amendment exists to
+prevent, raised by the mapping itself: the client was told the status was `""` the moment busy cleared,
+while `GetPropertyValue` answered "Sorted ascending". So on all three of its arms an `ItemStatus`
+change carries what the getter answers — the busy word while busy holds; for a busy that clears, the
+**not-busy** answer for that node (the sort phrase on a sorted header, nothing anywhere else); and for
+a description, the description only where the getter reads it as a status. It is the not-busy answer
+and not `GetPropertyValue` itself because the node in the published tree carries `BUSY` on the busy
+side of the change, so asking the getter for the old value of a busy just set would answer the busy
+word twice. The same rule closes the other gap in the pair of guards: the raise's guard is the header
+row *while the getter also asks for a direction*, so a header cell whose description is its own — no
+widget writes one today; `Table` writes only the sort phrase — raises a change from nothing to nothing
+instead of announcing a status the element denies. The wider guard stays, because the change that
+*ends* a sort leaves the facet at `NONE` and is exactly when a cached direction is most wrong; and
+nothing is raised while `BUSY` holds, which is the getter's choice again: busy owns the one string
+while it lasts. Pinned by
+`UiaBridgeTest.aSortedHeadersDescriptionMovesTheStatusThatCarriesItAndADataCellsDoesNot`, red three
+ways (the `ItemStatus` arm removed; the header-row guard dropped, so a data cell's own description is
+raised as a status; the busy guard dropped), driving a description change on the footer cell and on the
+unsorted column's header too, and by
+`UiaPropertiesTest.whatAnItemStatusChangeCarriesIsWhatTheGetterAnswers` (red with the empty string put
+back, and red with the description arm removed).
+
+*What phase 5 still hears* is the composition choice — a header that is both busy and sorted — and not
+whether the direction is announced at all.
+
+**Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `UiaRaiseNotificationEvent` and
+`UiaRaiseStructureChangedEvent` are bound and raised.** The event-flush row lists both; neither was
+bound, an `ANNOUNCEMENT` (node `0`) was mapped to the notification event id and then dropped at the
+held-element gate, and a `STRUCTURE_CHANGED` went through `UiaRaiseAutomationEvent`, which carries no
+type and no runtime id. Both entry points are bound optionally, outside `Uia.isAvailable`, with the
+parameter lists read on the guest 2026-09-13 (readings/windows-dump-uia-entry-points.txt: ordinals 97
+and 98, not forwarded). How §2.4 raises them is amended there.
+
 ### 2.2 macOS: NSAccessibility
 
 | Attribute / action / notification | Answered from | Note |
@@ -2126,6 +2638,174 @@ is a latent crash in a caller that trusts the union.
 | `accessibilityFrameForRange:` | **not answered in the first cut** | §11: there is no geometry seam behind it |
 | `NSAccessibilityPostNotification` | the event flush | **proven delivered out of process** to a real `AXObserver`, carrying the updated value. `AXValueChanged` reaches an observer registered on the element *or* on the application element; `AXFocusedUIElementChanged` reaches **only** the application-element registration, so focus is posted at application level and never per element |
 | `…PostNotificationWithUserInfo` with `AnnouncementRequested` | `ANNOUNCEMENT` | politeness rides `NSAccessibilityPriorityKey` |
+
+**Amended 2026-09-15 (phase 3, the macOS bridge; the rows above stand as written and these
+sentences say what the bridge now does where they differ).** *Where the user is* (decision 1,
+semantics 4): `accessibilityFocusedUIElement` — answered on the content view since §13.22 — and
+`isAccessibilityFocused` both answer from the tree's `effectiveFocus()`, the cursor item under the
+focused widget when there is one, so the table under the keyboard answers false and its cursor cell
+true. A cursor resolved into a native popup's tree (decision 5) is answered with the element the
+popup window's own bridge mints, and the popup's view, with nothing of its own focused, answers the
+same element; the bridges of a process's open windows find each other through one process-wide set,
+entered on a publish and left on a detach. *Rows* (M2; semantics 1 and 2): an outline and a list
+holding a selection answer `accessibilityRows`, `accessibilityVisibleRows` and
+`accessibilitySelectedRows` from their realized members, whatever role a cell kept, and each member
+answers `accessibilityIndex` zero-based — the hierarchy facet's flat row less one for an outline row,
+its position in the set less one for a list row, `NSNotFound` when the number is unknown — because a
+native `NSOutlineView` answered AXIndex 0, 1, 2… down its visible rows and no `AXRowCount` (read on
+the macOS 26.6.2 guest, 2026-09-15, `scripts/a11y/macos/outline-probe.swift`). *The gate refuses
+getters too*: AppKit honours a refused getter (read 2026-09-13, §6 of that day's macOS readings), so
+the row selectors are refused on everything that is not a table, an outline or a list, the index on
+everything that is not a row, and the two counts on everything that is not a table, instead of
+answering nil, −1 or zero there. *Selection* (MACOS-NEW-2; semantics 1): a container's selection is
+read off the attribute of its shape — `accessibilitySelectedRows` for an outline, a list or a table
+of rows; `accessibilitySelectedCells` for a grid whose members are cells, a calendar's days;
+`accessibilitySelectedChildren` for anything else holding one, a tab strip — each answered from the
+selected members whose selection container it is, wherever they hang, and each refused where it is
+not the container's shape, as the native outline answers `AXSelectedRows` and no
+`AXSelectedChildren`. **Corrected 2026-09-16 (fix round 3b; the phase-3 critic's semantics-1
+minor):** `accessibilitySelectedRows` did not read that rule — it answered the container's direct
+`ROW` children carrying `SELECTED`, which names the same elements for every container Limn ships and
+parts from the rule at the first whose rows hang under a synthetic body. It now walks the members
+`accessibilitySelectedChildren` walks, narrowed to the members that are rows, so a calendar's
+selected day stays under `AXSelectedCells` and a row that declares it belongs to no container
+(`containerlessSelectionItem`) is none of the table's selected rows; the `setAccessibilitySelectedRows:`
+write path reads the same set, so a client can write back what it read. `accessibilityRows` and
+`accessibilityVisibleRows` still answer a table's `ROW` children by structure (ADR 041 §7): "through
+synthetic ancestors" is a fact the model resolves once at publish and carries on a selection member
+and nowhere else, so no bridge can apply it to a row that is a member of nothing. **That leaves the
+two row listings able to disagree, and the correction does not close it:** for every container Limn
+ships the selected rows are a subset of the rows, and in the synthetic-body shape they are not —
+`accessibilitySelectedRows` names a row `accessibilityRows` does not, which is incoherent for a
+client. Closing it needs a policy for `accessibilityRows` that no decision, ADR or reading settles
+(which nodes a table's row listing descends through) or a model that carries syntheticness or a row
+list into the snapshot; both are cross-bridge, Linux's `GetSelectedRows` half having the same shape,
+and both are the orchestrator's. Open, named at `AxGrid#selectedRows` and asserted in
+`AxGridTest.aTablesSelectedRowsAreTheMembersOfItsSelectionWhereverTheyHangUnderIt`, which pins
+`AXSelectedRows` naming a row `AXRows` answers nothing for; nothing Limn ships is in that shape today. *Recorded the same
+day (the macos-B review):* the native outline also answered
+`AXSelectedCells` — the `AXCell` its selected row holds — and an outline or a list here deliberately
+does not: a Limn row holds no cell element, its children being the application's own widgets, so the
+answer would repeat the rows under a cell's attribute or name an arbitrary widget, and the native
+outline told its selection only as `AXSelectedRowsChanged`. Whether VoiceOver reads a native outline's
+selected cells at all is phase 5's to hear. *Disclosure* (M1): an outline row answers `isAccessibilityDisclosed` from its
+expand facet, `accessibilityDisclosureLevel` as the hierarchy facet's level less one, and
+`accessibilityDisclosedByRow` / `accessibilityDisclosedRows` by walking the outline's realized rows
+while their flat row numbers run without a gap — a gap answers nothing rather than a grandparent —
+because the native outline's rows answered AXDisclosureLevel 0 at the top, their parent row and the
+rows one level down, on leaves too, and **no `AXExpanded`**; so `isAccessibilityExpanded` is answered
+for every other node with an expand facet and refused on an outline row, and a level of zero refuses
+the level getter (semantics 6). *Press and confirm* (MACOS-NEW-5; semantics 5): both map to the
+candidates `PRESS`, `TOGGLE`, `SELECT`, `EXPAND`, `COLLAPSE` in that order, the first the node accepts
+(`AccessibleNode#accepts`) posted, so a combo box, a menu title or a date field that publishes only the
+one of `EXPAND`/`COLLAPSE` its state allows is pressed open or shut, and a node publishing no verb is
+offered no press whatever facet it carries; `…Pick` stays absent (AxActions says why). *The setter
+half* (MACOS-NEW-11; semantics 5): `setAccessibilityFocused:` YES posts `FOCUS`;
+`setAccessibilitySelected:` YES `SELECT`, NO `DESELECT`; `setAccessibilityDisclosed:` (an outline row)
+and `setAccessibilityExpanded:` (anything else that opens) YES `EXPAND`, NO `COLLAPSE`;
+`setAccessibilityValue:` a string as `SET_TEXT` to a text, a number as `SET_VALUE` and a string as
+`SET_VALUE` of text to a writable value — each posted only where `AccessibleNode#accepts` holds for
+that verb, never waited for. **Settable is the gate's answer for the setter** (read on the guest
+2026-09-13), so each of these is offered exactly where its write would post, AXDisclosing only on a
+row that can open as the native outline's is, and every other `setAccessibility…` selector —
+`NSAccessibilityElement`'s stored setters, which a client read as settable on every element, `AXRole`
+included — is refused on every node. The setters are installed only together with the gate. *Corrected
+the same day (the macos-B review; MACOS-NEW-11's last setter):* `setAccessibilitySelectedRows:` is
+installed too, settable where a container's selection is its rows and a realized row takes a selection
+verb. Read on the guest 2026-09-15 (`scripts/a11y/macos/selection-writes-probe.swift`), a native
+outline's selection becomes exactly the rows written in either mode — one row replaces, two rows in a
+multi-select outline become the selection, an empty array empties it, two rows in a single-select
+outline are refused (`kAXErrorIllegalArgument`) — and `AXSelected` YES on a second row of a
+multi-select outline **replaces** the selection too, so the `SELECT` it posts is right in both modes.
+So one row written posts `SELECT`; several, or none, post the difference — `DESELECT` on each selected
+row left out, `ADD_TO_SELECTION` on each written row not selected — and the write is refused whole
+unless every row accepts its verb, or when it names an element that is not a row of the container. A
+single-select row publishes no `DESELECT` (decision 20), so there an empty array, and `AXSelected` NO,
+are refused where the native outline, which allows an empty selection, clears it.
+*`AXScrollToVisible`* (new in macOS 26, and with no selector anywhere): read on the guest 2026-09-15
+(`scripts/a11y/macos/scroll-to-visible-probe.swift`), an `NSAccessibilityElement` subclass answering
+the legacy `accessibilityActionNames` has its perform of that name delivered to
+`accessibilityPerformAction:`, while a custom action of that name is never run and a guessed
+`accessibilityPerformScrollToVisible` never entered; and answering the names replaces AppKit's derived
+list. So the bridge answers `accessibilityActionNames` with every action the node offers plus
+scroll-to-visible where it accepts `SCROLL_INTO_VIEW`, and `accessibilityPerformAction:` posts the verb
+a listed name means; the pair is installed together, and only with the gate.
+*Table cells, rows and headers (MACOS-NEW-4, MACOS-NEW-9, MACOS-NEW-10; semantics 2 and 3; the
+same day):* `accessibilityCellForColumn:row:` answers the node whose `CellFacet` is (row, column)
+under one of the table's `ROW` children and whose nearest table ancestor is the table — a widget cell
+under its row included — and never reads a selection position; a table row's `accessibilityIndex` is
+its cells' row, so a calendar week, which carries no selection item, is found and numbered like any
+row; the header of column c is the child with `CellFacet(−1, c)` of one of the table's direct group
+children, matched by column, and a table with no such child — its header hidden, its footer shown —
+has no `accessibilityHeader` and no column headers at all, where the row above said "the table's
+first group child". A native `NSTableView` read on the guest (2026-09-15,
+`scripts/a11y/macos/table-probe.swift`) answered no `AXHeader` without its header view and no
+`AXColumnIndexRange` on its header buttons, so both are refused there, and the two index ranges are
+answered on data cells only.
+*Columns (M4; decision 34, the same day):* the row above said "columns are synthesised, one per
+header cell", and the bridge answered an empty array beside a column count. The native `NSTableView`
+read on the guest answers `AXColumns` and `AXVisibleColumns` with one `AXColumn` element per column,
+lists them among the table's children after its rows, and each column answers `AXIndex`, `AXHeader`
+(its header button; none on a headerless table), `AXRows` and `AXVisibleRows` (that column's cells, in
+row order), `AXParent` (the table), `AXSelected` and a frame spanning the header and the rows, and no
+`AXChildren`; `AXSelectedColumns` is an empty array. So the bridge vends the same: one column element
+per shown column, an instance of a second runtime subclass of `NSAccessibilityElement` whose closures
+answer those attributes from the table's cells and its header cell in that column, kept in a registry
+of its own keyed by the table's identifier and the column — the toolkit gains no column role (§1.12)
+— listed after the table's nodes among its children, its box pushed like a node's (the header cell's
+span over the table's height). A column goes at a frame's end when its table has left the tree or no
+longer shows it, and all at once on a rebind or a detach, demoted before it is released like every
+element, never from a reentrant publish. Its role description is AppKit's own, `column`: no toolkit
+phrase names a column (left for a later pass to translate). The native table also answered no
+`AXRowCount`, `AXColumnCount` or `AXColumnHeaderUIElements`; the bridge keeps answering those three,
+which carry the model's counts and a cell's header that the realized rows cannot, until a reader run
+says otherwise.
+*Release on `NODE_DESTROYED` (MACOS-NEW-1, the same day):* the paragraph below says the bridge releases
+on `NODE_DESTROYED`, and until this date nothing called the registry's release, so every element a
+client ever pulled stayed retained, answering nil. The release now happens at the end of the frame that
+emitted the destruction, after that frame's posts, and only for a node still absent from the tree then:
+an identifier keyed by a row that is destroyed and published again within the frame is the same node,
+whose element a client may be using. It posts nothing, as the paragraph says.
+*A value with no number (decision 16; CRIT-4's macOS half, the same day):* `accessibilityValue` answers
+a value's displayed text when it has one and its number otherwise, and an empty `ValueFacet` — a date
+segment nobody has typed into, which publishes its minimum for the platforms that must have a number —
+answers its word, or nothing when it has no text, and never the minimum: `AXValue` is an object here and
+demands no number. A change of the text or of the emptiness alone is a `VALUE_CHANGED` in the model, and
+this bridge posts it as `ValueChanged` like any other; the row's "minValue / maxValue" are still not
+installed.
+
+**The macOS rows as built (dated 2026-09-15; MACOS-NEW-7).** The table at the head of this section is
+kept as it was written, and the dated notes above say what changed item by item. This is the whole of
+what the bridge installs at the end of phase 3, row by row, so that nothing a reader of this section is
+told is a promise the code does not keep. Every selector named here is listed in `AxSelectors`, tied to
+the committed AppKit dump by `AxConstantsTest`, and answered only where `isAccessibilitySelectorAllowed:`
+(`AxGate`) allows it; everything else a row of the table above names is marked *not installed*.
+
+| Attribute / action / notification | As built |
+| --- | --- |
+| `accessibilityRole`, `accessibilitySubrole` | `AxRoles`, resolved by `dlsym`; unchanged |
+| `accessibilityRoleDescription` | **installed** (the row said "not yet implemented"): the toolkit's own phrase for the role under the node's locale (`RoleNames`); a column element keeps AppKit's own `column` |
+| `accessibilityTitle` / `accessibilityLabel`, `accessibilityHelp`, `accessibilityIdentifier` | as the rows say |
+| `accessibilityValue` | toggle 0/1/2, text, a value's displayed text else its number, an empty value its word (`AxValues`); **`accessibilityMinValue` / `accessibilityMaxValue` not installed** |
+| `setAccessibilityFrameInParentSpace:` | pushed for every held element and column element on each ordinary publish and on mint; **`accessibilityFrame` is not installed** (the row said it was): AppKit answers it from the pushed box |
+| `accessibilityParent`, `accessibilityChildren` | the snapshot links; a table's children end with its column elements; the root's children pushed, re-pushed when they change |
+| `accessibilityFocusedUIElement`, `isAccessibilityFocused` | **installed** (the row said "not claimed"), on the content view's own subclass and on the element class, from the tree's effective focus, across a native popup's window |
+| `setAccessibilityFocused:`, `setAccessibilitySelected:`, `setAccessibilityDisclosed:`, `setAccessibilityExpanded:`, `setAccessibilityValue:`, `setAccessibilitySelectedRows:` | installed with the gate, each posting the verb it means where `AccessibleNode#accepts` holds; every other stored setter refused |
+| `accessibilitySelectedChildren`, `accessibilitySelectedRows`, `accessibilitySelectedCells` | the one of the container's selection shape (children / rows / cells) |
+| `accessibilityRows`, `accessibilityVisibleRows`, `accessibilityIndex` | tables, outlines and lists; a table row's index is its data cells' row, already zero-based (`NSNotFound` with no data cell); an outline row's is the hierarchy facet's flat row less one; a list row's is its position in the set less one |
+| `accessibilityRowCount`, `accessibilityColumnCount` | tables only, the table facet's counts (a native table answers neither; kept, see the columns note) |
+| `accessibilityColumns`, `accessibilityVisibleColumns`, `accessibilitySelectedColumns` | **one column element per shown column** (the row said "synthesised, one per header cell"), answering role, index, header, rows, visible rows and parent; selected columns empty |
+| `accessibilityHeader`, `accessibilityColumnHeaderUIElements` | the group holding the header cells, matched by `CellFacet(−1, c)` (the row said "the first group child"); none on a headerless table |
+| `accessibilityRowIndexRange`, `accessibilityColumnIndexRange`, `accessibilityCellForColumn:row:` | data cells; the cell found by its own cell facet |
+| `isAccessibilityDisclosed`, `accessibilityDisclosureLevel`, `accessibilityDisclosedByRow`, `accessibilityDisclosedRows`, `isAccessibilityExpanded` | outline rows (zero-based level); expanded on everything else with an expand facet |
+| `accessibilityHitTest:` | as the row says |
+| `accessibilityPerformPress`, `…Confirm`, `…Increment`, `…Decrement`, `…ShowMenu`, `…Cancel` | installed with the gate; press and confirm map to `PRESS`, `TOGGLE`, `SELECT`, `EXPAND`, `COLLAPSE`; **`…Pick` is not installed** (the row listed it) |
+| `accessibilityActionNames`, `accessibilityPerformAction:` | installed, for `AXScrollToVisible` |
+| `accessibilityAttributeValue:`, `accessibilityAttributeNames` | installed, forwarding, for `AXElementBusy` (ADR 044 §2) |
+| `accessibilityNumberOfCharacters`, `accessibilitySelectedText`, `accessibilitySelectedTextRange`, `accessibilityStringForRange:`, `accessibilityRangeForLine:`, `accessibilityInsertionPointLineNumber` | **not installed** (the row said "`TextFacet`"): a text is read through `accessibilityValue` alone; owed |
+| `isAccessibilityModal` (a dialog's `AXModal`, the elided-root paragraph below) | **not installed**; owed |
+| `NSAccessibilityPostNotification` | at the end of the frame that emitted it (§1.10's amendment), not "the event flush"; `…WithUserInfo` for an announcement, on the window |
+| sort direction | `accessibilitySortDirection` on a header cell and nowhere else, `NONE`/`ASCENDING`/`DESCENDING` → 0/1/2 (amended 2026-09-15, the fix round's integration; the row's "not served" held only while the model had no carrier) |
 
 macOS is the one platform that hands out real objects the system retains. The bridge allocates lazily
 — beyond the root's own children, which the push below requires up front, an element exists only for a
@@ -2241,11 +2921,11 @@ objects at `/org/a11y/atspi/accessible/<id>`, plus `…/root` and `…/cache`.
 | `Component.Contains`, `GetAccessibleAtPoint` | a bounds walk over the snapshot | again not `Widget#hitTest`, for the disabled-node reason |
 | `Component.GetLayer`, `GetMDIZOrder`, `GetAlpha` | `LAYER_WIDGET` / `LAYER_WINDOW`, 0, 1.0 | |
 | `Component.GrabFocus` | posted `FOCUS` | |
-| `Action.NActions`, `GetActions`, `GetName`, `GetDescription`, `GetLocalizedName`, `GetKeyBinding`, `DoAction` | `ActionFacet` | `GetActions` is `a(sss)`; the third column is the key binding, where `Accelerator#display()` goes |
+| `Action.NActions`, `GetActions`, `GetName`, `GetDescription`, `GetLocalizedName`, `GetKeyBinding`, `DoAction` | `AccessibleNode#accepts` (the `ActionFacet`'s parameterless verbs) | `GetActions` is `a(sss)`; the third column is the key binding, where `Accelerator#display()` goes. *(Amended 2026-09-15, semantics 5 settled after phase 3: the listing and `DoAction` both ask `accepts`, as every other entry point on this bridge does. They read the facet directly until then — the same answer, and the one call here that did not read the toolkit's single authority, so a gate reaching `accepts` would have left `DoAction` on the old rule. Pinned on the source by `AtspiTreeTest.everyVerbThisBridgePostsIsPostedAtOnePlaceBehindAccepts`, because behaviour cannot tell the two apart while they agree.)* |
 | `Value` `CurrentValue` (read/write), `MinimumValue`, `MaximumValue`, `MinimumIncrement` | `ValueFacet` | numeric only; a display form such as a spinner's `07:30` is published through `Text` |
 | `Text`, `EditableText` | `TextFacet` | **offsets converted from UTF-16 to characters at this boundary and nowhere else**; `GetRangeExtents` is not answered in the first cut (§11) |
 | `Selection` | `SelectionFacet` | |
-| `Table` (`NRows`, `NColumns`, `GetAccessibleAt`, `GetColumnHeader`, `GetSelectedRows`, `GetRowAtIndex`, `GetColumnAtIndex`) | `TableFacet`; ADR 041 §7 | `GetAccessibleAt` answers a realized cell and the null object for a row the walk did not publish, the degradation §4.1 already accepts |
+| `Table` (`NRows`, `NColumns`, `GetAccessibleAt`, `GetColumnHeader`, `GetSelectedRows`, `GetRowAtIndex`, `GetColumnAtIndex`) | `TableFacet`; ADR 041 §7 — and, for **which rows are selected**, the selection container rule (semantics 1) | `GetAccessibleAt` answers a realized cell and the null object for a row the walk did not publish, the degradation §4.1 already accepts. *(Amended 2026-09-15, semantics 1's last divergence, ratified after the phase-3 fix round: `NSelectedRows`, `GetSelectedRows`, `IsRowSelected`, `IsSelected` and `GetRowColumnExtentsAtIndex` read the members the publish resolved to this table — `AccessibleNode#selectionContainer`, the one fact a snapshot carries about where a member hangs — and no longer the `SELECTED` bit of the table's direct `ROW` children. A row a widget draws under a body of its own is a member and was reported as unselected; a selected direct child that declares no container was reported as a selected row. `AddRowSelection`/`RemoveRowSelection` fall back to the same members, so a write names the row a read reports. Cell lookup is unchanged: semantics 2 still searches the table's row children, and `IsSelected`'s cell half still reads the located cell's own bit.)* |
 | `TableCell` (`Position`, `RowColumnSpan`, `Table`, `ColumnHeaderCells`, `RowHeaderCells`) | `CellFacet`; ADR 041 §7 | the table is the nearest ancestor with a `TableFacet`; the column header cell is its header group's child at the cell's column |
 | `Cache.GetItems` | the whole snapshot, **pre-marshalled** | measured: 46 round trips for two objects without it |
 | `Cache.AddAccessible`, `RemoveAccessible` signals | `STRUCTURE_CHANGED`, `NODE_DESTROYED` | |
@@ -2288,6 +2968,322 @@ never make a blocking call on the same connection. And `NEGOTIATE_UNIX_FD` succe
 must **not** be sent: agreeing lets a peer send a message carrying a file descriptor, which
 `java.nio` cannot receive, and AT-SPI2 never needs one.
 
+#### Amendment 2026-09-15 — the one application is built, and it is named by the backend
+
+**What was wrong.** The two paragraphs above described a shape the code did not have (LINUX-NEW-8).
+Every native window opened its own a11y connection, did its own `Socket.Embed` and named its
+application after its own title, so a DatePicker's calendar or a ComboBox's list — a native popup
+window, titled "popup" by `WindowConfig.popup` — was a second application on the desktop called
+"popup", and the `POPUP_FOR` its root carries named a field that `AtspiTree.relationSetOf` skipped
+because another connection held it. Ids were already process-wide (§1.3, amended 2026-09-14).
+
+**What the code does now.** `AtspiApplication` is the process's one application: one connection,
+one application object at `…/root`, and one `frame` child per window **that has published a node
+zero**, in the order the windows joined. Each window's `AtspiBridge` is the facade: its publish
+stores its own `volatile` tree and tells the application; its detach removes it. The window table
+is copy-on-write, written by the UI thread and iterated by the reader thread, as §3.4 prescribed.
+Every path resolves through the window whose tree holds the id (`AccessibleTree#holds`, one tag
+comparison per window), so `GetChildren`, `GetIndexInParent`, `Parent`, `Cache.GetItems`, `DoAction`
+(performed by the host of the window that published the node) and a relation into another window
+all answer across windows. The bus is still joined only once some window has a tree (the 2.60 trap
+of §12.2); the frames present at the join are what the registry reads, and a frame that arrives or
+leaves afterwards is announced from the application object as `ChildrenChanged` `add`/`remove`
+with its index in `detail1` and its `(so)` as the value — the shape libatspi 2.60.6's
+`cache_process_children_changed` updates a cached child list from (readings, 2026-09-13). The
+connection is let go with the last window, so a later window registers with a tree again.
+
+**Named by the backend (decision 56).** `Backend#setApplicationName(String)` names the application;
+unset, `LwjglBackend` uses the title of the first window it created. Every window's bridge is opened
+with that name and not with its own title. Windows and macOS read nothing from it.
+
+**Not changed here, and whose it is.** `Cache.GetItems` is still built per request rather than
+pre-marshalled against a publish counter; `Cache.AddAccessible`/`RemoveAccessible` for a frame and
+`Event.Window` `Create`/`Destroy` are the events item of the Linux lane (LINUX-NEW-1, LINUX-NEW-2).
+When and on which thread the join happens is §3.3's amendment of the same date.
+
+#### Amendment 2026-09-15 — the descriptor rule is kept, and a message the reader cannot read no longer silences it
+
+**What was wrong (LINUX-NEW-13).** The rule above was written and not followed: `DBus.Conn.auth`
+sent `NEGOTIATE_UNIX_FD` "only to see the answer", and both buses agreed. Separately, the reader loop
+guarded only the socket read, so a message whose body did not parse — a `h` in its signature, the
+very type the agreement lets a peer send, or any header shape the parser did not expect — threw out
+of the loop and ended `limn-a11y-dbus-reader` for good, while the application stayed embedded and
+went on emitting signals nobody could answer a question about: the state at-spi2-core 2.60 hides
+from the desktop.
+
+**What the code does now.** The handshake is `AUTH EXTERNAL`, then `BEGIN`, and nothing between
+(`DBus.Conn.saslCommands`); `h` is neither read nor written. The reader frames a message by its
+lengths before parsing it, so an unparsable one leaves the stream at the next message: it is logged,
+a method call among them that expects a reply and whose header could be read is answered
+`org.freedesktop.DBus.Error.InvalidArgs`, and the loop goes on. Lengths that cannot be a message
+(past the specification's 2^27 bytes) end the connection, since nothing after them can be found.
+Whenever the reader or the writer stops without the connection having been closed, the connection
+closes itself and tells its owner once (`DBus.Conn.onLost`); the application lets that join go and
+asks every window for a publish, which joins again under the back-off of §3.3's amendment.
+
+#### Amendment 2026-09-15 — the event rows of this table
+
+Two rows above said more than the code sent, and the events item of the Linux lane changed what they
+describe; §2.4's amendment of this date carries the shapes and their readings. **`Cache.AddAccessible`,
+`RemoveAccessible`** are sent from the tail's `STRUCTURE_CHANGED`, per child, after the parent's
+`ChildrenChanged` (`AddAccessible` for an arrival, `RemoveAccessible` for a child that left the tree);
+`NODE_DESTROYED` sends `StateChanged defunct` from the node's own path instead. **The `Event.Object`
+row's note is false**: `Event.Focus.Focus` is not emitted beside `StateChanged`, and Orca 50.2 does not
+listen for it (its `Script.get_listeners` registers no `focus:` event). `Announcement` is now sent;
+until this date it was not.
+
+#### Amendment 2026-09-15 — `Table` and `TableCell` find a cell by its facet, and a header by its row
+
+**What was wrong (LINUX-NEW-10, LINUX-NEW-11).** The `Table` row's "`GetAccessibleAt` answers a
+realized cell" held only for a table whose rows carry a `SelectionItemFacet`: a row was matched by
+its position in set, which a calendar's week rows do not publish, so every cell of every calendar
+answered the null object. The `TableCell` row's "its header group's child at the cell's column" was
+the table's first group child's child at that index, so a table with its header hidden and a footer
+shown named the footer's totals as its column headers, and a partial footer the wrong column's.
+`AddRowSelection` posted `SELECT` alone and `RemoveRowSelection` refused everything.
+
+**What the bridge does now (semantics 2, 3 and 5 of the 2026-09-13 pass).** Cell (r, c) is the node
+whose `CellFacet` is (r, c) and whose nearest `TableFacet` ancestor is the table, searched under the
+table's `ROW` children (where a widget cell hangs under its synthetic row); a row's index is its cells'
+`CellFacet` row, and `IsSelected`/`GetRowColumnExtentsAtIndex` also count a selected cell. The header
+of column c is the child with `CellFacet(-1, c)` of one of the table's direct `GROUP` children; a
+footer cell (row −2) is never one, and none means none. `AddRowSelection` posts the first of
+[`ADD_TO_SELECTION`, `SELECT`] the row accepts and `RemoveRowSelection` [`DESELECT`], through
+`AccessibleNode#accepts`, and answer false otherwise. `GetRowColumnSpan` stays `iiii`: libatspi 2.60.6
+reads `=>iiii` although the ATK bridge's XML declares `biiii`
+(readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt, readings/fedora-dbus-TableCell.xml).
+
+#### Amendment 2026-09-15 — `Selection` is served, with the two indices its XML names
+
+**What was wrong (L2).** The `Selection` row promised an interface no code defined: no container
+listed it, `Properties.Get` refused `NSelectedChildren`, and every method answered `UnknownMethod`, so
+libatspi's `get_n_selected_children` read −1 in every snapshot of the 2026-09-13 tree reader.
+
+**What the bridge does now (semantics 1 and 5; settled atspi-selection-membership).** A node with a
+`SelectionFacet` lists `org.a11y.atspi.Selection` in `GetInterfaces` and in its cache item. The
+installed XML names two different indices (readings/fedora-dbus-Selection.xml), and each is kept:
+`NSelectedChildren` (a property, `i`), `GetSelectedChild` and `DeselectSelectedChild` count the
+container's **selected members** — the realized nodes the publish resolved to it
+(`AccessibleNode#selectionContainer`), in reading order, wherever they hang, so a calendar's selected
+day is found under its week row — while `SelectChild`, `IsChildSelected` and `DeselectChild` name the
+container's **literal child** at that index, which may be a tree's scroll bar or a grid's week row and
+is then selected by nothing. `SelectChild` posts the first of [`ADD_TO_SELECTION`, `SELECT`] the child
+accepts, `DeselectChild`/`DeselectSelectedChild` [`DESELECT`]; `SelectAll` and `ClearSelection` answer
+false, the model having no verb for either. A member scrolled away has no node and is not counted.
+Orca 50.2 calls `get_n_selected_children` and `get_selected_child` only
+(readings/fedora-orca-interface-calls.txt, Fedora KDE 44, 2026-09-15). The XML's `version` property is
+not answered.
+
+#### Amendment 2026-09-15 — `Value` is served, with its text, and a write is refused where the node refuses it
+
+**What was wrong (LINUX-NEW-4, DATES-NEW-5).** The `Value` row promised an interface no code served:
+a date segment, a spinner, a slider or a progress bar had a name and a role on Linux and no number.
+
+**What the bridge does now (settled linux-value-text; decision 16; semantics 5).** A node with a
+`ValueFacet` lists `org.a11y.atspi.Value`. `MinimumValue`, `MaximumValue`, `MinimumIncrement` and
+`CurrentValue` are doubles and `Text` is the facet's display form or the empty string, as libatspi
+2.60.6 reads them (readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt) and as the guest's
+XML declares them (readings/fedora-dbus-Value.xml) — the row's "numeric only" is superseded, since the
+installed interface carries a `Text` property and Orca 50.2 reads it with the number
+(`ax_value.py`, readings/fedora-orca-interface-calls.txt). An empty value answers its minimum as
+`CurrentValue`, the one place a number is mandatory, and its word through `Text`. `Properties.Set` of
+`CurrentValue` — how libatspi writes one — posts `SET_VALUE` with the number where
+`AccessibleNode#accepts` allows it (a writable facet on an `ENABLED` node) and is otherwise answered
+`org.freedesktop.DBus.Error.Failed`, which reaches the caller's `GError`; so is a write to any other
+`Value` property. A display form is also served through `Text` (its own amendment below).
+
+**Read 2026-09-15 (review of the interfaces item): what a toolkit answers a refused write.** Neither
+toolkit on the Fedora KDE 44 guest refuses a `CurrentValue` write with an error: GTK 3.24.52's ATK bridge
+answers success on an insensitive spin button and on a level bar and moves both, and GTK 4.22.4 answers
+success on both and leaves the level bar's number where it was
+(readings/fedora-gtk3-interface-replies.txt and fedora-gtk4-interface-replies.txt, section 5,
+`scripts/a11y/linux/read-gtk-interface-replies.py`). Answering `Failed` where `AccessibleNode#accepts` refuses stays this bridge's choice, made
+knowingly against both: a success a widget then ignores is what a caller cannot detect. A write to a
+read-only `Value` property is now answered `org.freedesktop.DBus.Error.PropertyReadOnly`, as the ATK
+bridge answers it (GTK 4 answers `InvalidArgs`), and a name `Value` does not have, or a `CurrentValue`
+that is not a number, `InvalidArgs`, as `Get` answers an unknown name; the error name `Failed` itself is
+from readings/fedora-dbus-bus-facts.txt.
+
+#### Amendment 2026-09-15 — `Text` is served, over a text and over a value's display form
+
+**What was wrong (LINUX-NEW-4).** The `Text` row promised an interface no code served, while the
+bridge already sent `TextChanged`, `TextCaretMoved` and `TextSelectionChanged` from nodes that
+answered none of the questions those events invite (§2.4's "an event is half a conversation").
+
+**What the bridge does now (settled linux-value-text).** `org.a11y.atspi.Text` is listed for a node with
+a `TextFacet` and for a node with a `ValueFacet` whose display form is not empty (a date segment's
+"15" or "empty", a spinner's "07:30"), which is read-only text with no caret and no selection; a
+value whose number is the whole of it serves none. Every offset is a character, converted from the
+model's UTF-16 units in `AtspiText` and nowhere else. Answered: `CharacterCount` and `CaretOffset`
+(properties, `i`), `GetText` (−1 as the end), `GetCharacterAtOffset`, `GetStringAtOffset`,
+`GetTextAtOffset`/`-BeforeOffset`/`-AfterOffset`, `GetNSelections`, `GetSelection`, attributes as
+none over the whole text (`GetAttributeRun` is `a{ss}ii`, the shape libatspi 2.60.6 checks), and the
+writes `SetCaretOffset` (`SET_CARET`), `AddSelection`/`SetSelection`/`RemoveSelection`
+(`SET_SELECTION`, the model holding one selection) through `AccessibleNode#accepts`, offsets back in
+units. **Boundaries:** words and sentences are `BreakIterator`'s under the node's locale; a line and a
+paragraph are what a line feed delimits, because no facet carries soft wraps, so a wrapped line of a
+text area reads as its paragraph; each boundary type has the shape its AT-SPI name gives
+(`WORD_START` from a word's start to the next word's, `LINE_START` through the line feed, the
+`_END` types from one end to the next), and a granularity is answered as libatspi 2.60.6's own
+fallback reads it (WORD as `WORD_START`, SENTENCE as `SENTENCE_START`, LINE as `LINE_START`;
+PARAGRAPH as `LINE_START` here) (readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt;
+the enumerators from readings/fedora-atspi-constants-all.txt, Fedora KDE 44, 2026-09-13). **Not
+answered, as §11 decided:** `GetCharacterExtents`, `GetRangeExtents`, `GetOffsetAtPoint` and
+`GetBoundedRanges` are declined and `ScrollSubstringTo(Point)` answers false; Orca 50.2 calls the
+first three for flat review and mouse review (readings/fedora-orca-interface-calls.txt), which stay
+degraded.
+
+**Read 2026-09-15 (review of the interfaces item): PARAGRAPH.** Answering PARAGRAPH as `LINE_START`
+was a choice: libatspi 2.60.6's fallback maps it to no boundary. On the Fedora KDE 44 guest, over a
+text view holding "one two. three four.\nfive six.\n\nseven", GTK 4.22.4 answers PARAGRAPH (and LINE
+and SENTENCE) with what a line feed delimits, the line feed left out ("five six.", 21, 30), and GTK
+3.24.52's ATK bridge answers PARAGRAPH `('', -1, -1)` at every offset while its LINE keeps the line feed
+("five six.\n", 21, 31) (readings/fedora-gtk4-interface-replies.txt and
+fedora-gtk3-interface-replies.txt, section 4, `scripts/a11y/linux/read-gtk-interface-replies.py`). The
+bridge keeps PARAGRAPH as what a line feed delimits — GTK 4's unit, and a range where Orca 50.2 asks for one (`ax_text.py` calls PARAGRAPH,
+readings/fedora-orca-interface-calls.txt) —
+in the `LINE_START` shape its LINE already has, the line feed included as the ATK bridge includes it.
+Pinned by `AtspiTreeTest.aTextIsReadInCharactersByOffsetGranularityAndBoundary`.
+
+**`EditableText` (the same date).** Listed for a text published `EDITABLE` — a field that is only
+disabled keeps both, as §1.2 requires. Every write is one `SET_TEXT` of the whole new string, built
+from the published text in characters, through `AccessibleNode#accepts`: `SetTextContents` replaces it,
+`InsertText` inserts the first `length` characters of what it is given (all of it when `length` is
+negative or not less than its length, so a client counting UTF-8 bytes still inserts the whole string),
+`DeleteText` removes a character range. On a `PASSWORD` node, whose facet holds the mask, only
+`SetTextContents` is taken. `CutText` and `PasteText` answer false and `CopyText` does nothing: the
+model has no clipboard verb. Orca 50.2 calls none of these (readings/fedora-orca-interface-calls.txt);
+the signatures are libatspi 2.60.6's (`s=>b`, `isi=>b`, `ii=>b`, `i=>b`, `CopyText` `ii` with no reply
+value).
+
+**Corrected 2026-09-15 (review of the interfaces item): `InsertText`'s length is bytes, as read.** The
+paragraph above took `length` as characters, a choice and not a reading, which misread a byte count that
+covers part of a multibyte string (a length of 2 for "é😀x" inserted "é😀"). Read on the Fedora KDE 44
+guest: GTK 3.24.52's ATK bridge counts UTF-8 bytes — `InsertText(1, "é😀x", n)` into "ab" leaves "ab"
+for 1, "aéb" for 2 and 3, "aé😀b" for 6, and all of it for 7, 100 and −1, a character the count would
+cut being left out (readings/fedora-gtk3-interface-replies.txt) — while GTK 4.22.4 ignores the length and
+inserts everything (readings/fedora-gtk4-interface-replies.txt;
+`scripts/a11y/linux/read-gtk-interface-replies.py`, 2026-09-15). The bridge now inserts the whole
+characters that fit in `length` bytes, all of them for a negative length (`AtspiTree.prefixInBytes`), the
+ATK bridge's unit, whose XML it serves.
+
+#### Amendment 2026-09-15 — `GetAttributes` carries a row's level and place in its set
+
+**What was wrong (L5).** The `GetAttributes` row answered `toolkit` alone, while Orca 50.2 reads a
+tree item's level from `level` and a member's "n of m" from `posinset` and `setsize` before any
+fallback (readings/fedora-orca-tree-level-position.txt), so no Limn tree item had a level on Linux
+and a virtualized list's rows were counted among the realized siblings.
+
+**What the bridge does now (decision 4, semantics 6, settled linux-level-carrier).** Beside `toolkit`,
+`level` is `HierarchyFacet.level` and `posinset`/`setsize` are `SelectionItemFacet`'s position and size,
+each as a decimal string, one-based as the model counts them and as Orca reads them; each is published
+only when non-zero, so no node says "0 of 0". GTK 4.22.4 publishes `posinset` and `setsize` on its list
+rows the same way (readings/fedora-gtk4-column-sort.txt, Fedora KDE 44, 2026-09-15). No event announces
+a change to them (decision 43): Orca 50.2's `object:attributes-changed` handler only clears its cache
+(readings/fedora-orca-interface-calls.txt). A header's sort direction is not an attribute yet; see the
+sort amendment below. *(Amended 2026-09-15, the fix round's integration: it is now — `sort` on the
+sorted column's header cell, and on no other node. That amendment's last paragraph says how.)*
+
+#### Amendment 2026-09-15 — `GrabFocus`, `GetAccessibleAtPoint` and `Introspect` are answered
+
+**What was wrong (LINUX-NEW-5; settled linux-adr-overstatements).** Three rows promised what nothing
+handled: `Component.GrabFocus` and `GetAccessibleAtPoint` answered `UnknownMethod` — the latter is what
+Orca 50.2's mouse review asks (`ax_component.py:124`, `WINDOW` coordinates;
+readings/fedora-orca-interface-calls.txt) — and `Introspectable.Introspect` was handled on no path,
+while `Atspi.node` and the XML blocks it assembles were referenced nowhere.
+
+**What the bridge does now.** `GrabFocus` posts the first of [`FOCUS`] the node accepts (semantics 5:
+every focusable widget publishes it as the walk's free verb, an item where decision 11 allows) and
+answers false elsewhere. `GetAccessibleAtPoint` is the bounds walk the row names: the point is
+converted once to the window's coordinates from the type asked (`SCREEN`, `WINDOW`, or `PARENT` — 2,
+read 2026-09-13 off the Fedora typelib, readings/fedora-atspi-constants-all.txt — which
+`GetExtents` and `Contains` now also answer, relative to the parent's box), children are tried last
+first because a later sibling is drawn over an earlier one, only a `SHOWING` node is a hit, and the
+deepest hit below the asked node is the answer, the null object when none; asked of the application
+object, it answers the last-joined frame whose window holds the point. `Introspect` answers every path
+this application exports: each intermediate path names its child down to `/org/a11y/atspi`,
+`…/accessible` names the root and every node of every window, and a node's path lists exactly what
+`GetInterfaces` answers, each with the XML a real toolkit's bridge declares — the blocks read off Ubuntu
+24.04 for `Accessible`, `Application`, `Component`, `Action` and `Cache`, and those read off the Fedora
+KDE 44 guest's at-spi2-atk 2.60.6 for `Selection`, `Value`, `Text`, `EditableText`, `Table` and
+`TableCell` (readings/fedora-dbus-<Interface>.xml) — plus the three standard interfaces; a path that
+names nothing is declined.
+
+#### Amendment 2026-09-15 (review of the interfaces item) — `GetPosition` and `GetSize` are two out arguments
+
+**What was wrong.** The `Component.GetExtents`, `GetPosition`, `GetSize` row was answered with one
+shape for all three: `GetPosition` and `GetSize` replied a struct `(ii)`, on every node and on the
+application object, since the bridge's first cut. libatspi 2.60.6 reads them as `u=>ii` and `=>ii`
+(`atspi-component.c:196` and `:223`, readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt),
+the installed XML declares two separate out arguments (readings/fedora-dbus-Component.xml), and a
+struct where flat arguments are expected is refused, as `GetRowColumnSpan`'s was on the guest. The
+GrabFocus amendment above amended the same rows and did not catch it.
+
+**What the bridge does now.** Both answer `ii`, on a node and on the application object; `GetExtents`
+stays `(iiii)`. GTK 3.24.52's ATK bridge (at-spi2-atk 2.60.6) and GTK 4.22.4 answer exactly these
+signatures on the Fedora KDE 44 guest (readings/fedora-gtk3-interface-replies.txt and
+fedora-gtk4-interface-replies.txt, `scripts/a11y/linux/read-gtk-interface-replies.py`, 2026-09-15
+20:54–20:55 UTC). Both toolkits answer `UnknownMethod` for `Component` on their application object; this
+bridge keeps answering it there, as the first cut decided (a client that asks the root for its extents
+walks on).
+
+#### Amendment 2026-09-15 (review of the interfaces item) — the `version` the served XML declares is answered
+
+**What was wrong.** `Introspect` serves, for `Selection`, `Value`, `Text`, `EditableText`, `Table` and
+`TableCell`, the XML read off the Fedora guest's ATK bridge, and each block declares a read-only
+`version` property of type `u`; `Properties.Get` refused it as a property the object lacks
+(`InvalidArgs`), and the Selection amendment above recorded it as not answered for want of a reading.
+
+**What was read, and what the bridge does now.** GTK 3.24.52's ATK bridge (at-spi2-atk 2.60.6) answers
+`version` with `u` 1 on every interface it serves; GTK 4.22.4, which declares no such property, answers
+`InvalidArgs` (readings/fedora-gtk3-interface-replies.txt and fedora-gtk4-interface-replies.txt, section
+2, `scripts/a11y/linux/read-gtk-interface-replies.py`, Fedora KDE 44, 2026-09-15); at-spi2-core 2.60.6's
+`atspi-constants.h` defines every `ATSPI_*_VERSION` as 1. The bridge answers `u` 1
+(`Atspi.INTERFACE_VERSION`) in `Get` and `GetAll` for those six interfaces where the node serves them,
+the XML and the answer now coming from the same bridge. The blocks read off Ubuntu 24.04 (`Accessible`,
+`Application`, `Component`, `Action`) declare no `version` and none is answered there.
+
+#### Amendment 2026-09-15 — a header's sort direction: read on Fedora, and not carried yet
+
+**What decision 36 asked.** A sortable header cell publishes its direction, and how each platform
+carries one is read on the guest before any code.
+
+**What was read.** A GTK 4 `Gtk.ColumnView` sorted ascending, descending, by another column and by
+nothing on the Fedora KDE 44 guest (gtk4 4.22.4, at-spi2-core 2.60.6) carries **no** sort direction:
+each title is a `filler` whose name is the column's, with `{toolkit: GTK}` alone as attributes, the same
+states in every step, and no event naming the header (readings/fedora-gtk4-column-sort.txt,
+`scripts/a11y/linux/read-gtk4-column-sort.py`, 2026-09-15). Orca 50.2 reads a table header's direction
+from the object attribute **`sort`** — `ascending` → "sorted ascending", `descending` → "sorted
+descending", `none` or absent → nothing, any other value → "sorted" (`ax_utilities_table.py:259-275`,
+readings/fedora-orca-interface-calls.txt). So the carrier on this platform is that attribute, as ADR 041
+§7's amendment of 2026-09-14 anticipated; no native toolkit on the guest was found sending it.
+
+**Why nothing is mapped yet.** The model has no fact to map: `Table` carries the direction as the sorted
+header's localized description (`TableStrings.SORTED_ASCENDING`/`SORTED_DESCENDING`, ADR 041 §7), and a
+bridge cannot recover `ascending` from "Ordenado em ordem crescente". Carrying it needs a model
+carrier — a facet or a state on the header cell — that the three bridges read alike, which is not this
+bridge's to add alone while the Windows and macOS bridges are changed in parallel. Once it exists, this
+bridge answers `sort` = `ascending`/`descending` on that header cell in `GetAttributes` (§2.3's
+attributes amendment) and nothing when unsorted; until then a Linux reader hears the description.
+
+**Amended 2026-09-15 (the phase-3 fix round's integration): the carrier exists, and `sort` is
+answered.** The model fact the paragraph above waits on landed in the same round — `CellFacet.Sort`,
+`NONE`/`ASCENDING`/`DESCENDING` on the header cell of the sorted column (§1.2's amendment of this
+date, ADR 041 §7's) — but it landed on the model branch while the three bridge lanes were running,
+so each logged its own mapping as owed rather than compiling against a type its branch did not have.
+The mappings are the integration's, because none of them is a lane's judgement: each was specified
+whole in its lane's log, against a reading that lane had already taken. Here, `AtspiTree.attributesOf`
+publishes `sort` = `ascending` / `descending` on a cell in the header row whose direction is not
+`NONE`. The key goes nowhere else: an unsorted header publishes no key rather than `sort=none` —
+Orca reads the two the same and no GTK table on the guest publishes either — and a data cell or a
+footer cell is not a header whatever its facet holds, which is the guard and not the model's
+restraint, since `Table` sets a direction on the header alone. Orca's fourth value `other` is never
+written, because `CellFacet.Sort` has no fourth value to write it from. The description stays where
+it was, so a reader that ignores the attribute hears what it heard before. Pinned by
+`AtspiTreeTest.theSortedColumnsHeaderSaysItsDirectionAndNoOtherCellSaysAnything`, which gives the
+data cell and the footer cell a direction their facet has no business carrying. What a live Orca
+does with the attribute is phase 5's.
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |
@@ -2325,6 +3321,510 @@ container's multi flag: Windows raises `ElementSelected` for a single-select con
 sends `Activate`/`Deactivate` from the frame's path. `FOCUS_CHANGED` is also raised for a node
 that arrived holding the focus. After a collapse to `INVALIDATED` the structure, focus, cursor,
 selection and window-activation events of that publish still follow it.
+
+**Amended 2026-09-15 (phase 3, Windows; W3, WINDOWS-NEW-4, LAB-NEW-12, WINDOWS-NEW-2, CRIT-3): the
+focus rows as built.** `FOCUS_CHANGED` and `ACTIVE_DESCENDANT_CHANGED` both raise
+`AutomationFocusChanged`, and on the same element: the tree's effective focus as the snapshot has
+it when the drain raises, never the event's own node, so the raise and the `HasKeyboardFocus` a
+reader then reads always agree. The element is **minted if no client holds it** — a row the cursor
+has just reached, a dialog's first field — while every other event keeps being raised only for a
+held element (§13.28's cost argument). A cursor in a native popup's tree is raised on the popup
+window's element, by the popup's bridge, under a guard its whole-registry empty also takes. Nothing
+is suppressed as a repeat: NVDA drops a duplicate focus event itself, and a bridge-local memory would
+silence the return to an element after the focus had been in another window. The model's
+`INVALIDATED` (node `0`) is swept like the bridge's own queue collapse, and after either the bridge
+re-raises the focus on the effective focus; the root-targeted `INVALIDATED` the sweep raises is
+`LayoutInvalidated` and sweeps nothing. The `HasKeyboardFocus` property change the `FOCUS_CHANGED`
+row promises is **not** raised: NVDA 2024.4.2 subscribes to no `HasKeyboardFocus` change (the same
+reading, §3), and the mapping of the remaining unmapped events is a later item of the Windows lane.
+`SELECTION_CHANGED`, as built: more than `InvalidateLimit` members entering and leaving (20, the
+managed provider API's own constant, read on the guest 2026-09-15, and the comparison the
+platform's `SelectorAutomationPeer` makes with it: twenty is still per member) is one
+`Selection_Invalidated` on the container; otherwise a single-select container raises
+`ElementSelected` on the member that entered (or `ElementRemovedFromSelection` on the one that left
+when none entered) and a multi-select one `ElementAddedToSelection`/`ElementRemovedFromSelection` on
+each member. Each is raised only for an element a client holds. NVDA 2024.4.2 speaks none of these
+for a generic item (the same reading, §2); the reader hears the cursor through the focus rows above.
+
+**Amended again 2026-09-15 (review of those focus rows; semantics 4, WINDOWS-NEW-6): remembered,
+and the rows' two promises kept.** Three sentences of the amendment above are withdrawn. *"Nothing is
+suppressed as a repeat"*: semantics 4 has each bridge remember the last effective focus it announced,
+and without it one publish raised `AutomationFocusChanged` on the same element two or three times (a
+focus arriving on a table with a cursor is `FOCUS_CHANGED` and `ACTIVE_DESCENDANT_CHANGED`; a publish
+past the model's budget is `INVALIDATED` followed by both), each raise waiting for the reader
+(§13.28). The memory is now the process's — the bridge and node last announced, since UI Automation
+has one focus and a raise in another window moves it — and a focus event naming it again is skipped,
+while the re-announcement after a collapse or the model's `INVALIDATED` raises whatever it names. It
+is forgotten when a window has nothing focused, when a window is deactivated, and when its bridge
+empties, so the return to an element after the focus was elsewhere is heard, which was the objection
+to a bridge-local memory. *"The `HasKeyboardFocus` property change … is **not** raised"*: it is, as
+the `FOCUS_CHANGED` row says, "on both" — `false` on the element the focus left when a client holds it
+and its node remains, `true` on the one it reached — and only when the announced element changed; NVDA
+2024.4.2 subscribes to none (reading §3), so no reader behaviour depends on it today. *"The mapping of
+the remaining unmapped events is a later item"*: `WINDOW_ACTIVATED` is now the row's "focus change into
+the window", the window's effective focus raised subject to the memory, and `WINDOW_DEACTIVATED`
+raises nothing and forgets the memory; neither pays the event an ask is owed unless something was
+raised (`UiaBridgeTest.theFocusAlreadyAnnouncedIsNotRaisedAgainButIsReannouncedAfterTheModelsInvalidated`,
+`aFocusMoveTellsTheElementItLeftAndTheOneItReachedThatTheKeyboardMoved`,
+`aWindowActivatedAgainRaisesTheFocusItHadBecauseTheDeactivationForgotIt`,
+`aFocusRaisedInAnotherWindowMakesTheReturnHeard`). A raise from another window holds that window's
+guard across the platform call, so a client whose focus handler synchronously asked the host's
+`GetFocus` would wait for it; NVDA 2024.4.2's handler asks no such thing (reading §1), and phase 5
+watches for it.
+
+**Amended 2026-09-15 (phase-3 fix round; semantics 4 settled to one shape): the re-announcement is
+raised at the tail's place, after the tail's structure events.** The amendment above left it raised
+the instant the sweep finished — "after either the bridge re-raises the focus on the effective
+focus" — which is *before* the `STRUCTURE_CHANGED`s the model reserves outside its budget and sends
+next. Decision 28 and semantics 7 put the tail in one order, children first and then focus, cursor
+and selection, and a reader told where the user is and only then told that the tree under it changed
+re-reads and asks again. So the sweep now leaves the re-announcement **owed**, and the drain raises
+it before the first tail event that is not a `STRUCTURE_CHANGED`, or when nothing more is waiting —
+which is the case a collapse that moved only the tree's shape leaves, and the reason the debt is
+never simply dropped. Linux reconciles at the same place and macOS posts focus last in the frame;
+this is the third bridge joining them, and the semantics' three readings (integration log, phase-3
+critic, contradiction 1) are now one. **Two collapses with no tail between them owe one
+re-announcement, not two**: what the raise pays for is the element the sweep may have released under
+the reader, one raise after the last sweep says it, and each raise waits for the reader's handler
+(§13.28). Pinned by
+`UiaBridgeTest.theFocusIsReannouncedAfterTheTailsStructureEventsAndNotBeforeThem`;
+`theModelsInvalidatedSweepsOncePerEmitAndReannouncesTheFocus` was restated to follow each collapse
+with a tail event, as the model's own always is.
+
+**Where the second flush point is, and what it took to get it there (2026-09-15, corrected
+2026-09-16).** It was first written as "when nothing more is waiting" — a queue-emptiness test made
+on the drain thread while the user-interface thread was still offering the tail one event at a time,
+so a drain reaching the top of its loop between the collapse and the first tail `STRUCTURE_CHANGED`
+saw an empty queue and re-announced early: the very order the rule above fixes, in the one case
+where the drain outruns the producer. That is closed (fix round 3b, Windows item 1) and neither half
+of the trade it was weighed against was paid. **The second flush point is the publish boundary.**
+The Windows bridge overrides `AccessibilityBridge#frameEnded` (§5.3) and hands the boundary over as
+`UiaEvents.FRAME_END`, a marker in the same queue the frame's events went into, so it arrives behind
+every one of them however fast the drain thread runs. The debt a collapse leaves is flushed when
+that marker is taken and — unchanged — before the first tail event that is not a
+`STRUCTURE_CHANGED`, which is still where a tail with a focus, a cursor or a selection in it pays.
+Linux reaches the same boundary with no queue to cross (§2.3's `frameEnded` row) and macOS posts its
+whole frame there, so all three bridges now flush at one boundary in one order.
+
+**The cost that kept it from being taken blind is answered by the marker, and the guarantee is the
+narrow one.** The fear was that a marker offered into the same bounded queue would be swallowed by
+that queue's own collapse, leaving a bridge whose scene then runs no further frame owing a
+re-announcement with nothing to flush it — a dropped debt traded for a race. `UiaEvents#endFrame`
+ignores the collapsed flag (a collapse covers the events it swallowed, and it *raises* the debt this
+marker flushes, so it may not swallow the marker), and when the queue has no room it collapses the
+queue — the honest answer for a queue already over capacity — and puts the marker in behind the
+collapse's own. A collapse can only happen while a frame is handing events over, so that frame's end
+always follows it; a window whose scene then goes still has already been told; only a frame that
+could leave a debt is marked, so an ordinary frame wakes the drain thread for nothing. **What is
+guaranteed is not "the marker is never dropped"** (2026-09-16, the fix round's review — the first
+statement of it said more than the code does): a collapse *clears* the queue, so a frame end already
+waiting in it is discarded. What holds is that no frame ends without a marker going in, and that a
+debt is cleared by the raise that pays it and by nothing else — the frame in which a collapse
+happened owes one of its own (`emit` sets the flag on the refused offer), so it marks its end behind
+that collapse and the drain flushes every debt still owed when it gets there. The count of markers a
+drain sees can fall; the number of debts left with none cannot rise above zero.
+
+Pinned by `UiaBridgeTest.theFocusIsReannouncedAtTheFramesEndAndNotTheMomentTheQueueRunsDry` (which
+waits for the drain to be parked in its take — the one place the old emptiness test had certainly
+already fired — and asserts nothing has been said yet),
+`aCollapseWithNoTailAtAllIsStillFlushedByTheFramesEnd`, `UiaEventsTest`'s three marker cases, and
+`aCollapseThatClearsAnEarlierFramesEndStillPaysTheDebtAtItsOwn`, which holds the drain inside the
+first sweep so the loss is certain, shows one marker waiting before the second frame's collapse and
+one after it, and then shows the re-announcement raised at the second frame's end (red with
+`endFrame` returning early while collapsed: "and the frame that collapsed marks its own end behind
+it ==> expected: <2> but was: <1>"); `UiaEventsTest.aFullQueueCollapsesRatherThanDropTheFramesEnd`
+asserts the same arithmetic on the queue alone. **Phase 5 no longer listens for an early focus**;
+what it still hears is the order itself.
+
+**Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-6's remainder): `CARET_MOVED` and
+`BOUNDS_CHANGED` as built.** `CARET_MOVED` is `Text_TextSelectionChanged`, as its row says, handled
+together with `TEXT_SELECTION_CHANGED` (the settled unmapped-and-window-level-events item): the model
+emits the two for one field one after the other, and a `TEXT_SELECTION_CHANGED` right behind a raised
+`CARET_MOVED` on the same node is not raised again. Both are raised only for a held element, and no
+element serves `TextPattern` yet (§2.1, §11), so what a client can do with the event is re-read the
+value; NVDA 2024.4.2 maps it to its `caret` event on the focus only (reading §3); phase 5 hears
+whether that says anything over a `ValuePattern` field. **`BOUNDS_CHANGED` keeps no mapping, per node
+and in bulk**, where the row says a `BoundingRectangle` change or one `LayoutInvalidated`: NVDA
+2024.4.2 subscribes to no `BoundingRectangle` change (reading §3) and handles `LayoutInvalidated` only
+for Windows search suggestions (§6), while each raise waits for the reader's handler (§13.28), which
+during a scroll or a drag is one wait per frame for nobody. Both forms now say so in the trace; the
+bulk one (node `0`) returned silently before, and neither pays the event an ask is owed
+(`UiaBridgeTest.aCaretMoveIsTheTextSelectionChangeAndItsPairIsRaisedOnce`,
+`aBoundsChangeIsRaisedNeitherPerNodeNorInBulkAndSaysSo`).
+
+**Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `ANNOUNCEMENT` and
+`STRUCTURE_CHANGED` as built.** `ANNOUNCEMENT` is `UiaRaiseNotificationEvent` on the root's element,
+minted if no client holds it: kind `Other` (4) and processing by politeness, `ASSERTIVE` →
+`ImportantMostRecent` (1), `POLITE` → `All` (2), the enumerators read 2026-09-13; the text and an
+empty activity id travel as `BSTR`s freed after the call, the activity id being what WinForms' own
+`AccessibleObject.RaiseAutomationNotification` passes (read as IL 2026-09-15,
+readings/windows-dump-uia-provider-conventions.txt §4). NVDA 2024.4.2 consumes notifications from any
+element that resolves to a window, while its focus is in this process, cancelling speech first for
+`ImportantMostRecent` and queueing `All` (readings/nvda-2024.4.2-uia.md §4). `STRUCTURE_CHANGED` is
+`UiaRaiseStructureChangedEvent` in the shape the platform's own `AutomationPeer.UpdateChildrenInternal`
+raises, read as IL the same day (§3 of that reading): past the limit — `ItemsInvalidateLimit` (5) for a
+container of items (a node with a selection or table facet), `InvalidateLimit` (20) otherwise, which
+is what `ItemsControlAutomationPeer` and `AutomationPeer` pass — one `ChildrenBulkRemoved` (4),
+`ChildrenBulkAdded` (3) or `ChildrenInvalidated` (2) on the parent with the parent's runtime id;
+otherwise `ChildRemoved` (1) on the parent with each removed child's runtime id, then `ChildAdded` (0)
+on each added child's own element with its own; and one `ChildrenReordered` (5) on the parent for a
+publish that moved surviving children, which the peer has no case for. It is raised only when a client
+holds the parent's element, an added child's element being minted for its `ChildAdded`; the parent is
+the model's, so a nested tree row removed (§2.1's navigation) is reported to the tree. **NVDA 2024.4.2
+subscribes to no structure change** (readings/nvda-2024.4.2-uia.md §5): the event is for the clients
+that do (Narrator, Inspect, a .NET client), and phase 5 counts it with one
+(`UiaBridgeTest.anAnnouncementIsRaisedOnTheRootEvenBeforeAnyClientHeldIt`,
+`aStructureChangeIsRaisedAsThePlatformsOwnPeerRaisesIt`,
+`aStructureChangeIsRaisedWhenTheParentIsHeldAndMintsTheChildItAdds`).
+
+**Amended 2026-09-15 (review of the Windows phase-3 work): where the two structure-change choices
+come from.** The Windows brief asked for `ChildrenBulkAdded`/`ChildrenBulkRemoved` for the model's
+coalesced per-parent event; the amendment above raises single `ChildAdded`/`ChildRemoved` events up to
+the limit and a bulk change only past it. That is an interpretation, taken because the platform's own
+`UpdateChildrenInternal` raises a coalesced change of few children that way (readings/
+windows-dump-uia-provider-conventions.txt §3), and it is put to the owner in the lane log. And the
+`ChildrenReordered` runtime id is not a free choice: `UpdateChildrenInternal` has no case for a move,
+but the same listing holds two client-side proxies that raise `ChildrenReordered` (5), each on its
+element with that element's own runtime id — `EventManager.HandleStructureChangedEventWindow` for
+WinEvent 32772 (its `MakeRuntimeId()`) and `MSAAEventDispatcher.MaybeFireStructureChangeEvent`'s
+default branch (the runtime id of the provider made for the event's object) — which is the shape raised
+here on the parent. That the element is the container whose children moved rests on 32772 being the
+Win32 reorder event, whose header name was not read.
+
+**Amended 2026-09-15 (phase 3, Windows; CRIT-4's Windows half, the settled value-text-event item,
+T7's Windows reading): `VALUE_CHANGED` and `BUSY` as built.** The property-change row's "the
+property id" is, for `VALUE_CHANGED`, the property of **each pattern the node vends that the change
+moved**: `RangeValue.Value` (30047) with both numbers where the node vends `RangeValue` and the
+event's number moved, then `Value.Value` (30045) with the string `get_Value` answers wherever the
+node vends `Value`. A change whose number stood moved the text or the emptiness, so a date segment
+filled with its minimum raises the string alone; a number that moved raises the string too, because
+the event carries no text to compare and a `Value` vended from a value facet is the number's spoken
+form. The old string travels as an empty variant: a COM client's `HandlePropertyChangedEvent`
+receives only the new value (UIAutomationCore.dll's type library, read 2026-09-13). Until this
+amendment one property was raised, `RangeValue.Value` for any node with a number, so a spinner's
+"07:30" and a segment's "empty" were never raised as strings, though NVDA 2024.4.2 reads a control
+that vends both from `Value` (measured on the guest 2026-09-07, §13.19) and maps both properties
+to its `valueChange` (readings/nvda-2024.4.2-uia.md §3); whether it then speaks a change raised as
+both once or twice is phase 5's to hear. An event that moved nothing a vended pattern carries raises nothing and pays nothing an ask
+is owed (`UiaBridgeTest.aValueChangeRaisesThePropertyOfEachVendedPatternItMovedOn`,
+`aValueChangeIsRaisedOnTheHeldElementAsEachPropertyThatMoved`). **`STATE_CHANGED` for `BUSY`** stays
+an `ItemStatus` (30026) property change carrying the localized busy phrase and then an empty string,
+answered by `get_ItemStatus` the same way; **NVDA 2024.4.2 has no handler for it**: `ItemStatus`
+maps to its `UIA_itemStatus` event, which nothing in NVDAObjects handles, and it reads `ItemStatus`
+only as the description of an element whose class name is `UIColumnHeader` (readings/
+nvda-2024.4.2-uia.md, "`event_UIA_itemStatus`"), so a busy tree row is silent to it on Windows until
+a fallback is decided after phase 5's reader run (T7).
+
+#### Amendment 2026-09-15 — the Linux column, as the bridge sends it
+
+Read against what a real toolkit on the Fedora guest sends and what Orca 50.2 does with each field
+(readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-event-shapes.txt, fetched on the host for the
+guest's gtk4 4.22.4 and at-spi2-core 2.60.6; readings/fedora-orca-event-consumers.txt and
+ubuntu-orca-event-consumers.txt, `scripts/a11y/linux/read-orca-event-consumers.py` on both guests,
+2026-09-15). Each paragraph names the row it changes; the table above is left as written.
+
+**`ACTIVE_DESCENDANT_CHANGED` (L1).** `ActiveDescendantChanged` from the focused node's path, with
+the new descendant's `(so)` reference as the value and its index in its parent in `detail1` (the ATK
+bridge's `active_descendant_event_listener`; GTK 4.22.4 sends no such event). The value was an `i`
+0, which libatspi 2.60.6 turns into no `any_data`, and Orca drops the event without one. The
+reference and the index are the ones `GetChildAtIndex` and `GetIndexInParent` answer for the same
+node, in whichever window holds it (decision 5's popup option is an ordinary reference on the one
+connection); a cursor that went away names the null object with `detail1` −1.
+
+**`FOCUS_CHANGED`.** `StateChanged` `focused` 1 on the node gaining it and 0 on the node losing it,
+both from the `STATE_CHANGED` the difference raises; `FOCUS_CHANGED` itself sends nothing, and the
+deprecated `Event.Focus.Focus` the row names is not sent — Orca 50.2's `Script.get_listeners`
+registers no `focus:` event (readings/fedora-orca-event-handlers.txt). The row overstated it
+(settled linux-adr-overstatements). *(Corrected 2026-09-15, the review of linux-B: "both from the
+`STATE_CHANGED` the difference raises; `FOCUS_CHANGED` itself sends nothing" was false for a node
+that arrives already focused — a dialog's first field, a popup's list, a cell widget realized under
+the cursor. The difference raises no `STATE_CHANGED` for a new node and only the tail's
+`FOCUS_CHANGED` (semantics 7), so such a node was never said focused, while the node losing the focus
+was. `FOCUS_CHANGED` now sends `StateChanged` `focused` 1 from its node, after the tail's structure
+signals have put the node in a client's cache, and a surviving node's gain, already sent by its
+`STATE_CHANGED` in the same publish, is not sent a second time. Commit 26769b3's message repeats the
+false sentence.)*
+
+**`WINDOW_ACTIVATED` / `WINDOW_DEACTIVATED`, `WINDOW_OPENED` / `WINDOW_CLOSED` (LINUX-NEW-2,
+LINUX-NEW-15, LAB-NEW-2).** `Event.Window` `Activate`/`Deactivate` from the frame's own path (the
+window node the difference names, arriving after the publish whose tree marks it `ACTIVE`, so its
+`state-changed:active` precedes it as GTK 4.22.4's does), with the window's name as the string value
+(the ATK bridge's convention; GTK sends "0"). After `Activate` the focused node's `focused` 1 and
+the cursor's `ActiveDescendantChanged` are sent again from that tree, unless the same publish
+already sent them: Orca 50.2's `_on_window_activated` moves its locus to the frame, and its 0.1 s
+same-type filter would drop a second copy. *(Corrected 2026-09-15, the review of linux-B: the
+exception and its reason are wrong; see the correction at the end of the `INVALIDATED` paragraph
+below.)* A frame that arrives after the join sends `Create` from
+its path after the application's `ChildrenChanged add`; one that leaves sends `Destroy` from its path
+before the `remove`. The frames the registry read at the join send no `Create`. The model's
+`WINDOW_OPENED`/`WINDOW_CLOSED`, which nothing raises, map to the same members from the node they
+name. Node zero's events (`BOUNDS_CHANGED` for a wide scroll) are sent from the frame, never from
+the application object, and `BoundsChanged` carries the node's screen extents as `(iiii)`, the
+rectangle libatspi makes an `AtspiRect` of, instead of an `i` that arrived as nothing.
+
+**`ANNOUNCEMENT` (LINUX-NEW-3).** `Announcement` as the installed interface declares it,
+`(s, i politeness, i, v, a{sv})` (readings/fedora-dbus-Event.Object.xml): empty detail, `detail1` =
+`Atspi.Live` (`POLITE` 1, `ASSERTIVE` 2, read 2026-09-13 off the Fedora typelib), `detail2` 0, and
+the text as a string value, which is the only `any_data` Orca 50.2's `_on_announcement` presents —
+GTK 4.22.4's `gtk_at_spi_context_announce` fills it the same way. Sent from the frame of the window
+whose scene said it. It was mapped to nothing.
+
+**`TEXT_CHANGED`, `CARET_MOVED`, `TEXT_SELECTION_CHANGED` (LINUX-NEW-14).** A replacement is a
+`TextChanged` `delete` carrying the removed text, then an `insert` carrying the inserted text; each
+has `detail1` = the start and `detail2` = the length, both in characters, and the changed text
+itself as the value — GTK 4.22.4's `gtk_at_spi_context_update_text_contents` and the ATK bridge's
+text listeners send exactly that, and Orca 50.2 speaks `any_data` as the inserted string and drops
+an insertion longer than 1000. It was one `insert` of the longer length at the UTF-16 offset carrying
+the whole new text. The model's range, compared unit by unit, may start or end inside a surrogate
+pair; it is widened to whole characters before it is converted. `TextCaretMoved` carries the caret's
+offset in characters in `detail1`, read off the published `TextFacet` (it was always 0; Orca
+compares it with the last cursor position). `TextSelectionChanged` carries an empty string.
+
+**`STRUCTURE_CHANGED`, `NODE_DESTROYED` (LINUX-NEW-1, LAB-NEW-3; decision 28).** Per child of the
+event's surviving parent, `ChildrenChanged` from the parent's path with the child's `(so)` as the
+value and its index in `detail1` (its former index for a removal): removals first, highest index
+first, each followed by `Cache.RemoveAccessible` `(so)` when the child left the tree; then additions
+and reorders in ascending index, each addition followed by `Cache.AddAccessible` with the item
+`Cache.GetItems` lists for it (`((so)(so)(so)iiassusau)`). That order is libatspi 2.60.6's
+arithmetic: `remove` takes a child out by reference, `add` removes it and inserts it at `detail1`,
+`AddAccessible` overwrites the parent's slot at the item's index, and `RemoveAccessible` disposes the
+object (readings/upstream-at-spi2-core-2.60.6-libatspi.txt). A child that moved between parents is
+removed from one and added to the other and never removed from the cache. `NODE_DESTROYED` sends
+`StateChanged` `defunct` 1 from the node's own path, as GTK 4.22.4 does before unregistering a
+context, and a node path no window holds any more answers `GetState` with `DEFUNCT` (6, read
+2026-09-13 off the Fedora typelib) while declining everything else — Orca 50.2 ignores an event from
+a source that is `DEFUNCT` or whose name cannot be read (readings/fedora-orca-dead-object.txt). It
+was one `ChildrenChanged` with an empty detail and an `i` per new node, and a `remove` from the
+destroyed node's own dead path, whose `int` crashed Orca's `_ignore_children_changed`. A frame
+arriving or leaving after the join gets the same `AddAccessible`/`RemoveAccessible` after its
+`ChildrenChanged` from the application object, which closes what §2.3's amendment of this date left
+to this item. No container publishes `MANAGES_DESCENDANTS`: decision 28 keeps clients' child caches
+correct instead.
+
+**`INVALIDATED` and the reserved tail (L6; decision 28; semantics 4 and 7).** The table has no
+`INVALIDATED` row; on Linux it sends nothing of its own — the bridge holds no per-node state to sweep,
+and the one `Cache.AddAccessible` for the root that §2 once prescribed would reconcile no client's
+cached children or states (libatspi 2.60.6 updates a cached child list only from `ChildrenChanged`
+and a state only from `StateChanged`). What a client's cache needs arrives in the tail that follows:
+the structure signals above, then the cursor, the selection and the window's activation. The
+`focused` changes the collapse swallowed are said again from the tree at once: `StateChanged
+focused` 1 on the focused node and the cursor's `ActiveDescendantChanged`, unless the same publish
+already sent them. Every signal of a tail event, of a frame's arrival or departure, and of focus said
+again is offered to the connection as the tail kind, which `Outbound.SIGNAL_BOUND`'s ordinary backlog
+never refuses (`Outbound.TAIL_BOUND`, sixteen times it, bounds the tail alone so a writer that never
+writes is still not a leak). An ordinary signal the connection does refuse is followed, once per
+publish, by the focus and cursor said again as the tail kind: the bridge's own queue collapse is
+answered like the model's. *(Corrected 2026-09-15, the review of linux-B, together with the
+`Activate` sentence of the window paragraph above. Three things were wrong. First, "said again
+from the tree at once" put the focus and cursor before the tail's structure signals and before
+`Activate`, against decision 28's order. When the frame's `state-changed:active` was collapsed
+too, `Activate` then moved Orca 50.2's locus to the frame, and nothing brought it back: LINUX-NEW-15
+again, on the collapse path. Second, the memory of what had been said was cleared on every publish,
+so every publish wider than the budget repeated the focus and cursor even when neither had moved.
+Third, a collapse never sent `focused` 0 for the node that lost the focus, and libatspi 2.60.6's
+`cache_process_state_changed` clears only the bit an event names. What the bridge does instead:
+each window remembers, across publishes, the focus and cursor it last announced (semantics 4).
+`INVALIDATED` and a refused signal only mark a reconcile as owed. The reconcile runs before the first
+tail event after the structure signals, or, when the publish carries none, before the window's next
+publish replaces its tree. It sends only what differs from the memory: `focused` 0 for the node last
+announced when that node still stands, `focused` 1 for the node now focused, and the cursor when it
+differs or the focus was just said. The window paragraph's exception, "unless the same publish
+already sent them … its 0.1 s same-type filter would drop a second copy", misread Orca. That filter
+is never reached by a `focused` 1 from a focused source (`_ignore_by_focus_state`, event_manager.py
+324-330). What decides the case is which event moves the locus to the frame. The frame's own
+`state-changed:active` 1 makes it the active window with the frame as locus (`_on_active_changed`,
+default.py 792-822, readings/fedora-orca-focus-manager.txt, Fedora KDE 44, Orca 50.2,
+2026-09-15), and an `Activate` for a window that is already active returns without touching the
+locus (default.py 1386-1390, readings/fedora-orca-event-consumers.txt). So after `Activate` the focus and cursor are said again only
+when they were not said after the frame's `active` 1 in the same publish, or when that `active` 1
+was not sent at all. Two identical copies waiting in Orca's queue together are handled once:
+`_is_obsoleted_by` drops the earlier for the later, matching same type and same source
+(readings/fedora-orca-event-queue.txt). Orca's queue is ordered by `_get_priority` before arrival;
+the numeric values of its constants were not read.)*
+
+*(Amended 2026-09-15, semantics 4 settled for the three bridges after phase 3. Two sentences above
+change. "It sends only what differs from the memory" is now true of an ordinary publish only: **an
+owed reconcile — one the model's `INVALIDATED` or a refused signal asked for — says the focus and
+the cursor again whether or not they moved.** Linux was the only bridge that sent nothing when the
+focus had not moved, while Windows re-raises and macOS re-posts unconditionally after their own
+sweeps; and a focus that did not move is precisely the case where the client is standing on a node
+whose state changes it lost in the collapse. The repeat costs a message and no speech: Orca 50.2's
+`set_locus_of_focus` returns at once when the locus is already that object (focus_manager.py
+278-281, readings/fedora-orca-focus-manager.txt). The memory stays, and is what keeps an ordinary
+publish quiet. And "when the publish carries none, before the window's next publish replaces its
+tree" becomes **at the end of the frame** (`AccessibilityBridge#frameEnded`, §5.3): a collapse whose
+tail holds nothing after its structure signals used to wait for a next publish that a window going
+still never makes, so the re-announcement the semantics ask for never happened at all. The publish
+path stays as the later net for a refusal that comes after the frame has ended. Order is unchanged
+and is semantics 7's: the structure signals first, then focus, then the cursor, then selection and
+the window's activation. Pinned by
+`AtspiApplicationTest.aCollapseWhoseTailIsStructureAloneSaysTheFocusAgainWhenTheFrameEnds` and
+`aCollapseSaysTheFocusAndTheCursorAgainAtTheFramesEndEvenWhenNeitherMoved`.)*
+
+*(Amended again 2026-09-15, the review of that change; semantics 4's other half. "Each window
+remembers, across publishes, the focus and cursor it last announced" was one memory per window,
+where the settlement asks for **one memory per process** — the platform focus is one — and the
+unconditional re-say the amendment above added was gated on nothing, so a collapse or a refusal in a
+**background** frame put a `focused` 1 on the bus for a window nobody is in, a case that had stayed
+silent while it only sent differences. Both halves close together. The memory is now
+`AtspiApplication`'s: the window that holds it, the node, and the cursor, cleared when that window
+detaches and on a new join (Windows keeps the same pair in `UiaBridge.ANNOUNCED`). And **only the
+frame the desktop has active reconciles at all**: the model publishes `ACTIVE` on the window node of
+the scene whose window has the keyboard (`AccessibleWalk`, `Scene#isWindowFocused`), a native popup
+that takes the focus included, and a frame without it holds the node the user would *return* to and
+not where the user is — which is what Orca 50.2 says of such an event in as many words, "[frame]
+lacks active state", then "unable to find active window" (readings/fedora-l4-baseline/summary.md,
+LAB-NEW-2). A window that is not active therefore says nothing here: it neither repeats nor
+contradicts what the active frame announced. One consequence is new and deliberate: when the active
+frame re-says the focus, the `focused` 0 for the node the process last announced goes out **from the
+window that holds that node**, which may be another frame — libatspi's `cache_process_state_changed`
+clears only the bit an event names, so a focus that crossed windows used to leave `FOCUSED` cached on
+a node of each. Pinned by
+`AtspiApplicationTest.aBackgroundFramesCollapseSaysNothingAndTheActiveOnesClearsTheOneFocusAnnounced`.)*
+
+**`STATE_CHANGED` for `EXPANDED` and `EXPANDABLE` (L3; decision 27; semantics 9).** Both reach the
+bus as `StateChanged` `expanded` / `expandable` (bits 10 and 9) from the difference, and whenever the
+bit this platform derives from them — `COLLAPSED` (5), published as `EXPANDABLE` without `EXPANDED` —
+moved with the flip, a `StateChanged` `collapsed` follows it: libatspi 2.60.6 sets or clears only
+the bit an event names, so without it a client that cached a closed branch and heard `expanded` 1
+held both. Its former value is read off the node in the tree the window published before
+(`AtspiBridge.previousTree`), because a publish may flip both bits at once. GTK 4.22.4 sends
+`expandable` and `expanded` only (whether its state set carries `COLLAPSED` was not read).
+
+**`VALUE_CHANGED` (settled linux-value-text; added 2026-09-15 with the `Text` interface, §2.3's
+amendment of this date).** `PropertyChange` `accessible-value` with the new number as a `d`, as
+before; and when the number stood still while the display form moved — a date segment filled with its
+minimum goes from "empty" to "1" — and the node serves that form as its `Text` (a `ValueFacet` and no
+`TextFacet`), a `TextChanged` `delete` of the former form and an `insert` of the new one follow it,
+whole string for whole string, read off the node in the window's previous and current trees. A change
+that moved the number sends the property change alone, and a node with a text of its own raises its
+own `TEXT_CHANGED`.
+
+**A change that moves the interfaces a node serves re-sends its cache item (amended 2026-09-15, review
+of the interfaces item).** What a node serves is not fixed by its role: `Text` is served for a value
+only while its display form is not empty (§2.3's `Text` amendment), `Action` only while the node has a
+verb, which it loses with `ENABLED` — beneath an overlay too — and `EditableText` only while it is
+`EDITABLE`. A client keeps a node's interfaces from its cache item, and libatspi 2.60.6's
+`add_accessible_from_iter` overwrites them, with the name, role, description and states, from a later
+`Cache.AddAccessible` for a node it already holds (readings/upstream-at-spi2-core-2.60.6-libatspi.txt,
+atspi-misc.c 578-698); nothing sent one, so a client could lack `Text` on a segment that had just
+gained a word, or `Action` on a button enabled again. Now a `VALUE_CHANGED` or `STATE_CHANGED` whose node
+serves a different set of interfaces than in the window's previous tree (`AtspiTree.interfaceBitsOf`)
+also sends that node's `AddAccessible`: after the state change or the property change, and in a
+value's text echo between the `delete` (said while `Text` was still listed) and the `insert` (said once
+it is listed). A publish that moves several bits of one node sends the same item after each, and a
+modal that withdraws the verbs of every node beneath it sends an item per node whose `Action` went,
+beside the `enabled` 0 each already sends. Keeping the list stable per role or facet was the other way
+offered; it would have listed `Text` with an empty string on every slider and progress bar, which no
+toolkit on the guest does (GTK 4.22.4's level bar serves `Value` alone,
+readings/fedora-gtk4-interface-replies.txt). Not observed live: the gallery's date segments always
+carry a word. Pinned by `AtspiEventsTest.aChangeThatMovesTheInterfacesANodeServesSendsItsCacheItemAgain`.
+
+**Amended 2026-09-15 (phase 3, the macOS column).** `ACTIVE_DESCENDANT_CHANGED` posts
+`FocusedUIElementChanged` **at application level**, as `FOCUS_CHANGED` does, and no longer
+`SelectedChildrenChanged`: the cursor is the focused element here, so a client told of it asks where
+the focus went. A frame posts at most one of the two, after everything else that frame posts. After
+a sweep of the element registry — the bridge's own queue collapse, or the model's `INVALIDATED`,
+which is now swept the same way (semantics 7) — the focus change is posted again whenever anything
+anywhere is focused, because the sweep may have released what a reader stood on.
+`SELECTION_CHANGED` is posted on its container as the notification of that container's selection
+attribute: `SelectedRowsChanged` for an outline, a list or a table of rows — which is what a native
+`NSOutlineView` posted on itself for a row selected through `AXSelected` and through
+`AXSelectedRows`, with no `SelectedChildrenChanged` beside it (read on the macOS 26.6.2 guest,
+2026-09-15, `scripts/a11y/macos/outline-probe.swift`) — `SelectedCellsChanged` for a grid of cells,
+and `SelectedChildrenChanged` for anything else. `STATE_CHANGED` of `EXPANDED` on an outline row is
+`RowExpanded` or `RowCollapsed` on the row, plus one `RowCountChanged` per outline per frame on the
+outline, as the native outline posted them when its row's `AXDisclosing` was set; on anything else it
+stays `ValueChanged`. *Corrected the same day (the macos-B review; M3 correction f):* a
+member's `STATE_CHANGED` of `SELECTED` is not posted when its container is posted the selection change
+in the same frame, and `STATE_CHANGED` of `ACTIVE` is posted nowhere — no attribute is read back off
+it, and where it matters the focused node's `ACTIVE_DESCENDANT_CHANGED` is the focus change — because
+one arrow in a focused `Tree` posted four `ValueChanged` on the rows beside `SelectedRowsChanged` and
+the focus change, where the native outline delivered only `AXSelectedRowsChanged` to an observer that
+also asked for `AXValueChanged`. One cursor move now posts exactly those two. *And the row count
+(M1 correction 2):* `RowCountChanged` is no longer derived from an outline row's `EXPANDED` flip
+alone. Every publish compares each held table's, outline's and list's row count — the table facet's
+count, the hierarchy facet's row count, the set size — with the snapshot before, and the frame's end
+posts one `RowCountChanged` on each container whose count moved and which is still in the tree, once
+per container however many publishes or openings moved it: a lazy load landing under a row already
+open, a refresh, and a list growing or shrinking are row-count changes too; a scroll, which changes
+which rows are realized and not how many there are, is none. Only the disclosure trigger was read on
+the native outline; the others follow from the same attribute.
+*And the window's own events (MACOS-NEW-3, the same day):* `ANNOUNCEMENT` names no node and
+`INVALIDATED` names none either, and a `STRUCTURE_CHANGED` of the root names the node this bridge elides,
+so all three were posted on an element no client held — which is to say never. An announcement is now
+`AnnouncementRequested` posted **on the window**, carrying `NSAccessibilityAnnouncementKey` (its text)
+and `NSAccessibilityPriorityKey` (10 polite, 90 assertive) as user info; `INVALIDATED` and a change of
+the root's children are one `LayoutChanged` on the window per frame. The window, because on the macOS
+26.6.2 guest (2026-09-15, `scripts/a11y/macos/announcement-probe.swift`) a notification posted on the
+window reached both an observer registered on the window and one registered on the application, one
+posted on `NSApp` only the application's, and one posted on the content view nobody's. Whether VoiceOver
+speaks an announcement posted there is phase 5's to hear. `NODE_DESTROYED` releases the element at the
+frame's end and still posts nothing (§2.2's note of the same date).
+
+**The macOS column as built (dated 2026-09-15; MACOS-NEW-7).** The table above is kept as written; this
+is what the bridge posts at the end of phase 3, where the macOS cells above say otherwise.
+`FOCUS_CHANGED` and `ACTIVE_DESCENDANT_CHANGED`: one `FocusedUIElementChanged` per frame at application
+level, last. `STRUCTURE_CHANGED`: `LayoutChanged` on the held parent — not `Created` or
+`UIElementDestroyed`, which AppKit posts itself — and on the window for the elided root's children.
+`NAME_CHANGED` `TitleChanged`; `DESCRIPTION_CHANGED` `LayoutChanged`; `STATE_CHANGED` `ValueChanged`,
+except `BUSY` (`AXElementBusyChanged`), `ACTIVE` (nothing), `SELECTED` on a member whose container is told
+the selection in the same frame (nothing) and `EXPANDED` on an outline row (`RowExpanded` /
+`RowCollapsed` and the outline's `RowCountChanged`); `VALUE_CHANGED` and `TEXT_CHANGED` `ValueChanged`;
+`SELECTION_CHANGED` the container's shape; `CARET_MOVED` and `TEXT_SELECTION_CHANGED`
+`SelectedTextChanged`; a row container whose count moved `RowCountChanged`. `BOUNDS_CHANGED`: **nothing**
+(the cell said `Moved`/`Resized` and a bulk `LayoutChanged`; the boxes are pushed instead).
+`WINDOW_OPENED`/`CLOSED`/`ACTIVATED`/`DEACTIVATED`: **nothing** (the cells named AppKit's own
+notifications, which AppKit posts for the window it vends). `NODE_DESTROYED`: release at the frame's end,
+nothing posted. `INVOKED`: nothing. `ANNOUNCEMENT`: `AnnouncementRequested` on the window with its text and
+priority. `INVALIDATED`: `LayoutChanged` on the window, the registry swept, the focus change posted again.
+Every post, an announcement's user info and a re-push's children array are made inside an autorelease
+pool the bridge pushes when a publish or a frame's end starts its platform work and pops before it
+returns: neither is an accessibility callback, so no pool of AppKit's is on the stack, and on the
+`-XstartOnFirstThread` main thread what they autoreleased was never freed — an announcement's objects
+were still alive 120 polled frames later, about five blocks a frame, and none with the pool (read on the
+macOS 26.6.2 guest, 25G83, 2026-09-15, `scripts/a11y/macos/AutoreleaseProbe.java`; the macos-C review).
+
+**Amendment, 2026-09-15 (semantics 4, one shape on all three bridges): the macOS bridge keeps the
+memory too.** Phase 3 left three readings of "each bridge remembers the last effective focus it
+announced": Windows one memory per process, Linux one per window sending only differences, and macOS
+none at all — it posted one `FocusedUIElementChanged` per frame that drained a focus or cursor event,
+and again after every sweep. The lane argued that as not a defect, because the post names no element
+and the client asks `accessibilityFocusedUIElement`, which is answered live. The orchestrator settled
+one shape instead, and this bridge now holds it: **one memory for the whole process**, because the
+platform focus is one; a focus or cursor event resolving to the node already announced posts nothing;
+the model's `INVALIDATED` and the bridge's own queue collapse re-announce whatever they name, because
+the sweep may have released the element the reader stood on; and the memory is forgotten when nothing
+is focused in any open window, on `WINDOW_DEACTIVATED` (which still posts nothing of ours) and when
+the bridge that owns it detaches.
+
+Two consequences worth stating. The answer is resolved exactly as `focusedElement()` resolves it, so
+a cursor that lives in another window's tree is remembered as **that** window's node and a second
+window asking about the same cursor does not announce it twice. And a focus event over a tree that
+stamps no focus now posts nothing, where before it posted: there is nowhere to send a reader, and
+Windows' `raiseFocus` has always behaved this way. Pinned by
+`AxFocusTest.anEffectiveFocusAlreadyAnnouncedIsNotAnnouncedAgainUntilASweepAsksForIt` and
+`aDeactivatedWindowAndAnEmptyFocusBothForgetWhatWasAnnounced`. The tail's order is unchanged and is
+semantics 7's: structure first, focus last in the frame.
+
+**What the forgetting buys here is not what it buys on Windows** (corrected 2026-09-15, the fix
+round's review of the paragraph above, which had carried Windows' sentence — *"so that a return is
+announced however little moved while away"* — across to this platform). That sentence is true on
+Windows because §2.4's Windows cell for `WINDOW_ACTIVATED`/`WINDOW_DEACTIVATED` **is** the focus
+change: UI Automation has no window activation event of its own, so `UiaBridge` raises the focus on
+the return and the cleared memory is what lets that raise be heard. This bridge posts nothing for
+either event and is right not to: the macOS cell is AppKit's own `MainWindowChanged` and
+`FocusedWindowChanged`, the null mapping is deliberate and pinned
+(`AxNotificationsTest.theWindowEventsAreAppKitsOwnAndNotOurs`), and a client that wants to know
+where the user now is asks `accessibilityFocusedUIElement`, which is answered live. So a bare return
+— activation back, nothing moved — announces nothing here, and adding a post for it would be
+inventing a notification no reading asked for. What the forgetting does buy is the **next focus
+event** after the return: a node that arrives holding the focus is a `FOCUS_CHANGED` even when it is
+the node announced before (this section's 2026-09-14 amendment, WINDOWS-NEW-12), so a window whose
+content was rebuilt while the user was in another application says where the user is again instead
+of being silenced by a memory made while VoiceOver's cursor was in another process entirely. The
+test pins both halves: the activation posts nothing and leaves the memory empty, and the focus event
+after it is announced though it names what was announced before.
 
 **An event is half a conversation, and the other half is a question this table does not name.**
 Three platforms, three live runs, and the same failure on two of them: a reader is told that
@@ -2538,6 +4038,73 @@ reader thread is ours, the snapshot is already published, and every read is answ
 queue. This is the one place Linux is strictly better off than the other two, and it falls straight out
 of owning the transport.
 
+#### Amendment 2026-09-15 — the join has a thread of its own, and a failed one costs nothing twice
+
+**What was wrong.** "The UI thread blocks on nothing" was not true of the join (LINUX-NEW-12). The
+first publish with a tree called the join inline: the session bus's `Hello` and `GetAddress`, the
+accessibility bus's `Hello` and the registry's `Embed`, each waiting up to 15 s for its reply, on the
+user-interface thread. A step that failed returned without closing the accessibility connection it
+had opened — a socket and its reader and writer threads — and the next publish, one frame later,
+did it all again.
+
+**What the code does now.** The first publish that has a tree starts one daemon thread,
+`limn-a11y-atspi-join`, which joins and ends; a publish while it runs starts nothing (a
+compare-and-set), and events emitted before it completes are dropped as before. Every step runs
+inside a `try` that closes the accessibility connection unless the join completed, and a socket
+whose handshake fails is closed before the error leaves `DBus.Conn.open`. A failed join is tried
+again only after a back-off — one second, doubling per consecutive failure, capped at sixty — and
+only when a later publish asks, so an idle window with a broken bus spends nothing. The joiner writes
+the joined state as one atomic reference together with the frames the registry read at the join, and
+the user-interface thread brings its per-window bookkeeping up to that state on its next publish
+(§2.3's amendment of this date). The registration rule is unchanged: nothing joins before some window
+has a tree.
+
+**Corrected 2026-09-15 (the linux-A review): the retry is asked for, not waited for.** "Only when a
+later publish asks" left an idle window off the desktop: a scene publishes only when its tree is dirty,
+so after one failed join a window nothing changes — the window decision 29 is about — never asked
+again, and a publish that fell inside the back-off was dropped with nothing to repeat it; and because
+a successful join reset the failure count, a connection lost right after its join was rejoined as fast
+as the scene published. Now the joiner thread that failed **waits out the back-off itself**, holding
+the join flag so no publish starts another meanwhile, and then asks every attached window for a
+publish (`Host#requestRepublish`), which tries again; the switch turning off, or the last window
+leaving, interrupts the wait and nobody is asked. A joined connection lost within sixty seconds of its
+join counts as a failure and is waited out the same way on a thread of its own; one that held longer
+is rejoined at once and resets the count. The numbers (one second doubling to sixty; sixty seconds to
+count as held) are policy, not platform constants. Pinned by
+`AtspiRegistrationTest.aFailedJoinWaitsOutItsBackOffAndThenAsksAnIdleWindowToPublishWithNoFrameOfItsOwn`
+and `AtspiApplicationTest.aConnectionLostSoonAfterItsJoinIsAFailureAndWaitsOutTheBackOffBeforeAnyoneIsAsked`
+and `theSwitchTurningOffEndsABackOffAndNobodyIsAsked`.
+
+#### Amendment 2026-09-15 — a call is answered even when its handler fails
+
+**What was wrong (LINUX-NEW-9).** "A client that made a method call is waiting for exactly one
+answer" was honoured only when the handler returned. A handler that threw — a member called with too
+few arguments or the wrong types indexes past the body or fails a cast — was logged by the reader
+loop and answered with nothing, and libatspi waits out a newly added application's call timeout (up
+to 15 s) before it pings and declares the process hung. A reply whose body did not match its own
+signature failed to marshal inside the send, with the same result.
+
+**What the code does now.** `DBus.Conn.replyFor` is the one step between a call and its reply, and it
+never throws and never answers nothing: the handler's reply; `UnknownMethod` when there is no handler
+or it declines; `org.freedesktop.DBus.Error.InvalidArgs` when the handler failed on the call's
+arguments (an index out of bounds, a failed cast); `org.freedesktop.DBus.Error.Failed` for any other
+exception, with its text. A reply that cannot be marshalled is replaced by a `Failed` error for the
+same call. `NO_REPLY_EXPECTED` still gets no reply.
+
+**Corrected 2026-09-15 (the linux-A review):** "any other exception" was literal — `Exception` alone —
+so a handler that overflowed the stack or failed an assertion ended the reader thread and the
+connection, and the application joined again for every such call. `StackOverflowError`,
+`AssertionError` and `LinkageError` are answered `Failed` like an exception; only the errors that say
+the virtual machine itself is failing still end the reader, and the join's back-off (the correction
+above) paces the rejoin. Pinned by
+`DBusConnectionTest.aHandlerThatOverflowsTheStackIsAnsweredAndNeitherTheReaderNorTheConnectionEnds`.
+The three error names are read, not remembered: each is a string in the installed libdbus on both
+guests, and each bus answers `InvalidArgs` to a call with arguments of the wrong type and
+`UnknownMethod` to a member it lacks (`readings/fedora-dbus-bus-facts.txt`, dbus-broker 37;
+`readings/ubuntu-dbus-bus-facts.txt`, dbus-daemon 1.14.10; 2026-09-15,
+`scripts/a11y/linux/read-dbus-bus-facts.py`), which also read the 2^27-byte message limit the reader
+refuses past on the session and accessibility buses of both.
+
 ### 3.4 The bridge's own mutable state, and which thread owns each piece
 
 The snapshot is immutable and needs no thread. Everything else a bridge keeps is mutable, is the
@@ -2583,6 +4150,42 @@ a concurrent map written out of symmetry.
 
 **No bridge's registry is ever touched by a widget, and no widget is ever reachable from one**, for
 §1.2's reason: an element a client holds for minutes would otherwise pin a detached subtree.
+
+**Amended 2026-09-15 (phase 3, Windows; W2): a Windows element's pattern interfaces follow the
+snapshot, and the registry row above is unchanged by it.** The object behind an element was built
+with the pattern list of the first ask and kept it: a pattern the node gained later (a Tree's
+`Invoke` once it has a cursor row, `ExpandCollapse` on a leaf that gained children, `SelectionItem`
+on a calendar cell first seen in a chooser) was answered with a null for as long as a client held
+the element, and one it lost stayed answerable to `QueryInterface`. The object now reserves a field
+for every pattern interface a node may vend and asks `UiaPatterns.supports` against the tree of the
+moment on every query and every hand-over: a pattern served now is built the first time it is
+wanted (once, under the object's own lock, from whichever RPC thread asks first), and one not served
+now is refused to a new query. **Nothing is re-minted**: the registry entry, the identity pointer,
+the reference count and every pointer already handed out stay what they were, so the root handed to
+`UiaReturnRawElementProvider` is still the one `UiaDisconnectProvider` disconnects, and a pointer to
+a withdrawn interface still reaches live closures (whose slots answer from the snapshot) until the
+whole-registry empty frees them. Retiring the element and minting a successor was the alternative;
+it would have put a second writer on the id map, two objects behind one runtime id, and an exemption
+for the root, which is why it was not taken (`UiaObjectTest`, `UiaBridgeTest`). **And a second
+amendment the same day (W3):** an element may be minted by **another window's drain thread**, when
+that window's focused field has its cursor in this window's tree (decision 5); minting was already
+any thread's, so the id map is unchanged, and the whole-registry empty now takes a per-bridge guard
+that such a raise also holds, so it never frees an element a raise from outside is standing on.
+**Amended again 2026-09-15 (review of that change):** the guard covered the raise and not the answer.
+A host window's `GetFocus`, answering a cursor that lives in the popup's tree, minted and referenced
+the popup's element on the host's RPC thread with no lock, and the popup's detach does not fence that
+call, because it arrives through the host's provider, which is still connected. That hand-over now
+takes the popup bridge's guard too, and answers nothing once the popup has left the process's set of
+open bridges (its detach leaves the set before it empties)
+(`UiaBridgeTest.aHandOverToAnotherWindowsGetFocusWaitsForThatWindowsEmpty`). A bridge's own RPC
+calls are not changed by this: they arrive through its own provider, whose root the empty
+disconnects first, and whatever race that leaves between an RPC thread and the empty is the one they
+already had, not a new one.
+
+**Note 2026-09-15 (Linux rows).** The listening gate is a `volatile boolean` written by the status
+thread that watches `org.a11y.Status` (§6's amendment of this date), not by the reader thread on
+`Socket.Embed`. The joined state is one atomic reference written by the short-lived joiner thread and
+cleared by whichever thread lets the connection go (§3.3's amendment of this date).
 
 ### 3.5 What all three share
 
@@ -2744,6 +4347,17 @@ public interface AccessibilityBridge {
     /** The window is going away: raises {@code WINDOW_CLOSED}, then empties (§5.3). */
     default void detach() { }
 
+    /**
+     * The frame's accessibility step is over: everything this frame had to say was emitted.
+     * UI thread; run however the step returned, and never from {@code republishNow()}.
+     *
+     * <p>Added 2026-09-15 (§5.3). It is the publish boundary, which is more than a drain
+     * point: macOS posts its frame's notifications here, Linux flushes an owed
+     * re-announcement here (§2.3), and Windows hands the boundary into its own queue behind
+     * that frame's events (§2.4). The no-op default is for a bridge with neither obligation.
+     */
+    default void frameEnded() { }
+
     /** What the scene gives a bridge: the three ways to ask for a tree, and the one way to act. */
     interface Host {
 
@@ -2787,9 +4401,10 @@ public interface AccessibilityBridge {
 }
 ```
 
-Six members on the bridge and four on the host; every bridge member is a no-op or a constant on
-`NONE`, and none returns anything the toolkit has to interpret. Everything platform-shaped stays
-behind it.
+Seven members on the bridge and four on the host — six until `frameEnded` joined them on 2026-09-15
+(§5.3), which is the eleventh member of the seam counting `NONE` — and every bridge member is a
+no-op or a constant on `NONE`, and none returns anything the toolkit has to interpret. Everything
+platform-shaped stays behind it.
 
 **`perform` is on the host and not on the bridge, and an earlier draft had it the other way round.**
 That was not an infelicity, it was a path that does not exist: `perform` declared on the bridge is
@@ -2996,6 +4611,33 @@ sweep, re-push or drain.
 node array with the new origin and factor, publishes that, and emits one window-level
 `BOUNDS_CHANGED`. No walk, no diff, and the node ids are the ones the client is holding.
 
+**Amended 2026-09-15 (phase 3 fix round, brief item 5): the re-stamp path carries the reentrant flag
+too.** The re-stamp is reached from both callers of the publishing half — step 4 of the frame's step,
+and `Host#republishNow`, which takes it whenever the header flag alone is set — and it published with
+`reentrant = false` on both. On the second that is wrong, and wrong in exactly the way this section
+spends a paragraph forbidding: `republishNow` is called from inside the platform's own pump, its
+contract above says in so many words that it "publishes reentrantly, so the bridge defers every
+registry obligation", and its walk branch beside the re-stamp does pass `true`. A bridge told
+`false` there may destroy elements the caller is standing on, re-push the top of its tree and drain
+its queue from inside a notification-delivering callback — the three things the reentrant rule exists
+to stop. The flag a re-stamp passes is now its caller's: `true` from `republishNow`, `false` from the
+frame. The parameter never meant "something changed": a re-stamp that changed nothing returns before
+the publish, and a bridge is told what it may touch rather than what moved.
+`AccessibleLifecycleTest.aReentrantRestampIsHandedOverAsReentrantAsAReentrantWalk` and
+`theFramesRestampIsNotReentrant` hold the two directions.
+
+**Amended 2026-09-15 (phase 3, Windows; the facts above that phase 3 moved for this bridge).** Three
+sentences of this section now read differently on Windows. *"After a collapse … the drain sweeps"*:
+the drain sweeps after its own queue's collapse **and** after the model's `INVALIDATED` (node `0`),
+which is the same loss of per-node events, and after either it re-raises the focus on the tree's
+effective focus (§2.4's amendments of the same day). *"Empty on replacement … the drain thread is
+stopped and joined first"*: still so, and the empty also holds the bridge's vend guard, which another
+window's bridge takes to raise on, or hand over, one of this bridge's elements (a cursor followed into
+a native popup, decision 5; §3.4 as amended). *"A window move … emits one window-level
+`BOUNDS_CHANGED`"*: the scene still emits it, and the Windows bridge raises nothing for it, per node
+or in bulk, and says so in its trace (§2.4's `BOUNDS_CHANGED` amendment: NVDA 2024.4.2 subscribes to
+no bounds change, and every raise waits for the reader).
+
 The **node** flag is set by:
 
 - **`Scene#damageWidget`, `#damageWidgetRegion`, `#damage(Rect)`, `#requestRender()` and
@@ -3042,6 +4684,56 @@ and no button down, hover is recomputed from the pointer position, so a hover-de
 with no pointer event at all. The publish step runs after that recomputation precisely so that it sees
 the settled answer.
 
+#### Amendment 2026-09-15 — every frame ends, and the end is where macOS posts
+
+**What was wrong (MACOS-NEW-8).** The step above gave a bridge two moments, `publish` and `emit`,
+and both happen only on a frame whose walk found a difference (step 6) or that re-stamped (step 4).
+A bridge that posts on the user-interface thread therefore had no moment after a frame's events at
+all: the macOS bridge drained at the top of the next publish, which is the next *change*. Two
+consequences followed. Every notification was one change late (§1.10's amendment of this date).
+And the reentrancy paragraph's "owed to the next ordinary frame" did not hold: `republishNow()`
+clears the node flag it walked for, so the frame it asks for finds nothing dirty, returns at step 3,
+and the deferred re-push, boxes and drain waited for an unrelated change.
+
+**The rule.** `AccessibilityBridge` gains an eleventh member, with a no-op default (folded into the
+§5.2 listing, which predated it):
+
+```java
+    /** The frame's accessibility step is over: everything this frame had to say was emitted. */
+    default void frameEnded() { }
+```
+
+and the step gains a last line, run however steps 0 to 7 returned — after a re-present, with nothing
+listening, with a clean tree, after a re-stamp, after a publish:
+
+8. `bridge.frameEnded()`. One virtual call. Never from `republishNow()`.
+
+**What the default buys is a bridge with neither of the two obligations** — and that is narrower
+than this record first said. It read "`NONE` and every bridge that raises on a thread of its own
+inherit the no-op" until 2026-09-16 (fix round 3b), which is no longer true of any of the three. A
+bridge that raises elsewhere still *posts* nothing here, but the frame's end is also the **publish
+boundary** the re-announcement of §2.4 is flushed at, and that is a fact a thread of the bridge's
+own cannot see: Linux reads the marker on this thread (§2.3), and Windows hands it into its own
+queue behind that frame's events (§2.4). So all three override it, each for its own reason, and the
+default stands for a fourth bridge that owes neither.
+
+On macOS `frameEnded` first pays what a reentrant publish deferred (the re-push of the root's
+children and the boxes), then drains the queue: posts, the collapse's sweep, and — because the
+sweep forgets what was pushed — the root's re-push at once rather than at the next publish. A frame
+end with nothing queued and nothing deferred returns after one comparison and allocates nothing.
+`publish` keeps the re-push and the boxes, so an element a notification names exists when it goes
+out. Read "the next ordinary frame" in the reentrancy paragraph above, in §5.2's `publish` javadoc
+and in §12.1's `AccessibleReentrancyTest` row as "the end of the next frame, whether or not it
+publishes". `INVOKED`, emitted by a performed action outside any frame, is drained at the end of the
+next frame; macOS posts nothing for it (§2.4).
+
+Proven by `AxSceneTimingTest` (a real `Scene` over the platform's bridge with the platform left out:
+a focus move posted after the frame emitted it, an announcement on a still window drained in its own
+frame, and a reentrant publish's event posted by a frame that walked nothing), each red on the
+earlier code, and `AxBridgeTest.aFrameEndWithNothingToSayAllocatesNothing`. The live check — an
+`AXObserver` timestamping deliveries against a reader scene's step lines on the macOS guest — is
+phase 5's.
+
 ### 5.4 Popups and dialogs, per platform
 
 | | Windows | macOS | Linux (X11) | Linux (Wayland) |
@@ -3085,9 +4777,121 @@ GNOME session with accessibility off, a macOS process no client has queried. Per
   elements to push onto the content view at all (§2.2). Not at bind, where the scene has never laid
   out and every box would be zero (§5.2). After that walk and until a client touches one of those
   elements, a frame does nothing here either.
-- **Linux:** `org.a11y.Status.IsEnabled` on the session bus, read once when the first window opens and
-  refreshed on `PropertiesChanged`, **and** a completed `Socket.Embed`. When accessibility is off, no
-  a11y bus connection is opened and no thread is started.
+- **Linux:** `org.a11y.Status.IsEnabled` on the session bus, **watched** — a session-bus connection
+  and one parked daemon thread per process from the first window's bridge on, however this bullet
+  first read it (amended 2026-09-15, LINUX-NEW-7, below) — **and** a completed `Socket.Embed`. While
+  accessibility is off, no accessibility-bus connection is opened. Once the switch has been on, this
+  process stays embedded for its life (decision 67, below): the switch cannot say that a reader
+  left.
+
+#### Amendment 2026-09-15 — the Linux switch is watched, and that costs one parked thread per process
+
+**What was wrong (LINUX-NEW-7).** The bullet above said "refreshed on `PropertiesChanged`"; the code
+read `IsEnabled` once, when a window first asked for its bridge, on that thread, and answered `NONE`
+for good when it was false — so an application started before Orca stayed unreadable, and one whose
+reader quit kept its connection and its walks. "No thread is started" was true only because nothing
+watched.
+
+**The decision (29) and what it costs.** The switch is watched: **one session-bus connection and one
+parked daemon thread per process** (`limn-a11y-atspi-status`), from the first window's bridge on,
+**even when nothing is reading**. That thread is the whole idle cost on Linux beyond the per-frame
+`isListening()`, which is one `volatile` read; it allocates nothing per frame and wakes only for a
+message the bus routes to it, which is the switch's own announcement and nothing else. A process with
+no session bus it can open gets no bridge and no thread. No accessibility-bus connection is opened
+while the switch is off.
+
+**What was read before it was built.** On Fedora KDE 44 (at-spi2-core 2.60.6, dbus-broker 37) and
+Ubuntu 24.04 (at-spi2-core 2.52.0, dbus-daemon 1.14.10), 2026-09-15, with
+`scripts/a11y/linux/read-a11y-status-signal.sh --flip`: at-spi-bus-launcher broadcasts
+`org.freedesktop.DBus.Properties.PropertiesChanged` on `/org/a11y/bus` with
+`("org.a11y.Status", {"IsEnabled": <b>}, [])` once per change and nothing for a value set again, and a
+match on the well-known sender `org.a11y.Bus` receives it on both buses; the upstream function is
+byte-identical in both versions. Not read: what toggles the switch when Orca starts and quits on each
+desktop — the lab note of 2026-09-13 found it left on after a reader ran, so "tears down when Orca
+exits" happens only where the desktop turns the switch off; phase 5 measures it.
+
+**What the code does.** `AtspiStatusWatch` adds its match (`type='signal',sender='org.a11y.Bus',
+path='/org/a11y/bus',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',
+arg0='org.a11y.Status'`) **before** it reads the flag, so no change falls between the two; it follows
+the signal on a connection with no threads of its own (`DBus.Conn.openOnThisThread`), and reopens a
+lost connection after a back-off and reads the flag again. When the switch turns on, every attached
+window — a scene bound while it was off included — is asked for a publish, which buys the frame an
+idle window would never spend and joins; when it turns off, the application leaves the accessibility
+bus and every window stops listening. §3.4's "listening gate" row for Linux is therefore written by
+this status thread, not by the reader thread.
+
+**Corrected 2026-09-15 (the linux-A review): the launcher is followed by its name, and nothing
+polls.** Two sentences above were not true of the code. "Reopens a lost connection … so a restarted
+launcher is followed" — the session connection does not end when at-spi-bus-launcher does, so a new
+launcher's switch was never read. And "wakes only for a message the bus routes to it" — on a session
+with no launcher the read failed, the connection was closed, and the watch reconnected on its back-off,
+every sixty seconds for the life of the process. The watch now adds a second match **before** the
+read, the bus's own `NameOwnerChanged` for `org.a11y.Bus`
+(`type='signal',sender='org.freedesktop.DBus',path='/org/freedesktop/DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.a11y.Bus'`):
+a new owner has its switch read again on the same connection; no owner turns the switch off; a read
+answered with an error (no launcher) is off, and the thread parks on the connection until the name
+gets an owner. The thread wakes for three things: the switch's announcement, its owner's arrival or
+departure, and a stray call it answers. Only the session connection itself ending is retried after the
+back-off. The signal's shape (sent by `org.freedesktop.DBus` from `/org/freedesktop/DBus`, signature
+`sss`: name, old owner, new owner, empty for none) and its routing by `arg0` were read on both guests
+(`readings/fedora-dbus-bus-facts.txt`, dbus-broker 37; `readings/ubuntu-dbus-bus-facts.txt`,
+dbus-daemon 1.14.10; 2026-09-15, `scripts/a11y/linux/read-dbus-bus-facts.py`). Pinned by
+`AtspiStatusWatchTest.aSessionWithNoLauncherParksOnItsConnectionAndFollowsTheLauncherByItsName`.
+
+**Recorded 2026-09-15 (the linux-A review): "tears down with Orca" is not what this code can
+deliver on either desktop read so far.** The bridge follows `IsEnabled` and nothing else. What was
+read, without starting a reader (`scripts/a11y/linux/read-orca-switch-writes.sh`;
+`readings/fedora-orca-switch-writes.txt`, Orca 50.2; `readings/ubuntu-orca-switch-writes.txt`, Orca
+46.1): the only write either Orca makes to `org.a11y.Status` sets `IsEnabled` **true**, at start; no
+path sets it false, and neither shutdown touches it. at-spi-bus-launcher clears nothing when the
+screen reader is disabled (readings/upstream-at-spi-bus-launcher-2.52-2.60.txt). So once Orca has run,
+the switch stays on until something else turns it off — the desktop's accessibility setting, or the
+session ending — and the application stays joined and its scenes keep walking after Orca quits. The
+embed half of decision 29 holds; the teardown half holds only for a switch turned off by the desktop.
+**That question went to the owner and came back as decision 67, immediately below: the teardown half
+is withdrawn.** Phase 5 therefore no longer measures what each desktop does to the switch when Orca
+quits — the answer cannot change this bridge's behaviour.
+
+#### Amendment 2026-09-15 — decision 67: once embedded, embedded for the life of the process
+
+**The owner's answer to the question above: stay embedded, and say why.** The teardown half of
+decision 29 is withdrawn. `AtspiApplication#enabled(boolean)` acts on the rising edge only — the
+first `true` asks every window to publish and joins, and every `false` after it is ignored — so the
+application keeps its connection, its frames and its walks until the process ends.
+
+**The reading it rests on, from both guests, 2026-09-15**
+(`scripts/a11y/linux/read-orca-switch-writes.sh`; `readings/fedora-orca-switch-writes.txt`, Orca 50.2
+on Fedora KDE 44 with at-spi2-core 2.60.6; `readings/ubuntu-orca-switch-writes.txt`, Orca 46.1 on
+Ubuntu 24.04 with at-spi2-core 2.52.0): the only write either Orca makes to `org.a11y.Status` sets
+`IsEnabled` **true**, at start; neither shutdown path touches it, and at-spi-bus-launcher clears
+nothing when the screen reader is disabled
+(`readings/upstream-at-spi-bus-launcher-2.52-2.60.txt`). The bridge therefore cannot learn from this
+switch that a reader has left, and the `false` it *can* receive means something else entirely — the
+desktop's own accessibility setting turned off, or the bus's owner going away — which may happen
+while a reader is still reading us on the connection the teardown would close. A teardown driven by
+that flag is not "tears down with Orca"; it is "drops whoever is reading, for a reason unrelated to
+them".
+
+**The precedent: this is what GTK does.** `atk-bridge` is loaded once, when the toolkit sees the
+switch on, and there is no path that unloads it or withdraws the application from the registry
+because accessibility was switched off; a GTK window on either of these desktops stays readable for
+its process's life. Limn now matches the platform's own behaviour rather than inventing a shutdown
+no client expects.
+
+**The idle cost this accepts**, beyond the parked status thread the amendment above measures: one
+accessibility-bus connection with its reader and writer threads, kept for the life of the process
+after the first `true`, and §5.3's walk on damaged frames for as long as the process lives. Both were
+already the cost while a reader ran; what changes is that they are no longer given back when the
+desktop's switch goes off. Nothing new is allocated per frame, and a process that never sees a `true`
+still pays nothing at all.
+
+**What the code does.** `AtspiApplication.enabled(boolean)` returns at once for a `false` and for a
+`true` it has already seen; the joiner's "did the switch go off while I joined" check and the
+back-off's went with it (the last window leaving still ends both, which is a different condition).
+Pinned by `AtspiApplicationTest`'s
+`theSwitchDecidesWhetherAWindowListensAndJoinsAndTurningItOnWakesEveryWindow` — the `false` leaves
+the window listening and the application joined — and
+`aSwitchTurnedOffWhileTheJoinRunsLeavesTheJoinAlone`.
 
 **These are the gates, and the gate is never "a client asked us something recently."** A publish
 conditioned on a recent inbound call inverts the contract on all three platforms: the platform events
@@ -3222,7 +5026,7 @@ and mixing them up is how a design document becomes untrustworthy in both direct
 | `Label` | `LABEL`, or `HEADING` for the title typographic role | name from `textSource()`, `nameFrom=CONTENT` | — | gains `LABEL_FOR` when an application declares the relation. **Amended 2026-09-14:** the `LABEL_FOR` resolves to the widget the target says carries its label — a composite's inner field — where the target redirects (§1.5's amendment of the same day, decision 55) |
 | `Button` | `BUTTON` | `ActionFacet{PRESS}`; `DEFAULT` when it is a dialog's default | — | name from `textSource()`, else the tooltip; the action reaches the private path through the widget's own hook |
 | `Checkbox` box / switch | `CHECK_BOX` / `SWITCH` | `ToggleFacet`, `ActionFacet{TOGGLE}` | — | name from its own label, `nameFrom=CONTENT` — the field is a private `I18nString` with no getter today and §8 adds the `text()`/`textSource()` pair, because a focusable node with no name fails `AccessibleGalleryTest`. `toggle()` has no enabled guard of its own — the guard is the scene's, which never delivers an event to a disabled widget — so the accessibility path re-checks `isEnabled()` (§1.9) and `toggle()` gains the same guard (§8) |
-| `RadioButton` | `RADIO_BUTTON` | `SelectionItemFacet`, `ActionFacet{SELECT}`, `MEMBER_OF` its group with position and size of set | — | name from its own label, `nameFrom=CONTENT`, through the same pair §8 adds. Roving focus means only the holder is `FOCUSABLE`, which is correct and is what the reader should hear. **Amended 2026-09-14:** there is no `MEMBER_OF` and never was one published — a `ButtonGroup` is not a node and a relation's target must be one (`RadioButtonAccessibilityTest`); the facet is `containerless` (§1.2's amendment of the same day), so a selection change is the radio's own selected-state event and is laid on no layout node, and a standalone radio's `0`/`0` publishes no position anywhere |
+| `RadioButton` | `RADIO_BUTTON` | **Corrected 2026-09-14: no `MEMBER_OF`** — this column named one "its group with position and size of set", and a `ButtonGroup` is not a node, so there was no target for the relation and none was ever published. `containerless` `SelectionItemFacet` (the position and the size of set ride on it) and `ActionFacet{SELECT}` | — | name from its own label, `nameFrom=CONTENT`, through the same pair §8 adds. Roving focus means only the holder is `FOCUSABLE`, which is correct and is what the reader should hear. **Amended 2026-09-14:** there is no `MEMBER_OF` and never was one published — a `ButtonGroup` is not a node and a relation's target must be one (`RadioButtonAccessibilityTest`); the facet is `containerless` (§1.2's amendment of the same day), so a selection change is the radio's own selected-state event and is laid on no layout node, and a standalone radio's `0`/`0` publishes no position anywhere |
 | `ButtonGroup` | no node | | | not a widget and has no bounds; it contributes position and size of set to its members |
 | `SegmentedControl` | `RADIO_GROUP` | `SelectionFacet`, `ScrollFacet` when it overflows | one `RADIO_BUTTON` per segment, keyed by index, named by its segment, **plus the two overflow chevrons** | **Corrected:** when the strip overflows it clips to a viewport with a chevron in each gutter, each of which scrolls by most of a viewport and is drawn disabled on the dead side. They are operable controls and may not be dropped (§1.6), and a segment scrolled outside the viewport is not `SHOWING`. Their keys, names and the dead-side disabled state are the pipeline step's. **Amended 2026-09-14 (decision 30; CRIT-6):** the dead chevron is published without `ENABLED` through `Accessibility#disabled()` (§1.2's amendment of the same day) and keeps its `PRESS`, the shape of the tabbed pane's real chevron buttons and of every disabled `Button`; until then it dropped the verb instead, because a widget had no route to a disabled synthetic child, and the verb's coming and going with the scroll was W2's frozen Invoke. A segment publishes `SELECT` alone and refuses `FOCUS`, because the selection is the cursor (decision 11); the group is the container a selection change names and the strip's cursor is the focused node's (§1.10's amendment). Pinned by `SegmentedControlAccessibilityTest`. **Amended 2026-09-15 (decision 30, semantics 5):** the dead chevron carries no verb as well — not `ENABLED` and no `PRESS`, the refused day's shape; the `PRESS` kept on 2026-09-14 was for W2's frozen pattern set, which phase 3 rebuilds, and a press sent to the dead side anyway is refused by the hook (the scroll clamps to nothing). Pinned by the same class. **Not `TAB_LIST`**: its own documentation says it owns no content — it takes labels and hands back an index — so there is no `TAB_PANEL` for a tab to select, and announcing "tab, 1 of 4" would offer page navigation that leads nowhere. Its segments are a `List<String>` and not `I18nString`s, so a segment name cannot follow the subtree locale as §1.7 requires of every other name; §8 gives it the `I18nString` list it should have had **Amended 2026-09-15 (fix round 2d):** the 2026-09-14 amendment's "the shape of every disabled `Button`" no longer holds: a disabled `Button` publishes no `PRESS` either (§1.5's amendment of that date), and the dead chevron's missing verb is now the walk's withdrawal from a narrowed child rather than a branch in the widget |
 | `Slider` | `SLIDER` | `ValueFacet{min,max,step}`, `ActionFacet{INCREMENT,DECREMENT}`, `HORIZONTAL` | — | the hook reaches the private from-user path **and then the commit**, so a set from an assistive technology notifies the application the way a key press does (§9, §7.2). The facet's step is the field, `0` when continuous; the two verbs move by the keyboard's nudge and never mirror |
@@ -3239,7 +5043,7 @@ and mixing them up is how a design document becomes untrustworthy in both direct
 | `Table` | `TABLE` | `TableFacet`, `SelectionFacet` (multi-selectable in `MULTI`), `ScrollFacet`, `ActionFacet{PRESS}` while a row is selected | one `GROUP` for the header row with a `COLUMN_HEADER` child per shown column, each with `CellFacet(-1, column)` and the column's title as its name; one `ROW` per realized data row with `SelectionItemFacet` (view position, model row count) and a `CELL` child per shown column with `CellFacet(row, column)`, its formatted text as its name and the row's witness; the focus cell is `ACTIVE`; last, when a column has a footer, one `GROUP` for the footer row with a `CELL` child per footer cell, `CellFacet(-2, column)` | added by ADR 041 §7 on 2026-09-08, and written against the widget's own code rather than surveyed from outside. Cells and headers are synthetic children keyed by row and column (§1.3); a widget cell of a widget column is a real child published in its place. **Amended 2026-09-14:** the widget cell hangs under the synthetic `ROW` of its record, keyed by its column alone and identified through the row, and takes its place among the row's cells by column (§1.3's amendment, decision 3); until then it was a child of the `TABLE` after every row, which every bridge's row-and-column lookup missed. Unrealized rows are not published (§11) and the row holding the keyboard focus stays published wherever the viewport is (§13.29). **Amended 2026-09-14 (Table lane; decisions 10, 11, 32):** `ActionFacet{PRESS}` on the table whenever there is a focus cell, in every mode, opening the cursor row; each `ROW` carries `SELECT` (mode ≠ `NONE`), `ADD_TO_SELECTION` or `DESELECT` by its state in `MULTI`, and `FOCUS`; each `CELL` carries `FOCUS`; cells are keyed by row and column together and header cells distinctly, so a verb decodes the node it was published on (TABLE-NEW-13); ADR 041 §7's amendment of the same date has the rule. The focus cell's row is also kept and published off screen while the table holds the keyboard (decision 22; ADR 041 §2's amendment), its cells off screen with it, and the table declares the per-child clip so a widget cell under the header is not `SHOWING`. With a sortable column the header is a focus stop of the table (decision 36): while it holds the keyboard the table stays the focused node and the header cell under its column cursor is `ACTIVE` instead of a `CELL`; a sortable header cell carries `PRESS` and the sorted one the direction as its description (ADR 041 §4/§7 amendments). **Amended 2026-09-15 (decision 23, the node half):** a `ROW` is keyed by its record's row identity and not its model index, so its node and its cells' follow the record across a `refresh()` that inserted, removed or reordered, and a verb sent before it acts on the record it was published for or is refused when that record left the list (ADR 041 §3's amendment of that date) |
 | `Tree` | `TREE` | `SelectionFacet` (multi-selectable in `MULTI`), `ScrollFacet`, `ActionFacet{PRESS}` on the lead row and `{EXPAND}`/`{COLLAPSE}` while that row can open | — | added by ADR 044 §4 on 2026-09-12. Rows are the application's own cell widgets mounted directly, as `ListView`'s are, so `onAccessibilityChild` gives each one `TREE_ITEM`, the node's stable identifier as the identity key (§1.3), `SelectionItemFacet` (row position, visible row count) and `ExpandFacet` where the row can open; the lead row is `ACTIVE`. **It published `LIST` and `LIST_ITEM` until 2026-09-13**, the day the AT-SPI numbers came off the guest; what it still owes is depth and position-in-level, which no facet carries, and the macOS disclosure attributes. The verbs sit on the tree and act on the lead row, because a child's hook writes facts and never verbs (the `ListView` row above); per-row verbs arrive with the synthetic `TREE_ITEM` rows. Unrealized rows are not published (§11) and the row holding the keyboard focus stays published wherever the viewport is (§13.29). **Amended 2026-09-14:** every row now also carries `HierarchyFacet(level, row, rowCount)` — its depth from one and its flat index among the open rows (§1.2's amendment of the same day) — so the depth this row said it owed is published; the sibling-relative `SelectionItemFacet` numbering of decision 4 and the macOS disclosure attributes are the Tree and macOS lanes'. **Amended 2026-09-14 (verbs):** "per-row verbs arrive with the synthetic `TREE_ITEM` rows" is withdrawn — the rows stayed the application's widgets, and a row's verb reaches the tree by delegation instead: each row carries `ActionFacet{SELECT}` while the selection mode is not `NONE`, performed by `Tree#onAccessibilityChildAction` through `selectOnly` from the user; `EXPAND`/`COLLAPSE` per row and the rest of decision 20's set are the Tree lane's. **Amended 2026-09-14 (Tree lane, phase 2):** what this row said before that lane is superseded in four places, and stands above as the record of the first cut. Each row carries its verbs **by state**: `SELECT` while the selection mode is not `NONE`, `ADD_TO_SELECTION` or `DESELECT` by membership in `MULTI`, `EXPAND` or `COLLAPSE` where it can open, and `FOCUS` and `SCROLL_INTO_VIEW` on a cell that cannot take the focus itself — every one delegated by the tree and performed by `Tree#onAccessibilityChildAction` through the gesture's own seam from the user, `FOCUS` moving the cursor without selecting and `EXPAND`/`COLLAPSE` acting like the triangle (decisions 7, 11, 20). The tree's own node publishes `ActionFacet{PRESS}` alone, acting on the **cursor** row in every mode (decision 32), and it is the cursor row — the keyboard row, a field of its own since decision 14 and not the selection's lead — that is `ACTIVE`. `SelectionItemFacet` numbers a row among its parent's children (decision 4; `HierarchyFacet` carries the depth and the flat index), so the outline position it counted until then is gone. A row is named from `Model.nameOf`, else its cell's own name, else the text of the cell's visible labels in reading order (ADR 044 §4's amendment of the same day). While the tree holds the keyboard its cursor row stays published wherever the viewport is, outside the box and without `SHOWING`, as the focused row does (decision 22), and is released by the first pass after the focus leaves. **Amended 2026-09-15:** `ADD_TO_SELECTION` and `DESELECT` toggle the row without moving the cursor or the range anchor — only `SELECT` and `FOCUS` move the cursor (decision 20); the command-click still moves both — and every verb the kept cursor row publishes is performed while it is outside the box, because the scene gates a delegated verb on the tree showing and not on the row (§1.5's amendment of the same date), with a reveal that scrolls to where the row stands (ADR 044 §3) |
 | `CalendarView` | `TABLE` | `TableFacet(6, 7)` (8 columns with week numbers), `SelectionFacet` (multi-selectable in `RANGE`) | one `GROUP` for the weekday header with a `COLUMN_HEADER` child per column, each `CellFacet(-1, column)` and named with the **full** weekday rather than the narrow letter that is drawn; one `ROW` per week; one `CELL` per day with `CellFacet(row, column)`, the whole localized date as its name, `SelectionItemFacet` while it is selected or inside a range band (**corrected 2026-09-14, decision 37:** on every day cell while the selection mode is not `NONE`, selected or not, numbered as its day of the month over its own month's length in the drawn calendar — "15 of 30", a leading cell "31 of 31" — where it was the flat index over 42; a chooser cell keeps its index over the chooser's count), `ActionFacet{SELECT}` only while it is selectable, and `ACTIVE` on the keyboard cursor (**amended 2026-09-15, decision 11's positive half:** every day the bounds and the filter do not refuse also publishes `FOCUS`, in every selection mode, which moves the cursor there and selects nothing; a refused day carries neither verb; each chooser cell that leads somewhere publishes `FOCUS` beside `SELECT`, moving the chooser's cursor without descending or picking); two `BUTTON`s for the paging arrows; a `BUTTON` for the title with an `ExpandFacet` (expanded = not the finest view) and `PRESS` plus `EXPAND` on the finest view or `COLLAPSE` above it, accepting exactly those (**amended 2026-09-14**, settled calendar-title-verbs; refused days publish disabled, decision 30; a terminal chooser's cells carry `SelectionItemFacet`, decision 48) | added by ADR 042 §8 on 2026-09-09, written against the widget's own code. **It adds no role and no facet**: every one is ADR 041's, mapped on all three platforms the day before this widget existed, which is why a calendar could ship without reopening the bridges. Day cells are keyed by a flat 0..41 index and not by column, because a verb arrives carrying only the innermost key and two cells under different rows sharing one would be indistinguishable (**amended 2026-09-14, DT2:** the month chooser's rows and cells and the year chooser's each take a key range of their own, below the day grid's, so a month cell is never the node a day cell or a year cell was across a view change — a key is an identity, and a Windows element is built once with the interfaces its node had when first read; the two paging buttons are named for what they page in the view on show, and the cell holding the month or year on show says so in its name, decision 48). A day the bounds or the filter refuse carries no verb, which is the whole of how it says so (**corrected 2026-09-14, decision 30:** no longer the whole of it — the day is also published disabled, through the narrowing declaration, and the cursor stops on it; the children column says so, and this sentence was left standing when it was amended) |
-| `DateField` | `GROUP` | `ValueFacet` text = the whole field as drawn; `INVALID` with the reason as the description when it holds something unacceptable | one `SPIN_BUTTON` per **editable** segment, in the order the locale's own pattern writes them, each named from the toolkit's bundle ("Year", "Month", "Day", "Hour", "Minute", "Second", the day period), each with `ValueFacet` over that segment's own range and `ActionFacet{INCREMENT,DECREMENT}` reaching the path Up and Down reach (**amended 2026-09-15, decision 11's positive half:** plus `FOCUS`, which takes the focus and puts the caret in that segment as a click does, changing no value; **corrected the same day, semantics 5:** none of the three verbs, and the value published read-only, on a disabled field or on the field beneath its picker's in-scene overlay, where the scene drops every verb — ADR 042 §8; **amended 2026-09-15, fix round 2c:** the overlay half is the walk's rule for every node outside the input layer, §1.13, and the field keeps only the disabled half; **amended the same day, fix round 2d:** the disabled half is the walk's too, for every node that is not `ENABLED`, a field inside a disabled container included, §1.5; **amended the same day, fix round 2e:** the value is no longer published read-only in either case — it stays writable, and a segment that is not `ENABLED` accepts no `SET_VALUE`, §1.5), and `ACTIVE` on the one holding the caret (**amended 2026-09-14, decision 5:** not while a picker's popup in a window of its own holds the keyboard — the field keeps the focus there, and the caret's `ACTIVE` would shadow the cursor the walk reads off the popup's tree) | added by ADR 042 §8. The shape `Spinner`'s row leaves open for a clock, decided here: the caret is in one segment at a time, so a single text field publishing `31/12/2026` gives a reader no way to say which part it is in. An era segment is published and carries no verb (ADR 042 §3). **Amended 2026-09-14 (decisions 16, 38, 53):** no era segment is published — the era is a read-only piece of the drawn pattern and no node — and the year segment's value text carries it ("令和8"); an unfilled segment publishes the empty value with the spoken word "empty" as its text; the group carries no `ValueFacet` (the "text = the whole field as drawn" claim was corrected by ADR 042 §12's first finding and is repeated here wrongly) |
+| `DateField` | `GROUP` | **Corrected 2026-09-14 (decision 16; ADR 042 §12's first finding): no `ValueFacet` on the group** — this column said "text = the whole field as drawn", and `valueText` gives an *existing* value a display form, so a node with no value facet had nothing for it to land on and the whole date reached nobody; a minimum, a maximum and a step over a date would be three lies for a bridge to carry, and the segments carry the values, each over its own real range (`DateField.text()` is the whole date for an application that wants it). What the group does carry: `INVALID` with the reason as the description when it holds something unacceptable | one `SPIN_BUTTON` per **editable** segment, in the order the locale's own pattern writes them, each named from the toolkit's bundle ("Year", "Month", "Day", "Hour", "Minute", "Second", the day period), each with `ValueFacet` over that segment's own range and `ActionFacet{INCREMENT,DECREMENT}` reaching the path Up and Down reach (**amended 2026-09-15, decision 11's positive half:** plus `FOCUS`, which takes the focus and puts the caret in that segment as a click does, changing no value; **corrected the same day, semantics 5:** none of the three verbs, and the value published read-only, on a disabled field or on the field beneath its picker's in-scene overlay, where the scene drops every verb — ADR 042 §8; **amended 2026-09-15, fix round 2c:** the overlay half is the walk's rule for every node outside the input layer, §1.13, and the field keeps only the disabled half; **amended the same day, fix round 2d:** the disabled half is the walk's too, for every node that is not `ENABLED`, a field inside a disabled container included, §1.5; **amended the same day, fix round 2e:** the value is no longer published read-only in either case — it stays writable, and a segment that is not `ENABLED` accepts no `SET_VALUE`, §1.5), and `ACTIVE` on the one holding the caret (**amended 2026-09-14, decision 5:** not while a picker's popup in a window of its own holds the keyboard — the field keeps the focus there, and the caret's `ACTIVE` would shadow the cursor the walk reads off the popup's tree) | added by ADR 042 §8. The shape `Spinner`'s row leaves open for a clock, decided here: the caret is in one segment at a time, so a single text field publishing `31/12/2026` gives a reader no way to say which part it is in. An era segment is published and carries no verb (ADR 042 §3). **Amended 2026-09-14 (decisions 16, 38, 53):** no era segment is published — the era is a read-only piece of the drawn pattern and no node — and the year segment's value text carries it ("令和8"); an unfilled segment publishes the empty value with the spoken word "empty" as its text; the group carries no `ValueFacet`, which the facets column now states in its own place instead of leaving the reversed claim standing there |
 | `DatePicker` | `GROUP` | `ExpandFacet` | one `BUTTON` for the trailing calendar affordance, carrying the same expanded state (**corrected 2026-09-14, DT4:** the button is the real widget child of the next row, not a synthetic one, and carries no expanded state) | added by ADR 042 §8. Its field (or the two ends of a period) are **real children** and describe themselves, which is the reason they are widgets rather than regions this class paints. **Amended 2026-09-14 (decisions 18, 55):** no `ExpandFacet` and no verb on the group; a single picker declares nothing and is no node (its field and button are hoisted; a bound caption names the field through `accessibleLabelTarget`), a range picker is a `GROUP` keeping the caption over two fields named "Start date"/"End date"; the field inside a picker publishes `ExpandFacet`, `HAS_POPUP` and `EXPAND`/`COLLAPSE` by state, and accepts exactly those (**corrected 2026-09-14:** `COLLAPSE` only where the field can take it — in a window of its own; while the popup is an overlay of the scene the field publishes its state and no verb, and the overlay's `CANCEL` closes) |
 | ↳ `DatePicker.CalendarButton` | `BUTTON` | `ActionFacet{PRESS}` (**amended 2026-09-14:** the `ExpandFacet` it carried is gone — a plain press; the state is the field's) | — | the trailing affordance, and a **real widget** rather than the synthetic child it started as. Focus traversal in this toolkit visits widgets, so a painted button is one no keyboard user can reach however well it is described; it was found by a pair of eyes on the running program rather than by any test here, and the fix is structural rather than descriptive |
 | ↳ `DatePicker.PopupPanel` | `GROUP` | | | named "Calendar"; the card the grid sits on. **Amended 2026-09-14 (decision 19):** at an hour granularity or finer the card also holds a time row, a real `DateField` named "Time of day" that is never focusable and publishes `ACTIVE` on its caret segment while the picker's Tab cycle has put the keyboard on it |
@@ -3804,8 +5608,15 @@ Each item says what a blind user loses, because a deferral without that sentence
   arbitrary row through the reader's own list navigation does not. Publishing every index instead would
   hand the reader thousands of anonymous items with no name and no bounds, and rebuild them all on every
   dirty frame; that is worse for the user, not better.
-- **Not per-row actuation in a list.** A `ListView` row is a node with a name, a position in the set
-  and a selected bit, and it carries **no verb**: a reader cannot select or open a *particular* row.
+- **Not per-row *opening* in a list.** A `ListView` row carries `SELECT` and, on a cell that cannot
+  take the focus itself, `SCROLL_INTO_VIEW`; what it does not carry is `PRESS`, so a reader can select
+  a *particular* row and cannot open one — `PRESS` stays on the list and opens whichever row is
+  selected (§7.2). The heading and the paragraph below it were written when the row carried **no verb
+  at all**, and they are kept as the record of that cut and of why it was made; the amendment dated
+  beneath them is what holds.
+  **As first written (superseded 2026-09-14, below).** A `ListView` row is a node with a name, a
+  position in the set and a selected bit, and it carries **no verb**: a reader cannot select or open a
+  *particular* row.
   The reason is the model's rather than the widget's — a row is a widget child, so the scene dispatches
   an action on it to the application's own cell widget, which refuses it (§7.2). *Cost:* three routes
   remain and they cover the ordinary use. The list is focusable and every platform delivers real key
@@ -3891,8 +5702,8 @@ have.
 | Test | What it pins |
 | --- | --- |
 | `AccessibleCoverageTest` | reads the component source directories as declared Gradle inputs, finds every **transitive** `Widget` subclass — not the literal text `extends Widget` — and fails until each appears in §7's table with an expected role. A new widget cannot be added without saying what it is |
-| `AccessibleGalleryTest` | **written 2026-09-07 evening**, in `limn-demo`, and not over the demo's own gallery: it runs over `limn.demo.a11y.AccessibilityGallery`, a gallery of components built for this purpose, each entry declaring the toolkit classes it covers and the roles it promises, labelled the way a reader needs (`Label.setLabelFor`, described pictures, titled dialogs), with a `main` so a reader can be pointed at it. Every entry, in both palettes, over every window it opens (a dialog in its own window, a popup): no node has role `UNKNOWN`; every `FOCUSABLE` node has a non-blank name; no two nodes share an id; and the clipping invariant as the model can state it — the published node carries no clip mark (`Widget#clipsChildren()` is consulted by the walk for `SHOWING` and never published) and "wholly inside" is false by design for a half-scrolled row (§7.2), so a `SHOWING` node must have a non-empty box overlapping the scene's and every `SHOWING` ancestor's. Every promised role must appear, which is what caught a headless window with no display and so no popup. Completeness both ways, by scanning the toolkit's sources for `onAccessibility` overrides: a hook-bearing class no entry covers fails, and so does an entry claiming a class with no hook. Its first run found the picker a colour well raises focusable and nameless — §7.2's own prediction — and the well now names it after its dialog's title. What it cannot catch: the demo's own usage, which the transcripts cover; and a synthetic child the model cannot publish disabled (a segment strip's dead chevron is a `BUTTON` with no verb) |
-| `AccessibleTranscriptTest` (`limn-demo`) | three demo scenes — `forms`, `components`, `kitchen-dialog` — built as `--scene` builds them, bound to a headless window and backend, settled over the gallery's warm-up frames under the fixed ruler and the English locale, and their published trees written as transcripts: one line per node in tree order, role, name with provenance, description, spoken states, facets, verbs and relations by line, **no bounds**. Compared against goldens somebody has read aloud, rewritten only under `-Dlimn.a11y.transcripts.update=true` and failing otherwise with the differing lines. The kitchen scene is two trees, host and modal window |
+| `AccessibleGalleryTest` | **written 2026-09-07 evening**, in `limn-demo`, and not over the demo's own gallery: it runs over `limn.demo.a11y.AccessibilityGallery`, a gallery of components built for this purpose, each entry declaring the toolkit classes it covers and the roles it promises, labelled the way a reader needs (`Label.setLabelFor`, described pictures, titled dialogs), with a `main` so a reader can be pointed at it. Every entry, in both palettes, over every window it opens (a dialog in its own window, a popup): no node has role `UNKNOWN`; every `FOCUSABLE` node has a non-blank name; no two nodes share an id; and the clipping invariant as the model can state it — the published node carries no clip mark (`Widget#clipsChildren()` is consulted by the walk for `SHOWING` and never published) and "wholly inside" is false by design for a half-scrolled row (§7.2), so a `SHOWING` node must have a non-empty box overlapping the scene's and every `SHOWING` ancestor's. Every promised role must appear, which is what caught a headless window with no display and so no popup. Completeness both ways, by scanning the toolkit's sources for `onAccessibility` overrides: a hook-bearing class no entry covers fails, and so does an entry claiming a class with no hook. Its first run found the picker a colour well raises focusable and nameless — §7.2's own prediction — and the well now names it after its dialog's title. What it cannot catch: the demo's own usage, which the transcripts cover. It said until 2026-09-16 that it also could not catch "a synthetic child the model cannot publish disabled", naming the segment strip's dead chevron; that has not been true since 2026-09-14, when `Accessibility#disabled()` gave a widget the route (§1.2). The chevron is published without `ENABLED` and, since 2026-09-15, without a verb (semantics 5) — a disabled `BUTTON` with no verb, which is a shape the invariants do read |
+| `AccessibleTranscriptTest` (`limn-demo`) | four scenes — `forms`, `components`, `kitchen-dialog` and, since 2026-09-14, the accessibility gallery's `table` (B5) — built as `--scene` builds them, bound to a headless window and backend, settled over the gallery's warm-up frames under the fixed ruler and the English locale, and their published trees written as transcripts: one line per node in tree order, role, name with provenance, description, spoken states, facets, verbs and relations by line, **no bounds**. Compared against goldens a reviewer chose by reading them aloud — true of the first three; `table.txt` was read line by line and not aloud when it was committed, and the reading aloud is owed (amended 2026-09-16) — rewritten only under `-Dlimn.a11y.transcripts.update=true` and failing otherwise with the differing lines. The kitchen scene is two trees, host and modal window |
 | `AccessibleFocusOrderTest` | the invariant that keeps the tree honest: the published nodes carrying `FOCUSABLE`, in tree order, equal the sequence produced by repeated `focusTraverse` from nothing. Stated on that bit and not on `ENABLED`, which is a strictly larger set — every `Label`, `ScrollBar` and `Separator` is enabled and is not a tab stop (§1.13). Roving focus passes because only the holder is focusable, which is the same fact the tree reports |
 | `AccessibleMirroringTest` | in RTL, tree order is unchanged and bounds decrease in x. The tree is not sorted by geometry |
 | `AccessibleLocaleTest` | a subtree with a declared locale publishes its name in that language while the process locale is another, and a locale move re-resolves every name exactly once |
@@ -3951,10 +5762,84 @@ that shipped, while a script anyone can re-run says everything.
 
 | Platform | Client | Assertion |
 | --- | --- | --- |
-| Windows 11 ARM64 guest | `scripts/a11y/windows/client.ps1`, the spike's PowerShell `UIAutomationClient` walk, run into session 1, plus NVDA 2025.1 portable | find by name, control type, bounding rectangle, `InvokePattern.Invoke`, `SetFocus`, `ElementFromPoint`, and a focus event observed by NVDA |
-| macOS guest | `scripts/a11y/macos/`: `guest-build.sh` and `guest-probe.sh` bring the rendered probe up in the console session, `guest-steps.sh` drives a sequence of walks and mutations against one live provider, and `guest-voiceover.sh` photographs VoiceOver's caption panel on a timer and stacks the distinct phrases into one strip. The clients are `axtree` (walk, hit-test, follow relations), `axlife` (destroy an element under a client that holds it) and `dump-appkit-constants.swift` (§12.3). `vocap` exists because `screencapture` raises a consent dialog on every invocation and a dialog takes the foreground, which is what a reader announces — **the measurement destroying what it measures, which is the shape to watch for on every one of these guests** | the four scripts already pass against the spike's one-element provider; against the real bridge they must pass against a *tree*: find by name through `AXTitle` **or** `AXDescription`, `AXPress` arriving back in Java on the main thread, hit test through several nested levels, notifications to a real `AXObserver` (with focus observed only at application level), and the loop-mode sweep. Three assertions are new and are the ones this round's fixes created: **an overlay opening while a client is attached is visible to it**, which is the re-push of §2.2; a destroyed element is released and a stale message to it fails rather than crashing; and a scene rebound over the same window leaves no element alive. `unprivileged.sh` runs every one of them as an ordinary user, because root is accessibility-trusted and the lab's `sudo` would otherwise be doing the work. What only VoiceOver can settle is the attributes a purpose-built client never asks for |
+| Windows 11 ARM64 guest | `scripts/a11y/windows/walk-the-probe.ps1`, the spike's PowerShell `UIAutomationClient` walk, run into session 1 through a scheduled task with `/IT` (a shell over SSH is session 0, where a window kills the JVM), plus NVDA 2025.1 portable | find by name, control type, bounding rectangle, `InvokePattern.Invoke`, `SetFocus`, `ElementFromPoint`, and a focus event observed by NVDA |
+| macOS guest | `scripts/a11y/macos/` holds the versioned half: the clients `axtree` (walk, hit-test, follow relations), `axoutline`, `axtable`, `axdates`, `axlife` (destroy an element under a client that holds it), `axbusy`, the probes, and `dump-appkit-constants.swift` (§12.3). Each runs on any machine of this OS and carries no fact about a particular guest. **The runners that bring a guest up — build, copy, start in the console session, drive the steps, photograph the caption strip — live outside the repository** (decision 17 of the 2026-09-13 pass); they carry a VM's address, its login and its home paths, which are lab notes and not repository facts. `vocap` exists because `screencapture` raises a consent dialog on every invocation and a dialog takes the foreground, which is what a reader announces — **the measurement destroying what it measures, which is the shape to watch for on every one of these guests** | the clients already pass against the spike's one-element provider; against the real bridge they must pass against a *tree*: find by name through `AXTitle` **or** `AXDescription`, `AXPress` arriving back in Java on the main thread, hit test through several nested levels, notifications to a real `AXObserver` (with focus observed only at application level), and the loop-mode sweep. Three assertions are new and are the ones this round's fixes created: **an overlay opening while a client is attached is visible to it**, which is the re-push of §2.2; a destroyed element is released and a stale message to it fails rather than crashing; and a scene rebound over the same window leaves no element alive. Every one of them is run as an ordinary user, never under `sudo`, because root is accessibility-trusted and a privileged run would be proving the wrong thing. What only VoiceOver can settle is the attributes a purpose-built client never asks for |
 | Ubuntu GNOME, X11 and Wayland | `scripts/a11y/linux/walk-the-probe.py` through `libatspi`'s own typelib — so a tree it walks is a tree Orca sees — and a talking Orca read through `--debug-file`. `-Dlimn.a11y.linux.trace=true` logs every inbound call, which is what turned "the desktop will not list us" from a silence into a question | tree walk, find by name, `DoAction`, `Cache.GetItems` in one round trip, extents in both coordinate types, one application object with one child per window |
 | Fedora KDE, X11 and Wayland | the same | **run 2026-09-06, and it did not behave the same.** Its at-spi2-core 2.60 reads an application as it registers and refuses to list one that answers "no children", which found a registration-order defect this bridge had had since it was written (§13.15). With that fixed, a client walks the tree and Orca speaks names, roles and states. What is still open is the rendered probe on a **Wayland surface**, below |
+
+*(Amended 2026-09-16, decision 17 — where the boundary of "the suite lands in this repository" runs.
+A **platform script** reads a platform and runs on any machine of that OS: the constants dumps, the
+clients (`walk-the-probe.py`, `tree-check.py`, `table-check.py`, `date-check.py`, `events-check.py`,
+`walk-the-tree.ps1`, `walk-the-dates.ps1`, `axtree`, `axoutline`, `axtable`, `axdates`, the Swift
+probes) and the gallery's own `--reader` driver. Those are versioned, and this section's promise is
+about them. A **lab runner** brings a particular guest up — its address, its login, its home paths,
+the order a VM is built, copied to, started and photographed in. Those are not versioned and were
+removed on 2026-09-16: the seven `scripts/a11y/macos/guest-*.sh` and
+`scripts/a11y/linux/run-tree-reader.sh`, whose copies live outside the tree. The one script of that
+set that carried no lab fact was kept and renamed `scripts/a11y/macos/selector-allowed-run.sh`, so
+the `guest-` prefix no longer reads as "this is a lab runner". A constant's comment cites the guest
+and its version, never a runner: the rule is enforced by
+`ScriptsCarryNoLabFactsTest`, which refuses a private IPv4 literal, a lab login and a
+`/Users/<name>` path anywhere under `scripts/`.)*
+
+*(Amended 2026-09-15: the event shapes have a client of their own on both Linux guests.
+`scripts/a11y/linux/events-check.py` prints every event a named application sends as libatspi hands
+it over — detail1, detail2, source and `any_data` — and a source's cached children after a
+`children-changed`; `EventShapesProbe` (backend test sources) drives each shape through a real
+difference with no window. Run on Fedora KDE 44 and Ubuntu 24.04 the same day, identical on both, no
+signal refused. What it does not replace is a talking Orca, which is phase 5's.)*
+
+*(Amended 2026-09-15, LINUX-NEW-6: the Ubuntu row's "`-Dlimn.a11y.linux.trace=true` logs every inbound
+call" was half of what a silent reader needs. The same flag now also names every signal the application
+hands its connection — path, member, detail, both integers and the value — whether the connection
+accepted it and, when it did not, how many it has refused so far; every event that sent nothing and
+why (no mapping on this platform, already said in this publish, raised before the join); and what an
+`INVALIDATED` leaves owed. It goes through one consumer, `AtspiTrace.trace`, read once per site and
+formatting nothing when null, as `UiaWindow.say` does on Windows, so a test installs its own. The wire
+trace `-Dprobe.trace=true` (`DBus.TRACE`, every message and SASL line on standard error) stays separate.
+A string value is cut to 40 characters; a masked field's text changes carry the mask.)*
+
+*(Amended 2026-09-15, review of the interfaces item: that last sentence covered the outbound lines only.
+Once `EditableText` was served, the inbound line printed the plaintext a client sends in
+`SetTextContents` or `InsertText` to a `PASSWORD` field. The inbound line now withholds the string
+arguments of an `EditableText` call to a `PASSWORD` node, or to a path that names no node, and prints
+their length in characters instead; the numbers and every other call are traced as before. Pinned by
+`AtspiTreeTest.theTraceWithholdsTheTextAClientWritesIntoAPasswordField`.)*
+
+*(Amended 2026-09-15, H3: the date widgets have a client on Linux. `scripts/a11y/linux/date-check.py`
+reads, through libatspi, a calendar grid by row and column with its `Selection`, headers, cell states and
+`posinset`/`setsize`; a date field's segments through `Value` and `Text`; and a picker's expand state and
+popup relations, optionally performing an increment or opening the popup. Run on Fedora KDE 44 the same
+day over the gallery's "Calendar grid", "Date field, segmented" and "Date picker, closed" entries, it read
+every cell of the 6 × 8 grid by row and column, the selected day through `Selection`, "15 of 30" on a
+day, each segment's number and text, an increment read back, and the field's expand states — the first
+live reading of the `Selection`, `Value`, `Text` and attribute amendments of §2.3. The same run saw a
+`SelectChild` on the gallery's picker answer false while an in-scene date picker held the input layer,
+which is semantics 5 as the walk publishes it. What it does not replace is Orca speaking them, which is
+phase 5's.)*
+
+*(Amended 2026-09-15, the after-lane checks on at-spi2-core 2.52: the Ubuntu row's assertions were run
+against the finished bridge, and the readings are in `readings/ubuntu-2.52-after-lane.txt`. Ubuntu
+24.04.4, GNOME Shell 46.0 on X11, at-spi2-core 2.52.0-1build1, no screen reader started or running,
+no `sudo`, over SSH, with the branch's own `limn-demo-all.jar`. **Registration:** the desktop lists
+exactly one application for the process, with one frame per window — the shape §2.3 prescribes — so
+the 2.60 registration order the Fedora guest forced is right on 2.52 as well, where a wrong one would
+not have shown. **A native ComboBox popup:** `press-the-probe.py` performed the combo box's own
+`expand` through `Action.DoAction` from outside the process — no keyboard touched on the guest — and
+it answered true and opened a real popup window; `frames-check.py` then read one application with two
+frames, the list's `POPUP_FOR` naming the combo box in the other frame and the combo box's
+`CONTROLLER_FOR` naming the list, each resolved through the other frame; `walk-the-probe.py` read the
+open list's five items with `press`/`select`/`focus` and the first `ACTIVE` and `SELECTED`, and the
+combo box itself now `EXPANDED` and offering `collapse`. **A native DatePicker calendar:** the
+gallery's `--reader date-picker` run (pt-BR, the documentation day, the entry's own presentation)
+gave the same shape — two frames, the calendar panel's `POPUP_FOR` naming the "Delivery date" field
+and the field's `CONTROLLER_FOR` naming the panel — and the frame left the application's child list
+when the picker closed, through `children-changed:remove` from the application. So decision 5's
+cross-window relations, which only Linux had implemented by the end of phase 3, are read by libatspi
+2.52 as well as 2.60. `press-the-probe.py` gained the two arguments that made the combo box reachable
+(a role substring and a verb name, defaulting to a button's first action, which is what it did
+before). What this does not settle is what Orca 46.1 SAYS about any of it: that is phase 5's, and the
+reader was deliberately left unstarted.)*
 
 **One of these can plausibly move into CI, and it is worth trying.** The Linux bridge is pure Java and
 pure D-Bus, and the Ubuntu runner can install `at-spi2-core` and run the whole probe under
@@ -3989,6 +5874,138 @@ this is the one place in three platforms where the constants rule cannot be hono
 form of it is the narrow one: the three numbers are written down as literals, in one place, with
 this paragraph as the reason — and the dump script keeps listing them as unexported so that the
 exception stays visible rather than becoming a habit.
+
+#### Amendment 2026-09-15 — selectors are covered too, and a missing one no longer takes the window
+
+**What was wrong (MACOS-NEW-6).** "Type encodings from the running AppKit" was true at run time and
+checked nowhere before it. `AxConstantsTest` asserted the role and notification symbols against the
+committed dump and no selector at all; the selectors were literals across `AxElementClass` and
+`AxActions`, and the two f4bc544 added for `AXElementBusy` (`accessibilityAttributeValue:`,
+`accessibilityAttributeNames`) were never in the committed dump. At run time a selector no class
+declared made `AxObjC` throw inside the element class's constructor, and `Bridges.openFor` answered
+`NONE` for it: one misspelt or withdrawn selector removed the window's accessibility, silently.
+
+**The rule.** Every selector the bridge installs is listed once, in `AxSelectors`, and the element class
+installs through one method that refuses an unlisted selector. `AxConstantsTest` asserts every listed
+selector has an encoding in the dump's encodings section; `AxSelectorsTest` asserts, from the source,
+that the element class installs exactly the list. The two legacy selectors were read on the macOS
+26.6.2 guest on 2026-09-13 by this recipe (the readings' copy of the dump) and are carried in the test
+as owed to the committed dump's one regeneration at the end of the macOS lane, which a companion
+assertion forces to retire. At run time a listed selector the running AppKit declares nothing for is
+skipped — never given a guessed encoding — and the bridge logs a warning naming it; the rest of the
+window's accessibility is built. A failure to build the bridge for any other reason is logged at
+`ERROR` before `NONE` is answered.
+
+*Corrected the same day (the review of this amendment):* skipping each absent selector on its own could
+install the action selectors without `isAccessibilitySelectorAllowed:`, and without that gate every
+element offers every action (semantics 5) — confirmed through real AppKit on the development Mac, not
+the guest. Selectors that mean something only together are now skipped together (`AxSelectors.REQUIRES`:
+every action selector with the gate; the two legacy entry points with each other), and the warning names
+what was withheld with what. The `ERROR` covers every `Throwable` from the whole open, AppKit's loading
+and the content view included, not only the constructor's exceptions. Skipping rather than refusing to
+build the class is the implementer's choice, awaiting the owner's. And a name in the dump says only that
+a selector exists: each listed selector now also names the shape of the libffi closure it is installed
+with (`AxSelectors.Kind`), the element class refuses a closure of another shape, `AxConstantsTest` holds
+each shape against the encoding the dump read, and `AxSelectorsTest`'s source scan reads each install's
+shape and refuses an install whose selector it cannot read.
+
+*The regeneration, dated 2026-09-15 (the end of the phase-3 macOS lane):* the committed dump was
+regenerated once, from `scripts/a11y/macos/dump-appkit-constants.swift` run on the macOS 26.6.2 guest
+(25G83). Every line of the 2026-09-13 reading reappeared unchanged; the new dump adds the selectors the
+bridge came to install in phase 3 — the legacy pair, disclosure, expanded, the setters, the named-action
+perform, the column lists and the column class's installs, every one of the 64 install lines "in the
+encodings table" — and the sort direction's attribute and C enum values (unknown 0, ascending 1,
+descending 2, from the SDK the script was compiled against, without quotes). The selectors and symbols
+the test carried as owed to it are retired, so each is now held against the committed dump like any
+other.
+
+#### Amendment 2026-09-15 — a platform fact two servers answer differently is a choice, and the choice is argued in the source
+
+**What the phase-3 critic found on Linux.** Four facts this bridge answers were read on two toolkits
+that disagree, and one was carried with no citation at all: AT-SPI `PARAGRAPH`'s boundary (GTK 4
+answers a line feed, GTK 3 answers nothing), the `version` property (GTK 3 answers `1`, GTK 4 refuses
+it), the error for a `Properties.Set` of a read-only property (GTK 3 `PropertyReadOnly`, GTK 4
+`InvalidArgs`), the error for a `CurrentValue` write a node will not take (both toolkits answer
+success, and this bridge refuses with `Failed`), and the object-path prefix
+`/org/a11y/atspi/accessible`.
+
+**The rule this adds to §12.3.** A constant read off one machine cites its reading, as it already
+must. A fact the machines answer differently is not thereby unread: it is a **choice**, and the
+comment beside it must say that the readings disagree, name both, and say why that half was taken.
+The five sites now do, and `AtspiConstantsTest.thePlatformFactsWithoutOneReadingSayWhichHalfWasTakenAndWhy`
+reads the source and fails when one of them loses its citation or its reasoning, so the next edit
+cannot quietly drop either. The prefix gained a reading of its own the same day: GTK 3 through
+at-spi2-atk 2.60.6 exports at exactly that prefix (`readings/fedora-gtk3-interface-replies.txt`),
+while GTK 4 exports under `/org/gtk/application/<app>/a11y/<uuid>` and is read by the same clients —
+so the prefix is this bridge's namespace, chosen to match the ATK bridge, and not a protocol
+constant. A reference on this bus is an `(so)` pair a client follows without parsing.
+
+*(Amended 2026-09-15, the review of that change. **A sixth site**: the application object answering
+`org.a11y.atspi.Component` at all is a choice against both toolkits — GTK 3.24.52 through
+at-spi2-atk 2.60.6 answers `UnknownMethod` on `/org/a11y/atspi/accessible/root` and logs
+`impl_GetExtents: assertion 'ATK_IS_COMPONENT (user_data)' failed` doing it
+(`readings/fedora-gtk3-interface-replies.txt` lines 3-9 and 33-36), GTK 4.22.4 answers
+`UnknownMethod` because its application object serves no such interface
+(`readings/fedora-gtk4-interface-replies.txt` lines 25-28), and the ATK bridge disagrees with itself
+by answering that interface's `version` property `1` on the same root. This bridge answers the first
+frame's box, because of the two halves it is the one that cannot cost a client anything; whether any
+client is misled by a root that answers `Component` is a phase-5 reading and the condition for
+reversing it. It was argued in `AtspiTree.applicationComponent`'s javadoc and added to the test's
+list. **And the test asserts more of the rule than the word.** Its first cut required only a file
+under `readings/` and the word "choice", both of which one site already carried before its argument
+was written — so that entry could not have gone red for the defect it guards. A choice site must now
+also name **both servers** it read, and, where the disagreement is over a name rather than a value,
+the name it did **not** answer with. What a test cannot check is whether a reason is a good one; the
+javadoc says so in as many words, so nobody reads a green run as a claim about the reasoning.)*
+
+#### Amendment 2026-09-15 (the fix round) — the three macOS facts that were still without a reading
+
+The phase-3 critic's completeness pass listed three things this bridge uses that no reading named.
+Two of them turned out to be read already; one was not, and now is. The dump was **not** regenerated
+again: nothing in the fix round adds an AppKit symbol or a selector, and `AxConstantsTest` stays
+green against the 2026-09-15 dump.
+
+- **`NSNotFound` as `AXIndex`** (`AxGrid.NOT_FOUND`, `Long.MAX_VALUE`) had no reading, and it is not
+  an exported symbol for `dlsym` to find — it is `NSIntegerMax`, the constants rule's narrow case
+  again. It is read instead through the platform's own behaviour, which is stronger:
+  `scripts/a11y/macos/list-probe.swift` prints `NSNotFound` from the running Foundation
+  (`9223372036854775807`, `0x7fffffffffffffff`, equal to `NSIntegerMax` on a 64-bit `NSInteger`) and
+  hangs an `NSAccessibilityElement` answering `NSNotFound` for `accessibilityIndex` off a plain
+  view's children — how this bridge vends every element — which an out-of-process client reads back
+  as `AXIndex=9223372036854775807`, `objCType=q`. `readings/macos-list-probe.txt`.
+- **`-[NSObject isKindOfClass:]` `B24@0:8#16` and `-[NSNumber stringValue]` `@16@0:8`** were read on
+  the guest on 2026-09-15 with the other Foundation messages and are cited in `AxElementClass#isKindOf`'s
+  javadoc; the critic's list was out of date. Re-read at the fix round's HEAD and byte-identical:
+  `readings/macos-foundation-messages-probe-3.txt`. Not a defect.
+- The same run settled the two macOS entries the critic filed as **choices between readings**: a
+  native list's selection notification and `AXRowCountChanged` on a trigger that is not a
+  disclosure. Both are now read on a native `NSTableView` rather than inferred from the outline;
+  §2.2's macOS column and `AxNotifications` cite them.
+
+#### Amendment 2026-09-16 (fix round 3b) — the fourth macOS fact without a filed reading, and a citation ratchet for the prose
+
+The fix-round critic found one more, looser than the rule and not a value: the **fourth** fact this
+bridge answers off a guest with no file named behind it, after the three the amendment above settled,
+and the **fifth** entry of the ratchet's list below, whose other four already cited theirs.
+`AxBridge#windowElement`
+cited `-[NSView window]`'s encoding `@16@0:8` as "read on the guest with the other Foundation and AppKit
+messages, 2026-09-15" and named no file — leaving `AxBridge.java` the one file of this bridge with no
+`readings/` citation at all, on the very answer CRIT-2 had just made load-bearing (a relation naming
+another window's elided root is answered with that window's object). The reading existed all along:
+`readings/macos-foundation-messages-probe-2.txt` line 15, re-read byte-identical at the fix round's HEAD
+as `-3.txt` line 27. The javadoc now names both.
+
+**Why this needed a ratchet and not just an edit.** macOS's own guard, `AxConstantsTest`, holds every
+selector and symbol against the committed dump — mechanically stronger than anything the other two
+bridges have, and completely silent about prose, which is where a fact that lives in a guest's
+Objective-C runtime rather than in AppKit's exported symbols has to be recorded. Windows and Linux each
+landed a citation ratchet in the fix round that would have caught this; macOS had none.
+`AxConstantsTest.everyFactReadOffAGuestRatherThanOffTheDumpCitesItsReading` is that ratchet, shaped like
+Linux's: an explicit list of the sites answering from a guest rather than from the dump, each required to
+carry a `readings/` file in the comment above it, and `windowElement` additionally required to quote the
+encoding it read. A list and not a scan, because no assertion can tell a platform fact from a toolkit one
+by reading the source; what it can do is hold the sites a reviewer has already found, so none of them
+loses its citation again.
 
 ---
 

@@ -1,11 +1,14 @@
 package limn.demo.site;
 
 import limn.components.Label;
+import limn.components.Theme;
 import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
+import limn.i18n.I18nString;
 import limn.i18n.NumberFormats;
 import limn.scene.Change;
+import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
@@ -64,6 +67,7 @@ public final class TableExample {
                 .footer(rows -> rows.stream().mapToDouble(Release::size).sum());
 
         Table<Release> table = new Table<>(List.of(name, platform, downloads, price, size));
+        table.setAccessibleName(new I18nString("guide.table.releases", "Releases"));
         table.setRows(releases());
         table.setSort(downloads, SortOrder.DESCENDING);
         table.setSelectionMode(Table.SelectionMode.MULTI);
@@ -76,6 +80,18 @@ public final class TableExample {
         return table;
     }
     // #endregion
+
+    /**
+     * The example as a scene, for the check that holds the guides' own examples to the same
+     * accessibility invariants the gallery's entries are held to.
+     *
+     * @return the screen below, in a scene of its own
+     */
+    public static Scene scene() {
+        Scene scene = new Scene(screen());
+        scene.setBackground(Theme.current().background);
+        return scene;
+    }
 
     /** The example as a screen: the table filling the space, the status line under it. */
     public static Widget screen() {

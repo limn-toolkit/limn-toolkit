@@ -48,6 +48,7 @@ abstract class AccessibleTestBase {
         int selectionEnd;
         boolean active;
         Boolean selected;
+        limn.accessibility.CellFacet cell;
         Accessible.Action[] actions;
         float prefWidth = 40;
         float prefHeight = 20;
@@ -93,6 +94,9 @@ abstract class AccessibleTestBase {
             }
             if (selected != null) {
                 a.selectionItem(selected, 1, 1);
+            }
+            if (cell != null) {
+                a.cell(cell.row(), cell.column(), cell.sort());
             }
             if (active) {
                 a.state(Accessible.State.ACTIVE);

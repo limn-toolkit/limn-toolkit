@@ -111,7 +111,7 @@ export const en = {
 
   "home.accessibility.heading": "Read aloud, in those same languages",
   "home.accessibility.body":
-    "NVDA, VoiceOver and Orca read a Limn window through each platform's own accessibility API, with no platform code in your application. Every control is announced with its role, its name and its state, in the language the interface is displayed in. Naming a control is one call.",
+    "NVDA, VoiceOver and Orca read a Limn window through each platform's own accessibility API, with no platform code in your application. Every control describes itself with its role, its name and its state, in the language the interface is displayed in. Naming a control is one call.",
   "home.accessibility.link": "Read the accessibility guide",
   "home.accessibility.caption":
     "The form above, as a screen reader is told about it, captured during this build.",

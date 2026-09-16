@@ -8,6 +8,13 @@
   TableItem, row and column counts, cell by row and column, column headers). Two defects only a
   live client could find are recorded in §7.1. §10 says which phase each item lands in and what
   is deliberately left out of the first.
+  **Revised through the 2026-09-13 accessibility pass** (amendments dated 2026-09-14 and
+  2026-09-15 throughout): a row is its record and not its index (decision 23, §3); the header is a
+  keyboard stop that sorts (decision 36, §4 and §7); the sort direction is a fact on `CellFacet`
+  that all three bridges carry (§7); the Selection and Scroll patterns are served on Windows and
+  the macOS row is described as built (§7); semantics 2 and 3 read the same on all three bridges.
+  **No screen reader has yet spoken a table** (B9): the live run over the gallery's table entry is
+  phase 5's, and until it happens §7 is what the code does and not what a reader was heard to say.
 - **Date:** 2026-09-08
 - **Scope:** the toolkit's first table widget: what its data model is, how it virtualizes on two
   axes, how rows are selected and columns sorted and resized, what a cell is, how it is read by a
@@ -164,7 +171,11 @@ same rule, and whether that feels right is the live check decision 44 names.
 
 Three modes: `NONE`, `SINGLE` and `MULTI`. Selection is a set of **model** indices — not view
 positions, so a sort does not change what is selected — held in a `BitSet`, with the lead row the
-last one the user acted on. `MULTI` is the platform's own grammar: a click selects one, Shift-click
+last one the user acted on. (**Narrowed 2026-09-14, decision 23**, the amendment below: model
+indices are what the selection *is between two refreshes* and what `selectedRows()` answers; across
+a `refresh()` the selection, the lead, the focus cell and the range anchor are followed by
+**record**, because holding them by number moved them onto whatever records the new list put at
+those numbers.) `MULTI` is the platform's own grammar: a click selects one, Shift-click
 selects the range from the lead, the command modifier toggles one, and Ctrl+A or Cmd+A selects all.
 `onSelect` fires once per change with no argument; `selectedRows()` answers the set and
 `selectedRow()` the lead, and both are model indices.
@@ -174,10 +185,13 @@ the arrow keys move. It is what Left and Right mean in a table, and it is what a
 cursor stands on: a reader walks a table cell by cell, and a table whose keyboard moved only by row
 would leave the reader and the sighted user on different things. The focus cell's row is the lead row; moving it
 with an unshifted arrow moves the selection with it in `SINGLE` and `MULTI`, as every desktop
-table does, and does nothing to the selection in `NONE`.
+table does, and does nothing to the selection in `NONE`. (**Both sentences were reversed on
+2026-09-14**, by the two amendments below: the cursor row and the lead are separate fields — the
+cursor is the lead in `SINGLE` and may differ from it in `MULTI` after a toggle or a Shift range,
+and a sort carries both with their records instead of leaving them on a view position.)
 
 Enter, and a double click on a row, fire `onActivate` with the lead row, the "open this" gesture
-`ListView` has. Cell selection — a rectangle of cells, as a spreadsheet has — is not in this
+`ListView` has. (**Reversed 2026-09-14, decision 32**, below: they open the **cursor** row.) Cell selection — a rectangle of cells, as a spreadsheet has — is not in this
 record; §10.
 
 **Amended 2026-09-14 (decision 32 of the 2026-09-13 pass).** Enter and a double click open the
@@ -196,7 +210,9 @@ go with their records through the permutation, in `applySort`, and the move is a
 sort the focus row is revealed with the least scroll that shows it — at the foot of the viewport
 when it moved down, at the top when it moved up, not at all when it stayed in view — as every
 other write that moves the focus cell does (decision 40); a row below the realized run is now
-placed as the last row in view by every reveal, where before it was placed first. Pinned by
+placed as the last row in view by every reveal, where before it was placed first (**"every reveal"
+narrowed 2026-09-15**, the amendment below: the Page keys move the view a page with the cursor
+instead of revealing it, and the least-scroll reveal is the sort's, End's and code's). Pinned by
 `TableTest.aSortCarriesTheFocusCellAndTheRangeAnchorWithTheirRecords`,
 `TableTest.aSortRevealsTheFocusRowWithTheLeastScroll` and
 `TableAccessibilityTest.aSortKeepsTheCursorOnTheRecordItWasOn`. The renders the owner reviews
@@ -457,7 +473,9 @@ Save.
   built it) and open a `Dialog`, or a form beside or below the table, that shows the
   whole record as a form — every field labelled, validated as forms are (`TextField.Validation`),
   saved on an explicit action. On save, change the application's list and call `refresh()`; the
-  selection is by model row and stays where it was.
+  selection stays on the records it held — by record across a `refresh()` since decision 23 of
+  2026-09-14 (§3's amendment of that date), not by model row as this sentence first said, which is
+  what makes it survive an insert or a reorder in the saved list and not only an in-place edit.
 - **Master and detail.** Keep the form open in a `SplitPane` beside the table, bound to the lead
   row through `onSelect`, so the user moves through records with the arrow keys and edits each in
   a form that never moves. This is the shape a settings screen or an admin screen usually wants.
@@ -496,7 +514,7 @@ header is shown — with `setShowHeader(false)` and a footer, the footer group i
 child, and every bridge handed out footer cells as column headers. The rule is: the header cell
 of column *c* is the child with `CellFacet(-1, c)` of one of the table's direct `GROUP` children,
 and a footer cell, row `-2`, never; a headerless table has no header group rather than an empty
-one. The three bridges' lookups move to that rule in phase 3; the model already publishes it).
+one. The three bridges' lookups moved to that rule in phase 3 and all three now read it (ADR 039 §2.1, §2.2, §2.3; closed 2026-09-15).
 Carrying its identifier would make a facet a bridge reads on its own thread depend on a resolution
 that happens after the walk, which is what relations are for and cells are too many to be. A `ROW`
 carries `SelectionItemFacet` exactly as a list row does, with the view position as position in set
@@ -552,12 +570,38 @@ ADR 039 §1.10's amendment lands on the column title and one `ACTIVE_DESCENDANT_
 Tab back to the rows returns it to the focus cell. A header cell of a sortable column publishes
 `PRESS`, which sorts as a click does; the header of the column the rows are ordered on carries
 the direction as its **description** (`TableStrings.SORTED_ASCENDING` / `SORTED_DESCENDING`, the
-`table` string domain, 21 locales), and the others describe nothing. **Left for phase 3:** a
-sort-direction facet or state once the three platforms' carriers of one have been read on the
-guests (UIA has none native to a header item beyond a property a provider may expose; AT-SPI an
-object attribute; AX `AXSortDirection` on a column) — until then the description is the carrier,
-and a bridge maps nothing special. Pinned by
+`table` string domain, 21 locales), and the others describe nothing. This record left a
+sort-direction facet or state to phase 3, until the three platforms' carriers had been read on the
+guests; **that is closed** — the readings came back, `CellFacet` gained the direction, and all three
+bridges map it (the amendment directly below, and ADR 039 §2.1/§2.2/§2.3). The description stays
+beside the enumeration, and is not merely the carrier of last resort: it is what Windows publishes.
+Pinned by
 `TableAccessibilityTest.theHeadersColumnCursorIsTheCursorWhileTheHeaderHoldsTheKeyboard`.
+
+**Amended 2026-09-15 (decision 36's carrier, settled after phase 3): the facet, and the description
+beside it.** The item left for phase 3 above is closed, and the three readings came back disagreeing
+about the *shape* rather than the fact: Windows wants a phrase (`ItemStatus`, File Explorer's
+convention, and `HelpText` too because NVDA 2024.4.2 has no `ItemStatus` handler and speaks a
+description), Linux Orca's `sort` object attribute, macOS `AXSortDirection` — an enumeration on two
+platforms and words on the third. So the model carries both, and neither replaces the other.
+`CellFacet` gains `Sort` (`NONE`, `ASCENDING`, `DESCENDING`; ADR 039 §1.2's amendment of this date),
+declared through `Accessibility#cell(row, column, sort)`, and `Table` sets it on the header cell of
+the column the rows are ordered on; every other cell, header or not, carries `NONE`. The description
+stays exactly as it was. That is the point of keeping it: a bridge reads the snapshot on a
+platform's own thread where no locale scope is open, so a phrase has to be resolved at publish, and
+an enumeration is what the other two want rather than a translated sentence they would parse back.
+No new string — `SORTED_ASCENDING` and `SORTED_DESCENDING` already ship in 21 locales — and Orca's
+fourth value `other` is left out, because nothing in this widget sorts that way. The three bridges'
+mappings are each their own lane's. *(Amended 2026-09-15, the fix round's integration: they were not,
+in the end — this carrier landed on the model's branch while the three bridge lanes were running, so
+each logged its mapping as owed rather than compile against a type its branch did not have, and all
+three landed together at the merge. Windows answers `ItemStatus` with the description this record
+keeps, beside the `HelpText` that already answered it, and a busy sorted header answers the busy word
+alone, which is marked in the source as a choice; macOS answers `AXSortDirection` 0/1/2 on a header
+cell; Linux answers the `sort` object attribute on the sorted header and publishes no key elsewhere.
+ADR 039 §2.1, §2.2 and §2.3 carry each, with the readings.)* Pinned by
+`TableAccessibilityTest.aSortedHeaderCarriesItsDirectionOnItsCellFacetAndKeepsThePhraseInItsDescription`
+and, for the differ, `AccessibleLiveMutationTest.aSortDirectionThatIsTheOnlyChangePublishesATree`.
 
 **Per platform**, what the facets become:
 
@@ -574,6 +618,92 @@ the Selection or the Scroll pattern, so no container — the table included — 
 null provider. A Windows client reads the table's selection through the rows' SelectionItem
 pattern and its scroll not at all. A shared bridge defect the bridges lanes own, not this
 record's promise fulfilled; the row stands as the intent.
+**Amended 2026-09-15 (phase 3, Windows; W1).** Both are now served: `ISelectionProvider` since
+b5d5f59 and `IScrollProvider` since the Windows lane's scroll commit, and `UiaPatterns.supports`
+claims no pattern `interfaceFor` cannot serve (`UiaPatternsTest.everyPatternANodeCanClaimIsOneThisBridgeServes`).
+The table's scroll reads its scroll facet and scrolls through its own scroll bar's published verbs
+(ADR 039 §2.1, amended the same day).
+
+**Amended 2026-09-15 (phase 3, the macOS row; MACOS-NEW-4, MACOS-NEW-9, MACOS-NEW-10).** The macOS
+bridge's lookups follow the header-group rule and ADR 039's semantics 2: a cell is found by its own
+`CellFacet` under the table's rows (the widget cell under its row included), a row's `AXIndex` is its
+cells' row, and the header of column *c* is matched by `CellFacet(-1, c)` among the table's direct
+groups, so a headerless table answers no `accessibilityHeader`. The row's "header cell" column is
+still what the bridge vends as written: `COLUMN_HEADER` is `NSAccessibilityButtonRole` with the
+sort-button subrole, which is what a native `NSTableView` read on the guest vends for its header
+cells (2026-09-15, `scripts/a11y/macos/table-probe.swift`), not `NSAccessibilityCellRole`.
+The row's `accessibilityColumns` is now true (M4, decision 34, the same day): one `AXColumn` element per
+shown column, as the native table vends, answering its index, its header cell and its cells; ADR 039
+§2.2's note of the same date says how they are kept.
+The macOS row as built, the same day (MACOS-NEW-7): table node `NSAccessibilityTableRole` with
+`accessibilityRows`, `accessibilityVisibleRows`, `accessibilitySelectedRows`, `accessibilityColumns` and
+`accessibilityVisibleColumns` (column elements), `accessibilityHeader` (the header group, none when the
+header is hidden), `accessibilityRowCount` and `accessibilityColumnCount`, and the parameterized cell
+lookup; cell node `NSAccessibilityCellRole` with the two index ranges and its column header; header cell
+`NSAccessibilityButtonRole` / `NSAccessibilitySortButtonSubrole` under `accessibilityHeader`. **Sort
+direction, read and not served:** a native header button answers `AXSortDirection` as
+`AXUnknownSortDirection`, `AXAscendingSortDirection` or `AXDescendingSortDirection`, and an element whose
+`accessibilitySortDirection` (`q16@0:8`) answers 1 or 2 reads ascending or descending (read on the macOS
+26.6.2 guest, 2026-09-15, `table-probe.swift`); the bridge maps nothing yet, because the direction is
+carried only as the sorted header's localized description and a bridge cannot read a direction out of a
+translation. The facet or state this record left for phase 3 is the model's to add.
+
+**Amended 2026-09-15 (phase-3 fix round; semantics 2 and 3, the minor splits closed on Windows).**
+The three bridges' cell lookups agreed on the rule and disagreed on two details, which the phase-3
+critic listed and the orchestrator settled to one shape. On Windows: **the climb from a cell to its
+table starts at the cell's parent**, where it started at the cell itself, so a table nested inside a
+cell of another was its own containing grid and the outer table's `GetItem` could not find it at all
+(`UiaPatternProviders.cellAt` rejects a cell whose table is not the one asked); Linux's `belongsTo`
+and macOS's `tableAtOrAbove` started at the parent already. And **a cell's column header is answered
+for data cells and footer cells and never for the header cell itself**, which answered itself, so a
+client walking `GetColumnHeaderItems` from a header walked back to where it started; Linux excluded
+the header already, macOS answers data cells only, and the footer half is this bridge's, where the
+model's footer row summarises the column above it. The table-level list was already the union over
+every direct `GROUP` child carrying `CellFacet(-1, c)`, which is the settled rule. Neither detail
+changes anything for today's `Table`, which nests no table in a cell; both are pinned, by
+`UiaPatternProvidersTest.aNestedTablesOwnCellBelongsToTheTableAboveItAndNotToItself` and
+`aCellsHeaderItemsAreNoneForTheRowAndTheHeaderOfItsColumnAndNoneForAHeader`.
+
+**Amended 2026-09-15 (semantics 2 and 3, the three splits closed after phase 3).** The paragraph
+above describes the macOS lookups as phase 3 built them, and the three bridges read three of their
+corners differently; the orchestrator settled one reading and this bridge now holds it. A **row's
+`AXIndex`** is its cells' row only where that cell's nearest table is the table the row is a row of,
+so a row that carries a table facet of its own — a nested table — has no index rather than its
+nested cells' row numbers (`cellAt` already applied that rule, and `index` did not). A **table's
+`accessibilityColumnHeaderUIElements`** is the union over every direct group child that carries a
+`CellFacet(-1, c)`, not the first such group alone; `accessibilityHeader` still names one group, the
+first, since AppKit asks there for one element. And a **cell's own column header** is answered for
+data cells and footer cells and never for a header cell, which would answer itself; a footer cell —
+the summary a column pins under its rows — was told nothing about its column here. None of the three
+changes what today's `Table` publishes, which is one header group, no nested tables, and a footer
+whose cells now say which column they summarise. Pinned by `AxGridTest`'s
+`aRowWhoseCellsBelongToANestedTableHasNoIndexOfItsOwn`,
+`aTablesColumnHeadersAreTheUnionOverEveryGroupThatHoldsOne` and the restated
+`aDataCellsColumnHeaderIsTheHeaderGroupsChildAtItsColumnAndOtherRowsHaveNone`.
+
+**Amended 2026-09-15 (the fix round's integration): `AXSortDirection` is served, and the paragraph
+above's "the bridge maps nothing yet" is closed.** The model's carrier landed in the same round
+(`CellFacet.Sort`, the amendment of this date above), but on the model branch while the three bridge
+lanes were running, so each lane logged its own mapping as owed rather than compiling against a type
+its branch did not have; the mappings are the integration's, and each was written out whole in its
+lane's log against a reading that lane had already taken. On macOS: `accessibilitySortDirection`
+(`q16@0:8`, `@protocol NSAccessibility` required, answered by `NSAccessibilityElement` — the
+committed dump, lines 207, 303 and 399) answers `NONE` → 0, `ASCENDING` → 1, `DESCENDING` → 2, the
+`NSAccessibilitySortDirection` numbers the dump reads off the SDK (lines 138-140) and records in the
+same breath as exported by no symbol of this AppKit, so they are literals under ADR 039 §12.3's
+narrow exception. `AxGate` offers the attribute on a **header cell** and on nothing else, which is
+the probe's own shape rather than a rule invented here: each of the native table's three sort buttons
+listed `AXSortDirection` in its `AXAttributeNames`, and the table, its columns and its rows each
+answered `AXError(-25205)` for it (readings/macos-table-probe.txt lines 221-291). So a header of an
+unsorted column answers `AXUnknownSortDirection` rather than refusing, as two of the probe's three
+headers did, and `AxGate.NOT_ON_A_COLUMN` gains the selector so a column element cannot answer
+`NSAccessibilityElement`'s stored 0 where the native column answers an error. The dump script's
+`installedByTheBridge` gains the selector; the committed dump is **not** regenerated, because the
+encoding was already in its table. Pinned by
+`AxGridTest.aSortedColumnsHeaderAnswersItsDirectionAndAnUnsortedOneAnswersUnknown` and
+`AxGateTest.aHeaderACellLookupAndARangeAreOfferedOnlyWhereTheyHaveAnAnswer`. What a live VoiceOver
+speaks for it is phase 5's, and `AxNotifications` still has no row saying "the sort changed" — the
+model announces it as a change on the header — which is worth one look in the same run.
 
 ### 7.1 What the live clients found
 

@@ -34,6 +34,29 @@ final class Atspi {
     static final String I_ACTION      = "org.a11y.atspi.Action";
     static final String I_TABLE       = "org.a11y.atspi.Table";
     static final String I_TABLE_CELL  = "org.a11y.atspi.TableCell";
+    // Named as the interface XML the Fedora KDE 44 guest's ATK bridge compiles in declares it
+    // (at-spi2-atk 2.60.6-1.fc44, readings/fedora-dbus-<Interface>.xml, extracted by
+    // scripts/a11y/linux/extract-atspi-introspection.sh on 2026-09-13, the guest's clock then
+    // reading 2026-09-10).
+    static final String I_SELECTION   = "org.a11y.atspi.Selection";
+    static final String I_VALUE       = "org.a11y.atspi.Value";
+    static final String I_TEXT        = "org.a11y.atspi.Text";
+    static final String I_EDITABLE_TEXT = "org.a11y.atspi.EditableText";
+    // The node paths' common prefix, whose Introspect lists the application root and every node.
+    //
+    // Read, rather than assumed, 2026-09-15 on the Fedora KDE 44 guest: GTK 3.24.52 through
+    // at-spi2-atk 2.60.6 exports its application object at "/org/a11y/atspi/accessible/root" and
+    // each node at "/org/a11y/atspi/accessible/<n>" (readings/fedora-gtk3-interface-replies.txt
+    // lines 21-24, scripts/a11y/linux/read-gtk-interface-replies.py 3). That is the prefix this
+    // bridge answers on and the one every live probe here has been walked at.
+    //
+    // It is a namespace and not a protocol constant, and the same day's reading says so: GTK 4.22.4
+    // on that desktop exports its nodes under "/org/gtk/application/<app>/a11y/<uuid>"
+    // (readings/fedora-gtk4-interface-replies.txt) and is read by the same clients, because every
+    // reference on this bus is an (so) pair of bus name and object path that a client follows
+    // without parsing. So the choice costs nothing and buys the ATK bridge's shape, which is what a
+    // person debugging with busctl expects to see.
+    static final String PATH_ACCESSIBLE = "/org/a11y/atspi/accessible";
     static final String I_CACHE       = "org.a11y.atspi.Cache";
     static final String I_SOCKET      = "org.a11y.atspi.Socket";
     static final String I_PROPS       = "org.freedesktop.DBus.Properties";
@@ -68,8 +91,58 @@ final class Atspi {
     static final int RELATION_POPUP_FOR      = 15;   // ATSPI_RELATION_POPUP_FOR
     static final int RELATION_DESCRIBED_BY   = 18;   // ATSPI_RELATION_DESCRIBED_BY
 
+    // ---- AtspiLive ------------------------------------------------------------------------------
+    // Read 2026-09-13 off the Fedora KDE 44 guest's typelib (libatspi 2.60.6, Atspi.Live, every
+    // enumerator) by scripts/a11y/linux/dump-atspi-constants.py --all
+    // (readings/fedora-atspi-constants-all.txt). An Announcement's detail1 is one of these: GTK
+    // 4.22.4 sends POLITE for a low or medium priority and ASSERTIVE for a high one, and Orca 50.2's
+    // _get_priority compares detail1 with them (readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-
+    // event-shapes.txt, readings/fedora-orca-event-consumers.txt).
+    static final int LIVE_POLITE    = 1;   // Atspi.Live.POLITE
+    static final int LIVE_ASSERTIVE = 2;   // Atspi.Live.ASSERTIVE
+
+    // ---- AtspiTextGranularity, AtspiTextBoundaryType ------------------------------------------
+    // Read 2026-09-13 off the Fedora KDE 44 guest's typelib (libatspi 2.60.6, every enumerator) by
+    // scripts/a11y/linux/dump-atspi-constants.py --all (readings/fedora-atspi-constants-all.txt).
+    // GetStringAtOffset takes a granularity; GetTextAtOffset, -Before- and -After- a boundary type.
+    static final int TEXT_GRANULARITY_CHAR = 0;            // Atspi.TextGranularity.CHAR
+    static final int TEXT_GRANULARITY_WORD = 1;            // Atspi.TextGranularity.WORD
+    static final int TEXT_GRANULARITY_SENTENCE = 2;        // Atspi.TextGranularity.SENTENCE
+    static final int TEXT_GRANULARITY_LINE = 3;            // Atspi.TextGranularity.LINE
+    static final int TEXT_GRANULARITY_PARAGRAPH = 4;       // Atspi.TextGranularity.PARAGRAPH
+    static final int TEXT_BOUNDARY_CHAR = 0;               // Atspi.TextBoundaryType.CHAR
+    static final int TEXT_BOUNDARY_WORD_START = 1;         // Atspi.TextBoundaryType.WORD_START
+    static final int TEXT_BOUNDARY_WORD_END = 2;           // Atspi.TextBoundaryType.WORD_END
+    static final int TEXT_BOUNDARY_SENTENCE_START = 3;     // Atspi.TextBoundaryType.SENTENCE_START
+    static final int TEXT_BOUNDARY_SENTENCE_END = 4;       // Atspi.TextBoundaryType.SENTENCE_END
+    static final int TEXT_BOUNDARY_LINE_START = 5;         // Atspi.TextBoundaryType.LINE_START
+    static final int TEXT_BOUNDARY_LINE_END = 6;           // Atspi.TextBoundaryType.LINE_END
+
+    // ---- the "version" property --------------------------------------------------------------
+    // What GTK 3.24.52's ATK bridge (at-spi2-atk 2.60.6-1.fc44) answers to Properties.Get(<interface>,
+    // "version") on every interface it serves: a "u" 1, read 2026-09-15 on the Fedora KDE 44 guest by
+    // scripts/a11y/linux/read-gtk-interface-replies.py 3 (readings/fedora-gtk3-interface-replies.txt,
+    // section 2); at-spi2-core 2.60.6's atspi-constants.h defines every ATSPI_*_VERSION as 1. Answered
+    // on the interfaces whose XML below, read off that same bridge, declares the property.
+    //
+    // A CHOICE between two readings that disagree, and the reasoning (the phase-3 critic asked for
+    // it in writing): GTK 4.22.4 answers InvalidArgs to the same Get -- "no property version" on
+    // Accessible, and "no interface" for the other eight, which its application object does not
+    // serve at all (readings/fedora-gtk4-interface-replies.txt, section 2). The ATK bridge's answer
+    // is taken, on two grounds. The property is declared in the interface XML THIS bridge
+    // implements, extracted from that same libatk-bridge-2.0.so and the source of every interface
+    // name above, and a server that declares a property and then refuses it contradicts its own
+    // introspection. And of the two halves it is the one that cannot cost a client anything: one
+    // that never asks is unaffected, and one that asks gets the number at-spi2-core 2.60.6's own
+    // atspi-constants.h defines, rather than an error to handle. It is a completeness answer; no
+    // behaviour of this bridge turns on it.
+    static final int INTERFACE_VERSION = 1;
+
     // ---- AtspiCoordType / AtspiComponentLayer (typelib) -------------------------------------
     static final int COORD_SCREEN = 0, COORD_WINDOW = 1;
+    // Read 2026-09-13 off the Fedora KDE 44 guest's typelib (libatspi 2.60.6) by
+    // dump-atspi-constants.py --all (readings/fedora-atspi-constants-all.txt): Atspi.CoordType.PARENT.
+    static final int COORD_PARENT = 2;
     static final int LAYER_WIDGET = 3, LAYER_WINDOW = 7;
 
     static long state(int... bits) {
@@ -158,6 +231,305 @@ final class Atspi {
         + "<signal name=\"AddAccessible\"><arg name=\"nodeAdded\" type=\"((so)(so)(so)iiassusau)\"/></signal>"
         + "<signal name=\"RemoveAccessible\"><arg name=\"nodeRemoved\" type=\"(so)\"/></signal>"
         + "</interface>";
+
+    // =========================================================================================
+    // Introspection XML the Fedora KDE 44 guest's ATK bridge compiles in for the interfaces served
+    // since 2026-09-15, verbatim, whitespace and Qt annotations included (at-spi2-atk
+    // 2.60.6-1.fc44, libatk-bridge sha256 34f853bd…c95d; readings/fedora-dbus-<Interface>.xml, read
+    // by scripts/a11y/linux/extract-atspi-introspection.sh: Selection, Value, Text and EditableText
+    // on 2026-09-13, Table and TableCell on 2026-09-15). The blocks above were read off Ubuntu
+    // 24.04's at-spi2-core 2.52.0 and are left as they were read.
+    // =========================================================================================
+
+    static final String XML_SELECTION =
+        "<interface name=\"org.a11y.atspi.Selection\">"
+        + "        <property name=\"version\" type=\"u\" access=\"read\" />"
+        + "        <property name=\"NSelectedChildren\" type=\"i\" access=\"read\" />"
+        + "        <method name=\"GetSelectedChild\">"
+        + "      <arg direction=\"in\" name=\"selectedChildIndex\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"(so)\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiObjectReference\" />"
+        + "    </method>        <method name=\"SelectChild\">"
+        + "      <arg direction=\"in\" name=\"childIndex\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"DeselectSelectedChild\">"
+        + "      <arg direction=\"in\" name=\"selectedChildIndex\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"IsChildSelected\">"
+        + "      <arg direction=\"in\" name=\"childIndex\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"SelectAll\">      <arg direction=\"out\" type=\"b\" />"
+        + "    </method>        <method name=\"ClearSelection\">"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"DeselectChild\">"
+        + "      <arg direction=\"in\" name=\"childIndex\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>  </interface>";
+
+    static final String XML_VALUE =
+        "<interface name=\"org.a11y.atspi.Value\">"
+        + "        <property name=\"version\" type=\"u\" access=\"read\" />"
+        + "        <property name=\"MinimumValue\" type=\"d\" access=\"read\" />"
+        + "        <property name=\"MaximumValue\" type=\"d\" access=\"read\" />"
+        + "        <property name=\"MinimumIncrement\" type=\"d\" access=\"read\" />"
+        + "        <property name=\"CurrentValue\" type=\"d\" access=\"readwrite\" />"
+        + "        <property name=\"Text\" type=\"s\" access=\"read\" />  </interface>";
+
+    static final String XML_TEXT =
+        "<interface name=\"org.a11y.atspi.Text\">"
+        + "        <property name=\"version\" type=\"u\" access=\"read\" />"
+        + "        <property name=\"CharacterCount\" type=\"i\" access=\"read\" />"
+        + "        <property name=\"CaretOffset\" type=\"i\" access=\"read\" />"
+        + "        <method name=\"GetStringAtOffset\">"
+        + "      <arg direction=\"in\" name=\"offset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"granularity\" type=\"u\" />"
+        + "      <arg direction=\"out\" type=\"s\" />"
+        + "      <arg direction=\"out\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"endOffset\" type=\"i\" />    </method>"
+        + "        <method name=\"GetText\">"
+        + "      <arg direction=\"in\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"endOffset\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"s\" />    </method>"
+        + "        <method name=\"SetCaretOffset\">"
+        + "      <arg direction=\"in\" name=\"offset\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"GetTextBeforeOffset\">"
+        + "      <arg direction=\"in\" name=\"offset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"type\" type=\"u\" />"
+        + "      <arg direction=\"out\" type=\"s\" />"
+        + "      <arg direction=\"out\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"endOffset\" type=\"i\" />    </method>"
+        + "        <method name=\"GetTextAtOffset\">"
+        + "      <arg direction=\"in\" name=\"offset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"type\" type=\"u\" />"
+        + "      <arg direction=\"out\" type=\"s\" />"
+        + "      <arg direction=\"out\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"endOffset\" type=\"i\" />    </method>"
+        + "        <method name=\"GetTextAfterOffset\">"
+        + "      <arg direction=\"in\" name=\"offset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"type\" type=\"u\" />"
+        + "      <arg direction=\"out\" type=\"s\" />"
+        + "      <arg direction=\"out\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"endOffset\" type=\"i\" />    </method>"
+        + "        <method name=\"GetCharacterAtOffset\">"
+        + "      <arg direction=\"in\" name=\"offset\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"i\" />    </method>"
+        + "        <method name=\"GetAttributeValue\">"
+        + "      <arg direction=\"in\" name=\"offset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"attributeName\" type=\"s\" />"
+        + "      <arg direction=\"out\" type=\"s\" />    </method>"
+        + "        <method name=\"GetAttributes\">"
+        + "      <arg direction=\"in\" name=\"offset\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"a{ss}\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiAttributeSet\" />"
+        + "      <arg direction=\"out\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"endOffset\" type=\"i\" />    </method>"
+        + "        <method name=\"GetDefaultAttributes\">"
+        + "      <arg direction=\"out\" type=\"a{ss}\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiAttributeSet\" />"
+        + "    </method>        <method name=\"GetCharacterExtents\">"
+        + "      <arg direction=\"in\" name=\"offset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"coordType\" type=\"u\" />"
+        + "      <arg direction=\"out\" name=\"x\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"y\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"width\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"height\" type=\"i\" />    </method>"
+        + "        <method name=\"GetOffsetAtPoint\">"
+        + "      <arg direction=\"in\" name=\"x\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"y\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"coordType\" type=\"u\" />"
+        + "      <arg direction=\"out\" type=\"i\" />    </method>"
+        + "        <method name=\"GetNSelections\">      <arg direction=\"out\" type=\"i\" />"
+        + "    </method>        <method name=\"GetSelection\">"
+        + "      <arg direction=\"in\" name=\"selectionNum\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"endOffset\" type=\"i\" />    </method>"
+        + "        <method name=\"AddSelection\">"
+        + "      <arg direction=\"in\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"endOffset\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"RemoveSelection\">"
+        + "      <arg direction=\"in\" name=\"selectionNum\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"SetSelection\">"
+        + "      <arg direction=\"in\" name=\"selectionNum\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"endOffset\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"GetRangeExtents\">"
+        + "      <arg direction=\"in\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"endOffset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"coordType\" type=\"u\" />"
+        + "      <arg direction=\"out\" name=\"x\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"y\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"width\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"height\" type=\"i\" />    </method>"
+        + "        <method name=\"GetBoundedRanges\">"
+        + "      <arg direction=\"in\" name=\"x\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"y\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"width\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"height\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"coordType\" type=\"u\" />"
+        + "      <arg direction=\"in\" name=\"xClipType\" type=\"u\" />"
+        + "      <arg direction=\"in\" name=\"yClipType\" type=\"u\" />"
+        + "      <arg direction=\"out\" type=\"a(iisv)\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiRangeList\" />"
+        + "    </method>        <method name=\"GetAttributeRun\">"
+        + "      <arg direction=\"in\" name=\"offset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"includeDefaults\" type=\"b\" />"
+        + "      <arg direction=\"out\" type=\"a{ss}\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiAttributeSet\" />"
+        + "      <arg direction=\"out\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"endOffset\" type=\"i\" />    </method>"
+        + "        <method name=\"GetDefaultAttributeSet\">"
+        + "      <arg direction=\"out\" type=\"a{ss}\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiAttributeSet\" />"
+        + "    </method>        <method name=\"ScrollSubstringTo\">"
+        + "      <arg direction=\"in\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"endOffset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"type\" type=\"u\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"ScrollSubstringToPoint\">"
+        + "      <arg direction=\"in\" name=\"startOffset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"endOffset\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"coordType\" type=\"u\" />"
+        + "      <arg direction=\"in\" name=\"x\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"y\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>  </interface>";
+
+    static final String XML_EDITABLE_TEXT =
+        "<interface name=\"org.a11y.atspi.EditableText\">"
+        + "        <property name=\"version\" type=\"u\" access=\"read\" />"
+        + "        <method name=\"SetTextContents\">"
+        + "      <arg direction=\"in\" name=\"newContents\" type=\"s\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"InsertText\">"
+        + "      <arg direction=\"in\" name=\"position\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"text\" type=\"s\" />"
+        + "      <arg direction=\"in\" name=\"length\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"CopyText\">"
+        + "      <arg direction=\"in\" name=\"startPos\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"endPos\" type=\"i\" />    </method>"
+        + "        <method name=\"CutText\">"
+        + "      <arg direction=\"in\" name=\"startPos\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"endPos\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"DeleteText\">"
+        + "      <arg direction=\"in\" name=\"startPos\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"endPos\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"PasteText\">"
+        + "      <arg direction=\"in\" name=\"position\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>  </interface>";
+
+    static final String XML_TABLE =
+        "<interface name=\"org.a11y.atspi.Table\">"
+        + "        <property name=\"version\" type=\"u\" access=\"read\" />"
+        + "        <property name=\"NRows\" type=\"i\" access=\"read\" />"
+        + "        <property name=\"NColumns\" type=\"i\" access=\"read\" />"
+        + "        <property name=\"Caption\" type=\"(so)\" access=\"read\">"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName\" value=\"QSpiObjectReference\" />"
+        + "    </property>        <property name=\"Summary\" type=\"(so)\" access=\"read\">"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName\" value=\"QSpiObjectReference\" />"
+        + "    </property>        <property name=\"NSelectedRows\" type=\"i\" access=\"read\" />"
+        + "        <property name=\"NSelectedColumns\" type=\"i\" access=\"read\" />"
+        + "        <method name=\"GetAccessibleAt\">"
+        + "      <arg direction=\"in\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"column\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"(so)\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiObjectReference\" />"
+        + "    </method>        <method name=\"GetIndexAt\">"
+        + "      <arg direction=\"in\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"column\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"i\" />    </method>"
+        + "        <method name=\"GetRowAtIndex\">"
+        + "      <arg direction=\"in\" name=\"index\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"i\" />    </method>"
+        + "        <method name=\"GetColumnAtIndex\">"
+        + "      <arg direction=\"in\" name=\"index\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"i\" />    </method>"
+        + "        <method name=\"GetRowDescription\">"
+        + "      <arg direction=\"in\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"s\" />    </method>"
+        + "        <method name=\"GetColumnDescription\">"
+        + "      <arg direction=\"in\" name=\"column\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"s\" />    </method>"
+        + "        <method name=\"GetRowExtentAt\">"
+        + "      <arg direction=\"in\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"column\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"i\" />    </method>"
+        + "        <method name=\"GetColumnExtentAt\">"
+        + "      <arg direction=\"in\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"column\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"i\" />    </method>"
+        + "        <method name=\"GetRowHeader\">"
+        + "      <arg direction=\"in\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"(so)\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiObjectReference\" />"
+        + "    </method>        <method name=\"GetColumnHeader\">"
+        + "      <arg direction=\"in\" name=\"column\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"(so)\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiObjectReference\" />"
+        + "    </method>        <method name=\"GetSelectedRows\">"
+        + "      <arg direction=\"out\" type=\"ai\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiIntList\" />"
+        + "    </method>        <method name=\"GetSelectedColumns\">"
+        + "      <arg direction=\"out\" type=\"ai\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiIntList\" />"
+        + "    </method>        <method name=\"IsRowSelected\">"
+        + "      <arg direction=\"in\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"IsColumnSelected\">"
+        + "      <arg direction=\"in\" name=\"column\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"IsSelected\">"
+        + "      <arg direction=\"in\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"in\" name=\"column\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"AddRowSelection\">"
+        + "      <arg direction=\"in\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"AddColumnSelection\">"
+        + "      <arg direction=\"in\" name=\"column\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"RemoveRowSelection\">"
+        + "      <arg direction=\"in\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"RemoveColumnSelection\">"
+        + "      <arg direction=\"in\" name=\"column\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />    </method>"
+        + "        <method name=\"GetRowColumnExtentsAtIndex\">"
+        + "      <arg direction=\"in\" name=\"index\" type=\"i\" />"
+        + "      <arg direction=\"out\" type=\"b\" />"
+        + "      <arg direction=\"out\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"col\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"row_extents\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"col_extents\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"is_selected\" type=\"b\" />    </method>"
+        + "  </interface>";
+
+    static final String XML_TABLE_CELL =
+        "<interface name=\"org.a11y.atspi.TableCell\">"
+        + "        <property name=\"version\" type=\"u\" access=\"read\" />"
+        + "        <property access=\"read\" name=\"ColumnSpan\" type=\"i\" />"
+        + "        <property access=\"read\" name=\"Position\" type=\"(ii)\">"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName\" value=\"QPoint\" />"
+        + "    </property>        <property access=\"read\" name=\"RowSpan\" type=\"i\" />"
+        + "        <property access=\"read\" name=\"Table\" type=\"(so)\">"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName\" value=\"QSpiObjectReference\" />"
+        + "    </property>        <method name=\"GetRowColumnSpan\">"
+        + "      <arg direction=\"out\" type=\"b\" />"
+        + "      <arg direction=\"out\" name=\"row\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"col\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"row_extents\" type=\"i\" />"
+        + "      <arg direction=\"out\" name=\"col_extents\" type=\"i\" />    </method>"
+        + "        <method name=\"GetColumnHeaderCells\">"
+        + "      <arg direction=\"out\" type=\"a(so)\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiObjectReferenceArray\" />"
+        + "    </method>        <method name=\"GetRowHeaderCells\">"
+        + "      <arg direction=\"out\" type=\"a(so)\" />"
+        + "      <annotation name=\"org.qtproject.QtDBus.QtTypeName.Out0\" value=\"QSpiObjectReferenceArray\" />"
+        + "    </method>  </interface>";
 
     /** The cache item struct, from libatk-bridge-2.0.so.0 / libatspi.so.0. */
     static final String CACHE_ITEM = "((so)(so)(so)iiassusau)";

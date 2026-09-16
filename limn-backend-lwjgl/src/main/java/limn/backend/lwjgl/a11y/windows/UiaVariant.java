@@ -49,8 +49,10 @@ final class UiaVariant {
      * <p>From {@code wtypes.h}, which needs an SDK the guest does not carry. It is the oldest trap
      * in this API — a {@code VARIANT_BOOL} is a 16-bit integer where false is zero and true is
      * {@code -1}, so writing {@code 1} produces a value that is neither, and a caller comparing
-     * against {@code VARIANT_TRUE} reads it as false. Every boolean property this bridge answers
-     * goes through here for that reason.
+     * against {@code VARIANT_TRUE} reads it as false. Every boolean <em>property</em> this bridge
+     * answers goes through here for that reason -- and only a property: a pattern getter declared
+     * {@code BOOL*} takes four bytes and a true of {@code 1} ({@link UiaIds#BOOL_TRUE}), which is
+     * where this constant was wrongly written until 2026-09-15 (WINDOWS-NEW-11).
      */
     static final short TRUE = -1;
 

@@ -12,6 +12,7 @@ import limn.concurrent.Ui;
 import limn.scene.Scene;
 import limn.scene.Widget;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -43,10 +44,10 @@ import java.util.List;
  *
  * <p><b>{@code -Dprobe.timing=true} is the §13.19 run.</b> The platform's bridge is opened the way
  * an application would open it and installed behind a {@link TimingBridge} through
- * {@code NativeWindow#setAccessibility}, so that every publish is a sample: how many events the
- * scene emitted in that frame, what the publish cost, what its drain cost and how many
- * notifications reached AppKit. Every tick prints the samples since the last one and the run ends
- * with the summary; with {@code -Dprobe.cycle=scroll} or {@code drag} and a short
+ * {@code NativeWindow#setAccessibility}, so that every frame that published or emitted is a sample:
+ * how many events the scene emitted in that frame, what its publish cost, what its drain cost
+ * and how many notifications reached AppKit. Every tick prints the samples since the last one
+ * and the run ends with the summary; with {@code -Dprobe.cycle=scroll} or {@code drag} and a short
  * {@code -Dprobe.tickMs} that is the count the record asks for, taken with VoiceOver attached.
  * {@code -Dprobe.steps} is how many ticks to run, forty when unsaid.
  *
@@ -110,6 +111,11 @@ public final class LiveProbe {
             // questions a run must separate are "does the scene describe what it painted" and
             // "does the platform reach what the bridge vends".
             AxBridge ax = bridge instanceof AxBridge opened ? opened : null;
+            // The bridge keeps no log of its own (CRIT-5): this run attaches the trace and prints
+            // what reached it once per tick, starting the buffer again each time, so the probe's
+            // memory is one tick's worth however long VoiceOver keeps asking.
+            List<String> traced = new ArrayList<>();
+            if (ax != null) ax.trace(traced::add);
             System.out.println("bridge: " + bridge.getClass().getSimpleName()
                     + (timing == null ? "" : " behind TimingBridge")
                     + "  listening=" + bridge.isListening()
@@ -140,8 +146,6 @@ public final class LiveProbe {
                 }, 1_000);
             }
             int[] step = {0};
-            int[] lastPosted = {0};
-            int[] lastEmitted = {0};
             int[] lastSample = {0};
             TimingBridge measured = timing;
             Runnable[] tick = new Runnable[1];
@@ -165,27 +169,25 @@ public final class LiveProbe {
                             + " queued=" + ax.queuedEvents()
                             + " focusedAsks=" + ax.focusedElementAsks()
                             + "/" + ax.focusedElementAsksOnView() + " (element/view)");
-                    System.out.println("    focus answers: " + ax.focusedAnswers());
-                    java.util.List<String> ev = ax.emittedEvents();
+                    System.out.println("    focus answers: " + linesAfter(traced, "focused "));
                     System.out.println("    emitted since last step: "
-                            + ev.subList(Math.min(lastEmitted[0], ev.size()), ev.size()));
-                    lastEmitted[0] = ev.size();
+                            + linesAfter(traced, "emitted "));
                     // What was actually posted since the last step. A reader that says nothing
                     // when the focus moves is either not being told or not listening, and only
                     // this line tells the two apart.
-                    java.util.List<String> all = ax.postedNotifications();
                     System.out.println("    posted since last step: "
-                            + all.subList(Math.min(lastPosted[0], all.size()), all.size()));
-                    lastPosted[0] = all.size();
+                            + linesAfter(traced, "posted "));
+                    traced.clear();
                 }
                 if (measured != null) {
-                    // One line per publish since the last tick: the frame's event count, what the
-                    // publish cost and what its drain cost. A tick faster than the software-GL
-                    // frame puts two ticks into one frame, and that shows here as one sample with
-                    // both ticks' events in it -- which is the honest per-frame figure.
+                    // One line per frame since the last tick: the frame's event count, what its
+                    // publish cost and what the drain at its end cost. A tick faster than the
+                    // software-GL frame puts two ticks into one frame, and that shows here as one
+                    // sample with both ticks' events in it -- which is the honest per-frame figure.
                     for (TimingBridge.Sample sample : measured.samplesSince(lastSample[0])) {
                         System.out.println("    sample #" + sample.number()
                                 + " events=" + sample.events()
+                                + " publishes=" + sample.publishes()
                                 + " publish=" + sample.publishNanos() / 1_000 + "us"
                                 + " drain=" + sample.drainNanos() / 1_000 + "us"
                                 + " posted=" + sample.posted()
@@ -212,6 +214,15 @@ public final class LiveProbe {
             }
             System.out.println("DONE");
         }
+    }
+
+    /** The trace lines of one kind, with the kind's prefix taken off. */
+    private static List<String> linesAfter(List<String> traced, String prefix) {
+        List<String> kept = new ArrayList<>();
+        for (String line : traced) {
+            if (line.startsWith(prefix)) kept.add(line.substring(prefix.length()));
+        }
+        return kept;
     }
 
     /**

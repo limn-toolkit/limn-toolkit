@@ -64,8 +64,25 @@ final class DatesScene {
 
     /** {@code --scene dates-months} / {@code dates-years}: the two choosers the header climbs to. */
     static Scene create(boolean light, CalendarView.View view) {
+        return create(light, view, false);
+    }
+
+    /**
+     * The same two, with {@code -cursor} giving the grid the keyboard: what a person sees the
+     * instant Ctrl (or Cmd) and Up climb out of the days (GALLERY-NEW-2, 2026-09-15). The cell on
+     * show carries the cursor ring from that frame; until that date the chooser was drawn with no
+     * ring at all until the first arrow, so this pair is the render of the change.
+     *
+     * @param light  which palette
+     * @param view   the chooser to show
+     * @param cursor whether the grid holds the keyboard, and so draws its cursor
+     */
+    static Scene create(boolean light, CalendarView.View view, boolean cursor) {
         Built built = build(light);
         built.grid().setView(view);
+        if (cursor) {
+            built.scene().requestFocus(built.grid());
+        }
         return built.scene();
     }
 

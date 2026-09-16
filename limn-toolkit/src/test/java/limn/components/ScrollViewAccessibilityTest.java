@@ -15,6 +15,7 @@ import limn.scene.layout.Column;
 import limn.scene.layout.SizedBox;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -443,5 +444,87 @@ class ScrollViewAccessibilityTest extends AccessibleComponentTestBase {
                         + "to a pane, and the hook refuses them all");
         assertEquals(0, bridge.countOf(AccessibleEvent.Type.INVOKED), bridge.events.toString());
         assertEquals(0, paneNode().scroll().verticalPercent(), EPS, describe(tree()));
+    }
+
+    // ------------------------------------------------------------------- the showing axis (66)
+
+    /**
+     * Decision 66, 2026-09-15: a button scrolled out of the viewport keeps its {@code PRESS}, and
+     * the scene reveals it and presses it. The button is visible through its ancestry — nothing
+     * hid it, the pane merely clipped it — and until that day the gate refused every verb on an
+     * owner that is not showing, so the node published {@code PRESS}, {@code Host#perform}
+     * answered yes from the snapshot, and nothing happened. A reader was shown "Chapter 20" and
+     * could not press it.
+     */
+    @Test
+    void aButtonScrolledOutOfTheViewportPublishesItsPressAndIsRevealedAndPressed()
+            throws InterruptedException {
+        Column content = new Column();
+        List<String> pressed = new ArrayList<>();
+        Button below = new Button("Chapter 20");
+        below.onAction(() -> pressed.add("pressed"));
+        content.add(new Box(100, 400));
+        content.add(below);
+        ScrollView pane = new ScrollView(content);
+        bindIn(120, 100, pane);
+
+        AccessibleNode away = node("Chapter 20");
+        assertTrue(away.has(Accessible.State.VISIBLE),
+                "clipped by a viewport is not hidden" + describe(tree()));
+        assertFalse(away.has(Accessible.State.SHOWING),
+                "and it really is off the glass" + describe(tree()));
+        assertTrue(away.actions().has(Accessible.Action.PRESS),
+                "so it publishes the verb it offers, which the scene now performs (decision 66)"
+                        + describe(tree()));
+
+        assertTrue(perform(away.id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        frame();
+
+        assertEquals(List.of("pressed"), pressed, "the press ran" + describe(tree()));
+        assertTrue(node("Chapter 20").has(Accessible.State.SHOWING),
+                "and the scene revealed the button on the way in" + describe(tree()));
+        assertTrue(pane.offsetY() > 0, "which is the pane scrolling, not the button moving");
+    }
+
+    /**
+     * The other half of decision 66, on the axis that does refuse: a control nobody can see — here
+     * a button inside a subtree whose own visible flag is false, which is what an unselected tab's
+     * contents are — publishes no verb and accepts no setter, and the verb sent anyway does
+     * nothing. The two halves are one fact read in two places: the walk withholds, and
+     * {@code AccessibleNode#accepts} and the scene's gate agree with it.
+     */
+    @Test
+    void aControlNobodyCanSeePublishesNoVerbAndNoSetterAndPerformsNothing()
+            throws InterruptedException {
+        Column content = new Column();
+        List<String> pressed = new ArrayList<>();
+        Button inside = new Button("Chapter 20");
+        inside.onAction(() -> pressed.add("pressed"));
+        Column panel = new Column();
+        panel.add(inside);
+        content.add(panel);
+        ScrollView pane = new ScrollView(content);
+        bindIn(120, 100, pane);
+        long id = node("Chapter 20").id();
+        assertTrue(node("Chapter 20").actions().has(Accessible.Action.PRESS), describe(tree()));
+
+        panel.setVisible(false);   // the shape of an unselected tab's contents
+        frame();
+
+        AccessibleNode hidden = node(id);
+        assertFalse(hidden.has(Accessible.State.VISIBLE), describe(tree()));
+        assertNull(hidden.actions(),
+                "a node the scene refuses every verb on publishes none" + describe(tree()));
+        assertFalse(hidden.accepts(Accessible.Action.PRESS), describe(tree()));
+        assertFalse(hidden.accepts(Accessible.Action.SET_VALUE),
+                "and the setters read the same one fact" + describe(tree()));
+        assertFalse(hidden.accepts(Accessible.Action.SET_TEXT), describe(tree()));
+
+        assertTrue(perform(id, Accessible.Action.PRESS, Accessible.Argument.NONE),
+                "the identifier is in the published tree; accepted is not done");
+        frame();
+
+        assertEquals(List.of(), pressed, "and the gate refused it" + describe(tree()));
+        assertEquals(0, pane.offsetY(), EPS, "nothing was revealed on the way");
     }
 }

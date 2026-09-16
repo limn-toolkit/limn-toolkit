@@ -72,6 +72,212 @@ class UiaFragmentTest {
         assertEquals(save, UiaFragment.navigate(tree, left, UiaIds.NAVIGATE_DIRECTION_FIRST_CHILD));
     }
 
+    /**
+     * A tree the way Tree publishes one: rows flat under the tree, each with its level in a
+     * hierarchy facet, the second row's cell content a label child; a row of level 2 first whose
+     * parent row is not realized; and the tree's scroll bar after the rows.
+     *
+     * <pre>
+     * 2000 TREE
+     *   2009 TREE_ITEM "Orphan" level 2 (its parent row is not published)
+     *   2001 TREE_ITEM "A" level 1
+     *   2002 TREE_ITEM "A1" level 2      2010 LABEL "A1's cell"
+     *   2003 TREE_ITEM "A1a" level 3
+     *   2004 TREE_ITEM "A1b" level 3
+     *   2005 TREE_ITEM "A2" level 2
+     *   2006 TREE_ITEM "B" level 1
+     *   2007 TREE_ITEM "B1" level 2
+     *   2008 SCROLL_BAR
+     * </pre>
+     */
+    private static AccessibleTree aTree() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int tree = a.begin(2000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TREE);
+        a.inherited(true, true, true, true, false);
+        long[] ids = {2009, 2001, 2002, 2003, 2004, 2005, 2006, 2007};
+        int[] levels = {2, 1, 2, 3, 3, 2, 1, 2};
+        for (int i = 0; i < ids.length; i++) {
+            int row = a.begin(ids[i], tree, Locale.ENGLISH, 0, 20 * i, 400, 20);
+            a.role(Accessible.Role.TREE_ITEM);
+            a.name(I18nString.literal("row " + ids[i]), Accessible.NameFrom.EXPLICIT);
+            a.hierarchy(levels[i], i + 1, ids.length);
+            a.inherited(true, true, true, false, false);
+            if (ids[i] == 2002) {
+                a.begin(2010, row, Locale.ENGLISH, 0, 20 * i, 100, 20);
+                a.role(Accessible.Role.LABEL);
+                a.inherited(true, true, true, false, false);
+                a.end();
+            }
+            a.end();
+        }
+        a.begin(2008, tree, Locale.ENGLISH, 390, 0, 10, 300);
+        a.role(Accessible.Role.SCROLL_BAR);
+        a.state(Accessible.State.VERTICAL);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    /**
+     * A tree a virtualized Tree publishes while scrolled into a branch with its cursor row kept
+     * realized off screen (decision 22): the kept root row first, then viewport rows whose flat row
+     * indices jump past it, and a row whose index is unknown.
+     *
+     * <pre>
+     * 3000 TREE
+     *   3001 TREE_ITEM "R"    level 1, row 1   (the kept cursor row)
+     *   3002 TREE_ITEM "S49"  level 2, row 51  (its parent S, row 2, is scrolled away)
+     *   3003 TREE_ITEM "S49a" level 3, row 52
+     *   3004 TREE_ITEM "S50"  level 2, row 53
+     *   3005 TREE_ITEM "?"    level 3, row 0   (no index: nothing proves the row above is its parent)
+     * </pre>
+     */
+    private static AccessibleTree aScrolledTree() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int tree = a.begin(3000, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TREE);
+        a.inherited(true, true, true, true, false);
+        long[] ids = {3001, 3002, 3003, 3004, 3005};
+        int[] levels = {1, 2, 3, 2, 3};
+        int[] rows = {1, 51, 52, 53, 0};
+        for (int i = 0; i < ids.length; i++) {
+            a.begin(ids[i], tree, Locale.ENGLISH, 0, 20 * i, 400, 20);
+            a.role(Accessible.Role.TREE_ITEM);
+            a.name(I18nString.literal("row " + ids[i]), Accessible.NameFrom.EXPLICIT);
+            a.hierarchy(levels[i], rows[i], 90);
+            a.inherited(true, true, true, false, false);
+            a.end();
+        }
+        a.end();
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
+    /**
+     * The windows-B review of 2026-09-15: the parent search walks back only through rows whose
+     * flat row indices run unbroken down to the row's own. Before, it took the nearest earlier row
+     * of a lower level wherever it stood, so the kept cursor row R became the parent of S's
+     * children in the viewport. A row whose parent row is not published hangs under the tree, and
+     * so does a row with no index.
+     */
+    @Test
+    void aRowNestsOnlyUnderARowItsUnbrokenRowIndicesReach() {
+        AccessibleTree tree = aScrolledTree();
+
+        assertEquals(java.util.List.of(3001L, 3002L, 3004L, 3005L), childrenOf(tree, 3000),
+                "S49 and S50 hang under the tree, not under the kept R; the unindexed row too");
+        assertEquals(java.util.List.of(3003L), childrenOf(tree, 3002),
+                "S49a's index follows S49's, so it nests");
+        assertEquals(java.util.List.of(), childrenOf(tree, 3001), "R has no child published");
+        assertEquals(java.util.List.of(), childrenOf(tree, 3004),
+                "the unindexed level-3 row is not taken for S50's child");
+    }
+
+    /** Every child navigation names, in order, by FirstChild then NextSibling. */
+    private static java.util.List<Long> childrenOf(AccessibleTree tree, long id) {
+        java.util.List<Long> children = new java.util.ArrayList<>();
+        for (int at = UiaFragment.navigate(tree, tree.indexOf(id), UiaIds.NAVIGATE_DIRECTION_FIRST_CHILD);
+                at != AccessibleNode.NONE;
+                at = UiaFragment.navigate(tree, at, UiaIds.NAVIGATE_DIRECTION_NEXT_SIBLING)) {
+            children.add(tree.node(at).id());
+        }
+        return children;
+    }
+
+    /**
+     * Decision 4 and semantics 6 (W4): tree rows nest in navigation by their level, because NVDA
+     * 2024.4.2 counts a tree item's TreeItem ancestors for its level and ignores UIA's Level
+     * (readings/nvda-2024.4.2-uia.md §2), and a native tree nests its items in the raw view
+     * (readings/windows-read-native-tree-levels.txt). A row's parent is the nearest earlier row of
+     * a lower level; its children are its own, then the rows that makes it the parent of. Until
+     * 2026-09-15 every row was a child of the tree and NVDA would have said level 1 for all.
+     */
+    @Test
+    void treeRowsNestByTheirLevelSoAReaderCountingTreeItemAncestorsHearsTheLevel() {
+        AccessibleTree tree = aTree();
+
+        assertEquals(java.util.List.of(2009L, 2001L, 2006L, 2008L), childrenOf(tree, 2000),
+                "the tree holds its level-1 rows, a row whose parent is not published, and its bar");
+        assertEquals(java.util.List.of(2002L, 2005L), childrenOf(tree, 2001));
+        assertEquals(java.util.List.of(2010L, 2003L, 2004L), childrenOf(tree, 2002),
+                "a row's own cell content first, then its child rows");
+        assertEquals(java.util.List.of(2007L), childrenOf(tree, 2006));
+        assertEquals(java.util.List.of(), childrenOf(tree, 2003));
+        assertEquals(tree.indexOf(2002),
+                UiaFragment.navigate(tree, tree.indexOf(2004), UiaIds.NAVIGATE_DIRECTION_PARENT));
+        assertEquals(tree.indexOf(2001),
+                UiaFragment.navigate(tree, tree.indexOf(2002), UiaIds.NAVIGATE_DIRECTION_PARENT));
+        assertEquals(tree.indexOf(2000),
+                UiaFragment.navigate(tree, tree.indexOf(2009), UiaIds.NAVIGATE_DIRECTION_PARENT),
+                "no earlier row of a lower level: the tree");
+        assertEquals(tree.indexOf(2004),
+                UiaFragment.navigate(tree, tree.indexOf(2002), UiaIds.NAVIGATE_DIRECTION_LAST_CHILD));
+        assertEquals(tree.indexOf(2010),
+                UiaFragment.navigate(tree, tree.indexOf(2003), UiaIds.NAVIGATE_DIRECTION_PREVIOUS_SIBLING),
+                "a first child row is preceded by its parent row's own content");
+        assertEquals(tree.indexOf(2003),
+                UiaFragment.navigate(tree, tree.indexOf(2010), UiaIds.NAVIGATE_DIRECTION_NEXT_SIBLING));
+        assertEquals(AccessibleNode.NONE,
+                UiaFragment.navigate(tree, tree.indexOf(2005), UiaIds.NAVIGATE_DIRECTION_NEXT_SIBLING),
+                "the last child of A ends at B, which is A's sibling");
+    }
+
+    /**
+     * What UI Automation relies on of any navigation, checked over every node of a nested tree and
+     * a plain scene: each child's Parent is the node it was reached from, LastChild is the last of
+     * the FirstChild/NextSibling chain, PreviousSibling walks that chain backwards, and a walk from
+     * the root meets every node exactly once.
+     */
+    @Test
+    void navigationIsOneConsistentTreeReachingEveryNodeOnce() {
+        for (AccessibleTree tree : new AccessibleTree[] {aTree(), aScrolledTree(), scene(0, 0, 1f, 0)}) {
+            java.util.List<Long> met = new java.util.ArrayList<>();
+            java.util.ArrayDeque<Integer> pending = new java.util.ArrayDeque<>();
+            pending.add(0);
+            while (!pending.isEmpty()) {
+                int at = pending.poll();
+                met.add(tree.node(at).id());
+                java.util.List<Integer> chain = new java.util.ArrayList<>();
+                for (int child = UiaFragment.navigate(tree, at, UiaIds.NAVIGATE_DIRECTION_FIRST_CHILD);
+                        child != AccessibleNode.NONE;
+                        child = UiaFragment.navigate(tree, child, UiaIds.NAVIGATE_DIRECTION_NEXT_SIBLING)) {
+                    assertEquals(at, UiaFragment.navigate(tree, child, UiaIds.NAVIGATE_DIRECTION_PARENT),
+                            "the parent of a child of " + tree.node(at).id());
+                    chain.add(child);
+                    pending.add(child);
+                }
+                assertEquals(chain.isEmpty() ? AccessibleNode.NONE : chain.get(chain.size() - 1),
+                        UiaFragment.navigate(tree, at, UiaIds.NAVIGATE_DIRECTION_LAST_CHILD),
+                        "the last child of " + tree.node(at).id());
+                java.util.List<Integer> backwards = new java.util.ArrayList<>();
+                if (!chain.isEmpty()) {
+                    for (int child = chain.get(chain.size() - 1); child != AccessibleNode.NONE;
+                            child = UiaFragment.navigate(tree, child, UiaIds.NAVIGATE_DIRECTION_PREVIOUS_SIBLING)) {
+                        backwards.add(0, child);
+                    }
+                }
+                assertEquals(chain, backwards, "the children of " + tree.node(at).id() + " backwards");
+            }
+            java.util.List<Long> every = new java.util.ArrayList<>();
+            for (int i = 0; i < tree.nodeCount(); i++) {
+                every.add(tree.node(i).id());
+            }
+            assertEquals(every.stream().sorted().toList(), met.stream().sorted().toList(),
+                    "every node once");
+        }
+    }
+
     @Test
     void theEndsOfTheTreeAnswerNothingRatherThanWrappingAround() {
         AccessibleTree tree = scene(0, 0, 1f, 0);
@@ -126,6 +332,57 @@ class UiaFragmentTest {
 
         assertEquals(AccessibleNode.NONE, UiaFragment.focus(scene(0, 0, 1f, 0)),
                 "a window nothing in is focused answers nothing, not its root");
+    }
+
+    /**
+     * W3, LAB-NEW-4: GetFocus answers where the user is. A focused table whose cursor cell is
+     * ACTIVE answers the cell, and the Context's default HasKeyboardFocus agrees; before 2026-09-15
+     * both answered the table.
+     */
+    @Test
+    void theFocusIsTheActiveDescendantOfTheFocusedContainer() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.TABLE);
+        a.selection(false, false);
+        a.inherited(true, true, true, true, true);
+        a.begin(1002, 1, Locale.ENGLISH, 0, 0, 400, 20);
+        a.role(Accessible.Role.ROW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1003, 2, Locale.ENGLISH, 0, 0, 400, 20);
+        a.role(Accessible.Role.CELL);
+        a.state(Accessible.State.ACTIVE, true);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.end();
+        a.end();
+        AccessibleTree tree = a.publish(1001, 0, 0, 1f, true);
+
+        assertEquals(tree.indexOf(1003), UiaFragment.focus(tree),
+                "the cursor cell, not the table that holds the keyboard");
+
+        UiaProvider.Context context = new UiaProvider.Context() {
+            @Override public AccessibleTree tree() { return tree; }
+            @Override public long patternProviderFor(long nodeId, int patternId) { return 0; }
+            @Override public long hostProvider() { return 0; }
+            @Override public UiaStrings.Allocator strings() { return text -> 0; }
+            @Override public long int32Array(int[] values) { return 0; }
+            @Override public long unknownArray(long[] pointers) { return 0; }
+            @Override public long elementFor(long nodeId) { return 0; }
+            @Override public long simpleElementFor(long nodeId) { return 0; }
+            @Override public long rootElement() { return 0; }
+            @Override public boolean requestFocus(long nodeId) { return false; }
+            @Override public boolean perform(long nodeId, Accessible.Action action,
+                                             Accessible.Argument arg) { return false; }
+        };
+        assertEquals(true, context.hasKeyboardFocus(1003));
+        assertEquals(false, context.hasKeyboardFocus(1001));
+        assertEquals(false, context.hasKeyboardFocus(9999), "a node this tree does not hold");
     }
 
     @Test

@@ -68,6 +68,14 @@ A date is the one field a form cannot be written without and the one a text fiel
 Limn has three classes for it, and four shapes come out of them: a field types a date, a picker
 is that field with a calendar behind a button, and either of them carries a clock as well.
 
+**How much of the date you want is one call.** `new DateField()` starts at the day and
+`DateField.ofTime()` at the minute; `setGranularity(…)` picks the fine end — `YEAR`, `MONTH`,
+`DAY`, `HOUR`, `MINUTE`, `SECOND` — and the field drops or grows the segments it lost or gained,
+separators included. `MONTH` makes the picker's popup a month chooser and `YEAR` a year chooser,
+each terminal: a pick there *is* the value. A picker at `HOUR` or finer puts a time row under the
+grid, and Tab cycles the grid, the header and that row. `CalendarView` takes its own level as a
+`CalendarView.View`, since a grid of months is still a grid and a grid of hours is not a thing.
+
 {% shot dates "The four shapes, a period, and the grid on its own." %}
 
 {% snippet guide:date-shapes %}
@@ -83,20 +91,31 @@ gets the ISO date.
 **The segments and the separators are the language's own.** The same field reads day, month, year
 in Portuguese, month, day, year in American English and year, month, day in Japanese, because the
 order comes from the locale's own short pattern rather than from a format string in the
-application. A two-digit year in that pattern is widened to four: the order and the separators are
-what the locale genuinely owns, and a two-digit year in something a person types is an ambiguity
-worth refusing.
+application. A two-digit year in that pattern is widened to four, because the order and the
+separators are what the locale genuinely owns and the width is not. A two-digit year a person
+*types* or pastes is not refused: it resolves into the hundred years starting eighty before today
+by the field's clock, so in 2026 `26` is 2026 and `85` is 1985. `setTwoDigitYearWindow(n)` moves
+that window, and `REFUSE_TWO_DIGIT_YEARS` turns the guess off — the year is then left blank and the
+field stays incomplete, rather than quietly meaning the year 26. A calendar whose years carry an
+era is never windowed: Reiwa 8 is the whole year, and it is drawn and typed at its own width.
 
 **The header climbs.** Clicking the month name shows the twelve months of that year; clicking again
 shows a block of twenty-four years. Each pick descends one step, and nothing is chosen until a day
 is. That is what makes a date of birth reachable, and `setView(View.YEARS)` opens a picker straight
-onto the years for exactly that case. Escape comes back down one level at a time.
+onto the years for exactly that case.
 
 **Typing beats clicking, and both work.** Up and Down adjust the segment the caret is in; Left and
 Right move between segments; digits fill the current segment and roll on to the next, so
-`31122026` commits the last day of 2026 without a separator being typed. `Ctrl/Cmd+V` parses what
-is on the clipboard, which is where a date pasted out of a spreadsheet is understood. `Alt+Down`
-opens the calendar, the arrows then drive the grid, `Enter` picks and `Esc` closes.
+`31122026` commits the last day of 2026 without a separator being typed, and a screen reader is
+told which segment the caret rolled on to. `Ctrl/Cmd+V` parses what is on the clipboard: the
+locale's own order first, and an ISO date (`2026-12-31`) whatever the locale, which is what a date
+out of a spreadsheet or a database usually is. `Alt+Down` opens the calendar and `Alt+Up` or `Esc`
+closes it, which is the combo box's idiom and what a reader is told the field can do.
+
+In the grid, Page Up and Page Down page a month and Shift with either pages a year; in a range,
+Shift with them extends the band rather than moving the cursor alone. Escape in a chooser comes
+back down one level at a time — years to months to days — and Escape on the day grid closes a
+picker's popup.
 
 ### A period
 
@@ -112,11 +131,15 @@ period with one end is not a period, and is not published as one.
 
 `setMinDate`, `setMaxDate` and `setDateFilter` exist on the field, on the grid and on the picker,
 which fans them out to both of its parts. The two halves enforce them at different moments, and
-the difference is deliberate: **the grid refuses the click** — the day is drawn disabled, the
-keyboard skips it and a screen reader is given no verb for it — while **the field holds what was
-typed** and marks itself invalid with a message saying which rule was broken. A field that snapped
-a typed date to the nearest legal one would be throwing away what somebody wrote and telling them
-nothing.
+the difference is deliberate: **the grid refuses the click** — the day is drawn disabled and
+carries no verb, so a reader is told plainly that it cannot be chosen — while **the field holds
+what was typed** and marks itself invalid with a message saying which rule was broken. A field that
+snapped a typed date to the nearest legal one would be throwing away what somebody wrote and
+telling them nothing.
+
+The keyboard **stops on a refused day** rather than skipping it. Skipping makes a month with
+scattered rules feel as if the arrow key were broken, and it hides the shape of the rule; stopping
+lets somebody walk the month and hear which days are out.
 
 The filter runs once per painted cell, so it has to be cheap and it has to be pure; a filter that
 queries a database is a filter that stalls a frame. `setDayMarks` decorates days with a dot and,
@@ -127,10 +150,20 @@ reaches everyone who looks and nobody who listens.
 
 The grid is published as a **table**: six rows of seven cells under a row of column headers, which
 are the same four roles a `Table` uses and are mapped on all three platforms. A day is named with
-the whole date and not the bare number, because a cell heard on its own has to say what it is. The
-field is a **group of spin buttons**, one per editable segment, each with its own name and its own
-range — the caret is in one segment at a time, and a single text field publishing `31/12/2026`
-would give a reader no way to say which part that is.
+the whole date and not the bare number, because a cell heard on its own has to say what it is, and
+it carries its position as the day of its month — "15 of 30" — which is the count that means
+something about a date. The field is a **group of spin buttons**, one per editable segment, each
+with its own name and its own range: the caret is in one segment at a time, and a single text field
+publishing `31/12/2026` would give a reader no way to say which part that is. A segment nobody has
+filled says so in words rather than reading out its minimum.
+
+A caption bound to a picker names the **field**, not the group around it, because the field is
+where the keyboard lands; a range picker keeps the caption on the group and names its two fields
+"Start date" and "End date".
+
+<!-- phase-5: no screen reader has yet spoken a date widget. The day's position, the chooser's
+     "on show" word, the per-view names of the paging buttons, the empty segment's word and the
+     era in a year are published and owed a run on each guest. -->
 
 Reading right to left, the grid mirrors and the field does not. A grid is columns in reading order,
 so the first day of the week moves to the edge reading starts from and Left and Right swap with it.

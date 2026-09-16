@@ -131,7 +131,7 @@ export const ptBR: Catalog = {
 
   "home.accessibility.heading": "Lido em voz alta, nessas mesmas línguas",
   "home.accessibility.body":
-    "NVDA, VoiceOver e Orca leem uma janela Limn pela API de acessibilidade de cada plataforma, sem código de plataforma na sua aplicação. Cada controle é anunciado com seu papel, seu nome e seu estado, no idioma em que a interface está. Nomear um controle é uma chamada.",
+    "NVDA, VoiceOver e Orca leem uma janela Limn pela API de acessibilidade de cada plataforma, sem código de plataforma na sua aplicação. Cada controle se descreve com seu papel, seu nome e seu estado, no idioma em que a interface está. Nomear um controle é uma chamada.",
   "home.accessibility.link": "Leia o guia de acessibilidade",
   "home.accessibility.caption":
     "O formulário acima, como um leitor de tela o ouve, capturado durante este build.",
