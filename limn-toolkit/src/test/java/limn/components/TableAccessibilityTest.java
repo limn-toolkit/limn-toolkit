@@ -1141,6 +1141,63 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * P5W-1 (2026-09-16), the model's, confirmed on all three platforms: a {@code ROW} published
+     * an empty name, so NVDA 2024.4.2 spoke {@code 'item de dados', 'selecionado', '4 de 10'} —
+     * role, position, no name — and Orca discarded the row outright, an unnamed row that is not
+     * focusable, selectable or expandable being "believed to be layout only". A row is its record
+     * (decision 23): the text of its shown cells, in column order, the way a composite
+     * {@code TREE_ITEM} is named (TREE-ROW-NAME).
+     */
+    @Test
+    void aRowIsNamedByTheTextOfItsCellsInColumnOrder() {
+        Table<Person> table = bindTable(30);
+        List<AccessibleNode> rows = rowNodes();
+        assertTrue(rows.size() > 3, "realized rows: " + rows.size());
+        AccessibleNode second = rows.get(1);
+        List<AccessibleNode> cells = childrenOf(second);
+        assertEquals(cells.get(0).name() + " " + cells.get(1).name(), second.name(),
+                "the row reads as its cells: " + describe(tree()));
+        assertEquals(Accessible.NameFrom.CONTENT, second.nameFrom());
+        assertFalse(second.name().isEmpty(), "and is never the empty name P5W-1 measured");
+
+        // A hidden column says nothing, exactly as it publishes no cell (B6).
+        table.columns().get(1).visible(false);
+        table.refresh();
+        frame();
+        AccessibleNode narrowed = rowNodes().get(1);
+        assertEquals(1, childrenOf(narrowed).size(), "one shown column: " + describe(tree()));
+        assertEquals(childrenOf(narrowed).get(0).name(), narrowed.name(),
+                "so one word in the name: " + describe(tree()));
+    }
+
+    /**
+     * The other half of P5W-1: a widget column holds no text of the table's, so the row reads the
+     * labels inside the control the way {@code Tree} reads a composite cell's (TREE-ROW-NAME).
+     * A control that paints its own text without a {@code Label} — a button — lends nothing and
+     * is heard as its own cell instead, which is the same rule the tree has lived under.
+     */
+    @Test
+    void aWidgetColumnLendsItsLabelsToTheRowsNameAndAButtonLendsNothing() {
+        Table<Person> labelled = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.<Person>widget("Note", person -> new Label("note for " + person.name()))
+                        .width(120)));
+        labelled.setRows(people(30));
+        bind(labelled);
+        assertEquals("Person 1 note for Person 1", rowNodes().get(1).name(),
+                "the label inside the cell is part of the record: " + describe(tree()));
+
+        Table<Person> buttoned = new Table<>(List.of(
+                Column.text("Name", Person::name).width(120),
+                Column.<Person>widget("Edit", person -> new Button("Edit " + person.name()))
+                        .width(80)));
+        buttoned.setRows(people(30));
+        bind(buttoned);
+        assertEquals("Person 1", rowNodes().get(1).name(),
+                "a button paints its own text and lends none: " + describe(tree()));
+    }
+
+    /**
      * B6 (2026-09-14): a hidden widget column's never-laid-out widget was published as a node
      * with a {@code CellFacet} column equal to the table's column count, which on Windows reached
      * the GridItem pattern as an out-of-range column. A hidden column, widget or value, is not

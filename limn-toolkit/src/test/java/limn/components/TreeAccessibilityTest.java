@@ -1525,6 +1525,144 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                 "the row below is the second of the outline, not the third: " + describe(tree()));
     }
 
+    /** Every announcement the bridge was handed, in order, as spoken text. */
+    private List<String> announced() {
+        List<String> said = new ArrayList<>();
+        for (limn.accessibility.AccessibleEvent event : bridge.events) {
+            if (event.type() == limn.accessibility.AccessibleEvent.Type.ANNOUNCEMENT) {
+                said.add(String.valueOf(event.newValue()));
+            }
+        }
+        return said;
+    }
+
+    /**
+     * Decision 73 (2026-09-16): a lazy load's start and its end are <b>announced</b>, naming the
+     * branch. Nothing else tells a reader. The row publishes {@code BUSY} and the "Loading…" line
+     * is drawn, and on 2026-09-16 both were measured saying nothing: {@code BUSY} reaches Windows
+     * as {@code ItemStatus} and NVDA 2024.4.2 has no handler for it — six raises, five received,
+     * none spoken — and the line is not focusable, so the cursor steps over it on every platform.
+     * The announcement path is the one route all three readers were measured speaking through on
+     * that same day. The visual line of decision 45 stays exactly as it is and stays unfocusable,
+     * which the two tests above assert and this one does not disturb.
+     */
+    @Test
+    void aLazyLoadSaysItHasBegunAndAnEmptyOneSaysItFoundNothing() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node trash = Node.leaf("trash");
+        Node inbox = Node.leaf("inbox");
+        List<Node> fetched = List.of(Node.leaf("one"), Node.leaf("two"));
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(trash, inbox);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children().isEmpty() ? null : node.children(); // "not known yet"
+            }
+
+            @Override
+            public limn.concurrent.Work<List<Node>> load(Node node) {
+                return limn.concurrent.Ui.work(progress -> node == trash ? List.of() : fetched);
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Cell(ROW_H);
+            }
+
+            @Override
+            public I18nString nameOf(Node node) {
+                return node.name();
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        List<limn.scene.Change> changes = new ArrayList<>();
+        tree.observeChanges((source, change) -> changes.add(change));
+        bridge.events.clear();
+
+        tree.expand(inbox);
+        frame();
+        assertEquals(List.of("Loading inbox"), announced(),
+                "the start, named, before anything has landed: " + bridge.events);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        frame();
+        assertEquals(List.of("Loading inbox"), announced(),
+                "a load that found children says nothing more: " + bridge.events);
+        bridge.events.clear();
+        changes.clear();
+
+        tree.expand(trash);
+        frame();
+        assertEquals(List.of("Loading trash"), announced(), bridge.events.toString());
+        ui.pumpUntil(() -> changes.stream().anyMatch(
+                c -> c.aspect() == limn.scene.Change.Aspect.CHILDREN
+                        && c.origin() == limn.scene.Change.Origin.ADJUSTMENT));
+        frame();
+        assertEquals(List.of("Loading trash", "trash empty"), announced(),
+                "and the end of a load that found nothing: " + bridge.events);
+
+        // The line of decision 45 is untouched by any of it: still drawn, still not a node.
+        assertEquals(List.of("trash", "inbox", "one", "two"),
+                rowNodes().stream().map(AccessibleNode::name).toList(), describe(tree()));
+        assertFalse(describe(tree()).contains("Empty"), describe(tree()));
+    }
+
+    /**
+     * The announcement is named the way a row is (ADR 044 §4): the model's name first, and where
+     * the model has none, the text of the cell's own labels. An announcement arrives with no
+     * context, so "Loading" alone would name nothing — and a node neither route can name says
+     * nothing at all rather than a sentence with a hole in it.
+     */
+    @Test
+    void aLoadAnnouncementTakesTheRowsNameAndSaysNothingWhereThereIsNone() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node named = Node.leaf("reports");
+        Node blank = Node.leaf("");
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(named, blank);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return null; // both are branches nobody has read
+            }
+
+            @Override
+            public limn.concurrent.Work<List<Node>> load(Node node) {
+                return limn.concurrent.Ui.work(progress -> List.of());
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Label(node.name().english());
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        scene.setTextRuler(RULER); // a label with no ruler measures no height, and rows overlap
+        frame();
+        bridge.events.clear();
+
+        tree.expand(named);
+        frame();
+        assertEquals(List.of("Loading reports"), announced(),
+                "no nameOf, so the cell's label names it: " + bridge.events);
+        bridge.events.clear();
+
+        tree.expand(blank);
+        frame();
+        assertEquals(List.of(), announced(),
+                "a branch nothing can name says nothing: " + bridge.events);
+    }
+
     /**
      * A load that lands after the tree is on screen, in the demo's exact shape — {@code Label}
      * cells and no {@code nameOf} — publishes the children under their own names, each with its

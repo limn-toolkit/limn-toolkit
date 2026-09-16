@@ -183,6 +183,40 @@ empty list (`isLeaf` answering `false` for an empty folder, the guide's `Entry` 
 was offered to him on the renders (`renders/tree/`) to confirm. Right on such a row stays on it
 (§5). A cached empty answer opens onto the line at once, without a second load.
 
+**Amendment, 2026-09-16 (decision 73, after phase 5): a lazy load's start and its end are
+announced, and the line above does not move.** Everything this record says a busy row tells a
+reader was measured on 2026-09-16 and found to tell nobody anything. `BUSY` reaches Windows as
+`ItemStatus` and NVDA 2024.4.2 has **no handler** for it — six raises, five received, none spoken —
+and the "Loading…"/"Empty" line is not focusable, which is deliberate and correct, so the cursor
+steps over it on every platform. A blind user opening a branch that takes a second was therefore
+told nothing at all, which is the state the sentence "a screen reader hears the row as busy" was
+written in ignorance of.
+
+So the tree **announces**: `limn.tree.loadingAnnouncement` ("Loading {0}") when a lazy load begins,
+and `limn.tree.emptyAnnouncement` ("{0} empty") when one lands on nothing, both naming the branch,
+both `POLITE` — a branch opening is not an interruption, and a tree loading row after row would
+otherwise cut its own reader off mid-word. Two new strings in each of the twenty-one tree locale
+files, which `ShippedTranslationsTest` enforces. The announcement path is chosen because it is the
+one route **all three readers were measured speaking through on that same day**: NVDA, Orca and
+VoiceOver each said `'Salvo'` and `'Interrompido, nada foi salvo'` from it.
+
+The branch is named the way a row is (§4): `Model.nameOf` first, then the text of the mounted
+cell's labels. An announcement arrives with no context of its own, so "Loading" alone would name
+nothing, and a branch neither route can name says **nothing at all** rather than a sentence with a
+hole in it — which also means a branch opened programmatically before the tree has ever been laid
+out, under a model with no `nameOf`, is not announced. `BUSY`, the spinner and the muted line stay
+exactly as they are and the line stays unfocusable: this is beside decision 45, not instead of it.
+Pinned by `TreeAccessibilityTest.aLazyLoadSaysItHasBegunAndAnEmptyOneSaysItFoundNothing` and
+`aLoadAnnouncementTakesTheRowsNameAndSaysNothingWhereThereIsNone`, which assert the line is still
+not an item in the same breath.
+
+*What this does not cover, and is not an oversight:* a load that lands **with** children announces
+nothing beyond its start — the children arriving are the end, and decision 73 names only the two
+strings above — and an **eager** empty branch, which runs no load, announces nothing either. Both
+are the owner's to extend if he wants them; neither is guessed at here. The guide sentence phase 5
+proved false (`site/src/guides/lists-and-scrolling.md:208`, "a screen reader hears the row as
+busy") is the docs lane's to correct, and it should now point here.
+
 ## 3. Decision: the tree walks its own rows, and the shared engine is owed rather than taken
 
 ADR 041 §9 said the tree's arrival is when the shared part becomes a package-private engine. It is

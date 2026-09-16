@@ -722,6 +722,32 @@ own client reads rather than what the bridge writes.
   fragment, was right. The bridge now hands out the simple interface where that is the declared
   type. `get_SelectionContainer` had the same defect since ADR 039 and was corrected with it.
 
+**Amended 2026-09-16 (fix round after phase 5; P5W-1, the model's on 3 of 3 platforms).** The
+*Names* paragraph above says "a row has no name of its own: all three platforms compose a row from
+its cells when the cells are named, and a name here would be spoken twice". **Three live readers
+disproved it on the same day**, and it is withdrawn. A `ROW` now publishes the text of its shown
+cells in column order, separated by a space, `nameFrom = CONTENT` — its record read as one phrase,
+which is what decision 23 means by "a row is its record", and the treatment a composite `TREE_ITEM`
+has had since TREE-ROW-NAME. A widget column lends the text of the `Label`s inside its cell, by the
+same walk `Tree` uses; a control that paints its own text without one — a button, a switch — lends
+nothing and is heard as its own cell. The string is kept on the slot and compared, so a quiet frame
+still allocates nothing and republishes nothing.
+
+What was measured, none of it visible to a headless test, because no test asserted a name nobody
+set. **Windows**, NVDA 2024.4.2 over the gallery's table twice: every row announcement was
+`'item de dados', 'selecionado', '4 de 10'` — role, position, no name — and the UIA trace showed it
+at source, every row raise `role=ROW name=""`
+(`readings/phase5-windows-fix/reader-table-1..2`). **Fedora 44 and Ubuntu 24.04**, Orca 50.2 and
+46.1: the row carried neither a name nor `explicit-name`, which is the last of Orca's four escapes
+from the verdict *"believed to be layout only: … is not focusable, selectable, or expandable and
+lacks explicit name"*, so the row was discarded entirely and the reader said nothing
+(`readings/phase5-fedora/`, `readings/phase5-ubuntu/`). **macOS 26.6.2** agrees at source — the row
+is nameless there too — **but VoiceOver announces the cell**, so a row name is *necessary and not
+sufficient* on that platform, and closing the macOS half stays phase 5's. Pinned by
+`TableAccessibilityTest.aRowIsNamedByTheTextOfItsCellsInColumnOrder` and
+`aWidgetColumnLendsItsLabelsToTheRowsNameAndAButtonLendsNothing`; the table transcript golden moved
+with it.
+
 `GetItem`, `GetAccessibleAt` and `accessibilityCellForColumn:row:` are answered for realized rows
 and refuse for the rest: the neutral model mints no identifier for a node the walk did not
 publish (ADR 039 §4.1), and a client asking for row 40,000 of a table showing rows 1 to 30 is

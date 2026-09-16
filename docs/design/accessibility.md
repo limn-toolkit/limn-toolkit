@@ -56,6 +56,15 @@ action row on Linux, an attribute on macOS — so each bridge derives its own vi
 facet. A widget that publishes a `ToggleFacet` gets `IToggleProvider`, `AXValue` and the AT-SPI
 `CHECKED` state without knowing that any of them exist.
 
+**A facet's *presence* is a fact of its own, and two states are derived from it.** A node carrying an
+`ExpandFacet` is `EXPANDABLE` whether it is open or closed, and a node carrying a
+`SelectionItemFacet` is `SELECTABLE` whether it is selected or not (the second since 2026-09-16, when
+three live readers found that nothing in either module had ever published it: Orca discards an
+unnamed row that is "not focusable, selectable, or expandable" as layout-only, so a select-all over
+five selected rows said nothing at all). Neither bit is a widget's to set — `Accessibility#state`
+refuses both and names the facet that owns them — and neither costs a bridge anything: Linux reads
+them as state bits, Windows as patterns, macOS as attributes or as a settable value.
+
 **Two free verbs come from the walk, not from the widget.** Every focusable node advertises `FOCUS`
 and `SCROLL_INTO_VIEW`, and the scene performs them itself through `requestFocus()` and
 `revealInView()`, *instead of* asking the widget's hook rather than after it. Do not implement them
@@ -169,6 +178,16 @@ is why a list that recycles rows must key its rows by their *content*, and why t
 mutate a tree and assert what did **not** change. It is also why a list that recycles must not
 recycle the row the keyboard is in: a reader whose cursor follows the focus is standing on that
 node, and a scroll that deletes it drops the reader to the window.
+
+The rule is easy to state and was not followed everywhere. `CalendarView` keyed its day cells,
+week rows and week-number cells by their **position in the grid** until 2026-09-16, so paging a
+month renamed forty-two nodes rather than retiring and minting them — and that is precisely the
+"newly created" case above, read in reverse: a client told that a node it holds is now called
+something else believes the *thing* changed its name. NVDA 2024.4.2, subscribed to the focused
+element's name, spoke the incoming month's date before the focus had moved, in 6 of 7 paging
+events; Orca read a row mid-burst of 42 renames and said "1 de outubro" beside "4 de setembro". A
+day cell is keyed by its epoch day now. **The lesson is the ordering:** a synthetic child's key is
+as much an identity as a widget's, and "what it shows" is the only thing safe to key it by.
 
 ## How a frame publishes
 

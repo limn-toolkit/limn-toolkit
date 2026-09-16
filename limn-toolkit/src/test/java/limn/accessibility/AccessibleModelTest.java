@@ -296,6 +296,101 @@ class AccessibleModelTest {
 
 
     /**
+     * {@code SELECTABLE} is the selection-item facet's presence (ADR 039 §1.2, amended
+     * 2026-09-16; P5L-1), exactly as {@code EXPANDABLE} is the expand facet's: declaring that
+     * you are one member of a selection is saying that you can be selected, selected or not, and
+     * a widget can no more set it than it can set {@code SELECTED}.
+     *
+     * <p>It was published by <b>nothing</b> until this date. An uncut grep of both modules'
+     * {@code main} found two hits in the whole tree, the enum constant and the AT-SPI bit it maps
+     * to, so the state never left the model; no headless test could see it, because none asserted
+     * a state nobody set. The live cost was measured on Fedora 44 and Ubuntu 24.04 on 2026-09-16:
+     * after Ctrl+A, Orca resolved all five selected rows and discarded every one of them,
+     * "believed to be layout only: … is not focusable, selectable, or expandable and lacks
+     * explicit name", and said nothing.
+     */
+    @Test
+    void selectableIsTheSelectionItemFacetsPresenceAndNeverAWidgetsToSet() {
+        Accessibility a = new Accessibility();
+        long owner = a.mint();
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        a.begin(owner, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.LIST);
+        a.selection(true, false);
+        a.child(1);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.bounds(0, 0, 100, 20);
+        assertThrows(IllegalArgumentException.class,
+                () -> a.state(Accessible.State.SELECTABLE), "derived, never set");
+        a.endChild();
+        a.child(2);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.bounds(0, 20, 100, 20);
+        a.selectionItem(false, 2, 3);
+        a.endChild();
+        a.child(3);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.bounds(0, 40, 100, 20);
+        a.selectionItem(true, 3, 3);
+        a.endChild();
+        a.child(4);
+        a.role(Accessible.Role.RADIO_BUTTON);
+        a.bounds(0, 60, 100, 20);
+        a.containerlessSelectionItem(false, 1, 2);
+        a.endChild();
+        a.end();
+        AccessibleTree first = publish(a, (kind, target) -> 0);
+        assertFalse(first.node(1).has(Accessible.State.SELECTABLE),
+                "no facet, so nothing to select: " + first.node(1).states());
+        assertTrue(first.node(2).has(Accessible.State.SELECTABLE), "a member, unselected");
+        assertFalse(first.node(2).has(Accessible.State.SELECTED));
+        assertTrue(first.node(3).has(Accessible.State.SELECTABLE), "a member, selected");
+        assertTrue(first.node(3).has(Accessible.State.SELECTED));
+        assertTrue(first.node(4).has(Accessible.State.SELECTABLE),
+                "a radio button belongs to a group that is no node, and is selectable all the same");
+
+        // The first row gains the facet: one STATE_CHANGED(SELECTABLE) on it, from the diff.
+        a.beginWalk(100, 100, Locale.ENGLISH);
+        a.begin(owner, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
+        a.role(Accessible.Role.LIST);
+        a.selection(true, false);
+        a.child(1);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.bounds(0, 0, 100, 20);
+        a.selectionItem(false, 1, 3);
+        a.endChild();
+        a.child(2);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.bounds(0, 20, 100, 20);
+        a.selectionItem(false, 2, 3);
+        a.endChild();
+        a.child(3);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.bounds(0, 40, 100, 20);
+        a.selectionItem(true, 3, 3);
+        a.endChild();
+        a.child(4);
+        a.role(Accessible.Role.RADIO_BUTTON);
+        a.bounds(0, 60, 100, 20);
+        a.containerlessSelectionItem(false, 1, 2);
+        a.endChild();
+        a.end();
+        assertTrue(a.changed(), "a facet arrived, so the walk differs");
+        AccessibleTree second = publish(a, (kind, target) -> 0);
+        List<AccessibleEvent> selectable = new ArrayList<>();
+        for (AccessibleEvent event : a.events()) {
+            if (event.type() == AccessibleEvent.Type.STATE_CHANGED) {
+                assertEquals(Accessible.State.SELECTABLE, event.state(),
+                        "only the presence moved: " + a.events());
+                selectable.add(event);
+            }
+        }
+        assertEquals(1, selectable.size(), a.events().toString());
+        assertEquals(second.node(1).id(), selectable.get(0).nodeId());
+        assertEquals(Boolean.TRUE, selectable.get(0).newValue());
+    }
+
+    /**
      * Thirteen since 2026-09-14: {@code ADD_TO_SELECTION} joined between {@code SELECT} and
      * {@code DESELECT} (ADR 039 §1.5, amended; decision 10), so that "select" can mean what a click
      * means and the platforms' "add to selection" has a verb of its own.
@@ -342,7 +437,8 @@ class AccessibleModelTest {
         a.beginWalk(100, 100, Locale.ENGLISH);
         a.begin(a.mint(), AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 100, 100);
         for (Accessible.State owned : List.of(Accessible.State.CHECKED, Accessible.State.MIXED,
-                Accessible.State.EXPANDED, Accessible.State.SELECTED, Accessible.State.READ_ONLY,
+                Accessible.State.EXPANDED, Accessible.State.SELECTED,
+                Accessible.State.SELECTABLE, Accessible.State.READ_ONLY,
                 Accessible.State.ENABLED, Accessible.State.VISIBLE, Accessible.State.SHOWING,
                 Accessible.State.FOCUSABLE, Accessible.State.FOCUSED)) {
             IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
