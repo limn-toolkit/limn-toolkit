@@ -250,22 +250,31 @@ class AxGridTest {
      * {@code selectionContainer} — so this pins the cost, which the gate pays on every ask
      * ({@code aRowTakesASelectionVerb}, asked whenever a client reads whether the selected rows are
      * settable, and VoiceOver asks continuously).
+     *
+     * <p>The bound is a test the walk makes on the node it already holds, so each ask is one pass
+     * over the block and not a pre-pass over it followed by the walk; what it bounds is the
+     * container's <em>subtree</em>, which is what the phase-5 timing line measures.
      */
     @Test
     void aMemberWalkStopsAtTheEndOfItsContainersOwnSubtree() {
         AccessibleTree tree = aTable();
         int table = tree.indexOf(tree.find(1001).id());
         int button = tree.indexOf(tree.find(1050).id());
-        assertEquals(button, AxGrid.membersEnd(tree, table),
+        for (int i = table + 1; i < button; i++) {
+            assertTrue(!AxGrid.outsideSubtreeOf(table, tree.node(i)),
+                    "node " + i + " (" + tree.node(i).id() + ") is one of the table's descendants "
+                            + "and the walk must reach it");
+        }
+        assertTrue(AxGrid.outsideSubtreeOf(table, tree.node(button)),
                 "the BUTTON beside the table is the first node past the table's block, and the walk "
-                        + "must not reach it, nor anything after it");
-        assertTrue(table < tree.indexOf(tree.find(1030).id())
-                        && tree.indexOf(tree.find(1041).id()) < button,
-                "the block is contiguous: every one of the table's descendants lies between them");
-        assertEquals(tree.nodeCount(), AxGrid.membersEnd(tree, button),
-                "the last block ends at the tree");
-        assertEquals(tree.nodeCount(), AxGrid.membersEnd(tree, 0),
-                "and the window's block is the whole tree");
+                        + "must stop there rather than carry on to the end of the tree");
+        assertEquals(tree.nodeCount() - 1, button,
+                "the block is contiguous and the BUTTON is last, so the two halves above cover every "
+                        + "node of this shape");
+        for (int i = 1; i < tree.nodeCount(); i++) {
+            assertTrue(!AxGrid.outsideSubtreeOf(0, tree.node(i)),
+                    "the window's block is the whole tree, so no walk from it is ever bounded early");
+        }
     }
 
     @Test

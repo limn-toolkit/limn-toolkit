@@ -202,8 +202,9 @@ final class AxGrid {
         if (at == AccessibleNode.NONE) return new long[0];
         long[] found = new long[4];
         int count = 0;
-        for (int i = at + 1, end = membersEnd(tree, at); i < end; i++) {
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
             AccessibleNode member = tree.node(i);
+            if (outsideSubtreeOf(at, member)) break;
             if (member.selectionContainer() != at || !member.has(Accessible.State.SELECTED)) continue;
             if (!filter.keep(member)) continue;
             if (count == found.length) found = java.util.Arrays.copyOf(found, count * 2);
@@ -213,15 +214,24 @@ final class AxGrid {
     }
 
     /**
-     * One past the last index a member of the container at {@code at} can occupy: the end of that
-     * container's own subtree.
+     * Whether a walk that started at the container at {@code at} has left that container's own
+     * subtree, which is the bound every walk over its members takes. <b>Asked on the node the walk
+     * already holds</b>, so the bound is the walk's own single pass and not a pre-pass over the same
+     * span before it.
      *
-     * <p>Every walk over a container's members reads the model's already-resolved
-     * {@code selectionContainer}, so scanning the whole tree and scanning this block answer the same
-     * thing; what differs is the cost, and the gate pays it on every ask. {@code AxGate} asks
-     * {@link #aRowTakesASelectionVerb} whenever a client wants to know whether the selected rows are
-     * settable, and VoiceOver asks continuously — the cost CRIT-5 was about. A container near the top
-     * of a scene would otherwise be walked to the end of the tree each time.
+     * <p>Every such walk reads the model's already-resolved {@code selectionContainer}, so scanning
+     * this block and scanning the whole tree answer the same thing; what differs is the cost, and the
+     * gate pays it on every ask. {@code AxGate} asks {@link #aRowTakesASelectionVerb} whenever a
+     * client wants to know whether the selected rows are settable, and VoiceOver asks continuously —
+     * the cost CRIT-5 was about. A container near the top of a scene would otherwise be walked to the
+     * end of the tree each time.
+     *
+     * <p><b>What the bound does not give back.</b> It restores the cost against the tail of the tree
+     * and not against what these answers cost before 2026-09-16: the gate's ask read the container's
+     * direct children then ({@link #childrenOf}, O(rows)) and reads its whole subtree now, O(rows ×
+     * cells) for a table, because membership is now the selection container rule and a member can
+     * hang anywhere below. That is the residual the macOS phase-5 timing line measures — against the
+     * subtree, not against the children.
      *
      * <p>The bound is read off the walk's own index order, which is depth-first: a node is begun
      * between its parent and its parent's next sibling, so a container's descendants are the
@@ -231,15 +241,12 @@ final class AxGrid {
      * under a synthetic row is relinked among that row's cells by column at publish
      * (Accessibility.java's child pass), so a sibling link can point at a node begun earlier.
      *
-     * @param tree the published tree
      * @param at   the container's index
-     * @return the first index past its subtree, or the node count when it is the last block
+     * @param node the node the walk has reached
+     * @return whether it is past the container's block, so the walk stops
      */
-    static int membersEnd(AccessibleTree tree, int at) {
-        for (int i = at + 1; i < tree.nodeCount(); i++) {
-            if (tree.node(i).parent() < at) return i;
-        }
-        return tree.nodeCount();
+    static boolean outsideSubtreeOf(int at, AccessibleNode node) {
+        return node.parent() < at;
     }
 
     // ---- disclosure: an outline's rows open and close (M1) ----------------------------------------
@@ -365,8 +372,9 @@ final class AxGrid {
         AccessibleTree tree = source.tree();
         int at = tree.indexOf(container.id());
         if (at == AccessibleNode.NONE) return SelectionShape.ROWS;
-        for (int i = at + 1, end = membersEnd(tree, at); i < end; i++) {
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
             AccessibleNode member = tree.node(i);
+            if (outsideSubtreeOf(at, member)) break;
             if (member.selectionContainer() == at) {
                 return member.cell() != null ? SelectionShape.CELLS : SelectionShape.ROWS;
             }
@@ -384,8 +392,9 @@ final class AxGrid {
         AccessibleTree tree = source.tree();
         int at = tree.indexOf(container.id());
         if (at == AccessibleNode.NONE) return false;
-        for (int i = at + 1, end = membersEnd(tree, at); i < end; i++) {
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
             AccessibleNode row = tree.node(i);
+            if (outsideSubtreeOf(at, row)) break;
             if (row.selectionContainer() != at || !isRow(row)) continue;
             if (row.accepts(Accessible.Action.SELECT) || row.accepts(Accessible.Action.ADD_TO_SELECTION)
                     || row.accepts(Accessible.Action.DESELECT)) return true;
@@ -404,8 +413,9 @@ final class AxGrid {
         int at = tree.indexOf(container.id());
         java.util.List<AccessibleNode> rows = new java.util.ArrayList<>();
         if (at == AccessibleNode.NONE) return rows;
-        for (int i = at + 1, end = membersEnd(tree, at); i < end; i++) {
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
             AccessibleNode row = tree.node(i);
+            if (outsideSubtreeOf(at, row)) break;
             if (row.selectionContainer() == at && isRow(row)) rows.add(row);
         }
         return rows;
