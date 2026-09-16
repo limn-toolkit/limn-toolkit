@@ -195,7 +195,7 @@ final class AxGrid {
         if (at == AccessibleNode.NONE) return new long[0];
         long[] found = new long[4];
         int count = 0;
-        for (int i = at + 1; i < tree.nodeCount(); i++) {
+        for (int i = at + 1, end = membersEnd(tree, at); i < end; i++) {
             AccessibleNode member = tree.node(i);
             if (member.selectionContainer() != at || !member.has(Accessible.State.SELECTED)) continue;
             if (!filter.keep(member)) continue;
@@ -203,6 +203,36 @@ final class AxGrid {
             found[count++] = source.elementFor(member.id());
         }
         return java.util.Arrays.copyOf(found, count);
+    }
+
+    /**
+     * One past the last index a member of the container at {@code at} can occupy: the end of that
+     * container's own subtree.
+     *
+     * <p>Every walk over a container's members reads the model's already-resolved
+     * {@code selectionContainer}, so scanning the whole tree and scanning this block answer the same
+     * thing; what differs is the cost, and the gate pays it on every ask. {@code AxGate} asks
+     * {@link #aRowTakesASelectionVerb} whenever a client wants to know whether the selected rows are
+     * settable, and VoiceOver asks continuously — the cost CRIT-5 was about. A container near the top
+     * of a scene would otherwise be walked to the end of the tree each time.
+     *
+     * <p>The bound is read off the walk's own index order, which is depth-first: a node is begun
+     * between its parent and its parent's next sibling, so a container's descendants are the
+     * contiguous block after it, and the first node after that block is a later sibling of the
+     * container or of one of its ancestors — whose parent index is therefore below the container's.
+     * <b>Not read off {@code nextSibling}</b>, which is a link and not an index: a widget cell hung
+     * under a synthetic row is relinked among that row's cells by column at publish
+     * (Accessibility.java's child pass), so a sibling link can point at a node begun earlier.
+     *
+     * @param tree the published tree
+     * @param at   the container's index
+     * @return the first index past its subtree, or the node count when it is the last block
+     */
+    static int membersEnd(AccessibleTree tree, int at) {
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
+            if (tree.node(i).parent() < at) return i;
+        }
+        return tree.nodeCount();
     }
 
     // ---- disclosure: an outline's rows open and close (M1) ----------------------------------------
@@ -327,7 +357,8 @@ final class AxGrid {
         if (container.table() == null) return SelectionShape.CHILDREN;
         AccessibleTree tree = source.tree();
         int at = tree.indexOf(container.id());
-        for (int i = at + 1; at != AccessibleNode.NONE && i < tree.nodeCount(); i++) {
+        if (at == AccessibleNode.NONE) return SelectionShape.ROWS;
+        for (int i = at + 1, end = membersEnd(tree, at); i < end; i++) {
             AccessibleNode member = tree.node(i);
             if (member.selectionContainer() == at) {
                 return member.cell() != null ? SelectionShape.CELLS : SelectionShape.ROWS;
@@ -345,7 +376,7 @@ final class AxGrid {
         AccessibleTree tree = source.tree();
         int at = tree.indexOf(container.id());
         if (at == AccessibleNode.NONE) return false;
-        for (int i = at + 1; i < tree.nodeCount(); i++) {
+        for (int i = at + 1, end = membersEnd(tree, at); i < end; i++) {
             AccessibleNode row = tree.node(i);
             if (row.selectionContainer() != at || !isRow(row)) continue;
             if (row.accepts(Accessible.Action.SELECT) || row.accepts(Accessible.Action.ADD_TO_SELECTION)
@@ -365,7 +396,7 @@ final class AxGrid {
         int at = tree.indexOf(container.id());
         java.util.List<AccessibleNode> rows = new java.util.ArrayList<>();
         if (at == AccessibleNode.NONE) return rows;
-        for (int i = at + 1; i < tree.nodeCount(); i++) {
+        for (int i = at + 1, end = membersEnd(tree, at); i < end; i++) {
             AccessibleNode row = tree.node(i);
             if (row.selectionContainer() == at && isRow(row)) rows.add(row);
         }

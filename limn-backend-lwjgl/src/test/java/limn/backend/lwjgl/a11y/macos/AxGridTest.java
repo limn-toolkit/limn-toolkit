@@ -244,6 +244,30 @@ class AxGridTest {
                         + "row and a member of nothing");
     }
 
+    /**
+     * The bound every walk over a container's members takes: its own subtree and no further. The
+     * answers are the same either way — membership is the model's already-resolved
+     * {@code selectionContainer} — so this pins the cost, which the gate pays on every ask
+     * ({@code aRowTakesASelectionVerb}, asked whenever a client reads whether the selected rows are
+     * settable, and VoiceOver asks continuously).
+     */
+    @Test
+    void aMemberWalkStopsAtTheEndOfItsContainersOwnSubtree() {
+        AccessibleTree tree = aTable();
+        int table = tree.indexOf(tree.find(1001).id());
+        int button = tree.indexOf(tree.find(1050).id());
+        assertEquals(button, AxGrid.membersEnd(tree, table),
+                "the BUTTON beside the table is the first node past the table's block, and the walk "
+                        + "must not reach it, nor anything after it");
+        assertTrue(table < tree.indexOf(tree.find(1030).id())
+                        && tree.indexOf(tree.find(1041).id()) < button,
+                "the block is contiguous: every one of the table's descendants lies between them");
+        assertEquals(tree.nodeCount(), AxGrid.membersEnd(tree, button),
+                "the last block ends at the tree");
+        assertEquals(tree.nodeCount(), AxGrid.membersEnd(tree, 0),
+                "and the window's block is the whole tree");
+    }
+
     @Test
     void aNodeWithNoTableFacetAnswersNothingAndZero() {
         Fixture f = over(aTable());
