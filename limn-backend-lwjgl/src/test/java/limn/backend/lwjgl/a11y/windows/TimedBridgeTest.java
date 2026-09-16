@@ -81,6 +81,60 @@ class TimedBridgeTest {
         }
     }
 
+    /**
+     * The frame's end is a member the scene calls, and since 2026-09-16 it is the boundary the real
+     * bridge flushes a collapse's owed re-announcement at. A wrapper that inherited the no-op
+     * default would make the probe's runs the one place a collapse whose tail is nothing but
+     * structure never says where the user is — and the probe's runs are the only Windows runs.
+     */
+    @Test
+    void theFramesEndIsForwardedSoACollapsesReannouncementIsStillFlushed() {
+        UiaBridge real = UiaBridge.withoutTheGate(0x1234);
+        TimedBridge timed = new TimedBridge(real, new EmitTally(), null);
+        List<String> trace = java.util.Collections.synchronizedList(new ArrayList<String>());
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            timed.publish(aFocusedWindow(), false);
+            real.objectFor(1000);
+            real.noteAsked();
+            // A publish past the model's budget whose reserved tail holds nothing but structure.
+            timed.emit(AccessibleEvent.of(AccessibleEvent.Type.INVALIDATED, 0));
+            timed.frameEnded();
+
+            long deadline = System.nanoTime() + 2_000_000_000L;
+            boolean said = false;
+            while (!said && System.nanoTime() < deadline) {
+                synchronized (trace) {
+                    said = trace.stream().anyMatch(l -> l.startsWith(
+                            "raised after the model's INVALIDATED for node 1001 in "));
+                }
+                Thread.onSpinWait();
+            }
+            assertTrue(said, "the frame's end never reached the real bridge: " + trace);
+        } finally {
+            UiaWindow.trace = before;
+            timed.detach();
+        }
+    }
+
+    /** The same window, with the button holding the keyboard, so there is a focus to re-announce. */
+    private static AccessibleTree aFocusedWindow() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.name(I18nString.literal("A window"), Accessible.NameFrom.EXPLICIT);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        a.role(Accessible.Role.BUTTON);
+        a.name(I18nString.literal("Save"), Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, true, true);
+        a.end();
+        a.end();
+        return a.publish(1001, 0, 0, 1f, true);
+    }
+
     @Test
     void detachClosesTheCountPrintsTheSummaryAndStillDetachesTheRealBridge() {
         UiaBridge real = UiaBridge.withoutTheGate(0x1234);

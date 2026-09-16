@@ -12,12 +12,21 @@ import java.util.function.Consumer;
  * <p>A delegating bridge and not a subclass, because what is being measured is the seam the scene
  * sees: the scene hands a bridge one tree and then every event of that tree's difference, so
  * counting at this seam counts what one frame's difference produces, which is the number
- * ADR&nbsp;039 &sect;13.19 asks for. And on Windows {@code emit} raises straight through — there is
- * no queue between it and {@code UiaRaiseAutomationEvent} — so the time one takes <em>is</em> the
- * cost of one raise, plus the two {@code VARIANT}s a property change marshals on the way.
+ * ADR&nbsp;039 &sect;13.19 asks for.
  *
- * <p>Every member the scene calls is forwarded unchanged, including {@code reentrant}, so that
- * wrapping the bridge changes nothing about when it walks or what it releases.
+ * <p><b>What the stopwatch reads is the hand-over and not the raise</b> (corrected 2026-09-16).
+ * This javadoc said "on Windows {@code emit} raises straight through — there is no queue between it
+ * and {@code UiaRaiseAutomationEvent} — so the time one takes <em>is</em> the cost of one raise",
+ * and that stopped being true on 2026-09-07, when the bridge gained the bounded queue
+ * &sect;1.10 asks of every bridge ({@link UiaEvents}, &sect;13.28): {@code emit} offers and returns,
+ * and a thread of the bridge's own raises. So the per-event times here are the cost of offering,
+ * which is what the scene actually pays in its frame, and the cost of a raise is the number
+ * &sect;13.28 measured with a reader attached. The counts — how many events a frame produces and how
+ * many of them reach the platform at all — are unaffected and are what the probe is for.
+ *
+ * <p>Every member the scene calls is forwarded unchanged, including {@code reentrant} and the
+ * frame's end, so that wrapping the bridge changes nothing about when it walks, what it releases,
+ * or when it flushes what a collapse left owed.
  */
 final class TimedBridge implements AccessibilityBridge {
 
@@ -75,6 +84,18 @@ final class TimedBridge implements AccessibilityBridge {
         long start = System.nanoTime();
         real.emit(event);
         tally.emitted(System.nanoTime() - start, raised);
+    }
+
+    /**
+     * <p>Forwarded, and not a no-op: since 2026-09-16 the frame's end is the publish boundary the
+     * Windows bridge flushes an owed re-announcement at ({@code UiaBridge#frameEnded}, ADR&nbsp;039
+     * §2.4). A wrapper that swallowed it would leave the probe's own runs — the only Windows runs
+     * there are — as the one place a collapse whose tail is nothing but structure never says where
+     * the user is. Not counted: it is a marker and not an event of the frame's difference.
+     */
+    @Override
+    public void frameEnded() {
+        real.frameEnded();
     }
 
     @Override
