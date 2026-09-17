@@ -18,9 +18,40 @@ blocks. Focus moves are published as they happen, and inside a list, a table, a 
 date field the *cursor* is published too, so a reader follows the arrow keys and not only the Tab
 key.
 
-<!-- phase-5: what each of the three readers actually speaks for a cursor move, a text field's
-     caret and a value change is being measured on the guests; until those runs are recorded this
-     paragraph says what the toolkit publishes, which is not the same as what was heard. -->
+What each reader makes of that is its own, and it has been listened to rather than assumed: the
+gallery's screens were driven a keystroke at a time under NVDA 2024.4.2 on Windows 11, VoiceOver
+on macOS 26, and Orca 50.2 and 46.1 on Fedora 44 and Ubuntu 24.04. The quotations here are what
+each reader said, with the application's language pinned to Portuguese for the run.
+
+A cursor move is spoken by all three, and each of them describes a row in its own shape. NVDA
+gives the level, the name, the state and the position — "nível 1", "Documents 2", "expandido",
+"1 de 5" — and in a grid it adds the column, "coluna 4". Orca gives the name and the level,
+"nível de árvore 1", and reads a table row out as its cells in order. VoiceOver gives the row, its
+state and what is inside it, "Documents 2, expandido. 2 itens contidos., item de árvore", and in a
+table it speaks the cell alone, "Caucasus, célula". A value change is spoken as the new value by
+itself: arrowing a date field's year says "2027", and clearing a segment says "vazio", where
+moving *onto* that segment says its name, its role and its value — "Dia", "botão de rotação",
+"09".
+
+Two things the readers do not agree about, and no toolkit can make them. **A selection change**:
+VoiceOver announces one — "Nenhuma linha selecionada" when a row leaves the selection, "5 linhas
+selecionadas" on select-all — where NVDA and Orca said nothing at either. **A position**: a node's
+position, its level and the size of its set are published on all three platforms, and NVDA speaks
+the position without being asked. Orca speaks it only where the user has turned on its own
+`speak-position-in-set` option, which ships off in Orca 50.2 — turned on for one run, the same
+screens said "1 de 5" and "15 de 30" — and the Ubuntu guest's Orca 46.1 never said it. VoiceOver
+speaks neither a position nor a cell's column, and for a branch says how many rows it holds
+instead. The toolkit publishes all three everywhere; a screen that only works if the position is
+spoken works for one reader's users, so where a row's place in its set carries meaning, put it in
+what the row draws as well.
+
+<!-- phase-5: the caret is the half of this section still unheard. The four guest runs of
+     2026-09-16 drive a tree, a table, a calendar, two date presentations and an announcement, and
+     none of them drives a text field: the gallery's form entry is not one of the six `--reader`
+     scripts, and Orca logged zero keyboard events in every run because the driver posts keys into
+     the scene rather than through the stack its key listener reads. A seventh script over a text
+     field, or a driver that posts through the platform's own input stack, would answer what a
+     reader says about a caret move and about reading a field by character. -->
 
 The names are the same `I18nString`s the interface draws, so a screen reader speaks your
 application in the language it is displayed in. The word for each *role* — "button", "check
@@ -102,9 +133,26 @@ scene where it does not. A window of its own is not a tree of its own as far as 
 concerned: the control that opened it points at it, and the cursor crosses into the popup's
 items, so arrowing through a combo's list is read item by item without leaving the field.
 
-<!-- phase-5: the cross-window cursor rests on three reader behaviours that have been reasoned
-     about and not yet measured — NVDA and VoiceOver accepting focus on an element of a window
-     that is not active, and Orca following an active-descendant reference into another frame. -->
+That crossing was the part of this page most obviously owed a reader, and it now has one. On
+Fedora and Ubuntu the demo's date picker publishes a single application with two frames — the
+field's panel pointing at the calendar in the popup, the calendar pointing back at the field — and
+Orca follows the cursor across and speaks the day standing under it, "9 de setembro de 2026,
+hoje." VoiceOver does the same on macOS, speaking "popup, janela, 9 de setembro de 2026, hoje,
+célula" for a window that is not the active one and then reading the arrow keys through the grid.
+On Windows the field keeps the keyboard and the focused element is the popup's day, exactly as
+described, but the reader half of that run is blocked by a defect of ours: with NVDA attached,
+closing the native popup hangs the demo, where the same run without a reader and the in-scene
+presentation with one both finish.
+
+Where the platform has no second window the picker draws in the scene instead, and there the
+question does not arise: a Wayland session gets the in-scene presentation, and the same run forced
+through XWayland gets the real popup window and the crossing above.
+
+<!-- phase-5: the Windows half is the one still unheard, and it is blocked rather than unmeasured:
+     with NVDA attached the native popup's close hangs the demo (P5W-3; reader-date-picker-1..2
+     stop at step 5 against the control picker-noreader-1, which finishes all eleven). Re-run
+     `--reader date-picker` in the native presentation on the Windows guest once that is fixed, and
+     say here what NVDA speaks on the way in and on the way out. -->
 
 A list publishes its true row count and the rows it has realized, which is what makes a
 million-row list cost what twenty do under a screen reader as well as on screen. The row the

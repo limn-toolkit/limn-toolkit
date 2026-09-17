@@ -161,9 +161,29 @@ A caption bound to a picker names the **field**, not the group around it, becaus
 where the keyboard lands; a range picker keeps the caption on the group and names its two fields
 "Start date" and "End date".
 
-<!-- phase-5: no screen reader has yet spoken a date widget. The day's position, the chooser's
-     "on show" word, the per-view names of the paging buttons, the empty segment's word and the
-     era in a year are published and owed a run on each guest. -->
+All of that has now been heard. The calendar, the date field and both presentations of the picker
+were driven a keystroke at a time under NVDA on Windows, VoiceOver on macOS and Orca on Fedora and
+Ubuntu, and every step spoke. A day is read as its whole date, carrying whatever `setDayMarks`
+added to it — "21 de setembro de 2026, feriado" — and a refused day stops the cursor and is said to
+be out of reach in each reader's own words: NVDA "indisponível", VoiceOver "nenhuma ação
+disponível", Orca "acinzentado". Do not write one of those phrasings into your own interface
+expecting to match it; what the toolkit guarantees is the stop and the withheld verb, and the
+reader supplies the sentence. A segment nobody has filled says "vazio" to all three rather than
+reading out its minimum, and Up fills it from today rather than from that minimum. Climbing to the
+month chooser says the month on show, "Set., em exibição", and the paging buttons are named for
+the view they page.
+
+The day's position is published on every platform, and who says it varies: NVDA speaks it
+unprompted — "20 de 30" — Orca speaks it only where its own `speak-position-in-set` option has been
+turned on, and VoiceOver does not speak it at all. [Accessibility](/docs/accessibility/) has the
+rest of what the three readers do and do not say.
+
+<!-- phase-5: two halves of this section are still unheard. The era in a year segment: no
+     `--reader` script puts a Japanese-calendar field in front of a reader, so "令和8" has been read
+     by a client and by nobody's ears — a script over an era field on any guest would answer it.
+     And the native popup under NVDA: closing it with a reader attached hangs the demo (P5W-3), so
+     on Windows the native presentation has been heard only as far as the close, while the in-scene
+     one runs to the end. -->
 
 Reading right to left, the grid mirrors and the field does not. A grid is columns in reading order,
 so the first day of the week moves to the edge reading starts from and Left and Right swap with it.
