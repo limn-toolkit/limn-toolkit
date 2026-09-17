@@ -283,6 +283,14 @@ wiring anything. `setAccessibility` remains for an application installing its ow
 event queue, the element registry and the listening gate stayed apart on purpose — each platform has
 a different right answer, and a shared one would make a bridge lie.
 
+**One model, three translations — with two declared exceptions, and they are listed in one place.**
+The rule is that the widget says one true thing, the model publishes it once, and each bridge says
+it in its platform's words. Since 2026-09-16 two decisions let one bridge answer differently from
+the other two, both because a *native* control of that shape, read on the guest, does not publish
+what the model publishes: a menu title and the expand axis on Linux, and the focus *write* on a row.
+**ADR 039 §4.2** carries both, with the reading behind each. If you are about to make a bridge
+diverge, that section is where it goes — an exception nobody wrote down is a bridge lying quietly.
+
 **Linux is one application per process; the other two are per window.** AT-SPI2 has one application
 object per connection, so `AtspiApplication` owns the one connection and every window's
 `AtspiBridge` is a facade that registers its tree as a frame beneath it — a native popup included,

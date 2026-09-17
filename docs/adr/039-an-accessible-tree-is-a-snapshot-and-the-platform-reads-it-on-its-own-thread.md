@@ -3455,6 +3455,29 @@ it was, so a reader that ignores the attribute hears what it heard before. Pinne
 data cell and the footer cell a direction their facet has no business carrying. What a live Orca
 does with the attribute is phase 5's.
 
+#### Amendment 2026-09-16 — a menu title will not publish the expand axis here, and that is a
+declared exception
+
+**Decided 2026-09-16 (decision 72), and not yet built. Nothing in the bridge has changed as this is
+written.** §1.2's rule is one rule for every node — every node carrying an `ExpandFacet` is
+`EXPANDABLE`, menu titles included (decision 41) — and decision 41 was taken on the assumption that
+a native menu publishes that axis. **On this desktop it does not.** Read on the Fedora 44 KDE guest
+on 2026-09-16 (`readings/phase5-fedora/native-gtk3-menu-states.txt`, `menu-states.py`,
+`gtk3-menu-window.py`): a native GTK 3 menu title carries **no `expandable`, no `expanded` and no
+`collapsed`**, open or closed. What an open menu carries is `selected`, its children become
+`showing`, and **every** menu node carries `selectable`. So the rule as written makes a Limn menu
+title sound unlike every other menu on the desktop, to the reader that desktop ships.
+
+**What is decided:** on Linux a menu title stops publishing the expand axis over AT-SPI and uses
+`selected` plus the children's `showing` instead. **Windows and macOS keep `EXPANDABLE`**, where the
+ExpandCollapse pattern and the disclosure attribute are what a native menu really does carry, and
+the model keeps publishing the state for every node with the facet, as §1.2 says. So the translation
+diverges on one platform, deliberately, and this is the first of the two declared exceptions
+**§4.2** lists together. **What is not decided here** is which nodes count as "a menu title": the
+reading covers a menu bar's titles and their submenu rows on GTK 3, and a combo box, a tree row and
+the calendar's title are not menus and are untouched. That is the Linux lane's to settle when it
+builds this, against the same reading.
+
 ### 2.4 The events, side by side
 
 | Event | Windows | macOS | Linux |
@@ -4496,6 +4519,70 @@ Each item is a place where a tidier model would compile, ship, and be misread by
 - **Two-dimensional values.** The colour picker's saturation-and-value field genuinely has one, and
   neither this model nor any of the three platforms can carry it; it is a `CANVAS` with a described
   value.
+
+### 4.2 The declared exceptions: where one bridge does not translate, it diverges
+
+**The rule of this record is one model, three translations.** The widget says one true thing, the
+model publishes it once, and each bridge says it in its own platform's words — that is what §1.2's
+facets are for, and it is why §4 above is a list of places where a *tidier* model would have made a
+bridge lie rather than a list of places where a bridge is allowed to.
+
+**As of 2026-09-16 that claim is qualified, and this is the one place the qualifications live.** Two
+decisions of that date each let one platform's bridge answer differently from the other two, for the
+same reason in both cases: a *native* control of that shape, read on the guest, does not publish what
+the model publishes, and a reader on that desktop is built for the native shape. Neither is a
+concession to convenience. This section is meant to grow; an exception that is not written here is
+not declared, and a bridge that diverges silently is the defect this section exists to prevent.
+
+Each entry says what it is, which platform, the measurement behind it, and the decision number.
+
+**Exception 1 — a menu title publishes no expand axis on Linux (decision 72). Decided 2026-09-16,
+not yet built.**
+
+- *What.* The model goes on publishing `EXPANDABLE` for every node carrying an `ExpandFacet`,
+  because §1.2's rule is a fact about the widget. The **Linux** bridge will stop putting that axis on
+  the bus for a menu title, and will use `selected` on the open title plus `showing` on its children
+  instead, which is what a native menu gives Orca.
+- *Which platforms.* Linux only. **Windows and macOS keep `EXPANDABLE`**, because the ExpandCollapse
+  pattern and the disclosure attribute are exactly what a native menu carries there.
+- *The measurement.* Fedora 44 KDE, GTK 3.24.52, at-spi2-core 2.60.6, 2026-09-16
+  (`readings/phase5-fedora/native-gtk3-menu-states.txt`). A native GTK 3 menu title carries **no
+  `expandable`, no `expanded` and no `collapsed`**, closed or open; an open title carries `selected`
+  and its children gain `showing`; and every menu node carries `selectable`. Decision 41 had assumed
+  the axis was there.
+- *Status.* **Decided and not built.** No commit at `bf7f6af4` changes the Linux bridge for this, and
+  `AtspiStates` still maps `EXPANDABLE` for every node that has it. §2.3 carries the same statement
+  where a Linux implementer meets it. Do not read this entry as a description of the code.
+
+**Exception 2 — a row refuses the focus *write*, each platform by its own convention (decision 76).
+Decided and built on macOS 2026-09-16; true on Windows without a change.**
+
+- *What.* The model keeps saying a row accepts `FOCUS`, because a row really can take the cursor and
+  that is how the toolkit says "the cursor is here" on all three platforms (decision 1). What differs
+  is whether a bridge offers the platform's *setter* for it. **Reading focus on a row keeps working
+  everywhere**, and that is deliberate: `accessibilityFocusedUIElement`, `GetFocus` and the active
+  descendant all name the cursor row, so a client that walks there is entitled to a truthful yes.
+- *Which platforms.* macOS refuses `setAccessibilityFocused:` on a row and leaves the write to the
+  container (`AxSetters.offers`: `node.accepts(FOCUS) && !grid.isRow(node)`), refused at the gate so
+  a client is *told* rather than ignored. Windows needs no change: a row is not `FOCUSABLE`, so
+  `IsKeyboardFocusable` answers false and a managed client refuses `SetFocus` before the provider is
+  reached. Linux is untouched — there the platform focus stays on the widget and the item travels as
+  `ActiveDescendantChanged`, so no row is ever asked to take a focus write.
+- *The measurement.* macOS 26.6.2, 2026-09-16: a native `NSOutlineView` row answers
+  `AXFocused=AXError(-25205)` (`kAXErrorAttributeUnsupported`) for the value **and** for its
+  settability, while the outline itself answers `AXFocused=1 settable=true`
+  (`readings/macos-outline-probe.txt`); a native `NSTableView` row's attribute names carry
+  `AXSelected` and no `AXFocused` at all (`readings/macos-table-probe.txt`). The live cost of
+  offering it was measured the same day: with VoiceOver attached its cursor sync wrote its own
+  previous row back about 40 ms after every key, and no tree script ever got past row index 2
+  (`readings/phase5-macos/`). Windows, the same day: a managed client read
+  `TreeItem 'Documents 2' IsKeyboardFocusable=False` and `TreeItem 'Reports 2'` the same, each
+  refusing `SetFocus` with `InvalidOperationException hresult=0x80131509` *before the provider was
+  called*, while `Tree 'Arquivos' IsKeyboardFocusable=True` accepted it
+  (`readings/phase5-windows-diagnosis/defects-1/client.log`, P5W-5).
+- *Status.* Built on macOS (`f9bf3d6f`, merged at `72c6f2ec`); §2.2's amendment of 2026-09-16 is the
+  full account, including the one asymmetry kept on purpose — the *getter* still answers on a row.
+  Windows is as described with no change owed.
 
 ---
 
