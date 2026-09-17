@@ -1,15 +1,22 @@
 # ADR 044: A tree is an outline over children the application provides, and a row may promise children before it can name them
 
-- **Status:** Proposed, 2026-09-12. Phase 1 is the widget and its three-platform accessibility;
-  §8 says what is deliberately not in it and §9 what each later phase is.
-  **Still Proposed as of 2026-09-16, deliberately (decision 60 of the 2026-09-13 pass).** The
-  amendments of 2026-09-14 and 2026-09-15 are written: the widget's keyboard, selection, identity,
-  loading and damage rules, and the three bridges' outline mapping. What is missing is the thing
-  this record is about — §4's findings are what three readers said on 2026-09-13 about a build that
-  predates every fix in this pass, and no reader has spoken the tree since. **Acceptance follows the
-  phase-5 reader runs**, one guest at a time over the gallery's `tree` and `tree-loading` entries,
-  and the status line will then record what each reader heard, as ADRs 041 and 042 record theirs.
-  Until then §4 is read as a plan plus a stale transcript, not as a verified mapping.
+- **Status: ACCEPTED, 2026-09-16 (decision 71 of the 2026-09-13 pass).** Phase 1 is the widget and
+  its three-platform accessibility; §8 says what is deliberately not in it and §9 what each later
+  phase is. Proposed 2026-09-12, and held Proposed on purpose until this date (decision 60) for one
+  reason: §4's findings were what three readers said on 2026-09-13 about a build that predated every
+  fix of this pass, and no reader had spoken the tree since. **They have now.** §4's amendment of
+  2026-09-16 records what each one heard on the gallery's `tree-loading` entry, and the status moved
+  only after it was written — accepting a record that still contains a claim we have just disproved
+  is how a record stops being worth reading. What the readers said, in one line each:
+  **NVDA 2024.4.2 on Windows 11** speaks a row by its composite name with its level, its expand
+  state and its position, speaks the children of a lazy load — the claim §4 got wrong — and speaks
+  nothing at all for the busy state. **Orca 50.2 on Fedora 44** speaks the row name and the level,
+  receives the loaded child and speaks it, and does not speak the position unless its own
+  `speak-position-in-set` is turned on. **VoiceOver on macOS 26.6.2** speaks a row by name with its
+  disclosure, and could not be driven past row index 2 by a defect this pass introduced and fixed
+  the same day. **Orca 46.1 on Ubuntu 24.04** was not driven over the tree. The busy state reaches
+  no reader on any platform, which is what decision 73's announcement answers (§2). Acceptance does
+  not close the macOS re-run or §9's later phases; both are named where they stand.
 - **Date:** 2026-09-12
 - **Scope:** the toolkit's first tree: what its model is, how a row is expanded and how children
   that are not there yet arrive, how it virtualizes, what the keyboard does, how a screen reader
@@ -150,7 +157,11 @@ He chose all three of the following, from renders:
 - **Shown at once**, with no delay before a fast load would show it.
 
 To a reader the row is `BUSY`, and the line is not an item at all, so a reader never stands where
-the cursor cannot go, and "2 of 5" counts nodes. On Linux, AT-SPI's busy bit was already mapped.
+the cursor cannot go, and "2 of 5" counts nodes. (**"To a reader the row is `BUSY`" was measured and
+found to reach nobody on 2026-09-16**, the amendment at the end of this section: the state is
+published on all three and no reader speaks it, and decision 73 added the announcement that does.
+The rest of the sentence held: the cursor really does step over the line, on every platform.)
+On Linux, AT-SPI's busy bit was already mapped.
 UI Automation has no busy bit, so on Windows `BUSY` is the item's `ItemStatus` string. That is a
 phrase in the node's own language, from a new `StateNames` catalog (`limn.state.busy`, twenty-one
 translations), and a property-changed event is raised when the row starts and stops. No busy state
@@ -167,7 +178,10 @@ this build's SDK, not recalled. On the development Mac, `scripts/a11y/macos/axbu
 the demo (`--scene tree-loading`, with the load lengthened) through the AX API: Remote answered
 `AXElementBusy` 1 while loading and 0 once its children landed, every row listed the attribute,
 and roles, subroles and titles still came through the forward. No reader has spoken any of this
-on either platform: VoiceOver was not run, and the Windows guest was not up.
+on either platform: VoiceOver was not run, and the Windows guest was not up. (**Both ran on
+2026-09-16**, the amendment at the end of §4: NVDA receives the Windows raise and speaks nothing,
+and the macOS tree script could not be driven under VoiceOver at all. No reader speaks the busy
+state on any platform; decision 73's announcement is what does.)
 
 **Amendment, 2026-09-14: a row whose load finds nothing stays open, over an "Empty" line.** The
 loading line used to vanish when an empty list landed and leave an open triangle over nothing,
@@ -398,11 +412,15 @@ visible headless and most of it not caused by the tree:
   rows that moved up carried ExpandCollapse and the two branches below lost it — the offset of the
   two hidden rows exactly. The Tree itself serves no pattern. NVDA never had the demo in the
   foreground (it read the launching terminal), so what it speaks for a tree is still untested.
+  (**The offset was not found again on 2026-09-16** — W5, the amendment at the end of this
+  section — and what NVDA speaks is no longer untested.)
 - **macOS.** VoiceOver announced the outline as a table and then one row, "item de árvore,
   archive-01.zip, texto, (1 de 1)", unchanged while the lead moved through six rows: it does not
   follow the selection, the outline answers no `AXRows`, and the rows answer no disclosure.
 - **All three.** Two seconds after Remote's load was due, none of the three clients saw its
-  children in the tree.
+  children in the tree. (**Refuted 2026-09-16 by the phase-5 runs**, the amendment at the end of
+  this section: on Windows and on Fedora a reader now speaks the loaded children by name, level
+  and position. The bullet stands as what the 2026-09-13 build did.)
 
 The versioned half of those recipes is the platform clients: `scripts/a11y/linux/tree-check.py`,
 `scripts/a11y/windows/walk-the-tree.ps1` and `scripts/a11y/macos/axoutline.swift`, each run against
@@ -437,6 +455,68 @@ as the demo's do, it is also why Remote's children never appeared. The first tes
 trees already open, which is why none of them saw it. Cells now follow their nodes, and
 `TreeTest` and `TreeAccessibilityTest` read both shapes headless. The guests have not re-run, so
 whether this was all of either finding is still unconfirmed.
+
+**Amendment, 2026-09-16 (phase 5, the live reader runs): the guests re-ran, and the paragraph above
+is answered.** Four guests were driven over the gallery's `tree-loading` entry with a real reader
+attached — Windows 11 10.0.26200.9457 with NVDA 2024.4.2, Fedora 44 KDE with Orca 50.2, Ubuntu 24.04
+with Orca 46.1, macOS 26.6.2 with VoiceOver — all against one jar,
+`9aa1a1d5abca377c60fdb2e17a1e27fd0559aa9e7c9b1b35bfc8ffc461973d43`, hashed on host and guest and
+built at `main` `3749dddd`. The readings are `readings/phase5-{windows,windows-diagnosis,windows-fix,fedora,ubuntu,macos}/`
+of the 2026-09-13 pass. What the runs said about this section, item by item:
+
+- **A lazily loaded child reaches the accessible tree and is spoken**, so the "All three" bullet
+  above is refuted. On Windows, `phase5-windows-fix/full-tree-1` — the first reader run ever to get
+  past step 11 — speaks `'nível 2', 'index.json', '1 de 3'` at step 15, the child Remote's load
+  fetched, and `'nível 1', 'Remote', 'expandido', '3 de 5'` when Left climbs back to it. On Fedora,
+  `phase5-fedora/l4-1` shows Orca receiving `children-changed:add … [tree item: 'index.json']` while
+  the load lands and then speaking `'index.json.'` and `'nível de árvore 2'` at the same step. Two
+  platforms, two readers, one jar. The macOS run cannot vote on this step and says why below.
+- **A row is spoken by its name** (TREE-ROW-NAME), on all three readers: NVDA `'nível 3', 'Q3
+  regional revenue and headcount, consolidated (final).pdf', '1 de 2'`; Orca `'Documents 2'`, the
+  composite name reaching it as `ActiveDescendantChanged`'s `any_data` where the 2026-09-14 baseline
+  had `name=''`; VoiceOver `'Documents 2, expandido. 2 itens contidos., item de árvore'`
+  (`phase5-macos/m5-on-4`). The name rule of the 2026-09-14 amendment above is what a reader speaks.
+- **Level and position are spoken** (TREE-NEW-11, W4/L5). NVDA says `'nível 1'`…`'nível 3'` by
+  `TreeItem` nesting with `'n de m'` beside it; Orca says `'nível de árvore 1'`…`3` from our own
+  `level` attribute. **Orca does not speak the position by default**, and that is the reader's
+  setting and not a defect of ours: `speak-position-in-set` ships `False` in Orca 50.2, while the
+  node's own dump carries `posinset:1, level:1, setsize:5`; flipped at runtime over Orca's D-Bus, in
+  memory, a second run of the same steps (`phase5-fedora/l5-posinset`) says `'1 de 5'`, `'2 de 2'`
+  and `'2 de 5'` (decision 77; ADR 039 §2.3's amendment of this date). Orca 46.1 on Ubuntu has no
+  D-Bus module to flip it at all.
+- **W5: a row's pattern set is not offset after a collapse.** The 2026-09-13 finding was the
+  widget's cell binding, fixed the same day; the reader run confirms it. After `LEFT` closes Media
+  at step 12, the next `DOWN` speaks `'Remote', 'recolhido', '3 de 5', 'nível 1'` — its own name,
+  its own state, its own level and its own position — and after `LEFT` closes Remote at step 17 the
+  next `DOWN` speaks `'Trash', 'recolhido', '4 de 5', 'nível 1'`. Reproduced in `busy-short-1`.
+- **T7: the busy state is published correctly and no reader speaks it.** The Windows bridge raises
+  `ITEM_STATUS` `none→"ocupado"` and back with `hr=0x0(S_OK)`, NVDA receives and queues the event
+  (`handlePropertyChangeEvent: queuing NVDA UIA_itemStatus event`) and speaks nothing: six raises
+  over three load lengths (600 ms, 2.5 s, 20 s), five received, none spoken, predicted in writing
+  before the runs (`phase5-windows-fix/t7-prediction.txt`). No bridge change can make NVDA 2024.4.2
+  say it — it has no `ItemStatus` handler. That is what **decision 73** answers, with the
+  announcement of a load's start and its end; §2's amendment of this date is the decision, and it is
+  merged. The state, the spinner and the muted line are unchanged.
+- **TREE-NEW-13: an empty branch opens, and the reader is never told it is empty.** At step 19
+  `RIGHT` on Trash, whose fetch finds nothing, says `'expandido'`, and the next `DOWN` goes straight
+  to `'Empty folder', 'recolhido', '5 de 5', 'nível 1'` — the cursor stepping over the placeholder
+  exactly as decision 45 designed it to. So the row opening is heard and the emptiness is not, on
+  every platform, and that silence is decision 45's own consequence rather than a defect; decision
+  73's `limn.tree.emptyAnnouncement` is what says it out loud. The empty fetch does raise busy and
+  not-busy, which NVDA drops with the rest (T7).
+
+**What the runs did not settle, said plainly.** macOS could not drive this script: with VoiceOver
+attached the cursor never got past row index 2, because `setAccessibilityFocused:` — installed by
+this pass — let VoiceOver's own cursor sync write its previous row back about 40 ms after every key,
+and `Documents 2` ended the run collapsed, a state no step asks for. It is a regression of this pass,
+measured rather than inferred (stop VoiceOver and all 21 steps walk, twice), and it was fixed the
+same day by refusing that setter on a row (ADR 039 §2.2's amendment of 2026-09-16). **The macOS half
+of the lazy-load and busy items therefore waits on a re-run against the fixed bridge**, and nothing
+here claims it. Ubuntu's Orca 46.1 was driven over the table, the dates and the announcement and not
+over the tree, so it votes on none of the above. Three findings of the runs are the model's or other
+lanes' and are not this record's: a table row's empty name (ADR 041 §7), `SELECTABLE` published by
+nothing (ADR 039 §1.2) and a calendar cell keyed by its grid slot (ADR 042 §8) — all three measured
+by these runs, all three fixed on 2026-09-16, each recorded where it belongs.
 
 ## 5. Keyboard
 
