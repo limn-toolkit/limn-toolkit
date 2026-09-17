@@ -3057,6 +3057,34 @@ checked again on the write. **A reader loses nothing:** the native route to the 
 already offered here, both posting `SELECT`, and `SELECT` on a Limn row moves the cursor to it. The
 container itself stays focus-settable, as the native outline is.
 
+**Amendment, 2026-09-16, later the same day: this did not close the loop, and the sentence above says
+why.** The fix was re-measured against the very runs that found the defect, with a jar carrying it
+(`ac9f7cc4`, `main` `10a1575d`) and VoiceOver attached, twice. **Nine unrequested focus moves before,
+nine after** — not one fewer — the same nine steps, reverting at +37…+69 ms, and the script still
+stops at row index 2. Total notifications 76 before, 77 and 76 after.
+
+What *is* fixed is real and was verified: a client writing `AXFocused` on a row no longer moves the
+cursor, where on the old jar it did. But **VoiceOver never used that route.** Every one of the
+eighteen reverts begins with `AXSelectedRowsChanged` on the `AXOutline` about 7 ms after our own
+move, with focus following some 33 ms later, and the probe shows `setAccessibilitySelectedRows:` on
+the container still taking — the setter this section's own paragraph above kept on purpose, reasoning
+that "a reader loses nothing" because "`SELECT` on a Limn row moves the cursor to it".
+
+That clause is the defect, and it is not a bridge's to fix. **On AppKit, writing a selection does not
+move the keyboard focus** — the view keeps it, and the rows are merely selected; that is the same
+native fact this amendment used to refuse `AXFocused` on a row. On Limn, a `SELECT` on a row moves the
+cursor. So a reader that mirrors its own cursor into the selection — which is what VoiceOver's cursor
+sync does, legitimately, through the native route — drags the application's cursor with it, and
+closing the `AXFocused` door changed nothing at all.
+
+**So the open question is a model question and it is stated here rather than answered:** should a
+`SELECT` that arrives from a *client write* move the cursor, when the same verb from a key press must?
+Answering it by refusing `setAccessibilitySelectedRows:` would diverge from a native outline in the
+very way §4.2's second exception was written to avoid. Evidence:
+`readings/phase5-hear-the-fixes/macos-findings.txt`, beside `readings/phase5-macos/tree-2`, `tree-3`
+and the VoiceOver-stopped controls `tree-noVO-1`, `-2`. Not yet run, and it is the cheap control that
+would close the last inference: this jar with VoiceOver **stopped**.
+
 **One asymmetry with the native shape is kept on purpose.** `isAccessibilityFocused` still answers on
 a row, and answers true on the cursor row, where a native row refuses the getter too. It is kept
 because decision 1 and semantics 4 make the cursor row the element

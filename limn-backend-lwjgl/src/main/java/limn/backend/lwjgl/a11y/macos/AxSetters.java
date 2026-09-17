@@ -50,8 +50,17 @@ import java.util.List;
  * accepted <em>and</em> the attribute is one a native element of that shape carries, and every other
  * {@code setAccessibility…} selector is refused on every node ({@link AxGate}). The second half is not
  * pedantry: a row whose {@code AXFocused} was settable because the row accepts {@code FOCUS} — while a
- * native row carries no {@code AXFocused} at all — let VoiceOver's cursor sync fight the application
- * for the cursor (P5M-1, 2026-09-16; see {@link #offers}).
+ * native row carries no {@code AXFocused} at all — was measured as inviting the write VoiceOver makes
+ * (P5M-1, 2026-09-16; see {@link #offers}).
+ *
+ * <p><b>It did not stop the cursor fight, and the record says so.</b> Re-measured the same day with
+ * a jar carrying this refusal: nine unrequested focus moves before, nine after. The write this
+ * refuses is genuinely inert now, and VoiceOver never used it — every revert begins with
+ * {@code AXSelectedRowsChanged} on the outline, through {@code setAccessibilitySelectedRows:},
+ * which stays offered because a native container offers it. What drags the cursor is that a
+ * {@code SELECT} moves it here and does not on AppKit, which is a model question and is open. See
+ * ADR 039 §2.2's second amendment of 2026-09-16 and
+ * {@code readings/phase5-hear-the-fixes/macos-findings.txt}.
  *
  * <p><b>A write is posted, never waited for</b> (§1.9): the setter returns nothing, and a verb the node
  * does not accept is not posted. The check is made again on the write itself, because a client may
