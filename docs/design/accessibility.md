@@ -176,6 +176,16 @@ the container, which post `SELECT`. The *getter* still answers on a row, because
 `accessibilityFocusedUIElement` names the cursor row and a client that walks there must get a
 truthful answer. Nothing changes for Windows or Linux, where the reader does not write focus back.
 
+**And on macOS a client is now told the truth before it writes** (2026-09-16, ADR 039 §2.2). Refusing
+a setter at the gate stops the write, but until this round it did not stop AppKit *advertising* the
+attribute as settable: `AXUIElementIsAttributeSettable` discards the gate's refusal for any setter the
+element's class implements, so every element read as settable for all six — a leaf row's
+`AXDisclosing` included, where a native outline row reports `false`. AppKit's fall-back after that
+refusal is the legacy `accessibilityIsAttributeSettable:`, which the bridge now answers from the same
+gate, so what a client is told and what the bridge will do are one answer. It needed no extra
+Objective-C classes: one class answers per element, exactly as a native `NSOutlineView` reports a leaf
+and a branch differently from its one row class.
+
 Two consequences a widget author feels. A focused list, table or tree keeps its cursor row realized
 even when a scroll takes it off screen, so the descendant never resolves to nothing; and where the
 cursor is inside a native popup window, it is resolved across the opener's relation into that

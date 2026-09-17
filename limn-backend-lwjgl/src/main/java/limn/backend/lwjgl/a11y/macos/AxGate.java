@@ -16,12 +16,47 @@ import limn.accessibility.AccessibleNode;
  * with an {@code AXIndex} of −1, a headerless table with an {@code AXHeader} of nil, a button with an
  * {@code AXColumnIndexRange} of {@code NSNotFound}.
  *
+ * <p><b>For a setter it decides delivery, and only together with {@link #settable} does it decide
+ * the telling.</b> A gate NO has always stopped the write from being posted; what it did not do was
+ * stop AppKit reporting the attribute settable, because AppKit discards a NO for any selector the
+ * class itself implements (read 2026-09-16, {@code readings/macos-gate-setter-probe-read.txt}). The
+ * fall-back it takes after a NO here is the legacy {@code accessibilityIsAttributeSettable:}
+ * ({@code readings/macos-settable-mechanism-serve.txt}), so a client reads settable unless both
+ * refuse. {@link #settable} answers that one from this same method, which is what makes the telling
+ * equal the gate rather than merely resemble it.
+ *
  * <p>Separate from {@link AxElementClass} for the reason {@link AxGrid} is: the closure that asks this
  * needs AppKit, and the answer does not.
  */
 final class AxGate {
 
     private AxGate() {
+    }
+
+    /**
+     * What {@code accessibilityIsAttributeSettable:} answers, which is what a client reads as
+     * settable — and it is {@link #allows} for the setter, so that <b>what a client is told is what
+     * the gate will do</b>.
+     *
+     * <p><b>A client reads settable unless this and {@link #allows} both refuse</b>, so neither
+     * alone can say no and both are needed. AppKit asks {@link #allows} first and a YES there ends
+     * the question — the element whose gate refused nothing was never asked this selector for a
+     * setter attribute at all. A NO there is where it falls back here, and with nothing installed to
+     * fall back to it reports settable anyway for any setter the class implements, which is all six
+     * of ours. Read on the macOS 26.6.2 guest 2026-09-16,
+     * {@code readings/macos-settable-mechanism-serve.txt}: the element whose gate refused two
+     * setters was asked here for exactly those two, answered no to both, and only then did a client
+     * read {@code no}; and one class's two instances answered {@code AXDisclosing} differently,
+     * because their nodes do.
+     *
+     * @param grid     the lookups the row selectors answer from
+     * @param node     the node the element stands for
+     * @param setter   the setter a write to the attribute would send, or {@code null} when the
+     *                 attribute AppKit asked about has none of ours behind it
+     * @return whether a write to that attribute would post something now
+     */
+    static boolean settable(AxGrid grid, AccessibleNode node, String setter) {
+        return setter != null && allows(grid, node, setter);
     }
 
     /**

@@ -2764,6 +2764,63 @@ leaf row answers `AXDisclosing settable=false` and a row answers `AXFocused AXEr
 2026-09-13 reading was not wrong about what it saw: every element it read left the setters to
 `NSAccessibilityElement`, which is the one case AppKit honours. Readings:
 `macos-gate-setter-probe-serve.txt`, `macos-axgate-outline.txt`, `macos-axwrite-outline.txt`.
+
+***Fixed the same day, 2026-09-16 (decision 78), and the mechanism was measured before anything was
+built.*** The rule is **`settable` = the modern gate's YES OR the legacy
+`accessibilityIsAttributeSettable:`'s YES**: AppKit asks `isAccessibilitySelectorAllowed:` first and
+a YES there ends the question, and a NO there is where it falls back to the legacy selector *when the
+element answers it* — with nothing to fall back to it reports settable anyway for any setter the
+class implements, which is all six of ours. So neither answer alone can say no, and the element now
+answers the legacy one **from the same `AxGate`** that decides delivery. A client is therefore told
+exactly what it may write. Read on the macOS 26.6.2 guest (25G83) 2026-09-16, seven elements in one
+window with every ask logged (`readings/macos-settable-mechanism-serve.txt`,
+`macos-settable-mechanism-read.txt`, probe kept beside them): the element whose gate refused nothing
+was asked the legacy selector for **no** setter attribute at all; the element whose gate refused two
+was asked for exactly those two, answered no to both, and only then did a client read `no`; and the
+attributes with no modern setter behind them — `AXPosition`, `AXElementBusy` — are asked of it on
+every element, which is why an attribute the bridge does not map answers **false** rather than
+defaulting to true.
+
+**The Objective-C classes did not have to multiply, and the approval to multiply them was not
+needed.** The decisive element in that reading is one class with two instances differing in nothing
+but their nodes' answers: the leaf reports `AXDisclosing settable=no` and the branch `settable=YES`,
+both reporting `AXFocused settable=no`. That is precisely what a native `NSOutlineView` does with its
+one row class — leaves `row#2` and `row#5` false, collapsed branch `row#4` and open branches `row#0`
+and `row#1` true (`readings/macos-outline-probe.txt`) — and it is the case per-shape classes could
+not have expressed at all, since leaf and branch are the same shape. The **column** class is left
+untouched: it installs no setters, so a client already read `no` for all of them. Runtime cost: still
+two Objective-C classes for the whole process, one new libffi closure, and six attribute-name
+constants read off AppKit once at class construction and turned into text there rather than per ask.
+Nothing in §3.2's reentrancy rules is touched — the closure calls `source.entered()`, reads the
+published snapshot and returns a `BOOL`, posting nothing and waiting for nothing.
+
+***Read live on the guest*** with this branch's own jar, by the same `axgate` and `axwrite` probes
+that produced the old answers, so the two readings differ only in the jar
+(`readings/macos-settable-outline-new.txt`, `macos-settable-table-new.txt`,
+`macos-settable-write-new.txt`, against `macos-axgate-outline.txt`, `macos-axgate-table.txt`,
+`macos-axwrite-outline.txt`):
+
+| element | old (main) | new |
+| --- | --- | --- |
+| static text `Arquivos` | `Focused=YES Selected=YES Disclosing=YES Expanded=YES Value=YES` | all `no` |
+| outline `Arquivos` | all five `YES` | `Focused=YES`, the other four `no` |
+| outline branch `Documents 2` | all five `YES` | `Selected=YES Disclosing=YES`, the rest `no` |
+| outline leaf `Q3 regional revenue…` | all five `YES` | `Selected=YES`, **`Disclosing=no`**, the rest `no` |
+| table `Cordilheiras` | all five `YES` | `Focused=YES`, the other four `no` |
+| table row `Alps` | all five `YES` | `Selected=YES`, the rest `no` |
+| table cell `Alps` | all five `YES` | `Focused=YES`, the rest `no` — as a native cell reports `AXSelected` not settable |
+| column | all five `no` | all five `no`, byte-identical: its class installs no setters, so a client already read the truth |
+
+The leaf-versus-branch pair is the point, and the live run shows it sharper than the lab probe did:
+`Media 2` and `Remote` are *collapsed* branches, so they print `disclosing=0` exactly as the leaf
+does, and they answer `Disclosing=YES` while the leaf answers `no` — same class, same printed state,
+different answer, because one can open and the other cannot. That is what a native `NSOutlineView`
+does (`row#4 'Pictures'` `AXDisclosing=0 settable=true`, `row#2 'Q1'` `AXDisclosing=0
+settable=false`). **The write path is unchanged**, which the write probe prints in its own words: the
+leaf's line now reads `write AXDisclosing (settable said no) -> AXError(0)` where it read
+`(settable said SETTABLE)`, and the rows stay at 9 either way, while the branch control still really
+closes, 9 rows to 5.
+
 And every other `setAccessibility…` selector —
 `NSAccessibilityElement`'s stored setters, which a client read as settable on every element, `AXRole`
 included — is refused on every node. The setters are installed only together with the gate. *Corrected

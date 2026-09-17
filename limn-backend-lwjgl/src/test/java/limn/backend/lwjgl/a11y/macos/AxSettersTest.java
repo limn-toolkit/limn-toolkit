@@ -22,13 +22,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The setter half (MACOS-NEW-11; semantics 5): each write is the verb the node accepts, or nothing,
  * and each attribute is written exactly where that holds.
  *
- * <p><b>What this pins is the write, not what a client is told before it.</b> Measured on the guest
- * 2026-09-16, inside Limn and again outside it: AppKit asks the gate at settability time and
- * <b>discards a NO whenever the class implements the setter</b>, so every element of the node class
- * reads as settable for all five installed setters however this gate answers. The refusal is honoured
- * where it matters — a refused write returns {@code AXError(0)} and the setter is never entered — and
- * that is what these assertions are about. See {@link AxSetters}'s own note and ADR 039 §2.2's
- * amendment of that date.
+ * <p><b>This pins the write, and since 2026-09-16 the telling as well.</b> The gate alone could never
+ * pin the telling: AppKit asks it at settability time and <b>discards a NO whenever the class
+ * implements the setter</b>, so every element of the node class read as settable for all six however
+ * this gate answered ({@code readings/macos-gate-setter-probe-read.txt}). What it does after that NO
+ * is fall back to the legacy {@code accessibilityIsAttributeSettable:} where the element answers it,
+ * so a client is told settable unless both refuse; the element now answers that one from this same
+ * gate ({@link AxGate#settable}), which is what
+ * {@link #whatAClientIsToldIsWhatTheGateWillDo()} holds. Readings:
+ * {@code macos-settable-mechanism-serve.txt} and {@code macos-settable-mechanism-read.txt}. See
+ * {@link AxSetters}'s own note and ADR 039 §2.2's amendments of that date.
  */
 @ExtendWith(PlatformFreeBridges.class)
 class AxSettersTest {
@@ -429,5 +432,126 @@ class AxSettersTest {
         assertTrue(AxGate.allows(slider.grid(), slider.node(), AxSetters.VALUE), "the gate asks AxSetters");
         assertFalse(AxGate.allows(slider.grid(), slider.node(), AxSetters.FOCUSED),
                 "and a slider publishing no FOCUS is not focus-settable");
+    }
+
+    /**
+     * WINDOW &gt; TREE 1010 &gt; TREE_ITEM 1011 that publishes EXPAND (a branch) and TREE_ITEM 1012 that
+     * publishes neither EXPAND nor COLLAPSE (a leaf): the one case per-shape classes could not have
+     * expressed, because both rows are the same shape and answer differently.
+     */
+    private static Outline aLeafAndABranch() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int outline = a.begin(1010, 0, Locale.ENGLISH, 0, 0, 200, 60);
+        a.role(Accessible.Role.TREE);
+        a.selection(false, false);
+        a.inherited(true, true, true, true, false);
+        a.begin(1011, outline, Locale.ENGLISH, 0, 0, 200, 30);
+        a.role(Accessible.Role.TREE_ITEM);
+        a.name(I18nString.literal("branch"), Accessible.NameFrom.CONTENT);
+        a.selectionItem(false, 1, 2);
+        a.hierarchy(1, 1, 2);
+        a.expand(false);
+        a.action(Accessible.Action.EXPAND, Accessible.Action.SELECT);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.begin(1012, outline, Locale.ENGLISH, 0, 30, 200, 30);
+        a.role(Accessible.Role.TREE_ITEM);
+        a.name(I18nString.literal("leaf"), Accessible.NameFrom.CONTENT);
+        a.selectionItem(false, 2, 2);
+        a.hierarchy(1, 2, 2);
+        a.action(Accessible.Action.SELECT);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        a.end();
+        AccessibleTree tree = a.publish(0, 0, 0, 1f, true);
+        AxBridge bridge = PlatformFreeBridges.make();
+        bridge.publish(tree, false);
+        return new Outline(new AxGrid(bridge), tree);
+    }
+
+    /**
+     * Decision 78, and the reason the owner's approval to multiply the Objective-C classes was not
+     * needed: two rows of one element class answer {@code AXDisclosing} differently because their
+     * nodes do, which is what a native {@code NSOutlineView} does with one row class — its leaves
+     * {@code row#2} and {@code row#5} settable=false, its collapsed branch {@code row#4} and its open
+     * branches {@code row#0} and {@code row#1} settable=true
+     * ({@code readings/macos-outline-probe.txt}, 2026-09-15).
+     */
+    @Test
+    void aLeafAndABranchOfOneClassAnswerDisclosingDifferently() {
+        Outline o = aLeafAndABranch();
+        assertTrue(AxGate.settable(o.grid(), o.node(1011), AxSetters.DISCLOSED),
+                "a row that can open is disclosure-settable, as the native collapsed branch is");
+        assertFalse(AxGate.settable(o.grid(), o.node(1012), AxSetters.DISCLOSED),
+                "and a leaf is not, which is the answer a client used to be denied");
+        for (long id : new long[] {1011L, 1012L}) {
+            assertFalse(AxGate.settable(o.grid(), o.node(id), AxSetters.FOCUSED),
+                    id + ": a native row carries no AXFocused at all (P5M-1)");
+            assertFalse(AxGate.settable(o.grid(), o.node(id), AxSetters.EXPANDED),
+                    id + ": an outline row's disclosure is AXDisclosing, never AXExpanded");
+        }
+    }
+
+    /**
+     * The whole point of installing {@code accessibilityIsAttributeSettable:} (2026-09-16): what a
+     * client is TOLD is what the gate will DO, for every node and every setter, with no second rule
+     * that could drift from the first.
+     *
+     * <p>Before it, AppKit discarded the gate's NO for any setter the class implements and reported
+     * every one of them settable on every element — so this equality held nowhere that mattered
+     * ({@code readings/macos-gate-setter-probe-read.txt}).
+     */
+    @Test
+    void whatAClientIsToldIsWhatTheGateWillDo() {
+        for (Outline o : List.of(anOutline(true), anOutline(false), aLeafAndABranch())) {
+            for (int i = 0; i < o.tree().nodeCount(); i++) {
+                AccessibleNode node = o.tree().node(i);
+                for (String setter : AxSetters.selectors()) {
+                    assertEquals(AxGate.allows(o.grid(), node, setter),
+                            AxGate.settable(o.grid(), node, setter),
+                            node.id() + " " + setter + ": the telling and the delivery are one answer");
+                }
+            }
+        }
+    }
+
+    /**
+     * An attribute with none of our setters behind it is not settable, and that is measured rather
+     * than defaulted: AppKit asks this selector for {@code AXPosition} and {@code AXElementBusy} on
+     * every element, whatever the gate said, and the probe's control with no hook installed reported
+     * both {@code no} ({@code readings/macos-settable-mechanism-read.txt}).
+     */
+    @Test
+    void anAttributeWithNoSetterBehindItIsNotSettable() {
+        One slider = one(Accessible.Role.SLIDER, a -> a.value(40, 0, 100, 1));
+        assertFalse(AxGate.settable(slider.grid(), slider.node(), null),
+                "AXPosition, AXElementBusy, AXRole: the map has no setter, so the answer is no");
+        assertTrue(AxGate.settable(slider.grid(), slider.node(), AxSetters.VALUE),
+                "and the control that the null is doing the work, not the node");
+    }
+
+    /**
+     * The attribute names AppKit asks with are read off the running AppKit, so what this can hold off
+     * a Mac is that every setter installed has exactly one name mapped to it and no name is mapped to
+     * anything else. {@code AxConstantsTest} holds the symbols themselves against the dump.
+     */
+    @Test
+    void everyInstalledSetterHasExactlyOneAttributeNameBehindIt() {
+        assertEquals(List.copyOf(AxSetters.selectors()).size(), AxSetters.ATTRIBUTE_SYMBOLS.size(),
+                "a setter with no attribute name is a setter a client can never be told about");
+        assertEquals(java.util.Set.copyOf(AxSetters.selectors()),
+                java.util.Set.copyOf(AxSetters.ATTRIBUTE_SYMBOLS.values()),
+                "the attribute table maps exactly the installed setters");
+        assertEquals(AxSetters.ATTRIBUTE_SYMBOLS.keySet(), AxSetters.symbols(),
+                "and AxConstantsTest is handed every symbol the table names");
+        for (String symbol : AxSetters.symbols()) {
+            assertTrue(symbol.startsWith("NSAccessibility") && symbol.endsWith("Attribute"),
+                    symbol + " is not an AppKit attribute-name symbol, so the dump cannot hold it");
+        }
     }
 }

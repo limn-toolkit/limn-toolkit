@@ -61,6 +61,8 @@ final class AxSelectors {
         ID_OF_ID,
         /** {@code (id, SEL, SEL) -> BOOL}. */
         BOOL_OF_SELECTOR,
+        /** {@code (id, SEL, id) -> BOOL}: the legacy settability hook, whose argument is a name. */
+        BOOL_OF_ID,
         /** {@code (id, SEL, NSInteger, NSInteger) -> id}. */
         ID_OF_TWO_INTEGERS,
         /** {@code (id, SEL, CGPoint) -> id}. */
@@ -109,6 +111,11 @@ final class AxSelectors {
         for (String setter : AxSetters.BOOL_SETTERS) kinds.put(setter, Kind.VOID_OF_BOOL);
         kinds.put(AxSetters.VALUE, Kind.VOID_OF_ID);
         kinds.put(AxSetters.SELECTED_ROWS, Kind.VOID_OF_ID);
+        // The legacy settability hook, which is what a client reads once a setter is installed:
+        // -accessibilityIsAttributeSettable:, B24@0:8@16, answered by NSView and NOT in
+        // NSAccessibilityElement's chain, so the class has no inherited one and this adds rather than
+        // overrides (the committed dump, lines 225 and 321).
+        kinds.put("accessibilityIsAttributeSettable:", Kind.BOOL_OF_ID);
         for (String selector : List.of("accessibilityRows", "accessibilityVisibleRows",
                 "accessibilitySelectedRows", "accessibilitySelectedChildren",
                 "accessibilitySelectedCells", "accessibilityColumns", "accessibilityVisibleColumns",
@@ -182,6 +189,14 @@ final class AxSelectors {
      * <p><b>The two legacy entry points are one unit</b>: {@code accessibilityAttributeNames} would
      * advertise {@code AXElementBusy} that a lone value getter could not answer, and a lone value
      * getter would answer an attribute nothing advertises.
+     *
+     * <p><b>The legacy settability hook is deliberately in no unit</b>, though it is only ever
+     * reached after a gate NO. Neither half without the other is worse than nothing, which is the
+     * bar for an entry here: the hook without the gate is dead — AppKit never gets past a YES to ask
+     * it — and answers exactly what a client already read for the attributes it is asked anyway; the
+     * gate without the hook is the state this bridge shipped in until 2026-09-16, where the write is
+     * refused correctly and only the telling is too generous. Withholding either would trade a
+     * degraded answer for no answer.
      */
     static final Map<String, List<String>> REQUIRES;
 

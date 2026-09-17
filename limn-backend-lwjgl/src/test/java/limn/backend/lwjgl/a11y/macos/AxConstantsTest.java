@@ -124,17 +124,18 @@ class AxConstantsTest {
      * {@code AxElementClass} was written to read; a selector whose dump encoding is not its listed
      * shape's would be installed with a closure that reads the wrong registers.
      */
-    private static final Map<AxSelectors.Kind, String> SHAPES = Map.of(
-            AxSelectors.Kind.ID, "@16@0:8",
-            AxSelectors.Kind.BOOL, "B16@0:8",
-            AxSelectors.Kind.INTEGER, "q16@0:8",
-            AxSelectors.Kind.RANGE, "{_NSRange=QQ}16@0:8",
-            AxSelectors.Kind.ID_OF_ID, "@24@0:8@16",
-            AxSelectors.Kind.BOOL_OF_SELECTOR, "B24@0:8:16",
-            AxSelectors.Kind.ID_OF_TWO_INTEGERS, "@32@0:8q16q24",
-            AxSelectors.Kind.ID_OF_POINT, "@32@0:8{CGPoint=dd}16",
-            AxSelectors.Kind.VOID_OF_BOOL, "v20@0:8B16",
-            AxSelectors.Kind.VOID_OF_ID, "v24@0:8@16");
+    private static final Map<AxSelectors.Kind, String> SHAPES = Map.ofEntries(
+            Map.entry(AxSelectors.Kind.ID, "@16@0:8"),
+            Map.entry(AxSelectors.Kind.BOOL, "B16@0:8"),
+            Map.entry(AxSelectors.Kind.INTEGER, "q16@0:8"),
+            Map.entry(AxSelectors.Kind.RANGE, "{_NSRange=QQ}16@0:8"),
+            Map.entry(AxSelectors.Kind.ID_OF_ID, "@24@0:8@16"),
+            Map.entry(AxSelectors.Kind.BOOL_OF_SELECTOR, "B24@0:8:16"),
+            Map.entry(AxSelectors.Kind.BOOL_OF_ID, "B24@0:8@16"),
+            Map.entry(AxSelectors.Kind.ID_OF_TWO_INTEGERS, "@32@0:8q16q24"),
+            Map.entry(AxSelectors.Kind.ID_OF_POINT, "@32@0:8{CGPoint=dd}16"),
+            Map.entry(AxSelectors.Kind.VOID_OF_BOOL, "v20@0:8B16"),
+            Map.entry(AxSelectors.Kind.VOID_OF_ID, "v24@0:8@16"));
 
     /**
      * The review of MACOS-NEW-6: tying a selector to the dump by name says it exists, not that the
@@ -169,6 +170,8 @@ class AxConstantsTest {
         Set<String> symbols = new LinkedHashSet<>(AxRoles.symbols());
         symbols.addAll(AxNotifications.symbols());
         symbols.addAll(AxActions.actionSymbols());
+        // The attribute names the legacy settability hook is asked with (2026-09-16).
+        symbols.addAll(AxSetters.symbols());
         return symbols;
     }
 
