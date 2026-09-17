@@ -472,8 +472,16 @@ carries the verbs its container gives it, and how many that is differs by contai
 "not per-row actuation in a list" was reversed on 2026-09-14). A `Tree` row and a `Table` row each
 carry their own by-state set — `SELECT`, `ADD_TO_SELECTION` or `DESELECT`, `EXPAND` or `COLLAPSE`
 (tree only), `FOCUS`, `SCROLL_INTO_VIEW` — so a reader addresses a particular row and the container
-performs it. A `ListView` row carries `SELECT`, plus `SCROLL_INTO_VIEW` where its cell cannot take
-the keyboard, and no `FOCUS`, because there the cursor *is* the selection and a verb that moved one
+performs it. (**A divergence found 2026-09-16 and left standing rather than papered over:** a
+`Table` row does **not** publish `SCROLL_INTO_VIEW`. `Table#onAccessibility` gives a `ROW` the
+selection verbs and `FOCUS` and stops there, so on Windows the row vends no `ScrollItem` — which
+ADR 039 §2.1's amendment of 2026-09-15 already records, in the same words, as "owed to the `Table`
+and dates widgets under decision 20". The sentence above is the **intent** and the code is the gap:
+decision 20 put the verb on a row precisely so a reader could bring an off-screen row into view, and
+a table row is the widest row in the toolkit. Do not delete this clause to match the source; publish
+the verb. A `CalendarView` day cell is the same gap.) A `ListView` row carries `SELECT`, plus
+`SCROLL_INTO_VIEW` where its cell cannot take the keyboard, and no `FOCUS`, because there the
+cursor *is* the selection and a verb that moved one
 without the other would be a distinction the widget does not have. Activation stays on the
 container in all three: `PRESS` is published where there is a cursor and acts on the cursor row, so
 a reader opens the row it is standing on and not an arbitrary one. No data table behind a chart; no

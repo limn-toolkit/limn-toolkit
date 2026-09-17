@@ -3355,6 +3355,22 @@ a change to them (decision 43): Orca 50.2's `object:attributes-changed` handler 
 sort amendment below. *(Amended 2026-09-15, the fix round's integration: it is now — `sort` on the
 sorted column's header cell, and on no other node. That amendment's last paragraph says how.)*
 
+**Amendment 2026-09-16 (phase 5, decision 77): Orca reads all three and speaks only the level,
+because it ships position-in-set off.** "As Orca reads them" above is true of the *read* and says
+nothing about the *speech*, and the difference was measured on the Fedora 44 guest on 2026-09-16
+(`readings/phase5-fedora/`, runs `l4-1` and `l5-posinset`). `level` is spoken with the setting
+untouched — `'nível de árvore 1'` through `'nível de árvore 3'` over the gallery's tree. `posinset`
+and `setsize` are **not**, although the node's own dump carries `posinset:1, level:1, setsize:5`:
+Orca 50.2's `speak-position-in-set` setting defaults to `False`, so `_generate_position_in_list`
+returns nothing. Flipped at runtime over Orca's own D-Bus service — in memory, with nothing written
+to the owner's dconf, and verified — the run that repeats those steps says `'1 de 5'`, `'2 de 2'`
+and `'2 de 5'`, and a calendar day says `'15 de 30'` (`rs-calendar`). Orca 46.1 on
+Ubuntu 24.04 has no `org.gnome.Orca.Service` D-Bus module, so it cannot be flipped there at all and
+was not. **Nothing in this bridge changes**: the attributes are right, published as this amendment
+says, and what varies is a setting of another product. What changes is what may be *promised* — a
+document that says a Linux user hears "n of m" is wrong unless it names the setting, which is
+decision 77 and the guides lane's to carry.
+
 #### Amendment 2026-09-15 — `GrabFocus`, `GetAccessibleAtPoint` and `Introspect` are answered
 
 **What was wrong (LINUX-NEW-5; settled linux-adr-overstatements).** Three rows promised what nothing
@@ -3707,7 +3723,16 @@ answered by `get_ItemStatus` the same way; **NVDA 2024.4.2 has no handler for it
 maps to its `UIA_itemStatus` event, which nothing in NVDAObjects handles, and it reads `ItemStatus`
 only as the description of an element whose class name is `UIColumnHeader` (readings/
 nvda-2024.4.2-uia.md, "`event_UIA_itemStatus`"), so a busy tree row is silent to it on Windows until
-a fallback is decided after phase 5's reader run (T7).
+a fallback is decided after phase 5's reader run (T7). *(**Confirmed live and closed, 2026-09-16.**
+The prediction above was written from NVDA's source and was then measured on the guest: the bridge
+raises `ITEM_STATUS` `none→"ocupado"` and back with `hr=0x0(S_OK)`, NVDA receives and queues every
+one — `handlePropertyChangeEvent: queuing NVDA UIA_itemStatus event` — and speaks none. Six raises
+over three load lengths, five received, zero spoken, with the prediction filed before the runs
+(`readings/phase5-windows-fix/busy-short-1`, `busy-long-1`, `t7-prediction.txt`). The fallback is
+**decision 73**: the widget announces a lazy load's start and its empty end through `Scene#announce`,
+because an announcement is the one route all three readers were measured speaking through that day.
+The `ItemStatus` mapping stays exactly as this row describes it — it is right, and it is a client's
+to read.)*
 
 #### Amendment 2026-09-15 — the Linux column, as the bridge sends it
 
