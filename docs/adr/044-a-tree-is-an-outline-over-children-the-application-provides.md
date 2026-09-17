@@ -1,15 +1,22 @@
 # ADR 044: A tree is an outline over children the application provides, and a row may promise children before it can name them
 
-- **Status:** Proposed, 2026-09-12. Phase 1 is the widget and its three-platform accessibility;
-  §8 says what is deliberately not in it and §9 what each later phase is.
-  **Still Proposed as of 2026-09-16, deliberately (decision 60 of the 2026-09-13 pass).** The
-  amendments of 2026-09-14 and 2026-09-15 are written: the widget's keyboard, selection, identity,
-  loading and damage rules, and the three bridges' outline mapping. What is missing is the thing
-  this record is about — §4's findings are what three readers said on 2026-09-13 about a build that
-  predates every fix in this pass, and no reader has spoken the tree since. **Acceptance follows the
-  phase-5 reader runs**, one guest at a time over the gallery's `tree` and `tree-loading` entries,
-  and the status line will then record what each reader heard, as ADRs 041 and 042 record theirs.
-  Until then §4 is read as a plan plus a stale transcript, not as a verified mapping.
+- **Status: ACCEPTED, 2026-09-16 (decision 71 of the 2026-09-13 pass).** Phase 1 is the widget and
+  its three-platform accessibility; §8 says what is deliberately not in it and §9 what each later
+  phase is. Proposed 2026-09-12, and held Proposed on purpose until this date (decision 60) for one
+  reason: §4's findings were what three readers said on 2026-09-13 about a build that predated every
+  fix of this pass, and no reader had spoken the tree since. **They have now.** §4's amendment of
+  2026-09-16 records what each one heard on the gallery's `tree-loading` entry, and the status moved
+  only after it was written — accepting a record that still contains a claim we have just disproved
+  is how a record stops being worth reading. What the readers said, in one line each:
+  **NVDA 2024.4.2 on Windows 11** speaks a row by its composite name with its level, its expand
+  state and its position, speaks the children of a lazy load — the claim §4 got wrong — and speaks
+  nothing at all for the busy state. **Orca 50.2 on Fedora 44** speaks the row name and the level,
+  receives the loaded child and speaks it, and does not speak the position unless its own
+  `speak-position-in-set` is turned on. **VoiceOver on macOS 26.6.2** speaks a row by name with its
+  disclosure, and could not be driven past row index 2 by a defect this pass introduced and fixed
+  the same day. **Orca 46.1 on Ubuntu 24.04** was not driven over the tree. The busy state reaches
+  no reader on any platform, which is what decision 73's announcement answers (§2). Acceptance does
+  not close the macOS re-run or §9's later phases; both are named where they stand.
 - **Date:** 2026-09-12
 - **Scope:** the toolkit's first tree: what its model is, how a row is expanded and how children
   that are not there yet arrive, how it virtualizes, what the keyboard does, how a screen reader
