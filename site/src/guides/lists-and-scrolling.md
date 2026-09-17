@@ -137,9 +137,29 @@ along the columns, and Space sorts the column you are on, cycling the same three
 does; Tab again returns to the rows. A screen reader's cursor follows it onto the column title
 and back.
 
-<!-- phase-5: no screen reader has yet been heard over a table. What it says for a row, a cell, a
-     column header and a sort direction is what the three bridges publish and is owed a run on
-     each guest. -->
+A screen reader has now been over this table on all four guests, and the three readers describe it
+differently enough to be worth knowing before you design a screen around one. NVDA calls it a data
+grid, speaks a cell with the column it is in — "Visitada", "caixa de seleção", "não marcado",
+"coluna 4" — and announces each row the cursor moves onto by its place in the table, "7 de 10".
+Orca opens with "tabela com 10 linhas 4 colunas", reads a whole row out as its cells in order when
+the cursor changes row, and names the column when it changes column: "Continente cabeçalho de
+coluna Europe." VoiceOver speaks the cell alone, "Caucasus, célula", with no column and no row
+number. The header stop above is spoken as a column header by all three when Tab lands on it, and
+the sort it applies is spoken by NVDA and by Orca, "Ordenado em ordem crescente"; VoiceOver is
+handed the same direction and does not read it out.
+
+Selection is where they part. VoiceOver announces it — "Nenhuma linha selecionada" when a row
+leaves the selection, "5 linhas selecionadas" on select-all — and in those runs NVDA and Orca said
+nothing at either. Where a selection change is the point of the screen, say it in the interface
+rather than leaving it to the reader to mention.
+
+<!-- phase-5: the runs behind these two paragraphs were made at 3749dddd, before the defects they
+     found were fixed. A table row published no name then — which is why NVDA and Orca announce a
+     row by role and position and not by the record it shows — and SELECTABLE was published by
+     nothing, which is why Orca resolved the rows a select-all had just selected and threw them
+     away as layout-only. `e712ce58` names the row and `1285d71f` publishes the state; neither has
+     been heard yet. Re-run `--reader table` on each guest, say here what a named row sounds like,
+     and check whether Orca's silence at select-all survives its own cause being removed. -->
 
 A column may also put something in the **footer**, a summary row pinned under the rows the
 way the header is pinned over them: a text (`footer("Total")`), one of the aggregates a
@@ -204,16 +224,35 @@ yet answers `null`**, which is a different answer from an empty list. An empty l
 `null` is a promise. The row keeps its triangle, because a folder nobody has read is not a file,
 and opening it sends the tree to `load`, whose `Work` reads the folder off the UI thread and
 delivers on it. While it runs, the row shows a spinner where its triangle goes and a "Loading…"
-line where its children will be, and the row publishes itself as busy; you draw none of that, and
-the arrows walk past the line. <!-- phase-5: no reader has yet been heard to speak the busy state
-on any platform; the state is published and the run that hears it is owed. --> Close the row before
-the job lands and the job is cancelled,
+line where its children will be; you draw none of that, and the arrows walk past the line. Close
+the row before the job lands and the job is cancelled,
 since a result nobody is looking at is one nobody should pay for; what does land is kept, so
 opening the row again costs nothing. A load that fails closes the row rather than leaving it open
 and empty, which would say the folder has nothing in it. A load that returns *nothing* is a
 different answer again: the row stays open over a discreet "Empty" line, in the "Loading…" line's
 place, because a folder that has been read and is empty is not a folder nobody has read. An eager
 branch with no children shows the same line.
+
+**Somebody listening is told in words.** The spinner and the line are for eyes, and the busy state
+the row publishes beside them was measured on 2026-09-16 and reaches nobody's ears: on Windows it
+arrives as UI Automation's `ItemStatus`, which NVDA 2024.4.2 receives and has no handler for — six
+raises and not one word — and on Fedora Orca received the state going on and off and said only
+"expandido", the branch opening. The "Loading…" line is deliberately not a row the cursor can stand
+on, so every reader steps over that as well. The tree announces the load instead:
+"Loading *branch*" when a lazy load begins, and "*branch* empty" when one lands on nothing, each
+named after the branch and each polite, so that a tree opening branch after branch does not cut
+its own reader off mid-word. An announcement is the one route all three readers were heard
+speaking through in those runs. The spinner, the line and the busy state are unchanged beside it:
+a sighted user sees what they saw before.
+
+<!-- phase-5: the two announcements landed in `2d19b119`, after the four guest runs, so what is
+     measured is the path and not these two strings: NVDA, VoiceOver and Orca were each heard
+     speaking the demo's own announcements the same day, and the busy state was heard by none of
+     them (Windows measured, Fedora measured, and on macOS the busy row could not be reached under
+     VoiceOver at all). Re-run `--reader tree-loading` with `-Dlimn.demo.treeLoadMillis=20000` on
+     each guest and replace this with what the two lines sound like. Deliberate and not a gap: a
+     load that lands *with* children announces only its start, and an eager empty branch, which
+     runs no load, announces nothing. -->
 
 The example overrides `isLeaf` because an entry already knows whether it is a folder; left alone,
 the tree reads `children` and calls a node a leaf only when its children are known and there are
@@ -245,10 +284,26 @@ row below it, and a row hidden by a collapse is still selected when its parent o
 collapsing the branch the cursor is in moves the cursor up to the row you collapsed, which is
 where you are looking.
 
-<!-- phase-5: the tree is the widget with the most owed to it. What a reader says for a row's
-     name, its level and its position among siblings, its verbs, the busy row and the empty row
-     has been measured headlessly and heard by nobody since the fixes; ADR 044 stays Proposed
-     until those runs are recorded. -->
+The tree was the widget with the most owed to a reader, and it has now been walked under all three
+of them. NVDA speaks a row as its level, its name, its state and its position — "nível 1",
+"Documents 2", "expandido", "1 de 5" — and says "recolhido" or "expandido" by itself when a row
+closes or opens under the cursor. Orca speaks the name and the level, "nível de árvore 2", and
+adds the position only where its own position option has been turned on. VoiceOver speaks the row,
+its disclosure state and what it holds: "Documents 2, expandido. 2 itens contidos., item de
+árvore". Children that arrive from a `load` are read like any other row once they land, NVDA giving
+the new one its name and its position, "index.json", "1 de 3". A branch that opens on nothing says
+"expandido" and no more, because the "Empty" line is not a row the cursor stops on: the
+announcement above is what tells a listener the rest.
+
+<!-- phase-5: two halves are unheard. On macOS the walk itself was wrong in these runs: VoiceOver
+     keeps its cursor and the keyboard focus in step, and the bridge was offering a row's focus as
+     settable, so VoiceOver wrote its previous row back some 40 ms after every key and no script
+     got past the second row. `f9bf3d6f` stops offering it and nobody has re-run the tree script
+     since — the VoiceOver wording quoted above is what it says about a row, not proof that it
+     walks the tree correctly. And a reader's own verbs on a row (expand, collapse, select through
+     the accessibility action rather than the keyboard) were exercised by clients and by no reader
+     in any run. `--reader tree-loading` on the macOS guest, and one reader-driven action on a row
+     anywhere, would close both. -->
 
 Rows are realized where the viewport reaches, as a `ListView`'s are, in the order of a walk over
 what is open, so a tree over a deep directory scrolls vertically the way a list does and costs what
