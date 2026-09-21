@@ -1,8 +1,8 @@
 # ADR 045: A widget is one of ten shapes, and the bridge translates the shape
 
-- **Status: PROPOSED, 2026-09-21.** Phases 0 to 4 and 6 of §7 are in the tree, and phase 7's
-  records; phase 5 (the bridges) and phase 8 (the reader round) are open, and the record is
-  accepted when they close. Each phase's measure is written beside the floor in §0 and in §3
+- **Status: PROPOSED, 2026-09-21.** Phases 0 to 7 of §7 are in the tree; phase 8 (the reader
+  round, one per platform) is open, and the record is accepted when it closes with nothing a
+  reader hears changed. Each phase's measure is written beside the floor in §0 and in §3
   as it closes. Decisions 89 to 97 of the 2026-09-13
   pass (batch 25) are what this record writes down.
 - **Date:** 2026-09-21
@@ -300,9 +300,48 @@ refused verb owes is that nothing moved and nobody was told.
 
 ## 5. Decision: one adapter per shape in each bridge, and the exceptions stay declared
 
-*Filled in as phase 5 closes.* ADR 039 §4.2's exceptions stay where they are, as exceptions of a
-shape's adapter (the Linux menu-row exception becomes the `MENU` adapter's), never of a widget.
-The role tables stay closed and per platform.
+What the floor counted, 151 reads of a role or a shape facet outside the role tables, turned
+out to be two different things once read: **facet reads**, which are how a bridge works (a
+pattern is vended because the facet is there, a cell is found by its facet) and do not go away
+by being moved, and **role comparisons**, which are where a bridge decides behaviour by what a
+widget is. The measure this record keeps is the second, per bridge, and where each remaining
+one lives:
+
+| Bridge | Role comparisons outside the tables, floor → phase 5 | Where the rest live |
+|---|---|---|
+| Windows | 8 → 7 | 3 in the property table (`IsPassword`, `IsDialog` for a dialog and an alert); 3 inside `UiaGridShape`, the grid's own vocabulary (a row, a header group); 1 in `UiaSurfaceShape`, the scroll bar a surface reaches for |
+| macOS | 12 → 12 | `AxGrid`'s and `AxBridge`'s grid vocabulary, and the header-column walk; none moved |
+| Linux | 7 → 5 | `AtspiTree`'s table helpers (a row, a header group); the menu family's three sites became one, `AtspiMenuShape` |
+
+**Windows** was moved as the plan asked: `UiaPatternProviders.slotsFor` is one dispatch by the
+pattern's shape, and the code that serves each pattern lives, verbatim, under the shape that
+owns it — `UiaLeafShape` (Invoke), `UiaToggleShape`, `UiaTextShape` (Value, for a text and for
+a value's spoken form), `UiaValueShape` (RangeValue), `UiaPopupOwnerShape` (ExpandCollapse),
+`UiaRowsShape` (Selection, SelectionItem, ScrollItem, and the outline nesting a tree's rows get,
+which `UiaFragment` now asks of the shape rather than of the `TREE_ITEM` role),
+`UiaSurfaceShape` (Scroll) and `UiaGridShape` (Grid, Table, GridItem, TableItem and the cell,
+header and table lookups). The patterns are still vended by facet in `UiaPatterns`, and every
+test still addresses `slotsFor`; `UiaConstantsTest`, which pins where a cited reading lives,
+points at the two files the cited members moved to. `UiaShapesTest` builds one node per shape
+with the builder alone and pins the patterns the bridge vends for it.
+
+**Linux** has one declared exception (ADR 039 §4.2, decisions 72 and 82), and it was read in
+three places: the state set, the action list and the expand-change signal. It is now
+`AtspiMenuShape`, the `MENU` shape's half of the bridge, and the three sites ask it. The
+interfaces a node serves were already decided by facet (`AtspiTree.interfaceBitsOf`), which
+`AtspiShapesTest` pins per shape from the builder alone, the menu row's silence included.
+
+**macOS was named, not split.** `AxGrid` has been the platform-free adapter of the `GRID` and
+`ROWS` shapes since its extraction on 2026-09-15: a table's rows, cells, headers and columns, an
+outline's and a list's rows, and which attribute a container's selection is read off. Its 870
+lines answer to a `Source`, every answer is pinned by tests that run where AppKit is not, and
+`AxGate` decides what a node answers by facet and by `AxGrid`'s predicates. Splitting it into two
+classes would be a rewrite of code the plan said to move and not rewrite, for a name; the record
+names it instead. The synthetic per-shape test for macOS is owed (§8): it needs an `AxGrid` over
+a source double, which the existing tests build through a bridge double this record did not
+want to copy.
+
+The role tables stay closed and per platform, and no constant entered without a reading.
 
 ## 6. What this changes in ADR 039
 
@@ -326,7 +365,7 @@ the paragraph that says so; the design note's "Adding a widget" is rewritten aro
 | 2 | `AccessibleHarness`, `AccessibleInvariants`, `RowsContract` with ten cases; `ListView` and `Tree` under it, twenty dynamic tests | 2026-09-21 |
 | 3 | `RowsAccessibility`; `Tree`, `Table`, `ListView`, `CalendarView`, then `ComboBox`, `TabbedPane`, `SegmentedControl` on it; dump identical; the decision-79 rule in one place | 2026-09-21 |
 | 4 | `Table`, `CalendarView`, `TabbedPane`, `SegmentedControl` under the contract, sixty dynamic tests; one duplicated case removed, the rest kept and the reason written | 2026-09-21 |
-| 5 | One adapter per shape in each bridge; the 151 reads counted again | — |
+| 5 | Windows moved under eight shape classes; Linux's exception under `AtspiMenuShape`; macOS named, not split; per-shape synthetic tests for Windows and Linux; the measure in §5 | 2026-09-21 |
 | 6 | `VALUE`, `TOGGLE`, `LEAF_ACTION`, `POPUP_OWNER` helpers and contracts; `TEXT`'s contract; `MENU` and `GRID` owed (§8) | 2026-09-21 |
 | 7 | The design note's pipeline rewritten around shapes; §6 applied; the record stays PROPOSED until phases 5 and 8 | partly, 2026-09-21 |
 | 8 | One reader round per platform over the gallery's scripted entries | — |
@@ -339,7 +378,10 @@ the paragraph that says so; the design note's "Adding a widget" is rewritten aro
 - `PopupMenu`'s panel carries a selection facet above its menu's (§1.3).
 - The plan's table of widgets per shape was wrong about `RadioButton`, `DatePicker` and
   `TabbedPane` (§1.2); the record's table is the pinned one.
-- **`MENU` has no helper and no contract yet.** `MenuBar` and `PopupMenu` publish their rows in
+- **The macOS per-shape synthetic test is owed**: `AxGate.allows` per shape over an `AxGrid`
+  built on a source double, as `AxColumnsTest` builds one.
+- **`MENU` has no widget-side helper and no contract yet.** Its bridge half exists on Linux
+  (`AtspiMenuShape`); the widget half is `MenuBar`'s and `PopupMenu`'s own hooks. `MenuBar` and `PopupMenu` publish their rows in
   their own hooks (124 and 42 lines); the price rule says the shape costs three adapters, a
   contract and a reader round, and the Linux exception (`AtspiRoles.isMenuRow`) is the
   adapter's, so the shape is taken with phase 5 and heard in phase 8.
