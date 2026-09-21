@@ -67,6 +67,13 @@ tasks.named<Test>("test") {
         systemProperty("limn.a11y.transcripts.dir",
                 layout.projectDirectory.dir("src/test/resources/limn/demo/a11y").asFile.absolutePath)
     }
+    // The same forwarding for the gallery dump AccessibleTreeDumpTest writes on request
+    // (`-Dlimn.a11y.trees.dir=<directory>`): one file per entry and palette, for diffing the
+    // published trees before and after a refactor of the hooks (ADR 045 §0). Absent, it is
+    // skipped, and check never writes outside the build directory.
+    System.getProperty("limn.a11y.trees.dir")?.let {
+        systemProperty("limn.a11y.trees.dir", it)
+    }
 }
 
 // A developer's `full` payload (encoders, for the writer scenes), from a sibling clone of
