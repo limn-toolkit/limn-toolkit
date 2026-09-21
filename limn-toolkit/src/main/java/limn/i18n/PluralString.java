@@ -34,9 +34,12 @@ import java.util.Objects;
  * language's {@code other}, and then to the English declared here, so a half-translated catalog
  * degrades to a readable sentence rather than to a key name.
  *
- * <p><b>The number is written in the locale's own digits</b> ({@link I18n#localizeDigits}), the
- * same treatment a calendar's day numbers get, and inserted as text so that
- * {@link MessageFormat} does not reformat it under a second set of rules.
+ * <p><b>The number is written the way the locale writes numbers</b> — grouped and in its own
+ * digits, through {@link NumberFormats#number()}, so a million reads "1,000,000" in English,
+ * "1.000.000" in Portuguese and "١٬٠٠٠٬٠٠٠" in Arabic. It is inserted as text, so that
+ * {@link MessageFormat} does not format it again under a second set of rules; passing the raw
+ * digits instead would put an ungrouped "1000000" in the one sentence whose whole subject is a
+ * number.
  *
  * @see PluralRules
  */
@@ -103,7 +106,7 @@ public final class PluralString {
         if (args != null) {
             System.arraycopy(args, 0, all, 0, args.length);
         }
-        all[all.length - 1] = I18n.localizeDigits(Long.toString(count));
+        all[all.length - 1] = NumberFormats.number().apply(count);
         try {
             return new MessageFormat(pattern, locale).format(all);
         } catch (IllegalArgumentException malformedPattern) {
