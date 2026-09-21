@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.PopupOwnerAccessibility;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -245,11 +246,11 @@ public final class ContextMenus {
          */
         @Override
         protected void onAccessibility(Accessibility a) {
-            a.state(Accessible.State.HAS_POPUP);
-            // The single-argument form; the variable-argument one allocates an array per call.
-            // Nothing else: FOCUS and SCROLL_INTO_VIEW are the walk's, and only for a focusable
-            // widget, which this deliberately is not.
-            a.action(Accessible.Action.SHOW_MENU);
+            // The POPUP_OWNER shape, written once (ADR 045 §3), in its menu form: a popup and
+            // the verb that raises it, with no open state of its own. Nothing else: FOCUS and
+            // SCROLL_INTO_VIEW are the walk's, and only for a focusable widget, which this
+            // deliberately is not.
+            PopupOwnerAccessibility.describeMenuOwner(a);
         }
 
         /**

@@ -2,6 +2,7 @@ package limn.components.chart;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.ToggleAccessibility;
 import limn.accessibility.ToggleFacet;
 import limn.animation.Transition;
 import limn.components.Theme;
@@ -477,10 +478,9 @@ public class DonutChart extends Chart {
             legendEntryBounds(i, a);
             a.role(Accessible.Role.CHART_SERIES);
             a.name(labelSource(i), Accessible.NameFrom.CONTENT);
-            a.toggle(isSliceVisible(i) ? ToggleFacet.State.ON : ToggleFacet.State.OFF);
-            if (operable) {
-                a.action(Accessible.Action.TOGGLE);
-            }
+            // The TOGGLE shape, written once (ADR 045 §3): the slice's visibility as the
+            // facet, and the verb while the legend is interactive.
+            ToggleAccessibility.describe(a, isSliceVisible(i), operable);
             a.endChild();
         }
     }
@@ -493,15 +493,29 @@ public class DonutChart extends Chart {
     @Override
     protected boolean onSyntheticAction(long key, Accessible.Action action,
                                         Accessible.Argument arg) {
-        if (action != Accessible.Action.TOGGLE || !isLegendInteractive() || !isEnabled()) {
-            return false;
-        }
         if (key < 0 || key >= categoryCount() || legendEntryCount() == 0) {
             return false;
         }
-        toggleLegendEntry((int) key);
-        return true;
+        toggleHost.entry = (int) key;
+        return ToggleAccessibility.perform(toggleHost, action);
     }
+
+    /** The chart's mechanisms as the toggle shape drives them (ADR 045 §3), over one entry. */
+    private final class ToggleHost implements ToggleAccessibility.Host {
+        int entry;
+
+        @Override
+        public boolean canToggle() {
+            return isLegendInteractive() && isEnabled();
+        }
+
+        @Override
+        public void toggle() {
+            toggleLegendEntry(entry);
+        }
+    }
+
+    private final ToggleHost toggleHost = new ToggleHost();
 
     // ---------------------------------------------------------- text & legend
 

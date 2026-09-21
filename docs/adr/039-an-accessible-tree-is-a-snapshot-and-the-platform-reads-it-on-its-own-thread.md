@@ -5445,6 +5445,14 @@ unobserved process spends no frames at all.
 
 ## 7. Every widget, and what it becomes — a survey, not a specification
 
+**Historic since 2026-09-21 (ADR 045, decision 93).** This survey is no longer parsed by any test
+and is no longer maintained: what a widget *is* to a reader is one of the ten shapes ADR 045
+names, derived from the node it publishes by `limn.accessibility.Shape`, and the rule that every
+widget overriding a hook classifies in exactly one shape is held by the gallery
+(`AccessibleGalleryTest`, `ShapeCoverageTest`) rather than by this table. The rows below stay as
+the record of what was surveyed and what the survey got wrong (§7.2); a widget added after this
+date is not entered here.
+
 **Read this before the table, because the table has been mistaken for something it is not.** What
 follows was swept from `limn/components`, `limn/components/chart` and `limn/scene/layout`, not from a
 list, and it is written **from the outside**: from each widget's public shape, its documentation and

@@ -2,6 +2,7 @@ package limn.components.chart;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.ToggleAccessibility;
 import limn.accessibility.ToggleFacet;
 import limn.components.SizeTokens;
 import limn.components.Strokes;
@@ -909,10 +910,9 @@ public abstract class CartesianChart extends Chart {
             }
             a.role(Accessible.Role.CHART_SERIES);
             a.name(s.nameSource(), Accessible.NameFrom.CONTENT);
-            a.toggle(s.isVisible() ? ToggleFacet.State.ON : ToggleFacet.State.OFF);
-            if (operable && i < entries) {
-                a.action(Accessible.Action.TOGGLE);
-            }
+            // The TOGGLE shape, written once (ADR 045 §3): the series' visibility as the
+            // facet, and the verb while the legend is interactive and has a row for it.
+            ToggleAccessibility.describe(a, s.isVisible(), operable && i < entries);
             a.endChild();
         }
     }
@@ -932,9 +932,6 @@ public abstract class CartesianChart extends Chart {
      */
     final boolean toggleSeriesFromReader(long key, Accessible.Action action,
                                          Accessible.Argument arg) {
-        if (action != Accessible.Action.TOGGLE || !isLegendInteractive() || !isEnabled()) {
-            return false;
-        }
         int index = -1;
         for (int i = 0; i < seriesCount(); i++) {
             if (series(i).serial() == key) {
@@ -945,7 +942,24 @@ public abstract class CartesianChart extends Chart {
         if (index < 0 || index >= legendEntryCount()) {
             return false;
         }
-        toggleLegendEntry(index);
-        return true;
+        toggleHost.entry = index;
+        return ToggleAccessibility.perform(toggleHost, action);
     }
+
+    /** The chart's mechanisms as the toggle shape drives them (ADR 045 §3), over one entry. */
+    private final class ToggleHost implements ToggleAccessibility.Host {
+        int entry;
+
+        @Override
+        public boolean canToggle() {
+            return isLegendInteractive() && isEnabled();
+        }
+
+        @Override
+        public void toggle() {
+            toggleLegendEntry(entry);
+        }
+    }
+
+    private final ToggleHost toggleHost = new ToggleHost();
 }

@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.LeafActionAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -635,9 +636,10 @@ public class ColorPickerButton extends Widget {
         } else {
             a.name(hex(), hexRevision, Accessible.NameFrom.CONTENT);
         }
+        // A leaf that owns a popup: HAS_POPUP is its fact, and the press is the LEAF_ACTION
+        // shape's, written once (ADR 045 §3).
         a.state(Accessible.State.HAS_POPUP);
-        // The single-argument form; the variable-argument one allocates an array per call.
-        a.action(Accessible.Action.PRESS);
+        LeafActionAccessibility.describe(a, true);
     }
 
     /**
@@ -666,10 +668,25 @@ public class ColorPickerButton extends Widget {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action verb, Accessible.Argument arg) {
-        if (verb != Accessible.Action.PRESS || open != null) {
-            return false;
-        }
-        openPicker();
-        return true;
+        return LeafActionAccessibility.perform(leafHost, verb);
     }
+
+    /**
+     * The button's mechanisms as the leaf shape drives them (ADR 045 §3): a press is accepted
+     * while no picker is up, for truthfulness rather than safety — openPicker returns silently
+     * then, and a true would be published as an invocation of something that did nothing.
+     */
+    private final class LeafHost implements LeafActionAccessibility.Host {
+        @Override
+        public boolean acceptsPress() {
+            return open == null;
+        }
+
+        @Override
+        public void press() {
+            openPicker();
+        }
+    }
+
+    private final LeafHost leafHost = new LeafHost();
 }

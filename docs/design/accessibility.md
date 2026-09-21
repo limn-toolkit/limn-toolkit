@@ -123,27 +123,50 @@ Where the name came from is part of the node, because macOS maps `accessibilityT
 `accessibilityLabel` to different attributes and a bridge that guesses is silently wrong on exactly
 one platform.
 
-### Adding a widget: the pipeline, not the table
+### Adding a widget: the shape, then the pipeline
 
-ADR 039 §7 is a *survey*, not a specification. Its row for your widget is a starting point and the
-widget's own source is the authority. The order that works:
+A widget is one of ten *shapes* to a reader (ADR 045): `MENU`, `GRID`, `ROWS`, `POPUP_OWNER`,
+`TOGGLE`, `VALUE`, `TEXT`, `LEAF_ACTION`, `STATIC` or `SURFACE`, derived from the node it publishes
+by `Shape.of` and never declared. The shape is what a widget-side helper, a contract and a bridge
+adapter all refer to, so adding a widget is choosing its shape and then writing what is the
+widget's own. The order that works:
 
-1. **Map.** Read the paint, the hit test, the geometry and the state, and write the hooks against
-   what is there — correcting §7's row wherever the two disagree.
-2. **Test headlessly.** Every focusable node named, no `UNKNOWN` role, bounds inside the clipping
-   ancestor, ids stable across the mutations the widget performs on its own children, and a live
-   mutation case per public setter. A widget that starts describing itself differently also changes
-   a golden transcript in `limn-demo` (`AccessibleTranscriptTest`), and that change is read aloud
-   before it is accepted — the transcripts are the only reference answer for what the demo should
-   sound like.
-3. **Verify adversarially.** Someone reads the produced tree against the widget's code looking for
-   the row that is still wrong: the operable control with no node, the box that is not where it is
-   painted, the name that resolves to nothing. §7.2 is the standing list of what that has found.
+1. **Choose the shape.** A container that holds a selection and its members is `ROWS` (a list, a
+   tree, a table's rows, a calendar's days); a number in a range is `VALUE`; on or off is
+   `TOGGLE`; something that opens something is `POPUP_OWNER`; a pressable leaf is `LEAF_ACTION`;
+   an editable string is `TEXT`. A widget that fits none of these is a decision to ask for, not a
+   new shape to invent in the code: `ShapeCoverageTest` refuses a node that classifies in none.
+2. **Implement the shape's host.** Each shape with behaviour to share is written once in
+   `limn.components.a11y`: `RowsAccessibility`, `ValueAccessibility`, `ToggleAccessibility`,
+   `LeafActionAccessibility`, `PopupOwnerAccessibility`, and `TextAccessibility` in its own
+   package. The describe half is a function over the facts of the node — the widget says what its
+   row *is* and what its rows *can do*, and the rules say which verbs that adds up to, by state.
+   The perform half takes a `Host` the widget implements over the mechanisms it already has, and
+   holds the rules of what a verb does: which move the cursor, which are refused by state. What
+   stays in the widget's own hooks is what is its own — a tree's hierarchy, a table's cells, a
+   calendar's numbering.
+3. **Run the shape's contract.** One `@TestFactory` method turns the contract's cases into dynamic
+   tests: `RowsContract`, `ValueContract`, `ToggleContract`, `LeafActionContract`,
+   `PopupOwnerContract`, `TextContract`, each over a *subject* that builds the widget fresh and
+   answers through its API what the tree cannot say. The cases are the rules the 2026-09-13 pass
+   decided, named after their decisions, plus the four invariants (`AccessibleInvariants`): every
+   focusable node named, no `UNKNOWN` role, no shared id, and a showing node inside its showing
+   ancestor. A widget's own test then holds only what is the widget's: which events it raises,
+   what its lead row is, what `NONE` leaves on a row.
+4. **Enter the gallery and record the golden.** `AccessibleGalleryTest` requires an entry in
+   `AccessibilityGallery` for every widget that overrides a hook, and holds every entry's tree to
+   the invariants in both palettes; `AccessibleTranscriptTest` compares the goldens, and a change
+   to one is read aloud before it is accepted. `AccessibleTreeDumpTest` writes every entry's tree
+   to text on request, so a refactor of the hooks is held to "nothing moved" by a diff.
+5. **Decide whether a reader has to hear it** (ADR 045 §2). A new *shape*, role, facet or verb, or
+   a widget that deviates from its declared shape, costs a reader round on every platform; a new
+   widget of a known shape ships on its contract, its entry and its golden.
 
-`AccessibleCoverageTest` holds the gate: every widget is either described or named on the list of
-what is left, so adding one and describing nothing fails the build. The list is not a place to park
-a widget you did not want to do — it is there so that what is left is *counted*, and the phase that
-emptied it is finished.
+`AccessibleCoverageTest` still holds the gate at the front: every widget is either described or
+named on the list of what is left, so adding one and describing nothing fails the build. The list
+is not a place to park a widget you did not want to do — it is there so that what is left is
+*counted*. ADR 039 §7, the survey every widget was once entered in, is historic and no test reads
+it.
 
 ## Where the reader's cursor is
 

@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Modifier;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -59,28 +58,6 @@ class AccessibleCoverageTest {
      * same commit that describes it.
      */
     private static final Set<String> UNDESCRIBED = new TreeSet<>(Set.<String>of());
-
-    /**
-     * Widgets the survey in ADR 039 §7 does not name, with the reason each is absent.
-     *
-     * <p>The record calls that table a survey rather than a specification and expects it to be
-     * wrong in details; this is where the details are kept, so that a class missing from it is a
-     * recorded gap rather than a silent one. A widget added from here on has to be in the table or
-     * in this list, and putting it in this list means writing down why.
-     */
-    private static final Set<String> ABSENT_FROM_THE_SURVEY = new TreeSet<>(Set.of(
-            // All five are named in the survey's prose and not as a class: it says "Dialog's card
-            // column and action row" among the scaffolding it deletes, and it says of MediaControls
-            // that "its icon buttons are real widgets and get BUTTON". The gap is in the naming and
-            // not in the thinking, which is why each is recorded here rather than added to the
-            // table: a survey that grew a row per private inner class would be a specification,
-            // which §7 says in its own words it is not.
-            "CardColumn",
-            "DialogPanel",
-            "MuteButton",
-            "PlayPause",
-            "SceneOverlay"
-    ));
 
     /**
      * Widgets that deliberately take an ancestor's description instead of writing their own.
@@ -473,22 +450,11 @@ class AccessibleCoverageTest {
         }
     }
 
-    @Test
-    void everyWidgetIsNamedInTheSurveyOrRecordedAsAbsentFromIt() {
-        Set<String> named = surveyedNames();
-        assertTrue(named.size() > 20,
-                "ADR 039 §7's table was not found or could not be read; it named " + named.size()
-                        + " things");
-        Set<String> missing = new TreeSet<>();
-        for (Class<?> widget : widgets()) {
-            if (!namedAnywhereInItsAncestry(widget, named)) {
-                missing.add(widget.getSimpleName());
-            }
-        }
-        assertEquals(ABSENT_FROM_THE_SURVEY, missing,
-                "a widget the survey does not name is a gap to record, not to leave. Add it to §7's "
-                        + "table, or to the field above with the reason it is not there.");
-    }
+    // "Every widget is named in ADR 039 §7's survey or recorded as absent from it" left this
+    // file on 2026-09-21 (ADR 045, decision 93): the survey is historic, and what a widget is
+    // to a reader is the shape its published node classifies in. The rule that every widget
+    // overriding a hook classifies in exactly one shape is AccessibleGalleryTest's (an entry
+    // per such widget) together with ShapeCoverageTest's (no node of any entry unclassified).
 
     /** Whether this class itself declares the describe hook. */
     private static boolean declaresItsOwn(Class<?> widget) {
@@ -504,15 +470,6 @@ class AccessibleCoverageTest {
     private static boolean describedAnywhereInItsAncestry(Class<?> widget) {
         for (Class<?> at = widget; at != null && at != Widget.class; at = at.getSuperclass()) {
             if (declaresItsOwn(at)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean namedAnywhereInItsAncestry(Class<?> widget, Set<String> named) {
-        for (Class<?> at = widget; at != null && at != Widget.class; at = at.getSuperclass()) {
-            if (named.contains(at.getSimpleName())) {
                 return true;
             }
         }
@@ -575,43 +532,6 @@ class AccessibleCoverageTest {
         for (Class<?> nested : type.getDeclaredClasses()) {
             collect(nested, into);
         }
-    }
-
-    /** Every identifier ADR 039 §7's table names, in backticks, between its heading and §7.1's. */
-    private static Set<String> surveyedNames() {
-        Path record = RepositoryRoot.find().resolve("docs/adr")
-                .resolve("039-an-accessible-tree-is-a-snapshot-and-the-platform-reads-it-on-its-"
-                        + "own-thread.md");
-        List<String> lines;
-        try {
-            lines = Files.readAllLines(record, StandardCharsets.UTF_8);
-        } catch (IOException failure) {
-            throw new UncheckedIOException(failure);
-        }
-        Set<String> named = new LinkedHashSet<>();
-        boolean inside = false;
-        Pattern quoted = Pattern.compile("`([A-Za-z][A-Za-z0-9_.]*)`");
-        for (String line : lines) {
-            if (line.startsWith("## 7. ")) {
-                inside = true;
-                continue;
-            }
-            if (inside && line.startsWith("### 7.1")) {
-                break;
-            }
-            if (!inside) {
-                continue;
-            }
-            Matcher token = quoted.matcher(line);
-            while (token.find()) {
-                String name = token.group(1);
-                // "ComboBox.PopupPanel" names the nested class; both halves count as named.
-                for (String part : name.split("\\.")) {
-                    named.add(part);
-                }
-            }
-        }
-        return named;
     }
 
 }

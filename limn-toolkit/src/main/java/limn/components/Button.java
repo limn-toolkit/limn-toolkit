@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.LeafActionAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -388,9 +389,8 @@ public class Button extends Widget {
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.BUTTON);
         a.name(text, Accessible.NameFrom.CONTENT);
-        if (pressAccepted()) {
-            a.action(Accessible.Action.PRESS);
-        }
+        // The LEAF_ACTION shape, written once (ADR 045 §3): PRESS exactly while accepted.
+        LeafActionAccessibility.describe(a, pressAccepted());
     }
 
     /**
@@ -411,12 +411,23 @@ public class Button extends Widget {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action verb, Accessible.Argument arg) {
-        if (verb != Accessible.Action.PRESS || !isEnabled() || !pressAccepted()) {
-            return false;
-        }
-        invoke();
-        return true;
+        return LeafActionAccessibility.perform(leafHost, verb);
     }
+
+    /** The button's mechanisms as the leaf shape drives them (ADR 045 §3). */
+    private final class LeafHost implements LeafActionAccessibility.Host {
+        @Override
+        public boolean acceptsPress() {
+            return isEnabled() && pressAccepted();
+        }
+
+        @Override
+        public void press() {
+            invoke();
+        }
+    }
+
+    private final LeafHost leafHost = new LeafHost();
 
     @Override
     protected void onMouseEvent(MouseEvent event) {

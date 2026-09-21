@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.PopupOwnerAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.a11y.RowsAccessibility;
@@ -962,27 +963,24 @@ public class ComboBox extends Widget {
         // the cached one: the item is an I18nString this widget holds, compared by reference, so
         // a hover or focus fade walks this hook without allocating.
         a.name(items.get(selectedIndex), Accessible.NameFrom.CONTENT);
-        // Always, and not only while the list is down: a combo that could not be opened would not
-        // be a combo, and this is the bit a reader uses to say so before anything has happened.
-        a.state(Accessible.State.HAS_POPUP);
-        // The facet, never state(EXPANDED, ...), which the builder ignores by design: the bit is
-        // derived from the facet so that the two cannot disagree.
-        a.expand(open);
+        // The POPUP_OWNER shape, written once (ADR 045 §3): HAS_POPUP always, and not only
+        // while the list is down, because a combo that could not be opened would not be a combo;
+        // the open state as the facet, never state(EXPANDED, ...), which the builder ignores by
+        // design so the bit and the facet cannot disagree; and one verb and not both, because
+        // the other one is what the widget is already doing. PRESS is neither offered nor
+        // accepted: what a press on a combo means is exactly the ambiguity these two verbs
+        // remove, and a platform whose only activation verb is a press has the expand facet to
+        // route it through, which is one decision in one bridge rather than a third meaning
+        // here. While the list is down in the scene the walk takes the COLLAPSE off again, with
+        // every verb beneath the layer that owns input (ADR 039 §1.13, amended 2026-09-15); in a
+        // window of its own the field keeps the input and the verb stands.
+        PopupOwnerAccessibility.describe(a, open);
         a.value(selectedIndex, 0, items.size() - 1, 1);
         // The witness is the pair the item's text is a function of: which item is selected, and
         // the epoch every translation moves on. There is no cache to guard here -- the string is
         // the model's own, resolved through its memo -- and the witness says so rather than
         // pretending a counter exists.
         a.valueText(selectedItem(), I18n.epoch() ^ ((long) selectedIndex << 32));
-        // The single-argument form; the variable-argument one allocates an array per call. One
-        // verb and not both, because the other one is what the widget is already doing. PRESS is
-        // neither offered nor accepted: what a press on a combo means is exactly the ambiguity
-        // these two verbs remove, and a platform whose only activation verb is a press has the
-        // expand facet to route it through, which is one decision in one bridge rather than a
-        // third meaning here. While the list is down in the scene the walk takes the COLLAPSE
-        // off again, with every verb beneath the layer that owns input (ADR 039 §1.13, amended
-        // 2026-09-15); in a window of its own the field keeps the input and the verb stands.
-        a.action(open ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
         // No CONTROLLER_FOR. In the scene presentation the overlay is the popup's parentless root
         // and carries the field as its inheritance host, so the walk publishes POPUP_FOR there and
         // this mirror here; declaring it again would put two of the same relation on this node. In
@@ -1010,29 +1008,36 @@ public class ComboBox extends Widget {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        switch (action) {
-            case EXPAND -> {
-                if (open) {
-                    return false; // already down: nothing was done, and saying otherwise is a lie
-                }
-                open(Change.Origin.USER);
-                return true;
-            }
-            case COLLAPSE -> {
-                if (!open) {
-                    return false;
-                }
-                close(Change.Origin.USER);
-                return true;
-            }
-            case SET_VALUE -> {
-                return selectFromArgument(arg);
-            }
-            default -> {
-                return false;
-            }
+        if (action == Accessible.Action.SET_VALUE) {
+            return selectFromArgument(arg);
+        }
+        return PopupOwnerAccessibility.perform(popupHost, action);
+    }
+
+    /**
+     * The field's mechanisms as the popup-owner shape drives them (ADR 045 §3): EXPAND on a
+     * closed list opens it and COLLAPSE on an open one closes it, each through the path the
+     * user's own gesture takes; the other state refuses, because nothing was done and saying
+     * otherwise is a lie.
+     */
+    private final class PopupHost implements PopupOwnerAccessibility.Host {
+        @Override
+        public boolean isOpen() {
+            return open;
+        }
+
+        @Override
+        public void open() {
+            ComboBox.this.open(Change.Origin.USER);
+        }
+
+        @Override
+        public void close() {
+            ComboBox.this.close(Change.Origin.USER);
         }
     }
+
+    private final PopupHost popupHost = new PopupHost();
 
     /**
      * Selects the item an argument names, by index or by its text.

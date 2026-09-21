@@ -2,6 +2,7 @@ package limn.components.date;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.PopupOwnerAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.SizeTokens;
@@ -2050,16 +2051,14 @@ public class DateField extends Widget {
             // says a calendar can be opened from here and whether it is (decision 18): expanded,
             // a popup, and the one verb that fits the moment. The picker's own group says none
             // of it, and a single picker's group is not even a node.
-            boolean open = popupOpen.getAsBoolean();
-            a.expand(open);
-            a.state(Accessible.State.HAS_POPUP);
-            // The verb by state. While the popup is an overlay of the scene the field is beneath
-            // the layer that owns input, and the walk takes this COLLAPSE off it with every other
-            // verb (ADR 039 §1.13, amended 2026-09-15); the overlay publishes CANCEL for that
-            // presentation, and the state is still told here. In a window of its own the field
-            // keeps the input and COLLAPSE stands. On a disabled field the walk takes it off too
-            // (§1.5, amended the same day), so no enabled test is written here.
-            a.action(open ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
+            // The POPUP_OWNER shape, written once (ADR 045 §3): the verb by state. While the
+            // popup is an overlay of the scene the field is beneath the layer that owns input,
+            // and the walk takes this COLLAPSE off it with every other verb (ADR 039 §1.13,
+            // amended 2026-09-15); the overlay publishes CANCEL for that presentation, and the
+            // state is still told here. In a window of its own the field keeps the input and
+            // COLLAPSE stands. On a disabled field the walk takes it off too (§1.5, amended the
+            // same day), so no enabled test is written here.
+            PopupOwnerAccessibility.describe(a, popupOpen.getAsBoolean());
         }
 
         TextRuler ruler = textRuler();
@@ -2165,17 +2164,28 @@ public class DateField extends Widget {
         if (popupOpen == null || !isEnabled()) {
             return false;
         }
-        boolean open = popupOpen.getAsBoolean();
-        if (action == Accessible.Action.EXPAND && !open) {
-            popupSetter.accept(true);
-            return true;
-        }
-        if (action == Accessible.Action.COLLAPSE && open) {
-            popupSetter.accept(false);
-            return true;
-        }
-        return false;
+        return PopupOwnerAccessibility.perform(popupHost, action);
     }
+
+    /** The field's mechanisms as the popup-owner shape drives them (ADR 045 §3). */
+    private final class PopupHost implements PopupOwnerAccessibility.Host {
+        @Override
+        public boolean isOpen() {
+            return popupOpen.getAsBoolean();
+        }
+
+        @Override
+        public void open() {
+            popupSetter.accept(true);
+        }
+
+        @Override
+        public void close() {
+            popupSetter.accept(false);
+        }
+    }
+
+    private final PopupHost popupHost = new PopupHost();
 
     /**
      * A segment's step or set, through the same path the keyboard takes: the verbs are the two keys

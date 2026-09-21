@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.ToggleAccessibility;
 import limn.accessibility.ToggleFacet;
 import limn.animation.Easing;
 import limn.animation.Transition;
@@ -410,8 +411,8 @@ public class Checkbox extends Widget {
     protected void onAccessibility(Accessibility a) {
         a.role(variant == Variant.BOX ? Accessible.Role.CHECK_BOX : Accessible.Role.SWITCH);
         a.name(text, Accessible.NameFrom.CONTENT);
-        a.toggle(checked ? ToggleFacet.State.ON : ToggleFacet.State.OFF);
-        a.action(Accessible.Action.TOGGLE);
+        // The TOGGLE shape, written once (ADR 045 §3): the state as the facet, and the verb.
+        ToggleAccessibility.describe(a, checked, true);
     }
 
     /**
@@ -431,12 +432,23 @@ public class Checkbox extends Widget {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        if (action != Accessible.Action.TOGGLE || !isEnabled()) {
-            return false;
-        }
-        toggleFromUser();
-        return true;
+        return ToggleAccessibility.perform(toggleHost, action);
     }
+
+    /** The box's mechanisms as the toggle shape drives them (ADR 045 §3). */
+    private final class ToggleHost implements ToggleAccessibility.Host {
+        @Override
+        public boolean canToggle() {
+            return isEnabled();
+        }
+
+        @Override
+        public void toggle() {
+            toggleFromUser();
+        }
+    }
+
+    private final ToggleHost toggleHost = new ToggleHost();
 
     @Override
     protected void onMouseEvent(MouseEvent event) {

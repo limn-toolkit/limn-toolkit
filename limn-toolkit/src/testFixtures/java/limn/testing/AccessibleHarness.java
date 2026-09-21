@@ -42,7 +42,7 @@ public final class AccessibleHarness {
     private final Canvas canvas = new MeasuringCanvas();
 
     /** The window the scene is bound to; its {@link StubWindow#accessibility} is the bridge. */
-    public final StubWindow window = new StubWindow();
+    public final StubWindow window;
 
     /** The bridge, listening from the first frame, holding every tree and event published. */
     public final RecordingAccessibilityBridge bridge = RecordingAccessibilityBridge.listening();
@@ -60,8 +60,21 @@ public final class AccessibleHarness {
      * @param root    what to bind; a widget, or a box around one
      */
     public AccessibleHarness(UiRuntime runtime, Widget root) {
+        this(runtime, root, new StubWindow());
+    }
+
+    /**
+     * Binds {@code root} in {@code window}: a stub that cannot position lets a popup open as an
+     * overlay of the scene, where the tree can see it, rather than as a window of its own.
+     *
+     * @param runtime the installed runtime, whose queue a performed verb is drained through
+     * @param root    what to bind
+     * @param window  the window to bind in; its accessibility bridge is replaced by this harness's
+     */
+    public AccessibleHarness(UiRuntime runtime, Widget root, StubWindow window) {
         this.runtime = Objects.requireNonNull(runtime, "runtime");
         Objects.requireNonNull(root, "root");
+        this.window = Objects.requireNonNull(window, "window");
         window.accessibility = bridge;
         scene = new Scene(root, () -> nanos[0]);
         scene.bind(window);

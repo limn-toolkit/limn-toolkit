@@ -1,8 +1,9 @@
 # ADR 045: A widget is one of ten shapes, and the bridge translates the shape
 
-- **Status: PROPOSED, 2026-09-21.** Phases 0 and 1 of §7 are in the tree (the floor and the
-  classification); the record is accepted when §7's phases through 7 are, and each phase's
-  measure is written beside the floor in §0 as it closes. Decisions 89 to 97 of the 2026-09-13
+- **Status: PROPOSED, 2026-09-21.** Phases 0 to 4 and 6 of §7 are in the tree, and phase 7's
+  records; phase 5 (the bridges) and phase 8 (the reader round) are open, and the record is
+  accepted when they close. Each phase's measure is written beside the floor in §0 and in §3
+  as it closes. Decisions 89 to 97 of the 2026-09-13
   pass (batch 25) are what this record writes down.
 - **Date:** 2026-09-21
 - **Scope:** the cost of adding a widget to the accessibility pipeline ADR 039 built, and the
@@ -53,7 +54,8 @@ mechanism and feeds with shapes rather than widgets.
 2,822 lines, identical between light and dark. Every phase from 3 on ends with a fresh dump and a
 `diff` against it, and the diff is empty unless a line below says otherwise.
 
-*Changes the dump is allowed to show, by decision:* none yet.
+*Changes the dump is allowed to show, by decision:* none; the dump is byte-identical after
+phases 1 to 6.
 
 ## 1. Decision: ten shapes, derived from the node, in a fixed order
 
@@ -205,7 +207,24 @@ which most is the record of the rules. The lines that left the widgets are the r
 in each is what is its own — a tree's hierarchy and busy state, a table's cells and header, a
 calendar's numbering and refused days, a combo's inert options.
 
-*The other helpers are phase 6's.*
+**Phase 6 wrote the other four** in the same mould, and put thirteen more widgets on them, the
+dump byte-identical after each: `ValueAccessibility` (`Slider`, which until then used the
+builder's one shape-like method, `Spinner`, `ScrollBar`, `SplitPane`'s divider, `ProgressBar`;
+`INCREMENT` and `DECREMENT` by the widget's step, `SET_VALUE` from a finite number and refused
+otherwise, a read-only or disabled value refusing everything — the NaN guard that four widgets
+each carried is now one line); `ToggleAccessibility` (`Checkbox`, the series of `DonutChart` and
+`CartesianChart`); `LeafActionAccessibility` (`Button`; `ColorPickerButton`, which is a leaf that
+owns a popup: `HAS_POPUP` is its fact and the press is the leaf's); `PopupOwnerAccessibility`
+(`ComboBox`, `DateField`, and in its menu form `ContextMenus.ContextRegion`; `EXPAND` and
+`COLLAPSE` one at a time by state, refused in the other). `TextAccessibility` was already
+written once and stays where it is. **`MENU` and `GRID` have no helper yet** (§8): the menu's
+costs a Linux exception that lives in the bridge and a reader round, both phase 5's and phase
+8's; the grid's container half is thirty lines of `Table` and twenty of `CalendarView` whose
+shared part — a header at row −1 that sorts, a cell found by its facet — is small next to what
+is each widget's own.
+
+*The measure after phase 6:* hook lines 2,384 → 2,082 across the toolkit; five helpers, 589
+lines, most of it the record of the rules.
 
 ## 4. Decision: a contract per shape, in the test fixtures
 
@@ -269,7 +288,15 @@ not the old tests' lines but the *next* widget's, which gets ten cases for the p
 subject. The record's measure: `TreeAccessibilityTest` 1,932 lines and `TableAccessibilityTest`
 1,514 at the floor, and the same after phase 4; `ListViewAccessibilityTest` 919 →      886.
 
-*The other shapes' contracts are phase 6's.*
+**Phase 6 wrote the other contracts:** `ValueContract` (six cases; `Slider`, `Spinner`,
+`ScrollBar`, `SplitPane`, `ProgressBar`), `ToggleContract` (five; `Checkbox` in both variants),
+`LeafActionContract` (five; `Button`), `PopupOwnerContract` (six; `ComboBox`, bound in a window
+that cannot position so the list opens in the scene where the tree can see it) and
+`TextContract` (five; `TextField`, `TextArea`) — 148 dynamic tests over 18 subjects in all. One
+thing they settled that the rows contract had not met: **a refusal is read as an effect, never
+as the host's answer**, because `Host#perform` answers from the snapshot whether the node exists
+and posts the verb, so the hook's own refusal is invisible to the caller (ADR 039 §1.9); what a
+refused verb owes is that nothing moved and nobody was told.
 
 ## 5. Decision: one adapter per shape in each bridge, and the exceptions stay declared
 
@@ -282,10 +309,13 @@ The role tables stay closed and per platform.
 §7 of ADR 039, the survey of every widget, is marked historic and stops being parsed (decision
 93): `AccessibleCoverageTest` no longer reads the record, and the requirement it enforced becomes
 "every widget that overrides a hook classifies in exactly one shape" plus the gallery entry
-`AccessibleGalleryTest` already demands. The list of widgets absent from the survey with their
-reasons, which lived in the test, stays. ADR 039 gains one paragraph pointing here (decision 95).
+`AccessibleGalleryTest` already demands. The list of widgets absent from the survey, with the
+reason each was not in it, went with the test: it was the survey's, and the front gate's own
+list of what is left (`everyWidgetIsEitherDescribedOrOnTheListOfWhatIsLeft`) stays. ADR 039
+gains one paragraph pointing here (decision 95).
 
-*Applied in phase 7.*
+*Applied 2026-09-21:* `AccessibleCoverageTest` no longer reads the record; §7 of ADR 039 carries
+the paragraph that says so; the design note's "Adding a widget" is rewritten around shapes.
 
 ## 7. Phases, and what each one proved
 
@@ -297,8 +327,8 @@ reasons, which lived in the test, stays. ADR 039 gains one paragraph pointing he
 | 3 | `RowsAccessibility`; `Tree`, `Table`, `ListView`, `CalendarView`, then `ComboBox`, `TabbedPane`, `SegmentedControl` on it; dump identical; the decision-79 rule in one place | 2026-09-21 |
 | 4 | `Table`, `CalendarView`, `TabbedPane`, `SegmentedControl` under the contract, sixty dynamic tests; one duplicated case removed, the rest kept and the reason written | 2026-09-21 |
 | 5 | One adapter per shape in each bridge; the 151 reads counted again | — |
-| 6 | `VALUE`, `TOGGLE`, `POPUP_OWNER`, `LEAF_ACTION`, `MENU` helpers and contracts; `TEXT`'s contract | — |
-| 7 | This record accepted; the design note's pipeline rewritten around shapes; §6 applied | — |
+| 6 | `VALUE`, `TOGGLE`, `LEAF_ACTION`, `POPUP_OWNER` helpers and contracts; `TEXT`'s contract; `MENU` and `GRID` owed (§8) | 2026-09-21 |
+| 7 | The design note's pipeline rewritten around shapes; §6 applied; the record stays PROPOSED until phases 5 and 8 | partly, 2026-09-21 |
 | 8 | One reader round per platform over the gallery's scripted entries | — |
 | 9 | The measure beside the floor; the backlog; memory | — |
 
@@ -309,6 +339,13 @@ reasons, which lived in the test, stays. ADR 039 gains one paragraph pointing he
 - `PopupMenu`'s panel carries a selection facet above its menu's (§1.3).
 - The plan's table of widgets per shape was wrong about `RadioButton`, `DatePicker` and
   `TabbedPane` (§1.2); the record's table is the pinned one.
+- **`MENU` has no helper and no contract yet.** `MenuBar` and `PopupMenu` publish their rows in
+  their own hooks (124 and 42 lines); the price rule says the shape costs three adapters, a
+  contract and a reader round, and the Linux exception (`AtspiRoles.isMenuRow`) is the
+  adapter's, so the shape is taken with phase 5 and heard in phase 8.
+- **`GRID` has no helper.** Its rows are the rows helper's; its container half (a `TableFacet`,
+  headers at row −1 with a sort, cells found by their facet) is written in `Table` and
+  `CalendarView`, and a `GridContract` is owed with the helper.
 - `RadioButton` publishes its `SELECT` outside the rows helper because its members are
   containerless (§4); the rows contract refuses it for the same reason. One case for
   containerless members, and the helper's `describeRow` over it, close both.
