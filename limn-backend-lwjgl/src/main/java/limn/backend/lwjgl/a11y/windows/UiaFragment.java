@@ -63,8 +63,7 @@ final class UiaFragment {
 
     /** @return whether a node is a tree row that navigation nests by its level */
     static boolean isNestedRow(AccessibleNode node) {
-        return node.role() == Accessible.Role.TREE_ITEM && node.hierarchy() != null
-                && node.hierarchy().level() > 0;
+        return UiaRowsShape.isOutlineRow(node);
     }
 
     /**

@@ -198,11 +198,18 @@ class UiaConstantsTest {
      */
     @Test
     void theTwoRefusalHresultsCiteTheirReadingWhereTheyAreUsed() {
-        for (String member : java.util.List.of("static int refusal(", "static int scroll(",
-                "static int setScrollPercent(")) {
-            assertTrue(documentedMember("UiaPatternProviders.java", member)
+        // scroll and setScrollPercent moved under the SURFACE shape on 2026-09-21 (ADR 045 §5),
+        // verbatim; the citation moved with them and is pinned where it now lives.
+        Map<String, String> members = new java.util.LinkedHashMap<>();
+        members.put("static int refusal(", "UiaPatternProviders.java");
+        members.put("static int scroll(", "UiaSurfaceShape.java");
+        members.put("static int setScrollPercent(", "UiaSurfaceShape.java");
+        for (Map.Entry<String, String> entry : members.entrySet()) {
+            String member = entry.getKey();
+            String file = entry.getValue();
+            assertTrue(documentedMember(file, member)
                             .contains("readings/windows-dump-uia-hresults.txt"),
-                    "\"" + member + "\" in UiaPatternProviders.java answers "
+                    "\"" + member + "\" in " + file + " answers "
                             + "UIA_E_ELEMENTNOTENABLED or the managed InvalidOperationException "
                             + "HResult without saying where the number came from: a number with no "
                             + "reading beside it is one nobody can re-check, and the declaration "
@@ -224,8 +231,9 @@ class UiaConstantsTest {
         Map<String, String> answeredAt = new java.util.LinkedHashMap<>();
         answeredAt.put("UiaPatternProviders.refusal",
                 documentedMember("UiaPatternProviders.java", "static int refusal("));
-        answeredAt.put("UiaPatternProviders' ScrollIntoView slot",
-                commentAbove("UiaPatternProviders.java",
+        // The slot moved under the ROWS shape on 2026-09-21 (ADR 045 §5), comment and all.
+        answeredAt.put("UiaRowsShape's ScrollIntoView slot",
+                commentAbove("UiaRowsShape.java",
                         "case UiaIds.SCROLL_ITEM_PATTERN -> slots.put(\"ScrollIntoView\""));
         answeredAt.put("UiaProvider.setFocus",
                 documentedMember("UiaProvider.java", "private static int setFocus("));
