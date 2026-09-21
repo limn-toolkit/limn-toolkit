@@ -246,6 +246,29 @@ until a case is written for them; and "what a node accepts is exactly what it pu
 a case, because `VerbPolicyRatchetTest` already holds the other half (nothing unpublished moves)
 and this half cannot be held without knowing which published verb is a legitimate no-op.
 
+**Phase 4 put the other rows widgets on the contract** — `Table`, `CalendarView`,
+`TabbedPane`, `SegmentedControl` — sixty dynamic tests over six subjects, and the contract
+learned three things from them that two subjects had not taught it: a table's cursor is a cell
+under the row, so the cursor is the member the active node sits under; a tab strip's rows hold
+the keyboard themselves, so the contract gives such a widget the keyboard through the walk's
+`FOCUS` on its selected row; and selecting a tab announces the panels' visibility and the
+roving focus besides the selection, so decision 79's case holds the selection to *once, from
+the user* and the cursor to *not moved* rather than the announcement to *alone*. `ComboBox`'s
+option list is not a subject: it lives in a window of its own, which the harness does not open.
+
+**What phase 4 did not do, and why.** The plan asked that each widget's own test lose what the
+contract now covers, with `TreeAccessibilityTest` and `TableAccessibilityTest` below half as a
+goal to record rather than force. Six candidate cases were read across four widgets, and five
+carry claims the contract does not hold: which events the container raises and how many, the
+lead row, the range anchor a `Shift` extends from, what `NONE` leaves on a row, that a verb a
+row did not publish does nothing. One was a strict subset and left
+(`aRowCarriesTheSelectVerbTheListDelegatedAndTheListPerformsIt`, covered by the cases for
+decisions 10, 79 and 80). The per-widget tests are, mostly, the widget's own facts written over
+the shared rules, and the shared rules were a small part of each; what the contract buys is
+not the old tests' lines but the *next* widget's, which gets ten cases for the price of a
+subject. The record's measure: `TreeAccessibilityTest` 1,932 lines and `TableAccessibilityTest`
+1,514 at the floor, and the same after phase 4; `ListViewAccessibilityTest` 919 →      886.
+
 *The other shapes' contracts are phase 6's.*
 
 ## 5. Decision: one adapter per shape in each bridge, and the exceptions stay declared
@@ -272,7 +295,7 @@ reasons, which lived in the test, stays. ADR 039 gains one paragraph pointing he
 | 1 | `Shape.of`, `ShapeTest`, `ShapeCoverageTest`: every gallery node classifies; the tables of §1 | 2026-09-21 |
 | 2 | `AccessibleHarness`, `AccessibleInvariants`, `RowsContract` with ten cases; `ListView` and `Tree` under it, twenty dynamic tests | 2026-09-21 |
 | 3 | `RowsAccessibility`; `Tree`, `Table`, `ListView`, `CalendarView`, then `ComboBox`, `TabbedPane`, `SegmentedControl` on it; dump identical; the decision-79 rule in one place | 2026-09-21 |
-| 4 | Each `ROWS` widget on the contract; its test shrunk to what is its own | — |
+| 4 | `Table`, `CalendarView`, `TabbedPane`, `SegmentedControl` under the contract, sixty dynamic tests; one duplicated case removed, the rest kept and the reason written | 2026-09-21 |
 | 5 | One adapter per shape in each bridge; the 151 reads counted again | — |
 | 6 | `VALUE`, `TOGGLE`, `POPUP_OWNER`, `LEAF_ACTION`, `MENU` helpers and contracts; `TEXT`'s contract | — |
 | 7 | This record accepted; the design note's pipeline rewritten around shapes; §6 applied | — |
@@ -293,6 +316,14 @@ reasons, which lived in the test, stays. ADR 039 gains one paragraph pointing he
   same widget, publishing `SELECT` and `FOCUS` of their own (decision 85 keeps the chooser
   unmeasured on a guest and deliberately unfixed); they go on the helper when the chooser is
   measured.
+- **Found by the rows contract, not fixed:** a `CalendarView` inside a `ScrollView` publishes
+  its week rows and day cells beyond the pane as `SHOWING`, which the four invariants refuse
+  (a row "is showing and lies wholly outside its showing ancestor"); its synthetic children are
+  not narrowed by the scrolling ancestor's clip as a widget child would be. The subject runs
+  at its natural size until this is decided, and decision 81's reveal case waits with it.
+- Picking a leading or trailing day pages the calendar to that day's month, which is documented
+  and tested (`pickingALeadingOrTrailingDayPagesTheGrid`) and which the contract's subject
+  had to be built around: the members it mapped by name are another month's after such a pick.
 - A `CalendarView` in `RANGE` mode publishes its container as multi-selectable and offers no
   `ADD_TO_SELECTION` or `DESELECT` on a day, because a range is a band and not a set; the
   helper names its selection `SINGLE` for that reason, and the container's facet is the
