@@ -1,0 +1,64 @@
+# CLDR locale facts, dumped from ICU.
+# node v26.7.0, ICU 78.3, Unicode 17.0
+# produced by scripts/i18n/dump-cldr-locale-facts.mjs on 2026-09-21
+#
+# rtl <language subtag> ...   every subtag ICU writes right to left, searched over all
+#                             two- and three-letter codes
+# digits <language> <system>  a language whose default digits are not latn
+# digits <language>-<REGION> <system>   a region that differs from its language
+rtl ae ar dv fa he iw ji ks ps sd ug ur yi aao abh abv
+rtl acm acq acw acx adf aeb aec aee aeq afb aib aii aij aiq ajp ajt
+rtl aju amw apc apd ara arb arc arq ars ary arz ask atn auj auz avd
+rtl ave avl ayh ayl ayn ayp azb bal bcc bdz bej bft bgn bgp bhe bhm
+rtl bhn bjf bjm bqi brh brk bsh bsk chg cja ckb cld clh czk dcc def
+rtl deh dgl div dmk dml drw ecy esh fas fay faz fia fub gbz ggg gha
+rtl ghr gig gjk gju glh glk grr gwc gwf gwt gzi hac haz hbo heb hkh
+rtl hnd hno hoh hrt hrz hss huy isk itk jad jat jbe jbn jdg jnd jog
+rtl jpa jpr jrb jye kas kbu kby kcy kfm khw klj kmz kqd ktl kvx kxp
+rtl kzh lad lah lhs lki lrc lrk lrl lsa lsd lss luv luz mby mde mey
+rtl mfa mfi mhj mid mki mnj mve mvy myz mzb mzn nli nlm nqo ntz nyq
+rtl oar obm odk oru ota otk oui pal pbt pbu per pes pgd phl phn phr
+rtl phv plk pmu pnb prc prd prs prx psh psi pst pus qxq rdb rhg rmt
+rtl sam sbn scl sdb sdf sdg sdh sds sgl sgr sgy shd shm shu shv siy
+rtl siz skr smp smy snd sog sqo sqt srh srz ssh sts swb syc syn syr
+rtl tjo tks tmr tnf tov tra trg trm trw uig urd ush uzs vaf vgr vmh
+rtl wbk wlo wne wni wsv xco xhe xka xkc xkj xkp xld xly xmn xmr xna
+rtl xpr xsa xsd xvi ydd ydg yhd yid yih yud zba zdj zrp zum
+digits ar-BH arab
+digits ar-DJ arab
+digits ar-EG arab
+digits ar-ER arab
+digits ar-IL arab
+digits ar-IQ arab
+digits ar-JO arab
+digits ar-KM arab
+digits ar-KW arab
+digits ar-LB arab
+digits ar-MR arab
+digits ar-NT arab
+digits ar-OM arab
+digits ar-PS arab
+digits ar-QA arab
+digits ar-SA arab
+digits ar-SD arab
+digits ar-SO arab
+digits ar-SS arab
+digits ar-SY arab
+digits ar-TD arab
+digits ar-YD arab
+digits ar-YE arab
+digits as beng
+digits bn beng
+digits dz tibt
+digits fa arabext
+digits ks arabext
+digits mr deva
+digits my mymr
+digits ne deva
+digits pa-PK arabext
+digits ps arabext
+digits sa deva
+digits sd arab
+digits sd-IN latn
+digits ur-IN arabext
+digits uz-AF arabext

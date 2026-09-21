@@ -35,7 +35,10 @@ class LocaleAxisTest extends ComponentTestBase {
 
     private static final Locale PT_BR = Locale.forLanguageTag("pt-BR");
     private static final Locale HEBREW = Locale.forLanguageTag("he");
-    private static final Locale ARABIC = Locale.forLanguageTag("ar");
+    // Egypt, and not a bare "ar": CLDR makes Latin the Arabic default and names the twenty-three
+    // regions that write Arabic-Indic digits, so a region is what makes this an Arabic-digit
+    // locale at all (the table was inverted until 2026-09-21).
+    private static final Locale ARABIC = Locale.forLanguageTag("ar-EG");
 
     /** Counts measure passes so the cache key can be observed rather than assumed. */
     private static final class Probe extends Widget {

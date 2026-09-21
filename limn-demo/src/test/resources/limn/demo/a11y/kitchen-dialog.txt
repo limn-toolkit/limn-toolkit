@@ -195,10 +195,10 @@
 194     spin button "" [disabled, hidden, offscreen] value=42 [0..100 step 1] "42"
 195       button "Increase" [disabled, hidden, offscreen]
 196       button "Decrease" [disabled, hidden, offscreen]
-197     label "الإشعارات" lang ar [disabled, hidden, offscreen]
-198     spin button "" lang ar [disabled, hidden, offscreen] value=42 [0..100 step 1] "٤٢"
-199       button "زيادة" lang ar [disabled, hidden, offscreen]
-200       button "إنقاص" lang ar [disabled, hidden, offscreen]
+197     label "الإشعارات" lang ar-EG [disabled, hidden, offscreen]
+198     spin button "" lang ar-EG [disabled, hidden, offscreen] value=42 [0..100 step 1] "٤٢"
+199       button "زيادة" lang ar-EG [disabled, hidden, offscreen]
+200       button "إنقاص" lang ar-EG [disabled, hidden, offscreen]
 201     label "Wrapped Arabic" [disabled, hidden, offscreen]
 202     label "هذه فقرة عربية تلتف على عدة أسطر داخل عمود ثابت، ومكان القطع تحدده حدود يونيكود لا عدُّ الحروف." [disabled, hidden, offscreen]
 203     label "Wrapped Hebrew" [disabled, hidden, offscreen]

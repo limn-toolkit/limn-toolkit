@@ -60,7 +60,10 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
     private static final String THE_SPINNER = "limn.components.Spinner";
 
     /** Arabic-Indic digits, which is what a spinner under this tag paints and publishes. */
-    private static final Locale ARABIC = Locale.forLanguageTag("ar");
+    // Egypt, and not a bare "ar": CLDR makes Latin the Arabic default and names the twenty-three
+    // regions that write Arabic-Indic digits, so a region is what makes this an Arabic-digit
+    // locale at all (the table was inverted until 2026-09-21).
+    private static final Locale ARABIC = Locale.forLanguageTag("ar-EG");
 
     private Spinner spinner;
 

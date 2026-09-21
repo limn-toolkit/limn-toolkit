@@ -150,19 +150,64 @@ public enum LayoutDirection {
      * does not, and only the script says which.
      */
     private static final Set<String> RTL_SCRIPTS = Set.of(
-            "Adlm", "Arab", "Aran", "Armi", "Avst", "Cprt", "Hatr", "Hebr", "Hung", "Khar",
-            "Lydi", "Mand", "Mani", "Mend", "Merc", "Mero", "Nbat", "Nkoo", "Orkh", "Palm",
-            "Phli", "Phlp", "Phnx", "Prti", "Rohg", "Samr", "Sarb", "Sogd", "Sogo", "Syrc",
-            "Thaa", "Yezi");
+            "Adlm", "Arab", "Aran", "Armi", "Avst", "Chrs", "Cprt", "Elym", "Hatr", "Hebr",
+            "Hung", "Khar", "Lydi", "Mand", "Mani", "Mend", "Merc", "Mero", "Narb", "Nbat",
+            "Nkoo", "Orkh", "Ougr", "Palm", "Phli", "Phlp", "Phnx", "Prti", "Rohg", "Samr",
+            "Sarb", "Sogd", "Sogo", "Syrc", "Thaa", "Yezi");
 
     /**
      * The language subtags whose default script is written right to left, for the common case of
-     * a locale that names no script at all. Both of Hebrew's codes are here: {@code he} is the
-     * current tag and {@code iw} is what {@link Locale} still normalises it to.
+     * a locale that names no script at all.
+     *
+     * <p><b>Measured, not listed from memory</b> (2026-09-21). Until that date this set had
+     * fifteen entries, chosen by thinking of the languages one thinks of, and it was wrong about
+     * 271 of them — Kashmiri and Avestan among the two-letter codes, and every three-letter code
+     * but four, which is most of the Arabic, Persian, Kurdish and Punjabi varieties an
+     * application is likely to be handed. {@code scripts/i18n/dump-cldr-locale-facts.mjs} asks
+     * ICU for the direction of every two-letter code ISO 639-1 has and all 17,576 three-letter
+     * combinations; this is its answer, and {@code CldrLocaleFactsTest} holds the two together.
+     *
+     * <p>Two entries are not CLDR's and are here because {@link Locale} is: {@code iw} and
+     * {@code ji}, which a JVM started with {@code java.locale.useOldISOCodes=true} still
+     * normalises {@code he} and {@code yi} to.
      */
     private static final Set<String> RTL_LANGUAGES = Set.of(
-            "ar", "arc", "ckb", "dv", "fa", "he", "iw", "ji", "nqo", "ps", "sd", "syr", "ug",
-            "ur", "yi");
+            "aao", "abh", "abv", "acm", "acq", "acw", "acx", "adf", "ae", "aeb", "aec", "aee",
+            "aeq", "afb", "aib", "aii", "aij", "aiq", "ajp", "ajt", "aju", "amw", "apc",
+            "apd", "ar", "ara", "arb", "arc", "arq", "ars", "ary", "arz", "ask", "atn", "auj",
+            "auz", "avd", "ave", "avl", "ayh", "ayl", "ayn", "ayp", "azb", "bal", "bcc",
+            "bdz", "bej", "bft", "bgn", "bgp", "bhe", "bhm", "bhn", "bjf", "bjm", "bqi",
+            "brh", "brk", "bsh", "bsk", "chg", "cja", "ckb", "cld", "clh", "czk", "dcc",
+            "def", "deh", "dgl", "div", "dmk", "dml", "drw", "dv", "ecy", "esh", "fa", "fas",
+            "fay", "faz", "fia", "fub", "gbz", "ggg", "gha", "ghr", "gig", "gjk", "gju",
+            "glh", "glk", "grr", "gwc", "gwf", "gwt", "gzi", "hac", "haz", "hbo", "he", "heb",
+            "hkh", "hnd", "hno", "hoh", "hrt", "hrz", "hss", "huy", "isk", "itk", "iw", "jad",
+            "jat", "jbe", "jbn", "jdg", "ji", "jnd", "jog", "jpa", "jpr", "jrb", "jye", "kas",
+            "kbu", "kby", "kcy", "kfm", "khw", "klj", "kmz", "kqd", "ks", "ktl", "kvx", "kxp",
+            "kzh", "lad", "lah", "lhs", "lki", "lrc", "lrk", "lrl", "lsa", "lsd", "lss",
+            "luv", "luz", "mby", "mde", "mey", "mfa", "mfi", "mhj", "mid", "mki", "mnj",
+            "mve", "mvy", "myz", "mzb", "mzn", "nli", "nlm", "nqo", "ntz", "nyq", "oar",
+            "obm", "odk", "oru", "ota", "otk", "oui", "pal", "pbt", "pbu", "per", "pes",
+            "pgd", "phl", "phn", "phr", "phv", "plk", "pmu", "pnb", "prc", "prd", "prs",
+            "prx", "ps", "psh", "psi", "pst", "pus", "qxq", "rdb", "rhg", "rmt", "sam", "sbn",
+            "scl", "sd", "sdb", "sdf", "sdg", "sdh", "sds", "sgl", "sgr", "sgy", "shd", "shm",
+            "shu", "shv", "siy", "siz", "skr", "smp", "smy", "snd", "sog", "sqo", "sqt",
+            "srh", "srz", "ssh", "sts", "swb", "syc", "syn", "syr", "tjo", "tks", "tmr",
+            "tnf", "tov", "tra", "trg", "trm", "trw", "ug", "uig", "ur", "urd", "ush", "uzs",
+            "vaf", "vgr", "vmh", "wbk", "wlo", "wne", "wni", "wsv", "xco", "xhe", "xka",
+            "xkc", "xkj", "xkp", "xld", "xly", "xmn", "xmr", "xna", "xpr", "xsa", "xsd",
+            "xvi", "ydd", "ydg", "yhd", "yi", "yid", "yih", "yud", "zba", "zdj", "zrp", "zum");
+
+    /**
+     * The script codes this class writes right to left, for {@code LayoutDirectionScriptsTest},
+     * which holds them to the JDK's own Unicode data. Package-private: the table is an
+     * implementation of {@link #forLocale} and not something to branch on.
+     *
+     * @return the codes, unmodifiable
+     */
+    static Set<String> rightToLeftScripts() {
+        return RTL_SCRIPTS;
+    }
 
     /**
      * Maps a locale to the direction its script is normally written in: the bridge between

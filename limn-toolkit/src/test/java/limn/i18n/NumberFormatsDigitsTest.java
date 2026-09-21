@@ -33,7 +33,7 @@ class NumberFormatsDigitsTest {
 
     @Test
     void theLocaleWritesItsOwnDigits() {
-        I18n.setLocale(Locale.forLanguageTag("ar"));
+        I18n.setLocale(Locale.forLanguageTag("ar-EG"));
         assertEquals("٤٢", NumberFormats.number().apply(42));
 
         I18n.setLocale(Locale.ENGLISH);
@@ -42,7 +42,7 @@ class NumberFormatsDigitsTest {
 
     @Test
     void aDeclaredSystemWinsOverThePlatformsOwnSubstitution() {
-        I18n.setLocale(Locale.forLanguageTag("ar"));
+        I18n.setLocale(Locale.forLanguageTag("ar-EG"));
         I18n.setNumberingSystem(NumberingSystem.LATN);
         assertEquals("42", NumberFormats.number().apply(42),
                 "the platform wrote ٤٢ on its own; the override must fold it back");
@@ -55,7 +55,7 @@ class NumberFormatsDigitsTest {
 
     @Test
     void aLocalizedZeroTrimsLikeAnAsciiOne() {
-        I18n.setLocale(Locale.forLanguageTag("ar"));
+        I18n.setLocale(Locale.forLanguageTag("ar-EG"));
         assertEquals("٣٫٥", NumberFormats.number().apply(3.5),
                 "the trailing localized zero is trimmed, not compared against ASCII '0'");
     }
@@ -66,7 +66,7 @@ class NumberFormatsDigitsTest {
         // its passes hold the effective locale in scope and every format here reads
         // I18n.locale() at the moment it formats. Separators come with the language, not
         // only digits: the fold-then-localize pipeline runs on the platform's own output.
-        Locale enclosing = I18n.pushScope(Locale.forLanguageTag("ar"));
+        Locale enclosing = I18n.pushScope(Locale.forLanguageTag("ar-EG"));
         try {
             assertEquals("٣٫٥", NumberFormats.number().apply(3.5));
         } finally {
@@ -79,7 +79,7 @@ class NumberFormatsDigitsTest {
     @Test
     void aTwoCharacterCurrencySymbolStaysWholeUnderAnArabicAmount() {
         java.util.Currency real = java.util.Currency.getInstance("BRL");
-        I18n.setLocale(Locale.forLanguageTag("ar"));
+        I18n.setLocale(Locale.forLanguageTag("ar-EG"));
         String arabic = NumberFormats.currency(real).apply(2499.97);
         assertTrue(arabic.contains("\u200ER$\u200E"),
                 "the symbol is fenced by left-to-right marks so the bidi algorithm cannot split "

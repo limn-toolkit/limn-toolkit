@@ -24,7 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SpinnerDigitsTest extends ComponentTestBase {
 
-    private static final Locale ARABIC = Locale.forLanguageTag("ar");
+    // Egypt, and not a bare "ar": CLDR makes Latin the Arabic default and names the twenty-three
+    // regions that write Arabic-Indic digits, so a region is what makes this an Arabic-digit
+    // locale at all (the table was inverted until 2026-09-21).
+    private static final Locale ARABIC = Locale.forLanguageTag("ar-EG");
     private static final float BOX_W = 140;
     private static final float BOX_H = 32;
 

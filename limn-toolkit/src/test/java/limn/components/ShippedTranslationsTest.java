@@ -157,6 +157,86 @@ class ShippedTranslationsTest extends ComponentTestBase {
         }
     }
 
+    /**
+     * A translation carries the arguments its English carries, and quotes them safely.
+     *
+     * <p>Two defects this catches, both silent. An argument a translation <b>adds</b> is printed
+     * as the literal {@code {1}} to a user, because nobody passes it; an argument a translation
+     * <b>drops</b> leaves a sentence with a hole where the name or the number was. And a
+     * {@code MessageFormat} pattern treats an ASCII apostrophe as a quote: {@code "d'éléments"}
+     * with a placeholder after it silently swallows the rest of the sentence, which is why every
+     * shipped value uses the typographic {@code ’} and why this refuses the ASCII one rather than
+     * waiting for a language that needs it to be written by somebody in a hurry.
+     *
+     * <p><b>The one licensed omission is a spelled-out count.</b> Arabic's "عنصر واحد" and
+     * Hebrew's "פריט אחד" say "one item" in words, so the count argument is deliberately unused
+     * there — the whole point of having a {@code one} form. Only the count may be dropped, and
+     * only from a plural form.
+     */
+    @Test
+    void everyTranslationCarriesTheArgumentsOfItsEnglishAndQuotesThemSafely() {
+        Map<String, String> declared = I18n.declaredKeys();
+        List<String> problems = new ArrayList<>();
+        for (Path file : shippedFiles()) {
+            Properties translated = read(file);
+            for (String key : translated.stringPropertyNames()) {
+                String english = declared.get(key);
+                if (english == null) {
+                    continue; // the orphan test owns this case
+                }
+                String value = translated.getProperty(key);
+                Set<Integer> want = argumentsOf(english);
+                Set<Integer> got = argumentsOf(value);
+                Set<Integer> added = new TreeSet<>(got);
+                added.removeAll(want);
+                if (!added.isEmpty()) {
+                    problems.add(file.getFileName() + " " + key + " uses " + added
+                            + ", which nobody passes: \"" + value + "\"");
+                }
+                Set<Integer> dropped = new TreeSet<>(want);
+                dropped.removeAll(got);
+                boolean countOnly = formOf(key) != null && dropped.equals(Set.of(max(want)));
+                if (!dropped.isEmpty() && !countOnly) {
+                    problems.add(file.getFileName() + " " + key + " drops " + dropped
+                            + ": \"" + value + "\"");
+                }
+                if (!want.isEmpty()) {
+                    if (value.replace("\'\'", "").indexOf('\'') >= 0) {
+                        problems.add(file.getFileName() + " " + key
+                                + " has an unescaped apostrophe, which MessageFormat reads as a "
+                                + "quote: \"" + value + "\"");
+                    }
+                    try {
+                        new java.text.MessageFormat(value, Locale.ROOT);
+                    } catch (IllegalArgumentException malformed) {
+                        problems.add(file.getFileName() + " " + key + " is not a pattern: "
+                                + malformed.getMessage());
+                    }
+                }
+            }
+        }
+        assertEquals(List.of(), problems, "translations that do not match their English");
+    }
+
+    /** The {@code {0}}-style argument indexes a pattern reads. */
+    private static Set<Integer> argumentsOf(String pattern) {
+        Set<Integer> out = new TreeSet<>();
+        java.util.regex.Matcher m =
+                java.util.regex.Pattern.compile("\\{(\\d+)[,}]").matcher(pattern);
+        while (m.find()) {
+            out.add(Integer.parseInt(m.group(1)));
+        }
+        return out;
+    }
+
+    private static int max(Set<Integer> values) {
+        int out = -1;
+        for (int v : values) {
+            out = Math.max(out, v);
+        }
+        return out;
+    }
+
     /** The keys of a file that are not one form of a counted sentence. */
     private static Set<String> plainKeys(Set<String> keys) {
         Set<String> out = new TreeSet<>();

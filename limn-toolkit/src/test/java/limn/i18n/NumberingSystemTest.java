@@ -34,22 +34,40 @@ class NumberingSystemTest {
 
     @Test
     void theLocaleTableFollowsCldr() {
-        assertEquals(NumberingSystem.ARAB, NumberingSystem.forLocale(Locale.forLanguageTag("ar")));
-        assertEquals(NumberingSystem.ARAB, NumberingSystem.forLocale(Locale.forLanguageTag("ar-EG")));
+        // Corrected 2026-09-21, against the CLDR dump CldrLocaleFactsTest reads: this case
+        // asserted that a bare "ar" writes Arabic-Indic digits and that the Maghreb is the
+        // exception. CLDR says the opposite — Latin is the Arabic default and twenty-three
+        // regions are the exception — so the table was inverted and this case was pinning it.
+        assertEquals(NumberingSystem.LATN, NumberingSystem.forLocale(Locale.forLanguageTag("ar")),
+                "a bare Arabic locale writes Latin digits, as every native application does");
+        assertEquals(NumberingSystem.ARAB, NumberingSystem.forLocale(Locale.forLanguageTag("ar-EG")),
+                "and Egypt is one of the twenty-three regions that do not");
         assertEquals(NumberingSystem.LATN, NumberingSystem.forLocale(Locale.forLanguageTag("ar-MA")),
-                "the Maghreb writes Latin digits");
+                "the Maghreb writes Latin digits, along with the Gulf's AE and most of the world");
+        assertEquals(NumberingSystem.LATN, NumberingSystem.forLocale(Locale.forLanguageTag("ar-AE")),
+                "the United Arab Emirates too, which the Maghreb-shaped exception got wrong");
         assertEquals(NumberingSystem.ARABEXT, NumberingSystem.forLocale(Locale.forLanguageTag("fa")));
+        assertEquals(NumberingSystem.ARABEXT, NumberingSystem.forLocale(Locale.forLanguageTag("ks")),
+                "Kashmiri, which the first table did not name at all");
+        assertEquals(NumberingSystem.ARAB, NumberingSystem.forLocale(Locale.forLanguageTag("sd")),
+                "Sindhi writes Arabic-Indic digits at home");
+        assertEquals(NumberingSystem.LATN, NumberingSystem.forLocale(Locale.forLanguageTag("sd-IN")),
+                "and Latin ones in India, which is a fact no rule about scripts would predict");
+        assertEquals(NumberingSystem.DEVA, NumberingSystem.forLocale(Locale.forLanguageTag("mr")),
+                "Marathi really does default to Devanagari digits");
         assertEquals(NumberingSystem.LATN, NumberingSystem.forLocale(Locale.forLanguageTag("he")),
                 "Hebrew is right-to-left and writes Latin digits: the axis and the digits are "
                         + "different facts");
         assertEquals(NumberingSystem.LATN, NumberingSystem.forLocale(Locale.forLanguageTag("hi")),
-                "CLDR defaults Hindi to Latin digits; Devanagari is override-only");
+                "CLDR defaults Hindi to Latin digits, where its neighbour Marathi it does not");
+        assertEquals(NumberingSystem.LATN, NumberingSystem.forLocale(Locale.forLanguageTag("bn")),
+                "Bengali is a known gap: CLDR says beng and this enum does not carry it yet");
         assertEquals(NumberingSystem.LATN, NumberingSystem.forLocale(Locale.ENGLISH));
     }
 
     @Test
     void localizeRewritesDigitsAndOnlyDigits() {
-        I18n.setLocale(Locale.forLanguageTag("ar"));
+        I18n.setLocale(Locale.forLanguageTag("ar-EG")); // a region that writes them
         assertEquals("٤٢.٥ ms", I18n.localizeDigits("42.5 ms"),
                 "digits localize; the separator and the unit do not");
         I18n.setLocale(Locale.forLanguageTag("fa"));
@@ -60,7 +78,7 @@ class NumberingSystemTest {
     void theDefaultLocalePaysNoAllocation() {
         String text = "42.5 ms";
         assertSame(text, I18n.localizeDigits(text), "LATN returns its argument");
-        I18n.setLocale(Locale.forLanguageTag("ar"));
+        I18n.setLocale(Locale.forLanguageTag("ar-EG")); // a region that writes them
         String noDigits = "no digits here";
         assertSame(noDigits, I18n.localizeDigits(noDigits), "and so does a string with none");
         assertSame(noDigits, I18n.toAsciiDigits(noDigits));

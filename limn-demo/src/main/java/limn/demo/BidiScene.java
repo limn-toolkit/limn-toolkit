@@ -97,8 +97,15 @@ final class BidiScene {
     /** The Latin run the mixed lines and the editable fields put inside right-to-left text. */
     private static final String ISLAND = "Limn UI 2026";
 
-    /** The locale the pinned pair declares: the one whose digits make the pin visible. */
-    private static final Locale ARABIC = Locale.forLanguageTag("ar");
+    /**
+     * The locale the pinned pair declares: the one whose digits make the pin visible.
+     *
+     * <p>Egypt and not a bare {@code ar}, since 2026-09-21: CLDR makes <b>Latin</b> the Arabic
+     * default and names twenty-three regions that write Arabic-Indic digits, so a region is what
+     * makes this pair show anything at all. The toolkit's table said the opposite until that
+     * date, and this scene was one of the places that made the error look intentional.
+     */
+    private static final Locale ARABIC = Locale.forLanguageTag("ar-EG");
 
     /** What both spinners hold, so the digits are the only thing the declaration moves. */
     private static final double PINNED_VALUE = 42;

@@ -135,7 +135,7 @@ class LocaleScopeTest {
 
     @Test
     void theNumberingSystemFollowsTheScopeAndTheOverrideStillWinsEverywhere() {
-        Locale arabic = Locale.forLanguageTag("ar");
+        Locale arabic = Locale.forLanguageTag("ar-EG");
         assertEquals("42", I18n.localizeDigits("42"));
         Locale enclosing = I18n.pushScope(arabic);
         try {
