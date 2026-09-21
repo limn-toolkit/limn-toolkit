@@ -245,8 +245,11 @@ have been wrong in exactly the languages that notice. **The owner asked for the 
 and `limn.i18n.PluralRules` is what it cost**: CLDR's cardinal rules transcribed by hand for the
 languages this repository ships, `PluralString` beside `I18nString`, one catalog key per
 grammatical form, and each language carrying exactly the forms it uses — one for Japanese, three
-for Russian, six for Arabic. The transcription is the standing risk and `PluralRulesTest` is its
-only guard; `docs/design/i18n.md` has the shape and the table.
+for Russian, six for Arabic. The transcription is checked against CLDR itself — Node's
+`Intl.PluralRules` dumped by `scripts/i18n/dump-cldr-plurals.mjs` into a file the suite reads —
+and it caught a real error the day it was written: the first cut was wrong in five languages at
+once, all of which have a form of their own for a round million. `docs/design/i18n.md` has the
+shape and the table.
 
 Pinned by `TreeAccessibilityTest.aLazyLoadSaysItHasBegunAndSaysHowItEnded` and
 `anEagerEmptyBranchSaysItIsEmptyToo`, which also holds that a branch opening onto children says

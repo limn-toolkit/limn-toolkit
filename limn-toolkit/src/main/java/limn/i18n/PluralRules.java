@@ -16,14 +16,24 @@ import java.util.Set;
  * the rule on its own however it is written. ICU has the data and is not an option here: this
  * toolkit has no runtime dependencies and gains none for one sentence.
  *
- * <p><b>So the rules are transcribed by hand, and that is the honest limitation.</b> They are
- * CLDR's cardinal rules for the languages this repository ships, written out below, and no data
- * file in this tree can check them. {@code PluralRulesTest} is the whole of the guard: it pins
- * the classic numbers per language — 1, 2, 5, 11, 21, 22, 25, 101, 111 — which are exactly the
- * places a wrong rule shows. A language this class does not name falls back to English's
- * {@link Rule#ONE_OTHER}, the shape of the largest family, and that fallback is a guess by
- * construction: an application shipping a language from another family declares its own rule by
- * carrying only the forms it needs (see {@link #integerCategories}).
+ * <p><b>So the rules are transcribed by hand — and the transcription is checked against CLDR
+ * itself.</b> {@code scripts/i18n/dump-cldr-plurals.mjs} reads Node's {@code Intl.PluralRules},
+ * which <em>is</em> the CLDR data as ICU carries it, and writes every answer for every integer
+ * from 0 to 1000 plus spot checks past a hundred million;
+ * {@code PluralRulesTest.theTranscriptionAgreesWithCldr} holds this class to that file, which is
+ * checked in with the ICU version that produced it. Nothing in the build runs Node. Regenerate
+ * the dump when a language is added, which is when a hand-written rule is most likely to be
+ * wrong.
+ *
+ * <p>The check earned its keep on the day it was written (2026-09-18, ICU 78.3): the first
+ * transcription was wrong in five languages at once. Spanish, Italian, French, Portuguese and
+ * Brazilian Portuguese have a {@code many} form for an exact multiple of a million — "un millón
+ * <b>de</b> elementos" — which no rule written from the first few integers would ever suggest.
+ *
+ * <p>A language this class does not name falls back to English's {@link Rule#ONE_OTHER}, the
+ * shape of the largest family, and that fallback stays a guess by construction: an application
+ * shipping a language from another family declares its own rule by carrying only the forms it
+ * needs (see {@link #integerCategories}).
  *
  * <p><b>Integers only, deliberately.</b> Every count this toolkit speaks is a number of things —
  * rows, items, results — so {@link #select} takes a {@code long}. CLDR's fraction categories
@@ -66,10 +76,21 @@ public final class PluralRules {
     private enum Rule {
         /** No inflection for number: Japanese, Korean, Vietnamese, Chinese, Indonesian. */
         OTHER_ONLY,
-        /** One for exactly 1: English, German, Spanish, Italian, Dutch, Turkish. */
+        /** One for exactly 1: English, German, Dutch, Turkish. */
         ONE_OTHER,
-        /** One for 0 and 1: French, Portuguese, Hindi. */
+        /** One for 0 and 1, and nothing above: Hindi. */
         ZERO_OR_ONE_IS_ONE,
+        /**
+         * One for exactly 1, and a form of its own for a round million: Spanish, Italian.
+         *
+         * <p>The millions form is not a curiosity. Spanish says "un millón <b>de</b> elementos"
+         * and Italian "un milione <b>di</b> elementi", where 999.999 takes no preposition at all,
+         * so a sentence built from the plural form reads as broken Spanish at exactly the round
+         * numbers a file browser or a search result is most likely to show.
+         */
+        ONE_OTHER_AND_MILLIONS,
+        /** One for 0 and 1, and the same millions form: French, Portuguese. */
+        ZERO_OR_ONE_AND_MILLIONS,
         /** One, a dual, and the rest: Hebrew. */
         ONE_TWO_OTHER,
         /** One for 1, few for 2–4, the rest other: Czech. */
@@ -98,6 +119,10 @@ public final class PluralRules {
             case OTHER_ONLY -> Category.OTHER;
             case ONE_OTHER -> n == 1 ? Category.ONE : Category.OTHER;
             case ZERO_OR_ONE_IS_ONE -> n <= 1 ? Category.ONE : Category.OTHER;
+            case ONE_OTHER_AND_MILLIONS -> n == 1 ? Category.ONE
+                    : roundMillion(n) ? Category.MANY : Category.OTHER;
+            case ZERO_OR_ONE_AND_MILLIONS -> n <= 1 ? Category.ONE
+                    : roundMillion(n) ? Category.MANY : Category.OTHER;
             case ONE_TWO_OTHER -> n == 1 ? Category.ONE : n == 2 ? Category.TWO : Category.OTHER;
             case CZECH -> n == 1 ? Category.ONE
                     : n >= 2 && n <= 4 ? Category.FEW : Category.OTHER;
@@ -134,6 +159,8 @@ public final class PluralRules {
         return switch (ruleFor(locale)) {
             case OTHER_ONLY -> EnumSet.of(Category.OTHER);
             case ONE_OTHER, ZERO_OR_ONE_IS_ONE -> EnumSet.of(Category.ONE, Category.OTHER);
+            case ONE_OTHER_AND_MILLIONS, ZERO_OR_ONE_AND_MILLIONS ->
+                    EnumSet.of(Category.ONE, Category.MANY, Category.OTHER);
             case ONE_TWO_OTHER -> EnumSet.of(Category.ONE, Category.TWO, Category.OTHER);
             case CZECH -> EnumSet.of(Category.ONE, Category.FEW, Category.OTHER);
             // No OTHER: with v = 0 the two rules above exhaust the integers between them, and
@@ -152,10 +179,20 @@ public final class PluralRules {
      * table keyed on the modern tag alone would silently drop Hebrew and Indonesian into the
      * fallback on such a JVM — and the fallback is wrong for Hebrew.
      */
+    /**
+     * A non-zero multiple of a million exactly: CLDR's {@code i % 1000000 = 0} for the Romance
+     * {@code many}, which is the form "un millón <b>de</b> elementos" takes.
+     */
+    private static boolean roundMillion(long n) {
+        return n != 0 && n % 1_000_000 == 0;
+    }
+
     private static Rule ruleFor(Locale locale) {
         return switch (locale.getLanguage()) {
             case "ja", "ko", "vi", "zh", "id", "in", "th", "my", "km", "lo" -> Rule.OTHER_ONLY;
-            case "fr", "pt", "hi" -> Rule.ZERO_OR_ONE_IS_ONE;
+            case "hi" -> Rule.ZERO_OR_ONE_IS_ONE;
+            case "es", "it", "ca", "gl" -> Rule.ONE_OTHER_AND_MILLIONS;
+            case "fr", "pt" -> Rule.ZERO_OR_ONE_AND_MILLIONS;
             case "he", "iw" -> Rule.ONE_TWO_OTHER;
             case "cs", "sk" -> Rule.CZECH;
             case "pl" -> Rule.POLISH;

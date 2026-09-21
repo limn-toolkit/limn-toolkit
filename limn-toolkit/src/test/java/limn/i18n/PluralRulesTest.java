@@ -2,6 +2,10 @@ package limn.i18n;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -18,13 +22,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The plural rules, at the numbers where a wrong rule shows.
+ * The plural rules, at the numbers where a wrong rule shows, and against CLDR itself.
  *
- * <p><b>This test is the only guard there is.</b> {@link PluralRules} transcribes CLDR's
- * cardinal rules by hand — the toolkit has no runtime dependency and the JDK exposes no plural
- * data, so nothing in this tree can check the rules against the source they came from. What can
- * be checked is that they answer what a speaker of each language would answer, at the numbers
- * where the families differ from one another: 1, 2, 5, 11, 21, 22, 25, 101 and 111.
+ * <p>{@link PluralRules} transcribes CLDR's cardinal rules by hand, because the toolkit has no
+ * runtime dependency and the JDK exposes no plural data. Two things check it.
+ * {@link #theTranscriptionAgreesWithCldr} is the one that would catch anything: it compares
+ * every answer with ICU's, through a dump this repository keeps. The cases written out by hand
+ * below are the ones a reader of this file should be able to see without running anything — the
+ * numbers where the families differ from one another: 1, 2, 5, 11, 21, 22, 25, 101 and 111.
  *
  * <p>Those numbers are not decoration. 21 is where Polish and Russian part company — "21
  * elementów" takes the many form and "21 элемент" takes the one form — 11 is where Russian's
@@ -52,7 +57,7 @@ class PluralRulesTest {
 
     @Test
     void englishAndItsFamilyInflectAtOneAlone() {
-        for (String tag : List.of("en", "de", "es", "it", "nl", "tr")) {
+        for (String tag : List.of("en", "de", "nl", "tr")) {
             Locale locale = Locale.forLanguageTag(tag);
             assertEquals(OTHER, PluralRules.select(locale, 0), tag + " at 0");
             assertEquals(ONE, PluralRules.select(locale, 1), tag + " at 1");
@@ -61,6 +66,35 @@ class PluralRulesTest {
             }
             assertEquals(EnumSet.of(ONE, OTHER), PluralRules.integerCategories(locale), tag);
         }
+    }
+
+    /**
+     * The Romance languages have a form of their own for a round million, and it is the case the
+     * first transcription of these rules got wrong in five languages at once (2026-09-18, caught
+     * by {@link #theTranscriptionAgreesWithCldr} before it shipped).
+     *
+     * <p>It is not a curiosity: Spanish says "un millón <b>de</b> elementos" and French "un
+     * million <b>d\u2019</b>éléments", where 999.999 takes no preposition at all, so a sentence
+     * built from the ordinary plural reads as broken Spanish at exactly the round numbers a
+     * search result is most likely to show. Only an exact multiple counts — 1.000.001 is back to
+     * the plain plural.
+     */
+    @Test
+    void theRomanceLanguagesHaveAFormForARoundMillion() {
+        for (String tag : List.of("es", "it", "fr", "pt", "pt-BR")) {
+            Locale locale = Locale.forLanguageTag(tag);
+            assertEquals(ONE, PluralRules.select(locale, 1), tag + " at 1");
+            assertEquals(OTHER, PluralRules.select(locale, 999_999), tag + " at 999999");
+            assertEquals(MANY, PluralRules.select(locale, 1_000_000), tag + " at a million");
+            assertEquals(OTHER, PluralRules.select(locale, 1_000_001), tag + " at a million and one");
+            assertEquals(MANY, PluralRules.select(locale, 2_000_000), tag + " at two million");
+            assertEquals(EnumSet.of(ONE, MANY, OTHER), PluralRules.integerCategories(locale),
+                    tag + " owes three forms, and the third is the millions one");
+        }
+        assertEquals(OTHER, PluralRules.select(Locale.ENGLISH, 1_000_000),
+                "English has no such form, which is why it is easy to forget");
+        assertEquals(OTHER, PluralRules.select(Locale.forLanguageTag("hi"), 1_000_000),
+                "and neither does Hindi, which otherwise shares French's treatment of zero");
     }
 
     /** French, Portuguese and Hindi read zero as singular: "0 élément", not "0 éléments". */
@@ -186,8 +220,90 @@ class PluralRulesTest {
             for (long n = 0; n <= 1000; n++) {
                 reached.add(PluralRules.select(locale, n));
             }
+            // Past the dense range, because the Romance millions form lives out here and a
+            // sweep of the first thousand integers would call it unreachable.
+            for (long n : List.of(1_000_000L, 2_000_000L, 1_000_001L)) {
+                reached.add(PluralRules.select(locale, n));
+            }
             assertEquals(new TreeSet<>(PluralRules.integerCategories(locale)), reached,
                     tag + ": the forms it owes and the forms it answers must be one set");
+        }
+    }
+
+    /**
+     * The transcription, against CLDR itself.
+     *
+     * <p>This is what closes the risk the rest of this class could only describe. Node's
+     * {@code Intl.PluralRules} <b>is</b> the CLDR data, read through ICU, and
+     * {@code scripts/i18n/dump-cldr-plurals.mjs} writes its answers to
+     * {@code cldr-cardinal.txt} — every integer from 0 to 1000 for every language the toolkit
+     * ships a catalog for, plus the four {@link PluralRules} names without one, plus spot checks
+     * up past a hundred million. The file's header records which ICU produced it, so a diff
+     * after a regeneration reads as "CLDR changed" and not as "someone edited a golden".
+     *
+     * <p>The check does not run Node: the dump is checked in, so the suite has no toolchain it
+     * did not have before. Regenerate it when a language is added to the toolkit, which is
+     * exactly when a hand-written rule is most likely to be wrong.
+     *
+     * <p>First run, 2026-09-18: node v26.7.0, ICU 78.3 — all 26 languages agreed at every one of
+     * those numbers, Hebrew included, which was the rule this class's author was least sure of.
+     */
+    @Test
+    void theTranscriptionAgreesWithCldr() throws Exception {
+        Path dump = Path.of("src/test/resources/limn/i18n/cldr-cardinal.txt");
+        assertTrue(Files.exists(dump), "the CLDR dump is missing: " + dump.toAbsolutePath());
+        List<String> lines = Files.readAllLines(dump, StandardCharsets.UTF_8);
+
+        List<Long> spots = new ArrayList<>();
+        List<String> disagreements = new ArrayList<>();
+        int languages = 0;
+        for (String line : lines) {
+            if (line.startsWith("#") || line.isBlank()) {
+                continue;
+            }
+            String[] parts = line.split(" ");
+            switch (parts[0]) {
+                case "spots" -> {
+                    for (int i = 1; i < parts.length; i++) {
+                        spots.add(Long.parseLong(parts[i]));
+                    }
+                }
+                case "dense" -> {
+                    languages++;
+                    Locale locale = Locale.forLanguageTag(parts[1]);
+                    String cldr = parts[2];
+                    for (int n = 0; n < cldr.length(); n++) {
+                        compare(disagreements, parts[1], locale, n, cldr.charAt(n));
+                    }
+                }
+                case "spot" -> {
+                    Locale locale = Locale.forLanguageTag(parts[1]);
+                    String cldr = parts[2];
+                    assertEquals(spots.size(), cldr.length(),
+                            parts[1] + ": the spot line does not match the spots line");
+                    for (int i = 0; i < cldr.length(); i++) {
+                        compare(disagreements, parts[1], locale, spots.get(i), cldr.charAt(i));
+                    }
+                }
+                default -> throw new AssertionError("unknown line in the dump: " + line);
+            }
+        }
+        assertTrue(languages >= 20, "the dump covers only " + languages + " languages");
+        assertEquals(List.of(), disagreements,
+                "limn.i18n.PluralRules disagrees with the CLDR data in the dump");
+    }
+
+    private static void compare(List<String> out, String tag, Locale locale, long n, char cldr) {
+        char mine = switch (PluralRules.select(locale, n)) {
+            case ZERO -> 'z';
+            case ONE -> '1';
+            case TWO -> '2';
+            case FEW -> 'f';
+            case MANY -> 'm';
+            case OTHER -> 'o';
+        };
+        if (mine != cldr && out.size() < 20) {
+            out.add(tag + " at " + n + ": CLDR says " + cldr + ", we say " + mine);
         }
     }
 
