@@ -53,6 +53,14 @@ public interface RowsSubject {
     Scrolling scrolling();
 
     /**
+     * @return true where a row has an activation of its own that {@code PRESS} performs (a
+     *     tree's row opens, a table's row is activated, a tab dives into its panel); false
+     *     where it has none (a list, whose {@code PRESS} is the container's and acts on the
+     *     selection; a segment; a calendar's day, which is only picked)
+     */
+    boolean rowsActivate();
+
+    /**
      * Puts the widget into multiple selection through its API.
      *
      * @return false when the widget has no multiple selection, in which case nothing changed

@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
+import limn.components.a11y.RowsAccessibility;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -329,6 +330,59 @@ public class TabbedPane extends Widget {
      * {@code FOCUSABLE}, {@code FOCUS}, {@code FOCUS} and then the {@code SELECTION} they belong
      * to -- the settling order, with the aspect the call names as the signal that it is done.
      */
+    /**
+     * The pane's mechanisms as the rows shape drives them, over a header's index: a select is
+     * what {@link #setSelectedIndex} does, changing the tab and leaving the keyboard where it
+     * was; a press is what a left click and Enter do, changing the tab and then diving into the
+     * panel. The cursor is the selection here (roving focus), so {@code FOCUS} is refused before
+     * it could reach {@link #moveCursor}, and nothing reveals: the verb is not published on a
+     * header, which the walk grants it free as a focusable widget.
+     */
+    private final class RowsHost implements RowsAccessibility.Host<Integer> {
+        @Override
+        public RowsAccessibility.Selection selection() {
+            return RowsAccessibility.Selection.SINGLE;
+        }
+
+        @Override
+        public boolean cursorIsTheSelection() {
+            return true;
+        }
+
+        @Override
+        public boolean rowsActivate() {
+            return true;
+        }
+
+        @Override
+        public boolean isSelected(Integer index) {
+            return index == selected;
+        }
+
+        @Override
+        public boolean select(Integer index, boolean moveCursor) {
+            selectTab(index, Focus.NONE, Change.Origin.USER);
+            return true;
+        }
+
+        @Override
+        public void moveCursor(Integer index) {
+            throw new UnsupportedOperationException("the cursor is the selection: FOCUS is refused");
+        }
+
+        @Override
+        public void reveal(Integer index) {
+            // Not published on a header, so never asked for.
+        }
+
+        @Override
+        public void activate(Integer index) {
+            selectTab(index, Focus.CONTENT, Change.Origin.USER);
+        }
+    }
+
+    private final RowsHost rowsHost = new RowsHost();
+
     private void selectTab(int index, Focus focus, Change.Origin origin) {
         Ui.checkUiThread();
         if (index < 0 || index >= contents.size()) {
@@ -973,9 +1027,11 @@ public class TabbedPane extends Widget {
         protected void onAccessibility(Accessibility a) {
             a.role(Accessible.Role.TAB_LIST);
             a.state(Accessible.State.HORIZONTAL);
+            // The container half of the ROWS shape (ADR 045 §3), with no PRESS of its own.
             // selected >= 0 is exactly "there is at least one tab": the first addTab moves it off
             // -1 and nothing moves it back.
-            a.selection(false, selected >= 0);
+            RowsAccessibility.describeContainer(a, RowsAccessibility.Selection.SINGLE,
+                    selected >= 0, false);
             // The strip's own box IS the viewport, whether it is the whole strip row or the gap
             // the pane left between the three overflow controls, and the publish step reads these
             // after layout, so they are this frame's.
@@ -1351,8 +1407,13 @@ public class TabbedPane extends Widget {
         protected void onAccessibility(Accessibility a) {
             a.role(Accessible.Role.TAB);
             a.name(title, Accessible.NameFrom.CONTENT);
-            a.selectionItem(index == selected, index + 1, headers.size());
-            a.action(Accessible.Action.SELECT, Accessible.Action.PRESS);
+            // The ROWS shape, written once (ADR 045 §3), read against a header that is a widget
+            // of its own: the membership, SELECT and PRESS as its own verbs, no cursor mark
+            // because the header holds the keyboard itself (roving focus), and neither FOCUS nor
+            // SCROLL_INTO_VIEW, which the walk grants it free as a focusable widget.
+            RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
+                    RowsAccessibility.Selection.SINGLE, index == selected, index + 1,
+                    headers.size(), false, false, false, true, false, false);
             a.relation(Accessible.Relation.CONTROLLER_FOR, contents.get(index));
         }
 
@@ -1388,19 +1449,7 @@ public class TabbedPane extends Widget {
          */
         @Override
         protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-            switch (action) {
-                case SELECT -> {
-                    selectTab(index, Focus.NONE, Change.Origin.USER);
-                    return true;
-                }
-                case PRESS -> {
-                    selectTab(index, Focus.CONTENT, Change.Origin.USER);
-                    return true;
-                }
-                default -> {
-                    return false;
-                }
-            }
+            return RowsAccessibility.performOnRow(rowsHost, index, action);
         }
 
         @Override

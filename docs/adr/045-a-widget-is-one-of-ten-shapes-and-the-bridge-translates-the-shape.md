@@ -168,7 +168,44 @@ are the walk's — each with a `Host` interface the widget implements, in `TextA
 mould. The rules of decisions 10, 11, 20, 79, 80 and 81 are written in the rows helper and nowhere
 else, which a `grep` for `moveCursor` and the row verbs proves when phase 3 closes.
 
-*Filled in as phases 3 and 6 close.*
+**`RowsAccessibility`** (phase 3) is two halves, because the describe hook runs on every damaged
+frame under the zero-allocation rule and a verb does not. `describeRow` is a static function over
+the facts of one row — selected, its position and count, whether it opens and is open, whether it
+is the cursor and the widget has the keyboard, and whether its rows can be pressed, be the cursor
+and be revealed — and it publishes the membership, the open state, the cursor mark and the verbs
+those facts add up to, by state: `SELECT` where there is a selection, `ADD_TO_SELECTION` or
+`DESELECT` by membership where it is multiple, `EXPAND` or `COLLAPSE` by state, `PRESS`, `FOCUS`
+and `SCROLL_INTO_VIEW` where the widget says its rows carry them. `performOnRow` takes a `Host`
+the widget implements over the mechanisms it already had — `selectOnly`, `toggle`, `pick`,
+`focusCell`, `revealNode`, `commit`, `choose`, `selectTab` — and holds the rules of what a verb
+does: a client's `SELECT` calls `host.select(row, false)` and `ADD_TO_SELECTION` and `DESELECT`
+call `host.toggleSelection(row, false)`, which is where decision 79 and decision 20's exemption
+are now written, once; `FOCUS` is refused where the cursor is the selection (decision 11) and
+where the row cannot be the cursor (a refused day); `EXPAND` and `COLLAPSE` are refused by
+state; `PRESS` is refused where rows have no activation of their own. The two identities of
+§7's first risk cost one parameter: `Offer.DELEGATED` for a widget child (a list's or a tree's
+row, whose verb the container performs) and `Offer.OWNED` for a synthetic child (a table's row,
+a calendar's day, a segment, an option) or a widget that performs its own verb (a tab header).
+
+Seven widgets are on it: `Tree`, `Table`, `ListView` and `CalendarView` first, then
+`ComboBox`'s option list, `TabbedPane`'s headers and `SegmentedControl`. The dump of §0 is
+byte-identical after each, and `check` is green. **The grep the plan asked for:** the rule "a
+client's `SELECT` does not move the cursor" is written in one place, `performOnRow`, where
+before it was in `Tree#onAccessibilityChildAction`, `Table#onSyntheticAction` and
+`CalendarView#onSyntheticAction`; the `moveCursor` parameter stays on each widget's own
+mechanism (`selectOnly`, `toggle`, `pick`), where the pointer and the keyboard pass true. The
+row verbs are published by `describeRow` and nowhere else for those seven, with two exceptions
+found by the same grep and left for §8: `RadioButton` (a containerless member) and
+`CalendarView`'s month and year chooser cells, which publish `SELECT` and `FOCUS` of their own.
+
+*The measure:* hook lines per widget, floor against phase 3 — `Tree` 151 → 78, `Table` 298 →
+249, `ListView` 123 → 102, `CalendarView` 245 → 230, `ComboBox` 235 → 223, `TabbedPane` 87 → 82,
+`SegmentedControl` 73 → 72; 2,384 → 2,208 across the toolkit, against a helper of 278 lines of
+which most is the record of the rules. The lines that left the widgets are the rules; what stays
+in each is what is its own — a tree's hierarchy and busy state, a table's cells and header, a
+calendar's numbering and refused days, a combo's inert options.
+
+*The other helpers are phase 6's.*
 
 ## 4. Decision: a contract per shape, in the test fixtures
 
@@ -189,10 +226,12 @@ named in order; the four invariants of ADR 039 §12.1 (`AccessibleInvariants`, m
 gallery test so that the gallery and the contracts hold a tree to the same rules), unfocused and
 focused; decisions 10, 11, 20, 79, 80 and 81, one case each, named after the decision; a row
 keeps its id while the selection and the cursor move; and the cursor is published only while
-the widget has the keyboard. The three things a subject answers are the shape's variants (§3):
+the widget has the keyboard. The four things a subject answers are the shape's variants (§3):
 whether the cursor is the selection or separate from it, how rows beyond the box are reached,
-and whether there is a multiple selection to enter. `ListView` (cursor is the selection, single,
-scrolls itself) and `Tree` (cursor separate, multiple, rows that open, scrolls itself) run it:
+whether there is a multiple selection to enter, and — added when the calendar's day cells showed
+that a separate cursor does not imply an activation — whether a row can be activated at all.
+`ListView` (cursor is the selection, single, scrolls itself) and `Tree` (cursor separate,
+multiple, rows that open, scrolls itself) run it:
 twenty dynamic tests, green at the first run once the subjects were named and boxed. The widgets
 already held every rule, which is what phases 3 and 4 rely on.
 
@@ -232,7 +271,7 @@ reasons, which lived in the test, stays. ADR 039 gains one paragraph pointing he
 | 0 | The floor above, and the dump | 2026-09-21 |
 | 1 | `Shape.of`, `ShapeTest`, `ShapeCoverageTest`: every gallery node classifies; the tables of §1 | 2026-09-21 |
 | 2 | `AccessibleHarness`, `AccessibleInvariants`, `RowsContract` with ten cases; `ListView` and `Tree` under it, twenty dynamic tests | 2026-09-21 |
-| 3 | The `ROWS` helper; `Tree`, `Table`, `ListView`, `CalendarView`, then `ComboBox`, `TabbedPane`, `SegmentedControl`; dump identical | — |
+| 3 | `RowsAccessibility`; `Tree`, `Table`, `ListView`, `CalendarView`, then `ComboBox`, `TabbedPane`, `SegmentedControl` on it; dump identical; the decision-79 rule in one place | 2026-09-21 |
 | 4 | Each `ROWS` widget on the contract; its test shrunk to what is its own | — |
 | 5 | One adapter per shape in each bridge; the 151 reads counted again | — |
 | 6 | `VALUE`, `TOGGLE`, `POPUP_OWNER`, `LEAF_ACTION`, `MENU` helpers and contracts; `TEXT`'s contract | — |
@@ -247,6 +286,17 @@ reasons, which lived in the test, stays. ADR 039 gains one paragraph pointing he
 - `PopupMenu`'s panel carries a selection facet above its menu's (§1.3).
 - The plan's table of widgets per shape was wrong about `RadioButton`, `DatePicker` and
   `TabbedPane` (§1.2); the record's table is the pinned one.
+- `RadioButton` publishes its `SELECT` outside the rows helper because its members are
+  containerless (§4); the rows contract refuses it for the same reason. One case for
+  containerless members, and the helper's `describeRow` over it, close both.
+- `CalendarView`'s month and year chooser cells are a second set of selectable cells in the
+  same widget, publishing `SELECT` and `FOCUS` of their own (decision 85 keeps the chooser
+  unmeasured on a guest and deliberately unfixed); they go on the helper when the chooser is
+  measured.
+- A `CalendarView` in `RANGE` mode publishes its container as multi-selectable and offers no
+  `ADD_TO_SELECTION` or `DESELECT` on a day, because a range is a band and not a set; the
+  helper names its selection `SINGLE` for that reason, and the container's facet is the
+  widget's own. Whether a range should say "multiple" to a reader is a decision to ask.
 
 ## 9. Dependencies
 

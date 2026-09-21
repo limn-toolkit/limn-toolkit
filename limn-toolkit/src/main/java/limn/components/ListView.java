@@ -3,6 +3,7 @@ package limn.components;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
+import limn.components.a11y.RowsAccessibility;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.i18n.I18nString;
@@ -1189,31 +1190,30 @@ public class ListView extends Widget implements Scrollable {
         // either: a list is read as vertical by default on all three platforms, its value has no
         // axis to run along, and the nearest widget in the toolkit — the combo's popup panel,
         // also a vertical LIST with a scroll facet — declares none.
-        a.selection(false, false);
+        // The container half of the ROWS shape, written once (ADR 045 §3): a single selection
+        // that genuinely rests with nothing selected, and the list's own PRESS while a row is
+        // selected. FOCUS and SCROLL_INTO_VIEW arrive free from the walk, and the two scroll
+        // verbs live on the bar's own node, which is the toolkit's settled shape for a scrolling
+        // container.
+        RowsAccessibility.describeContainer(a, RowsAccessibility.Selection.SINGLE, false,
+                selectedIndex >= 0);
         a.scrollFrom(0, 0, 1, 0, estimatedOffset(t), max, viewport, content);
-        if (selectedIndex >= 0) {
-            // The single-argument form; the variable-argument one allocates an array per call.
-            // FOCUS and SCROLL_INTO_VIEW arrive free from the walk, and the two scroll verbs live
-            // on the bar's own node, which is the toolkit's settled shape for a scrolling
-            // container.
-            a.action(Accessible.Action.PRESS);
-            if (cellFor(selectedIndex) == null) {
-                // The selected row scrolled out of the viewport has no widget and therefore no
-                // node, so the only place its name can be said is here. A description and not a
-                // value text, which is written and then dropped without a value facet, and not a
-                // synthetic phantom row, which is declared before the widget children and would
-                // put a selection below the viewport ahead of every realized row. Set only while
-                // that row is unrealized: a mounted one carries its own name and its own SELECTED,
-                // and a second copy here is the same name spoken twice. Since decision 22 (the
-                // cursor row is kept while the list holds the keyboard) this is reached only on
-                // an UNFOCUSED list, where the row is genuinely gone and nothing else can name
-                // it, so it duplicates nothing. The known cost is that while it stands, the
-                // walk's tooltip-as-description default has nowhere to go on a list that has
-                // both an application name and a tooltip.
-                I18nString name = adapter.rowName(selectedIndex);
-                if (name != null) {
-                    a.description(name);
-                }
+        if (selectedIndex >= 0 && cellFor(selectedIndex) == null) {
+            // The selected row scrolled out of the viewport has no widget and therefore no
+            // node, so the only place its name can be said is here. A description and not a
+            // value text, which is written and then dropped without a value facet, and not a
+            // synthetic phantom row, which is declared before the widget children and would
+            // put a selection below the viewport ahead of every realized row. Set only while
+            // that row is unrealized: a mounted one carries its own name and its own SELECTED,
+            // and a second copy here is the same name spoken twice. Since decision 22 (the
+            // cursor row is kept while the list holds the keyboard) this is reached only on
+            // an UNFOCUSED list, where the row is genuinely gone and nothing else can name
+            // it, so it duplicates nothing. The known cost is that while it stands, the
+            // walk's tooltip-as-description default has nowhere to go on a list that has
+            // both an application name and a tooltip.
+            I18nString name = adapter.rowName(selectedIndex);
+            if (name != null) {
+                a.description(name);
             }
         }
     }
@@ -1302,28 +1302,32 @@ public class ListView extends Widget implements Scrollable {
                 a.name(name, Accessible.NameFrom.CONTENT);
             }
         }
-        a.selectionItem(index == selectedIndex, index + 1, describedRowCount);
-        if (index == selectedIndex && isFocused()) {
-            a.state(Accessible.State.ACTIVE);
-        }
-        // The row's own SELECT, published on the cell a reader addresses and performed by the
-        // list (ADR 039 §1.5, amended 2026-09-14; decision 7): what §11's "not per-row
-        // actuation" said could not be delivered, delivered.
-        a.delegate(Accessible.Action.SELECT);
-        if (!child.isFocusable()) {
-            // The widget's own flag and not the walk's enabled-and-visible reading of it: a
-            // focusable cell that is disabled today is granted the free verb the moment it is
-            // enabled, and a delegation standing on it then would be the two-performer conflict
-            // the walk refuses loudly.
-            a.delegate(Accessible.Action.SCROLL_INTO_VIEW);
-        }
+        // The rest is the ROWS shape, written once (ADR 045 §3), read against this widget: the
+        // membership over the model's numbers and never the published tree's; the cursor mark,
+        // because here the selection is the cursor, and only while the list holds the keyboard;
+        // SELECT always, because a list has no selection mode and is never NONE; never
+        // ADD_TO_SELECTION or DESELECT, because one row is selected and there is no multi-select
+        // to add to; never FOCUS (decision 11), because a focus that selected would be SELECT
+        // under another name; never PRESS, which stays on the list (see onAccessibility); and
+        // SCROLL_INTO_VIEW on a cell that cannot take the keyboard, by the widget's own flag and
+        // not the walk's enabled-and-visible reading of it: a focusable cell that is disabled
+        // today is granted the free verb the moment it is enabled, and a delegation standing on
+        // it then would be the two-performer conflict the walk refuses loudly. Delegated rather
+        // than written, so that a reader's "select this row" lands on the row it addressed and
+        // the list performs it through onAccessibilityChildAction (ADR 039 §1.5).
+        RowsAccessibility.describeRow(a, RowsAccessibility.Offer.DELEGATED,
+                RowsAccessibility.Selection.SINGLE, index == selectedIndex, index + 1,
+                describedRowCount, false, false, index == selectedIndex && isFocused(),
+                false, false, !child.isFocusable());
     }
 
     /**
-     * A verb the list claimed on a row's cell: {@code SELECT} makes that row the selection, as a
-     * click on it does, through the same {@code USER} seam and with the same reveal;
-     * {@code SCROLL_INTO_VIEW} reveals the row where it is, as the walk's free verb reveals a
-     * focusable one, and moves neither the selection nor the cursor (decision 20).
+     * A verb the list claimed on a row's cell, performed by the rules of the ROWS shape
+     * ({@link RowsAccessibility#performOnRow}, ADR 045 §3) over {@link RowsHost}: {@code SELECT}
+     * makes that row the selection, as a click on it does, through the same {@code USER} seam and
+     * with the same reveal; {@code SCROLL_INTO_VIEW} reveals the row where it is, as the walk's
+     * free verb reveals a focusable one, and moves neither the selection nor the cursor
+     * (decision 20).
      */
     @Override
     protected boolean onAccessibilityChildAction(Widget child, long key, Accessible.Action action,
@@ -1332,30 +1336,63 @@ public class ListView extends Widget implements Scrollable {
         if (index < 0) {
             return false;
         }
-        switch (action) {
-            case SELECT -> {
-                if (index == selectedIndex) {
-                    // A click on the row already selected lands on it where it is: the reveal
-                    // select() skips when nothing moves, which is what a reader's SELECT on the
-                    // kept cursor row scrolled out of the box asks for (decision 22), as the
-                    // tree's selectOnly already reveals an unchanged selection.
-                    ensureVisible(index);
-                    invalidate();
-                    return true;
-                }
-                select(index, true, Change.Origin.USER);
-                return true;
-            }
-            case SCROLL_INTO_VIEW -> {
-                ensureVisible(index);
+        return RowsAccessibility.performOnRow(rowsHost, index, action);
+    }
+
+    /**
+     * The list's mechanisms as the rows shape drives them. The cursor is the selection here, so
+     * {@code FOCUS} is refused before it could reach {@link #moveCursor} and rows have no
+     * activation of their own: the list's {@code PRESS} opens the selected row.
+     */
+    private final class RowsHost implements RowsAccessibility.Host<Integer> {
+        @Override
+        public RowsAccessibility.Selection selection() {
+            return RowsAccessibility.Selection.SINGLE;
+        }
+
+        @Override
+        public boolean cursorIsTheSelection() {
+            return true;
+        }
+
+        @Override
+        public boolean rowsActivate() {
+            return false;
+        }
+
+        @Override
+        public boolean isSelected(Integer row) {
+            return row == selectedIndex;
+        }
+
+        @Override
+        public boolean select(Integer row, boolean moveCursor) {
+            if (row == selectedIndex) {
+                // A click on the row already selected lands on it where it is: the reveal
+                // select() skips when nothing moves, which is what a reader's SELECT on the
+                // kept cursor row scrolled out of the box asks for (decision 22), as the
+                // tree's selectOnly already reveals an unchanged selection.
+                ensureVisible(row);
                 invalidate();
                 return true;
             }
-            default -> {
-                return false;
-            }
+            ListView.this.select(row, true, Change.Origin.USER);
+            return true;
+        }
+
+        @Override
+        public void moveCursor(Integer row) {
+            throw new UnsupportedOperationException("the cursor is the selection: FOCUS is refused");
+        }
+
+        @Override
+        public void reveal(Integer row) {
+            ensureVisible(row);
+            invalidate();
         }
     }
+
+    private final RowsHost rowsHost = new RowsHost();
 
     /**
      * Opens the selected row, through the same {@code USER} seam Enter reaches -- and not through

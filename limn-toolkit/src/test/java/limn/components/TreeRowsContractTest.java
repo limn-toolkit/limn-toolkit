@@ -90,6 +90,11 @@ class TreeRowsContractTest extends ComponentTestBase {
         }
 
         @Override
+        public boolean rowsActivate() {
+            return true;
+        }
+
+        @Override
         public boolean enterMultipleSelection() {
             tree.setSelectionMode(Tree.SelectionMode.MULTI);
             return true;

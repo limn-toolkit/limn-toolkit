@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
+import limn.components.a11y.RowsAccessibility;
 import limn.components.SizeTokens;
 import limn.components.Strokes;
 import limn.components.Theme;
@@ -2743,16 +2744,32 @@ public class CalendarView extends Widget {
                 a.name(cellName(chronology, drawn, day, today, locale), textEpoch,
                         Accessible.NameFrom.CONTENT);
                 a.cell(w, c);
+                boolean cursorHere = day.equals(cursor) && focusHere(Part.GRID);
                 if (selectionMode != SelectionMode.NONE) {
+                    // A day is a member of the calendar's selection: the ROWS shape, written
+                    // once (ADR 045 §3), read against a grid whose members are cells (§1.2).
                     // Numbered as the day of its own month over that month's length, in the
                     // calendar being drawn (decision 37, 2026-09-14): "15 of 30", and a leading
-                    // cell of the month before "31 of 31". The flat index over the forty-two
+                    // cell of the month before "31 of 31"; the flat index over the forty-two
                     // cells it replaces was the grid's geometry, which is not what a reader
-                    // asked for when told "item 33 of 42".
+                    // asked for when told "item 33 of 42". A range is a band and not a set, so
+                    // no day offers ADD_TO_SELECTION or DESELECT, which is why the selection
+                    // is named SINGLE here whatever the mode. FOCUS moves the cursor onto the
+                    // day and selects nothing (decision 11, 2026-09-15): the cursor and the
+                    // selection are two things in a calendar, and it is what Up and Down do —
+                    // never on a day the bounds or the filter refuse, which carries no verb at
+                    // all (decision 30). SCROLL_INTO_VIEW brings the cell into view through the
+                    // nearest scrolling ancestor, since the grid does not scroll by itself
+                    // (decision 81 of 2026-09-17); published on a refused day too, because the
+                    // walk withdraws it with the rest when the day is narrowed. No PRESS: a day
+                    // has no activation apart from being picked.
                     int dayOfMonth = drawn == null ? day.getDayOfMonth()
                             : drawn.get(ChronoField.DAY_OF_MONTH);
                     int monthLength = drawn == null ? day.lengthOfMonth() : drawn.lengthOfMonth();
-                    a.selectionItem(isSelectedEnd(day) || isInBand(day), dayOfMonth, monthLength);
+                    RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
+                            RowsAccessibility.Selection.SINGLE,
+                            isSelectedEnd(day) || isInBand(day), dayOfMonth, monthLength,
+                            false, false, cursorHere, false, !isRefused(day), true);
                     // A day the bounds or the filter refuse is published disabled and carries
                     // no verb (decision 30, 2026-09-14): the cursor stops on it, so a reader
                     // hears "unavailable" where the eye sees the muted number, and Enter is
@@ -2760,31 +2777,20 @@ public class CalendarView extends Widget {
                     // the one route a synthetic child has to be less enabled than its owner, and
                     // the walk withdraws SELECT from the node it narrowed, as it does from every
                     // day of a disabled calendar (ADR 039 §1.5, amended 2026-09-15).
-                    a.action(Accessible.Action.SELECT);
                     if (!isSelectable(day)) {
                         a.disabled();
                     }
-                }
-                // FOCUS moves the cursor onto the day and selects nothing (decision 11,
-                // 2026-09-15): the cursor and the selection are two things in a calendar, which
-                // is what lets an item publish it, and it is what Up and Down do with the arrows.
-                // Never on a day the bounds or the filter refuse, which carries no verb at all
-                // (decision 30); in NONE, where nothing is selectable and no day is narrowed,
-                // by the same bounds, which is why this test stays when the walk withdraws the
-                // verbs of a narrowed or disabled day.
-                if (!isRefused(day)) {
-                    a.action(Accessible.Action.FOCUS);
-                }
-                // SCROLL_INTO_VIEW brings this cell into view, which is decision 20's verb on a
-                // row read against a grid that does not scroll by itself: what it moves is the
-                // nearest scrolling ancestor, so the verb earns its keep on a calendar inside a
-                // ScrollView and is a no-op on one that is wholly visible — the reading the free
-                // pair already has on a focusable widget (decision 81 of 2026-09-17). Published
-                // on a refused day too: the walk withdraws it with the rest when the day is
-                // narrowed, and nothing here has to repeat that rule.
-                a.action(Accessible.Action.SCROLL_INTO_VIEW);
-                if (day.equals(cursor) && focusHere(Part.GRID)) {
-                    a.state(Accessible.State.ACTIVE);
+                } else {
+                    // In NONE nothing is selectable and no day is narrowed, so a day is not a
+                    // member of anything and only the cursor's verbs remain: FOCUS by the same
+                    // bounds as above, SCROLL_INTO_VIEW, and the cursor mark.
+                    if (!isRefused(day)) {
+                        a.action(Accessible.Action.FOCUS);
+                    }
+                    a.action(Accessible.Action.SCROLL_INTO_VIEW);
+                    if (cursorHere) {
+                        a.state(Accessible.State.ACTIVE);
+                    }
                 }
                 a.endChild();
             }
@@ -3096,33 +3102,74 @@ public class CalendarView extends Widget {
             return true;
         }
         int cell = dayCellOf(key);
-        if (cell >= 0 && action == Accessible.Action.SCROLL_INTO_VIEW) {
-            // The cell's own rectangle through the scrolling ancestors, not the calendar's box:
-            // the grid does not scroll by itself, so what this moves is the pane the calendar
-            // sits in (decision 81 of 2026-09-17). A calendar wholly in view moves nothing,
-            // which is the free verb's own reading and not a refusal.
-            revealDayCell(cell);
-            return true;
-        }
-        if (cell >= 0 && action == Accessible.Action.FOCUS) {
-            LocalDate day = dayAt(cell);
-            if (isRefused(day)) {
-                return false; // published with no verb (decision 30)
-            }
-            focusDay(day);
-            return true;
-        }
-        if (cell >= 0 && action == Accessible.Action.SELECT) {
-            // pick() refuses a day the grid refuses a click on, by the same rule the pointer
-            // meets. What tells a reader no is that such a day publishes no SELECT and is not
-            // ENABLED (decisions 2 and 30): the platform answers from the published list before
-            // this hook runs, so this false never reaches it. The cursor stays where it is,
-            // which a click's does not (decision 79 of 2026-09-17): FOCUS is the verb that moves
-            // it, and a client writing a selection is not a person pointing at a day.
-            return pick(dayAt(cell), false, Change.Origin.USER);
+        if (cell >= 0) {
+            // A day's verbs, by the rules of the ROWS shape (RowsAccessibility.performOnRow,
+            // ADR 045 §3) over the calendar's own mechanisms in RowsHost.
+            return RowsAccessibility.performOnRow(rowsHost, cell, action);
         }
         return false;
     }
+
+    /**
+     * The calendar's mechanisms as the rows shape drives them, over a day cell's index in the
+     * grid. {@code SELECT} is {@link #pick} without the cursor move: the cursor stays where it
+     * is, which a click's does not (decision 79 of 2026-09-17), because FOCUS is the verb that
+     * moves it and a client writing a selection is not a person pointing at a day. {@code pick}
+     * refuses a day the grid refuses a click on, by the same rule the pointer meets; what tells a
+     * reader no is that such a day publishes no SELECT and is not ENABLED (decisions 2 and 30),
+     * so that false never reaches the platform. {@code FOCUS} is refused on a refused day, which
+     * was published with no verb (decision 30). {@code SCROLL_INTO_VIEW} reveals the cell's own
+     * rectangle through the scrolling ancestors, not the calendar's box: the grid does not scroll
+     * by itself, so what moves is the pane the calendar sits in (decision 81), and a calendar
+     * wholly in view moves nothing, which is the free verb's own reading and not a refusal. A
+     * range is a band and not a set, so the selection is single to the shape whatever the mode,
+     * and a day has no activation of its own.
+     */
+    private final class RowsHost implements RowsAccessibility.Host<Integer> {
+        @Override
+        public RowsAccessibility.Selection selection() {
+            return selectionMode == SelectionMode.NONE
+                    ? RowsAccessibility.Selection.NONE : RowsAccessibility.Selection.SINGLE;
+        }
+
+        @Override
+        public boolean cursorIsTheSelection() {
+            return false;
+        }
+
+        @Override
+        public boolean rowsActivate() {
+            return false;
+        }
+
+        @Override
+        public boolean isSelected(Integer cell) {
+            LocalDate day = dayAt(cell);
+            return isSelectedEnd(day) || isInBand(day);
+        }
+
+        @Override
+        public boolean canBeCursor(Integer cell) {
+            return !isRefused(dayAt(cell));
+        }
+
+        @Override
+        public boolean select(Integer cell, boolean moveCursor) {
+            return pick(dayAt(cell), moveCursor, Change.Origin.USER);
+        }
+
+        @Override
+        public void moveCursor(Integer cell) {
+            focusDay(dayAt(cell));
+        }
+
+        @Override
+        public void reveal(Integer cell) {
+            revealDayCell(cell);
+        }
+    }
+
+    private final RowsHost rowsHost = new RowsHost();
 
     /**
      * The grid cell a day key names, or {@code -1} for a key that is not a day of the grid on

@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
+import limn.components.a11y.RowsAccessibility;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.concurrent.Ui;
@@ -1616,12 +1617,14 @@ public class ComboBox extends Widget {
             float maxScroll = Math.max(0, contentH - viewport);
 
             a.role(Accessible.Role.LIST);
-            // Single-selection and always-selected, which are the combo's own documented
-            // invariant: it refuses an empty item list, so there is exactly one selection and
-            // nothing to clear to. The active descendant is not declared and cannot be: it is
+            // The container half of the ROWS shape (ADR 045 §3): single-selection and
+            // always-selected, which are the combo's own documented invariant: it refuses an
+            // empty item list, so there is exactly one selection and nothing to clear to. No
+            // PRESS of its own. The active descendant is not declared and cannot be: it is
             // resolved in the copy from the first node in this subtree published ACTIVE, which is
             // the highlighted option below.
-            a.selection(false, true);
+            RowsAccessibility.describeContainer(a, RowsAccessibility.Selection.SINGLE, true,
+                    false);
             // The survey's row omits this and the panel scrolls: the wheel, a real ScrollBar child
             // with a real model, Scrollable#revealRect and the keyboard's auto-reveal all move it,
             // and a list clamped to the work area or to the owner scene is the ordinary case
@@ -1656,15 +1659,21 @@ public class ComboBox extends Widget {
                 // translation epoch are what the difference compares, and get() would allocate one
                 // per option per frame.
                 a.name(items.get(i), Accessible.NameFrom.CONTENT);
-                a.selectionItem(i == selectedIndex, i + 1, items.size());
-                // The cursor, which in this widget is not the selection: the highlight moves under
-                // the arrows and type-ahead while the selection moves only on commit, and a reader
-                // that heard only the selection could enumerate the options and never learn which
-                // one the user is on. Not the hover, which is a pointer affordance and would
-                // republish the tree on every mouse move.
-                if (i == highlightedIndex) {
-                    a.state(Accessible.State.ACTIVE);
-                }
+                // The ROWS shape, written once (ADR 045 §3), read against this widget: the
+                // membership; the cursor, which here is not the selection — the highlight moves
+                // under the arrows and type-ahead while the selection moves only on commit, and
+                // a reader that heard only the selection could enumerate the options and never
+                // learn which one the user is on; not the hover, which is a pointer affordance
+                // and would republish the tree on every mouse move — and the three verbs, only
+                // while they are performed (semantics 5): SELECT and PRESS both, because choosing
+                // an option in a combo is one gesture, and FOCUS, which moves the highlight
+                // without choosing (decision 11, 2026-09-15). No SCROLL_INTO_VIEW: the list
+                // reveals its highlight itself. A narrowed row carries no verb, as below.
+                boolean verbs = !inert && operable;
+                RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
+                        verbs ? RowsAccessibility.Selection.SINGLE : RowsAccessibility.Selection.NONE,
+                        i == selectedIndex, i + 1, items.size(), false, false,
+                        i == highlightedIndex, verbs, verbs, false);
                 // The negation of the paint loop's own skip test, so the tree and the pixels agree
                 // by construction rather than by two people remembering the same rule. Every
                 // option is still published, because the count and each option's position in it
@@ -1674,16 +1683,6 @@ public class ComboBox extends Widget {
                 }
                 if (inert) {
                     a.disabled();
-                } else if (operable) {
-                    // The two-argument form; the variable-argument one allocates an array per
-                    // call. SELECT and PRESS both, because choosing an option in a combo is one
-                    // gesture.
-                    a.action(Accessible.Action.SELECT, Accessible.Action.PRESS);
-                    // And FOCUS, which moves the highlight here without choosing (decision 11,
-                    // 2026-09-15): the cursor and the selection are separate fields in this
-                    // widget, so a reader can walk the options as the arrows do and commit with
-                    // SELECT.
-                    a.action(Accessible.Action.FOCUS);
                 }
                 a.endChild();
             }
@@ -1722,17 +1721,58 @@ public class ComboBox extends Widget {
             if (index < 0 || index >= items.size()) {
                 return false;
             }
-            return switch (action) {
-                case SELECT, PRESS -> {
-                    commit(index);
-                    yield true;
-                }
-                case FOCUS -> {
-                    setHighlight(index); // the arrows' path: announced, damaged, revealed
-                    yield true;
-                }
-                default -> false;
-            };
+            return RowsAccessibility.performOnRow(rowsHost, index, action);
         }
+
+        /**
+         * The list's mechanisms as the rows shape drives them: {@code SELECT} and {@code PRESS}
+         * both commit the option, because choosing one in a combo is one gesture, and
+         * {@code FOCUS} moves the highlight through the arrows' path. Nothing reveals: the verb
+         * is not published on an option and the list reveals its highlight itself.
+         */
+        private final class RowsHost implements RowsAccessibility.Host<Integer> {
+            @Override
+            public RowsAccessibility.Selection selection() {
+                return RowsAccessibility.Selection.SINGLE;
+            }
+
+            @Override
+            public boolean cursorIsTheSelection() {
+                return false;
+            }
+
+            @Override
+            public boolean rowsActivate() {
+                return true;
+            }
+
+            @Override
+            public boolean isSelected(Integer index) {
+                return index == selectedIndex;
+            }
+
+            @Override
+            public boolean select(Integer index, boolean moveCursor) {
+                commit(index);
+                return true;
+            }
+
+            @Override
+            public void moveCursor(Integer index) {
+                setHighlight(index); // the arrows' path: announced, damaged, revealed
+            }
+
+            @Override
+            public void reveal(Integer index) {
+                // Not published on an option, so never asked for; the highlight reveals itself.
+            }
+
+            @Override
+            public void activate(Integer index) {
+                commit(index);
+            }
+        }
+
+        private final RowsHost rowsHost = new RowsHost();
     }
 }

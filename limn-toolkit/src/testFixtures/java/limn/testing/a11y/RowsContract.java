@@ -267,20 +267,17 @@ public final class RowsContract {
         Bound b = Bound.of(subject, rt);
         subject.select(0);
         b.harness.focus(subject.widget());
-        boolean any = false;
         for (AccessibleNode member : b.members()) {
-            if (offers(member, Action.PRESS)) {
-                any = true;
-            } else {
-                check(subject.cursorIsTheSelection(), b, "where the cursor is separate every row "
-                        + "offers PRESS, acting on itself (decision 80): \"" + member.name()
-                        + "\"");
-            }
+            check(offers(member, Action.PRESS) == subject.rowsActivate(), b,
+                    subject.rowsActivate()
+                            ? "a row that can be activated offers PRESS, acting on itself "
+                                    + "(decision 80): \"" + member.name() + "\""
+                            : "a row with no activation of its own offers no PRESS: \""
+                                    + member.name() + "\"");
         }
-        if (!any) {
-            return; // the container's PRESS acts on the selection, which is the cursor
+        if (!subject.rowsActivate()) {
+            return;
         }
-        check(offers(b.member(2), Action.PRESS), b, "row 2 offers PRESS");
         check(b.perform(2, Action.PRESS), b, "PRESS on row 2 is accepted");
         check(subject.lastActivated() == 2, b, "PRESS activates the row addressed and not the "
                 + "cursor row: " + subject.lastActivated());

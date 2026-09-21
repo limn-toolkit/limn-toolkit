@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.CellFacet;
 import limn.backend.Cursor;
+import limn.components.a11y.RowsAccessibility;
 import limn.components.Accelerator;
 import limn.components.ScrollBar;
 import limn.components.ScrollGutters;
@@ -3592,14 +3593,12 @@ public class Table<T> extends Widget implements Scrollable {
 
         a.role(Accessible.Role.TABLE);
         a.table(describedRowCount, shownCount);
-        a.selection(selectionMode == SelectionMode.MULTI, false);
+        // The container half of the ROWS shape, written once (ADR 045 §3): the selection, and
+        // whenever there is a cursor, in every mode, the table's own PRESS, which opens the
+        // cursor row as Enter and a double click do (decision 32 of 2026-09-14).
+        RowsAccessibility.describeContainer(a, rowsSelection(), false, hasCursorRow());
         a.scrollFrom(offsetX, Math.max(0, contentWidth - w), w, contentWidth,
                 estimatedOffset(t), Math.max(0, contentH - viewH), viewH, contentH);
-        if (hasCursorRow()) {
-            // Whenever there is a cursor, in every mode: a press opens the cursor row, as Enter
-            // and a double click do (decision 32 of 2026-09-14).
-            a.action(Accessible.Action.PRESS);
-        }
 
         if (showHeader) {
             a.child(HEADER_KEY);
@@ -3673,29 +3672,20 @@ public class Table<T> extends Widget implements Scrollable {
             if (rowName != null) {
                 a.name(rowName, System.identityHashCode(rowName), Accessible.NameFrom.CONTENT);
             }
-            boolean isSelected = selected.get(model);
-            a.selectionItem(isSelected, row + 1, describedRowCount);
-            // The verbs a row accepts, by its state (decisions 10, 11 and 20 of 2026-09-14):
-            // SELECT is the click; ADD_TO_SELECTION on an unselected row and DESELECT on a
-            // selected one only where the mode allows more than one; FOCUS moves the cursor
-            // here without selecting, and is published because the cursor and the selection are
-            // separate things in a table.
-            if (selectionMode != SelectionMode.NONE) {
-                a.action(Accessible.Action.SELECT);
-                if (selectionMode == SelectionMode.MULTI) {
-                    a.action(isSelected ? Accessible.Action.DESELECT
-                            : Accessible.Action.ADD_TO_SELECTION);
-                }
-            }
-            a.action(Accessible.Action.FOCUS);
-            // SCROLL_INTO_VIEW is what decision 20 put on a row so that a reader could bring an
-            // off-screen one into view, and this is the widest row in the toolkit; until
-            // 2026-09-17 the row published the selection verbs and FOCUS and stopped, so a
-            // Windows client found no ScrollItem on it (decision 81). PRESS opens this row and
-            // not the cursor's, because a reader's SELECT stopped moving the cursor the same day
-            // (decisions 79 and 80): the table keeps its own PRESS for Enter and for a client
-            // that addresses the container.
-            a.action(Accessible.Action.SCROLL_INTO_VIEW, Accessible.Action.PRESS);
+            // The ROWS shape, written once (ADR 045 §3), read against this widget: the
+            // membership over the model's count; no cursor mark on the row, because a table's
+            // cursor is a cell (below); the verbs by state (decisions 10, 11 and 20 of
+            // 2026-09-14), FOCUS because the cursor and the selection are separate things in a
+            // table, SCROLL_INTO_VIEW so that a reader can bring the widest row in the toolkit
+            // into view — until 2026-09-17 the row stopped at FOCUS and a Windows client found
+            // no ScrollItem on it (decision 81) — and PRESS opening this row and not the
+            // cursor's, because a reader's SELECT stopped moving the cursor the same day
+            // (decisions 79 and 80); the table keeps its own PRESS for Enter and for a client
+            // that addresses the container. The verbs are the table's own, because a row is a
+            // synthetic child it describes and performs for (ADR 041 §3).
+            RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED, rowsSelection(),
+                    selected.get(model), row + 1, describedRowCount, false, false, false,
+                    true, true, true);
             if (rowOffScreen) {
                 a.offScreen();
             }
@@ -3937,46 +3927,74 @@ public class Table<T> extends Widget implements Scrollable {
         if (model < 0) {
             return false; // the record this row was published for is gone from the list
         }
-        int view = viewOf(model);
-        switch (action) {
-            case SELECT -> {
-                if (selectionMode == SelectionMode.NONE) {
-                    return false;
-                }
-                selectOnly(model, view, true, false, Change.Origin.USER);
-                return true;
-            }
-            case PRESS -> {
-                activateRow(model, Change.Origin.USER);
-                return true;
-            }
-            case SCROLL_INTO_VIEW -> {
-                ensureVisible(view);
-                return true;
-            }
-            case ADD_TO_SELECTION -> {
-                if (selectionMode != SelectionMode.MULTI || selected.get(model)) {
-                    return false;
-                }
-                toggle(view, false);
-                return true;
-            }
-            case DESELECT -> {
-                if (selectionMode != SelectionMode.MULTI || !selected.get(model)) {
-                    return false;
-                }
-                toggle(view, false);
-                return true;
-            }
-            case FOCUS -> {
-                focusCell(view, focusColumn, Change.Origin.USER);
-                return true;
-            }
-            default -> {
-                return false;
-            }
+        return RowsAccessibility.performOnRow(rowsHost, model, action);
+    }
+
+    /** The table's selection mode as the rows shape names it. */
+    private RowsAccessibility.Selection rowsSelection() {
+        return switch (selectionMode) {
+            case NONE -> RowsAccessibility.Selection.NONE;
+            case SINGLE -> RowsAccessibility.Selection.SINGLE;
+            case MULTI -> RowsAccessibility.Selection.MULTI;
+        };
+    }
+
+    /**
+     * The table's mechanisms as the rows shape drives them, over a row's model index: a client's
+     * {@code SELECT} is {@link #selectOnly} without the cursor move (decision 79),
+     * {@code ADD_TO_SELECTION} and {@code DESELECT} are {@link #toggle} without it (decision 20),
+     * {@code FOCUS} moves the cursor onto the row in the cursor's column, {@code SCROLL_INTO_VIEW}
+     * reveals the row, and {@code PRESS} opens the row itself (decision 80).
+     */
+    private final class RowsHost implements RowsAccessibility.Host<Integer> {
+        @Override
+        public RowsAccessibility.Selection selection() {
+            return rowsSelection();
+        }
+
+        @Override
+        public boolean cursorIsTheSelection() {
+            return false;
+        }
+
+        @Override
+        public boolean rowsActivate() {
+            return true;
+        }
+
+        @Override
+        public boolean isSelected(Integer model) {
+            return selected.get(model);
+        }
+
+        @Override
+        public boolean select(Integer model, boolean moveCursor) {
+            selectOnly(model, viewOf(model), true, moveCursor, Change.Origin.USER);
+            return true;
+        }
+
+        @Override
+        public void toggleSelection(Integer model, boolean moveCursor) {
+            toggle(viewOf(model), moveCursor);
+        }
+
+        @Override
+        public void moveCursor(Integer model) {
+            focusCell(viewOf(model), focusColumn, Change.Origin.USER);
+        }
+
+        @Override
+        public void reveal(Integer model) {
+            ensureVisible(viewOf(model));
+        }
+
+        @Override
+        public void activate(Integer model) {
+            activateRow(model, Change.Origin.USER);
         }
     }
+
+    private final RowsHost rowsHost = new RowsHost();
 
     /** The shown index of column {@code c}, or {@code -1} while it is hidden. */
     private int shownIndexOf(int c) {

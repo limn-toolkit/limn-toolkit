@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
+import limn.components.a11y.RowsAccessibility;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -687,7 +688,9 @@ public class SegmentedControl extends Widget {
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.RADIO_GROUP);
         a.state(Accessible.State.HORIZONTAL);
-        a.selection(false, true);
+        // The container half of the ROWS shape (ADR 045 §3): one segment is always chosen, and
+        // the group has no PRESS of its own.
+        RowsAccessibility.describeContainer(a, RowsAccessibility.Selection.SINGLE, true, false);
         // One resolution for the whole hook, beside the paint's and the hit test's and for the
         // same reason they give: two resolutions that disagreed inside one pass would describe a
         // segment at its neighbour's rectangle.
@@ -719,20 +722,18 @@ public class SegmentedControl extends Widget {
             // compares a reference, a language and a translation epoch, and get() would allocate
             // one string per segment per damaged frame.
             a.name(segments.get(i), Accessible.NameFrom.CONTENT);
-            a.selectionItem(i == selected, i + 1, segments.size());
-            if (i == selected && isFocused()) {
-                // Selection and cursor are one thing here: the arrows call choose(), which moves
-                // the selection itself, and there is no separate highlight. Without this bit the
-                // tree resolves no cursor below the group and walking the strip with Left and
-                // Right tells a reader nothing about where the user is. Only while the group
-                // holds the keyboard (ADR 039 §1.10, amended 2026-09-14): the cursor is the
-                // focused node's, and a strip nobody is in has none to publish.
-                a.state(Accessible.State.ACTIVE);
-            }
-            // Select and no press, as RadioButton answers: the two radio surfaces must answer
-            // alike or a bridge's table has to special-case one of them. The single-argument
-            // form; the variable-argument one allocates.
-            a.action(Accessible.Action.SELECT);
+            // The ROWS shape, written once (ADR 045 §3), read against this widget: the
+            // membership; the cursor mark on the chosen segment, because selection and cursor
+            // are one thing here — the arrows call choose(), which moves the selection itself,
+            // and there is no separate highlight; without the bit the tree resolves no cursor
+            // below the group and walking the strip with Left and Right tells a reader nothing
+            // about where the user is — and only while the group holds the keyboard (ADR 039
+            // §1.10, amended 2026-09-14); and SELECT alone, no press, as RadioButton answers:
+            // the two radio surfaces must answer alike or a bridge's table has to special-case
+            // one of them. No FOCUS (decision 11) and no SCROLL_INTO_VIEW.
+            RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
+                    RowsAccessibility.Selection.SINGLE, i == selected, i + 1, segments.size(),
+                    false, false, i == selected && isFocused(), false, false, false);
             a.endChild();
         }
         if (overflowing) {
@@ -829,11 +830,10 @@ public class SegmentedControl extends Widget {
     protected boolean onSyntheticAction(long key, Accessible.Action action,
                                         Accessible.Argument arg) {
         if (key >= 0) {
-            if (key >= segments.size() || action != Accessible.Action.SELECT) {
+            if (key >= segments.size()) {
                 return false;
             }
-            choose((int) key);
-            return true;
+            return RowsAccessibility.performOnRow(rowsHost, (int) key, action);
         }
         if (key != CHEVRON_BACK && key != CHEVRON_FORWARD
                 || action != Accessible.Action.PRESS) {
@@ -844,6 +844,53 @@ public class SegmentedControl extends Widget {
         scrollBy(chevron * SCROLL_STEP_FRACTION * viewWidth);
         return scrollOffset != before;
     }
+
+    /**
+     * The control's mechanisms as the rows shape drives them, over a segment's index:
+     * {@code SELECT} is {@link #choose}, which is what a click and the arrows do. The cursor is
+     * the selection, so {@code FOCUS} is refused before it could reach {@link #moveCursor};
+     * segments have no activation of their own and nothing reveals, because neither verb is
+     * published on one.
+     */
+    private final class RowsHost implements RowsAccessibility.Host<Integer> {
+        @Override
+        public RowsAccessibility.Selection selection() {
+            return RowsAccessibility.Selection.SINGLE;
+        }
+
+        @Override
+        public boolean cursorIsTheSelection() {
+            return true;
+        }
+
+        @Override
+        public boolean rowsActivate() {
+            return false;
+        }
+
+        @Override
+        public boolean isSelected(Integer index) {
+            return index == selected;
+        }
+
+        @Override
+        public boolean select(Integer index, boolean moveCursor) {
+            choose(index);
+            return true;
+        }
+
+        @Override
+        public void moveCursor(Integer index) {
+            throw new UnsupportedOperationException("the cursor is the selection: FOCUS is refused");
+        }
+
+        @Override
+        public void reveal(Integer index) {
+            // Not published on a segment, so never asked for.
+        }
+    }
+
+    private final RowsHost rowsHost = new RowsHost();
 
     @Override
     protected void onMouseEvent(MouseEvent event) {

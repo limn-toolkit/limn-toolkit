@@ -77,6 +77,11 @@ class ListViewRowsContractTest extends ComponentTestBase {
         }
 
         @Override
+        public boolean rowsActivate() {
+            return false; // the list's own PRESS opens the selected row
+        }
+
+        @Override
         public boolean enterMultipleSelection() {
             return false;
         }
