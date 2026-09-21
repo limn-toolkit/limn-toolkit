@@ -120,4 +120,25 @@ final class AtspiRoles {
     static String nameOf(Accessible.Role role) {
         return NAME.getOrDefault(role, "invalid");
     }
+
+    /**
+     * Whether a node of this role is a row of a menu — the shape AT-SPI's first declared exception
+     * is about (decision 72 of 2026-09-16, built under decision 82 of 2026-09-17; ADR 039 §4.2).
+     *
+     * <p>A menu row that owns a submenu is what a GTK 3 desktop calls a <b>menu title</b>, and it
+     * is the only node this predicate changes anything for: a row with no submenu carries no
+     * expand axis to remove. Read on the Fedora 44 guest, 2026-09-16
+     * ({@code readings/phase5-fedora/native-gtk3-menu-states.txt}): a native title carries no
+     * {@code expandable}, no {@code expanded} and no {@code collapsed}, open or closed; what it
+     * carries when open is {@code selected}, its children gain {@code showing}, and every menu
+     * node is {@code selectable}.
+     *
+     * <p>By the role and not by the widget, because a bridge reads nodes: a combo box, a tree row
+     * and a calendar's title are not menus and keep the axis, which is what the decision's "which
+     * nodes count as a menu title" left to this lane to settle.
+     */
+    static boolean isMenuRow(Accessible.Role role) {
+        return role == Accessible.Role.MENU_ITEM || role == Accessible.Role.CHECK_MENU_ITEM
+                || role == Accessible.Role.RADIO_MENU_ITEM;
+    }
 }

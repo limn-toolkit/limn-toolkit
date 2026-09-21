@@ -512,10 +512,19 @@ final class AtspiEvents {
      */
     private static List<Signal> expandChanged(AccessibleEvent event, Context context,
                                               String path) {
+        limn.accessibility.AccessibleNode node = context.tree().find(event.nodeId());
+        if (node != null && AtspiRoles.isMenuRow(node.role())) {
+            // Nothing at all, for the reason the state set carries none of these bits on a menu
+            // row (decision 72 of 2026-09-16, built under decision 82; AtspiTree.statesOf): a
+            // client told "expanded 1" about an object whose state set never says expandable
+            // would hold a bit it can never see cleared. What a reader hears instead is the
+            // selected flip on the open title and showing on its children, which is what a
+            // native GTK 3 menu sends and travels through the ordinary paths.
+            return List.of();
+        }
         Signal own = stateChanged(event, context, path);
         List<Signal> out = new java.util.ArrayList<>(2);
         out.add(own);
-        limn.accessibility.AccessibleNode node = context.tree().find(event.nodeId());
         if (node == null) {
             return out;
         }

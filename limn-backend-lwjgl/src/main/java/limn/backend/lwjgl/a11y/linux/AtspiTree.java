@@ -899,7 +899,23 @@ final class AtspiTree {
         return AtspiRoles.nameOf(node.role());
     }
 
+    /**
+     * The platform's state set, less the expand axis on a menu row: the first declared exception
+     * (decision 72 of 2026-09-16, built 2026-09-17 under decision 82; ADR 039 §4.2 and §2.3).
+     *
+     * <p>The model goes on publishing {@code EXPANDABLE} for every node that carries an expand
+     * facet, because that is a fact about the widget. What this bridge does not put on the bus,
+     * for a menu row alone, is that axis — {@code expandable}, {@code expanded}, and the
+     * {@code collapsed} {@link AtspiStates#setOf} derives from the pair — because a native GTK 3
+     * menu title carries none of the three, open or closed, and Orca is built for what that
+     * desktop ships. What says a menu is open here is what says it there: {@code selected} on the
+     * title, which this toolkit already publishes from the same bar's selection facet.
+     */
     private static long statesOf(AccessibleNode node) {
+        if (AtspiRoles.isMenuRow(node.role())) {
+            return AtspiStates.setOf(s -> s != Accessible.State.EXPANDABLE
+                    && s != Accessible.State.EXPANDED && node.has(s));
+        }
         return AtspiStates.setOf(node::has);
     }
 
@@ -1738,7 +1754,24 @@ final class AtspiTree {
         if (node.actions() == null) {
             return out;
         }
+        boolean menuRow = AtspiRoles.isMenuRow(node.role());
         for (Accessible.Action verb : Accessible.Action.values()) {
+            if (menuRow && verb == Accessible.Action.EXPAND) {
+                // The same exception, on the action list (decision 82 of 2026-09-17): a native
+                // GTK 3 menu node publishes actions=['click'] and nothing else, so a title that
+                // offered an expand verb would hand an Orca user something no menu on that
+                // desktop has. EXPAND is the one that costs nothing to drop — the widget calls it
+                // "a synonym of SHOW_MENU" and publishes both on a closed title, so the route
+                // stays open under the name a menu really uses.
+                //
+                // COLLAPSE stays, and that is deliberate rather than an oversight: an OPEN title
+                // publishes COLLAPSE alone, so removing it would leave a menu a Linux reader can
+                // open and cannot close — while a native title can always be clicked shut. The
+                // remaining divergence is therefore the verb's NAME, "show menu" and "collapse"
+                // against the native "click", which is measured and left open in ADR 039 §4.2
+                // beside the role.
+                continue;
+            }
             if (verb.isParameterless() && node.accepts(verb)) {
                 out.add(verb);
             }

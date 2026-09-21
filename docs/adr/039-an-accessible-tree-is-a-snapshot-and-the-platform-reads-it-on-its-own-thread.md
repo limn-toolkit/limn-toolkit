@@ -3502,8 +3502,9 @@ does with the attribute is phase 5's.
 #### Amendment 2026-09-16 — a menu title will not publish the expand axis here, and that is a
 declared exception
 
-**Decided 2026-09-16 (decision 72), and not yet built. Nothing in the bridge has changed as this is
-written.** §1.2's rule is one rule for every node — every node carrying an `ExpandFacet` is
+**Decided 2026-09-16 (decision 72); built 2026-09-17 under decision 82, and §4.2's Exception 1 is
+the account of what was built — including the two divergences this amendment did not know about,
+the role and the missing nesting of a cascade under its title.** §1.2's rule is one rule for every node — every node carrying an `ExpandFacet` is
 `EXPANDABLE`, menu titles included (decision 41) — and decision 41 was taken on the assumption that
 a native menu publishes that axis. **On this desktop it does not.** Read on the Fedora 44 KDE guest
 on 2026-09-16 (`readings/phase5-fedora/native-gtk3-menu-states.txt`, `menu-states.py`,
@@ -3521,6 +3522,14 @@ diverges on one platform, deliberately, and this is the first of the two declare
 reading covers a menu bar's titles and their submenu rows on GTK 3, and a combo box, a tree row and
 the calendar's title are not menus and are untouched. That is the Linux lane's to settle when it
 builds this, against the same reading.
+
+**Settled on building it, 2026-09-17: by the role.** `AtspiRoles.isMenuRow` answers for
+`MENU_ITEM`, `CHECK_MENU_ITEM` and `RADIO_MENU_ITEM`, which is exactly the menu bar's titles and a
+cascade's submenu rows, and nothing else — a bridge reads nodes, not widgets, and a combo box, a
+tree row and the calendar's title carry none of those roles, so they keep the axis with no test of
+their own. A menu row **without** a submenu carries no expand facet to begin with, so the predicate
+changes nothing for it. What the exception covers and what it leaves measured-but-open — the action
+names, the role itself, and a cascade that is not nested under its title here — is §4.2's Exception 1.
 
 ### 2.4 The events, side by side
 
@@ -4590,7 +4599,7 @@ not declared, and a bridge that diverges silently is the defect this section exi
 Each entry says what it is, which platform, the measurement behind it, and the decision number.
 
 **Exception 1 — a menu title publishes no expand axis on Linux (decision 72). Decided 2026-09-16,
-not yet built.**
+built 2026-09-17 under decision 82.**
 
 - *What.* The model goes on publishing `EXPANDABLE` for every node carrying an `ExpandFacet`,
   because §1.2's rule is a fact about the widget. The **Linux** bridge will stop putting that axis on
@@ -4603,9 +4612,35 @@ not yet built.**
   `expandable`, no `expanded` and no `collapsed`**, closed or open; an open title carries `selected`
   and its children gain `showing`; and every menu node carries `selectable`. Decision 41 had assumed
   the axis was there.
-- *Status.* **Decided and not built.** No commit at `bf7f6af4` changes the Linux bridge for this, and
-  `AtspiStates` still maps `EXPANDABLE` for every node that has it. §2.3 carries the same statement
-  where a Linux implementer meets it. Do not read this entry as a description of the code.
+- *What it turned out to be, on building it (decision 82, 2026-09-17).* The decision named one
+  divergence and the reading shows **three**, so this entry now says which of them the exception
+  covers and which are measured and left open.
+  1. **The states, covered.** `AtspiTree.statesOf` drops `EXPANDABLE` and `EXPANDED` for a node whose
+     role is a menu row, which also stops `AtspiStates.setOf` deriving `collapsed` from the pair, and
+     `AtspiEvents.expandChanged` emits nothing at all for such a node — a client told "expanded 1"
+     about an object whose state set never says `expandable` would hold a bit it can never see
+     cleared. What says a menu is open is `selected` on the title, which this toolkit already
+     publishes from the bar's own selection facet, and `showing` on the cascade's rows.
+  2. **The action list, covered in the half that costs nothing** (decision 82). A native menu node
+     publishes `actions=['click']` and nothing else, so `EXPAND` is dropped: the widget itself calls
+     it "a synonym of `SHOW_MENU`" and publishes both on a closed title, so the route stays.
+     **`COLLAPSE` is kept, deliberately**: an *open* title publishes `COLLAPSE` **alone**, and
+     dropping it would leave a Linux reader a menu it can open and cannot close, where a native title
+     can always be clicked shut. So the remaining divergence is the verb's *name* — `show menu` and
+     `collapse` against the native `click` — which is measured and open.
+  3. **The role, not covered and measured.** A native title is `menu (33)`; Limn publishes
+     `MENU_ITEM (35)`. It is the most audible of the three, because Orca speaks the role name. A
+     bridge that translates *roles* by exception is a larger step than this section has taken, and
+     there is no live Orca reading of our own menus to justify it. Recorded, not taken.
+  4. **"Plus the children's `showing`" is not available as the decision assumed.** In a native GTK
+     menu the items are *children of the title*. Here the cascade is a popup root of its own whose
+     `POPUP_FOR` names **the bar** and not the title, which `MenuBar#onAccessibility` chose on
+     purpose. So a Linux reader gets `selected` on the open title and finds the rows elsewhere in the
+     tree. Nothing is wrong with either half on its own; the two together are not the native shape,
+     and this entry says so rather than letting the decision's sentence stand as a description.
+- *Status.* **Built** — `AtspiTree.statesOf` and `verbsOf`, `AtspiEvents.expandChanged`, the shape
+  test `AtspiRoles.isMenuRow`. §2.3 carries the same account where a Linux implementer meets it.
+  Points 3 and 4 above are open and are not exceptions until somebody declares them here.
 
 **Exception 2 — a row refuses the focus *write*, each platform by its own convention (decision 76).
 Decided and built on macOS 2026-09-16; true on Windows without a change.**
