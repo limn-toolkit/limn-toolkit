@@ -302,8 +302,22 @@ class AxOutlineSceneTest {
         return accepted;
     }
 
+    /**
+     * A reader drives an outline the native way — {@code AXDisclosing} to open a branch,
+     * {@code AXSelected} to select a row — and since decision 79 of 2026-09-17 <b>the selection
+     * write leaves the cursor where it was</b>, which is what AppKit does: writing a selection
+     * there does not move the keyboard focus, the view keeps it and the rows are merely selected.
+     *
+     * <p>That asymmetry is the measured cause of the fight P5M-1 left open. Refusing
+     * {@code AXFocused} on a row (the fix of 2026-09-16, still asserted below) closed a door
+     * VoiceOver never used: every one of eighteen reverts began with {@code AXSelectedRowsChanged}
+     * on the outline, VoiceOver mirroring its own one-step-stale cursor into our selection through
+     * the setter a native container really does offer. While a {@code SELECT} moved our cursor,
+     * that mirror dragged the application back — nine unrequested moves in nine, at +37…+69 ms.
+     * So the model changed rather than the bridge, and the setter stays offered.
+     */
     @Test
-    void aReaderOpensARowByWritingAXDisclosingAndMovesTheCursorByWritingAXSelected() {
+    void aReaderOpensARowByWritingAXDisclosingAndSelectsWithoutMovingTheCursor() {
         Tree<Node> tree = bindTree();
         scene.requestFocus(tree);
         frame();
@@ -324,11 +338,16 @@ class AxOutlineSceneTest {
         assertTrue(!AxSetters.offers(grid, bridge.nodeFor(notesRow), AxSetters.FOCUSED),
                 "a row's AXFocused is not settable, as a native row's is not (P5M-1)");
         assertTrue(AxSetters.offers(grid, bridge.nodeFor(notesRow), AxSetters.SELECTED));
+        assertTrue(perform(rows[0], Accessible.Action.FOCUS), "a reader puts the cursor on Documents");
+        assertEquals(documents, tree.cursorNode(), "the fixture: FOCUS is the verb that moves it");
+
         assertTrue(write(AxSetters.forBool(grid, bridge.nodeFor(notesRow), AxSetters.SELECTED, true), notesRow));
-        assertEquals("Notes", bridge.nodeFor(bridge.focusedElement()).name(),
-                "a reader moves the cursor the way a native outline is driven, by writing the row's "
-                        + "AXSelected, and the tree's cursor follows it");
-        assertEquals(List.of(notes), tree.selectedNodes(), "which selects it too, as natively");
+        assertEquals(List.of(notes), tree.selectedNodes(), "the write selects the row, as natively");
+        assertEquals(documents, tree.cursorNode(),
+                "and leaves the cursor where it was, as AppKit does: writing a selection there "
+                        + "does not move the keyboard focus (decision 79)");
+        assertEquals("Documents", bridge.nodeFor(bridge.focusedElement()).name(),
+                "so the focused element is still the cursor row the reader put the cursor on");
     }
 
     @Test
@@ -413,7 +432,7 @@ class AxOutlineSceneTest {
         long[] rows = grid.rows(only(Accessible.Role.TREE));
         assertEquals(only(Accessible.Role.TREE).id(), bridge.nodeFor(bridge.focusedElement()).id(),
                 "a focused tree with no cursor row yet is itself where the user is");
-        assertTrue(perform(rows[0], Accessible.Action.SELECT));
+        assertTrue(perform(rows[0], Accessible.Action.FOCUS));
         long cursor = bridge.focusedElement();
         assertEquals("Documents", bridge.nodeFor(cursor).name(),
                 "a focused tree's cursor row is where the user is: " + names(rows));
@@ -422,15 +441,25 @@ class AxOutlineSceneTest {
 
         trace.clear();
         long readmeRow = rows[5];
-        assertTrue(perform(readmeRow, Accessible.Action.SELECT), "the row publishes SELECT");
+        assertTrue(perform(readmeRow, Accessible.Action.FOCUS), "the row publishes FOCUS");
         assertEquals("Readme", bridge.nodeFor(bridge.focusedElement()).name(), "the cursor moved with it");
         List<String> posted = trace.stream().filter(line -> line.startsWith("posted "))
                 .map(line -> line.substring("posted ".length())).toList();
-        assertEquals(List.of("NSAccessibilitySelectedRowsChangedNotification",
-                        "NSAccessibilityFocusedUIElementChangedNotification"), posted,
-                "one cursor move is the selection it moved, once, on the outline, as a native outline "
-                        + "posts it, and one focus change told last; no value change on the row the "
-                        + "selection or the cursor left or reached (M3 correction f): " + trace);
+        assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"), posted,
+                "a cursor move is one focus change and nothing else; no value change on the row the "
+                        + "cursor left or reached (M3 correction f): " + trace);
+
+        // And the other half of the pair, since decision 79 of 2026-09-17 separated them: a
+        // selection is told on the outline, as a native outline tells it, and moves no cursor, so
+        // no focus change follows it.
+        trace.clear();
+        assertTrue(perform(rows[0], Accessible.Action.SELECT), "the row publishes SELECT");
+        posted = trace.stream().filter(line -> line.startsWith("posted "))
+                .map(line -> line.substring("posted ".length())).toList();
+        assertEquals(List.of("NSAccessibilitySelectedRowsChangedNotification"), posted,
+                "the selection, once, on the outline, and no focus change: " + trace);
+        assertEquals("Readme", bridge.nodeFor(bridge.focusedElement()).name(),
+                "the cursor is where the reader left it");
     }
 
     @Test
@@ -446,7 +475,7 @@ class AxOutlineSceneTest {
         frame();
         AxGrid grid = new AxGrid(bridge);
         long[] rows = grid.rows(only(Accessible.Role.TREE));
-        assertTrue(perform(rows[3], Accessible.Action.SELECT), "a key leaves the cursor on Notes");
+        assertTrue(perform(rows[3], Accessible.Action.FOCUS), "a key leaves the cursor on Notes");
         assertEquals(notes, tree.cursorNode(), "the fixture: the model's cursor is on Notes");
 
         long documentsRow = rows[0];
@@ -461,10 +490,16 @@ class AxOutlineSceneTest {
         assertTrue(AxGate.allows(grid, only(Accessible.Role.TREE), AxSetters.FOCUSED),
                 "the outline itself stays focus-settable, as the native outline is (AXFocused=1 "
                         + "settable=true), so the keyboard can still be sent to the tree");
-        // And the reader keeps the cursor move it lost, by the route the native outline offers.
+        // The selection write the native outline offers is still offered, and since decision 79 of
+        // 2026-09-17 it is the one thing it is: a selection. Re-measuring the AXFocused refusal
+        // with a jar carrying it showed VoiceOver never used that route — every revert began with
+        // AXSelectedRowsChanged, its cursor sync mirroring a stale row into our selection through
+        // this setter — so what had to stop dragging the cursor was the SELECT itself.
         assertTrue(write(AxSetters.forBool(grid, bridge.nodeFor(documentsRow), AxSetters.SELECTED, true),
                 documentsRow), "AXSelected on the row is still settable");
-        assertEquals(documents, tree.cursorNode(), "and moves the cursor there");
+        assertEquals(List.of(documents), tree.selectedNodes(), "and selects that row");
+        assertEquals(notes, tree.cursorNode(),
+                "while the cursor stays on Notes: on AppKit a selection write moves no focus");
     }
 
     @Test

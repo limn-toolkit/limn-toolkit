@@ -224,10 +224,30 @@ Pinned by `TreeAccessibilityTest.aLazyLoadSaysItHasBegunAndAnEmptyOneSaysItFound
 `aLoadAnnouncementTakesTheRowsNameAndSaysNothingWhereThereIsNone`, which assert the line is still
 not an item in the same breath.
 
-*What this does not cover, and is not an oversight:* a load that lands **with** children announces
+*What this did not cover, and was not an oversight:* a load that lands **with** children announced
 nothing beyond its start — the children arriving are the end, and decision 73 names only the two
-strings above — and an **eager** empty branch, which runs no load, announces nothing either. Both
-are the owner's to extend if he wants them; neither is guessed at here. The guide sentence phase 5
+strings above — and an **eager** empty branch, which runs no load, announced nothing either. Both
+were the owner's to extend; neither was guessed at here.
+
+**Amendment, 2026-09-17 (decision 83): both are covered now, and the second is the sharper of the
+two.** A lazy load that lands with children says so — `limn.tree.loadedAnnouncement`, "{0} loaded",
+`POLITE`, the branch named the same way — because until then "Loading Documents" and then silence
+was what a reader got from a load still running and from one that had finished alike. And an eager
+empty branch says it is empty, through the string that already exists: it opens *instantly* onto the
+unfocusable line of decision 45, so there was not even a "Loading" to say that something had
+happened, and a reader pressed Right and heard nothing at all. That is the same silence decision 73
+was written to end, without the wait that made it visible.
+
+*No count in the loaded sentence, and that is a decision rather than an omission.* "Documents, 12
+items" is what a reader would most want, and this toolkit has no plural mechanism: `I18nString` has
+`MessageFormat` and nothing else, no catalog in the repository holds a second argument or a choice
+format, and the twenty-one shipped languages include six — Arabic, Russian, Ukrainian, Polish, Czech,
+Hindi — whose plural rules `MessageFormat` cannot express. A count written by guessing those forms
+would be wrong in exactly the languages that notice. It is owed the day a plural mechanism exists.
+
+Pinned by `TreeAccessibilityTest.aLazyLoadSaysItHasBegunAndSaysHowItEnded` and
+`anEagerEmptyBranchSaysItIsEmptyToo`, which also holds that a branch opening onto children says
+nothing — the rows are the answer there, and a reader walks into them. The guide sentence phase 5
 proved false (`site/src/guides/lists-and-scrolling.md:208`, "a screen reader hears the row as
 busy") is the docs lane's to correct, and it should now point here.
 
@@ -569,6 +589,13 @@ exactly what is in:
   open, and `FOCUS` and `SCROLL_INTO_VIEW` — performed by the tree through the delegation hook (ADR
   039 §1.5, amended 2026-09-14). `FOCUS` moves the cursor without selecting, `EXPAND` and `COLLAPSE`
   act like the triangle and move nothing. The tree's own node publishes `PRESS` alone.
+  (**Amended 2026-09-17, decisions 79 and 80:** a row's `SELECT` moves the cursor no more than
+  `ADD_TO_SELECTION` does — only `FOCUS` does, among the verbs, while a click still moves both —
+  and each row also publishes `PRESS`, which opens **that** row. The tree keeps its own `PRESS` on
+  the cursor row for Enter and for a client addressing the container, and `onActivate` is handed
+  the row that was opened. ADR 039 §2.2 has the measurement: a reader that mirrors its cursor into
+  the selection, which is what VoiceOver does through the route AppKit offers, was dragging this
+  cursor with it.)
 
 **Amendment, 2026-09-14: the cursor row wears a focus ring.** The tree painted the selection wash
 and nothing else, so keyboard focus arriving was invisible, and so was the cursor wherever the
@@ -593,6 +620,15 @@ the lead and the row's damage and nothing else — no cursor move, no anchor mov
 `ACTIVE` announcement — while the command-click and Space keep moving both, because the pointer and
 the keyboard are where the user is. Pinned by
 `TreeAccessibilityTest.addingOrRemovingARowLeavesTheCursorAndTheAnchorWhereTheyWere`.
+
+**Amendment, 2026-09-17 (decision 79): and so does a reader's `SELECT`.** The sentence above draws
+the line between `SELECT` and the two toggles; the line is now between a *verb* and a *gesture*. No
+verb a client sends moves the cursor except `FOCUS`, whose whole content is the cursor; a pointer
+and a key move it as they always did. What settled it was measured on macOS and not here: AppKit
+does not move the keyboard focus when a selection is written, so VoiceOver mirrors its own cursor
+into the selection, and while our `SELECT` moved the cursor that mirror dragged the application
+back nine times in nine (ADR 039 §2.2). The row's new `PRESS` (decision 80) is what keeps
+activation honest once the cursor and the reader's selection can differ.
 
 ## 7. Damage
 

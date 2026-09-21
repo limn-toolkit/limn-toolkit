@@ -1383,7 +1383,20 @@ public class Table<T> extends Widget implements Scrollable {
      */
     private void activate(Change.Origin origin) {
         if (hasCursorRow()) {
-            activated = modelOf(focusRow);
+            activateRow(modelOf(focusRow), origin);
+        }
+    }
+
+    /**
+     * The same seam, naming the row that was opened rather than the one the focus cell is in: a
+     * reader's {@code PRESS} arrives addressed to a row, and since decision 79 its {@code SELECT}
+     * no longer drags the focus cell there, so the two can differ (decision 80 of 2026-09-17).
+     *
+     * @param model the model row opened; {@code -1} opens nothing
+     */
+    private void activateRow(int model, Change.Origin origin) {
+        if (model >= 0) {
+            activated = model;
             notifyChange(Change.of(Change.Aspect.INVOKED, origin));
         }
     }
@@ -2645,10 +2658,28 @@ public class Table<T> extends Widget implements Scrollable {
      * announced first as {@code ACTIVE} when it moved, and the selection last.
      */
     private void selectOnly(int modelIndex, int viewIndex, boolean reveal, Change.Origin origin) {
+        selectOnly(modelIndex, viewIndex, reveal, true, origin);
+    }
+
+    /**
+     * The same, with the focus cell held back.
+     *
+     * @param moveCursor whether the focus cell and the range anchor land on the row: a gesture's
+     *                   answer is yes, because the pointer and the key are where the user is; a
+     *                   reader's {@code SELECT} is no, because a client write is not (decision 79
+     *                   of 2026-09-17, measured on macOS as P5M-1 — a selection write leaves the
+     *                   keyboard focus alone on AppKit, and VoiceOver's cursor sync dragged this
+     *                   one back with its own stale row). The reveal is not the cursor and still
+     *                   happens.
+     */
+    private void selectOnly(int modelIndex, int viewIndex, boolean reveal, boolean moveCursor,
+                            Change.Origin origin) {
         int wasFocusRow = focusRow;
         BitSet before = (BitSet) selected.clone();
-        focusRow = viewIndex;
-        rangeAnchor = viewIndex;
+        if (moveCursor) {
+            focusRow = viewIndex;
+            rangeAnchor = viewIndex;
+        }
         if (reveal) {
             // Damages the table itself when it scrolls, which is right then: a scroll re-mounts
             // every row, so a pair of bands would be a lie.
@@ -3657,6 +3688,14 @@ public class Table<T> extends Widget implements Scrollable {
                 }
             }
             a.action(Accessible.Action.FOCUS);
+            // SCROLL_INTO_VIEW is what decision 20 put on a row so that a reader could bring an
+            // off-screen one into view, and this is the widest row in the toolkit; until
+            // 2026-09-17 the row published the selection verbs and FOCUS and stopped, so a
+            // Windows client found no ScrollItem on it (decision 81). PRESS opens this row and
+            // not the cursor's, because a reader's SELECT stopped moving the cursor the same day
+            // (decisions 79 and 80): the table keeps its own PRESS for Enter and for a client
+            // that addresses the container.
+            a.action(Accessible.Action.SCROLL_INTO_VIEW, Accessible.Action.PRESS);
             if (rowOffScreen) {
                 a.offScreen();
             }
@@ -3904,7 +3943,15 @@ public class Table<T> extends Widget implements Scrollable {
                 if (selectionMode == SelectionMode.NONE) {
                     return false;
                 }
-                selectOnly(model, view, true, Change.Origin.USER);
+                selectOnly(model, view, true, false, Change.Origin.USER);
+                return true;
+            }
+            case PRESS -> {
+                activateRow(model, Change.Origin.USER);
+                return true;
+            }
+            case SCROLL_INTO_VIEW -> {
+                ensureVisible(view);
                 return true;
             }
             case ADD_TO_SELECTION -> {

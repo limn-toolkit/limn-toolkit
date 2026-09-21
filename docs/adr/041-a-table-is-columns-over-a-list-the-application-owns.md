@@ -563,6 +563,33 @@ recorded the verbs moving the cursor as an open reading is withdrawn: decision 2
 settle it. Pinned by `aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem` (the verbs) and
 `TableTest.multiSelectionFollowsThePlatformsGrammar` (the gesture).
 
+**Amended 2026-09-17 (decisions 79, 80 and 81; ADR 039 §2.2 has the measurement).** Three changes
+to the row's verbs, and they are one change with its consequences.
+
+*`SELECT` from a reader no longer moves the focus cell.* Decision 20's "only `SELECT` and `FOCUS`
+move a cursor" is now "only `FOCUS` does, for a verb; a gesture still moves both". The reason is
+measured and is not about tables: on AppKit, writing a selection does not move the keyboard focus,
+so VoiceOver mirrors its own cursor into the selection as a matter of course, and while a `SELECT`
+moved ours, every mirror dragged the application back — nine unrequested cursor moves in nine, at
++37…+69 ms (P5M-1). A click still moves both, because the pointer is where the user is.
+
+*So a `ROW` publishes `PRESS`, and it opens **that** row.* Decision 32 put `PRESS` on the table
+alone, acting on the cursor row, on the argument that a reader should not open an arbitrary row —
+which was right while a reader's select moved the cursor and is wrong the moment it does not: a
+reader selecting row 5 and pressing the table would open row 2. The table keeps its own `PRESS`,
+unchanged, for Enter, for a double click and for a client that addresses the container.
+`onActivate` is therefore handed **the row that was opened** rather than reading the cursor when it
+dispatches; for every gesture that is the cursor row, exactly as before.
+
+*And a `ROW` publishes `SCROLL_INTO_VIEW`*, which decision 20 put on a row so that a reader could
+bring an off-screen one into view and which this widget never published — so a Windows client found
+no `ScrollItem` on the widest row in the toolkit (ADR 039 §2.1's amendment of 2026-09-15 recorded
+it as owed). Performed as `ensureVisible`, the same reveal a key takes. A `CELL` is unchanged and
+publishes `FOCUS` alone: revealing a cell is revealing its row, and the row is addressable.
+
+Pinned by `TableAccessibilityTest.aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem` and
+`aReaderCanSelectARowAndOpenTheRowItAddressed`.
+
 **Amended 2026-09-14 (decision 36; the header's stop, from the reader's side).** While the header
 holds the keyboard the table is still the focused node and its cursor is the header cell under
 the column cursor — that `COLUMN_HEADER` is `ACTIVE`, and no `CELL` is — so the effective focus of
