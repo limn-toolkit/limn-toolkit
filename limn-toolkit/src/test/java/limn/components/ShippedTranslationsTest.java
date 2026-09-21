@@ -4,6 +4,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.RoleNames;
 import limn.accessibility.StateNames;
 import limn.i18n.I18n;
+import limn.i18n.PluralRules;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -99,8 +100,20 @@ class ShippedTranslationsTest extends ComponentTestBase {
         assertEquals(List.of(), orphans, "translated keys that no component declares");
     }
 
+    /**
+     * Every ordinary key in every file of a domain, and — for a counted sentence — exactly the
+     * grammatical forms that file's own language uses.
+     *
+     * <p>Until 2026-09-18 this asserted one set for the whole domain, which a
+     * {@link limn.i18n.PluralString} cannot satisfy and should not: how many forms a sentence
+     * with a number in it needs <b>is a fact about the language</b>, one for Japanese and six for
+     * Arabic. So a plural key is held to its language's own set from
+     * {@link PluralRules#integerCategories}, which is a stricter rule and not a looser one: a
+     * file with a form its language never reaches fails here too, because a form nobody can hear
+     * is an invitation to a translator to invent a distinction.
+     */
     @Test
-    void everyLocaleOfADomainCarriesTheSameKeys() {
+    void everyLocaleOfADomainCarriesTheKeysItOwesAndTheFormsItsLanguageUses() {
         Map<String, Map<String, Set<String>>> byDomain = new LinkedHashMap<>();
         for (Path file : shippedFiles()) {
             String name = file.getFileName().toString().replace(".properties", "");
@@ -110,13 +123,68 @@ class ShippedTranslationsTest extends ComponentTestBase {
         }
 
         for (var domain : byDomain.entrySet()) {
-            Set<String> reference = domain.getValue().values().iterator().next();
-            for (var locale : domain.getValue().entrySet()) {
-                assertEquals(reference, locale.getValue(),
+            var files = domain.getValue();
+            Set<String> plainReference = plainKeys(files.values().iterator().next());
+            Set<String> plurals = new TreeSet<>();
+            for (Set<String> keys : files.values()) {
+                for (String key : keys) {
+                    if (formOf(key) != null) {
+                        plurals.add(key.substring(0, key.lastIndexOf('.')));
+                    }
+                }
+            }
+            for (var locale : files.entrySet()) {
+                assertEquals(plainReference, plainKeys(locale.getValue()),
                         domain.getKey() + " is inconsistent: " + locale.getKey()
                                 + " does not carry the same keys as its siblings");
+                Locale language = Locale.forLanguageTag(locale.getKey());
+                for (String plural : plurals) {
+                    Set<String> expected = new TreeSet<>();
+                    for (PluralRules.Category category
+                            : PluralRules.integerCategories(language)) {
+                        expected.add(plural + "." + category.suffix());
+                    }
+                    Set<String> actual = new TreeSet<>();
+                    for (String key : locale.getValue()) {
+                        if (key.startsWith(plural + ".") && formOf(key) != null) {
+                            actual.add(key);
+                        }
+                    }
+                    assertEquals(expected, actual, locale.getKey() + " carries the wrong forms of "
+                            + plural + ": a language owes exactly the forms it uses");
+                }
             }
         }
+    }
+
+    /** The keys of a file that are not one form of a counted sentence. */
+    private static Set<String> plainKeys(Set<String> keys) {
+        Set<String> out = new TreeSet<>();
+        for (String key : keys) {
+            if (formOf(key) == null) {
+                out.add(key);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The plural form a key ends in, or {@code null} when it ends in anything else. Read from the
+     * suffix rather than from the declaring code, because this test's whole job is to check the
+     * files against the code and a shared source would make it agree with itself.
+     */
+    private static PluralRules.Category formOf(String key) {
+        int dot = key.lastIndexOf('.');
+        if (dot < 0) {
+            return null;
+        }
+        String suffix = key.substring(dot + 1);
+        for (PluralRules.Category category : PluralRules.Category.values()) {
+            if (category.suffix().equals(suffix)) {
+                return category;
+            }
+        }
+        return null;
     }
 
     @Test

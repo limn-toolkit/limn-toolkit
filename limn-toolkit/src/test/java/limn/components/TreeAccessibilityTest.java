@@ -1620,9 +1620,9 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                 "the start, named, before anything has landed: " + bridge.events);
         ui.pumpUntil(() -> tree.visibleRowCount() == 4);
         frame();
-        assertEquals(List.of("Loading inbox", "inbox loaded"), announced(),
-                "and a load that found children says that it landed (decision 83): "
-                        + bridge.events);
+        assertEquals(List.of("Loading inbox", "inbox, 2 items"), announced(),
+                "and a load that found children says that it landed, and how many it found "
+                        + "(decision 83, the count added 2026-09-18): " + bridge.events);
         bridge.events.clear();
         changes.clear();
 

@@ -2,6 +2,7 @@ package limn.components.tree;
 
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
+import limn.i18n.PluralString;
 import limn.i18n.PropertyBundle;
 
 /**
@@ -60,12 +61,12 @@ final class TreeStrings {
     // branch that takes a second says "Loading Documents" and then nothing, so a reader has no way
     // to tell an arrival from a load still running.
     //
-    // No count in it, and that is a decision rather than an omission: the number of children is
-    // what a reader would most want here, and this toolkit has no plural mechanism — MessageFormat
-    // is all I18nString has, no catalog holds a second argument or a choice format, and the shipped
-    // languages include six whose plural rules MessageFormat cannot express. A count added by
-    // guessing those forms would be wrong in exactly the languages that notice. It is owed the day
-    // a plural mechanism exists (ADR 044 §2).
-    static final I18nString LOADED_ANNOUNCEMENT =
-            new I18nString("limn.tree.loadedAnnouncement", "{0} loaded");
+    // With the count, which is the information a reader actually wants and the reason this one
+    // sentence is a PluralString where the two above are ordinary strings: a number in a sentence
+    // is not one string per language. It shipped for one day without the count, because the
+    // toolkit had no plural mechanism; the owner asked for the count on 2026-09-18 and
+    // limn.i18n.PluralRules is what it cost. The catalogs carry one key per form, and a language
+    // carries exactly the forms it uses — one line for Japanese, three for Russian, six for Arabic.
+    static final PluralString LOADED_ANNOUNCEMENT = PluralString.of(
+            "limn.tree.loadedAnnouncement", "{0}, {1} item", "{0}, {1} items");
 }

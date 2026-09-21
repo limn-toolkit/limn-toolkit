@@ -644,9 +644,11 @@ public class Tree<T> extends Widget implements Scrollable {
                     // that landed with children says it landed. Until then only the empty end
                     // spoke, so a branch that took a second said "Loading Documents" and then
                     // nothing at all, which a reader cannot tell from a load still running.
-                    announceLoad(children == null || children.isEmpty()
-                            ? TreeStrings.EMPTY_ANNOUNCEMENT : TreeStrings.LOADED_ANNOUNCEMENT,
-                            node);
+                    if (children == null || children.isEmpty()) {
+                        announceLoad(TreeStrings.EMPTY_ANNOUNCEMENT, node);
+                    } else {
+                        announceLoaded(node, children.size());
+                    }
                     rebuildRows();
                     forgetRevealedPaths();
                     // What a refresh could not confirm under this row is verified now that the
@@ -726,15 +728,41 @@ public class Tree<T> extends Widget implements Scrollable {
      * neither route can name says nothing at all rather than "Loading " with a hole in it.
      */
     private void announceLoad(I18nString what, T node) {
-        limn.scene.Scene scene = scene();
-        if (scene == null) {
-            return; // nobody is listening, and the load is restarted when the tree is bound again
+        String name = sayableName(node);
+        if (name != null) {
+            scene().announce(what.format(name), Accessible.Politeness.POLITE);
+        }
+    }
+
+    /**
+     * The end of a load that found children, with how many (decision 83 of 2026-09-17, the count
+     * added 2026-09-18): "Documents, 12 items".
+     *
+     * <p>The count is the whole reason this sentence is not the other two's shape. It goes
+     * through {@link limn.i18n.PluralString} because a number in a sentence is not one string
+     * per language: Russian needs three forms and picks by the last two digits, Arabic six, and
+     * no catalog can express that on its own.
+     */
+    private void announceLoaded(T node, int count) {
+        String name = sayableName(node);
+        if (name != null) {
+            scene().announce(TreeStrings.LOADED_ANNOUNCEMENT.format(count, name),
+                    Accessible.Politeness.POLITE);
+        }
+    }
+
+    /**
+     * What to call {@code node} out loud, or {@code null} when there is nobody to say it to or
+     * nothing to call it — no scene (the load is restarted when the tree is bound again), or a
+     * node neither the model nor a mounted cell can name, which says nothing at all rather than
+     * a sentence with a hole in it.
+     */
+    private String sayableName(T node) {
+        if (scene() == null) {
+            return null;
         }
         String name = announcementName(node);
-        if (name == null || name.isEmpty()) {
-            return;
-        }
-        scene.announce(what.format(name), Accessible.Politeness.POLITE);
+        return name == null || name.isEmpty() ? null : name;
     }
 
     /** What to call a node in an announcement: the model's name, else its cell's labels. */

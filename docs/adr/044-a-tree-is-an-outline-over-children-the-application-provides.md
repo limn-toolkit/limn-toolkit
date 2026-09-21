@@ -238,12 +238,15 @@ unfocusable line of decision 45, so there was not even a "Loading" to say that s
 happened, and a reader pressed Right and heard nothing at all. That is the same silence decision 73
 was written to end, without the wait that made it visible.
 
-*No count in the loaded sentence, and that is a decision rather than an omission.* "Documents, 12
-items" is what a reader would most want, and this toolkit has no plural mechanism: `I18nString` has
-`MessageFormat` and nothing else, no catalog in the repository holds a second argument or a choice
-format, and the twenty-one shipped languages include six — Arabic, Russian, Ukrainian, Polish, Czech,
-Hindi — whose plural rules `MessageFormat` cannot express. A count written by guessing those forms
-would be wrong in exactly the languages that notice. It is owed the day a plural mechanism exists.
+*The loaded sentence carries the count*: "Documents, 12 items". It shipped for one day without it,
+because the toolkit had no plural mechanism — `MessageFormat` selects by numeric range and no range
+expresses Russian's "ends in 1 but not in 11", so a count written into twenty-one flat strings would
+have been wrong in exactly the languages that notice. **The owner asked for the count on 2026-09-18
+and `limn.i18n.PluralRules` is what it cost**: CLDR's cardinal rules transcribed by hand for the
+languages this repository ships, `PluralString` beside `I18nString`, one catalog key per
+grammatical form, and each language carrying exactly the forms it uses — one for Japanese, three
+for Russian, six for Arabic. The transcription is the standing risk and `PluralRulesTest` is its
+only guard; `docs/design/i18n.md` has the shape and the table.
 
 Pinned by `TreeAccessibilityTest.aLazyLoadSaysItHasBegunAndSaysHowItEnded` and
 `anEagerEmptyBranchSaysItIsEmptyToo`, which also holds that a branch opening onto children says
