@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.ValueAccessibility;
 import limn.animation.Transition;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -220,8 +221,9 @@ public class ProgressBar extends Widget {
         } else {
             // Read-only said on the facet, because the facet's presence is what advertises a set
             // on every platform and the role alone takes nothing back: without it a bridge reports
-            // a writable range whose set lands in the inherited hook, refused in silence.
-            a.value(Math.round(progress * 100f), 0, 100, 0, true);
+            // a writable range whose set lands in the inherited hook, refused in silence. The
+            // VALUE shape, written once (ADR 045 §3), offers no step verb for a read-only value.
+            ValueAccessibility.describe(a, Math.round(progress * 100f), 0, 100, 0, true);
         }
     }
 

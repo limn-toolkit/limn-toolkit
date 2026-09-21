@@ -1,6 +1,7 @@
 package limn.components;
 
 import limn.accessibility.Accessible;
+import limn.components.a11y.ValueAccessibility;
 import limn.accessibility.Accessibility;
 import limn.animation.Easing;
 import limn.animation.Transition;
@@ -494,8 +495,10 @@ public class ScrollBar extends Widget {
         a.state(vertical() ? Accessible.State.VERTICAL : Accessible.State.HORIZONTAL);
         // Clamped for publication only: the paint does not clamp and a host may hand back an
         // unclamped number transiently, and a bridge may refuse a value outside its own range.
-        a.value(Math.min(Math.max(0, offset), max), 0, max, viewport);
-        a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+        // The VALUE shape, written once (ADR 045 §3): the number, its bounds, its step and the
+        // two paging verbs.
+        ValueAccessibility.describe(a, Math.min(Math.max(0, offset), max), 0, max, viewport,
+                false);
     }
 
     /**
@@ -519,23 +522,31 @@ public class ScrollBar extends Widget {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        if (!isEnabled() || policy == Policy.HIDDEN || !hasOverflow()) {
-            return false;
-        }
-        switch (action) {
-            case INCREMENT -> scrollTo(model.offset() + model.viewportLength());
-            case DECREMENT -> scrollTo(model.offset() - model.viewportLength());
-            case SET_VALUE -> {
-                double asked = Accessible.Argument.finiteValueOf(arg);
-                if (Double.isNaN(asked)) {
-                    return false;
-                }
-                scrollTo((float) asked);
-            }
-            default -> {
-                return false;
-            }
-        }
-        return true;
+        return ValueAccessibility.perform(valueHost, action, arg);
     }
+
+    /**
+     * The bar's mechanisms as the value shape drives them (ADR 045 §3). "Enabled" here is the
+     * bar's own flag and its two absences: the policy hidden, or the content fitting, because an
+     * identifier can arrive after the node left and the scene's gate re-checks the ancestors and
+     * not those.
+     */
+    private final class ValueHost implements ValueAccessibility.Host {
+        @Override
+        public boolean isEnabled() {
+            return ScrollBar.this.isEnabled() && policy != Policy.HIDDEN && hasOverflow();
+        }
+
+        @Override
+        public void step(int direction) {
+            scrollTo(model.offset() + direction * model.viewportLength());
+        }
+
+        @Override
+        public void set(double asked) {
+            scrollTo((float) asked);
+        }
+    }
+
+    private final ValueHost valueHost = new ValueHost();
 }

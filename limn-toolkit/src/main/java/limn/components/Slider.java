@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.ValueAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -470,7 +471,11 @@ public class Slider extends Widget {
      */
     @Override
     protected void onAccessibility(Accessibility a) {
-        a.slider(Accessible.State.HORIZONTAL, value, min, max, step);
+        a.role(Accessible.Role.SLIDER);
+        a.state(Accessible.State.HORIZONTAL);
+        // The VALUE shape, written once (ADR 045 §3): the number, its bounds, its step, and the
+        // two step verbs; SET_VALUE is implied by the facet and never listed.
+        ValueAccessibility.describe(a, value, min, max, step, false);
     }
 
     /**
@@ -502,26 +507,32 @@ public class Slider extends Widget {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        if (!isEnabled()) {
+        if (!ValueAccessibility.perform(valueHost, action, arg)) {
             return false;
-        }
-        switch (action) {
-            case INCREMENT -> apply(value + keyStep(), Change.Origin.USER);
-            case DECREMENT -> apply(value - keyStep(), Change.Origin.USER);
-            case SET_VALUE -> {
-                double asked = Accessible.Argument.finiteValueOf(arg);
-                if (Double.isNaN(asked)) {
-                    return false;
-                }
-                apply((float) asked, Change.Origin.USER);
-            }
-            default -> {
-                return false;
-            }
         }
         commit();
         return true;
     }
+
+    /** The slider's mechanisms as the value shape drives them (ADR 045 §3). */
+    private final class ValueHost implements ValueAccessibility.Host {
+        @Override
+        public boolean isEnabled() {
+            return Slider.this.isEnabled();
+        }
+
+        @Override
+        public void step(int direction) {
+            apply(value + direction * keyStep(), Change.Origin.USER);
+        }
+
+        @Override
+        public void set(double asked) {
+            apply((float) asked, Change.Origin.USER);
+        }
+    }
+
+    private final ValueHost valueHost = new ValueHost();
 
     @Override
     protected void onFocusGained() {

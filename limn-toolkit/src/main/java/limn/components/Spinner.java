@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.ValueAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.text.TextEditModel;
@@ -1504,11 +1505,11 @@ public class Spinner extends Widget {
         // over from the paint's own memo with the counter it was filled against. NEVER format(v)
         // or text() built here: the format call is documented as never cached, so a string made in
         // this hook would be one allocation per damaged frame spent deciding nothing had moved.
-        a.value(value, min, max, increment());
+        // The VALUE shape, written once (ADR 045 §3): the number, its bounds, its step and the
+        // two step verbs; SET_VALUE is advertised by the writable facet's presence and is never
+        // listed. The display form is this widget's own, beside it.
+        ValueAccessibility.describe(a, value, min, max, increment(), false);
         a.valueText(text(), formattedRevision());
-        // The pair and never the variable-argument form, which allocates an array per call.
-        // SET_VALUE is advertised by the writable facet's presence and is never listed.
-        a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
 
         // Resolved ONCE for the whole hook, the rule this widget already states for its event
         // handlers: an index into the five cached rows, and not an allocation.
@@ -1587,32 +1588,42 @@ public class Spinner extends Widget {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        if (!isEnabled()) {
-            return false;
-        }
-        switch (action) {
-            case INCREMENT -> stepAsAKeyWould(1);
-            case DECREMENT -> stepAsAKeyWould(-1);
-            case SET_VALUE -> {
-                double asked;
-                if (arg instanceof Accessible.Argument.OfText text) {
-                    Double parsed = parse(text.text());
-                    asked = parsed != null && Double.isFinite(parsed) ? parsed : Double.NaN;
-                } else {
-                    asked = Accessible.Argument.finiteValueOf(arg);
-                }
-                if (Double.isNaN(asked)) {
-                    return false;
-                }
-                cancelEdit();
-                apply(asked, Change.Origin.USER);
-            }
-            default -> {
-                return false;
-            }
-        }
-        return true;
+        return ValueAccessibility.perform(valueHost, action, arg);
     }
+
+    /**
+     * The spinner's mechanisms as the value shape drives them (ADR 045 §3): a step is the key's
+     * path, a set reads a text through the same {@link #parse} a typed commit does, cancels the
+     * edit and applies from the user.
+     */
+    private final class ValueHost implements ValueAccessibility.Host {
+        @Override
+        public boolean isEnabled() {
+            return Spinner.this.isEnabled();
+        }
+
+        @Override
+        public void step(int direction) {
+            stepAsAKeyWould(direction);
+        }
+
+        @Override
+        public double numberOf(Accessible.Argument arg) {
+            if (arg instanceof Accessible.Argument.OfText text) {
+                Double parsed = parse(text.text());
+                return parsed != null && Double.isFinite(parsed) ? parsed : Double.NaN;
+            }
+            return Accessible.Argument.finiteValueOf(arg);
+        }
+
+        @Override
+        public void set(double asked) {
+            cancelEdit();
+            apply(asked, Change.Origin.USER);
+        }
+    }
+
+    private final ValueHost valueHost = new ValueHost();
 
     /**
      * One step in {@code direction}, which is what {@code nudgeFromKey(direction, 0)} is in both

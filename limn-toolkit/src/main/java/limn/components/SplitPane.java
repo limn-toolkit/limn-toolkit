@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.ValueAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -701,46 +702,48 @@ public final class SplitPane extends Widget {
             float total = first + second;
             float low = Math.min(firstMin, total);
             float high = Math.max(low, total - secondMin);
-            a.value(first, low, high, KEY_STEP);
-            // The pair and never the variable-argument form, which allocates an array per call.
-            // SET_VALUE is not offered here: a settable value is advertised by the facet.
-            a.action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
+            // The VALUE shape, written once (ADR 045 §3): the number, its bounds, its step and
+            // the two step verbs; SET_VALUE is not offered, because a settable value is
+            // advertised by the facet.
+            ValueAccessibility.describe(a, first, low, high, KEY_STEP, false);
         }
 
         @Override
         protected boolean onAccessibilityAction(Accessible.Action action,
                                                 Accessible.Argument arg) {
-            // The widget keeps its own guard, as the pointer and the keyboard arms do: the
-            // scene's gate has already checked the ancestor chain, and dragTo has no guard of its
-            // own to fall back on.
-            if (!isEnabled()) {
-                return false;
-            }
-            SizeTokens t = Theme.current().tokensFor(this);
-            // firstExtent rather than the laid-out box: an action can arrive between a ratio
-            // change and the next layout, where the boxes are a frame stale and this is current.
-            float here = firstExtent(shareable(t));
-            switch (action) {
-                case SET_VALUE -> {
-                    double asked = Accessible.Argument.finiteValueOf(arg);
-                    if (Double.isNaN(asked)) {
-                        return false;
-                    }
-                    dragTo(t, (float) asked);
-                    return true;
-                }
-                // INCREMENT does not mirror, and the arrows do. The arrows are screen directions,
-                // so the whole arm flips in a right-to-left layout; these are defined on the
-                // published value, which is the first pane's extent and is a magnitude, so
-                // INCREMENT grows the first pane whichever way the layout reads -- the same
-                // reasoning Home and End already take in this file.
-                case INCREMENT -> dragTo(t, here + KEY_STEP);
-                case DECREMENT -> dragTo(t, here - KEY_STEP);
-                default -> {
-                    return false;
-                }
-            }
-            return true;
+            return ValueAccessibility.perform(valueHost, action, arg);
         }
+
+        /**
+         * The divider's mechanisms as the value shape drives them (ADR 045 §3). The widget keeps
+         * its own guard, as the pointer and the keyboard arms do: the scene's gate has already
+         * checked the ancestor chain, and dragTo has no guard of its own to fall back on. A step
+         * reads firstExtent rather than the laid-out box, because an action can arrive between a
+         * ratio change and the next layout, where the boxes are a frame stale and this is
+         * current. INCREMENT does not mirror, and the arrows do: the arrows are screen
+         * directions, so the whole arm flips in a right-to-left layout; these are defined on the
+         * published value, which is the first pane's extent and is a magnitude, so INCREMENT
+         * grows the first pane whichever way the layout reads -- the same reasoning Home and End
+         * already take in this file.
+         */
+        private final class ValueHost implements ValueAccessibility.Host {
+            @Override
+            public boolean isEnabled() {
+                return Divider.this.isEnabled();
+            }
+
+            @Override
+            public void step(int direction) {
+                SizeTokens t = Theme.current().tokensFor(Divider.this);
+                dragTo(t, firstExtent(shareable(t)) + direction * KEY_STEP);
+            }
+
+            @Override
+            public void set(double asked) {
+                dragTo(Theme.current().tokensFor(Divider.this), (float) asked);
+            }
+        }
+
+        private final ValueHost valueHost = new ValueHost();
     }
 }
