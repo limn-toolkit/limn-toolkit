@@ -572,19 +572,36 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                 "no row was destroyed by a sort: " + bridge.events);
     }
 
+    /**
+     * A reader selects a row and opens it, and since decisions 79 and 80 of 2026-09-17 it opens
+     * <b>the row it addressed</b>. The select no longer moves the focus cell, so the table's own
+     * {@code PRESS} — which opens the cursor row — is no longer the route for it: the row carries
+     * a press of its own. Without that second half the change would have swapped one defect for
+     * another, a reader selecting row 5 and opening row 2.
+     */
     @Test
-    void aReaderCanSelectARowAndActivateTheTable() throws InterruptedException {
+    void aReaderCanSelectARowAndOpenTheRowItAddressed() throws InterruptedException {
         Table<Person> table = bindTable(20);
         int[] activated = {-1};
         table.onActivate(index -> activated[0] = index);
         assertTrue(rowNodes().get(4).actions().actions().contains(Accessible.Action.SELECT));
         assertTrue(perform(rowNodes().get(4).id(), Accessible.Action.SELECT, null));
         assertEquals(4, table.selectedRow());
+        assertEquals(-1, table.focusRow(), "the select left the cursor out of the table");
+        frame();
+        assertTrue(rowNodes().get(4).actions().actions().contains(Accessible.Action.PRESS),
+                "the row carries the press: " + describe(tree()));
+        assertTrue(perform(rowNodes().get(4).id(), Accessible.Action.PRESS, null));
+        assertEquals(4, activated[0], "and it opened the row addressed");
+
+        // The table's own press is still the cursor row's, and is published once there is one.
+        // A caller's setter moves the cursor, which a reader's SELECT no longer does.
+        table.setSelectedRow(6);
         frame();
         assertTrue(tableNode().actions().actions().contains(Accessible.Action.PRESS),
-                "a press is offered once a row is selected");
+                "a press on the table is offered once it has a cursor row: " + describe(tree()));
         assertTrue(perform(tableNode().id(), Accessible.Action.PRESS, null));
-        assertEquals(4, activated[0]);
+        assertEquals(table.focusRow(), activated[0], "which opens the cursor row, not the lead");
     }
 
     /**
@@ -628,7 +645,12 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                 "a Shift range still extends from the anchor on row 2");
         assertTrue(perform(rowNodes().get(7).id(), Accessible.Action.SELECT, null));
         assertEquals("[7]", java.util.Arrays.toString(table.selectedRows()), "a select is the click");
-        assertEquals(7, table.focusRow(), "and a select moves the cursor");
+        // ...in what it does to the selection, and not in what it does to the cursor: since
+        // decision 79 of 2026-09-17 no verb a reader sends moves the focus cell except FOCUS.
+        // Measured cause (P5M-1): on AppKit a selection write leaves the keyboard focus alone, so
+        // VoiceOver mirrors its cursor into the selection and every mirror dragged ours with it.
+        assertEquals(3, table.focusRow(),
+                "and a select leaves the cursor where the Shift key put it, on row 3");
         assertEquals(List.of("[2, 4]", "[2, 4, 6]", "[2, 6]", "[2, 3]", "[7]"), selects,
                 "each reached the handler as a user");
 
@@ -643,8 +665,13 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         }
         table.setSelectionMode(Table.SelectionMode.NONE);
         frame();
-        assertEquals(java.util.Set.of(Accessible.Action.FOCUS),
-                rowNodes().get(0).actions().actions(), "only the cursor moves in NONE");
+        // Nothing to select in NONE, so no selection verb; what stays is what does not depend on
+        // a selection — the cursor move, the reveal (decision 81) and the row's own press
+        // (decision 80), which in NONE opens the row a reader addressed exactly as Enter opens
+        // the row the keyboard is on.
+        assertEquals(java.util.Set.of(Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW,
+                        Accessible.Action.PRESS),
+                rowNodes().get(0).actions().actions(), "no selection verb in NONE");
     }
 
     /**

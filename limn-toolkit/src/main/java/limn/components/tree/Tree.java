@@ -578,6 +578,7 @@ public class Tree<T> extends Widget implements Scrollable {
         if (open) {
             expanded.add(node);
             startLoadIfNeeded(node);
+            announceIfOpeningOnNothing(node);
         } else {
             expanded.remove(node);
             Job job = loading.remove(node);
@@ -638,12 +639,14 @@ public class Tree<T> extends Widget implements Scrollable {
                 .onSuccess(children -> {
                     loading.remove(node);
                     loaded.put(node, children == null ? List.of() : List.copyOf(children));
-                    if (children == null || children.isEmpty()) {
-                        // The end of a load that found nothing. The row stays an open branch with
-                        // the "Empty" line under it (decision 45) and the line says so to the eye;
-                        // this says it to the ear, which nothing else did.
-                        announceLoad(TreeStrings.EMPTY_ANNOUNCEMENT, node);
-                    }
+                    // Both ends of the load are announced (decision 83 of 2026-09-17, closing the
+                    // first case decision 73 left open): one that found nothing says so, and one
+                    // that landed with children says it landed. Until then only the empty end
+                    // spoke, so a branch that took a second said "Loading Documents" and then
+                    // nothing at all, which a reader cannot tell from a load still running.
+                    announceLoad(children == null || children.isEmpty()
+                            ? TreeStrings.EMPTY_ANNOUNCEMENT : TreeStrings.LOADED_ANNOUNCEMENT,
+                            node);
                     rebuildRows();
                     forgetRevealedPaths();
                     // What a refresh could not confirm under this row is verified now that the
@@ -679,7 +682,31 @@ public class Tree<T> extends Widget implements Scrollable {
     }
 
     /**
-     * Says one of the two load announcements, naming the branch (decision 73 of 2026-09-16).
+     * Says "empty" for a branch that opens onto nothing without a load to wait for (decision 83 of
+     * 2026-09-17, closing the second case decision 73 left open).
+     *
+     * <p>Two rows reach this: an <b>eager</b> branch the model calls a non-leaf over an empty
+     * list, and a branch whose load already answered nothing and is answering from the cache. Both
+     * open instantly onto the unfocusable "Empty" line of decision 45, which the cursor steps over
+     * on every platform, so before this a reader pressed Right and heard <em>nothing at all</em> —
+     * the same silence decision 73 was written to end, only without the wait that made it visible.
+     *
+     * <p>A branch whose load is still out is not announced here: its start has just been announced
+     * and its end will be.
+     */
+    private void announceIfOpeningOnNothing(T node) {
+        if (loading.containsKey(node)) {
+            return;
+        }
+        List<T> known = loaded.containsKey(node) ? loaded.get(node) : model.children(node);
+        if (known != null && known.isEmpty()) {
+            announceLoad(TreeStrings.EMPTY_ANNOUNCEMENT, node);
+        }
+    }
+
+    /**
+     * Says one of the load announcements, naming the branch (decision 73 of 2026-09-16, extended
+     * by decision 83 of 2026-09-17).
      *
      * <p><b>Why an announcement and not a state.</b> The row already publishes {@code BUSY} while
      * its load is out and the "Loading…" line is already drawn under it, and on 2026-09-16 both
@@ -1141,9 +1168,26 @@ public class Tree<T> extends Widget implements Scrollable {
      * settled under ADR 040 §7.2.
      */
     private void selectOnly(T node, boolean reveal, Change.Origin origin) {
+        selectOnly(node, reveal, true, origin);
+    }
+
+    /**
+     * The same, with the cursor held back.
+     *
+     * @param moveCursor whether the cursor and the range anchor land on the node: a gesture's
+     *                   answer is yes, because the pointer and the key are where the user is; a
+     *                   reader's {@code SELECT} is no, because a client write is not (decision 79
+     *                   of 2026-09-17). Measured cause: on AppKit a selection write leaves the
+     *                   keyboard focus where it is, so VoiceOver's cursor sync — writing
+     *                   {@code setAccessibilitySelectedRows:} with its own one-step-stale row —
+     *                   dragged this cursor back nine times in nine (P5M-1). The reveal is not the
+     *                   cursor and still happens: bringing the selected row into view is what the
+     *                   write asks for, and what {@code ListView}'s own {@code SELECT} already did.
+     */
+    private void selectOnly(T node, boolean reveal, boolean moveCursor, Change.Origin origin) {
         T wasCursor = cursor;
         boolean visible = node != null && indexOf(node) >= 0;
-        if (visible) {
+        if (visible && moveCursor) {
             cursor = node;
         }
         if (reveal && visible) {
@@ -1154,7 +1198,7 @@ public class Tree<T> extends Widget implements Scrollable {
             announceCursor(wasCursor, origin);
             return;
         }
-        if (visible) {
+        if (visible && moveCursor) {
             rangeAnchor = node;
         }
         boolean same = node == null ? selected.isEmpty()
@@ -1462,12 +1506,28 @@ public class Tree<T> extends Widget implements Scrollable {
     }
 
     /**
-     * The seam Enter and a reader's {@code PRESS} enter at {@code USER}: the cursor row, in every
-     * mode (decision 32 of 2026-09-14) — in {@code NONE} the row the keyboard is on is what
-     * activates, because it is the one row the user has pointed at.
+     * The seam Enter, a double click and a {@code PRESS} on the tree's own node enter at
+     * {@code USER}: the cursor row, in every mode (decision 32 of 2026-09-14) — in {@code NONE}
+     * the row the keyboard is on is what activates, because it is the one row the user has
+     * pointed at. A reader's {@code PRESS} on a row takes {@link #activate(Object, Change.Origin)}
+     * instead and names that row (decision 80 of 2026-09-17).
      */
     private void activate(Change.Origin origin) {
-        if (cursor != null) {
+        activate(cursor, origin);
+    }
+
+    /** The node the last activation opened, read by {@link #handleUserChange}. */
+    private T activated;
+
+    /**
+     * The same seam, naming the row that was opened rather than the one the cursor is on: a
+     * reader's {@code PRESS} arrives addressed to a row, and since decision 79 its {@code SELECT}
+     * no longer drags the cursor there, so the two can differ (decision 80 of 2026-09-17). Enter
+     * and a double click pass the cursor row and are unchanged.
+     */
+    private void activate(T node, Change.Origin origin) {
+        if (node != null) {
+            activated = node;
             notifyChange(Change.of(Change.Aspect.INVOKED, origin));
         }
     }
@@ -1494,9 +1554,11 @@ public class Tree<T> extends Widget implements Scrollable {
     }
 
     /**
-     * The application's response to the user opening the cursor row: Enter, a double click, an
-     * assistive technology's press. Handed the cursor row, which in {@code NONE} is a row that was never
-     * selected. Never for {@link #activate()}, which is a caller's verb.
+     * The application's response to the user opening a row: Enter, a double click, an assistive
+     * technology's press. Handed <b>the row that was opened</b> — the cursor row for Enter and a
+     * double click, which in {@code NONE} is a row that was never selected, and the addressed row
+     * for a reader's {@code PRESS}, which since decision 80 of 2026-09-17 need not be the cursor's.
+     * Never for {@link #activate()}, which is a caller's verb.
      *
      * @param handler the handler, or {@code null} to clear the slot
      * @return this tree
@@ -1532,7 +1594,7 @@ public class Tree<T> extends Widget implements Scrollable {
             }
             case INVOKED -> {
                 if (onActivate != null) {
-                    onActivate.accept(cursor);
+                    onActivate.accept(activated);
                 }
             }
             case EXPANDED -> {
@@ -2909,6 +2971,13 @@ public class Tree<T> extends Widget implements Scrollable {
         if (row.expandable) {
             a.delegate(row.expanded ? Accessible.Action.COLLAPSE : Accessible.Action.EXPAND);
         }
+        // PRESS opens this row and not the cursor's (decision 80 of 2026-09-17). It is published
+        // on every row because decision 79 stopped a reader's SELECT from moving the cursor: a
+        // reader that selected row 5 and pressed the tree would otherwise open row 2, and both
+        // VoiceOver and NVDA activate the element their own cursor is on rather than a container.
+        // The tree keeps its own PRESS, which still opens the cursor row, for Enter's sake and
+        // for a client that addresses the container (decision 32, amended).
+        a.delegate(Accessible.Action.PRESS);
         if (!child.isFocusable()) {
             // FOCUS moves the cursor without selecting, which is what decision 11 lets an item
             // publish where the cursor and the selection are separate; SCROLL_INTO_VIEW reveals
@@ -2943,7 +3012,11 @@ public class Tree<T> extends Widget implements Scrollable {
                 if (selectionMode == SelectionMode.NONE) {
                     return false;
                 }
-                selectOnly(row.node, true, Change.Origin.USER);
+                selectOnly(row.node, true, false, Change.Origin.USER);
+                return true;
+            }
+            case PRESS -> {
+                activate(row.node, Change.Origin.USER);
                 return true;
             }
             case ADD_TO_SELECTION, DESELECT -> {

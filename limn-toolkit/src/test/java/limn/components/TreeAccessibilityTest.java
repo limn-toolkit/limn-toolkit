@@ -445,9 +445,17 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
      * row's cell, which is the application's own widget, and the tree performs it through the
      * same {@code USER} seam a click takes (ADR 039 §1.5, amended 2026-09-14; §11's per-row
      * actuation reversed). A tree that selects nothing delegates nothing.
+     *
+     * <p><b>And it leaves the cursor where it was</b> (decision 79 of 2026-09-17). Until that day
+     * this verb moved the cursor as a click does, and that is the measured cause of the one fight
+     * phase 5 left open: on AppKit a selection write does not move the keyboard focus, so
+     * VoiceOver mirrors its own cursor into the selection as a matter of course, and every such
+     * write dragged this tree's cursor to the reader's previous row — nine unrequested moves in
+     * nine, at +37…+69 ms (P5M-1). A click still moves it, because the pointer is where the user
+     * is; a client write is not.
      */
     @Test
-    void selectingARowThroughItsOwnVerbMovesTheSelectionToThatRow() throws Exception {
+    void selectingARowThroughItsOwnVerbLeavesTheCursorWhereItWas() throws Exception {
         Node readme = Node.leaf("readme");
         Node docs = Node.of("docs", Node.leaf("a.md"), Node.leaf("b.md"));
         Node top = Node.of("root", docs, readme);
@@ -464,14 +472,14 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
         assertEquals(List.of(readme), tree.selectedNodes(), "the row addressed, not the lead");
         assertEquals(readme, tree.leadNode());
-        assertEquals(readme, tree.cursorNode(), "and the cursor moved with it, as a click's does");
+        assertEquals(docs, tree.cursorNode(),
+                "and the cursor stayed where it was, which a click's does not (decision 79)");
         assertTrue(node("readme").selectionItem().selected(), describe(tree()));
-        assertEquals(List.of(limn.scene.Change.Aspect.ACTIVE, limn.scene.Change.Aspect.SELECTION),
+        assertEquals(List.of(limn.scene.Change.Aspect.SELECTION),
                 changes.stream().map(limn.scene.Change::aspect).toList(),
-                "announced as a click is, the cursor first and then the selection: " + changes);
+                "so the selection alone is announced, with no cursor move before it: " + changes);
         assertEquals(limn.scene.Change.Origin.USER, changes.get(0).origin(),
                 "and from the user, which is who a reader is");
-        assertEquals(limn.scene.Change.Origin.USER, changes.get(1).origin());
 
         tree.setSelectionMode(Tree.SelectionMode.NONE);
         frame();
@@ -1166,13 +1174,24 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(button.actions().has(Accessible.Action.SELECT),
                 "the row's verbs are the cell's, not the button's: " + describe(tree()));
         assertTrue(rowTwo.actions().has(Accessible.Action.SELECT), describe(tree()));
-        assertFalse(rowTwo.actions().has(Accessible.Action.PRESS),
-                "and the button's is not the row's: " + describe(tree()));
+        // The row has a PRESS of its own since decision 80 of 2026-09-17 — it opens THAT row,
+        // where the tree's own opens the cursor's — so the two nodes both carry the verb and the
+        // point of this case is that each keeps its own performer: the button's press runs the
+        // button's handler and opens no row.
+        assertTrue(rowTwo.actions().has(Accessible.Action.PRESS), describe(tree()));
 
+        List<Node> opened = new ArrayList<>();
+        tree.onActivate(opened::add);
         assertTrue(perform(button.id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
         frame();
         assertEquals(List.of("two"), pressed, "the button's own handler ran");
         assertTrue(tree.selectedNodes().isEmpty(), "and the tree selected nothing for it");
+        assertTrue(opened.isEmpty(), "and opened no row: the press was the button's");
+
+        assertTrue(perform(rowTwo.id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        frame();
+        assertEquals(List.of(two), opened, "the row's own press opens that row");
+        assertEquals(List.of("two"), pressed, "and runs nothing of the cell's");
 
         assertTrue(perform(rowTwo.id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
         frame();
@@ -1222,15 +1241,20 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         }
         // The row verb set (decision 20): SELECT in SINGLE, EXPAND or COLLAPSE by state on a row
         // that can open, and the free pair on every row, because a cell is not focusable and
-        // the cursor is not the selection (decision 11). PRESS is the tree's.
+        // the cursor is not the selection (decision 11). PRESS is on the row as well as on the
+        // tree since decision 80 of 2026-09-17: the row's opens that row, the tree's opens the
+        // cursor's, and the pair exists because decision 79 stopped a reader's SELECT from
+        // dragging the cursor to the row it selected.
         assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.COLLAPSE,
-                        Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW),
+                        Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW,
+                        Accessible.Action.PRESS),
                 rows.get(0).actions().actions(), "an open row: " + describe(tree()));
         assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.EXPAND,
-                        Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW),
+                        Accessible.Action.FOCUS, Accessible.Action.SCROLL_INTO_VIEW,
+                        Accessible.Action.PRESS),
                 rows.get(1).actions().actions(), "a closed row: " + describe(tree()));
         assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.FOCUS,
-                        Accessible.Action.SCROLL_INTO_VIEW),
+                        Accessible.Action.SCROLL_INTO_VIEW, Accessible.Action.PRESS),
                 rows.get(2).actions().actions(), "a leaf: " + describe(tree()));
 
         assertNotNull(rows.get(0).expand(), describe(tree()));
@@ -1545,9 +1569,14 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
      * The announcement path is the one route all three readers were measured speaking through on
      * that same day. The visual line of decision 45 stays exactly as it is and stays unfocusable,
      * which the two tests above assert and this one does not disturb.
+     *
+     * <p><b>Both ends, since decision 83 of 2026-09-17</b>, which closed the first case decision
+     * 73 left open: a load that lands <em>with</em> children says it landed. Until then it said
+     * nothing after its start, so "Loading inbox" and then silence was what a reader got from a
+     * load still running and from one that had finished alike.
      */
     @Test
-    void aLazyLoadSaysItHasBegunAndAnEmptyOneSaysItFoundNothing() {
+    void aLazyLoadSaysItHasBegunAndSaysHowItEnded() {
         limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
         Node trash = Node.leaf("trash");
         Node inbox = Node.leaf("inbox");
@@ -1591,8 +1620,9 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                 "the start, named, before anything has landed: " + bridge.events);
         ui.pumpUntil(() -> tree.visibleRowCount() == 4);
         frame();
-        assertEquals(List.of("Loading inbox"), announced(),
-                "a load that found children says nothing more: " + bridge.events);
+        assertEquals(List.of("Loading inbox", "inbox loaded"), announced(),
+                "and a load that found children says that it landed (decision 83): "
+                        + bridge.events);
         bridge.events.clear();
         changes.clear();
 
@@ -1610,6 +1640,68 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of("trash", "inbox", "one", "two"),
                 rowNodes().stream().map(AccessibleNode::name).toList(), describe(tree()));
         assertFalse(describe(tree()).contains("Empty"), describe(tree()));
+    }
+
+    /**
+     * The second case decision 73 left open, closed by decision 83 of 2026-09-17: an
+     * <b>eager</b> empty branch — a model that calls a node a non-leaf over an empty list — says
+     * it is empty too.
+     *
+     * <p>It is the sharper of the two. There is no load and no wait, so the row opens instantly
+     * onto the unfocusable "Empty" line of decision 45, which the cursor steps over on every
+     * platform: a reader pressed Right and heard <em>nothing at all</em>, with no "Loading" even
+     * to say that something had happened. Same silence decision 73 was written to end, and the
+     * same sentence ends it. The line itself is untouched, which the last assertion holds.
+     */
+    @Test
+    void anEagerEmptyBranchSaysItIsEmptyToo() {
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        Node empty = Node.leaf("archive");
+        Node full = Node.of("docs", Node.leaf("a.md"));
+        tree = new Tree<>(new Tree.Model<Node>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(empty, full);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return node.children();
+            }
+
+            @Override
+            public boolean isLeaf(Node node) {
+                return false; // an empty folder is a folder: the guide's own Entry shape
+            }
+
+            @Override
+            public Widget cellFor(Node node) {
+                return new Cell(ROW_H);
+            }
+
+            @Override
+            public I18nString nameOf(Node node) {
+                return node.name();
+            }
+        });
+        Column root = new Column();
+        root.add(new SizedBox(BOX_W, BOX_H, tree));
+        bind(root);
+        bridge.events.clear();
+
+        tree.expand(empty);
+        frame();
+        assertEquals(List.of("archive empty"), announced(),
+                "opening onto nothing says so, with no load to wait for: " + bridge.events);
+        bridge.events.clear();
+
+        tree.expand(full);
+        frame();
+        assertEquals(List.of(), announced(),
+                "and a branch that opens onto children says nothing: the rows are the answer, "
+                        + "and a reader walks into them: " + bridge.events);
+        assertFalse(describe(tree()).contains("Empty"),
+                "the drawn line is still not a node: " + describe(tree()));
     }
 
     /**

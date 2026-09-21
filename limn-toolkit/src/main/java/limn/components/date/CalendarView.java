@@ -1033,6 +1033,24 @@ public class CalendarView extends Widget {
      * closes the period and reaches the handler with it.
      */
     private boolean pick(LocalDate day, Change.Origin origin) {
+        return pick(day, true, origin);
+    }
+
+    /**
+     * The same, with the cursor held back.
+     *
+     * @param moveCursor whether the keyboard cursor lands on the day: a click and Enter say yes,
+     *                   because the pointer and the key are where the user is; a reader's
+     *                   {@code SELECT} says no, because a client write is not (decision 79 of
+     *                   2026-09-17, measured on macOS as P5M-1). <b>One exception, and it is
+     *                   geometry rather than policy:</b> where the pick pages the calendar, the
+     *                   cursor follows the selection anyway, because the grid it was standing in
+     *                   is the one being replaced and a cursor left behind would be on a day the
+     *                   calendar no longer draws. Selecting a day of the month on show — which is
+     *                   every day a reader can address without paging first — leaves it where it
+     *                   was.
+     */
+    private boolean pick(LocalDate day, boolean moveCursor, Change.Origin origin) {
         if (!isSelectable(day)) {
             return false;
         }
@@ -1040,6 +1058,9 @@ public class CalendarView extends Widget {
         LocalDate monthWas = visibleMonth;
         cursor = day;
         showMonth(day, Change.Origin.ADJUSTMENT);
+        if (!moveCursor && cursorWas != null && monthWas.equals(visibleMonth)) {
+            cursor = cursorWas;
+        }
         switch (selectionMode) {
             case SINGLE -> {
                 if (day.equals(selected)) {
@@ -1571,6 +1592,17 @@ public class CalendarView extends Widget {
     /** The day in cell {@code index}, counted across the grid in reading order. */
     private LocalDate dayAt(int index) {
         return LocalDate.ofEpochDay(gridStartEpoch + index);
+    }
+
+    /**
+     * Scrolls whatever the calendar sits in until day cell {@code index} is in view: the same
+     * rectangle the accessible walk publishes as that cell's bounds, so what a reader is shown is
+     * what it was told to expect.
+     */
+    private void revealDayCell(int index) {
+        boolean rtl = isRightToLeft();
+        revealInView(cellLeft(index % DAYS_IN_WEEK, rtl), gridY + (index / DAYS_IN_WEEK) * cellH,
+                cellW, cellH);
     }
 
     // ------------------------------------------------------------------ measure, layout, paint
@@ -2743,6 +2775,14 @@ public class CalendarView extends Widget {
                 if (!isRefused(day)) {
                     a.action(Accessible.Action.FOCUS);
                 }
+                // SCROLL_INTO_VIEW brings this cell into view, which is decision 20's verb on a
+                // row read against a grid that does not scroll by itself: what it moves is the
+                // nearest scrolling ancestor, so the verb earns its keep on a calendar inside a
+                // ScrollView and is a no-op on one that is wholly visible — the reading the free
+                // pair already has on a focusable widget (decision 81 of 2026-09-17). Published
+                // on a refused day too: the walk withdraws it with the rest when the day is
+                // narrowed, and nothing here has to repeat that rule.
+                a.action(Accessible.Action.SCROLL_INTO_VIEW);
                 if (day.equals(cursor) && focusHere(Part.GRID)) {
                     a.state(Accessible.State.ACTIVE);
                 }
@@ -3056,6 +3096,14 @@ public class CalendarView extends Widget {
             return true;
         }
         int cell = dayCellOf(key);
+        if (cell >= 0 && action == Accessible.Action.SCROLL_INTO_VIEW) {
+            // The cell's own rectangle through the scrolling ancestors, not the calendar's box:
+            // the grid does not scroll by itself, so what this moves is the pane the calendar
+            // sits in (decision 81 of 2026-09-17). A calendar wholly in view moves nothing,
+            // which is the free verb's own reading and not a refusal.
+            revealDayCell(cell);
+            return true;
+        }
         if (cell >= 0 && action == Accessible.Action.FOCUS) {
             LocalDate day = dayAt(cell);
             if (isRefused(day)) {
@@ -3068,8 +3116,10 @@ public class CalendarView extends Widget {
             // pick() refuses a day the grid refuses a click on, by the same rule the pointer
             // meets. What tells a reader no is that such a day publishes no SELECT and is not
             // ENABLED (decisions 2 and 30): the platform answers from the published list before
-            // this hook runs, so this false never reaches it.
-            return pick(dayAt(cell), Change.Origin.USER);
+            // this hook runs, so this false never reaches it. The cursor stays where it is,
+            // which a click's does not (decision 79 of 2026-09-17): FOCUS is the verb that moves
+            // it, and a client writing a selection is not a person pointing at a day.
+            return pick(dayAt(cell), false, Change.Origin.USER);
         }
         return false;
     }

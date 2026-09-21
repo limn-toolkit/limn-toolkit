@@ -578,6 +578,31 @@ its segments' verbs and a writable value and the walk withdraws them, and `Calen
 withholds in a grid that selects nothing stays the calendar's, because no day is narrowed there.
 `DateFieldAccessibilityTest.aDisabledFieldsSegmentsCarryNoVerbAndAReadOnlyValue` still pins the
 field.
+**Amended 2026-09-17 (decisions 79 and 81).** A day cell gains `SCROLL_INTO_VIEW` and its `SELECT`
+loses the cursor.
+
+*The verb.* Decision 20 put `SCROLL_INTO_VIEW` on a row so a reader could bring an off-screen one
+into view, and a day cell was one of the two places that never published it (ADR 039 §2.1's
+amendment of 2026-09-15 recorded both as owed). It reads oddly here at first — the grid does not
+scroll by itself, so no day is ever out of view *within* the calendar — and it earns its keep the
+moment the calendar sits in a `ScrollView`, which is where a form puts one: what the verb moves is
+the pane, not the grid. It is performed by revealing the cell's **own rectangle** through the
+scrolling ancestors, the same rectangle the walk publishes as that cell's bounds, for which
+`Widget` gained a sub-rectangle `revealInView`; revealing the whole calendar instead would park its
+edge against the clip and leave the day the reader asked for off screen. A day the bounds or the
+filter refuse carries it like every other verb — that is, not at all, since the walk narrows a
+disabled node.
+
+*The cursor.* A reader's `SELECT` on a day now selects and leaves the keyboard cursor where it was,
+for the reason ADR 039 §2.2 measured on another widget entirely: on AppKit a selection write does
+not move the keyboard focus, and while ours did, a reader that mirrors its cursor into the selection
+dragged the application with it. A click and Enter are untouched. **One exception, and it is
+geometry rather than policy:** where the pick pages the calendar — a day of the month before or
+after the one on show — the cursor follows the selection, because the grid it was standing in is the
+one being replaced and a cursor left behind would name a day the calendar no longer draws. The
+chooser is untouched: a `SELECT` there descends a level, and navigation moving its own cursor is the
+whole of what it is for.
+
 **Amended 2026-09-15 (the 2d review; semantics 5):** the overlay's `CANCEL`, the closing verb of
 the scene presentation above, is published and performed only while the calendar is open. Through
 the fade-out after a close the overlay is still drawn and still the layer that owns input, and it
@@ -642,6 +667,26 @@ because the two widgets draw different things. Pinned by
 *Not changed, and recorded so nobody assumes it was:* the **year chooser** has the same shape — its
 cells are keyed by their position in the 24-cell block, so paging a block renames all 24 — and it
 was not measured on any guest. It is left as it stands rather than fixed on a hunch.
+
+**Held there deliberately, 2026-09-17 (decision 85).** The owner was asked whether to fix it from
+the analogy or to measure it first, and chose to measure: a second widget is not corrected from a
+reading taken on another one. The correction is specified and waits — key a chooser cell by **the
+year it shows** and a chooser row by its first year, each in a range of its own, exactly as the day
+grid now keys by epoch day — and what is owed first is a run with NVDA and with Orca over the year
+chooser itself, paging a block. Note while reading this that the **month** chooser does not have the
+defect: paging a year leaves the twelve month names exactly as they were, so its nodes are renamed
+by nothing. Only the year block renames, 24 cells and 6 rows at a time.
+
+**The week row's name stays what it is, and the alternatives are refused rather than left open
+(decision 84 of 2026-09-17).** Two were weighed against "the numbers it draws". *The ISO week
+number* ("Week 38") is the shortest thing a reader could hear, and it is refused twice over: where
+the week-number column is shown it is already the row's first cell, so the name would repeat it; and
+this widget draws non-ISO chronologies, where an ISO week is a number the grid does not show and the
+reader has no way to check. *A date range* ("30 August to 5 September") is unambiguous and is what a
+reader would most want across a month boundary, and it is refused for length: it is spoken before
+every cell announcement a move into a new week makes, about four times the name today. What stays is
+the table row's own rule — the text the row shows, in column order — which is the rule this record
+already follows everywhere else.
 
 No role is added to the model and no facet: every one of these is a role ADR 041 or ADR 039 already
 mapped on all three platforms. **That is the whole of the accessibility cost of this record**, and

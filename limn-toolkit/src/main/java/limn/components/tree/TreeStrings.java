@@ -54,4 +54,18 @@ final class TreeStrings {
             new I18nString("limn.tree.loadingAnnouncement", "Loading {0}");
     static final I18nString EMPTY_ANNOUNCEMENT =
             new I18nString("limn.tree.emptyAnnouncement", "{0} empty");
+
+    // The other end of the same load: what a reader is told when the children arrive (decision 83
+    // of 2026-09-17, which closed the first of the two cases decision 73 left open). Without it a
+    // branch that takes a second says "Loading Documents" and then nothing, so a reader has no way
+    // to tell an arrival from a load still running.
+    //
+    // No count in it, and that is a decision rather than an omission: the number of children is
+    // what a reader would most want here, and this toolkit has no plural mechanism — MessageFormat
+    // is all I18nString has, no catalog holds a second argument or a choice format, and the shipped
+    // languages include six whose plural rules MessageFormat cannot express. A count added by
+    // guessing those forms would be wrong in exactly the languages that notice. It is owed the day
+    // a plural mechanism exists (ADR 044 §2).
+    static final I18nString LOADED_ANNOUNCEMENT =
+            new I18nString("limn.tree.loadedAnnouncement", "{0} loaded");
 }

@@ -468,18 +468,36 @@ public abstract class Widget {
      */
     public final void revealInView() {
         float outset = paintOutset();
+        revealInView(-outset, -outset, width + 2 * outset, height + 2 * outset);
+    }
+
+    /**
+     * Reveals one rectangle of this widget's own content, in this widget's coordinates, through
+     * every scrolling ancestor — what {@link #revealInView()} does for the whole widget.
+     *
+     * <p>For a widget whose parts are not widgets: a calendar's day cell, a table's row, a
+     * chart's point. Such a part has no box of its own to reveal and no {@code paintOutset()} of
+     * its own to grow by, so <b>the rectangle is taken as given</b>, and a caller that draws
+     * outside it passes the larger rectangle rather than relying on an inflation this method
+     * cannot know the size of. Added for decision 81 of 2026-09-17, where a reader's
+     * {@code SCROLL_INTO_VIEW} on a day cell had to move the scroll view the calendar sits in and
+     * the whole-widget reveal would have scrolled the calendar's own edge into view instead.
+     *
+     * @param rectX      the rectangle's left, in this widget's coordinates
+     * @param rectY      the rectangle's top, in this widget's coordinates
+     * @param rectWidth  its width
+     * @param rectHeight its height
+     */
+    public final void revealInView(float rectX, float rectY, float rectWidth, float rectHeight) {
         for (Widget ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
             if (ancestor instanceof Scrollable scrollable) {
-                float rectX = 0;
-                float rectY = 0;
+                float left = rectX;
+                float top = rectY;
                 for (Widget w = this; w != ancestor; w = w.parent) {
-                    rectX += w.x;
-                    rectY += w.y;
+                    left += w.x;
+                    top += w.y;
                 }
-                // Points, not a scale factor: the walk above sums offsets only, so one
-                // inflation is correct in every ancestor's coordinates.
-                scrollable.revealRect(rectX - outset, rectY - outset,
-                        width + 2 * outset, height + 2 * outset);
+                scrollable.revealRect(left, top, rectWidth, rectHeight);
             }
         }
     }
