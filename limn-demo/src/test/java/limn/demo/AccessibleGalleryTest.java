@@ -1,7 +1,6 @@
 package limn.demo;
 
 import limn.accessibility.Accessible;
-import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.components.Theme;
 import limn.concurrent.Ui;
@@ -19,6 +18,7 @@ import limn.graphics.TextRulers;
 import limn.i18n.I18n;
 import limn.scene.ControlSize;
 import limn.scene.Scene;
+import limn.testing.AccessibleInvariants;
 import limn.testing.RepositoryRoot;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -213,66 +213,15 @@ class AccessibleGalleryTest {
     }
 
     /**
-     * The four invariants over one published tree; each violation names the node and the rule.
+     * The four invariants over one published tree (ADR 039 §12.1), held here to the same rules
+     * the per-shape contracts in {@code limn-toolkit}'s fixtures hold a single widget to.
      *
      * @param window the window the tree belongs to, for the message
      * @param tree   what the scene published
      * @return the violations, empty when the tree holds
      */
     static List<String> violations(String window, AccessibleTree tree) {
-        List<String> out = new ArrayList<>();
-        if (tree.nodeCount() == 0) {
-            out.add("window \"" + window + "\" published no tree at all");
-            return out;
-        }
-        Map<Long, Integer> byId = new HashMap<>();
-        for (int i = 0; i < tree.nodeCount(); i++) {
-            AccessibleNode node = tree.node(i);
-            String where = "window \"" + window + "\", node " + describe(node);
-            if (node.role() == Accessible.Role.UNKNOWN) {
-                out.add(where + ": has role UNKNOWN");
-            }
-            if (node.has(Accessible.State.FOCUSABLE) && node.name().isBlank()) {
-                out.add(where + ": is focusable and has no name");
-            }
-            Integer earlier = byId.put(node.id(), i);
-            if (earlier != null) {
-                out.add(where + ": shares its id with node " + describe(tree.node(earlier)));
-            }
-            if (node.has(Accessible.State.SHOWING)) {
-                if (node.width() <= 0 || node.height() <= 0) {
-                    out.add(where + ": is showing with an empty box");
-                } else if (!overlaps(node.x(), node.y(), node.width(), node.height(),
-                        0, 0, tree.sceneWidth(), tree.sceneHeight())) {
-                    out.add(where + ": is showing and lies wholly outside the scene ("
-                            + tree.sceneWidth() + "x" + tree.sceneHeight() + ")");
-                } else {
-                    for (int up = node.parent(); up != AccessibleNode.NONE;
-                         up = tree.node(up).parent()) {
-                        AccessibleNode ancestor = tree.node(up);
-                        if (ancestor.has(Accessible.State.SHOWING)
-                                && ancestor.width() > 0 && ancestor.height() > 0
-                                && !overlaps(node.x(), node.y(), node.width(), node.height(),
-                                ancestor.x(), ancestor.y(), ancestor.width(),
-                                ancestor.height())) {
-                            out.add(where + ": is showing and lies wholly outside its showing "
-                                    + "ancestor " + describe(ancestor));
-                        }
-                    }
-                }
-            }
-        }
-        return out;
-    }
-
-    private static boolean overlaps(float x, float y, float w, float h,
-                                    float ox, float oy, float ow, float oh) {
-        return x < ox + ow && ox < x + w && y < oy + oh && oy < y + h;
-    }
-
-    private static String describe(AccessibleNode node) {
-        return "#" + node.id() + " " + node.role() + " \"" + node.name() + "\" box=("
-                + node.x() + ", " + node.y() + ", " + node.width() + "x" + node.height() + ")";
+        return AccessibleInvariants.violations(window, tree);
     }
 
     // ------------------------------------------------------------------------ completeness

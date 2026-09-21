@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.testing.StubWindow;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;

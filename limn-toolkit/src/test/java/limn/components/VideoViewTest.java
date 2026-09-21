@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.testing.StubWindow;
 import limn.graphics.Color;
 import limn.scene.Constraints;
 import limn.scene.Insets;

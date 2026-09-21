@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.testing.StubWindow;
 import limn.graphics.Paint;
 import limn.graphics.RoundRect;
 import limn.input.Keys;

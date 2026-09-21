@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.testing.StubWindow;
 import limn.backend.Backend;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;

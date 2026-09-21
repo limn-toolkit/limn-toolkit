@@ -1,4 +1,4 @@
-package limn.components;
+package limn.testing;
 
 import limn.backend.AccessibilityBridge;
 import limn.backend.Backend;
@@ -23,10 +23,10 @@ import java.util.List;
  * {@code AssertionError} naming that says so where a {@code NullPointerException} three frames
  * down would not.
  */
-class StubWindow implements NativeWindow {
+public class StubWindow implements NativeWindow {
 
     /** Frames the scene has asked for: what an idle scene must stop adding to. */
-    int framesRequested;
+    public int framesRequested;
 
     private final boolean canPosition;
 
@@ -37,19 +37,19 @@ class StubWindow implements NativeWindow {
      * publishes scene-local boxes plus the window's own origin and scale, and no headless test
      * could assert a real screen rectangle against two constants. Settable, so one can.
      */
-    int screenX;
-    int screenY;
-    float logicalToScreenFactor = 1;
+    public int screenX;
+    public int screenY;
+    public float logicalToScreenFactor = 1;
 
     /**
      * The bridge this window hands its scene. {@link AccessibilityBridge#NONE} unless a test sets
      * one, which is the answer that keeps every other component test free of the accessible walk:
      * with no bridge the scene never runs it.
      */
-    AccessibilityBridge accessibility = AccessibilityBridge.NONE;
+    public AccessibilityBridge accessibility = AccessibilityBridge.NONE;
 
     /** A window on a platform that places windows where it is told, which is most of them. */
-    StubWindow() {
+    public StubWindow() {
         this(true);
     }
 
@@ -58,7 +58,7 @@ class StubWindow implements NativeWindow {
      *                    reproduces Wayland, where nothing outside a window can be lined up
      *                    with anything inside it
      */
-    StubWindow(boolean canPosition) {
+    public StubWindow(boolean canPosition) {
         this.canPosition = canPosition;
     }
 
@@ -109,10 +109,10 @@ class StubWindow implements NativeWindow {
     @Override public void exitFullscreen() { }
     @Override public boolean isFullscreen() { return false; }
     /** Whether this window claims to be an active modal, as a dialog's own native window is. */
-    boolean modal;
+    public boolean modal;
 
     /** Whether this window claims a native modal is open over it, as a dialog's owner does. */
-    boolean modalBlocked;
+    public boolean modalBlocked;
 
     @Override public boolean isModalBlocked() { return modalBlocked; }
     @Override public boolean isModal() { return modal; }

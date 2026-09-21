@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.testing.StubWindow;
 import limn.testing.HeadlessUi;
 
 import limn.concurrent.Ui;

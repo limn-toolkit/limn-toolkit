@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.testing.StubWindow;
 import limn.scene.Change;
 import limn.input.Keys;
 import limn.scene.Scene;

@@ -172,7 +172,42 @@ else, which a `grep` for `moveCursor` and the row verbs proves when phase 3 clos
 
 ## 4. Decision: a contract per shape, in the test fixtures
 
-*Filled in as phases 2 and 4 close.*
+A contract is a list of named cases over a *subject*: the widget built fresh, bound headlessly,
+read through the tree the scene published, driven through the verbs a platform would send, and
+asked through its own API what the tree cannot say. It lives in `limn-toolkit`'s test fixtures
+(`limn.testing.a11y`) and carries no test framework: a case (`ContractCase`) is a name and a body
+that throws `AssertionError` with the tree in the message, and a widget's contract test is one
+`@TestFactory` method turning the list into dynamic tests (`ContractTests`, in the toolkit's
+tests). The mechanics — a stub window handing out a recording bridge, a frozen clock, a verb
+performed from a thread that is not the UI thread — are `AccessibleComponentTestBase`'s, moved
+into the fixtures as `AccessibleHarness` (and `StubWindow` with it, which twenty-five tests now
+import), so that a contract can run over a widget from any module and, one day, from an
+application's own widget of a known shape.
+
+**`RowsContract`** (phase 2) holds a `RowsSubject` to ten cases: the members of one selection,
+named in order; the four invariants of ADR 039 §12.1 (`AccessibleInvariants`, moved out of the
+gallery test so that the gallery and the contracts hold a tree to the same rules), unfocused and
+focused; decisions 10, 11, 20, 79, 80 and 81, one case each, named after the decision; a row
+keeps its id while the selection and the cursor move; and the cursor is published only while
+the widget has the keyboard. The three things a subject answers are the shape's variants (§3):
+whether the cursor is the selection or separate from it, how rows beyond the box are reached,
+and whether there is a multiple selection to enter. `ListView` (cursor is the selection, single,
+scrolls itself) and `Tree` (cursor separate, multiple, rows that open, scrolls itself) run it:
+twenty dynamic tests, green at the first run once the subjects were named and boxed. The widgets
+already held every rule, which is what phases 3 and 4 rely on.
+
+Two things the contract settled that the plan had not named. **A member may classify as `GRID`**:
+a calendar's day cell carries a selection membership *and* a cell facet, so the rules of
+decisions 79 to 81 that `CalendarView` wrote with `moveCursor` are the selection's, not the row
+role's, and the rows helper of §3 serves a grid's selectable cells as it serves a table's rows.
+**Two gaps are refused, not passed over:** containerless members (a plain group of
+`RadioButton`s, whose members carry a membership and whose group carries no selection facet, by
+the builder's own `containerlessSelectionItem`) fail the contract with a message naming the gap
+until a case is written for them; and "what a node accepts is exactly what it publishes" is not
+a case, because `VerbPolicyRatchetTest` already holds the other half (nothing unpublished moves)
+and this half cannot be held without knowing which published verb is a legitimate no-op.
+
+*The other shapes' contracts are phase 6's.*
 
 ## 5. Decision: one adapter per shape in each bridge, and the exceptions stay declared
 
@@ -196,7 +231,7 @@ reasons, which lived in the test, stays. ADR 039 gains one paragraph pointing he
 |---|---|---|
 | 0 | The floor above, and the dump | 2026-09-21 |
 | 1 | `Shape.of`, `ShapeTest`, `ShapeCoverageTest`: every gallery node classifies; the tables of §1 | 2026-09-21 |
-| 2 | A contract per shape in `testFixtures` | — |
+| 2 | `AccessibleHarness`, `AccessibleInvariants`, `RowsContract` with ten cases; `ListView` and `Tree` under it, twenty dynamic tests | 2026-09-21 |
 | 3 | The `ROWS` helper; `Tree`, `Table`, `ListView`, `CalendarView`, then `ComboBox`, `TabbedPane`, `SegmentedControl`; dump identical | — |
 | 4 | Each `ROWS` widget on the contract; its test shrunk to what is its own | — |
 | 5 | One adapter per shape in each bridge; the 151 reads counted again | — |

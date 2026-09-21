@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.testing.StubWindow;
 import limn.components.date.CalendarView;
 import limn.components.date.DateField;
 import limn.components.date.DatePicker;

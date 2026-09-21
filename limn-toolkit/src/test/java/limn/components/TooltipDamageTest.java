@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.testing.StubWindow;
 import limn.concurrent.UiRuntime;
 import limn.graphics.TextRuler;
 import limn.scene.Scene;
