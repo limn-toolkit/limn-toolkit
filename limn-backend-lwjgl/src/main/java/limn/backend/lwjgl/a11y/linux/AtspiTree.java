@@ -912,9 +912,8 @@ final class AtspiTree {
      * title, which this toolkit already publishes from the same bar's selection facet.
      */
     private static long statesOf(AccessibleNode node) {
-        if (AtspiRoles.isMenuRow(node.role())) {
-            return AtspiStates.setOf(s -> s != Accessible.State.EXPANDABLE
-                    && s != Accessible.State.EXPANDED && node.has(s));
+        if (AtspiMenuShape.isMenuRow(node)) {
+            return AtspiMenuShape.states(node); // ADR 039 §4.2's exception, under its shape
         }
         return AtspiStates.setOf(node::has);
     }
@@ -1754,23 +1753,9 @@ final class AtspiTree {
         if (node.actions() == null) {
             return out;
         }
-        boolean menuRow = AtspiRoles.isMenuRow(node.role());
         for (Accessible.Action verb : Accessible.Action.values()) {
-            if (menuRow && verb == Accessible.Action.EXPAND) {
-                // The same exception, on the action list (decision 82 of 2026-09-17): a native
-                // GTK 3 menu node publishes actions=['click'] and nothing else, so a title that
-                // offered an expand verb would hand an Orca user something no menu on that
-                // desktop has. EXPAND is the one that costs nothing to drop — the widget calls it
-                // "a synonym of SHOW_MENU" and publishes both on a closed title, so the route
-                // stays open under the name a menu really uses.
-                //
-                // COLLAPSE stays, and that is deliberate rather than an oversight: an OPEN title
-                // publishes COLLAPSE alone, so removing it would leave a menu a Linux reader can
-                // open and cannot close — while a native title can always be clicked shut. The
-                // remaining divergence is therefore the verb's NAME, "show menu" and "collapse"
-                // against the native "click", which is measured and left open in ADR 039 §4.2
-                // beside the role.
-                continue;
+            if (AtspiMenuShape.dropsVerb(node, verb)) {
+                continue; // the same exception, on the action list (AtspiMenuShape)
             }
             if (verb.isParameterless() && node.accepts(verb)) {
                 out.add(verb);
