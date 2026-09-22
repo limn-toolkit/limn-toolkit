@@ -151,7 +151,7 @@ LGPL-2.1-or-later이고, 동적으로 링크되어 교체할 수 있으며, 라�
 public static void main(String[] args) {
     try (Backend backend = new LwjglBackend()) {
         NativeWindow window = backend.createWindow(
-                new WindowConfig("Hello, Limn", 480, 320, true, true));
+                WindowConfig.of("Hello, Limn", 480, 320));
 
         Column column = new Column();
         column.gap(12);

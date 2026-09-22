@@ -66,7 +66,7 @@ final class GlInfo {
         try (backend) {
             GraphicsInfo info;
             try {
-                backend.createWindow(new WindowConfig("Limn: graphics info", 1, 1, false, false));
+                backend.createWindow(WindowConfig.of("Limn: graphics info", 1, 1).visible(false).resizable(false));
                 info = backend.graphicsInfo();
             } catch (RuntimeException error) {
                 // With no window, graphicsInfo() answers "no window has been created

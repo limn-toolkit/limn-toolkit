@@ -142,10 +142,9 @@ final class CubeGadget {
 
     /** Builds the overlay window, sizes it to the full display, raises it above the chrome, shows it. */
     private static Overlay spawnOverlay(Backend backend, int count) {
-        NativeWindow window = backend.createWindow(new WindowConfig(
-                "Limn Cubes", 400, 300, false, false,
-                false /* undecorated */, true /* always on top */,
-                true /* transparent framebuffer */, false /* no focus steal */));
+        NativeWindow window = backend.createWindow(WindowConfig.of("Limn Cubes", 400, 300)
+                .visible(false).resizable(false).decorated(false).floating(true)
+                .transparent(true).focusOnShow(false));
         // Cover the WHOLE display (full bounds, not the work area) and float
         // above the OS chrome so the cubes can fly over the menu bar and Dock.
         // Transparent regions still show that chrome through (the overlay is
@@ -181,10 +180,9 @@ final class CubeGadget {
      * picks the face.
      */
     private static void shot(Backend backend, String shotFile) {
-        NativeWindow window = backend.createWindow(new WindowConfig(
-                "Limn Cube", SIZE, SIZE, false, false,
-                false /* undecorated */, true /* always on top */,
-                true /* transparent framebuffer */, false /* no focus steal */));
+        NativeWindow window = backend.createWindow(WindowConfig.of("Limn Cube", SIZE, SIZE)
+                .visible(false).resizable(false).decorated(false).floating(true)
+                .transparent(true).focusOnShow(false));
 
         Viewport3D viewport = new Viewport3D();
         viewport.camera().eye(new Vec3(0, 0, 3.1f)).target(Vec3.ZERO);

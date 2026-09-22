@@ -82,7 +82,7 @@ public final class LiveProbe {
 
         try (Backend backend = new LwjglBackend()) {
             NativeWindow window = backend.createWindow(
-                    new WindowConfig("Limn accessibility probe", 480, 320, true, true));
+                    WindowConfig.of("Limn accessibility probe", 480, 320));
 
             // The two seams an application needs and this bridge was the first to ask for: the
             // window's own handle to attach a provider to, and somewhere to put the bridge that

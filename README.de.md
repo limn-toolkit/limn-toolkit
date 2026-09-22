@@ -156,7 +156,7 @@ austauschbar und führt seinen Lizenztext in dem Jar mit, das ihn enthält.
 public static void main(String[] args) {
     try (Backend backend = new LwjglBackend()) {
         NativeWindow window = backend.createWindow(
-                new WindowConfig("Hello, Limn", 480, 320, true, true));
+                WindowConfig.of("Hello, Limn", 480, 320));
 
         Column column = new Column();
         column.gap(12);

@@ -530,8 +530,8 @@ public final class PopupMenu {
         int h = Math.max(1, (int) Math.ceil(box[3] - box[1]));
         surface.setRenderOffset(box[0], box[1]);
 
-        popupWindow = parentWindow.backend().createWindow(new WindowConfig(
-                "menu", w, h, false, false, false, true, true, true)); // undecorated, floating, transparent, focus-stealing
+        popupWindow = parentWindow.backend().createWindow(WindowConfig.of("menu", w, h).visible(false).resizable(false)
+                .decorated(false).floating(true).transparent(true)); // and it takes the focus: the menu owns the keys
         parentWindow.registerChildPopup(popupWindow);
         // The owner's clock as well as its rendering flags: this scene owns the fade-out that
         // destroys the window, and a fade on the wall clock under an opener on an injected one

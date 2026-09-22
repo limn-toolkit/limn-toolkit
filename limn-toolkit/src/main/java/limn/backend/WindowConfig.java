@@ -4,28 +4,21 @@ import java.util.Objects;
 import limn.lang.Checks;
 
 /**
- * Initial configuration for a {@link NativeWindow}.
+ * Initial configuration for a {@link NativeWindow}: start from {@link #of}, then change what differs
+ * from a plain window with a wither.
  *
- * @param title       title bar text
- * @param width       initial width in logical points
- * @param height      initial height in logical points
- * @param visible     {@code false} for offscreen/screenshot rendering or
- *                    windows positioned before {@link NativeWindow#show()}
- * @param resizable   whether the user may resize the window
- * @param decorated   native title bar/border ({@code false} for popups)
- * @param floating    always-on-top (popups, tooltips)
- * @param transparent transparent framebuffer: pixels with alpha &lt; 1
- *                    composite over whatever is behind the window (rounded
- *                    popup corners, translucent panels)
- * @param focusOnShow whether {@link NativeWindow#show()} steals input focus
- *                    ({@code false} keeps focus in the parent: combo popups)
- * @param screenX     initial x in native screen coordinates, or
- *                    {@link #ANY_POSITION} to let the desktop place it
- * @param screenY     initial y, or {@link #ANY_POSITION}; see {@link #on(Display)}
+ * <pre>{@code
+ * backend.createWindow(WindowConfig.of("Hello, Limn", 480, 320));
+ * backend.createWindow(WindowConfig.of("Tools", 300, 500).resizable(false).floating(true));
+ * }</pre>
+ *
+ * <p>A class and not a record (ADR 046 §6): a record's canonical constructor is public, so every option
+ * added to it broke every caller that listed the options by position, and six of the eleven were
+ * booleans a reader could not tell apart. A new option is a new wither here, and no caller changes.
+ *
+ * <p>Immutable: every wither returns a copy.
  */
-public record WindowConfig(String title, int width, int height, boolean visible, boolean resizable,
-                           boolean decorated, boolean floating, boolean transparent,
-                           boolean focusOnShow, int screenX, int screenY) {
+public final class WindowConfig {
 
     /**
      * {@link #screenX()}/{@link #screenY()} meaning <em>wherever the desktop would put it</em>,
@@ -33,55 +26,170 @@ public record WindowConfig(String title, int width, int height, boolean visible,
      */
     public static final int ANY_POSITION = Integer.MIN_VALUE;
 
-    public WindowConfig {
-        Objects.requireNonNull(title, "title");
+    private final String title;
+    private final int width;
+    private final int height;
+    private final boolean visible;
+    private final boolean resizable;
+    private final boolean decorated;
+    private final boolean floating;
+    private final boolean transparent;
+    private final boolean focusOnShow;
+    private final int screenX;
+    private final int screenY;
+
+    private WindowConfig(String title, int width, int height, boolean visible, boolean resizable,
+                         boolean decorated, boolean floating, boolean transparent,
+                         boolean focusOnShow, int screenX, int screenY) {
+        this.title = Objects.requireNonNull(title, "title");
         Checks.positiveSize(width, height, "window size");
-    }
-
-    /** The form without a position: the desktop places it. */
-    public WindowConfig(String title, int width, int height, boolean visible, boolean resizable,
-                        boolean decorated, boolean floating, boolean transparent,
-                        boolean focusOnShow) {
-        this(title, width, height, visible, resizable, decorated, floating, transparent,
-                focusOnShow, ANY_POSITION, ANY_POSITION);
-    }
-
-    /** Regular window (decorated, focus on show, opaque). */
-    public WindowConfig(String title, int width, int height, boolean visible, boolean resizable) {
-        this(title, width, height, visible, resizable, true, false, false, true);
-    }
-
-    /** Visible, resizable, decorated window. The common case. */
-    public static WindowConfig of(String title, int width, int height) {
-        return new WindowConfig(title, width, height, true, true);
+        this.width = width;
+        this.height = height;
+        this.visible = visible;
+        this.resizable = resizable;
+        this.decorated = decorated;
+        this.floating = floating;
+        this.transparent = transparent;
+        this.focusOnShow = focusOnShow;
+        this.screenX = screenX;
+        this.screenY = screenY;
     }
 
     /**
-     * Undecorated, floating, transparent, non-focus-stealing window, created
-     * hidden so it can be positioned before {@link NativeWindow#show()}:
-     * the shape of a combo/menu popup.
+     * A plain window: visible, resizable, decorated, opaque, taking the focus when shown, wherever
+     * the desktop puts it. The common case, and where every other one starts.
+     *
+     * @param title  title bar text
+     * @param width  initial width in logical points
+     * @param height initial height in logical points
+     * @return the configuration
+     */
+    public static WindowConfig of(String title, int width, int height) {
+        return new WindowConfig(title, width, height, true, true, true, false, false, true,
+                ANY_POSITION, ANY_POSITION);
+    }
+
+    /**
+     * Undecorated, floating, transparent, non-focus-stealing window, created hidden so it can be
+     * positioned before {@link NativeWindow#show()}: the shape of a combo/menu popup.
      */
     public static WindowConfig popup(int width, int height) {
-        return new WindowConfig("popup", width, height, false, false, false, true, true, false);
+        return of("popup", width, height).visible(false).resizable(false).decorated(false)
+                .floating(true).transparent(true).focusOnShow(false);
     }
 
     /**
      * A styled window created hidden (position, then {@link NativeWindow#show()}).
      *
      * @param style       decoration/translucency (see {@link WindowStyle})
-     * @param floating     always-on-top
-     * @param focusOnShow  whether showing it steals input focus
+     * @param floating    always-on-top
+     * @param focusOnShow whether showing it steals input focus
      */
     public static WindowConfig styled(String title, int width, int height, WindowStyle style,
                                       boolean floating, boolean focusOnShow) {
-        return new WindowConfig(title, width, height, false, false,
-                style.decorated(), floating, style.transparent(), focusOnShow);
+        return of(title, width, height).visible(false).resizable(false)
+                .decorated(style.decorated()).floating(floating).transparent(style.transparent())
+                .focusOnShow(focusOnShow);
     }
 
-    /** A copy that starts shown or hidden. */
-    public WindowConfig withVisible(boolean newVisible) {
-        return new WindowConfig(title, width, height, newVisible, resizable,
-                decorated, floating, transparent, focusOnShow, screenX, screenY);
+    /** @return title bar text */
+    public String title() {
+        return title;
+    }
+
+    /** @return initial width in logical points */
+    public int width() {
+        return width;
+    }
+
+    /** @return initial height in logical points */
+    public int height() {
+        return height;
+    }
+
+    /**
+     * @return whether the window starts shown; {@code false} for offscreen or screenshot rendering and
+     *         for a window positioned before {@link NativeWindow#show()}
+     */
+    public boolean visible() {
+        return visible;
+    }
+
+    /** @return whether the user may resize the window */
+    public boolean resizable() {
+        return resizable;
+    }
+
+    /** @return whether the window has the native title bar and border ({@code false} for popups) */
+    public boolean decorated() {
+        return decorated;
+    }
+
+    /** @return whether the window stays above others (popups, tooltips) */
+    public boolean floating() {
+        return floating;
+    }
+
+    /**
+     * @return whether the framebuffer is transparent: pixels with alpha &lt; 1 composite over whatever
+     *         is behind the window (rounded popup corners, translucent panels)
+     */
+    public boolean transparent() {
+        return transparent;
+    }
+
+    /**
+     * @return whether {@link NativeWindow#show()} takes the input focus ({@code false} keeps it in the
+     *         parent: combo popups)
+     */
+    public boolean focusOnShow() {
+        return focusOnShow;
+    }
+
+    /** @return initial x in native screen coordinates, or {@link #ANY_POSITION} */
+    public int screenX() {
+        return screenX;
+    }
+
+    /** @return initial y in native screen coordinates, or {@link #ANY_POSITION} */
+    public int screenY() {
+        return screenY;
+    }
+
+    /** @return a copy that starts shown or hidden */
+    public WindowConfig visible(boolean newVisible) {
+        return new WindowConfig(title, width, height, newVisible, resizable, decorated, floating,
+                transparent, focusOnShow, screenX, screenY);
+    }
+
+    /** @return a copy the user may, or may not, resize */
+    public WindowConfig resizable(boolean newResizable) {
+        return new WindowConfig(title, width, height, visible, newResizable, decorated, floating,
+                transparent, focusOnShow, screenX, screenY);
+    }
+
+    /** @return a copy with, or without, the native title bar and border */
+    public WindowConfig decorated(boolean newDecorated) {
+        return new WindowConfig(title, width, height, visible, resizable, newDecorated, floating,
+                transparent, focusOnShow, screenX, screenY);
+    }
+
+    /** @return a copy that stays, or does not stay, above other windows */
+    public WindowConfig floating(boolean newFloating) {
+        return new WindowConfig(title, width, height, visible, resizable, decorated, newFloating,
+                transparent, focusOnShow, screenX, screenY);
+    }
+
+    /** @return a copy with a transparent, or opaque, framebuffer */
+    public WindowConfig transparent(boolean newTransparent) {
+        return new WindowConfig(title, width, height, visible, resizable, decorated, floating,
+                newTransparent, focusOnShow, screenX, screenY);
+    }
+
+    /** @return a copy that does, or does not, take the input focus when shown */
+    public WindowConfig focusOnShow(boolean newFocusOnShow) {
+        return new WindowConfig(title, width, height, visible, resizable, decorated, floating,
+                transparent, newFocusOnShow, screenX, screenY);
     }
 
     /**
@@ -105,8 +213,8 @@ public record WindowConfig(String title, int width, int height, boolean visible,
      * @return a copy carrying the position
      */
     public WindowConfig at(int x, int y) {
-        return new WindowConfig(title, width, height, visible, resizable,
-                decorated, floating, transparent, focusOnShow, x, y);
+        return new WindowConfig(title, width, height, visible, resizable, decorated, floating,
+                transparent, focusOnShow, x, y);
     }
 
     /**
@@ -128,5 +236,29 @@ public record WindowConfig(String title, int width, int height, boolean visible,
         }
         ScreenRect area = display.workArea();
         return at(area.x(), area.y());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof WindowConfig c && c.width == width && c.height == height
+                && c.visible == visible && c.resizable == resizable && c.decorated == decorated
+                && c.floating == floating && c.transparent == transparent
+                && c.focusOnShow == focusOnShow && c.screenX == screenX && c.screenY == screenY
+                && c.title.equals(title);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(title, width, height, visible, resizable, decorated, floating,
+                transparent, focusOnShow, screenX, screenY);
+    }
+
+    @Override
+    public String toString() {
+        return "WindowConfig[" + title + ", " + width + "x" + height + (visible ? "" : ", hidden")
+                + (resizable ? "" : ", fixed") + (decorated ? "" : ", undecorated")
+                + (floating ? ", floating" : "") + (transparent ? ", transparent" : "")
+                + (focusOnShow ? "" : ", no focus") + (screenX == ANY_POSITION ? "" : ", at "
+                + screenX + "," + screenY) + "]";
     }
 }

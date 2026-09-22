@@ -149,8 +149,8 @@ public final class Main {
         }
 
         try (Backend backend = new LwjglBackend()) {
-            NativeWindow window = backend.createWindow(new WindowConfig(
-                    "Limn UI: Kitchen Sink", LOGICAL_WIDTH, LOGICAL_HEIGHT, !screenshotMode, true));
+            NativeWindow window = backend.createWindow(WindowConfig.of(
+                    "Limn UI: Kitchen Sink", LOGICAL_WIDTH, LOGICAL_HEIGHT).visible(!screenshotMode));
 
             float monitorScale = window.contentScale();
             if (options.scale() > 0) {

@@ -381,9 +381,9 @@ final class VideoScene {
         Scene scene = new Scene(pane);
         scene.setBackground(limn.graphics.Color.BLACK);
         int[] box = windowBox(view, parent);
-        NativeWindow window = parent.backend().createWindow(new WindowConfig(
-                file.getFileName().toString(), box[0], box[1],
-                false /* shown below, after binding */, true /* resizable, the point of this */));
+        NativeWindow window = parent.backend().createWindow(WindowConfig.of(
+                file.getFileName().toString(), box[0], box[1])
+                .visible(false) /* shown below, after binding; resizable, the point of this */);
         // A picture has an aspect ratio but no minimum; this one is the transport's, below which
         // the bar and the button overlap each other rather than the window refusing to shrink.
         window.setSizeLimits(240, 135, -1, -1);

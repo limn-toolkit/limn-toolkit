@@ -61,7 +61,7 @@ class DisplayTypesTest {
         // Every factory, including the nine-part form the popups use.
         assertEquals(WindowConfig.ANY_POSITION, WindowConfig.popup(10, 10).screenX());
         assertEquals(WindowConfig.ANY_POSITION,
-                new WindowConfig("w", 1, 1, false, false, false, true, true, false).screenX());
+                WindowConfig.popup(1, 1).screenX());
     }
 
     @Test
@@ -74,8 +74,8 @@ class DisplayTypesTest {
         assertEquals(-771, on.screenY());
         // A copy keeps it: withVisible is how a popup is built, and losing the display there
         // would put the window back wherever the desktop likes.
-        assertEquals(-2560, on.withVisible(false).screenX());
-        assertEquals(-771, on.withVisible(false).screenY());
+        assertEquals(-2560, on.visible(false).screenX());
+        assertEquals(-771, on.visible(false).screenY());
         assertEquals(7, on.at(7, 9).screenX(), "at() overrides");
     }
 

@@ -224,7 +224,7 @@ public final class Gallery {
             // to one scale, and the run is comparable with the run before it.
             Display display = backend.primaryDisplay();
             NativeWindow probe = backend.createWindow(
-                    new WindowConfig("Limn UI: gallery", CANVAS_WIDTH, CANVAS_HEIGHT, false, true)
+                    WindowConfig.of("Limn UI: gallery", CANVAS_WIDTH, CANVAS_HEIGHT).visible(false)
                             .on(display));
             // Size each window so its framebuffer is exactly canvas × SCALE device pixels,
             // whatever that monitor's own scale is; otherwise the same command produces a
@@ -239,8 +239,8 @@ public final class Gallery {
             // canvas is a whole application window, and resizing between the two sets is
             // the race this design exists to avoid. Both windows are created up front and
             // the loop runs until both close.
-            NativeWindow big = backend.createWindow(new WindowConfig(
-                    "Limn UI: showcase", SHOWCASE_WIDTH, SHOWCASE_HEIGHT, false, true)
+            NativeWindow big = backend.createWindow(WindowConfig.of(
+                    "Limn UI: showcase", SHOWCASE_WIDTH, SHOWCASE_HEIGHT).visible(false)
                             .on(display));
             big.setSize(Math.round(SHOWCASE_WIDTH * SCALE / big.contentScale()),
                     Math.round(SHOWCASE_HEIGHT * SCALE / big.contentScale()));

@@ -128,7 +128,7 @@ final class Bench {
 
         try (Backend backend = new LwjglBackend()) {
             NativeWindow window = backend.createWindow(
-                    new WindowConfig("LimnBench", 1100, 800, true, true));
+                    WindowConfig.of("LimnBench", 1100, 800));
             applyAccessibilityMode(System.getProperty(ACCESSIBILITY_PROPERTY),
                     window::accessibility, window::setAccessibility);
 

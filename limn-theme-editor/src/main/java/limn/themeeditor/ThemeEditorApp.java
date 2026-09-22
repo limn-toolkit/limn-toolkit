@@ -67,7 +67,7 @@ public final class ThemeEditorApp {
         // of every platform, and a JVM that does not know the flag refuses to start.
         try (Backend backend = new LwjglBackend()) {
             NativeWindow window = backend.createWindow(
-                    new WindowConfig("Limn theme editor", 1180, 860, true, true));
+                    WindowConfig.of("Limn theme editor", 1180, 860));
 
             ThemeEditor editor = new ThemeEditor(start);
             // In scene, not in a window of its own. The picker recolours the screen behind it

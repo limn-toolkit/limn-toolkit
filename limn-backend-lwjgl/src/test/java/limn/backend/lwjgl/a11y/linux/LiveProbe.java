@@ -41,7 +41,7 @@ public final class LiveProbe {
     public static void main(String[] args) {
         try (Backend backend = new LwjglBackend()) {
             NativeWindow window = backend.createWindow(
-                    new WindowConfig("Limn accessibility probe", 480, 560, true, true));
+                    WindowConfig.of("Limn accessibility probe", 480, 560));
 
             // Opened by the backend, not by this probe: the bridges ship with it now, so what runs
             // here is the path an application takes rather than a shortcut only a probe knows.
