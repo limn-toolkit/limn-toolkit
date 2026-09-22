@@ -391,7 +391,7 @@ the paragraph that says so; the design note's "Adding a widget" is rewritten aro
 | 7 | The design note's pipeline rewritten around shapes; §6 applied; the record stayed PROPOSED until phases 5 and 8 | 2026-09-22 |
 | 8 | One reader round per platform over the six scripted entries, the branch's jar (93bfc172) against the floor's (48051d19) in the same reader session: Orca 50.2 on Fedora 44 (11 runs), NVDA 2024.4.2 on Windows 11 (8 valid runs by their foreground log), VoiceOver on macOS 26.6 (16 runs, two repeats where a first comparison differed). Nothing a reader hears changed; what differs from the 16–17 Sep references is in §8 as older than this record. Readings under `.claude/pending/2026-09-13/readings/phase8-*/` | 2026-09-22 |
 | 9 | The measure beside the floor (§0), the worked example of the next widget's price (§0), the backlog (§8), memory | 2026-09-22 |
-| 10 | Batch 26 over §8's backlog: `MENU` and `GRID` written once with their contracts (98, 99); synthetic children narrowed by a scroll pane (100); `AxShapesTest` (101); a reader's write marks a popup day and does not commit (102); the table's step 9 read off the probe and left for a decision (103); the Orca anchor row bisected to 252de3de and the reference moved (104); a range says single (105); the popup panel's second selection gone (106); `RadioButton` and the chooser cells on the helpers, the contract covering containerless members (107). Heard again where decision 92 asks: date-picker on macOS (VoiceOver walks the popup and picks 17 October as on 16 Sep), calendar on the three platforms (identical to a same-session control each). `readings/phase10-{macos,fedora,windows}/` | 2026-09-22 |
+| 10 | Batch 26 over §8's backlog: `MENU` and `GRID` written once with their contracts (98, 99); synthetic children narrowed by a scroll pane (100); `AxShapesTest` (101); a reader's write marks a popup day and does not commit (102); the table's step 9 read off the probe and left for a decision (103); the Orca anchor row bisected to 252de3de and the reference moved (104); a range says single (105); the popup panel's second selection gone (106); `RadioButton` and the chooser cells on the helpers, the contract covering containerless members (107). Heard again where decision 92 asks: date-picker on macOS (VoiceOver walks the popup and picks 17 October as on 16 Sep), calendar on the three platforms (identical to a same-session control each) and on the X11 path, Ubuntu 24.04 GNOME on Xorg with Orca 46.1 (identical to the floor jar once the floor's own first-run variance is measured). `readings/phase10-{macos,fedora,windows,ubuntu}/` | 2026-09-22 |
 
 ## 8. What this found, what phase 10 took, and what stays
 
@@ -457,10 +457,12 @@ Still open:
   had to be built around: the members it mapped by name are another month's after such a pick.
 - On macOS, VoiceOver's selection writes still drag the tree-loading cursor back to
   "Documents 2" (defect f9bf3d6f), at the floor and on the branch.
-- Two lab facts, not toolkit facts: the Fedora x11 path opens no window with either jar, and
-  the owner's reading is that X on Fedora is not a path at all (the Ubuntu guest is the X11
-  lab, once resumed and given the key); and the first run after unlocking the macOS guest is
-  cold (no AX observer registers, VoiceOver phrases differently) and is to be thrown away.
+- Three lab facts, not toolkit facts: the Fedora x11 path opens no window with either jar and
+  X on Fedora is not a path at all, so the X11 lab is the Ubuntu guest (GNOME on Xorg), where
+  the calendar script was heard identical to the floor in phase 10; the first run after
+  unlocking the macOS guest is cold (no AX observer registers, VoiceOver phrases differently)
+  and is to be thrown away; and Ubuntu's update notifier raises a Software Updater window that
+  Orca reads into every run until it is closed.
 - Orca's silent anchor row at the table script's step 11 (§7, phase 10): see the bisect there.
 
 ## 9. Dependencies
