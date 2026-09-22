@@ -2640,4 +2640,69 @@ class TreeTest extends ComponentTestBase {
         scene.inputBatchEnded();
         scene.layoutPass(220, 200);
     }
+
+    /**
+     * Decision 115 (PF-3): opening or closing a row replaces that row's block and asks the model
+     * about nothing else. Until 2026-09-22 every toggle re-flattened the whole outline, asking the
+     * model for the children of every open row: 22–25 ms and 22.7 MB at 101,000 rows, and opening
+     * 1,000 roots from code was quadratic (1.4 s, 4.3 GB).
+     */
+    @Test
+    void openingOrClosingARowAsksTheModelAboutThatRowsBlockAlone() {
+        List<Node> roots = new ArrayList<>();
+        for (int r = 0; r < 200; r++) {
+            roots.add(Node.of("root" + r, Node.leaf("a" + r), Node.leaf("b" + r), Node.leaf("c" + r)));
+        }
+        CountingModel model = new CountingModel(roots);
+        Tree<Node> tree = mount(model);
+        for (Node root : roots) {
+            tree.expand(root);
+        }
+        assertEquals(800, tree.visibleRowCount());
+        model.childrenAsked.clear();
+
+        tree.collapse(roots.get(100));
+        tree.expand(roots.get(100));
+        scene.layoutPass(220, 200);
+        scene.renderFrame(canvas);
+        assertTrue(model.childrenAsked.size() <= 12,
+                "a toggle reads its own block, not the 200 open rows around it: " + model.childrenAsked);
+        assertEquals(800, tree.visibleRowCount(), "and the outline is whole again");
+
+        tree.collapse(roots.get(0));
+        assertEquals(797, tree.visibleRowCount(), "a close takes exactly the block beneath its row");
+        tree.expand(roots.get(0));
+        assertEquals(800, tree.visibleRowCount());
+    }
+
+    /**
+     * Decision 115 (PF-3): the vertical bar jumps to the row its offset estimates, as Table and
+     * ListView do, instead of scrolling by the difference, which walked and measured — built a
+     * cell for — every row it passed: a thumb dragged to the end of 100,000 rows took 1.4–2.3 s.
+     */
+    @Test
+    void theThumbJumpsToItsRowWithoutBuildingACellForEveryRowItPasses() {
+        List<Node> roots = new ArrayList<>();
+        for (int r = 0; r < 5000; r++) {
+            roots.add(Node.leaf("leaf" + r));
+        }
+        CountingModel model = new CountingModel(roots);
+        Tree<Node> tree = mount(model);
+        ScrollBar vertical = null;
+        for (Widget child : tree.children()) {
+            if (child instanceof ScrollBar bar && bar.height() > bar.width()) {
+                vertical = bar;
+            }
+        }
+        assertTrue(vertical != null, "the tree's vertical bar");
+        model.cellsBuilt.clear();
+
+        assertTrue(vertical.onAccessibilityAction(limn.accessibility.Accessible.Action.SET_VALUE,
+                new limn.accessibility.Accessible.Argument.OfValue(Float.MAX_VALUE)));
+        scene.layoutPass(220, 200);
+        scene.renderFrame(canvas);
+        assertTrue(model.cellsBuilt.size() < 60,
+                "only the rows now in view are built, not the 5,000 passed: " + model.cellsBuilt.size());
+        assertTrue(drawn(tree).contains("leaf4999"), "and the last row is on screen: " + drawn(tree));
+    }
 }

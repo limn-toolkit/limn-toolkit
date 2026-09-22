@@ -237,8 +237,6 @@ public class Tree<T> extends Widget implements Scrollable {
          * item to a reader.
          */
         final boolean placeholder;
-        /** Where this row stands among the rows that are nodes, from one; zero for the line. */
-        final int item;
         /**
          * Where this row stands among its parent's children, from one, and how many of those
          * there are: the "2 of 5" a reader speaks, which counts siblings and not the outline
@@ -248,14 +246,13 @@ public class Tree<T> extends Widget implements Scrollable {
         final int siblings;
 
         Row(T node, int depth, boolean expandable, boolean expanded, boolean loading,
-                boolean placeholder, int item, int position, int siblings) {
+                boolean placeholder, int position, int siblings) {
             this.node = node;
             this.depth = depth;
             this.expandable = expandable;
             this.expanded = expanded;
             this.loading = loading;
             this.placeholder = placeholder;
-            this.item = item;
             this.position = position;
             this.siblings = siblings;
         }
@@ -402,6 +399,17 @@ public class Tree<T> extends Widget implements Scrollable {
     /** How many of {@link #rows} are nodes, which is every row but the loading lines. */
     private int itemCount;
     /**
+     * The nodes that are rows now, kept with {@link #rows} through every splice (decision 115): the
+     * uniqueness rule checks an inserted block against it, and a revealed path is dropped by it,
+     * where both used to walk every row on every open and close.
+     */
+    private final Set<T> rowNodes = new HashSet<>();
+    /** How many rows sit at each depth, so {@link #maxDepth} survives a splice without a walk. */
+    private int[] depthCounts = new int[8];
+    /** The indexes of the loading and empty lines in {@link #rows}, ascending; a line is rare. */
+    private int[] lineIndexes = new int[4];
+    private int lineCount;
+    /**
      * How far round the loading spinners are, in turns. One phase for every loading row, so that
      * two rows loading at once turn together rather than drifting apart.
      */
@@ -485,7 +493,7 @@ public class Tree<T> extends Widget implements Scrollable {
 
             @Override
             public void setOffset(float value) {
-                scrollBy(value - estimatedOffset(tokens()));
+                scrollToOffset(value, tokens());
             }
         });
         add(vBar);
@@ -592,9 +600,9 @@ public class Tree<T> extends Widget implements Scrollable {
         toggled = node;
         T wasCursor = cursor;
         if (!open) {
-            recordPaths(); // the rows about to be hidden, and where they stand
+            recordPathsUnder(node); // the rows about to be hidden, and where they stand
         }
-        rebuildRows();
+        respliceSubtree(node);
         forgetRevealedPaths();
         if (!open && cursor != null && indexOf(cursor) < 0) {
             // The collapse hid the row the cursor was on: the cursor climbs to the row that
@@ -650,7 +658,7 @@ public class Tree<T> extends Widget implements Scrollable {
                     } else {
                         announceLoaded(node, children.size());
                     }
-                    rebuildRows();
+                    respliceSubtree(node);
                     forgetRevealedPaths();
                     // What a refresh could not confirm under this row is verified now that the
                     // children are known, and dropped one announcement later if gone.
@@ -794,26 +802,133 @@ public class Tree<T> extends Widget implements Scrollable {
     private void rebuildRows() {
         rows.clear();
         itemCount = 0;
+        rowNodes.clear();
+        Arrays.fill(depthCounts, 0);
+        lineCount = 0;
         List<T> roots = model.roots();
         for (int i = 0; i < roots.size(); i++) {
-            appendRow(roots.get(i), 0, i + 1, roots.size());
+            appendRow(rows, roots.get(i), 0, i + 1, roots.size());
         }
-        // Here rather than in the layout: the deepest row is what decides how wide the content
-        // is, and the only thing that moves it is what is open, which is decided here.
-        int deepest = 0;
-        Set<T> seen = new HashSet<>(rows.size() * 2);
-        for (Row<T> row : rows) {
-            deepest = Math.max(deepest, row.depth);
-            if (!row.placeholder && !seen.add(row.node)) {
-                // Fail fast, and by name: two equal nodes in two places would share a selection,
-                // an expansion and one accessible identity, and every one of those would be
-                // wrong quietly (decision 15 of 2026-09-14; ADR 044 §2).
-                throw new IllegalStateException("a node must be unique within a tree, and "
-                        + row.node + " is visible in two places: give such nodes path identity");
+        for (int i = 0; i < rows.size(); i++) {
+            count(rows.get(i), i);
+        }
+        maxDepth = deepestCounted();
+        followMountedNodes();
+    }
+
+    /**
+     * Replaces the block of rows a node heads — the node's own row and every row beneath it — with
+     * what the model and the open set say now (decision 115, PF-3). Opening, closing and a load
+     * landing change that block and nothing else, so nothing else is walked: the rows before and
+     * after it keep their objects and their places, only shifted.
+     *
+     * <p>Measured before, on 2026-09-22: every one of those re-flattened the whole outline, 22–25
+     * ms and 22.7 MB at 101,000 visible rows, and opening 1,000 roots from code took 1.4 s and 4.3
+     * GB, quadratic.
+     *
+     * @return whether the node is a row; a node under a closed row moves no row, and nothing is done
+     */
+    private boolean respliceSubtree(T node) {
+        int at = indexOf(node);
+        if (at < 0) {
+            return false;
+        }
+        Row<T> head = rows.get(at);
+        int end = at + 1;
+        while (end < rows.size() && rows.get(end).depth > head.depth) {
+            end++;
+        }
+        for (int i = at; i < end; i++) {
+            uncount(rows.get(i));
+        }
+        List<Row<T>> block = new ArrayList<>();
+        appendRow(block, node, head.depth, head.position, head.siblings);
+        int removed = end - at;
+        int delta = block.size() - removed;
+        // The lines: those inside the old block leave, those after it shift by the difference.
+        int kept = 0;
+        for (int k = 0; k < lineCount; k++) {
+            int line = lineIndexes[k];
+            if (line >= at && line < end) {
+                continue;
+            }
+            lineIndexes[kept++] = line >= end ? line + delta : line;
+        }
+        lineCount = kept;
+        List<Row<T>> old = rows.subList(at, end);
+        old.clear();
+        rows.addAll(at, block);
+        for (int j = 0; j < block.size(); j++) {
+            count(block.get(j), at + j);
+        }
+        java.util.Arrays.sort(lineIndexes, 0, lineCount);
+        maxDepth = deepestCounted();
+        followMountedNodes();
+        return true;
+    }
+
+    /** Books one row that now stands at {@code index}: its depth, its node, or its line. */
+    private void count(Row<T> row, int index) {
+        if (row.depth >= depthCounts.length) {
+            depthCounts = Arrays.copyOf(depthCounts, Math.max(row.depth + 1, depthCounts.length * 2));
+        }
+        depthCounts[row.depth]++;
+        if (row.placeholder) {
+            if (lineCount == lineIndexes.length) {
+                lineIndexes = Arrays.copyOf(lineIndexes, lineCount * 2);
+            }
+            lineIndexes[lineCount++] = index;
+            return;
+        }
+        itemCount++;
+        if (!rowNodes.add(row.node)) {
+            // Fail fast, and by name: two equal nodes in two places would share a selection,
+            // an expansion and one accessible identity, and every one of those would be
+            // wrong quietly (decision 15 of 2026-09-14; ADR 044 §2).
+            throw new IllegalStateException("a node must be unique within a tree, and "
+                    + row.node + " is visible in two places: give such nodes path identity");
+        }
+    }
+
+    /** Takes one row that is leaving out of the books; its line index is the caller's to drop. */
+    private void uncount(Row<T> row) {
+        depthCounts[row.depth]--;
+        if (!row.placeholder) {
+            itemCount--;
+            rowNodes.remove(row.node);
+        }
+    }
+
+    /**
+     * Here rather than in the layout: the deepest row is what decides how wide the content is, and
+     * the only thing that moves it is what is open.
+     */
+    private int deepestCounted() {
+        for (int d = depthCounts.length - 1; d > 0; d--) {
+            if (depthCounts[d] > 0) {
+                return d;
             }
         }
-        maxDepth = deepest;
-        followMountedNodes();
+        return 0;
+    }
+
+    /**
+     * Where the row at {@code index} stands among the rows that are nodes, from one: its index
+     * less the lines before it. Read off the index rather than kept on the row, so that a splice
+     * does not have to rebuild every row after it to renumber them.
+     */
+    private int itemOf(int index) {
+        int lo = 0;
+        int hi = lineCount;
+        while (lo < hi) {
+            int mid = (lo + hi) >>> 1;
+            if (lineIndexes[mid] < index) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return index + 1 - lo;
     }
 
     /**
@@ -876,7 +991,7 @@ public class Tree<T> extends Widget implements Scrollable {
      * @param position where {@code node} stands among its parent's children, from one
      * @param siblings how many children that parent has, {@code node} included
      */
-    private void appendRow(T node, int depth, int position, int siblings) {
+    private void appendRow(List<Row<T>> out, T node, int depth, int position, int siblings) {
         boolean leaf = model.isLeaf(node);
         boolean open = expanded.contains(node);
         if (open && !leaf) {
@@ -888,7 +1003,7 @@ public class Tree<T> extends Widget implements Scrollable {
             startLoadIfNeeded(node);
         }
         boolean busy = loading.containsKey(node);
-        rows.add(new Row<>(node, depth, !leaf, open, busy, false, ++itemCount, position, siblings));
+        out.add(new Row<>(node, depth, !leaf, open, busy, false, position, siblings));
         if (!open || leaf) {
             return;
         }
@@ -899,11 +1014,11 @@ public class Tree<T> extends Widget implements Scrollable {
             // which reads as a node with nothing in it (ADR 044 §2); once a load has found
             // nothing, or for a branch the model calls a non-leaf over an empty list, the row
             // stays an open branch and the line says it is empty (decision 45 of 2026-09-14).
-            rows.add(new Row<>(node, depth + 1, false, false, busy, true, 0, 0, 0));
+            out.add(new Row<>(node, depth + 1, false, false, busy, true, 0, 0));
             return;
         }
         for (int i = 0; i < children.size(); i++) {
-            appendRow(children.get(i), depth + 1, i + 1, children.size());
+            appendRow(out, children.get(i), depth + 1, i + 1, children.size());
         }
     }
 
@@ -1389,18 +1504,6 @@ public class Tree<T> extends Widget implements Scrollable {
 
     // ------------------------------------------------------- what outlives a hidden row
 
-    /** Row index by node, for the rows that are nodes; built once per pass that needs it. */
-    private Map<T, Integer> rowIndexByNode() {
-        Map<T, Integer> at = new HashMap<>(rows.size() * 2);
-        for (int i = 0; i < rows.size(); i++) {
-            Row<T> row = rows.get(i);
-            if (!row.placeholder) {
-                at.put(row.node, i);
-            }
-        }
-        return at;
-    }
-
     /**
      * Records, for every selected, expanded or cursor node that is a row now, the path it sits
      * at: called before a collapse or a refresh takes rows away, so what is hidden can later be
@@ -1435,13 +1538,54 @@ public class Tree<T> extends Widget implements Scrollable {
         }
     }
 
+    /**
+     * {@link #recordPaths} for the rows a collapse is about to hide: the node's own block, with the
+     * chain of its ancestors read backwards from its row, rather than every row of the outline
+     * (decision 115).
+     */
+    private void recordPathsUnder(T node) {
+        if (selected.isEmpty() && expanded.isEmpty() && cursor == null) {
+            return;
+        }
+        int at = indexOf(node);
+        if (at < 0) {
+            return;
+        }
+        Row<T> head = rows.get(at);
+        List<T> chain = new ArrayList<>(java.util.Collections.nCopies(head.depth, (T) null));
+        int need = head.depth - 1;
+        for (int i = at - 1; i >= 0 && need >= 0; i--) {
+            Row<T> row = rows.get(i);
+            if (!row.placeholder && row.depth == need) {
+                chain.set(need, row.node);
+                need--;
+            }
+        }
+        for (int i = at; i < rows.size(); i++) {
+            Row<T> row = rows.get(i);
+            if (i > at && row.depth <= head.depth) {
+                break;
+            }
+            if (row.placeholder) {
+                continue;
+            }
+            while (chain.size() > row.depth) {
+                chain.remove(chain.size() - 1);
+            }
+            chain.add(row.node);
+            T n = row.node;
+            if (n.equals(cursor) || selected.contains(n) || expanded.contains(n)) {
+                hiddenPaths.put(n, new ArrayList<>(chain));
+            }
+        }
+    }
+
     /** Forgets the path of every node that is a row again: a row is its own confirmation. */
     private void forgetRevealedPaths() {
         if (hiddenPaths.isEmpty()) {
             return;
         }
-        Map<T, Integer> at = rowIndexByNode();
-        hiddenPaths.keySet().removeIf(at::containsKey);
+        hiddenPaths.keySet().removeIf(rowNodes::contains);
     }
 
     /** What verifying a hidden node's path against the model found. */
@@ -1519,8 +1663,7 @@ public class Tree<T> extends Widget implements Scrollable {
         if (ids.isEmpty()) {
             return;
         }
-        Map<T, Integer> at = rowIndexByNode();
-        ids.keySet().removeIf(node -> !at.containsKey(node) && !selected.contains(node)
+        ids.keySet().removeIf(node -> !rowNodes.contains(node) && !selected.contains(node)
                 && !expanded.contains(node) && !node.equals(cursor));
     }
 
@@ -2082,6 +2225,25 @@ public class Tree<T> extends Widget implements Scrollable {
             Widget cell = mountedCells[i];
             moveChild(cell, cell.x(), cell.y() - applied);
         }
+        markNeedsContainedLayout();
+        invalidate();
+        vBar.onScrolled();
+    }
+
+    /**
+     * The vertical bar's model writing the offset: the user dragging or paging the bar. It jumps to
+     * the row the estimate puts there, as Table and ListView do, rather than scrolling by the
+     * difference (decision 115): a scroll walks and measures every row it passes, which made a
+     * thumb dragged to the end of 100,000 rows take 1.4–2.3 s where the table took 7–10 ms.
+     */
+    private void scrollToOffset(float offset, SizeTokens t) {
+        revealPending = null;
+        float avg = avgRowHeight(t);
+        float max = Math.max(0, estimatedContentHeight(t) - viewportHeight());
+        float clamped = Math.max(0, Math.min(offset, max));
+        anchorIndex = avg > 0 ? (int) (clamped / avg) : 0;
+        anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, rows.size() - 1)));
+        anchorTop = anchorIndex * avg - clamped;
         markNeedsContainedLayout();
         invalidate();
         vBar.onScrolled();
@@ -2971,7 +3133,7 @@ public class Tree<T> extends Widget implements Scrollable {
         }
         // The depth and the flat row index (ADR 039 §1.2, amended 2026-09-14): what a reader
         // speaks as "level 2" and what the macOS outline addresses its rows by.
-        a.hierarchy(row.depth + 1, row.item, itemCount);
+        a.hierarchy(row.depth + 1, itemOf(mountedRows[slot]), itemCount);
         if (row.loading) {
             // What the spinner and the loading line say to a sighted user: this row is open and
             // what it holds has not arrived. Without it an open row with no children reads to a
