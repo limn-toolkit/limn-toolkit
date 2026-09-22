@@ -101,6 +101,12 @@ export const zhHant: Catalog = {
   "home.features.forms.link": "閱讀表單指南",
   "home.features.forms.caption": "標籤、驗證、一個選項與動作列。",
 
+  "home.features.data.heading": "表格、樹與日期，已經做好",
+  "home.features.data.body":
+    "表格是架在你的應用自己持有的清單上的具型別欄位，由工具包或你的伺服器排序，還有一列會加總的表尾。樹是架在你提供的子節點上的大綱，一列可以在說出子節點名字之前先承諾它們存在。日期欄位以讀者自己的曆法輸入一個 ISO 日期，日期選擇器則在它後面打開一個月份格線。",
+  "home.features.data.link": "閱讀清單指南",
+  "home.features.data.caption": "一個視窗裡的表格、樹、日期欄位與日期選擇器。",
+
   "home.features.media.heading": "影片與 3D 同樣是元件",
   "home.features.media.body":
     "基於物理的 3D 視埠與影片播放器，像一般元件那樣參與合成：捲動視圖會裁切它們，堆疊會畫在它們上面，它們參與版面的方式和一個標籤沒有兩樣。",

@@ -183,6 +183,20 @@ menus, boîtes de dialogue, panneaux divisés, un sélecteur de couleur, des gra
 courbes et en anneau, et une liste virtualisée où un million de lignes coûte autant que vingt.
 Chacun lit sa couleur, sa forme et sa densité dans le thème.
 
+**Tableaux, arbres et dates, déjà construits.** Un tableau, ce sont des colonnes typées sur la
+liste que possède votre application, triée par le toolkit ou par votre serveur, avec un pied qui
+additionne ; un arbre est un plan sur des enfants que vous fournissez, et une ligne peut promettre
+des enfants avant de pouvoir les nommer ; un champ de date saisit une date ISO dans le calendrier
+et le format du lecteur lui-même, et un sélecteur de date ouvre une grille du mois derrière lui.
+Les lecteurs d’écran des trois plateformes lisent les trois.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-data-dark.webp">
+    <img src="media/readme/showcase-data-light.webp" alt="Un tableau, un arbre, un champ de date et un sélecteur de date dans une fenêtre Limn" width="900">
+  </picture>
+</p>
+
 **Une mise en page qui tient dans la tête.** Quatre widgets et un marqueur : une colonne empile,
 une rangée répartit, une pile superpose, la marge intérieure retrait, et `Expanded` désigne qui
 prend l’espace restant. Aucun solveur de contraintes à configurer, aucun gestionnaire de mise en

@@ -104,6 +104,12 @@ export const de: Catalog = {
   "home.features.forms.link": "Formular-Anleitung lesen",
   "home.features.forms.caption": "Beschriftungen, Validierung, eine Auswahl und die Aktionszeile.",
 
+  "home.features.data.heading": "Tabellen, Bäume und Datumsangaben, schon gebaut",
+  "home.features.data.body":
+    "Eine Tabelle sind typisierte Spalten über der Liste, die Ihre Anwendung besitzt, sortiert vom Toolkit oder von Ihrem Server, mit einer Fußzeile, die summiert. Ein Baum ist eine Gliederung über Kindern, die Sie liefern, und eine Zeile darf Kinder versprechen, bevor sie sie benennen kann. Ein Datumsfeld tippt ein ISO-Datum im Kalender des Lesers selbst, und ein Datumswähler öffnet dahinter ein Monatsraster.",
+  "home.features.data.link": "Listen-Anleitung lesen",
+  "home.features.data.caption": "Eine Tabelle, ein Baum, ein Datumsfeld und ein Datumswähler in einem Fenster.",
+
   "home.features.media.heading": "Video und 3D sind auch nur Widgets",
   "home.features.media.body":
     "Ein physikalisch basierter 3D-Viewport und ein Videoplayer, zusammengesetzt wie gewöhnliche Widgets: eine Scroll-Ansicht beschneidet sie, ein Stapel zeichnet darüber, und sie nehmen am Layout teil wie eine Beschriftung.",

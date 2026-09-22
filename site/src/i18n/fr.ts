@@ -104,6 +104,12 @@ export const fr: Catalog = {
   "home.features.forms.link": "Lire le guide des formulaires",
   "home.features.forms.caption": "Libellés, validation, un choix et la rangée d’actions.",
 
+  "home.features.data.heading": "Tableaux, arbres et dates, déjà construits",
+  "home.features.data.body":
+    "Un tableau, ce sont des colonnes typées sur la liste que possède votre application, triée par le toolkit ou par votre serveur, avec un pied qui additionne. Un arbre est un plan sur des enfants que vous fournissez, et une ligne peut promettre des enfants avant de pouvoir les nommer. Un champ de date saisit une date ISO dans le calendrier du lecteur lui-même, et un sélecteur de date ouvre une grille du mois derrière lui.",
+  "home.features.data.link": "Lire le guide des listes",
+  "home.features.data.caption": "Un tableau, un arbre, un champ de date et un sélecteur de date dans une fenêtre.",
+
   "home.features.media.heading": "La vidéo et la 3D sont aussi des widgets",
   "home.features.media.body":
     "Une vue 3D à matériaux physiquement réalistes et un lecteur vidéo, composés comme des widgets ordinaires : une vue défilante les rogne, une pile dessine par-dessus, et ils participent à la mise en page comme un libellé.",

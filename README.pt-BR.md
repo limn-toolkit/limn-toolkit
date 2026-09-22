@@ -180,6 +180,20 @@ diálogos, painéis divididos, um seletor de cor, gráficos de barra, linha e ro
 virtualizada em que um milhão de linhas custa o mesmo que vinte. Cada um deles lê a cor, a forma e a
 densidade do tema.
 
+**Tabelas, árvores e datas, já prontas.** Uma tabela é colunas tipadas sobre a lista que a sua
+aplicação possui, ordenada pelo toolkit ou pelo seu servidor, com um rodapé que soma; uma árvore é
+uma estrutura em tópicos sobre os filhos que você fornece, e uma linha pode prometer filhos antes
+de conseguir nomeá-los; um campo de data digita uma data ISO no calendário e no formato do próprio
+leitor, e um seletor de data abre uma grade de mês atrás dele. Os leitores de tela das três
+plataformas leem os três.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-data-dark.webp">
+    <img src="media/readme/showcase-data-light.webp" alt="Uma tabela, uma árvore, um campo de data e um seletor de data em uma janela Limn" width="900">
+  </picture>
+</p>
+
 **Um layout que cabe na cabeça.** Quatro widgets e um marcador: uma coluna empilha, uma linha
 distribui, uma pilha sobrepõe, o padding recua e o `Expanded` diz quem fica com o espaço que sobrou.
 Não há solver de restrições para configurar nem layout manager para instalar.

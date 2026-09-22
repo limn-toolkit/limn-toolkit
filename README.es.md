@@ -180,6 +180,20 @@ menús, diálogos, paneles divididos, un selector de color, gráficos de barras,
 anillo, y una lista virtualizada donde un millón de filas cuesta lo mismo que veinte. Cada uno lee
 su color, su forma y su densidad del tema.
 
+**Tablas, árboles y fechas, ya construidos.** Una tabla son columnas tipadas sobre la lista que
+posee tu aplicación, ordenada por el toolkit o por tu servidor, con un pie que suma; un árbol es
+un esquema sobre los hijos que tú proporcionas, y una fila puede prometer hijos antes de poder
+nombrarlos; un campo de fecha escribe una fecha ISO en el calendario y el formato del propio
+lector, y un selector de fecha abre una cuadrícula del mes detrás de él. Los lectores de pantalla
+de las tres plataformas leen los tres.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-data-dark.webp">
+    <img src="media/readme/showcase-data-light.webp" alt="Una tabla, un árbol, un campo de fecha y un selector de fecha en una ventana de Limn" width="900">
+  </picture>
+</p>
+
 **Una disposición que cabe en la cabeza.** Cuatro widgets y un marcador: una columna apila, una
 fila reparte, una pila superpone, el relleno separa y `Expanded` dice quién se queda con el espacio
 sobrante. No hay solucionador de restricciones que configurar ni gestor de disposición que

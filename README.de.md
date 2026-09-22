@@ -181,6 +181,20 @@ Menüs, Dialoge, geteilte Bereiche, ein Farbwähler, Balken-, Linien- und Ringdi
 virtualisierte Liste, in der eine Million Zeilen so viel kostet wie zwanzig. Jede davon liest
 Farbe, Form und Dichte aus dem Design.
 
+**Tabellen, Bäume und Datumsangaben, schon gebaut.** Eine Tabelle sind typisierte Spalten über der
+Liste, die Ihre Anwendung besitzt, sortiert vom Toolkit oder von Ihrem Server, mit einer Fußzeile,
+die summiert; ein Baum ist eine Gliederung über Kindern, die Sie liefern, und eine Zeile darf
+Kinder versprechen, bevor sie sie benennen kann; ein Datumsfeld tippt ein ISO-Datum im Kalender
+und Format des Lesers selbst, und ein Datumswähler öffnet dahinter ein Monatsraster. Screenreader
+auf den drei Plattformen lesen alle drei.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-data-dark.webp">
+    <img src="media/readme/showcase-data-light.webp" alt="Eine Tabelle, ein Baum, ein Datumsfeld und ein Datumswähler in einem Limn-Fenster" width="900">
+  </picture>
+</p>
+
 **Layout, das in den Kopf passt.** Vier Widgets und ein Marker: eine Spalte stapelt, eine Zeile
 verteilt, ein Stapel überlagert, Padding rückt ein, und `Expanded` sagt, wer den übrigen Platz
 bekommt. Es gibt keinen Constraint-Solver zu konfigurieren und keinen Layout-Manager zu

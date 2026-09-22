@@ -102,6 +102,12 @@ export const ja: Catalog = {
   "home.features.forms.link": "フォームガイドを読む",
   "home.features.forms.caption": "ラベル、検証、選択、そしてアクション行。",
 
+  "home.features.data.heading": "テーブルも、ツリーも、日付も、作ってあります",
+  "home.features.data.body":
+    "テーブルは、アプリケーションが持つリストの上に置く型付きの列で、ツールキットかあなたのサーバーが並べ替え、フッターが合計します。ツリーは、あなたが渡す子要素の上に置くアウトラインで、行は子の名前を挙げられる前から子がいると約束できます。日付フィールドは読み手自身の暦で ISO の日付を入力し、日付ピッカーはその後ろに月のグリッドを開きます。",
+  "home.features.data.link": "リストガイドを読む",
+  "home.features.data.caption": "1 つのウィンドウに並んだテーブル、ツリー、日付フィールド、日付ピッカー。",
+
   "home.features.media.heading": "動画も 3D もウィジェット",
   "home.features.media.body":
     "物理ベースの 3D ビューポートと動画プレーヤーが、普通のウィジェットとして合成されます。スクロールビューが切り取り、スタックが上に描き、ラベルと同じようにレイアウトに参加します。",

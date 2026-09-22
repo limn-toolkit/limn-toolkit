@@ -430,7 +430,7 @@ Taken:
   (`GridAccessibility.describeCell`); their `SELECT` is a descent and stays the calendar's own
   verb, outside the rows shape, until the chooser is measured (decision 85).
 
-Explained, and left for a decision:
+Explained, and decided on 2026-09-22 (decisions 110 and 112):
 
 - **The table's step 9 on macOS** (`SPACE` adds a row where the 16 Sep reference removed one;
   decision 103, read off the phase-8 probe logs). Two hundred milliseconds after the focus
@@ -444,7 +444,12 @@ Explained, and left for a decision:
   when it arrives within about 300 ms of a focus change (a heuristic to measure on the guest);
   stop offering `setAccessibilitySelectedRows` on a table whose cells take the focus and keep
   `AXSelected` on the rows (to measure); or leave it, since the toolkit did what the client
-  asked.
+  asked. **Decided 2026-09-22 (decision 112), after a write trace named the route:** the write is
+  `setAccessibilitySelected:` on a row, not the container's setter (decision 110 removed that one,
+  changed nothing, and was reverted), and the macOS bridge now refuses a select on another row of
+  the container within a second of the application's own change — ADR 039 §2.2's amendment and
+  §4.2's Exception 3. Heard: step 9 no longer adds a row, and the tree-loading drag-back below is
+  gone (`readings/d112-macos/summary.txt`).
 
 Still open:
 
@@ -455,8 +460,9 @@ Still open:
 - Picking a leading or trailing day pages the calendar to that day's month, which is documented
   and tested (`pickingALeadingOrTrailingDayPagesTheGrid`) and which the contract's subject
   had to be built around: the members it mapped by name are another month's after such a pick.
-- On macOS, VoiceOver's selection writes still drag the tree-loading cursor back to
-  "Documents 2" (defect f9bf3d6f), at the floor and on the branch.
+- ~~On macOS, VoiceOver's selection writes still drag the tree-loading cursor back to
+  "Documents 2" (defect f9bf3d6f), at the floor and on the branch.~~ Closed by decision 112: 13
+  stale writes refused per run, none accepted, every row read in order.
 - Three lab facts, not toolkit facts: the Fedora x11 path opens no window with either jar and
   X on Fedora is not a path at all, so the X11 lab is the Ubuntu guest (GNOME on Xorg), where
   the calendar script was heard identical to the floor in phase 10; the first run after

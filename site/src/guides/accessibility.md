@@ -45,13 +45,10 @@ instead. The toolkit publishes all three everywhere; a screen that only works if
 spoken works for one reader's users, so where a row's place in its set carries meaning, put it in
 what the row draws as well.
 
-<!-- phase-5: the caret is the half of this section still unheard. The four guest runs of
-     2026-09-16 drive a tree, a table, a calendar, two date presentations and an announcement, and
-     none of them drives a text field: the gallery's form entry is not one of the six `--reader`
-     scripts, and Orca logged zero keyboard events in every run because the driver posts keys into
-     the scene rather than through the stack its key listener reads. A seventh script over a text
-     field, or a driver that posts through the platform's own input stack, would answer what a
-     reader says about a caret move and about reading a field by character. -->
+One thing has been driven under no reader yet: a text field. The scripts above move through
+lists, tables, trees, a calendar, two date presentations and an announcement, so what a reader says
+about a caret move, or when reading a field character by character, is what the platform mappings
+promise and not yet what anyone heard.
 
 The names are the same `I18nString`s the interface draws, so a screen reader speaks your
 application in the language it is displayed in. The word for each *role* — "button", "check
@@ -140,20 +137,15 @@ Orca follows the cursor across and speaks the day standing under it, "9 de setem
 hoje." VoiceOver does the same on macOS, speaking "popup, janela, 9 de setembro de 2026, hoje,
 célula" for a window that is not the active one and then reading the arrow keys through the grid.
 On Windows the field keeps the keyboard and the focused element is the popup's day, exactly as
-described, but the reader half of that run is blocked by a defect of ours: with NVDA attached,
-closing the native popup hangs the demo, where the same run without a reader and the in-scene
-presentation with one both finish.
+described: NVDA announces the popup as "popup, janela" and then the calendar and the day the cursor
+stands on, "17 de outubro de 2026, item de dados, selecionado", follows the arrow keys through the
+grid and the month chooser, and on the way out says the field's group and its day segment again.
+(Until 2026-09-22 closing that popup with NVDA attached crashed the demo, a defect of the Windows
+bridge's teardown and not of the picker; it is fixed, and that run is the one quoted here.)
 
 Where the platform has no second window the picker draws in the scene instead, and there the
 question does not arise: a Wayland session gets the in-scene presentation, and the same run forced
 through XWayland gets the real popup window and the crossing above.
-
-<!-- phase-5: the Windows half is the one still unheard, and it is blocked rather than unmeasured:
-     with NVDA attached the native popup's close hangs the demo (P5W-3; reader-date-picker-1..2
-     stop at step 5 against the control picker-noreader-1, which finishes all eleven). Re-run
-     `--reader date-picker` in the native presentation on the Windows guest once that is fixed, and
-     say here what NVDA speaks on the way in and on the way out. -->
-
 A list publishes its true row count and the rows it has realized, which is what makes a
 million-row list cost what twenty do under a screen reader as well as on screen. The row the
 keyboard is in stays realized even when a scroll takes it off screen, so a reader standing on it

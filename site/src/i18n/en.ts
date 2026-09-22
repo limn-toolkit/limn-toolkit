@@ -83,6 +83,12 @@ export const en = {
   "home.features.forms.link": "Read the forms guide",
   "home.features.forms.caption": "Captions, validation, a choice and the actions row.",
 
+  "home.features.data.heading": "Tables, trees and dates, already built",
+  "home.features.data.body":
+    "A table is typed columns over the list your application owns, sorted by the toolkit or by your server, with a footer that sums. A tree is an outline over children you provide, and a row may promise children before it can name them. A date field types an ISO date in the reader's own calendar, and a date picker opens a month grid behind it.",
+  "home.features.data.link": "Read the lists guide",
+  "home.features.data.caption": "A table, a tree, a date field and a date picker in one window.",
+
   "home.features.media.heading": "Video and 3D are widgets too",
   "home.features.media.body":
     "A physically-based 3D viewport and a video player, composited as ordinary widgets: a scroll view clips them, a stack draws over them, and they take part in layout like a label does.",

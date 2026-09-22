@@ -178,8 +178,11 @@ Everything else is drawn as authored, so a brand mark can never come back flippe
 
 The numbers the toolkit itself renders — a spinner's value, a chart's axis and tooltip
 labels, the media player's clock — take the locale's digits at the moment they are
-formatted. Under Arabic a spinner shows `٤٢` and its editor accepts Arabic-Indic
-keystrokes; under Hebrew the digits stay Latin, because that is how Hebrew writes numbers;
+formatted, and which digits a locale takes is CLDR's answer, checked against CLDR in the
+build. Arabic as written in Egypt (`ar-EG`) and the twenty-two other regions that use them
+gets `٤٢`, and a spinner's editor accepts Arabic-Indic keystrokes there; plain `ar`, and Arabic
+everywhere else, writes Latin digits, as native applications do; Persian takes its own extended
+set, and Hebrew stays Latin, because that is how Hebrew writes numbers.
 `I18n.setNumberingSystem(…)` overrides the choice for a deployment that wants the other
 convention. Your own strings are never rewritten — a part number keeps exactly the
 characters you authored — and the same seam is public for your own formatting:
@@ -199,6 +202,28 @@ on purpose rather than by accident. When the content is not in the interface's l
 an English interface listing Swedish names must still put ä after z —
 `I18n.setTextLocale(…)` declares the language the text is in, and order and case follow it
 instead.
+
+## A count in a sentence
+
+"12 files loaded" is one sentence in English and three in Russian, where 21 takes the form 1
+takes, 22 the form 2 takes, and 11 neither — and six in Arabic. `PluralString` is the counted
+sibling of `I18nString`: one declaration carries the key and the two forms English has, and the
+form is chosen when the count is known.
+
+{% snippet guide:plural %}
+
+The count is the **last** argument, after whatever you passed, so a translator writes the
+sentence in the order the language wants it and your own arguments keep their numbers. It is
+inserted already written the way the interface's language writes numbers — `1,000,000` in
+English, `1.000.000` in Portuguese, `١٬٠٠٠٬٠٠٠` in Arabic — the same formatting `NumberFormats`
+gives a table's numeric column.
+
+In the catalog a counted key gains one suffix per form the language uses: `demo.guide.loaded.one`
+and `.other` for English, `.one`, `.few` and `.many` for Russian, six for Arabic. A language
+declares exactly the forms it has (`PluralRules.integerCategories`), a form a catalog leaves out
+falls back to that language's `other` and then to the English declared in code, and the
+toolkit's own catalogs are checked against CLDR so a language never carries a form it does not
+use. The tree's "*folder*, 12 items" announcement is one of these.
 
 ## If you draw text yourself
 

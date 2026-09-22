@@ -178,12 +178,8 @@ unprompted — "20 de 30" — Orca speaks it only where its own `speak-position-
 turned on, and VoiceOver does not speak it at all. [Accessibility](/docs/accessibility/) has the
 rest of what the three readers do and do not say.
 
-<!-- phase-5: two halves of this section are still unheard. The era in a year segment: no
-     `--reader` script puts a Japanese-calendar field in front of a reader, so "令和8" has been read
-     by a client and by nobody's ears — a script over an era field on any guest would answer it.
-     And the native popup under NVDA: closing it with a reader attached hangs the demo (P5W-3), so
-     on Windows the native presentation has been heard only as far as the close, while the in-scene
-     one runs to the end. -->
+One segment has been read by a client and by nobody's ears: the era of a Japanese-calendar
+year, "令和8", which no `--reader` script puts in front of a reader yet.
 
 Reading right to left, the grid mirrors and the field does not. A grid is columns in reading order,
 so the first day of the week moves to the edge reading starts from and Left and Right swap with it.

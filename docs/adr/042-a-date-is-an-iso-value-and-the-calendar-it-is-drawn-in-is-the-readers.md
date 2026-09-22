@@ -695,6 +695,18 @@ repository since the fourth split. (**Corrected 2026-09-14, DT4:** the bridges l
 `limn-backend-lwjgl` since 03fd728 of 2026-09-06, three days before this record; the sentence
 was written against the split it reversed.)
 
+**Amended 2026-09-22 (decision 108): the native popup under NVDA.** What §8's live runs of 2026-09-16
+left as "heard only as far as the close" was a defect of the Windows bridge, not of this record:
+with a reader attached, closing the popup window hung the demo on that day's build and crashed it on
+the phase-10 build, because the bridge freed the popup's vended elements while UI Automation still
+held references on them (ADR 039 §2.1's amendment of this date). Fixed in the bridge and heard the
+same day: the date-picker script on the Windows guest, in the native presentation, ran its eleven
+steps under NVDA 2024.4.2 — the popup announced as "popup, janela" with the calendar's grid and the
+cursor's day on the way in, the field's group and its day segment on the way out, the month chooser
+as "Set. Out. Nov. Dez." and "Out., em exibição", the calendar button as "Abrir calendário, botão" —
+and the demo exited on its own (`readings/p5w3-windows/date-picker-native-fix-4`). Nothing in this
+record's own behaviour changed.
+
 ## 9. Reading right to left
 
 The grid mirrors as a grid: the first day of the week is drawn at the edge reading starts from, the

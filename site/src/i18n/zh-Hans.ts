@@ -101,6 +101,12 @@ export const zhHans: Catalog = {
   "home.features.forms.link": "阅读表单指南",
   "home.features.forms.caption": "标签、校验、一个选择项和操作行。",
 
+  "home.features.data.heading": "表格、树与日期，已经造好",
+  "home.features.data.body":
+    "表格是架在你的应用自己持有的列表上的带类型的列，由工具包或你的服务器排序，还有一行会求和的表尾。树是架在你提供的子节点上的大纲，一行可以在说出子节点的名字之前先承诺它们存在。日期字段以读者自己的历法输入一个 ISO 日期，日期选择器则在它后面打开一个月份网格。",
+  "home.features.data.link": "阅读列表指南",
+  "home.features.data.caption": "一个窗口里的表格、树、日期字段和日期选择器。",
+
   "home.features.media.heading": "视频与 3D 同样是组件",
   "home.features.media.body":
     "基于物理的 3D 视口和视频播放器，像普通组件一样参与合成：滚动视图会裁剪它们，栈会画在它们上面，它们参与布局的方式与一个标签无异。",

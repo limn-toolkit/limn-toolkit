@@ -140,7 +140,8 @@ and back.
 A screen reader has now been over this table on all four guests, and the three readers describe it
 differently enough to be worth knowing before you design a screen around one. NVDA calls it a data
 grid, speaks a cell with the column it is in — "Visitada", "caixa de seleção", "não marcado",
-"coluna 4" — and announces each row the cursor moves onto by its place in the table, "7 de 10".
+"coluna 4" — and announces each row the cursor moves onto as its record, its role, its selection
+and its place in the table: "Carpathians Europe 2.655", "item de dados", "selecionado", "4 de 10".
 Orca opens with "tabela com 10 linhas 4 colunas", reads a whole row out as its cells in order when
 the cursor changes row, and names the column when it changes column: "Continente cabeçalho de
 coluna Europe." VoiceOver speaks the cell alone, "Caucasus, célula", with no column and no row
@@ -149,17 +150,10 @@ the sort it applies is spoken by NVDA and by Orca, "Ordenado em ordem crescente"
 handed the same direction and does not read it out.
 
 Selection is where they part. VoiceOver announces it — "Nenhuma linha selecionada" when a row
-leaves the selection, "5 linhas selecionadas" on select-all — and in those runs NVDA and Orca said
-nothing at either. Where a selection change is the point of the screen, say it in the interface
-rather than leaving it to the reader to mention.
-
-<!-- phase-5: the runs behind these two paragraphs were made at 3749dddd, before the defects they
-     found were fixed. A table row published no name then — which is why NVDA and Orca announce a
-     row by role and position and not by the record it shows — and SELECTABLE was published by
-     nothing, which is why Orca resolved the rows a select-all had just selected and threw them
-     away as layout-only. `e712ce58` names the row and `1285d71f` publishes the state; neither has
-     been heard yet. Re-run `--reader table` on each guest, say here what a named row sounds like,
-     and check whether Orca's silence at select-all survives its own cause being removed. -->
+leaves the selection, "5 linhas selecionadas" on select-all. Orca says the row it lands on after
+Ctrl+A, "Urals Europe 1.895.", and not how many were taken. NVDA says nothing at either, because
+it does not listen for the selection events the toolkit raises. Where a selection change is the
+point of the screen, say it in the interface rather than leaving it to the reader to mention.
 
 A column may also put something in the **footer**, a summary row pinned under the rows the
 way the header is pinned over them: a text (`footer("Total")`), one of the aggregates a
@@ -238,21 +232,15 @@ the row publishes beside them was measured on 2026-09-16 and reaches nobody's ea
 arrives as UI Automation's `ItemStatus`, which NVDA 2024.4.2 receives and has no handler for — six
 raises and not one word — and on Fedora Orca received the state going on and off and said only
 "expandido", the branch opening. The "Loading…" line is deliberately not a row the cursor can stand
-on, so every reader steps over that as well. The tree announces the load instead:
-"Loading *branch*" when a lazy load begins, and "*branch* empty" when one lands on nothing, each
-named after the branch and each polite, so that a tree opening branch after branch does not cut
-its own reader off mid-word. An announcement is the one route all three readers were heard
-speaking through in those runs. The spinner, the line and the busy state are unchanged beside it:
-a sighted user sees what they saw before.
-
-<!-- phase-5: the two announcements landed in `2d19b119`, after the four guest runs, so what is
-     measured is the path and not these two strings: NVDA, VoiceOver and Orca were each heard
-     speaking the demo's own announcements the same day, and the busy state was heard by none of
-     them (Windows measured, Fedora measured, and on macOS the busy row could not be reached under
-     VoiceOver at all). Re-run `--reader tree-loading` with `-Dlimn.demo.treeLoadMillis=20000` on
-     each guest and replace this with what the two lines sound like. Deliberate and not a gap: a
-     load that lands *with* children announces only its start, and an eager empty branch, which
-     runs no load, announces nothing. -->
+on, so every reader steps over that as well. The tree announces the load instead, in three
+sentences named after the branch: "Loading *branch*" when a lazy load begins, "*branch*, 3 items"
+when its children arrive, counted in the reader's language, and "*branch* empty" when it lands on
+nothing. Each is polite, so that a tree opening branch after branch does not cut its own reader
+off mid-word, and an eager branch that runs no load announces nothing. All three readers were
+heard saying them: NVDA and Orca "Carregando Remote" and then "Remote, 3 itens", "Carregando Trash"
+and "Trash vazio", and "Empty folder vazio" for a branch empty from the start. VoiceOver's caption
+panel showed the loading and both empty sentences; the arrival fell between its captures. The spinner, the line and the busy state are unchanged beside them: a
+sighted user sees what they saw before.
 
 The example overrides `isLeaf` because an entry already knows whether it is a folder; left alone,
 the tree reads `children` and calls a node a leaf only when its children are known and there are
@@ -295,15 +283,13 @@ the new one its name and its position, "index.json", "1 de 3". A branch that ope
 "expandido" and no more, because the "Empty" line is not a row the cursor stops on: the
 announcement above is what tells a listener the rest.
 
-<!-- phase-5: two halves are unheard. On macOS the walk itself was wrong in these runs: VoiceOver
-     keeps its cursor and the keyboard focus in step, and the bridge was offering a row's focus as
-     settable, so VoiceOver wrote its previous row back some 40 ms after every key and no script
-     got past the second row. `f9bf3d6f` stops offering it and nobody has re-run the tree script
-     since — the VoiceOver wording quoted above is what it says about a row, not proof that it
-     walks the tree correctly. And a reader's own verbs on a row (expand, collapse, select through
-     the accessibility action rather than the keyboard) were exercised by clients and by no reader
-     in any run. `--reader tree-loading` on the macOS guest, and one reader-driven action on a row
-     anywhere, would close both. -->
+VoiceOver now walks the whole tree script in order on macOS, every row the cursor lands on
+spoken, the loads and the empty branches announced. It used to be dragged: its cursor sync wrote
+its own stale row back as a selection after almost every key, and the toolkit now refuses a select
+on another row that arrives within a second of the application's own change, which is how that
+write arrives. One thing stays unexercised by any reader: a reader's own verbs on a row, expand,
+collapse or select through the accessibility action rather than the keyboard, which clients have
+driven and no screen reader has.
 
 Rows are realized where the viewport reaches, as a `ListView`'s are, in the order of a walk over
 what is open, so a tree over a deep directory scrolls vertically the way a list does and costs what

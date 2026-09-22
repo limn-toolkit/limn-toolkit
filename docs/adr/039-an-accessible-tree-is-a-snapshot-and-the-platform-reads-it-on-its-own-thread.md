@@ -2661,6 +2661,27 @@ type and no runtime id. Both entry points are bound optionally, outside `Uia.isA
 parameter lists read on the guest 2026-09-13 (readings/windows-dump-uia-entry-points.txt: ordinals 97
 and 98, not forwarded). How §2.4 raises them is amended there.
 
+**Amended 2026-09-22 (decision 108, P5W-3): a window's teardown withdraws its provider, disconnects
+every element a client was handed, and frees an object only when the platform holds no reference
+on it.** The teardown row above ("`UiaDisconnectProvider`; `UiaReturnRawElementProvider(hwnd, 0, 0,
+NULL)` on `WM_DESTROY`", "both proven") described what the probe did, not what the bridge did: the
+bridge disconnected the root alone, never returned NULL for the window, and freed every vended
+object outright at the registry's empty. With NVDA attached, closing a date picker's native popup
+was measured on 2026-09-16 as a hang and on 2026-09-22 as a crash — the process dying in `jvm.dll`
+at one offset, about 30 ms after `freed 14 objects`, in every run (`readings/p5w3-windows/`). Three
+changes, each measured on the guest before the next was made: disconnecting the other thirteen
+objects moved the crash 240 ms later and into "module unknown" (a freed trampoline); returning
+NULL for the HWND changed nothing; and freeing by reference count closed it. The count is what
+COM gives an object for this: after the disconnects, an object the platform still references is
+retired rather than freed, answers nothing, and is freed on the user-interface thread once the
+platform's last `Release` has come — which it did, for six of the seven kept, 2.8 s later
+(`date-picker-native-fix-4`, `freed 7 objects, kept 7 … freed 6 retired objects the platform had
+let go of`). One that never comes is a bounded leak, the failure to prefer. The native date-picker
+script then ran its eleven steps under NVDA and the demo exited on its own; `UiaBridgeTest` pins
+the order (withdraw, disconnect root, disconnect the rest, then free only the unreferenced) and the
+deferred free. `UiaWindow` also answers `WM_DESTROY` with the NULL return, for a window destroyed
+under a still-attached bridge; the usual order is the scene's detach while the window is alive.
+
 ### 2.2 macOS: NSAccessibility
 
 | Attribute / action / notification | Answered from | Note |
@@ -3134,6 +3155,25 @@ there is inferred and no code was changed for it. It needs one live run with the
 enabled, to see whether the put-back on a table arrives as `setAccessibilityFocused:` and on which
 element, before anything is decided.
 
+**Amended 2026-09-22 (decision 112): a row select that is VoiceOver's stale cursor is refused.**
+Decision 79 stopped a client's `SELECT` from moving the cursor; it did not stop the selection. With
+a write trace on the bridge (`-Dlimn.a11y.ax.trace=true`, which logs every verb a client performs),
+VoiceOver was measured writing `AXSelected` YES — `setAccessibilitySelected:` on a row, not the
+container's `setAccessibilitySelectedRows:` the earlier paragraphs suspected — on a row that is not
+the cursor's, 38–90 ms after the application's own change and once 689 ms after a load: "Himalayas"
+on the table script's step 8, so that the `SPACE` of step 9 left two rows selected, and "Documents
+2" after eight of the tree script's twenty-one steps, the first row VoiceOver's own cursor had
+settled on. It is the cursor sync of P5M-1 mirroring a cursor that did not follow ours. The bridge
+now refuses a client's `SELECT` on a member of the same selection container as the row the user is
+in, other than that row, when it arrives less than a second (`AxBridge.STALE_SELECT_NANOS`) after
+the bridge was handed a focus, cursor, state or structure change — the last two because an open or
+a close moves no cursor and VoiceOver answers it all the same. The cursor's own row is never
+refused, and a reader's own select a second later is taken. Heard on the guest the same day against
+the phase-10 jar: the table's step 9 no longer adds a row, and the tree script refused 13 writes in
+each of two runs, accepted none, and read every row in order with no stray "Documents 2"
+(`readings/d112-macos/summary.txt`). It is §4.2's Exception 3. Decision 110, which removed the
+container's setter on the earlier suspicion, was built, measured to change nothing, and reverted.
+
 ### 2.3 Linux: AT-SPI2
 
 We own a socket and a reader thread; there is no vtable and no callback. The bridge serves D-Bus
@@ -3563,6 +3603,34 @@ tree row and the calendar's title carry none of those roles, so they keep the ax
 their own. A menu row **without** a submenu carries no expand facet to begin with, so the predicate
 changes nothing for it. What the exception covers and what it leaves measured-but-open — the action
 names, the role itself, and a cascade that is not nested under its title here — is §4.2's Exception 1.
+
+#### Amendment 2026-09-22 (decision 109, P5U-1) — a window whose first publish beats its join says its startup again
+
+**What was wrong.** The join is requested by the first publish that has a tree and lands on a
+thread of its own (§3.3's amendment of 2026-09-15), so it can never precede that publish, and every
+event of that publish — the frame's `active`, its `Activate`, the `focused` of the control the user
+starts in — was dropped as every event before the join is. Nothing re-sent them: a later publish
+emits only what moved, and those bits had not. Measured on the Ubuntu guest on 2026-09-16, the
+announcement scene lost the whole burst six times in six: Orca said the first announcement, "Salvo",
+before it had ever named the window, named "Limn accessibility gallery" only off the Tab that
+followed, and never named the "Salvar" button that held the focus
+(`readings/phase5-ubuntu/…-u-rs-ann-1`, and again on 2026-09-22 with the phase-10 jar as the
+control, `readings/p5u1-ubuntu/ann-p10-1`).
+
+**What the code does now.** An event dropped for want of a join marks its window
+(`AtspiBridge.startupOwed`, set in `emit`'s not-joined branch); the first frame after the joined
+state is visible — `frameEnded`, or `publishing` if a publish comes first — says the window's
+startup again from the tree as it stands: the frame's `active` 1, then `Activate`, whose reconcile
+(§2.3 above, `afterTheLocusMoved`) says the focus and the cursor after it, in the order a window that
+activates later sends them (decision 28). Once, and only for a frame that holds `ACTIVE`: an
+inactive frame owes nothing, its focus being where the user would return to. A join that lands
+before the publish's own events go out — the other side of the race — drops nothing, marks nothing
+and says nothing twice; `AtspiApplicationTest` pins both sides with a deferred join.
+
+**Heard.** Ubuntu 24.04, Orca 46.1, 2026-09-22, the announcement scene with the fixed jar against
+the phase-10 jar in the same Orca session: "Limn accessibility gallery frame." and "Salvar push
+button." spoken as the window appears and before any key, then "Salvo" at the first step; with the
+control jar, "Salvo" first and the window's name only at the Tab (`readings/p5u1-ubuntu/`).
 
 ### 2.4 The events, side by side
 
@@ -4704,6 +4772,21 @@ Decided and built on macOS 2026-09-16; true on Windows without a change.**
 - *Status.* Built on macOS (`f9bf3d6f`, merged at `72c6f2ec`); §2.2's amendment of 2026-09-16 is the
   full account, including the one asymmetry kept on purpose — the *getter* still answers on a row.
   Windows is as described with no change owed.
+
+**Exception 3 — a client's row select right after the application's own change is refused on macOS
+(decision 112). Decided and built 2026-09-22.**
+- *What the native does.* An `NSTableView` or `NSOutlineView` row takes `AXSelected` whenever it is
+  written.
+- *What this bridge does.* It refuses a `SELECT` on another member of the container the user is in,
+  within a second of a focus, cursor, state or structure change it was handed; the cursor's own row
+  and any later write are taken as before.
+- *Why.* VoiceOver's cursor sync writes its own stale row that way after almost every key (§2.2's
+  amendment of this date); a native view's cursor and VoiceOver's agree, ours did not, and the write
+  selected rows nobody chose. NVDA and Orca write nothing of the kind, so the rule lives in the
+  macOS bridge and not in the model.
+- *Status.* Built and heard (`readings/d112-macos/`); `AxOutlineSceneTest` pins it with an injected
+  clock. Open behind it: why VoiceOver's own cursor does not follow the application's inside a Limn
+  outline or table in the first place, which would remove the write at its source.
 
 ---
 

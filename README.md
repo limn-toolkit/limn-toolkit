@@ -175,6 +175,19 @@ No markup, no annotation processor, no build plugin. Widgets are objects you con
 panes, a colour picker, bar, line and donut charts, and a virtualized list where a million rows
 cost what twenty do. Every one reads its colour, shape and density from the theme.
 
+**Tables, trees and dates, already built.** A table is typed columns over the list your
+application owns, sorted by the toolkit or by your server, with a footer that sums; a tree is an
+outline over children you provide, and a row may promise children before it can name them; a
+date field types an ISO date in the reader's own calendar and format, and a date picker opens a
+month grid behind it. Screen readers on the three platforms read all three.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-data-dark.webp">
+    <img src="media/readme/showcase-data-light.webp" alt="A table, a tree, a date field and a date picker in one Limn window" width="900">
+  </picture>
+</p>
+
 **Layout that fits in your head.** Four widgets and one marker: a column stacks, a row spreads, a
 stack overlays, padding insets, and `Expanded` says who takes the space that is left. No
 constraint solver to configure, no layout manager to install.

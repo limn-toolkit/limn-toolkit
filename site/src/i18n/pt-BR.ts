@@ -103,6 +103,12 @@ export const ptBR: Catalog = {
   "home.features.forms.link": "Ler o guia de formulários",
   "home.features.forms.caption": "Rótulos, validação, uma escolha e a linha de ações.",
 
+  "home.features.data.heading": "Tabelas, árvores e datas, já prontas",
+  "home.features.data.body":
+    "Uma tabela é colunas tipadas sobre a lista que a sua aplicação possui, ordenada pelo toolkit ou pelo seu servidor, com um rodapé que soma. Uma árvore é uma estrutura em tópicos sobre os filhos que você fornece, e uma linha pode prometer filhos antes de conseguir nomeá-los. Um campo de data digita uma data ISO no calendário do próprio leitor, e um seletor de data abre uma grade de mês atrás dele.",
+  "home.features.data.link": "Ler o guia de listas",
+  "home.features.data.caption": "Uma tabela, uma árvore, um campo de data e um seletor de data em uma janela.",
+
   "home.features.media.heading": "Vídeo e 3D também são widgets",
   "home.features.media.body":
     "Um viewport 3D com materiais fisicamente corretos e um player de vídeo, compostos como widgets comuns: uma scroll view os recorta, uma pilha desenha por cima e ambos participam do layout como um rótulo participa.",

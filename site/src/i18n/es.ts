@@ -104,6 +104,12 @@ export const es: Catalog = {
   "home.features.forms.link": "Leer la guía de formularios",
   "home.features.forms.caption": "Etiquetas, validación, una elección y la fila de acciones.",
 
+  "home.features.data.heading": "Tablas, árboles y fechas, ya construidos",
+  "home.features.data.body":
+    "Una tabla son columnas tipadas sobre la lista que posee tu aplicación, ordenada por el toolkit o por tu servidor, con un pie que suma. Un árbol es un esquema sobre los hijos que tú proporcionas, y una fila puede prometer hijos antes de poder nombrarlos. Un campo de fecha escribe una fecha ISO en el calendario del propio lector, y un selector de fecha abre una cuadrícula del mes detrás de él.",
+  "home.features.data.link": "Leer la guía de listas",
+  "home.features.data.caption": "Una tabla, un árbol, un campo de fecha y un selector de fecha en una ventana.",
+
   "home.features.media.heading": "El vídeo y el 3D también son widgets",
   "home.features.media.body":
     "Una vista 3D con materiales físicamente realistas y un reproductor de vídeo, compuestos como widgets corrientes: una vista con desplazamiento los recorta, una pila dibuja encima y ambos participan en la disposición igual que una etiqueta.",

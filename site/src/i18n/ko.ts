@@ -103,6 +103,12 @@ export const ko: Catalog = {
   "home.features.forms.link": "폼 가이드 읽기",
   "home.features.forms.caption": "라벨, 검증, 선택, 그리고 동작 줄.",
 
+  "home.features.data.heading": "표와 트리와 날짜, 이미 만들어져 있습니다",
+  "home.features.data.body":
+    "표는 애플리케이션이 가진 목록 위에 놓인 형식 있는 열이고, 툴킷이나 당신의 서버가 정렬하며, 바닥글이 합계를 냅니다. 트리는 당신이 주는 자식 위에 놓인 개요이고, 행은 자식의 이름을 대기 전에 자식이 있다고 약속할 수 있습니다. 날짜 입력란은 읽는 사람 자신의 달력으로 ISO 날짜를 입력하고, 날짜 선택기는 그 뒤에 월 격자를 엽니다.",
+  "home.features.data.link": "목록 가이드 읽기",
+  "home.features.data.caption": "창 하나에 담긴 표, 트리, 날짜 입력란, 날짜 선택기.",
+
   "home.features.media.heading": "영상과 3D도 위젯입니다",
   "home.features.media.body":
     "물리 기반 3D 뷰포트와 비디오 플레이어가 보통 위젯처럼 합성됩니다. 스크롤 뷰가 잘라내고, 스택이 위에 그리며, 라벨과 똑같이 레이아웃에 참여합니다.",
