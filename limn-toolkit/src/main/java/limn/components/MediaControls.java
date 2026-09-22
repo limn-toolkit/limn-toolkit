@@ -73,7 +73,7 @@ import java.util.Objects;
  * follows {@code muted}, which the setters and the volume slider all write, so each of those
  * writes the tooltip as it goes.
  */
-public class MediaControls extends Widget {
+public final class MediaControls extends Widget {
 
     /**
      * The least a drag lets pass between two keyframe seeks: a slider fires per pixel, and a drag

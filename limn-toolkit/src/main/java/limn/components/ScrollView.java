@@ -30,7 +30,7 @@ import limn.scene.event.MouseEvent;
  * tree wants its last column readable at all times, and a bar sitting on it is a
  * defect however briefly it shows.
  */
-public class ScrollView extends Widget implements Scrollable {
+public final class ScrollView extends Widget implements Scrollable {
 
     /** Logical points scrolled per wheel notch. */
     private static final float WHEEL_STEP = 48;

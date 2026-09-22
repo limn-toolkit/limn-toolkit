@@ -42,7 +42,7 @@ import java.util.Objects;
  * dimensions (a rim width, a cell size) are authored in points and do not scale with the step:
  * they are optical properties of the material, not of the control.
  */
-public class BackdropPanel extends Padding {
+public final class BackdropPanel extends Padding {
 
     /** {@link #setCornerRadius} takes this to mean "follow the resolved size row". */
     public static final float RADIUS_FROM_TOKENS = -1;

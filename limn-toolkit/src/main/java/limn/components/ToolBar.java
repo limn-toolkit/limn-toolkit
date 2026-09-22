@@ -44,7 +44,7 @@ import java.util.List;
  * that wants the strip named calls {@code setAccessibleName} or gives it a tooltip, and one that
  * calls {@code setAccessibleIgnored(true)} on it takes every control inside it out of the tree.
  */
-public class ToolBar extends Widget {
+public final class ToolBar extends Widget {
 
     /**
      * The gap the app asked for, meaningful only while {@link #gapExplicit}. An explicit

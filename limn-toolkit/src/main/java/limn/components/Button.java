@@ -45,7 +45,7 @@ import java.util.Objects;
  * drawn inside that square turns around as well is the caller's to say &mdash; see
  * {@link Icon.Mirroring}.
  */
-public class Button extends Widget {
+public final class Button extends Widget {
 
     private I18nString text;
     private Icon icon;

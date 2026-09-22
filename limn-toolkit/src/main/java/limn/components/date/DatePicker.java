@@ -73,7 +73,7 @@ import java.util.function.Predicate;
  * itself with screenshots asks for {@link DisplayMode#IN_SCENE} on purpose, because a native popup
  * is absent from a capture of the window.
  */
-public class DatePicker extends Widget {
+public final class DatePicker extends Widget {
 
     /** Breathing room kept from the work-area edge when clamping the popup. */
     private static final float EDGE_MARGIN = 8;

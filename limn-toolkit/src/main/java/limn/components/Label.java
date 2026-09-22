@@ -64,7 +64,7 @@ import java.util.Objects;
  * the right edge in the other, and the glyph inside it turns around only when the call that
  * placed it said it should &mdash; see {@link limn.graphics.Icon.Mirroring}.
  */
-public class Label extends Widget {
+public final class Label extends Widget {
 
     public enum Overflow { CLIP, ELLIPSIS }
 

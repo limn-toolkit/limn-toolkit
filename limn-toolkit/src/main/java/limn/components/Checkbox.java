@@ -57,7 +57,7 @@ import java.util.function.Consumer;
  * thing inside the indicator that does know a direction, because its two ends are a value axis:
  * OFF is the leading end and ON the trailing one.
  */
-public class Checkbox extends Widget {
+public final class Checkbox extends Widget {
 
     public enum Variant { BOX, SWITCH }
 

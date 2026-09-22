@@ -32,7 +32,7 @@ import limn.scene.Change;
  * model's. The role and the masked state move together, so no platform ever sees a password role
  * over cleartext; see {@link #onAccessibility}.
  */
-public class PasswordField extends TextField {
+public final class PasswordField extends TextField {
 
     /**
      * Dot diameter as a fraction of the body font size, so the mask scales with the type

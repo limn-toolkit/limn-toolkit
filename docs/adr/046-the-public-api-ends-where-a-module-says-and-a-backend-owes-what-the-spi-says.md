@@ -61,8 +61,15 @@ what it is. `TextField`'s `model` field stops being protected (§2 makes the que
 
 ## 2. Decision: concrete widgets are final, `TextField` is sealed (decision 119)
 
-Every concrete widget class is `final`. `TextField` is `sealed` and permits its own family
-(`PasswordField` and whatever else in the toolkit extends it). A widget of one's own extends `Widget`,
+Every concrete component class is `final`. `TextField` is `sealed` and permits its own family
+(`PasswordField` and `SearchField`). *Amended while building it:* the layout primitives — `Column`,
+`Row`, `Stack`, `Padding` and the token-spaced `TokenColumn`, `TokenRow`, `TokenPadding` — stay open,
+because extending a layout to measure and place children is the extension a layout exists for, and
+the toolkit and the demo extend them themselves (`BackdropPanel`, `Dialog`'s action row, the demo's
+font and icon scenes); `Container` is where a new layout starts. Of the probes, most only read a
+protected hook the component overrides in its own package and now call it directly; the chart's
+geometry is read by reflection, the shaping count is taken at a counting ruler, and paint is left
+out by a parent that paints no children. A widget of one's own extends `Widget`,
 which is the documented route and keeps its hooks. Test probes that subclassed a concrete widget move
 to composition. Opening a class later is compatible; closing it is not.
 

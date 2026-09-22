@@ -55,7 +55,7 @@ import java.util.function.Consumer;
  * {@link #shapeDisplay} is where a subclass substitutes a display form, and its index space is the
  * model's, which is what lets the substitution happen without any index arithmetic at all.
  */
-public class TextField extends Widget {
+public sealed class TextField extends Widget permits PasswordField, SearchField {
 
     /** Validation state; colors the border (and a caller-supplied message). */
     public enum Validation { NONE, ERROR, WARNING, SUCCESS, INFO }

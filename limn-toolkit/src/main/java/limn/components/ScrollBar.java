@@ -48,7 +48,7 @@ import java.util.Objects;
  * and one delayed task armed for the moment it expires, so a bar that is showing and still
  * asks for no frame at all.
  */
-public class ScrollBar extends Widget {
+public final class ScrollBar extends Widget {
 
     /** Which axis the bar controls. */
     public enum Orientation { VERTICAL, HORIZONTAL }

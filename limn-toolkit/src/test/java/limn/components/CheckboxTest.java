@@ -328,19 +328,11 @@ class CheckboxTest extends ComponentTestBase {
 
     /** Reads the protected hook the way Scene does. */
     private static float outsetOf(Checkbox.Variant variant) {
-        return new Checkbox(variant, "") {
-            float read() {
-                return paintOutset();
-            }
-        }.read();
+        return new Checkbox(variant, "").paintOutset();
     }
 
     private static float radioOutset() {
-        return new RadioButton("") {
-            float read() {
-                return paintOutset();
-            }
-        }.read();
+        return new RadioButton("").paintOutset();
     }
 
     // ------------------------------------------------------------- density

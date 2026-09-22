@@ -17,7 +17,7 @@ import java.util.function.Consumer;
  * field and a trailing coupled clear button (the ComboBox-caret idiom). Enter
  * fires {@link #onSubmit}; the clear button empties the field.
  */
-public class SearchField extends TextField {
+public final class SearchField extends TextField {
 
     private Consumer<String> onSubmit;
 

@@ -820,22 +820,21 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
      * belongs to the widget's own test, and not the walk's, which is what this measures. The
      * describe hooks underneath are the shipped ones.
      */
-    private static final class UnpaintedList extends ListView {
-        UnpaintedList(Adapter adapter) {
-            super(adapter);
-        }
-
-        @Override
-        protected void paintChildren(Canvas canvas) {
-        }
-    }
 
     @Test
     void aFrameThatDamagesTheListAndChangesNothingAllocatesNothing() {
         Assumptions.assumeTrue(AllocationProbe.isSupported(),
                 "this virtual machine does not count per-thread allocation");
-        ListView list = new UnpaintedList(new Rows(500, 50, true, Cell::new));
-        bind(list);
+        ListView list = new ListView(new Rows(500, 50, true, Cell::new));
+        // The list's own paint is its drawing cost and not the hooks': left out by a parent that
+        // paints no children, ListView being final (ADR 046 §2).
+        limn.scene.layout.Column unpainted = new limn.scene.layout.Column() {
+            @Override
+            protected void paintChildren(limn.graphics.Canvas canvas) {
+            }
+        };
+        unpainted.add(limn.scene.layout.Expanded.of(list));
+        bind(unpainted);
         list.setSelectedIndex(2);
         frame();
 

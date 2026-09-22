@@ -90,7 +90,7 @@ import java.util.function.Predicate;
  * all three platforms. A day cell is named with the whole date and not the bare number, because a
  * cell heard on its own has to say what it is.
  */
-public class CalendarView extends Widget {
+public final class CalendarView extends Widget {
 
     /** What a click does. */
     public enum SelectionMode {

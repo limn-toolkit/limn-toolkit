@@ -51,13 +51,17 @@ class AccessiblePublishCostTest extends AccessibleTestBase {
         // paint, and that is the widget's drawing cost and not the walk's, which the widget's own
         // test measures by difference. The describe hook underneath is the shipped one.
         ButtonGroup group = new ButtonGroup();
+        // RadioButton is final (ADR 046 §2): its paint is left out by a parent that paints no
+        // children, rather than by an override.
+        limn.scene.layout.Column unpainted = new limn.scene.layout.Column() {
+            @Override
+            protected void paintChildren(Canvas canvas) {
+            }
+        };
+        root.add(unpainted);
         for (String choice : new String[] {"Small", "Medium", "Large"}) {
-            RadioButton radio = new RadioButton(choice) {
-                @Override
-                protected void onPaint(Canvas canvas) {
-                }
-            };
-            root.add(radio);
+            RadioButton radio = new RadioButton(choice);
+            unpainted.add(radio);
             group.add(radio);
         }
         group.setSelectedIndex(1);

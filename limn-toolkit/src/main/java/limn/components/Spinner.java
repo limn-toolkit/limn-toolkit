@@ -96,7 +96,7 @@ import java.util.regex.Pattern;
  * Spinner alarm = Spinner.time().setValue(7 * 60 + 30); // 07:30
  * }</pre>
  */
-public class Spinner extends Widget {
+public final class Spinner extends Widget {
 
     /** Numeric value vs. an {@code HH:MM} time-of-day (value in minutes). */
     public enum Mode { NUMERIC, TIME }

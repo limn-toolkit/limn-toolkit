@@ -79,7 +79,7 @@ import java.util.function.IntConsumer;
  * compact step it covers a larger fraction of a shorter row. An accepted cost of one
  * scrollbar geometry process-wide.
  */
-public class ListView extends Widget implements Scrollable {
+public final class ListView extends Widget implements Scrollable {
 
     /** Supplies and (optionally) caches the row widgets of a {@link ListView}. */
     public interface Adapter {

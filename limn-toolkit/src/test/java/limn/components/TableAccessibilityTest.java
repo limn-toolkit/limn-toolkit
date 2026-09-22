@@ -1040,14 +1040,10 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                 Column.text("Name", Person::name).width(120),
                 Column.<Person>widget("Edit", person -> new Button("Edit " + person.name())
                         .onAction(() -> pressed.add(person.name()))).width(80),
-                Column.numeric("Age", Person::age).width(60))) {
-            @Override
-            protected boolean onSyntheticAction(long key, Accessible.Action action,
-                                                Accessible.Argument arg) {
-                routedToTable.add(key + ":" + action);
-                return super.onSyntheticAction(key, action, arg);
-            }
-        };
+                Column.numeric("Age", Person::age).width(60)));
+        // Table is final (ADR 046 §2): what reaches the table is read off its watcher channel,
+        // where any verb it performed on a row would be heard.
+        table.observeChanges((widget, change) -> routedToTable.add(String.valueOf(change)));
         table.setRows(people(40));
         bind(table);
 
@@ -1075,10 +1071,11 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(cells.get(1).actions().actions().contains(Accessible.Action.PRESS));
         long button = cells.get(1).id();
         long row = second.id();
+        routedToTable.clear();
         assertTrue(perform(button, Accessible.Action.PRESS, null));
         assertEquals(List.of("Person 1"), pressed, "the button's own handler ran");
         assertTrue(routedToTable.isEmpty(),
-                "and the table's synthetic hook was not asked: " + routedToTable);
+                "and the table itself did nothing: " + routedToTable);
         table.scrollBy(0, 4000);
         frame();
         assertEquals(AccessibleNode.NONE, tree().indexOf(button), "row 1 scrolled away");

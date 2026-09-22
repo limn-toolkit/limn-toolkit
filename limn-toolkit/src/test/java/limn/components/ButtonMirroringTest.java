@@ -300,23 +300,23 @@ class ButtonMirroringTest extends ComponentTestBase {
      */
     @Test
     void theBaselineIsTheSameInBothDirections() {
-        BaselineButton ltr = new BaselineButton("abc");
+        Button ltr = new Button("abc");
         Scene ltrScene = new Scene(ltr);
         ltrScene.setTextRuler(RULER);
         ltrScene.layoutPass(WIDTH, HEIGHT);
 
-        BaselineButton rtl = new BaselineButton("abc");
+        Button rtl = new Button("abc");
         rtl.setLayoutDirection(LayoutDirection.RTL);
         Scene rtlScene = new Scene(rtl);
         rtlScene.setTextRuler(RULER);
         rtlScene.layoutPass(WIDTH, HEIGHT);
 
-        assertEquals((HEIGHT - 10) / 2 + 8, ltr.baseline(), EPS, "the band, plus the ascent");
-        assertEquals(ltr.baseline(), rtl.baseline(), EPS);
+        assertEquals((HEIGHT - 10) / 2 + 8, ltr.baselineOffset(), EPS, "the band, plus the ascent");
+        assertEquals(ltr.baselineOffset(), rtl.baselineOffset(), EPS);
         // And the baseline a BASELINE row aligns on is the one the paint actually drew.
         TextRecorder canvas = new TextRecorder(WIDTH, HEIGHT);
         rtlScene.renderFrame(canvas);
-        assertEquals(rtl.baseline(), canvas.ys.get(0), EPS);
+        assertEquals(rtl.baselineOffset(), canvas.ys.get(0), EPS);
     }
 
     /**
@@ -368,15 +368,6 @@ class ButtonMirroringTest extends ComponentTestBase {
     // ------------------------------------------------------------------ fixtures
 
     /** Exposes the protected baseline hook: a subclass may reach it, a bare test cannot. */
-    private static final class BaselineButton extends Button {
-        BaselineButton(String text) {
-            super(text);
-        }
-
-        float baseline() {
-            return baselineOffset();
-        }
-    }
 
     /** Records where the caption was drawn; a button draws no other text. */
     private static final class TextRecorder extends FakeCanvas {

@@ -56,7 +56,7 @@ import limn.scene.event.MouseEvent;
  * value rather than a side, so they never mirror either. The track rectangle itself does not move:
  * the pad is reserved at both ends, so only the meaning of each end changes.
  */
-public class Slider extends Widget {
+public final class Slider extends Widget {
 
     /** Free axis: identical at every step, and deliberately equal to {@code ProgressBar}'s. */
     private static final float PREFERRED_WIDTH = 220;

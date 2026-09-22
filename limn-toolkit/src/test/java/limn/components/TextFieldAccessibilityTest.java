@@ -69,12 +69,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Exposes the protected caret rectangle, so a test can hold the IME's answer beside the tree's. */
-    private static final class ExposedField extends TextField {
-        @Override
-        public Rect caretRect() {
-            return super.caretRect();
-        }
-    }
 
     /** A glyph that draws nothing: enough of an icon for the trailing button to exist. */
     private static final Icon BLANK = new Icon() {
@@ -526,7 +520,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void theCaretBoxIsTheOneTheImeIsGivenAndOnlyWhileFocused() {
-        ExposedField exposed = new ExposedField();
+        TextField exposed = new TextField();
         bindField(exposed);
 
         assertNull(fieldNode().text().caretRect(),
@@ -929,42 +923,30 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     // ------------------------------------------- the gate under a subclass that hides its content
 
-    /**
-     * A field whose content may not leave it and which says nothing of its own about itself: what
-     * {@link PasswordField} was before its own step, and what the next such subclass will be
-     * before its.
-     */
-    private static final class SealedField extends TextField {
-        @Override
-        protected boolean allowClipboardCopy() {
-            return false;
-        }
-    }
 
     @Test
-    void aSubclassThatRefusesTheClipboardPublishesItsTextNowhereAtAll() {
-        SealedField sealed = new SealedField();
+    void aFieldThatRefusesTheClipboardPublishesItsTextNowhereAtAll() {
+        // TextField is sealed (ADR 046 §2): the fields that refuse the clipboard are the toolkit's
+        // own, and PasswordField is the one. It publishes its mask by a step of its own; what the
+        // gate TextField holds for it guarantees is that the plain text never leaves the widget.
+        PasswordField sealed = new PasswordField();
         bindField(sealed);
         sealed.setText("hunter2");
         scene.requestFocus(sealed);
         frame();
 
-        AccessibleNode node = fieldNode();
-        assertNull(node.text(),
-                "a subclass inherits this hook the moment it exists, and publishing content it "
-                        + "says may not leave the widget, under the role of a plain field, is the "
-                        + "failure the gate is here to stop" + describe(tree()));
         for (int i = 0; i < tree().nodeCount(); i++) {
             AccessibleNode any = tree().node(i);
             assertFalse(any.name().contains("hunter2"), describe(tree()));
             assertFalse(any.description().contains("hunter2"), describe(tree()));
-            assertNull(any.text(), describe(tree()));
+            assertFalse(any.text() != null && any.text().text().contains("hunter2"),
+                    "content it says may not leave the widget is published nowhere" + describe(tree()));
         }
 
         sealed.setAccessibleName("Sealed");
         frame();
-        assertNull(fieldNode().text(),
-                "and it stays refused for as long as the predicate says so: nothing but that one "
-                        + "answer opens the gate" + describe(tree()));
+        AccessibleNode field = node(Accessible.Role.PASSWORD_FIELD);
+        assertFalse(field.text() != null && field.text().text().contains("hunter2"),
+                "and it stays refused for as long as the predicate says so" + describe(tree()));
     }
 }

@@ -73,12 +73,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Exposes the protected caret rectangle, so a test can hold the IME's answer beside the tree's. */
-    private static final class ExposedArea extends TextArea {
-        @Override
-        public Rect caretRect() {
-            return super.caretRect();
-        }
-    }
 
     /**
      * {@link ComponentTestBase#RULER} with the memo the shipped ruler has.
@@ -542,7 +536,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void theCaretBoxIsTheOneTheImeIsGivenAndOnlyWhileFocused() {
-        ExposedArea exposed = new ExposedArea();
+        TextArea exposed = new TextArea();
         bindArea(exposed);
         exposed.setText(LONG_LINE + "\n" + LONG_LINE);
         frame();
@@ -579,7 +573,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
      * The invariant the caret seam exists to pin: the reader's caret and the IME's are the same
      * rectangle by construction, one being the other translated by the widget's own origin.
      */
-    private void assertSameRectangle(ExposedArea exposed) {
+    private void assertSameRectangle(TextArea exposed) {
         Rect published = areaNode().text().caretRect();
         assertNotNull(published, describe(tree()));
         Rect ime = exposed.caretRect();
@@ -591,7 +585,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void theCaretBoxIsClampedIntoTheColumnWhenTheCaretIsScrolledAway() {
-        ExposedArea exposed = new ExposedArea();
+        TextArea exposed = new TextArea();
         bindArea(exposed);
         exposed.setText((LONG_LINE + "\n").repeat(19) + LONG_LINE);
         scene.requestFocus(exposed);

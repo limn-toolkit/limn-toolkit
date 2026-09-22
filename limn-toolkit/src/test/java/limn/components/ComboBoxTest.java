@@ -27,15 +27,6 @@ class ComboBoxTest extends ComponentTestBase {
     private final AtomicInteger selected = new AtomicInteger(-1);
 
     /** Reaches the protected hook the way only a subclass can. */
-    private static final class BaselineProbe extends ComboBox {
-        BaselineProbe(List<String> items) {
-            super(items);
-        }
-
-        float baseline() {
-            return baselineOffset();
-        }
-    }
 
     private void build() {
         combo = new ComboBox(List.of("one", "two", "three"));
@@ -366,10 +357,10 @@ class ComboBoxTest extends ComponentTestBase {
         float[] expected = {15.759766f, 18.101563f, 20.785156f, 25.468750f, 31.494141f};
         int i = 0;
         for (ControlSize step : ControlSize.values()) {
-            BaselineProbe box = new BaselineProbe(List.of("one", "two", "three"));
+            ComboBox box = new ComboBox(List.of("one", "two", "three"));
             Size size = measureAt(step, box);
             box.layoutBox(0, 0, size.width(), size.height());
-            assertEquals(expected[i], box.baseline(), 0.0005f, step + " baseline");
+            assertEquals(expected[i], box.baselineOffset(), 0.0005f, step + " baseline");
             i++;
         }
     }

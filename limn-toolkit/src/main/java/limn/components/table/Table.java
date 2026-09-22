@@ -89,7 +89,7 @@ import java.util.function.IntConsumer;
  *
  * @param <T> the row type
  */
-public class Table<T> extends Widget implements Scrollable {
+public final class Table<T> extends Widget implements Scrollable {
 
     /** How many rows may be selected at once. */
     public enum SelectionMode {

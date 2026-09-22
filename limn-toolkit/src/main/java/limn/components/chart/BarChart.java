@@ -29,7 +29,7 @@ import java.util.List;
  * chart.setStacked(true);
  * }</pre>
  */
-public class BarChart extends CartesianChart {
+public final class BarChart extends CartesianChart {
 
     /** Surface showing between stacked segments, in logical points. */
     private static final float SEGMENT_GAP = 2;

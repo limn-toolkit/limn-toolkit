@@ -71,7 +71,7 @@ import java.util.function.IntConsumer;
  * left and to the right, so the keyboard and the pointer agree; Home and End name the ends of the
  * tab <em>order</em> and stay first and last in both directions.
  */
-public class TabbedPane extends Widget {
+public final class TabbedPane extends Widget {
 
     /**
      * Where the strip sits when the headers are narrower than the pane, named for where it lands

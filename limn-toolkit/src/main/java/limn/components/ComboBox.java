@@ -71,7 +71,7 @@ import java.util.function.IntConsumer;
  * row labels and the scrollbar all move to the other side. The chevron itself does not turn
  * over: it points up and down.
  */
-public class ComboBox extends Widget {
+public final class ComboBox extends Widget {
 
     /** Breathing room kept from the work-area edge when clamping the popup. */
     private static final float EDGE_MARGIN = 8;

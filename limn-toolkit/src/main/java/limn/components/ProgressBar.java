@@ -30,7 +30,7 @@ import limn.scene.Widget;
  * the step and survives every later step change, and a negative value ({@link #UNSET}) hands
  * the dimension back to the step.
  */
-public class ProgressBar extends Widget {
+public final class ProgressBar extends Widget {
 
     /**
      * Marks a dimension as "follow the step", the {@code SizedBox.UNSET} idiom. Both

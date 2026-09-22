@@ -44,7 +44,7 @@ import java.util.List;
  * chart.setCenter(new Label("100%").setRole(Label.Role.TITLE));
  * }</pre>
  */
-public class DonutChart extends Chart {
+public final class DonutChart extends Chart {
 
     /** The ring's share of the box, leaving room for the marks not to touch the edges. */
     private static final float RADIUS_INSET = 4;

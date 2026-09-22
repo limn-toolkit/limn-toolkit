@@ -89,7 +89,7 @@ import java.util.function.Consumer;
  * still owes it is the three platforms carrying those numbers, and the disclosure attributes
  * VoiceOver reads an outline row by.
  */
-public class Tree<T> extends Widget implements Scrollable {
+public final class Tree<T> extends Widget implements Scrollable {
 
     /** How many rows may be selected at once. */
     public enum SelectionMode {

@@ -37,7 +37,7 @@ import limn.math.Scalars;
  * chart.setSmooth(true);
  * }</pre>
  */
-public class LineChart extends CartesianChart {
+public final class LineChart extends CartesianChart {
 
     /** Alpha at the line, and at the baseline, of an area fill. */
     private static final float FILL_TOP_ALPHA = 0.32f;

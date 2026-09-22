@@ -21,22 +21,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ButtonTest extends ComponentTestBase {
 
     private final AtomicInteger fired = new AtomicInteger();
-    private ProbeButton button;
+    private Button button;
     private Scene scene;
 
     /** Exposes the protected baseline hook: a subclass may reach it, a bare test cannot. */
-    private static class ProbeButton extends Button {
-        ProbeButton(String text) {
-            super(text);
-        }
-
-        float baseline() {
-            return baselineOffset();
-        }
-    }
 
     private void build() {
-        button = new ProbeButton("OK");
+        button = new Button("OK");
         button.onAction(fired::incrementAndGet);
         scene = new Scene(button);
         scene.setTextRuler(RULER);
@@ -173,7 +164,7 @@ class ButtonTest extends ComponentTestBase {
         build();
         // The box is 40 tall (tight layout), RULER's ink box 10 with ascent 8:
         // (40 - 10)/2 + 8: the very expression onPaint draws the label with.
-        assertEquals(23, button.baseline(), 1e-3);
+        assertEquals(23, button.baselineOffset(), 1e-3);
     }
 
     // ------------------------------------------------ the pixel-locked stroke rule

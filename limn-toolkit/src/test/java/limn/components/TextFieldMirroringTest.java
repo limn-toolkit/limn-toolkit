@@ -164,29 +164,61 @@ class TextFieldMirroringTest extends ComponentTestBase {
         // direction has to be in THAT key: matches gaining a direction does nothing for a cache
         // that never calls it. Counted rather than measured, because the fake ruler is font-blind
         // and the real width difference is a property of the faces.
-        CountingField counting = new CountingField();
+        TextField counting = new TextField();
+        CountingRuler ruler = new CountingRuler(RULER);
         Scene countingScene = new Scene(counting);
-        countingScene.setTextRuler(RULER);
+        countingScene.setTextRuler(ruler);
         countingScene.layoutPass(WIDTH, 32);
         counting.setText("42"); // no strong character: the neutral fallback decides it alone
 
         countingScene.renderFrame(new FakeCanvas(WIDTH, 32));
-        int afterFirst = counting.shapes;
+        int afterFirst = ruler.shapes;
         countingScene.renderFrame(new FakeCanvas(WIDTH, 32));
-        assertEquals(afterFirst, counting.shapes, "nothing changed, so nothing re-shapes");
+        assertEquals(afterFirst, ruler.shapes, "nothing changed, so nothing re-shapes");
 
         counting.setLayoutDirection(LayoutDirection.RTL);
         countingScene.renderFrame(new FakeCanvas(WIDTH, 32));
-        assertEquals(afterFirst + 1, counting.shapes, "the direction did, so the held line is stale");
+        assertEquals(afterFirst + 1, ruler.shapes, "the direction did, so the held line is stale");
     }
 
-    private static final class CountingField extends TextField {
+    /**
+     * Counts how often the field's text is shaped. TextField is sealed (ADR 046 §2), so the count
+     * is taken at the ruler every shape goes through rather than in an overridden hook.
+     */
+    private static final class CountingRuler implements limn.graphics.TextRuler {
+        final limn.graphics.TextRuler inner;
         int shapes;
 
+        CountingRuler(limn.graphics.TextRuler inner) {
+            this.inner = inner;
+        }
+
         @Override
-        protected ShapedText shapeDisplay(String text, Font font) {
-            shapes++;
-            return super.shapeDisplay(text, font);
+        public limn.graphics.TextMetrics measure(String text, Font font) {
+            return inner.measure(text, font);
+        }
+
+        @Override
+        public float scanWidth(String text, Font font) {
+            return inner.scanWidth(text, font);
+        }
+
+        @Override
+        public ShapedText shape(String text, Font font, ShapedText.Direction base) {
+            if ("42".equals(text)) {
+                shapes++;
+            }
+            return inner.shape(text, font, base);
+        }
+
+        @Override
+        public ShapedText ellipsize(ShapedText line, float available) {
+            return inner.ellipsize(line, available);
+        }
+
+        @Override
+        public long epoch() {
+            return inner.epoch();
         }
     }
 

@@ -54,7 +54,7 @@ import java.util.function.Consumer;
  * reaches 24, which is what {@link Tokens#toggleColumnGap(limn.scene.Widget)} gives. Stack
  * a {@link ButtonGroup}'s radios on that gap, not a tighter one.
  */
-public class RadioButton extends Widget {
+public final class RadioButton extends Widget {
 
     /**
      * The ring stroke is centred one point inside the indicator box, leaving its outer

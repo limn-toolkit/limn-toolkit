@@ -57,7 +57,7 @@ import java.util.function.Consumer;
  * box is the same size in both directions, the chip is the same square, and the colour inside
  * it has no reading axis of its own.
  */
-public class ColorPickerButton extends Widget {
+public final class ColorPickerButton extends Widget {
 
     private Color color;
     /** {@code null} means "the hex, kept in step with the colour". */
