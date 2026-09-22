@@ -1650,6 +1650,42 @@ public final class Accessibility {
     }
 
     /**
+     * Narrows a synthetic child's {@code SHOWING} by the rectangle its owner's clipping ancestors
+     * leave (decision 100, 2026-09-22): a child whose box lies wholly outside it publishes without
+     * the bit, as a widget child scrolled out of the same pane does. The publish step calls this
+     * after {@link #inheritedAt} with the owner's clip in scene coordinates, and only when some
+     * ancestor clips; a widget never does. Narrowing only, like {@link #offScreen()}: a child
+     * already off screen stays so.
+     *
+     * <p>A box with pixels is outside when it shares none with the clip; a box without any (a
+     * band a widget publishes at zero height while it is empty) is outside only when its point
+     * lies beyond the clip's closed edges, so that an empty band on the pane's edge is not sent
+     * off screen by its own emptiness.
+     *
+     * @param index the node's index in this walk
+     * @param x0    the clip's left edge
+     * @param y0    its top edge
+     * @param x1    its right edge
+     * @param y1    its bottom edge
+     * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
+     */
+    public void clipShowingAt(int index, float x0, float y0, float x1, float y1) {
+        Objects.checkIndex(index, count);
+        Slot s = slots[index];
+        if (!s.synthetic) {
+            return;
+        }
+        float bx1 = s.x + s.width;
+        float by1 = s.y + s.height;
+        boolean outside = s.width > 0 && s.height > 0
+                ? bx1 <= x0 || s.x >= x1 || by1 <= y0 || s.y >= y1
+                : bx1 < x0 || s.x > x1 || by1 < y0 || s.y > y1;
+        if (outside) {
+            s.states = set(s.states, Accessible.State.SHOWING, false);
+        }
+    }
+
+    /**
      * Whether the node at an index of the walk in progress is published {@code ENABLED}, as
      * {@link #inherited} or {@link #inheritedAt} settled it. Only the publish step reads it, after
      * that call, as <em>half</em> of the question whether the node is one {@link #inoperableAt}

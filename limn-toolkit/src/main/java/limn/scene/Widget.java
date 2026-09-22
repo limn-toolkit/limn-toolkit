@@ -558,6 +558,58 @@ public abstract class Widget {
     }
 
     /**
+     * The rectangle, in scene coordinates, that this widget's {@linkplain #clipsChildren()
+     * clipping} ancestors leave of it: the intersection of every clipping ancestor's clip
+     * rectangle for the child the walk came up through, which is exactly what {@link #isShowing()}
+     * tests this widget's own box against. The accessible walk narrows a synthetic child by it
+     * (decision 100, 2026-09-22): a row a calendar draws below the fold of the scroll pane it
+     * sits in is no more on screen than a widget child there would be, and until this the walk
+     * published every synthetic child with its owner's showing bit, so the rows and cells beyond
+     * the pane said {@code SHOWING} and the four invariants refused them.
+     *
+     * <p>Fills {@code out} with {@code x0, y0, x1, y1} and answers true only when some ancestor
+     * clips; with no clipping ancestor nothing narrows and {@code out} is left alone, so a
+     * synthetic child a widget places outside its own box (a popup's row, a chart's overflow) is
+     * not touched by this and keeps the bit its owner gives it. Allocates nothing, because the
+     * walk runs it once per widget of every accessible walk.
+     *
+     * @param out four floats to fill, in scene coordinates
+     * @return whether an ancestor clips this widget at all
+     */
+    final boolean showingClip(float[] out) {
+        boolean clipped = false;
+        float x0 = Float.NEGATIVE_INFINITY;
+        float y0 = Float.NEGATIVE_INFINITY;
+        float x1 = Float.POSITIVE_INFINITY;
+        float y1 = Float.POSITIVE_INFINITY;
+        Widget below = null;
+        for (Widget node = this; node != null; below = node, node = node.parent) {
+            if (node != this && node.clipsChildren()) {
+                float cx = node.clipX(below);
+                float cy = node.clipY(below);
+                x0 = Math.max(x0, cx);
+                y0 = Math.max(y0, cy);
+                x1 = Math.min(x1, cx + node.clipWidth(below));
+                y1 = Math.min(y1, cy + node.clipHeight(below));
+                clipped = true;
+            }
+            // Into the parent's coordinates, as isShowing does; the rectangle so far is in
+            // node's own, and after this line in its parent's.
+            x0 += node.x;
+            y0 += node.y;
+            x1 += node.x;
+            y1 += node.y;
+        }
+        if (clipped) {
+            out[0] = x0;
+            out[1] = y0;
+            out[2] = x1;
+            out[3] = y1;
+        }
+        return clipped;
+    }
+
+    /**
      * Shows or hides this widget and its subtree, re-running layout so siblings take
      * the space back. Hiding revokes focus, hover and any press inside the subtree.
      * UI thread only.

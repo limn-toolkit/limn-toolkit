@@ -3,7 +3,9 @@ package limn.components;
 import limn.components.date.CalendarView;
 import limn.i18n.I18n;
 import limn.scene.Widget;
+import limn.components.ScrollView;
 import limn.scene.layout.Column;
+import limn.scene.layout.SizedBox;
 import limn.testing.a11y.RowsContract;
 import limn.testing.a11y.RowsSubject;
 import org.junit.jupiter.api.AfterEach;
@@ -25,11 +27,12 @@ import java.util.stream.Stream;
  * their own. September 2024, far from today, so that no cell is named as today, and a month
  * that starts on the first day of its week, so that the first rows the contract addresses are
  * days of the month shown: picking a leading day of the month before pages the grid to that
- * month, and the members the contract mapped by name are then another month's. At its natural
- * size: inside a scroll view the calendar's week rows and day cells beyond the pane are
- * published SHOWING, which the invariants refuse (ADR 045 §8), so the reveal case of decision 81
- * waits on that and the subject declares that nothing scrolls. The forty-two cell names are
- * derived from the month the widget shows and its first day of week, not guessed.
+ * month, and the members the contract mapped by name are then another month's. Inside a scroll
+ * view shorter than the grid, so that the reveal case of decision 81 has a row below the fold
+ * to bring up: until decision 100 (2026-09-22) the walk published the week rows and day cells
+ * beyond the pane as SHOWING, the invariants refused them, and the subject ran at its natural
+ * size. The forty-two cell names are derived from the month the widget shows and its first day
+ * of week, not guessed.
  */
 class CalendarViewRowsContractTest extends ComponentTestBase {
 
@@ -82,7 +85,7 @@ class CalendarViewRowsContractTest extends ComponentTestBase {
             }
             names = List.copyOf(out);
             Column root = new Column();
-            root.add(calendar);
+            root.add(new SizedBox(300, 120, new ScrollView(calendar)));
             return root;
         }
 
@@ -103,7 +106,7 @@ class CalendarViewRowsContractTest extends ComponentTestBase {
 
         @Override
         public Scrolling scrolling() {
-            return Scrolling.NONE; // see the class comment: the scroll view case is owed
+            return Scrolling.IN_A_SCROLL_VIEW;
         }
 
         @Override

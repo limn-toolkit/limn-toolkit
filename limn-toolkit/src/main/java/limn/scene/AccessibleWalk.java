@@ -66,6 +66,8 @@ final class AccessibleWalk {
      */
     private long[] keys = new long[64];
     private boolean[] synthetic = new boolean[64];
+    /** Scratch for {@link Widget#showingClip}: the owner's clip, in scene coordinates. */
+    private final float[] clip = new float[4];
     /**
      * Per widget node: the verbs its container claimed (a bit per {@code Action} ordinal) and
      * the container that claimed them, which is where the scene routes those verbs (ADR 039
@@ -623,6 +625,11 @@ final class AccessibleWalk {
             builder.inoperableAt(slot);
         }
         boolean showing = widget.isShowing();
+        // The rectangle the owner's clipping ancestors leave of it, once per widget, so that a
+        // synthetic child scrolled beyond the pane its owner sits in is narrowed as a widget
+        // child there is (decision 100, 2026-09-22). Only when some ancestor clips: a child a
+        // widget places outside its own box keeps its owner's bit otherwise.
+        boolean clipped = showing && builder.nodeCount() > slot + 1 && widget.showingClip(clip);
         for (int i = slot + 1; i < builder.nodeCount(); i++) {
             record(widget, builder.idAt(i), i, builder.isSyntheticAt(i));
             keys[i] = builder.syntheticKeyAt(i);
@@ -631,6 +638,9 @@ final class AccessibleWalk {
             // describe hook finished with them. Focusable and focused are not passed on, because a
             // thing a widget paints is not a tab stop and never holds the keyboard.
             builder.inheritedAt(i, ownEnabled, ownVisible, showing);
+            if (clipped) {
+                builder.clipShowingAt(i, clip[0], clip[1], clip[2], clip[3]);
+            }
             if (!builder.isEnabledAt(i) || !ownVisible) {
                 // The same rule, read off the bit just published: a synthetic child is refused
                 // with its owner, and so is one its owner narrowed (a refused day, decision 30)
