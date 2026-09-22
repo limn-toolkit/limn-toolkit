@@ -589,9 +589,15 @@ public class DatePicker extends Widget {
         calendar.setSelectedDate(date);
     }
 
-    /** The grid picked a day: it goes into whichever field is being filled, and the popup closes. */
+    /**
+     * The grid picked a day: it goes into whichever field is being filled, and the popup closes
+     * -- unless the pick was a reader's selection write, which marks the day in the grid and
+     * commits nothing (decision 102, 2026-09-22): a click and Enter still commit, and Enter on
+     * the marked day reaches here because the calendar no longer swallows a user's pick of the
+     * day already selected.
+     */
     private void calendarPicked(LocalDate day) {
-        if (day == null) {
+        if (day == null || calendar.lastPickWasAClientWrite()) {
             return;
         }
         field.setDate(day);
@@ -600,8 +606,8 @@ public class DatePicker extends Widget {
     }
 
     private void calendarPickedRange(DateRange picked) {
-        if (picked == null || endField == null) {
-            return;
+        if (picked == null || endField == null || calendar.lastPickWasAClientWrite()) {
+            return; // a client's write marks, as above (decision 102)
         }
         field.setDate(picked.start());
         endField.setDate(picked.end());

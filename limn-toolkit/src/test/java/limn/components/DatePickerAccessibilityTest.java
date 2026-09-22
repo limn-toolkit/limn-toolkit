@@ -21,6 +21,7 @@ import java.util.logging.Logger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -359,5 +360,38 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(active.get(0).id(), tree().effectiveFocus(),
                 "and it is what a reader is told: the cursor is the effective focus"
                         + describe(tree()));
+    }
+    /**
+     * Decision 102 (2026-09-22), read on the macOS guest in phase 8 of ADR 045: VoiceOver writes
+     * {@code AXSelected} on every cell its cursor reaches, the bridge posts {@code SELECT}, and a
+     * popup that committed on it closed under the user's arrow keys. A client's write now marks
+     * the day and commits nothing; Enter on the marked day still commits, which the calendar
+     * allows by no longer swallowing a user's pick of the day already selected.
+     */
+    @Test
+    void aClientsSelectMarksADayWithoutClosingAndEnterThenCommitsIt() throws InterruptedException {
+        bindCaptioned(new DatePicker(), "Data de entrega");
+        picker.open();
+        frame();
+        AccessibleNode tenth = nodesOf(Accessible.Role.CELL).stream()
+                .filter(cell -> cell.name().startsWith("10 de setembro")).findFirst()
+                .orElseThrow(() -> new AssertionError(describe(tree())));
+        assertTrue(perform(tenth.id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        frame();
+        assertTrue(perform(tenth.id(), Accessible.Action.SELECT, Accessible.Argument.NONE));
+        frame();
+        assertTrue(picker.isOpen(), "the popup stays open under a client's write"
+                + describe(tree()));
+        assertTrue(tree().find(tenth.id()).has(Accessible.State.SELECTED),
+                "and the day is marked" + describe(tree()));
+        assertEquals(LocalDate.of(2026, 9, 9), picker.date(), "and nothing is committed");
+
+        scene.keyEvent(limn.input.Keys.ENTER, true, false, 0);
+        scene.keyEvent(limn.input.Keys.ENTER, false, false, 0);
+        scene.inputBatchEnded();
+        frame();
+        assertFalse(picker.isOpen(), "Enter on the marked day commits and closes"
+                + describe(tree()));
+        assertEquals(LocalDate.of(2026, 9, 10), picker.date(), "with the marked day");
     }
 }

@@ -1039,6 +1039,22 @@ public class CalendarView extends Widget {
         return pick(day, true, origin);
     }
 
+    /** Whether the last pick was a reader's {@code SELECT}; see {@link #lastPickWasAClientWrite()}. */
+    private boolean lastPickWasAClientWrite;
+
+    /**
+     * Whether the pick the handler is being told about came from a client's selection write
+     * rather than from a click or Enter: the one pick that holds the cursor back (decision 79).
+     * A {@link DatePicker} reads it inside its handler to mark the day without committing
+     * (decision 102, 2026-09-22): VoiceOver writes {@code AXSelected} on every cell its cursor
+     * reaches, and a popup that committed on the write closed under the user's arrow keys.
+     *
+     * @return whether the pick being handled was a client's write
+     */
+    boolean lastPickWasAClientWrite() {
+        return lastPickWasAClientWrite;
+    }
+
     /**
      * The same, with the cursor held back.
      *
@@ -1057,6 +1073,7 @@ public class CalendarView extends Widget {
         if (!isSelectable(day)) {
             return false;
         }
+        lastPickWasAClientWrite = !moveCursor;
         LocalDate cursorWas = cursor;
         LocalDate monthWas = visibleMonth;
         cursor = day;
@@ -1066,8 +1083,13 @@ public class CalendarView extends Widget {
         }
         switch (selectionMode) {
             case SINGLE -> {
-                if (day.equals(selected)) {
-                    return true; // nothing moved: the early return two bound calendars need
+                if (day.equals(selected) && !(origin == Change.Origin.USER && moveCursor)) {
+                    // Nothing moved: the early return two bound calendars need. A click or an
+                    // Enter on the day already selected goes on through, because a picker's
+                    // popup commits on the handler and a reader's client write may have marked
+                    // that day a moment before (decision 102, 2026-09-22): the day is announced
+                    // again and the handler runs again, with nothing changed in the tree.
+                    return true;
                 }
                 LocalDate selectedWas = selected;
                 selected = day;
