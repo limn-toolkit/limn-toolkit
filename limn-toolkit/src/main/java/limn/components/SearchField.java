@@ -5,7 +5,6 @@ import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.SvgIcon;
 import limn.input.Keys;
-import limn.lang.Checks;
 import limn.scene.Change;
 import limn.scene.event.KeyEvent;
 
@@ -18,8 +17,6 @@ import java.util.function.Consumer;
  * fires {@link #onSubmit}; the clear button empties the field.
  */
 public final class SearchField extends TextField {
-
-    private Consumer<String> onSubmit;
 
     /** A field with a search icon, a clear button and a localized placeholder. */
     public SearchField() {
@@ -34,27 +31,17 @@ public final class SearchField extends TextField {
 
     /**
      * The application's response to the user pressing Enter, or an assistive technology's press:
-     * called with the current query.
+     * called with the current query. {@link TextField#onSubmit}, under this class's type; unlike a
+     * plain field, a search field takes Enter whether or not a handler is registered.
      *
      * @param listener the handler, or {@code null} to clear the slot
      * @return this field
      * @throws IllegalStateException if a handler is already registered
      */
-    public SearchField onSubmit(Consumer<String> listener) {
-        Ui.checkUiThread();
-        this.onSubmit = Checks.handlerSlot(onSubmit, listener, "SearchField.onSubmit");
-        return this;
-    }
-
     @Override
-    protected void handleUserChange(Change.Aspect aspect) {
-        if (aspect == Change.Aspect.SUBMITTED) {
-            if (onSubmit != null) {
-                onSubmit.accept(text());
-            }
-            return;
-        }
-        super.handleUserChange(aspect); // TextField's own dispatch, for the TEXT the user types
+    public SearchField onSubmit(Consumer<String> listener) {
+        super.onSubmit(listener);
+        return this;
     }
 
     /**

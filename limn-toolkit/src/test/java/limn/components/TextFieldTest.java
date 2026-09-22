@@ -658,4 +658,31 @@ class TextFieldTest extends ComponentTestBase {
         assertEquals(PAD + 30, field.caretRect().x(), 0.001f,
                 "and caretRect reports the same column, so the blink repaints the right one");
     }
+
+    /**
+     * TextField.onSubmit (ADR 046 §2): the route for submitting on Enter now that the field is
+     * sealed and no application can override its key hook. Enter with a handler hands it the
+     * text, announced as SUBMITTED first and consumed; without one the key is left for whatever
+     * else answers it; and while an input method composes, Enter is the composition's.
+     */
+    @Test
+    void enterSubmitsTheTextOnlyWithAHandlerAndNeverWhileComposing() {
+        build();
+        List<String> submitted = new ArrayList<>();
+        List<String> heard = new ArrayList<>();
+        field.observeChanges((source, change) -> heard.add(change.aspect() + "/" + change.origin()));
+        type("abc");
+        key(Keys.ENTER, 0);
+        assertEquals(List.of(), submitted, "no handler, nothing to submit to");
+        assertFalse(heard.contains("SUBMITTED/USER"), "and nothing announced: " + heard);
+
+        field.onSubmit(submitted::add);
+        key(Keys.ENTER, 0);
+        assertEquals(List.of("abc"), submitted, "Enter hands the handler the text");
+        assertTrue(heard.contains("SUBMITTED/USER"), "announced to the watchers too: " + heard);
+
+        scene.preeditChanged("xy", new int[] {2}, 0, 2);
+        key(Keys.ENTER, 0);
+        assertEquals(List.of("abc"), submitted, "while composing, Enter is the input method's");
+    }
 }

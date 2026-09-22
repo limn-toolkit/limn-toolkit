@@ -271,25 +271,10 @@ through them, and Escape closes a `Dialog`. Focus is drawn as a ring outside the
 it never sits on top of the field's own border, and the ring's colour is solved against the
 accent it surrounds, so you do not have to check it yourself.
 
-A form does not submit on Enter by default. If you want that, subclass the field and handle
-the key: `onKeyEvent` is the hook, and consuming the event stops it going any further:
+A form does not submit on Enter by default. If you want that, give the field an `onSubmit`
+handler: it runs when the user presses Enter, with the text, and without one Enter is left to
+whatever else answers it, such as a dialog's default button:
 
 ```java
-class SubmitOnEnter extends TextField {
-    private final Runnable submit;
-
-    SubmitOnEnter(Runnable submit) {
-        this.submit = submit;
-    }
-
-    @Override
-    protected void onKeyEvent(KeyEvent event) {
-        if (event.isPressed() && event.key() == Keys.ENTER) {
-            submit.run();
-            event.consume();
-            return;
-        }
-        super.onKeyEvent(event);
-    }
-}
+password.onSubmit(text -> signIn());
 ```

@@ -69,7 +69,10 @@ the toolkit and the demo extend them themselves (`BackdropPanel`, `Dialog`'s act
 font and icon scenes); `Container` is where a new layout starts. Of the probes, most only read a
 protected hook the component overrides in its own package and now call it directly; the chart's
 geometry is read by reflection, the shaping count is taken at a counting ruler, and paint is left
-out by a parent that paints no children. A widget of one's own extends `Widget`,
+out by a parent that paints no children. Sealing `TextField` took away the one route the forms guide taught for
+submitting on Enter — a subclass overriding the key hook — so `TextField.onSubmit` joins it, the
+`SearchField` handler moved up a level: Enter hands the handler the text, is left alone without one
+(a dialog's default button still answers it), and is never taken while an input method composes. A widget of one's own extends `Widget`,
 which is the documented route and keeps its hooks. Test probes that subclassed a concrete widget move
 to composition. Opening a class later is compatible; closing it is not.
 

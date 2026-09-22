@@ -74,6 +74,7 @@ public sealed class TextField extends Widget permits PasswordField, SearchField 
     protected final TextEditModel model = new TextEditModel(true);
     private I18nString placeholder = I18nString.EMPTY;
     private Consumer<String> onChange;
+    private Consumer<String> onSubmit;
     /**
      * {@code < 0} means "unset": {@link #onMeasure} falls back to the resolved step's
      * {@code fieldWidth}. A step cannot be read in a field initializer: the widget has no
@@ -217,11 +218,36 @@ public sealed class TextField extends Widget permits PasswordField, SearchField 
         return this;
     }
 
+    /**
+     * The application's response to the user pressing Enter in the field, called with the text.
+     * Announced to the {@linkplain #observeChanges watchers} as {@code SUBMITTED} first. Without a
+     * handler Enter is left alone, so a {@link Dialog}'s default button still answers it, and it is
+     * never taken while an input method is composing, where Enter commits the composition.
+     *
+     * <p>What a subclass overriding the key hook used to do, before this class was sealed (ADR 046
+     * §2): the route the forms guide taught for submitting on Enter.
+     *
+     * @param listener the handler, or {@code null} to clear the slot
+     * @return this field
+     * @throws IllegalStateException if a handler is already registered
+     */
+    public TextField onSubmit(Consumer<String> listener) {
+        Ui.checkUiThread();
+        this.onSubmit = Checks.handlerSlot(onSubmit, listener, "TextField.onSubmit");
+        return this;
+    }
+
     @Override
     protected void handleUserChange(Change.Aspect aspect) {
         if (aspect == Change.Aspect.TEXT) {
             if (onChange != null) {
                 onChange.accept(model.text());
+            }
+            return;
+        }
+        if (aspect == Change.Aspect.SUBMITTED) {
+            if (onSubmit != null) {
+                onSubmit.accept(model.text());
             }
             return;
         }
@@ -1115,6 +1141,13 @@ public sealed class TextField extends Widget permits PasswordField, SearchField 
                     model.moveEnd(shift);
                 } else {
                     model.moveVisualRight(displayLine(), 0, shift);
+                }
+            }
+            case Keys.ENTER -> {
+                if (onSubmit != null && preedit.isEmpty() && !event.isRepeat()) {
+                    notifyChange(Change.of(Change.Aspect.SUBMITTED, Change.Origin.USER));
+                } else {
+                    handled = false;
                 }
             }
             case Keys.HOME -> model.moveHome(shift);
