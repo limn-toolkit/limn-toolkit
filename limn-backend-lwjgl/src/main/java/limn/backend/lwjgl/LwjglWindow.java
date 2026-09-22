@@ -160,6 +160,9 @@ final class LwjglWindow implements NativeWindow {
     private float contentScaleOverride;
     private float pixelsPerScreenCoord = 1f;
     private boolean frameRequested = true;
+    /** Presses in a row, counted with the platform's double-click interval (ADR 046 §5). */
+    private final ClickCounter clicks = ClickCounter.forThisPlatform();
+
     /** Whether a frame has been presented since the window was made; see {@link #isCovered}. */
     private boolean presentedOnce;
     /** How many frames have been presented at the current framebuffer size; see {@link #bufferAge}. */
@@ -369,8 +372,11 @@ final class LwjglWindow implements NativeWindow {
                 return;
             }
             if (input != null) {
-                input.mouseButton(button, action == GLFW_PRESS, mods,
-                        toLogical(eventCursorX()), toLogical(eventCursorY()));
+                float x = toLogical(eventCursorX());
+                float y = toLogical(eventCursorY());
+                boolean press = action == GLFW_PRESS;
+                input.mouseButton(button, press, mods, x, y,
+                        press ? clicks.press(button, x, y) : clicks.release());
             }
         });
         glfwSetScrollCallback(handle, (win, dx, dy) -> {

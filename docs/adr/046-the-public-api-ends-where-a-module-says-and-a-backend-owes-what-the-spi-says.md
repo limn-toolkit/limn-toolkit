@@ -117,7 +117,10 @@ own tests use it, which is how the driver stays honest.
 - `WindowInput.mouseButton` gains a click count. The backend counts, with the platform's own
   double-click interval (`[NSEvent doubleClickInterval]` on macOS, `GetDoubleClickTime` on Windows, 500
   ms elsewhere, GLFW having none), and `Table` and `Tree` read the count instead of timing 400 ms
-  themselves.
+  themselves. *Built as:* `MouseEvent.clickCount()`; a count of 0 from a backend that does not count
+  (the test doubles, a headless window) is counted by the scene on its own clock with the 400 ms the
+  two widgets used, so nothing that drove a double click before stops being one. Even counts pair up,
+  so a triple click activates a row once, as the timers did.
 
 ## 6. Decision: `WindowConfig` is a final class with a factory and withers (decision 124)
 

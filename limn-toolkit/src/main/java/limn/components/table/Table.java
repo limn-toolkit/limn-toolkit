@@ -117,8 +117,6 @@ public final class Table<T> extends Widget implements Scrollable {
     private int visibleRows = VISIBLE_ROWS_HINT;
     /** How far either side of a header divider a press starts a resize, in points. */
     private static final float RESIZE_BAND = 4;
-    /** Two presses on one row closer than this are a double click. */
-    private static final long DOUBLE_CLICK_NANOS = 400_000_000L;
     /** The synthetic key of the header row's group node. */
     private static final long HEADER_KEY = -1;
     /** The synthetic key of the footer row's group node. */
@@ -283,7 +281,6 @@ public final class Table<T> extends Widget implements Scrollable {
     private float dragStartX;
     private float dragStartWidth;
     private int hoverDivider = -1;
-    private long lastPressNanos;
     private int lastPressRow = -1;
 
     /** Reused per walk to assemble a row's composite name before comparing it with the kept one. */
@@ -3336,10 +3333,10 @@ public final class Table<T> extends Widget implements Scrollable {
                 int mods = event.modifiers();
                 boolean command = (mods & Accelerator.commandModifier()) != 0;
                 boolean shift = (mods & Keys.MOD_SHIFT) != 0;
-                long now = sceneNanos();
-                boolean second = row == lastPressRow && now - lastPressNanos < DOUBLE_CLICK_NANOS;
+                // The platform's double click, counted by the backend with the user's own interval
+                // (ADR 046 §5); even counts pair up, so a triple click activates once.
+                boolean second = row == lastPressRow && event.clickCount() % 2 == 0;
                 lastPressRow = row;
-                lastPressNanos = second ? 0 : now;
                 if (selectionMode == SelectionMode.MULTI && command) {
                     toggle(row);
                 } else if (selectionMode == SelectionMode.MULTI && shift) {

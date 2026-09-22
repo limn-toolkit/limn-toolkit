@@ -25,10 +25,22 @@ public final class MouseEvent extends InputEvent {
     private final float scrollX;
     private final float scrollY;
     private final int modifiers;
+    private final int clickCount;
 
     /** A pointer event; {@code x} and {@code y} are in the receiving widget's coordinates. */
     public MouseEvent(Type type, float x, float y, int button,
                       float scrollX, float scrollY, int modifiers) {
+        this(type, x, y, button, scrollX, scrollY, modifiers, 1);
+    }
+
+    /**
+     * A pointer event carrying how many presses in a row this one is.
+     *
+     * @param clickCount 1 for a single press, 2 for the second of a double click, and so on
+     */
+    public MouseEvent(Type type, float x, float y, int button,
+                      float scrollX, float scrollY, int modifiers, int clickCount) {
+        this.clickCount = Math.max(1, clickCount);
         this.type = type;
         this.x = x;
         this.y = y;
@@ -36,6 +48,15 @@ public final class MouseEvent extends InputEvent {
         this.scrollX = scrollX;
         this.scrollY = scrollY;
         this.modifiers = modifiers;
+    }
+
+    /**
+     * @return how many presses in a row this is — 2 on the second press of a double click — counted
+     *         with the platform's own double-click interval where the backend knows it (ADR 046 §5),
+     *         and 1 for anything that is not a press, release or click
+     */
+    public int clickCount() {
+        return clickCount;
     }
 
     /** Which pointer transition this is. */

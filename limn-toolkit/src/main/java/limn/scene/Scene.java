@@ -92,7 +92,7 @@ public final class Scene implements WindowInput {
     private record RawDelta(float dx, float dy) implements Raw {
     }
 
-    private record RawButton(int button, boolean pressed, int mods, float x, float y) implements Raw {
+    private record RawButton(int button, boolean pressed, int mods, float x, float y, int clicks) implements Raw {
     }
 
     private record RawScroll(float dx, float dy, float x, float y) implements Raw {
@@ -2533,7 +2533,42 @@ public final class Scene implements WindowInput {
 
     @Override
     public void mouseButton(int button, boolean pressed, int modifiers, float x, float y) {
-        queue.add(new RawButton(button, pressed, modifiers, x, y)); // never dropped
+        mouseButton(button, pressed, modifiers, x, y, 0);
+    }
+
+    @Override
+    public void mouseButton(int button, boolean pressed, int modifiers, float x, float y, int clickCount) {
+        queue.add(new RawButton(button, pressed, modifiers, x, y, clickCount)); // never dropped
+    }
+
+    /**
+     * The count a press the backend did not count gets from this scene's clock: the fallback of ADR
+     * 046 §5, with the interval the table and the tree used to time on their own.
+     */
+    private static final long FALLBACK_DOUBLE_CLICK_NANOS = 400_000_000L;
+    private static final float DOUBLE_CLICK_SLOP = 4;
+    private int lastClickButton = -1;
+    private long lastClickNanos;
+    private float lastClickX;
+    private float lastClickY;
+    private int lastClickCount;
+
+    private int countClick(RawButton button) {
+        if (button.clicks > 0) {
+            lastClickCount = button.clicks;
+            return button.clicks;
+        }
+        long now = clock.getAsLong();
+        boolean again = button.button == lastClickButton && lastClickCount > 0
+                && now - lastClickNanos < FALLBACK_DOUBLE_CLICK_NANOS
+                && Math.abs(button.x - lastClickX) <= DOUBLE_CLICK_SLOP
+                && Math.abs(button.y - lastClickY) <= DOUBLE_CLICK_SLOP;
+        lastClickCount = again ? lastClickCount + 1 : 1;
+        lastClickButton = button.button;
+        lastClickNanos = now;
+        lastClickX = button.x;
+        lastClickY = button.y;
+        return lastClickCount;
     }
 
     @Override
@@ -2756,16 +2791,19 @@ public final class Scene implements WindowInput {
                 setFocus(focusTarget, Change.Origin.USER); // click-to-focus
             }
             dispatchBubbling(pressed, new MouseEvent(
-                    MouseEvent.Type.PRESS, button.x, button.y, button.button, 0, 0, button.mods));
+                    MouseEvent.Type.PRESS, button.x, button.y, button.button, 0, 0, button.mods,
+                    countClick(button)));
             notifyPressObservers(hit);
         } else {
             Widget target = pressed != null ? pressed : hitAt(button.x, button.y);
             dispatchBubbling(target, new MouseEvent(
-                    MouseEvent.Type.RELEASE, button.x, button.y, button.button, 0, 0, button.mods));
+                    MouseEvent.Type.RELEASE, button.x, button.y, button.button, 0, 0, button.mods,
+                    lastClickCount));
             Widget releaseHit = hitAt(button.x, button.y);
             if (pressed != null && isInSubtree(releaseHit, pressed)) {
                 dispatchBubbling(pressed, new MouseEvent(
-                        MouseEvent.Type.CLICK, button.x, button.y, button.button, 0, 0, button.mods));
+                        MouseEvent.Type.CLICK, button.x, button.y, button.button, 0, 0, button.mods,
+                        lastClickCount));
             }
             pressed = null;
             pressedButton = -1;

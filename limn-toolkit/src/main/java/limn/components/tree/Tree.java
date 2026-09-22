@@ -289,8 +289,6 @@ public final class Tree<T> extends Widget implements Scrollable {
      * must not move with the step. The table's number.
      */
     private static final int VISIBLE_ROWS_HINT = 8;
-    /** Two presses on one row closer than this are a double click; the table's window. */
-    private static final long DOUBLE_CLICK_NANOS = 400_000_000L;
     /**
      * How many changed rows are still worth damaging one at a time before the whole tree is
      * cheaper: the table's number, for the table's reason (the damage list merges past a
@@ -457,7 +455,6 @@ public final class Tree<T> extends Widget implements Scrollable {
     private boolean pointerPress;
     /** The last row pressed and when, for the double click. */
     private T lastPressNode;
-    private long lastPressNanos;
     /** The node whose expansion a handler is about to be told of; see {@link #handleUserChange}. */
     private T toggled;
 
@@ -2657,11 +2654,10 @@ public final class Tree<T> extends Widget implements Scrollable {
         int mods = event.modifiers();
         boolean command = (mods & Accelerator.commandModifier()) != 0;
         boolean shift = (mods & Keys.MOD_SHIFT) != 0;
-        long now = sceneNanos();
-        boolean second = row.node.equals(lastPressNode)
-                && now - lastPressNanos < DOUBLE_CLICK_NANOS;
+        // The platform's double click, counted by the backend with the user's own interval (ADR
+        // 046 §5); even counts pair up, so a triple click activates once.
+        boolean second = row.node.equals(lastPressNode) && event.clickCount() % 2 == 0;
         lastPressNode = row.node;
-        lastPressNanos = second ? 0 : now;
         pointerPress = true;
         try {
             if (selectionMode == SelectionMode.MULTI && command) {

@@ -25,8 +25,18 @@ public interface WindowInput {
     default void mouseDelta(float dx, float dy) {
     }
 
-    /** Button press/release at the given cursor position. */
-    void mouseButton(int button, boolean pressed, int modifiers, float x, float y);
+    /**
+     * Button press/release at the given cursor position, with how many presses in a row this is,
+     * counted by the backend with the platform's own double-click interval and distance (ADR 046 §5):
+     * 1 for a single press, 2 for the second of a double click. {@code 0} means the backend does not
+     * count, and the receiver counts with its own clock.
+     */
+    void mouseButton(int button, boolean pressed, int modifiers, float x, float y, int clickCount);
+
+    /** A press or release the backend did not count: {@code clickCount} 0. */
+    default void mouseButton(int button, boolean pressed, int modifiers, float x, float y) {
+        mouseButton(button, pressed, modifiers, x, y, 0);
+    }
 
     /** Wheel/trackpad scroll; deltas in native notches (positive = up/left). */
     void scrolled(float deltaX, float deltaY, float x, float y);
