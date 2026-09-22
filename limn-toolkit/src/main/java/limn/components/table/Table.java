@@ -2608,10 +2608,6 @@ public class Table<T> extends Widget implements Scrollable {
             return;
         }
         int n = rows.size();
-        Integer[] order = new Integer[n];
-        for (int i = 0; i < n; i++) {
-            order[i] = i;
-        }
         Locale locale = locale();
         Locale enclosing = I18n.pushScope(locale);
         try {
@@ -2619,16 +2615,37 @@ public class Table<T> extends Widget implements Scrollable {
             Column<T> column = sortColumn;
             int sign = sortOrder == SortOrder.DESCENDING ? -1 : 1;
             List<T> data = rows;
-            Arrays.sort(order, (a, b) -> {
-                int c = column.compare(data.get(a), data.get(b), collator, locale);
-                return c != 0 ? sign * c : Integer.compare(a, b);
-            });
+            int[] sorted = new int[n];
+            if (column.sortsByComparator()) {
+                // The application's own comparator decides, so it is called as it always was.
+                Integer[] order = new Integer[n];
+                for (int i = 0; i < n; i++) {
+                    order[i] = i;
+                }
+                Arrays.sort(order, (a, b) -> {
+                    int c = column.compare(data.get(a), data.get(b), collator, locale);
+                    return c != 0 ? sign * c : Integer.compare(a, b);
+                });
+                for (int i = 0; i < n; i++) {
+                    sorted[i] = order[i];
+                }
+            } else {
+                // Each row's key once, then the sort compares keys (decision 114).
+                Column.SortKey[] keys = new Column.SortKey[n];
+                for (int i = 0; i < n; i++) {
+                    keys[i] = column.sortKey(data.get(i), i, collator);
+                }
+                Arrays.sort(keys, (a, b) -> {
+                    int c = column.compareKeys(a, b, collator, locale);
+                    return c != 0 ? sign * c : Integer.compare(a.index, b.index);
+                });
+                for (int i = 0; i < n; i++) {
+                    sorted[i] = keys[i].index;
+                }
+            }
+            view = sorted;
         } finally {
             I18n.popScope(enclosing);
-        }
-        view = new int[n];
-        for (int i = 0; i < n; i++) {
-            view[i] = order[i];
         }
     }
 

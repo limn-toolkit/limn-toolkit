@@ -619,4 +619,74 @@ public final class Column<T> {
         }
         return collator.compare(format.apply(va, locale), format.apply(vb, locale));
     }
+
+    /** @return whether this column sorts by a comparator the application named */
+    boolean sortsByComparator() {
+        return comparator != null;
+    }
+
+    /**
+     * {@code row}'s sort key, computed once per sort rather than once per comparison (decision 114):
+     * the value, its number, and its collation key when it is text. Compared by {@link #compareKeys},
+     * which orders exactly as {@link #compare} does.
+     *
+     * <p>Measured before (2026-09-22): the comparator extracted both values and ran
+     * {@code Collator.compare} on every comparison, about 940 bytes each, so sorting 100,000 rows by a
+     * text column took 1.3 s and allocated 1.6 GB on the user-interface thread, against 24 ms for a
+     * numeric column. A {@code CollationKey} compares by its bytes, and {@code compareTo} on two keys
+     * from one collator orders as that collator's {@code compare} does.
+     */
+    SortKey sortKey(T row, int index, Collator collator) {
+        Object v = value == null ? null : value.apply(row);
+        return new SortKey(index, v, v instanceof Number n ? n.doubleValue() : 0,
+                v instanceof CharSequence cs ? collator.getCollationKey(cs.toString()) : null);
+    }
+
+    /**
+     * {@link #compare}'s order over two keys: {@code null} first, numbers by value, text by the
+     * collator, two values of one {@code Comparable} class by {@code compareTo}, and anything else by
+     * its formatted text under the collator (computed on first need and kept on the key).
+     */
+    int compareKeys(SortKey a, SortKey b, Collator collator, Locale locale) {
+        Object va = a.value;
+        Object vb = b.value;
+        if (va == null || vb == null) {
+            return va == null ? (vb == null ? 0 : -1) : 1;
+        }
+        if (va instanceof Number && vb instanceof Number) {
+            return Double.compare(a.number, b.number);
+        }
+        if (a.text != null && b.text != null) {
+            return a.text.compareTo(b.text);
+        }
+        if (va instanceof Comparable<?> ca && va.getClass() == vb.getClass()) {
+            @SuppressWarnings("unchecked")
+            Comparable<Object> comparable = (Comparable<Object>) ca;
+            return comparable.compareTo(vb);
+        }
+        return formatted(a, collator, locale).compareTo(formatted(b, collator, locale));
+    }
+
+    private java.text.CollationKey formatted(SortKey key, Collator collator, Locale locale) {
+        if (key.formatted == null) {
+            key.formatted = collator.getCollationKey(format.apply(key.value, locale));
+        }
+        return key.formatted;
+    }
+
+    /** One row's sort key; see {@link #sortKey}. */
+    static final class SortKey {
+        final int index;
+        final Object value;
+        final double number;
+        final java.text.CollationKey text;
+        java.text.CollationKey formatted;
+
+        SortKey(int index, Object value, double number, java.text.CollationKey text) {
+            this.index = index;
+            this.value = value;
+            this.number = number;
+            this.text = text;
+        }
+    }
 }
