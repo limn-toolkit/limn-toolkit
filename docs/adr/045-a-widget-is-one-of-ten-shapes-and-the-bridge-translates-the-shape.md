@@ -1,10 +1,11 @@
 # ADR 045: A widget is one of ten shapes, and the bridge translates the shape
 
-- **Status: PROPOSED, 2026-09-21.** Phases 0 to 7 of §7 are in the tree; phase 8 (the reader
-  round, one per platform) is open, and the record is accepted when it closes with nothing a
-  reader hears changed. Each phase's measure is written beside the floor in §0 and in §3
-  as it closes. Decisions 89 to 97 of the 2026-09-13
-  pass (batch 25) are what this record writes down.
+- **Status: ACCEPTED, 2026-09-22.** Proposed 2026-09-21; phases 0 to 9 of §7 are in the tree.
+  The reader round (phase 8: Orca, NVDA and VoiceOver, six scripts each) closed with nothing a
+  reader hears changed, every difference from the older references shown by a same-day
+  control to be older than this record (§8), and the measure after phase 9 stands beside the
+  floor in §0. Decisions 89 to 97 of the 2026-09-13 pass (batch 25) are what this record
+  writes down.
 - **Date:** 2026-09-21
 - **Scope:** the cost of adding a widget to the accessibility pipeline ADR 039 built, and the
   one change that lowers it: naming, in the model, the small number of *shapes* a published node
@@ -20,21 +21,29 @@
 At 48051d19, `main` after the twenty-third batch of the 2026-09-13 pass, taking the `Tree`
 (born 2026-09-12) as the sample of what a widget costs:
 
-| Where | Measure |
-|---|---|
-| `Tree.java` | 3,110 lines; 151 inside its five hooks; 280 from its accessibility banner to the end |
-| `TreeAccessibilityTest` against `TreeTest` | 1,932 against 2,643 |
-| Bridge tests named after it (`AtspiTreeTest`, `AxOutlineSceneTest`, `UiaTreeRowsTest`) | 2,417 lines |
-| Commits since it was born | 417, of which 345 touch an accessibility path |
-| Commits touching ADR 039 since then | 214 (267 in the record's life; it is 7,112 lines with 32 dated amendments) |
-| `*AccessibilityTest` in the toolkit | 65 files, 41,303 lines |
-| Hook lines across the toolkit's components | 2,384 in 38 files |
-| Bridge sources under `limn-backend-lwjgl/.../a11y` | 51 files, 20,415 lines; 30 import `limn.accessibility` |
-| Bridge tests under the same | 68 files, 23,103 lines |
-| Batch 23, one rule written three times | 38 files, 709 insertions |
-| Reads of a role or a shape facet in the bridges outside the role tables | 151: `AxGrid` 58, `AtspiTree` 34, `UiaPatternProviders` 23, `UiaFragment` 8, nine other files 28 |
-| Goldens | 4 files, 331 lines; gallery 41 entries, 6 with a reader script |
-| `./gradlew check`, every task run | 13 s, 5,240 tests |
+| Where | Measure at the floor, 48051d19 | After phase 9, 2026-09-22 |
+|---|---|---|
+| `Tree.java` | 3,110 lines; 151 inside its five hooks; 280 from its accessibility banner to the end | 3,115 lines; 78 inside the same five hooks |
+| `TreeAccessibilityTest` against `TreeTest` | 1,932 against 2,643 | unchanged; `TreeRowsContractTest` adds 165 lines and ten cases |
+| Bridge tests named after it (`AtspiTreeTest`, `AxOutlineSceneTest`, `UiaTreeRowsTest`) | 2,417 lines | unchanged |
+| Commits since it was born | 417, of which 345 touch an accessibility path | 11 on this branch, every one of them |
+| Commits touching ADR 039 since then | 214 (267 in the record's life; it is 7,112 lines with 32 dated amendments) | one, the §7 paragraph |
+| `*AccessibilityTest` in the toolkit | 65 files, 41,303 lines | 65 files, 41,284 lines (one duplicated `ListView` case removed) |
+| Hook lines across the toolkit's components | 2,384 in 38 files | 2,082 in 38 files (`Table` 298 → 249, `CalendarView` 245 → 230, `ComboBox` 235 → 202, `Tree` 151 → 78, `ListView` 123 → 102, `Spinner` 103 → 79) |
+| Bridge sources under `limn-backend-lwjgl/.../a11y` | 51 files, 20,415 lines; 30 import `limn.accessibility` | 60 files, 20,773 lines; 39 import it (eight `Uia*Shape` classes and `AtspiMenuShape`, the code moved and not rewritten) |
+| Bridge tests under the same | 68 files, 23,103 lines | 70 files, 23,411 lines (`UiaShapesTest`, `AtspiShapesTest`) |
+| Batch 23, one rule written three times | 38 files, 709 insertions | the rule is one method, `RowsAccessibility.performOnRow` |
+| Reads of a role or a shape facet in the bridges outside the role tables | 151: `AxGrid` 58, `AtspiTree` 34, `UiaPatternProviders` 23, `UiaFragment` 8, nine other files 28 | 154 by the same grep, moved and not removed (`AxGrid` 58, `AtspiTree` 33, `UiaGridShape` 22, `UiaProperties` 7, `UiaFragment` 6, `AtspiMenuShape` 5, `AxBridge` 5, `Atspi` 5, `AxGate` 4, three others 9); the measure the record keeps is §5's role comparisons, Windows 8 → 7, macOS 12 → 12, Linux 7 → 5 |
+| Goldens | 4 files, 331 lines; gallery 41 entries, 6 with a reader script | unchanged, and the dump byte-identical; beside them 18 contract subjects, 148 dynamic tests |
+| `./gradlew check`, every task run | 13 s, 5,240 tests | 19 s with three guests running, 5,564 tests, 0 failures |
+
+*The price of the next widget, worked (phase 9).* A widget of a known shape now costs: its
+`Host` (11 lines for `Button`'s leaf action, 47 for `Table`'s rows, 63 for `Tree`'s), the helper's `describe`
+call in its hook, a subject of 44 (`ButtonLeafActionContractTest`) to 165 lines
+(`TreeRowsContractTest`), one gallery entry and one golden line, and no bridge code and no
+bridge test, because the bridge translates the shape and `UiaShapesTest`/`AtspiShapesTest` pin
+the translation once. The `Tree` paid 2,128 lines at birth plus 1,932 of its own accessibility
+test and 2,417 of bridge tests for the same coverage.
 
 The batch-23 lane is the case in one line: decision 79 (a `SELECT` from a reader selects and does
 not move the cursor) had to be written in `Tree`, `Table` and `CalendarView`, each `selectOnly` or
@@ -367,9 +376,9 @@ the paragraph that says so; the design note's "Adding a widget" is rewritten aro
 | 4 | `Table`, `CalendarView`, `TabbedPane`, `SegmentedControl` under the contract, sixty dynamic tests; one duplicated case removed, the rest kept and the reason written | 2026-09-21 |
 | 5 | Windows moved under eight shape classes; Linux's exception under `AtspiMenuShape`; macOS named, not split; per-shape synthetic tests for Windows and Linux; the measure in §5 | 2026-09-21 |
 | 6 | `VALUE`, `TOGGLE`, `LEAF_ACTION`, `POPUP_OWNER` helpers and contracts; `TEXT`'s contract; `MENU` and `GRID` owed (§8) | 2026-09-21 |
-| 7 | The design note's pipeline rewritten around shapes; §6 applied; the record stays PROPOSED until phases 5 and 8 | partly, 2026-09-21 |
-| 8 | One reader round per platform over the gallery's scripted entries | — |
-| 9 | The measure beside the floor; the backlog; memory | — |
+| 7 | The design note's pipeline rewritten around shapes; §6 applied; the record stayed PROPOSED until phases 5 and 8 | 2026-09-22 |
+| 8 | One reader round per platform over the six scripted entries, the branch's jar (93bfc172) against the floor's (48051d19) in the same reader session: Orca 50.2 on Fedora 44 (11 runs), NVDA 2024.4.2 on Windows 11 (8 valid runs by their foreground log), VoiceOver on macOS 26.6 (16 runs, two repeats where a first comparison differed). Nothing a reader hears changed; what differs from the 16–17 Sep references is in §8 as older than this record. Readings under `.claude/pending/2026-09-13/readings/phase8-*/` | 2026-09-22 |
+| 9 | The measure beside the floor (§0), the worked example of the next widget's price (§0), the backlog (§8), memory | 2026-09-22 |
 
 ## 8. What this found and did not take
 
@@ -407,6 +416,21 @@ the paragraph that says so; the design note's "Adding a widget" is rewritten aro
   `ADD_TO_SELECTION` or `DESELECT` on a day, because a range is a band and not a set; the
   helper names its selection `SINGLE` for that reason, and the container's facet is the
   widget's own. Whether a range should say "multiple" to a reader is a decision to ask.
+
+- **Heard in phase 8 and older than this record** (each shown by the same-day control, the
+  floor jar built at 48051d19, saying it too; none bisected; readings under
+  `readings/phase8-{fedora,macos,windows}/`): on Linux, at the table script's step 11 (`SHIFT+DOWN`)
+  Orca no longer speaks the anchor row "Pyrenees Europe 3.404" it spoke on 2026-09-17, which
+  is batches 23/24's (candidate 252de3de); on macOS, a `RIGHT` inside a `DatePicker`'s open
+  popup closes it, because VoiceOver writes `AXSelected` on the cell its cursor reaches, the
+  bridge posts `SELECT`, and a pick inside the popup commits (the 16 Sep reference kept it
+  open); on macOS, at the table script's step 9 the `SPACE` meant to take Caucasus out of the
+  selection adds a row instead (`AXSelectedRows` 1 → 2; 1 → 0 on 16 Sep); on macOS,
+  VoiceOver's selection writes still drag the tree-loading cursor back to "Documents 2"
+  (defect f9bf3d6f). Two lab facts, not toolkit facts: the Fedora x11 path opens no window
+  today with either jar, so it was not measured; and the first run after unlocking the macOS
+  guest is cold (no AX observer registers, VoiceOver phrases differently) and is to be thrown
+  away.
 
 ## 9. Dependencies
 
