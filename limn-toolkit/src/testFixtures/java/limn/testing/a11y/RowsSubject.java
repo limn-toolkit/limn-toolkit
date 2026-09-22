@@ -1,5 +1,6 @@
 package limn.testing.a11y;
 
+import limn.scene.Change;
 import limn.scene.Widget;
 
 import java.util.List;
@@ -81,4 +82,22 @@ public interface RowsSubject {
 
     /** @return the row last activated through the widget's own callback, or -1 */
     int lastActivated();
+
+    /**
+     * @return whether the members have no container node of their own — a radio group, whose
+     *     rows are widgets and whose group is not (decision 107): the contract then reads the
+     *     members' common parent as the box, expects the cursor to be the selection, and hears
+     *     the selection change on the members that moved rather than on a container
+     */
+    default boolean containerless() {
+        return false;
+    }
+
+    /**
+     * @return the aspect the subject announces a selection change under: {@code SELECTION} for
+     *     a container's; a radio group spells its one change as {@code VALUE} on each member
+     */
+    default Change.Aspect selectionAspect() {
+        return Change.Aspect.SELECTION;
+    }
 }

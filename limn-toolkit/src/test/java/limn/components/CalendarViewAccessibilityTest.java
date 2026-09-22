@@ -296,7 +296,9 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         moved = bridge.eventsOf(AccessibleEvent.Type.SELECTION_CHANGED);
         assertEquals(1, moved.size(), "a band is one selection change: " + bridge.events);
         assertEquals(gridNode().id(), moved.get(0).nodeId(), bridge.events.toString());
-        assertTrue(moved.get(0).multiSelectable(), "the grid selects a band in RANGE");
+        assertFalse(moved.get(0).multiSelectable(), "the grid selects a band in RANGE, which is "
+                + "single to a reader (decision 105, 2026-09-22): no day offers ADD_TO_SELECTION "
+                + "or DESELECT, so the container no longer says multiple");
         assertEquals(3, moved.get(0).addedMembers().size(),
                 "the two ends and the day between them entered: " + bridge.events);
         assertEquals(List.of(fifteenth.id()), moved.get(0).removedMembers(),

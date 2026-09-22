@@ -142,18 +142,19 @@ builder alone. Three roles land in two or three shapes, each by what the node ca
 |---|---|
 | `BUTTON` | `LEAF_ACTION`; `POPUP_OWNER` (the overflow button, the colour picker button, the calendar's month title) |
 | `ROW` | `ROWS` (a table's); `GRID` (a calendar's week) |
-| `GROUP` | `SURFACE`; `POPUP_OWNER` (a date field, a date picker, a context region); `ROWS` (one case, below) |
+| `GROUP` | `SURFACE`; `POPUP_OWNER` (a date field, a date picker, a context region); until decision 106 also `ROWS`, the popup menu's panel (below) |
 
 Every other role seen in the gallery lands in exactly one shape, the one its row in §1's table
 names. `CHECK_MENU_ITEM`, `RADIO_MENU_ITEM`, `TOGGLE_BUTTON` and `ALERT` are published by no
 gallery entry; `ShapeTest` classifies them bare, and the gallery's gap is §8's.
 
-**The one case the classification found and did not fix:** `PopupMenu`'s own panel, a `GROUP`,
-carries the `SelectionFacet` its menu rows are members of (`selection=single active=…`), so it
-classifies as a `ROWS` container above a `MENU` that also carries a selection. That is a fact of
-how the menu publishes today, pinned as such; whether the selection belongs on the panel or on the
-menu is answered when the `MENU` helper is extracted (§3), and the dump will show the change if
-one is decided.
+**The one case the classification found and, until phase 10, did not fix:** `PopupMenu`'s own
+panel, a `GROUP`, carried the `SelectionFacet` its menu rows are members of
+(`selection=single active=…`), so it classified as a `ROWS` container above a `MENU` that also
+carries a selection. Decision 106 (2026-09-22) took the panel's facet away: the rows resolve to
+the menu column's, the cursor still reaches a reader as the focused panel's active descendant
+(ADR 039 §1.10 consults no facet on the way), and the dump changed in that one entry, listed in
+§0.
 
 ## 2. Decision: the price of a widget, and when a reader has to hear it
 

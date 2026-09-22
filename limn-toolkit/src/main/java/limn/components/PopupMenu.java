@@ -1591,11 +1591,12 @@ public final class PopupMenu {
         protected void onAccessibility(Accessibility a) {
             a.role(Accessible.Role.GROUP);
             a.name(ComponentStrings.MENU_POPUP, Accessible.NameFrom.CONTENT);
-            // Not required: a column of nothing but disabled rows has no highlight at all, and
-            // there is then honestly no current row. Not multi-selectable: one row is current.
-            // The facet is what turns a moved cursor into an active-descendant event, and focus
-            // never leaves this node, so without it every arrow key in a menu is silent.
-            a.selection(false, false);
+            // No selection facet of its own (decision 106, 2026-09-22): the rows are members of
+            // the MENU column below, which publishes the selection they resolve to, and until
+            // then this panel published a second one above it that no member belonged to (ADR
+            // 045 §1.3, the one GROUP that classified as ROWS). Focus never leaves this node, and
+            // the moved cursor still becomes an active-descendant event: the ACTIVE row is the
+            // first active node below the focused one, whichever container carries the facet.
             // The single-argument form; the variable-argument one allocates an array per call.
             a.action(Accessible.Action.CANCEL);
             if (!cols.isEmpty()) {

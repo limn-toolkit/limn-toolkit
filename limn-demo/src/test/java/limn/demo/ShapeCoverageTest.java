@@ -40,11 +40,10 @@ class ShapeCoverageTest {
      * three roles appear in more than one. A {@code BUTTON} is a leaf until it owns a popup or
      * discloses content (the calendar's month title). A {@code ROW} is a rows member when it is
      * selectable (a table's) and a grid row when it is not (a calendar's week). A {@code GROUP}
-     * is a surface, a popup owner when it opens something (a date field, a date picker, a context
-     * region), and — one case, {@code PopupMenu}'s own panel, which carries the selection its
-     * menu rows are members of — a rows container; that last one is recorded in ADR 045 §1 as
-     * a fact of the menu's publishing to be looked at when its helper is extracted, not as a
-     * property of groups. Every other role has exactly one shape. {@code CHECK_MENU_ITEM},
+     * is a surface, and a popup owner when it opens something (a date field, a date picker, a
+     * context region); until decision 106 (2026-09-22) {@code PopupMenu}'s own panel was a rows
+     * container too, carrying a second selection facet above the one its menu column publishes,
+     * and the pin here read three shapes for the role. Every other role has exactly one shape. {@code CHECK_MENU_ITEM},
      * {@code RADIO_MENU_ITEM}, {@code TOGGLE_BUTTON} and {@code ALERT} are absent because no
      * gallery entry publishes them; {@code ShapeTest} classifies them bare.
      */
@@ -54,7 +53,7 @@ class ShapeCoverageTest {
         Map<Accessible.Role, EnumSet<Shape>> m = new EnumMap<>(Accessible.Role.class);
         m.put(Accessible.Role.WINDOW, EnumSet.of(Shape.SURFACE));
         m.put(Accessible.Role.DIALOG, EnumSet.of(Shape.SURFACE));
-        m.put(Accessible.Role.GROUP, EnumSet.of(Shape.SURFACE, Shape.POPUP_OWNER, Shape.ROWS));
+        m.put(Accessible.Role.GROUP, EnumSet.of(Shape.SURFACE, Shape.POPUP_OWNER));
         m.put(Accessible.Role.SCROLL_PANE, EnumSet.of(Shape.SURFACE));
         m.put(Accessible.Role.SCROLL_BAR, EnumSet.of(Shape.VALUE));
         m.put(Accessible.Role.SPLIT_PANE, EnumSet.of(Shape.SURFACE));

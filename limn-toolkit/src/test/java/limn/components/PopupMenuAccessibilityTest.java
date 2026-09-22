@@ -272,12 +272,12 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(layer.has(Accessible.State.MODAL),
                 "stamped by the walk on a parentless top overlay, never declared here"
                         + describe(tree()));
-        assertNotNull(layer.selection(),
-                "focus never leaves this node, so the cursor reaches a reader only as its active "
-                        + "descendant, and only a node with the facet has one" + describe(tree()));
-        assertFalse(layer.selection().multiSelectable(), "one row is current");
-        assertFalse(layer.selection().required(),
-                "a column of nothing but disabled rows has no current row at all");
+        assertNull(layer.selection(),
+                "no selection facet of its own (decision 106, 2026-09-22): the rows are members "
+                        + "of the MENU column, which carries the one they resolve to, and the "
+                        + "cursor reaches a reader as the active descendant of this focused node "
+                        + "whichever container carries the facet (ADR 039 §1.10)"
+                        + describe(tree()));
         assertTrue(layer.actions().actions().contains(Accessible.Action.CANCEL),
                 "a press anywhere on this box that misses every column closes the menu"
                         + describe(tree()));

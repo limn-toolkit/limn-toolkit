@@ -212,6 +212,32 @@ public final class RowsAccessibility {
         }
     }
 
+    /**
+     * Publishes a member that has no container node of its own — a radio button, whose group is
+     * a {@code ButtonGroup} and not a widget — with its membership and its selection verbs, by
+     * the same rules as {@link #describeRow} (decision 107, 2026-09-22). The verbs are the
+     * member's own, because the node is the widget's. No cursor mark, no {@code FOCUS} and no
+     * {@code SCROLL_INTO_VIEW}: a member that is a focusable widget carries the walk's free verbs
+     * and holds the keyboard itself, and no expand and no press, because no containerless member
+     * opens or activates.
+     *
+     * @param a         the builder, positioned on the member
+     * @param selection what the group's selection allows
+     * @param selected  whether the member is selected
+     * @param position  its one-based position in the group, or 0 with no group
+     * @param size      the group's size, or 0 with no group
+     */
+    public static void describeContainerlessRow(Accessibility a, Selection selection,
+                                                boolean selected, int position, int size) {
+        a.containerlessSelectionItem(selected, position, size);
+        if (selection != Selection.NONE) {
+            a.action(Action.SELECT);
+            if (selection == Selection.MULTI) {
+                a.action(selected ? Action.DESELECT : Action.ADD_TO_SELECTION);
+            }
+        }
+    }
+
     private static void offer(Accessibility a, Offer offer, Action verb) {
         if (offer == Offer.DELEGATED) {
             a.delegate(verb);

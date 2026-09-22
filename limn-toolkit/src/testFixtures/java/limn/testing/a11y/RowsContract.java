@@ -44,7 +44,8 @@ import java.util.Set;
  * the keyboard.
  *
  * <p>A member is a node carrying a {@code SelectionItemFacet}; the container is the node its
- * {@code selectionContainer} resolves to. The members may classify as {@code ROWS} (a list's
+ * {@code selectionContainer} resolves to, or, for a subject whose members are containerless
+ * (a radio group; decision 107, 2026-09-22), their common parent, which carries no facet. The members may classify as {@code ROWS} (a list's
  * rows, a tree's, a table's) or as {@code GRID} (a calendar's day cells), because a grid is rows
  * whose members carry cells (§1.2): the rules are the selection's, not the row's role's.
  */
@@ -96,10 +97,15 @@ public final class RowsContract {
         Bound b = Bound.of(subject, rt);
         check(b.members.size() >= 3, b, "a subject shows at least three rows; this one published "
                 + b.members.size());
-        check(b.container.selection() != null, b, "the container carries the selection facet");
-        Shape containerShape = Shape.of(b.container);
-        check(containerShape == Shape.ROWS || containerShape == Shape.GRID, b,
-                "the container is a rows or a grid shape, not " + containerShape);
+        if (subject.containerless()) {
+            check(b.container.selection() == null, b, "containerless members have no selection "
+                    + "container: the box is their common parent, which carries no facet");
+        } else {
+            check(b.container.selection() != null, b, "the container carries the selection facet");
+            Shape containerShape = Shape.of(b.container);
+            check(containerShape == Shape.ROWS || containerShape == Shape.GRID, b,
+                    "the container is a rows or a grid shape, not " + containerShape);
+        }
         int last = -1;
         for (AccessibleNode member : b.members) {
             Shape shape = Shape.of(member);
@@ -243,14 +249,20 @@ public final class RowsContract {
             check(b.cursorRow() == 0, b, "and the tree still publishes row 0 as the cursor");
         }
         List<Change.Aspect> aspects = b.harness.changes.stream().map(Change::aspect).toList();
-        check(aspects.stream().filter(Change.Aspect.SELECTION::equals).count() == 1, b,
-                "the selection is announced once: " + aspects);
+        long announced = aspects.stream().filter(subject.selectionAspect()::equals).count();
+        if (subject.containerless()) {
+            check(announced == 2, b, "with no container the change is announced on the two "
+                    + "members that moved, the one left and the one selected, and nowhere "
+                    + "else: " + aspects);
+        } else {
+            check(announced == 1, b, "the selection is announced once: " + aspects);
+        }
         if (!subject.cursorIsTheSelection()) {
             check(!aspects.contains(Change.Aspect.FOCUS), b,
                     "and no cursor move is announced, because none happened: " + aspects);
         }
         for (Change change : b.harness.changes) {
-            if (change.aspect() == Change.Aspect.SELECTION) {
+            if (change.aspect() == subject.selectionAspect()) {
                 check(change.origin() == Change.Origin.USER, b,
                         "and from the user, which is who a reader is: " + change.origin());
             }
@@ -392,9 +404,16 @@ public final class RowsContract {
                 }
                 int at = node.selectionContainer();
                 if (at == AccessibleNode.NONE) {
-                    throw new AssertionError("the member \"" + node.name() + "\" has no selection "
-                            + "container; the rows contract does not cover containerless members "
-                            + "yet:" + harness.describe());
+                    if (!subject.containerless()) {
+                        throw new AssertionError("the member \"" + node.name() + "\" has no "
+                                + "selection container, and the subject does not declare its "
+                                + "members containerless:" + harness.describe());
+                    }
+                    at = node.parent(); // the box: the members' common parent (decision 107)
+                } else if (subject.containerless()) {
+                    throw new AssertionError("the member \"" + node.name() + "\" resolves to a "
+                            + "selection container, and the subject declares its members "
+                            + "containerless:" + harness.describe());
                 }
                 if (containerAt == AccessibleNode.NONE) {
                     containerAt = at;

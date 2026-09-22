@@ -2639,7 +2639,12 @@ public class CalendarView extends Widget {
         int columns = days && showWeekNumbers ? DAYS_IN_WEEK + 1 : columns();
         a.role(Accessible.Role.TABLE);
         a.table(rows(), columns);
-        a.selection((days || terminalChooser()) && selectionMode == SelectionMode.RANGE, false);
+        // Single in every mode, RANGE included (decision 105, 2026-09-22): a range is a band and
+        // not a set, no day offers ADD_TO_SELECTION or DESELECT, and a container that said
+        // "multiple" promised a reader two verbs no member had. Until then RANGE published
+        // multi-selectable, which the rows helper already contradicted by naming the selection
+        // SINGLE on every day.
+        a.selection(false, false);
 
         float pad = t.spacingSmall();
         float buttonW = t.calendarCell();

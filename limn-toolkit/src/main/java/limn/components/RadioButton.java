@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.RowsAccessibility;
 import limn.animation.Easing;
 import limn.animation.Transition;
 import limn.backend.Cursor;
@@ -380,12 +381,12 @@ public class RadioButton extends Widget {
     protected void onAccessibility(Accessibility a) {
         a.role(Accessible.Role.RADIO_BUTTON);
         a.name(text, Accessible.NameFrom.CONTENT);
-        if (group != null) {
-            a.containerlessSelectionItem(selected, group.indexOf(this) + 1, group.size());
-        } else {
-            a.containerlessSelectionItem(selected, 0, 0);
-        }
-        a.action(Accessible.Action.SELECT);
+        // A containerless member of the ROWS shape (decision 107, 2026-09-22): the group is a
+        // ButtonGroup and not a widget, so there is no container node, and the membership and
+        // the one verb are the helper's, by the rules every row obeys.
+        RowsAccessibility.describeContainerlessRow(a, RowsAccessibility.Selection.SINGLE,
+                selected, group == null ? 0 : group.indexOf(this) + 1,
+                group == null ? 0 : group.size());
     }
 
     /**
@@ -409,12 +410,55 @@ public class RadioButton extends Widget {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        if (action != Accessible.Action.SELECT || !isEnabled()) {
+        // By the rows shape's rules (decision 107): SELECT selects, everything else is refused,
+        // and the cursor is the selection here, so no FOCUS is offered or performed.
+        return RowsAccessibility.performOnRow(rowsHost, this, action);
+    }
+
+    /**
+     * This radio's mechanisms as the rows shape drives them: a select at {@code USER} through
+     * the group's seam, refused while disabled because the seam carries no guard of its own.
+     */
+    private final RowsAccessibility.Host<RadioButton> rowsHost = new RowsAccessibility.Host<>() {
+        @Override
+        public RowsAccessibility.Selection selection() {
+            return RowsAccessibility.Selection.SINGLE;
+        }
+
+        @Override
+        public boolean cursorIsTheSelection() {
+            return true;
+        }
+
+        @Override
+        public boolean rowsActivate() {
             return false;
         }
-        select(Change.Origin.USER);
-        return true;
-    }
+
+        @Override
+        public boolean isSelected(RadioButton row) {
+            return row.selected;
+        }
+
+        @Override
+        public boolean select(RadioButton row, boolean moveCursor) {
+            if (!row.isEnabled()) {
+                return false;
+            }
+            row.select(Change.Origin.USER);
+            return true;
+        }
+
+        @Override
+        public void moveCursor(RadioButton row) {
+            throw new UnsupportedOperationException("the cursor is the selection");
+        }
+
+        @Override
+        public void reveal(RadioButton row) {
+            row.revealInView();
+        }
+    };
 
     // ----------------------------------------------------------------- input
     @Override
