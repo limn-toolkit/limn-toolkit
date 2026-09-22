@@ -14,12 +14,13 @@ ImageView view = new ImageView(logo);
 
 `Images.load(Path)`, `Images.fromResource(String)` and `Images.decode(byte[])` all read on
 the thread that calls them, which is fine during startup and not fine in a click handler.
-Each has an `…Async` twin that does the work on the worker pool and hands the result back on
-the UI thread. Use those anywhere a frame is already running:
+Anywhere a frame is already running, load on the worker pool and take the result on the UI
+thread instead. A file or a resource has a name, so `Images.loadShared` and
+`Images.fromResourceShared` cache it: every caller of the same path gets the same `Image` and
+the GPU gets one texture. Bytes you already hold have no name, so `Images.decodeAsync` is a
+job you start, and may cancel:
 
-```java
-Images.loadAsync(path).thenAccept(image -> view.setImage(image));
-```
+{% snippet guide:loading %}
 
 Going the other way, `Images.encode(…)` and `Images.saveAsync(…)` write PNG.
 
@@ -49,8 +50,10 @@ WAV, Ogg Vorbis and MP3 decode out of the box. `Sounds.isAvailable()` reports wh
 audio device was found at all. On a machine with none, playback is a no-op rather than an
 exception, so a game does not need a silent-mode branch.
 
-Loading is I/O, so prefer `Sounds.loadAsync(…)` and `Sounds.fromResourceAsync(…)` once the
-window is up.
+Loading is I/O, so once the window is up prefer `Sounds.loadShared(…)` and
+`Sounds.fromResourceShared(…)`, which read and decode on the worker pool, complete on the UI
+thread and share one clip between callers, as the image loaders above do; `Sounds.decodeAsync`
+is the job for bytes in memory.
 
 ## Video
 

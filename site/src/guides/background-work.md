@@ -93,10 +93,13 @@ wanted the `Job`.
 
 ## Loading things
 
-The loaders that touch the disk all have an asynchronous form, and it is the one to use once
-a window is on screen: `Images.loadAsync`, `Images.fromResourceAsync`, `Sounds.loadAsync`
-and `Sounds.fromResourceAsync`. Each does the read and the decode on the worker pool and
-completes on the UI thread, so `thenAccept` may touch widgets.
+The loaders that touch the disk all have a form to use once a window is on screen:
+`Images.loadShared`, `Images.fromResourceShared`, `Sounds.loadShared` and
+`Sounds.fromResourceShared`. Each does the read and the decode on the worker pool and
+completes a `CompletableFuture` on the UI thread, so `thenAccept` may touch widgets, and each
+shares one result between everyone who asks for the same file. For bytes already in memory,
+`Images.decodeAsync` and `Sounds.decodeAsync` are `Work` jobs: attach the handlers, then
+`start()`. [Images and media](/docs/images-and-media/) has the example.
 
 Native file dialogs are the deliberate exception: they block the UI thread while they are
 open, exactly as they do in every other desktop application.
