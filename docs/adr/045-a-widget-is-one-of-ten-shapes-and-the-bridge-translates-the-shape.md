@@ -1,11 +1,12 @@
 # ADR 045: A widget is one of ten shapes, and the bridge translates the shape
 
-- **Status: ACCEPTED, 2026-09-22.** Proposed 2026-09-21; phases 0 to 9 of §7 are in the tree.
+- **Status: ACCEPTED, 2026-09-22.** Proposed 2026-09-21; phases 0 to 10 of §7 are in the tree.
   The reader round (phase 8: Orca, NVDA and VoiceOver, six scripts each) closed with nothing a
   reader hears changed, every difference from the older references shown by a same-day
-  control to be older than this record (§8), and the measure after phase 9 stands beside the
-  floor in §0. Decisions 89 to 97 of the 2026-09-13 pass (batch 25) are what this record
-  writes down.
+  control to be older than this record (§8); phase 10 took the backlog the round left (batch
+  26) and was heard again where it deviated (decision 92). The measure after phases 9 and 10
+  stands beside the floor in §0. Decisions 89 to 97 (batch 25) and 98 to 107 (batch 26) of the
+  2026-09-13 pass are what this record writes down.
 - **Date:** 2026-09-21
 - **Scope:** the cost of adding a widget to the accessibility pipeline ADR 039 built, and the
   one change that lowers it: naming, in the model, the small number of *shapes* a published node
@@ -45,6 +46,13 @@ bridge test, because the bridge translates the shape and `UiaShapesTest`/`AtspiS
 the translation once. The `Tree` paid 2,128 lines at birth plus 1,932 of its own accessibility
 test and 2,417 of bridge tests for the same coverage.
 
+*After phase 10 (2026-09-22):* hook lines 2,010 in 38 files (`Table` 236, `CalendarView` 234,
+`MenuBar` 124 → 62, `PopupMenu` 42 → 43 with its `Host`, `RadioButton` 15); seven helpers, 984
+lines; contracts and fixtures 2,489 lines; 20 subject files, 1,916 lines, 159 dynamic tests
+by the result files; bridge tests 71 files, 23,638 lines (`AxShapesTest`); `./gradlew check
+--rerun-tasks` 14 s, 5,614 tests, 0 failures; 18 commits on the branch; the dump moved in one
+entry (above).
+
 The batch-23 lane is the case in one line: decision 79 (a `SELECT` from a reader selects and does
 not move the cursor) had to be written in `Tree`, `Table` and `CalendarView`, each `selectOnly` or
 `pick` gaining a `moveCursor` parameter, because each of the three re-derives what a row is and
@@ -63,8 +71,11 @@ mechanism and feeds with shapes rather than widgets.
 2,822 lines, identical between light and dark. Every phase from 3 on ends with a fresh dump and a
 `diff` against it, and the diff is empty unless a line below says otherwise.
 
-*Changes the dump is allowed to show, by decision:* none; the dump is byte-identical after
-phases 1 to 6.
+*Changes the dump is allowed to show, by decision:* none through phase 9; after phase 10, one
+entry, `28-popup-menu-open` in both palettes, whose panel `GROUP` loses `selection=single`
+(decision 106) and keeps its active descendant. Decisions 100 and 105 changed what a walk can
+publish (a synthetic child beyond a scroll pane, a range's container) and no gallery entry
+shows either at rest, so the other 80 files are byte-identical to the floor's.
 
 ## 1. Decision: ten shapes, derived from the node, in a fixed order
 
@@ -380,58 +391,77 @@ the paragraph that says so; the design note's "Adding a widget" is rewritten aro
 | 7 | The design note's pipeline rewritten around shapes; §6 applied; the record stayed PROPOSED until phases 5 and 8 | 2026-09-22 |
 | 8 | One reader round per platform over the six scripted entries, the branch's jar (93bfc172) against the floor's (48051d19) in the same reader session: Orca 50.2 on Fedora 44 (11 runs), NVDA 2024.4.2 on Windows 11 (8 valid runs by their foreground log), VoiceOver on macOS 26.6 (16 runs, two repeats where a first comparison differed). Nothing a reader hears changed; what differs from the 16–17 Sep references is in §8 as older than this record. Readings under `.claude/pending/2026-09-13/readings/phase8-*/` | 2026-09-22 |
 | 9 | The measure beside the floor (§0), the worked example of the next widget's price (§0), the backlog (§8), memory | 2026-09-22 |
+| 10 | Batch 26 over §8's backlog: `MENU` and `GRID` written once with their contracts (98, 99); synthetic children narrowed by a scroll pane (100); `AxShapesTest` (101); a reader's write marks a popup day and does not commit (102); the table's step 9 read off the probe and left for a decision (103); the Orca anchor row bisected to 252de3de and the reference moved (104); a range says single (105); the popup panel's second selection gone (106); `RadioButton` and the chooser cells on the helpers, the contract covering containerless members (107). Heard again where decision 92 asks: date-picker on macOS (VoiceOver walks the popup and picks 17 October as on 16 Sep), calendar on the three platforms (identical to a same-session control each). `readings/phase10-{macos,fedora,windows}/` | 2026-09-22 |
 
-## 8. What this found and did not take
+## 8. What this found, what phase 10 took, and what stays
+
+Phase 10 (batch 26, decisions 98 to 107, 2026-09-22) took most of what phases 1 to 8 found.
+Taken:
+
+- **`MENU`** — `MenuAccessibility` (describe a bar, a menu, a row; perform by state) with
+  `MenuBar` and `PopupMenu` on it, and `MenuContract`, seven cases over two subjects
+  (decision 98). One thing the harness cannot drive is written into the contract: a bar's
+  dropdown opened in the scene is a modal layer above the bar, so the open title carries no
+  verb until it closes.
+- **`GRID`** — `GridAccessibility` (the container and its counts, a header at row −1 with its
+  sort and `PRESS` where the column sorts, a data cell with `FOCUS` and the cursor mark where
+  the cursor is a cell, a summary cell at row −2) with `Table` and `CalendarView` on it, and
+  `GridContract`, seven cases over two subjects (decision 99).
+- **Synthetic children in a scroll pane** — the walk narrows them by the owner's clipping
+  ancestors as it does a widget child (decision 100, `Widget.showingClip`,
+  `Accessibility.clipShowingAt`, `AccessibleClipTest`); the calendar's rows subject is back in
+  a `ScrollView` and decision 81's reveal case runs over it. No gallery entry has such a
+  child, so the dump did not move.
+- **The macOS per-shape synthetic test**, `AxShapesTest` (decision 101).
+- **A reader's selection write inside a `DatePicker`'s popup** marks the day and commits
+  nothing; a click and Enter still commit, and Enter on the day already selected reaches the
+  handler, which the calendar used to swallow (decision 102). Heard on the macOS guest at the
+  end of phase 10: VoiceOver walks the popup again and picks 17 October as the 16 Sep
+  reference did (`readings/phase10-macos/`).
+- **A range says single** (decision 105): no gallery entry is in `RANGE` at rest, so the dump
+  did not move; the calendar script was heard on the three platforms at the end of phase 10.
+- **The popup menu's panel** publishes no selection facet of its own (decision 106): the one
+  entry whose dump moved, `28-popup-menu-open`, loses `selection=single` on the panel and
+  keeps its active descendant.
+- **`RadioButton`** is the rows helper's first containerless member (`describeContainerlessRow`,
+  a `Host`), and the rows contract covers containerless members: the box is their common
+  parent, the cursor is the selection, and the one change is announced as `VALUE` on the two
+  members that moved (decision 107). The calendar's chooser cells are grid cells now
+  (`GridAccessibility.describeCell`); their `SELECT` is a descent and stays the calendar's own
+  verb, outside the rows shape, until the chooser is measured (decision 85).
+
+Explained, and left for a decision:
+
+- **The table's step 9 on macOS** (`SPACE` adds a row where the 16 Sep reference removed one;
+  decision 103, read off the phase-8 probe logs). Two hundred milliseconds after the focus
+  enters the Visited switch, VoiceOver writes the table's selection on its own — the cursor
+  sync of P5M-1 — and the row it writes is not the cursor's. On 16 Sep the write dragged the
+  cursor to that row (the probe shows the focus jumping to another row's switch), and the
+  `SPACE` then took that row out: "no rows selected", with the cursor moved in silence. Since
+  decision 79 the write selects without moving the cursor, and `SPACE` toggles the cursor's
+  row, which joins: "2 rows selected". The `SPACE` is right; what needs a decision is the
+  write. The candidates: refuse a selection write that names a row other than the cursor's
+  when it arrives within about 300 ms of a focus change (a heuristic to measure on the guest);
+  stop offering `setAccessibilitySelectedRows` on a table whose cells take the focus and keep
+  `AXSelected` on the rows (to measure); or leave it, since the toolkit did what the client
+  asked.
+
+Still open:
 
 - The gallery publishes no `CHECK_MENU_ITEM`, `RADIO_MENU_ITEM`, `TOGGLE_BUTTON` or `ALERT`
   node, so no golden and no reader has heard one; `PopupMenu` can publish the first.
-- `PopupMenu`'s panel carries a selection facet above its menu's (§1.3).
 - The plan's table of widgets per shape was wrong about `RadioButton`, `DatePicker` and
   `TabbedPane` (§1.2); the record's table is the pinned one.
-- **The macOS per-shape synthetic test is owed**: `AxGate.allows` per shape over an `AxGrid`
-  built on a source double, as `AxColumnsTest` builds one.
-- **`MENU` has no widget-side helper and no contract yet.** Its bridge half exists on Linux
-  (`AtspiMenuShape`); the widget half is `MenuBar`'s and `PopupMenu`'s own hooks. `MenuBar` and `PopupMenu` publish their rows in
-  their own hooks (124 and 42 lines); the price rule says the shape costs three adapters, a
-  contract and a reader round, and the Linux exception (`AtspiRoles.isMenuRow`) is the
-  adapter's, so the shape is taken with phase 5 and heard in phase 8.
-- **`GRID` has no helper.** Its rows are the rows helper's; its container half (a `TableFacet`,
-  headers at row −1 with a sort, cells found by their facet) is written in `Table` and
-  `CalendarView`, and a `GridContract` is owed with the helper.
-- `RadioButton` publishes its `SELECT` outside the rows helper because its members are
-  containerless (§4); the rows contract refuses it for the same reason. One case for
-  containerless members, and the helper's `describeRow` over it, close both.
-- `CalendarView`'s month and year chooser cells are a second set of selectable cells in the
-  same widget, publishing `SELECT` and `FOCUS` of their own (decision 85 keeps the chooser
-  unmeasured on a guest and deliberately unfixed); they go on the helper when the chooser is
-  measured.
-- **Found by the rows contract, not fixed:** a `CalendarView` inside a `ScrollView` publishes
-  its week rows and day cells beyond the pane as `SHOWING`, which the four invariants refuse
-  (a row "is showing and lies wholly outside its showing ancestor"); its synthetic children are
-  not narrowed by the scrolling ancestor's clip as a widget child would be. The subject runs
-  at its natural size until this is decided, and decision 81's reveal case waits with it.
 - Picking a leading or trailing day pages the calendar to that day's month, which is documented
   and tested (`pickingALeadingOrTrailingDayPagesTheGrid`) and which the contract's subject
   had to be built around: the members it mapped by name are another month's after such a pick.
-- A `CalendarView` in `RANGE` mode publishes its container as multi-selectable and offers no
-  `ADD_TO_SELECTION` or `DESELECT` on a day, because a range is a band and not a set; the
-  helper names its selection `SINGLE` for that reason, and the container's facet is the
-  widget's own. Whether a range should say "multiple" to a reader is a decision to ask.
-
-- **Heard in phase 8 and older than this record** (each shown by the same-day control, the
-  floor jar built at 48051d19, saying it too; none bisected; readings under
-  `readings/phase8-{fedora,macos,windows}/`): on Linux, at the table script's step 11 (`SHIFT+DOWN`)
-  Orca no longer speaks the anchor row "Pyrenees Europe 3.404" it spoke on 2026-09-17, which
-  is batches 23/24's (candidate 252de3de); on macOS, a `RIGHT` inside a `DatePicker`'s open
-  popup closes it, because VoiceOver writes `AXSelected` on the cell its cursor reaches, the
-  bridge posts `SELECT`, and a pick inside the popup commits (the 16 Sep reference kept it
-  open); on macOS, at the table script's step 9 the `SPACE` meant to take Caucasus out of the
-  selection adds a row instead (`AXSelectedRows` 1 → 2; 1 → 0 on 16 Sep); on macOS,
-  VoiceOver's selection writes still drag the tree-loading cursor back to "Documents 2"
-  (defect f9bf3d6f). Two lab facts, not toolkit facts: the Fedora x11 path opens no window
-  today with either jar, so it was not measured; and the first run after unlocking the macOS
-  guest is cold (no AX observer registers, VoiceOver phrases differently) and is to be thrown
-  away.
+- On macOS, VoiceOver's selection writes still drag the tree-loading cursor back to
+  "Documents 2" (defect f9bf3d6f), at the floor and on the branch.
+- Two lab facts, not toolkit facts: the Fedora x11 path opens no window with either jar, and
+  the owner's reading is that X on Fedora is not a path at all (the Ubuntu guest is the X11
+  lab, once resumed and given the key); and the first run after unlocking the macOS guest is
+  cold (no AX observer registers, VoiceOver phrases differently) and is to be thrown away.
+- Orca's silent anchor row at the table script's step 11 (§7, phase 10): see the bisect there.
 
 ## 9. Dependencies
 
