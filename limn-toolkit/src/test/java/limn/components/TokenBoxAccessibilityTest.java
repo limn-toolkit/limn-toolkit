@@ -87,7 +87,7 @@ class TokenBoxAccessibilityTest extends AccessibleComponentTestBase {
      * something inside the box that survives the predicate, so the rectangle the box leaves behind
      * has a node to be read from, and so a fixed axis can be seen overriding a real preference.
      */
-    private static final class Box extends Widget {
+    private static final class Box extends limn.scene.layout.Container {
         Box() {
             setAccessibleName("content");
         }
@@ -416,29 +416,18 @@ class TokenBoxAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * A second child is never measured, never laid out, and publishes a degenerate box at the
-     * TokenBox's origin.
-     *
-     * <p>{@code Widget#add} is public and non-final and this class does not override it, so adding a
-     * second child to a widget that lays out only its constructor child is legal and silent. The
-     * extra widget keeps the zero box it was born with, and if it declares anything at all it
-     * publishes an operable node with no area sitting on top of the real content. It is a limit to
-     * record rather than a defect to fix in this class: adding a guard would be a new refusal in a
-     * layout wrapper, and the answer for a caller who wants two children is a container.
+     * A second child added from outside was never laid out and published an operable node with no
+     * area on top of the real content. Since ADR 046 §3 that caller cannot exist: add and remove are
+     * protected on Widget and public only on a Container, which a layout wrapper like this is not.
      */
     @Test
-    void aSecondChildIsNeverLaidOutAndPublishesADegenerateBox() {
-        TokenBox box = new TokenBox(SizeTokens::colorRampW, null, new Box());
-        Box extra = new Box();
-        extra.setAccessibleName("extra");
-        box.add(extra);
-        bindInside(box);
-
-        AccessibleNode stray = node("extra");
-        assertEquals(box.localToSceneX(), stray.x(), "at the box's own origin");
-        assertEquals(box.localToSceneY(), stray.y());
-        assertEquals(0f, stray.width(), "and never laid out: " + stray.bounds());
-        assertEquals(0f, stray.height());
-        assertCoincides(box, node("content"), "the constructor's child is unaffected");
+    void aSecondChildCannotBeAddedFromOutside() throws Exception {
+        java.lang.reflect.Method add = TokenBox.class.getMethod("children");
+        assertEquals(java.util.List.class, add.getReturnType(), "the fixture: the class is readable");
+        for (java.lang.reflect.Method method : TokenBox.class.getMethods()) {
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    (method.getName().equals("add") || method.getName().equals("remove")),
+                    "no public add or remove reaches a TokenBox: " + method);
+        }
     }
 }

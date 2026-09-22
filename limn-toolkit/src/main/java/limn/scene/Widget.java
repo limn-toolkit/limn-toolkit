@@ -210,8 +210,11 @@ public abstract class Widget {
         return childrenView;
     }
 
-    /** Appends a child (UI thread only). */
-    public void add(Widget child) {
+    /**
+     * Appends a child (UI thread only). Protected: a widget arranges children of its own, and only a
+     * {@link limn.scene.layout.Container} takes them from outside (ADR 046 §3).
+     */
+    protected void add(Widget child) {
         Ui.checkUiThread();
         insert(children.size(), child);
     }
@@ -234,7 +237,7 @@ public abstract class Widget {
      * @throws IllegalStateException     if {@code child} already has a parent
      * @throws IllegalArgumentException  if {@code child} is an ancestor of this widget
      */
-    public void add(int index, Widget child) {
+    protected void add(int index, Widget child) {
         Ui.checkUiThread();
         Objects.checkIndex(index, children.size() + 1);
         insert(index, child);
@@ -260,8 +263,8 @@ public abstract class Widget {
         notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
     }
 
-    /** Removes a child (UI thread only). */
-    public void remove(Widget child) {
+    /** Removes a child (UI thread only); protected for the reason {@link #add(Widget)} is. */
+    protected void remove(Widget child) {
         Ui.checkUiThread();
         if (children.remove(child)) {
             child.parent = null;

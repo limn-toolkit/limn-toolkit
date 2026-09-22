@@ -197,7 +197,7 @@ public class TabbedPane extends Widget {
         TabHeader header = new TabHeader(title, icon, mirroring, index);
         headers.add(header);
         contents.add(content);
-        strip.add(header);
+        strip.addHeader(header);
         add(content);
         boolean first = selected < 0;
         if (first) {
@@ -846,6 +846,11 @@ public class TabbedPane extends Widget {
      * headers tidy and unreachable outside the viewport.
      */
     private final class TabStrip extends Widget implements Scrollable {
+
+        /** A header joins the strip; the pane owns the strip's children (ADR 046 §3). */
+        void addHeader(Widget header) {
+            add(header);
+        }
 
 
         /** Scrolls the minimum so the rect (in strip coordinates) becomes visible. */

@@ -895,9 +895,8 @@ public class DatePicker extends Widget {
      * which is the right trade: the popup being built is the one the user is looking at.
      */
     private void releaseCalendar() {
-        Widget holder = calendar.parent();
-        if (holder != null) {
-            holder.remove(calendar);
+        if (calendar.parent() instanceof PopupPanel holder) {
+            holder.drop(calendar);
         }
     }
 
@@ -1445,12 +1444,16 @@ public class DatePicker extends Widget {
      */
     private final class PopupPanel extends Widget {
 
+        /** Lets go of a child a newer card is taking; the picker owns the panel's children. */
+        void drop(Widget child) {
+            remove(child);
+        }
+
         PopupPanel() {
             add(calendar);
             if (timeRow != null) {
-                Widget holder = timeRow.parent();
-                if (holder != null) {
-                    holder.remove(timeRow); // the last card's, still fading: see releaseCalendar
+                if (timeRow.parent() instanceof PopupPanel holder) {
+                    holder.drop(timeRow); // the last card's, still fading: see releaseCalendar
                 }
                 add(timeRow);
             }

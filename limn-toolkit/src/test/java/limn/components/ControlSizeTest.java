@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ControlSizeTest extends ComponentTestBase {
 
     /** Counts measure passes so the cache key can be observed rather than assumed. */
-    private static final class Probe extends Widget {
+    private static final class Probe extends limn.scene.layout.Container {
         int measures;
 
         @Override

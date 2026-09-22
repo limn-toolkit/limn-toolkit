@@ -41,7 +41,7 @@ class LocaleAxisTest extends ComponentTestBase {
     private static final Locale ARABIC = Locale.forLanguageTag("ar-EG");
 
     /** Counts measure passes so the cache key can be observed rather than assumed. */
-    private static final class Probe extends Widget {
+    private static final class Probe extends limn.scene.layout.Container {
         int measures;
 
         @Override
@@ -325,7 +325,7 @@ class LocaleAxisTest extends ComponentTestBase {
     // ------------------------------------------------------------- the scope
 
     /** Reads its text inside its own passes, the way every real component does. */
-    private static final class Reading extends Widget {
+    private static final class Reading extends limn.scene.layout.Container {
         final I18nString text;
         String measured;
         String painted;

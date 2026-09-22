@@ -16,7 +16,7 @@ import limn.scene.Widget;
  * or is mounted in the scene by {@code Dialog}, both of which confine input and publish the fact to
  * a screen reader.
  */
-public class Stack extends Widget {
+public class Stack extends Container {
 
     /**
      * Where a child sits in the stack's box, on two vocabularies that coexist on purpose.

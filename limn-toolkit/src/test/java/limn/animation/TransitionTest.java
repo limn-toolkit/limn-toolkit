@@ -25,7 +25,7 @@ class TransitionTest {
     private UiRuntime runtime;
 
     /** Minimal owner; wiring it into a Scene gives it a non-null {@code scene()}. */
-    static final class Owner extends Widget {
+    static final class Owner extends limn.scene.layout.Container {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(10, 10);

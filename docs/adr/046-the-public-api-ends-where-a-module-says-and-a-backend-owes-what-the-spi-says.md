@@ -69,7 +69,11 @@ to composition. Opening a class later is compatible; closing it is not.
 ## 3. Decision: only a container adds and removes children in public (decision 120)
 
 `Widget.add` and `Widget.remove` become `protected`. A new abstract `Container extends Widget` makes
-them public, and `Column`, `Row`, `Stack` and `Padding` extend it, as do layouts an application writes.
+them public, and `Column`, `Row` (through `Flex`) and `Stack` extend it, as do layouts an application
+writes. *Amended while building it:* `Padding` is not a container after all — it wraps the one child it
+is constructed with, and a second one added from outside would never be laid out, the defect
+`TokenBoxAccessibilityTest` had recorded for the same shape — so it stays a plain widget. Nothing in the
+repository added to a `Padding` from outside.
 A widget that manages its own children (Table, Tree, TabbedPane, SplitPane, the date widgets) keeps
 them to itself.
 

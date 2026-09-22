@@ -11,7 +11,7 @@ import limn.scene.Widget;
  * distribution of leftovers ({@link MainAlignment}) and cross-axis placement
  * ({@link CrossAlignment}, including STRETCH).
  */
-public abstract class Flex extends Widget {
+public abstract class Flex extends Container {
 
     /**
      * How leftover space along the layout axis is distributed, on two vocabularies that coexist
