@@ -40,6 +40,8 @@ class CaretDamageTest {
      * widgets push their own clips later (TextField clips its text run).
      */
     static final class RecordingCanvas implements Canvas {
+        // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
+        @Override public void drawSurface(limn.graphics.GpuSurface surface, float x, float y, float w, float h) { }
         boolean cleared;
         Rect firstClip;
         int paints;

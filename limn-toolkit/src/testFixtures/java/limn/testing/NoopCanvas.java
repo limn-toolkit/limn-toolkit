@@ -63,6 +63,8 @@ public class NoopCanvas implements Canvas {
     @Override public TextMetrics measureText(String text, Font font) { return new TextMetrics(0, 8, 2, 12); }
     @Override public void drawImage(Image image, float x, float y, float w, float h) { }
     @Override public void drawImage(Image image, float x, float y, float w, float h, Color tint) { }
+    /** Nothing to composite into: a measuring canvas draws nothing. */
+    @Override public void drawSurface(limn.graphics.GpuSurface surface, float x, float y, float w, float h) { }
     @Override public void drawImage(Image image, float srcX, float srcY, float srcW, float srcH,
                                     float dstX, float dstY, float dstW, float dstH) { }
 

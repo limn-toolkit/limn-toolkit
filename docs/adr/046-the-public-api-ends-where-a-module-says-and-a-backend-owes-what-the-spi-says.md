@@ -101,8 +101,13 @@ own tests use it, which is how the driver stays honest.
 
 ## 5. Decision: the backend contract is written on the SPI (decision 122)
 
-- A record, `BackendServices`, names the eleven services, and one core call, `BackendServices.install`,
-  installs them all at once; a missing one is a constructor argument left null, refused on the spot.
+- A record, `BackendServices`, names the services, and one core call, `BackendServices.install`,
+  installs them all at once. *Amended while building it:* they are ten, not eleven (the font catalog's
+  change notifier is the font store's own business), and five are required — the UI runtime, the text
+  ruler, the font catalog and loader, the image decoder, the SVG rasterizer — and refused on the spot
+  when null, while 3D, video surfaces and audio take `null` for "this backend has none", which is a
+  truthful answer for a machine without an audio device and which the toolkit already reports as
+  unavailable rather than failing.
 - `Canvas.drawSurface`, `NativeWindow.setCloseRequestHandler`, `setImeEnabled`, `setPreeditCaretRect`,
   `resetPreedit` and `supportsAbsolutePositioning` lose their defaults. The defaults that are a truthful
   "this platform cannot" (opacity, cursors, fullscreen) keep theirs.

@@ -13,6 +13,8 @@ import limn.backend.WindowInput;
  * scene pushes to its window.
  */
 final class RecordingWindow implements NativeWindow {
+    // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
+    @Override public void setCloseRequestHandler(java.util.function.BooleanSupplier handler) { }
 
     float opacity = 1f;
     Cursor cursor = Cursor.DEFAULT;

@@ -74,11 +74,13 @@ public interface NativeWindow extends AutoCloseable {
      * button, Alt-F4, Cmd-W): return {@code false} to veto and keep the window
      * open, e.g. to show an "unsaved changes" dialog first, closing later via
      * {@link #requestClose()}, which (like every programmatic close) bypasses
-     * the handler. {@code null} clears. The default implementation ignores it
-     * (headless/embedding). UI thread only.
+     * the handler. {@code null} clears. UI thread only.
+     *
+     * <p>No default (ADR 046 §5): a backend that ignored it lost an application's "unsaved changes"
+     * veto silently. A backend with no close gesture of its own (headless, embedded) keeps the
+     * handler and never calls it, and says so in its implementation.
      */
-    default void setCloseRequestHandler(java.util.function.BooleanSupplier handler) {
-    }
+    void setCloseRequestHandler(java.util.function.BooleanSupplier handler);
 
     void show();
 
@@ -110,32 +112,29 @@ public interface NativeWindow extends AutoCloseable {
     /**
      * Enables or disables the platform input method (IME) for this window. The
      * scene turns it on while a text-editing widget holds focus and off
-     * otherwise, so composition keys never leak into non-text UI. A no-op where
-     * the platform has no IME control; the default implementation ignores it
-     * (headless/embedding). UI thread only.
+     * otherwise, so composition keys never leak into non-text UI. UI thread only.
+     *
+     * <p>No default (ADR 046 §5), nor for the two IME methods below: a backend that ignored them
+     * broke Chinese, Japanese and Korean input without a word. A backend with no input method
+     * (headless) implements them as no-ops, on purpose and in writing.
      */
-    default void setImeEnabled(boolean enabled) {
-    }
+    void setImeEnabled(boolean enabled);
 
     /**
      * Positions the IME candidate/composition window at the caret, so it follows
      * the text being edited. {@code x}/{@code y}/{@code width}/{@code height} are
      * in logical points relative to the window's content area (the scene feeds
-     * the focused widget's {@code caretRect}). A no-op where unsupported; the
-     * default implementation ignores it (headless/embedding). UI thread only.
+     * the focused widget's {@code caretRect}). UI thread only.
      */
-    default void setPreeditCaretRect(float x, float y, float width, float height) {
-    }
+    void setPreeditCaretRect(float x, float y, float width, float height);
 
     /**
      * Cancels any in-progress IME composition held by the platform for this
      * window. The scene calls it when focus leaves a text-editing widget, so a
      * composition started there can never commit into whatever is focused next.
-     * A no-op where unsupported or when nothing is being composed; the default
-     * implementation ignores it (headless/embedding). UI thread only.
+     * A no-op when nothing is being composed. UI thread only.
      */
-    default void resetPreedit() {
-    }
+    void resetPreedit();
 
     /** @return whether the window is currently visible on screen */
     boolean isVisible();
@@ -274,14 +273,12 @@ public interface NativeWindow extends AutoCloseable {
      * check. It has no position to agree with, so letting the desktop place it is the right
      * outcome rather than a fallback.
      *
-     * <p>{@code true} by default, because every platform Limn ran on before Wayland could do
-     * this and a backend that says nothing is one of those. Wayland is the first that cannot:
-     * absolute window position is absent from the protocol by design, not missing from an
-     * implementation, so this can never become universally {@code true} again.
+     * <p>No default (ADR 046 §5). It answered {@code true} until 2026-09-22, which is the unsafe
+     * answer: a backend that said nothing claimed a power Wayland does not have, and a popup that
+     * trusted it opened wherever the compositor put it. Absolute window position is absent from
+     * that protocol by design, so a backend has to say.
      */
-    default boolean supportsAbsolutePositioning() {
-        return true;
-    }
+    boolean supportsAbsolutePositioning();
 
     /**
      * Makes the window transparent to MOUSE input: clicks, wheel and hover pass

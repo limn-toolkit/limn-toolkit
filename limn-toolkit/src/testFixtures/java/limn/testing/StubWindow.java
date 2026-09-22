@@ -63,6 +63,19 @@ public class StubWindow implements NativeWindow {
     }
 
     @Override public boolean supportsAbsolutePositioning() { return canPosition; }
+    /** A stub window has no close gesture of its own, so the handler is kept and never asked. */
+    private java.util.function.BooleanSupplier closeRequestHandler;
+    @Override public void setCloseRequestHandler(java.util.function.BooleanSupplier handler) {
+        closeRequestHandler = handler;
+    }
+    /** @return the close handler a scene or an application registered, for a test to ask */
+    public java.util.function.BooleanSupplier closeRequestHandler() {
+        return closeRequestHandler;
+    }
+    /** No input method in a stub: the three IME calls are no-ops, on purpose. */
+    @Override public void setImeEnabled(boolean enabled) { }
+    @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
+    @Override public void resetPreedit() { }
 
     /** A single 400×300 display at the origin, so the whole window is inside its work area. */
     @Override public Display display() {

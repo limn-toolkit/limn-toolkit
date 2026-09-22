@@ -69,6 +69,8 @@ abstract class ComponentTestBase {
      * about (see {@code SliderTest}'s pixel-grid test).
      */
     static class FakeCanvas implements Canvas {
+        // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
+        @Override public void drawSurface(limn.graphics.GpuSurface surface, float x, float y, float w, float h) { }
         private final float width;
         private final float height;
 

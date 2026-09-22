@@ -23,6 +23,9 @@ class ChildPopupsTest {
 
     /** A window that only knows where it is, whether it is closed, and how to be moved. */
     private static final class FakeWindow implements NativeWindow {
+        // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
+        @Override public boolean supportsAbsolutePositioning() { return true; }
+        @Override public void setCloseRequestHandler(java.util.function.BooleanSupplier handler) { }
         int x;
         int y;
         private boolean closed;

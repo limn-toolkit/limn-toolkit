@@ -49,6 +49,8 @@ class IconPaintRoutingTest {
 
     /** Records the image-draw calls; every other Canvas method is an inert stub. */
     private static class RecordingCanvas implements Canvas {
+        // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
+        @Override public void drawSurface(limn.graphics.GpuSurface surface, float x, float y, float w, float h) { }
         final float scale;
         int maskCalls;
         int tintedImageCalls;

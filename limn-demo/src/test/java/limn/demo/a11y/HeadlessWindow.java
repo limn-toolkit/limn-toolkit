@@ -32,6 +32,12 @@ import limn.testing.TestRulers;
  * the whole publish path a screen reader would see, and not a shortcut around it.
  */
 public final class HeadlessWindow implements NativeWindow {
+    // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
+    @Override public boolean supportsAbsolutePositioning() { return true; }
+    @Override public void setCloseRequestHandler(java.util.function.BooleanSupplier handler) { }
+    @Override public void setImeEnabled(boolean enabled) { }
+    @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
+    @Override public void resetPreedit() { }
 
     /**
      * Ten points per code point, ascent eight, descent two, line twelve: the fixed monospace

@@ -23,6 +23,8 @@ class DegenerateGeometryTest {
 
     /** Canvas double that records which shape calls actually reached the backend. */
     private static final class RecordingCanvas implements Canvas {
+        // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
+        @Override public void drawSurface(limn.graphics.GpuSurface surface, float x, float y, float w, float h) { }
         final List<String> calls = new ArrayList<>();
 
         @Override

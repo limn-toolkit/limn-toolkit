@@ -117,12 +117,10 @@ public final class LwjglBackend implements Backend {
         GLFWErrorCallback.createPrint(System.err).set();
         uiRuntime = UiRuntime.create(this::wakeLoop);
         uiRuntime.bindToCurrentThread();
-        Ui.install(uiRuntime);
         fontStore = new FontStore();
         // A class rather than the measuring lambda it used to be: the ruler now also shapes, and
         // carries the shape memo and the epoch a held ShapedText is invalidated against.
         textRuler = new ShapingRuler(fontStore);
-        limn.graphics.TextRulers.install(textRuler);
         // Catalog is available immediately with the bundled families. Nothing
         // else loads at startup: the OS enumeration runs on the FIRST listing
         // request (or unknown-family resolve), and the heavy Noto fallbacks
@@ -130,17 +128,12 @@ public final class LwjglBackend implements Backend {
         // store kicks both in the background and re-installs the catalog via
         // this notifier, so Fonts listeners (relayout, pickers) observe it.
         fontCatalog = fontStore::families;
-        limn.graphics.Fonts.installCatalog(fontCatalog);
         fontStore.setCatalogChangedNotifier(() -> limn.graphics.Fonts.installCatalog(fontCatalog));
         fontLoader = fontStore::loadFile;
-        limn.graphics.Fonts.installLoader(fontLoader);
         imageDecoder = new StbImageDecoder();
-        limn.graphics.Images.installDecoder(imageDecoder);
-        limn.graphics.SvgIcon.installRasterizer(svgRasterizer);
-        limn.render3d.Graphics3D.install(graphics3d);
-        limn.video.VideoSurfaces.install(videoSurfaces);
-        Sounds.installEngine(audio);
-        Sounds.installDecoder(audioDecoder);
+        // Every service at once, through the one call the SPI names (ADR 046 §5).
+        new limn.backend.BackendServices(uiRuntime, textRuler, fontCatalog, fontLoader, imageDecoder,
+                svgRasterizer, graphics3d, videoSurfaces, audio, audioDecoder).install();
         // Same shape as the font store's background loads: pay the file-dialog
         // library's extract-and-link on a worker now, not on the click that
         // wants a chooser. It buys back milliseconds, not the panel's real

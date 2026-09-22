@@ -974,6 +974,12 @@ class DialogTest extends ComponentTestBase {
      * is the smallest answer that keeps a presentation from touching an OS.
      */
     private static final class BlockedWindow implements limn.backend.NativeWindow, limn.backend.Backend {
+        // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
+        @Override public boolean supportsAbsolutePositioning() { return true; }
+        @Override public void setCloseRequestHandler(java.util.function.BooleanSupplier handler) { }
+        @Override public void setImeEnabled(boolean enabled) { }
+        @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
+        @Override public void resetPreedit() { }
         private final boolean blocked;
         /** The window an in-scene presentation named as the one it keeps interactive. */
         limn.backend.NativeWindow sceneModalOwner;

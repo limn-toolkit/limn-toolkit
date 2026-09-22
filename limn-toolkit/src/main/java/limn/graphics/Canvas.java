@@ -459,8 +459,10 @@ public interface Canvas {
      * rectangle {@code (x, y, w, h)} in logical points, as one quad in the 2D
      * paint order, so overlays, dialogs, tooltips and clipping apply to it like
      * any other content. The surface must already have been rendered this frame.
-     * The default is a no-op (surfaces need a GPU backend); backends override.
+     *
+     * <p>No default (ADR 046 §5): it was a no-op, so a backend that did not implement it drew every
+     * 3D viewport and video blank without an error. A canvas that cannot composite a GPU surface
+     * (a recording or measuring canvas) implements it as a no-op, on purpose and in writing.
      */
-    default void drawSurface(GpuSurface surface, float x, float y, float w, float h) {
-    }
+    void drawSurface(GpuSurface surface, float x, float y, float w, float h);
 }
