@@ -91,7 +91,7 @@ public final class ThemeEditorExample {
         themed.applyFontFamily();
 
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(themed.background);
+        scene.setBackground(themed.background());
         return scene;
     }
 }

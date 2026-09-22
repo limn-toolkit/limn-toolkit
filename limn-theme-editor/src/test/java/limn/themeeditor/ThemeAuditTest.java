@@ -48,7 +48,7 @@ class ThemeAuditTest {
             List<ThemeAudit.Finding> errors = ThemeAudit.of(theme).stream()
                     .filter(f -> f.level() == ThemeAudit.Level.ERROR)
                     .toList();
-            assertEquals(List.of(), errors, theme.name + " has illegible text: " + describe(errors));
+            assertEquals(List.of(), errors, theme.name() + " has illegible text: " + describe(errors));
         }
     }
 
@@ -57,7 +57,7 @@ class ThemeAuditTest {
     @Test
     void bodyTextThatVanishesIntoASurfaceIsAnError() {
         List<ThemeAudit.Finding> findings = ThemeAudit.of(with(Theme.Token.TEXT,
-                Theme.dark().surfaceRaised));
+                Theme.dark().surfaceRaised()));
         assertTrue(flags(findings, Theme.Token.TEXT, Theme.Token.SURFACE_RAISED));
         assertTrue(findings.stream()
                 .anyMatch(f -> f.subject() == Theme.Token.TEXT
@@ -104,7 +104,7 @@ class ThemeAuditTest {
      */
     @Test
     void aFocusRingTheColourOfTheAccentIsReported() {
-        Theme theme = Theme.dark().toBuilder().focusRing(Theme.dark().primary).build();
+        Theme theme = Theme.dark().toBuilder().focusRing(Theme.dark().primary()).build();
         List<ThemeAudit.Finding> findings = ThemeAudit.of(theme);
         assertTrue(flags(findings, Theme.Token.FOCUS_RING, Theme.Token.PRIMARY));
         assertFalse(flags(ThemeAudit.of(Theme.dark()), Theme.Token.FOCUS_RING, Theme.Token.PRIMARY),
@@ -113,7 +113,7 @@ class ThemeAuditTest {
 
     @Test
     void aCardYouCannotSeeOnTheCanvasIsAnElevationFinding() {
-        Theme theme = with(Theme.Token.SURFACE, Theme.dark().background);
+        Theme theme = with(Theme.Token.SURFACE, Theme.dark().background());
         ThemeAudit.Finding step = ThemeAudit.of(theme).stream()
                 .filter(f -> f.metric() == ThemeAudit.Metric.LIGHTNESS_STEP
                         && f.subject() == Theme.Token.SURFACE)
@@ -128,7 +128,7 @@ class ThemeAuditTest {
      */
     @Test
     void unreadableDisabledTextIsANoteAndNotAnError() {
-        Theme theme = with(Theme.Token.DISABLED_TEXT, Theme.dark().disabledFill);
+        Theme theme = with(Theme.Token.DISABLED_TEXT, Theme.dark().disabledFill());
         ThemeAudit.Finding note = ThemeAudit.of(theme).stream()
                 .filter(f -> f.subject() == Theme.Token.DISABLED_TEXT)
                 .findFirst().orElseThrow();
@@ -218,7 +218,7 @@ class ThemeAuditTest {
     void noShippedPaletteTripsTheVeilRule() {
         for (Theme theme : Theme.builtins()) {
             ThemeAudit.Finding veil = veilOf(theme);
-            assertNull(veil, theme.name + ": " + (veil == null ? "" : veil.describe()));
+            assertNull(veil, theme.name() + ": " + (veil == null ? "" : veil.describe()));
         }
     }
 
@@ -234,11 +234,11 @@ class ThemeAuditTest {
     @Test
     void theHeaviestShippedVeilIsCleanAndACompositeWouldCallItNothing() {
         Theme theme = builtin("High Contrast");
-        assertTrue(theme.scrim.a() > Theme.dark().scrim.a(),
+        assertTrue(theme.scrim().a() > Theme.dark().scrim().a(),
                 "the premise: this palette ships the heavier veil");
 
-        Color veiled = theme.background.lerp(theme.scrim.withAlpha(1f), theme.scrim.a());
-        assertEquals(theme.background.lightness(), veiled.lightness(), 1e-9,
+        Color veiled = theme.background().lerp(theme.scrim().withAlpha(1f), theme.scrim().a());
+        assertEquals(theme.background().lightness(), veiled.lightness(), 1e-9,
                 "the trap: veiling this canvas moves it by nothing measurable");
 
         assertNull(veilOf(theme), "and the audit must still call the palette clean");
@@ -248,9 +248,9 @@ class ThemeAuditTest {
     @Test
     void aVeilFindingSortsWithTheOtherWarnings() {
         Theme theme = Theme.dark().toBuilder()
-                .text(Theme.dark().surface)
+                .text(Theme.dark().surface())
                 .scrim(Color.rgba(0x000000, 0.1f))
-                .disabledText(Theme.dark().disabledFill)
+                .disabledText(Theme.dark().disabledFill())
                 .build();
         List<ThemeAudit.Finding> findings = ThemeAudit.of(theme);
         assertTrue(findings.stream().anyMatch(f -> f.subject() == Theme.Token.SCRIM));
@@ -284,7 +284,7 @@ class ThemeAuditTest {
     }
 
     private static Theme builtin(String name) {
-        return Theme.builtins().stream().filter(t -> t.name.equals(name)).findFirst()
+        return Theme.builtins().stream().filter(t -> t.name().equals(name)).findFirst()
                 .orElseThrow(() -> new IllegalStateException("no built-in called " + name));
     }
 
@@ -293,9 +293,9 @@ class ThemeAuditTest {
     @Test
     void findingsComeBackWorstFirst() {
         Theme theme = Theme.dark().toBuilder()
-                .text(Theme.dark().surface)
-                .focusRing(Theme.dark().primary)
-                .disabledText(Theme.dark().disabledFill)
+                .text(Theme.dark().surface())
+                .focusRing(Theme.dark().primary())
+                .disabledText(Theme.dark().disabledFill())
                 .build();
         List<ThemeAudit.Finding> findings = ThemeAudit.of(theme);
         assertEquals(ThemeAudit.Level.ERROR, ThemeAudit.worst(findings));
@@ -307,7 +307,7 @@ class ThemeAuditTest {
 
     @Test
     void aFindingSaysWhatItMeasuredAndWhatItNeeded() {
-        ThemeAudit.Finding finding = ThemeAudit.of(with(Theme.Token.TEXT, Theme.dark().surface))
+        ThemeAudit.Finding finding = ThemeAudit.of(with(Theme.Token.TEXT, Theme.dark().surface()))
                 .stream().filter(f -> f.against() == Theme.Token.SURFACE).findFirst().orElseThrow();
         String line = finding.describe();
         assertTrue(line.startsWith("text on surface"), line);

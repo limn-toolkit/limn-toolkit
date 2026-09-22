@@ -275,8 +275,8 @@ class SplitPaneTest extends ComponentTestBase {
         host.inputBatchEnded();
 
         Theme theme = Theme.current();
-        assertEquals(theme.outline, rest, "at rest a divider is a hairline separator");
-        assertEquals(theme.focusRing, focused,
+        assertEquals(theme.outline(), rest, "at rest a divider is a hairline separator");
+        assertEquals(theme.focusRing(), focused,
                 "a focused divider wears the same accent as every other focused control");
         assertTrue(lightness(hovered) > lightness(focused),
                 "hover must be lighter than focus (" + hovered.toHex()

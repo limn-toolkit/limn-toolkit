@@ -431,7 +431,7 @@ public class Viewport3D extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         if (!Graphics3D.isAvailable()) {
             // The placeholder is the only token-sized chrome this widget owns, so the row is
             // resolved on the branch that draws it: the 3D path below sizes nothing from the
@@ -475,13 +475,13 @@ public class Viewport3D extends Widget {
      * direction and must not start paying for one per frame.
      */
     private void paintPlaceholder(Canvas canvas, Theme theme, SizeTokens t) {
-        canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), theme.surfaceRaised);
+        canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), theme.surfaceRaised());
         Font font = t.body();
         String message = ComponentStrings.VIEWPORT3D_NO_BACKEND.get();
         ShapedText line = textRuler().shape(message, font,
                 ShapedText.Direction.of(message, neutralBase()));
         TextMetrics metrics = line.metrics();
-        Color ink = theme.textMuted;
+        Color ink = theme.textMuted();
         canvas.drawText(line, (width() - metrics.width()) / 2,
                 (height() - metrics.height()) / 2 + metrics.ascent(), ink);
     }

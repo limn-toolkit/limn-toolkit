@@ -121,7 +121,7 @@ public class ImageView extends Widget {
             canvas.clipRect(0, 0, boxW, boxH);
         }
         if (tint != null) {
-            Color effective = isEnabled() ? tint : Theme.current().disabledText;
+            Color effective = isEnabled() ? tint : Theme.of(this).disabledText();
             canvas.drawImage(image, x, y, drawW, drawH, effective);
         } else {
             canvas.drawImage(image, x, y, drawW, drawH);

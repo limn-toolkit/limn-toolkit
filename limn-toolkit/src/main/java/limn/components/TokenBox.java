@@ -68,7 +68,7 @@ public final class TokenBox extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float wanted = fixedWidth == null ? -1 : fixedWidth.of(t);
         float tall = fixedHeight == null ? -1 : fixedHeight.of(t);
         float maxW = wanted >= 0 ? constraints.constrainWidth(wanted) : constraints.maxWidth();

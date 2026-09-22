@@ -17,10 +17,10 @@ import java.util.Objects;
  *
  * <pre>{@code
  * private final ColorTransition fill =
- *         new ColorTransition(this, Theme.current().primary)
+ *         new ColorTransition(this, Theme.of(this).primary())
  *                 .duration(Theme.current().animHover).easing(Theme.current().animEasing);
  * // on state change:
- * fill.to(hovered ? Theme.current().primaryHover : Theme.current().primary);
+ * fill.to(hovered ? Theme.of(this).primaryHover() : Theme.of(this).primary());
  * // in onPaint:
  * canvas.fillRoundRect(x, y, w, h, r, fill.value());
  * }</pre>

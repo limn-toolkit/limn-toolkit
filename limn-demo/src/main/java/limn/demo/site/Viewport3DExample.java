@@ -161,7 +161,7 @@ public final class Viewport3DExample {
         column.add(Expanded.of(viewport(600, 380), 1));
 
         Scene scene = new Scene(column);
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

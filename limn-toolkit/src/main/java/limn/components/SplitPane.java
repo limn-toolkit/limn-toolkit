@@ -340,7 +340,7 @@ public final class SplitPane extends Widget {
         // Resolved once for the pass and threaded on, as everywhere in the
         // toolkit: two resolutions that disagreed inside one component would place
         // the divider where the pointer is not.
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         Constraints loose = constraints.loosened();
         Size a = firstPane.measure(loose);
         Size b = secondPane.measure(loose);
@@ -359,7 +359,7 @@ public final class SplitPane extends Widget {
 
     @Override
     protected void onLayout() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float gutter = gutter(t);
         float grab = grab();
         float total = shareable(t);
@@ -459,14 +459,14 @@ public final class SplitPane extends Widget {
     private final class Divider extends Widget {
 
         private final Transition hover =
-                new Transition(this).duration(Theme.current().animHover)
-                        .easing(Theme.current().animEasing);
+                new Transition(this).duration(Theme.of(this).animHover)
+                        .easing(Theme.of(this).animEasing);
         private final Transition dragFade =
-                new Transition(this).duration(Theme.current().animHover)
-                        .easing(Theme.current().animEasing);
+                new Transition(this).duration(Theme.of(this).animHover)
+                        .easing(Theme.of(this).animEasing);
         private final Transition focusFade =
-                new Transition(this).duration(Theme.current().animFocus)
-                        .easing(Theme.current().animEasing);
+                new Transition(this).duration(Theme.of(this).animFocus)
+                        .easing(Theme.of(this).animEasing);
 
         private boolean dragging;
         private boolean pointerInside;
@@ -492,7 +492,7 @@ public final class SplitPane extends Widget {
 
         @Override
         protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
+            Theme theme = Theme.of(this);
             float focus = focusFade.value();
             float hovered = hover.value();
             float dragged = dragFade.value();
@@ -501,10 +501,10 @@ public final class SplitPane extends Widget {
             // through. A max() over the three would jump between tints instead: a
             // pointer leaving a focused divider has to land back on the focus tone,
             // and that is only continuous if hover was mixed on top of it.
-            Color color = theme.outline
-                    .lerp(theme.focusRing, focus)
-                    .lerp(theme.focusRing.lerp(Color.WHITE, HOVER_LIGHTEN), hovered)
-                    .lerp(theme.focusRing.lerp(Color.WHITE, DRAG_LIGHTEN), dragged);
+            Color color = theme.outline()
+                    .lerp(theme.focusRing(), focus)
+                    .lerp(theme.focusRing().lerp(Color.WHITE, HOVER_LIGHTEN), hovered)
+                    .lerp(theme.focusRing().lerp(Color.WHITE, DRAG_LIGHTEN), dragged);
             float lit = Math.max(focus, Math.max(hovered, dragged));
             float w = width();
             float h = height();
@@ -563,7 +563,7 @@ public final class SplitPane extends Widget {
                 }
                 case PRESS -> {
                     if (event.button() == Keys.MOUSE_LEFT && isEnabled()) {
-                        SizeTokens t = Theme.current().tokensFor(this);
+                        SizeTokens t = Theme.of(this).tokensFor(this);
                         dragging = true;
                         hover.to(1);
                         dragFade.to(1);
@@ -577,7 +577,7 @@ public final class SplitPane extends Widget {
                 }
                 case DRAG -> {
                     if (dragging) {
-                        SizeTokens t = Theme.current().tokensFor(this);
+                        SizeTokens t = Theme.of(this).tokensFor(this);
                         dragTo(t, pointerMain(event) - grabOffset - gutter(t) / 2);
                         event.consume();
                     }
@@ -602,7 +602,7 @@ public final class SplitPane extends Widget {
             if (!event.isPressed() || !isEnabled()) {
                 return;
             }
-            SizeTokens t = Theme.current().tokensFor(this);
+            SizeTokens t = Theme.of(this).tokensFor(this);
             float step = (event.modifiers() & Keys.MOD_SHIFT) != 0 ? FINE_STEP : KEY_STEP;
             float total = shareable(t);
             float here = firstExtent(total);

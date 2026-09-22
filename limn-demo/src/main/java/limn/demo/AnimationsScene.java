@@ -45,7 +45,7 @@ final class AnimationsScene {
     /** Standalone {@code --scene animations}. */
     static Scene create() {
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -232,9 +232,9 @@ final class AnimationsScene {
             Theme theme = Theme.current();
             float pad = 26;
             float cy = height() / 2;
-            canvas.fillRoundRect(pad, cy - 2, width() - 2 * pad, 4, 2, theme.surfaceRaised);
+            canvas.fillRoundRect(pad, cy - 2, width() - 2 * pad, 4, 2, theme.surfaceRaised());
             float cx = pad + pos.value() * (width() - 2 * pad);
-            canvas.fillCircle(cx, cy, 12, theme.primary);
+            canvas.fillCircle(cx, cy, 12, theme.primary());
         }
     }
 
@@ -261,7 +261,7 @@ final class AnimationsScene {
                 y.to(1); // repeat(true) → yoyos forever
             }
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface);
+            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
             float r = 16;
             float top = r + 18;               // headroom for rubber overshoot
             float bottom = height() - r - 18;
@@ -342,16 +342,16 @@ final class AnimationsScene {
                 });
             }
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface);
+            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
             Color logo = PALETTE[colorIndex];
             if (cornerFlash > 0) {
                 logo = logo.lerp(Color.WHITE, (float) (cornerFlash / 0.6) * 0.7f);
             }
             canvas.fillRoundRect(x, y, LOGO_W, LOGO_H, 8, logo);
-            Font font = theme.body;
+            Font font = theme.body();
             var m = textRuler().measure("LIMN", font);
             canvas.drawText("LIMN", x + (LOGO_W - m.width()) / 2,
-                    y + (LOGO_H - m.height()) / 2 + m.ascent(), font, theme.onPrimary);
+                    y + (LOGO_H - m.height()) / 2 + m.ascent(), font, theme.onPrimary());
         }
     }
 
@@ -417,9 +417,9 @@ final class AnimationsScene {
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
             canvas.fillRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusLarge(),
-                    theme.surface.withAlpha(0.98f));
+                    theme.surface().withAlpha(0.98f));
             canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusLarge(),
-                    1, theme.outline);
+                    1, theme.outline());
         }
     }
 }

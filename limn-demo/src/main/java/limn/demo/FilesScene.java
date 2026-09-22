@@ -49,7 +49,7 @@ final class FilesScene {
     static Scene create(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -255,10 +255,10 @@ final class FilesScene {
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
             float radius = theme.tokensFor(this).radiusMedium();
-            canvas.fillRoundRect(0, 0, width(), height(), radius, theme.surfaceRaised);
+            canvas.fillRoundRect(0, 0, width(), height(), radius, theme.surfaceRaised());
             canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1,
-                    radius, 1, theme.outline);
-            Font font = theme.body;
+                    radius, 1, theme.outline());
+            Font font = theme.body();
             if (dropped.isEmpty()) {
                 drawCentered(canvas, "Drop files here", font, 0, 1);
             } else {
@@ -280,7 +280,7 @@ final class FilesScene {
             float top = (height() - lines * lineHeight) / 2;
             canvas.drawText(text, (width() - m.width()) / 2,
                     top + line * lineHeight + m.ascent(), font,
-                    dropped.isEmpty() ? theme.textMuted : theme.text);
+                    dropped.isEmpty() ? theme.textMuted() : theme.text());
         }
     }
 }

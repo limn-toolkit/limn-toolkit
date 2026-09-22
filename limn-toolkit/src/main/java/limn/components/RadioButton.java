@@ -69,11 +69,11 @@ public class RadioButton extends Widget {
     private Consumer<Boolean> onChange;
     /** 0 = empty, 1 = full dot; eased toward the state. */
     private final Transition progress =
-            new Transition(this, 0).duration(Theme.current().animFade).easing(Easing.LINEAR);
+            new Transition(this, 0).duration(Theme.of(this).animFade).easing(Easing.LINEAR);
     private final Transition hover =
-            new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
 
     /** A radio with a fixed label; see the {@link I18nString} constructor for localized text. */
     public RadioButton(String text) {
@@ -236,7 +236,7 @@ public class RadioButton extends Widget {
     // ---------------------------------------------------------------- layout
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = textRuler().measure(text.get(), t.body());
         float width = t.indicator() + (text.get().isEmpty() ? 0 : t.gapLabel() + metrics.width());
         float height = Math.max(t.indicator(), metrics.lineHeight());
@@ -253,14 +253,14 @@ public class RadioButton extends Widget {
         if (text.get().isEmpty()) {
             return super.baselineOffset();
         }
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = textRuler().measure(text.get(), t.body());
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         // Resolved once for the whole pass, here rather than in a constructor, where this widget
         // has no parent yet and every answer is the process default. The ring, the dot, the label
@@ -277,12 +277,12 @@ public class RadioButton extends Widget {
         // twice and leave the dot outside its own ring.
         float cx = rtl ? width() - ring / 2 : ring / 2;
         float cy = top + ring / 2;
-        Color ringInk = !isEnabled() ? theme.disabledFill
-                : p > 0 ? theme.primary
-                : theme.outline.lerp(theme.primaryHover, hover.value());
+        Color ringInk = !isEnabled() ? theme.disabledFill()
+                : p > 0 ? theme.primary()
+                : theme.outline().lerp(theme.primaryHover(), hover.value());
         canvas.drawCircle(cx, cy, ring / 2 - RING_ALIGN_INSET, Strokes.INDICATOR_BORDER, ringInk);
         if (p > 0.05f) {
-            Color dot = (isEnabled() ? theme.primary : theme.disabledText).withAlpha(p);
+            Color dot = (isEnabled() ? theme.primary() : theme.disabledText()).withAlpha(p);
             // Resolved here, per frame: a step change mid-transition retargets the dot
             // instead of easing on toward the radius the old step wanted.
             canvas.fillCircle(cx, cy, (ring / 2 - t.indicatorInset()) * p, dot);
@@ -290,7 +290,7 @@ public class RadioButton extends Widget {
         String label = text.get();
         if (!label.isEmpty()) {
             TextMetrics metrics = textRuler().measure(label, t.body());
-            Color ink = isEnabled() ? theme.text : theme.disabledText;
+            Color ink = isEnabled() ? theme.text() : theme.disabledText();
             // The row's own direction is the shaper's NEUTRAL FALLBACK and never an imposition: a
             // Latin label in a right-to-left form still reads left to right, because a strong
             // character outranks the fallback. What it decides is the label that has no strong
@@ -319,7 +319,7 @@ public class RadioButton extends Widget {
             // Checkbox came up to meet it. RING_ALIGN_INSET pulls the ring's outer ink 0.25pt
             // inside the box, so the focus ink starts a full 1pt clear of it.
             canvas.drawCircle(cx, cy, ring / 2 + Strokes.FOCUS_GAP_INDICATOR,
-                    Strokes.FOCUS_RING_THIN, theme.focusRing.withAlpha(focus));
+                    Strokes.FOCUS_RING_THIN, theme.focusRing().withAlpha(focus));
         }
     }
 

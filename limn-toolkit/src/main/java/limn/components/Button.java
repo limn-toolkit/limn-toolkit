@@ -67,9 +67,9 @@ public class Button extends Widget {
     private java.util.function.BooleanSupplier pressAccepted;
     // Hover and focus-ring fades, animated through the shared Transition.
     private final Transition hover =
-            new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
     private boolean armed;    // mouse press in progress
     private boolean keyArmed; // Space/Enter held: separate from the mouse so a
                               // key-up whose key-down never reached us can't fire
@@ -257,7 +257,7 @@ public class Button extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         // A size, not an x: the caption claims the same width from either end and so does the
         // icon, so this box is the same in both directions and a container laying a button out
         // never sees the direction at all.
@@ -272,7 +272,7 @@ public class Button extends Widget {
     /** The baseline BASELINE rows align on, the very expression {@link #onPaint} draws with. */
     @Override
     protected float baselineOffset() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         // The same shaped value the paint draws, for exactly the reason this method exists: two
         // opinions on one band are two numbers a BASELINE row can be aligned to. Nothing read off
         // it here is horizontal, so this expression is the same in both directions.
@@ -297,27 +297,27 @@ public class Button extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         float h = hover.value();
         Color fill;
         Color ink;
         if (secondary) {
-            fill = !isEnabled() ? theme.disabledFill
-                    : isArmed() ? theme.outline
-                    : theme.surface.lerp(theme.surfaceRaised, h);
-            ink = isEnabled() ? theme.text : theme.disabledText;
+            fill = !isEnabled() ? theme.disabledFill()
+                    : isArmed() ? theme.outline()
+                    : theme.surface().lerp(theme.surfaceRaised(), h);
+            ink = isEnabled() ? theme.text() : theme.disabledText();
         } else {
-            fill = !isEnabled() ? theme.disabledFill
-                    : isArmed() ? theme.primaryPressed
-                    : theme.primary.lerp(theme.primaryHover, h);
-            ink = isEnabled() ? theme.onPrimary : theme.disabledText;
+            fill = !isEnabled() ? theme.disabledFill()
+                    : isArmed() ? theme.primaryPressed()
+                    : theme.primary().lerp(theme.primaryHover(), h);
+            ink = isEnabled() ? theme.onPrimary() : theme.disabledText();
         }
         canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
         if (secondary) {
             float inset = Strokes.HALF_PIXEL_INSET; // lands the 1pt stroke on one device pixel
             canvas.drawRoundRect(inset, inset, width() - 2 * inset, height() - 2 * inset,
-                    t.radiusMedium(), Strokes.BORDER, theme.outline);
+                    t.radiusMedium(), Strokes.BORDER, theme.outline());
         }
         float focus = focusFade.value();
         if (focus > 0.001f) {
@@ -327,7 +327,7 @@ public class Button extends Widget {
             // Gated on the fade value (not isFocused) so the fade-out keeps rendering.
             float gapOut = Strokes.FOCUS_GAP_BUTTON;
             canvas.drawRoundRect(-gapOut, -gapOut, width() + 2 * gapOut, height() + 2 * gapOut,
-                    t.radiusMedium() + gapOut, Strokes.FOCUS_RING, theme.focusRing.withAlpha(focus));
+                    t.radiusMedium() + gapOut, Strokes.FOCUS_RING, theme.focusRing().withAlpha(focus));
         }
         Font font = t.body();
         ShapedText line = caption(textRuler(), font);
@@ -353,7 +353,7 @@ public class Button extends Widget {
             // The flag says what the icon MEANS and the axis says which way this button reads;
             // neither alone is the answer, and the flip itself is Icon.paint's, about the square
             // it was just handed.
-            icon.paint(canvas, iconX, (height() - iconSize) / 2, iconSize, ink, theme.dark,
+            icon.paint(canvas, iconX, (height() - iconSize) / 2, iconSize, ink, theme.isDark(),
                     rtl && iconMirroring == Icon.Mirroring.IN_RTL);
         }
         // The caption takes the rest of the block: past the gutter reading left to right, and

@@ -133,14 +133,14 @@ public final class ThemeFormat {
      */
     public static String write(Theme theme) {
         Objects.requireNonNull(theme, "theme");
-        requireSingleLine(KEY_NAME, theme.name);
-        requireSingleLine(KEY_FONT_FAMILY, theme.fontFamily);
+        requireSingleLine(KEY_NAME, theme.name());
+        requireSingleLine(KEY_FONT_FAMILY, theme.fontFamily());
         StringBuilder out = new StringBuilder(512);
         out.append("# Limn theme\n");
-        out.append(KEY_NAME).append(" = ").append(theme.name).append('\n');
-        out.append(KEY_DARK).append(" = ").append(theme.dark).append('\n');
-        out.append(KEY_CORNER_SCALE).append(" = ").append(theme.cornerScale).append('\n');
-        out.append(KEY_FONT_FAMILY).append(" = ").append(theme.fontFamily).append('\n');
+        out.append(KEY_NAME).append(" = ").append(theme.name()).append('\n');
+        out.append(KEY_DARK).append(" = ").append(theme.isDark()).append('\n');
+        out.append(KEY_CORNER_SCALE).append(" = ").append(theme.cornerScale()).append('\n');
+        out.append(KEY_FONT_FAMILY).append(" = ").append(theme.fontFamily()).append('\n');
         for (Theme.Token token : Theme.Token.values()) {
             out.append(token.key()).append(" = ").append(token.read(theme).toHex()).append('\n');
         }

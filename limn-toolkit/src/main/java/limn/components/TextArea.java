@@ -134,7 +134,7 @@ public class TextArea extends Widget {
     private TextMetrics cachedWidthProbe;
     /** Focus-ring fade: morphs the border between outline and focusRing. */
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing)
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing)
                     // The fade morphs the BORDER and nothing else, so it repaints the border.
                     // Without this a Tab landing in a text area repainted every line of it eleven
                     // times over -- see Transition.damages.
@@ -408,7 +408,7 @@ public class TextArea extends Widget {
      * component put the click on a different line from the one that was drawn.
      */
     private SizeTokens tokens() {
-        return Theme.current().tokensFor(this);
+        return Theme.of(this).tokensFor(this);
     }
 
     private float lineHeight(SizeTokens t) {
@@ -678,7 +678,7 @@ public class TextArea extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         return constraints.constrain(
                 preferredWidth >= 0 ? preferredWidth : t.areaWidth(),
                 preferredHeight >= 0 ? preferredHeight : t.areaHeight());
@@ -696,7 +696,7 @@ public class TextArea extends Widget {
      */
     @Override
     protected float baselineOffset() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         // areaPad, not fieldPadH: this is the VERTICAL inset, and only the horizontal one is
         // shared with TextField.
         return t.areaPad() + textRuler().measure(PROBE, t.body()).ascent();
@@ -1587,7 +1587,7 @@ public class TextArea extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         Font f = t.body();
         TextRuler ruler = textRuler();
@@ -1599,14 +1599,14 @@ public class TextArea extends Widget {
         float padY = t.areaPad();
 
         canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(),
-                isEnabled() ? theme.surface : theme.disabledFill);
+                isEnabled() ? theme.surface() : theme.disabledFill());
         float focus = focusFade.value();
         Color border = switch (validation) {
-            case NONE -> theme.outline.lerp(theme.focusRing, focus);
-            case ERROR -> theme.danger;
-            case WARNING -> theme.warning;
-            case SUCCESS -> theme.success;
-            case INFO -> theme.info;
+            case NONE -> theme.outline().lerp(theme.focusRing(), focus);
+            case ERROR -> theme.danger();
+            case WARNING -> theme.warning();
+            case SUCCESS -> theme.success();
+            case INFO -> theme.info();
         };
         // ONE stroke that thickens continuously 1 -> 2 as the fade runs. A ternary here
         // (focus > 0 ? FOCUS_RING : BORDER) deletes the animation outright.
@@ -1636,14 +1636,14 @@ public class TextArea extends Widget {
         int firstRow = lineHeight > 0 ? Math.max(0, (int) (scrollY / lineHeight)) : 0;
         int lastRow = Math.min(totalRows(t) - 1,
                 lineHeight > 0 ? (int) ((scrollY + viewHeight(t)) / lineHeight) + 1 : 0);
-        Color ink = isEnabled() ? theme.text : theme.disabledText;
+        Color ink = isEnabled() ? theme.text() : theme.disabledText();
         int selStart = model.selectionStart();
         int selEnd = model.selectionEnd();
         boolean selection = model.hasSelection() && isFocused();
         boolean composing = !preedit.isEmpty();
         int composingLine = composing ? model.lineOf(model.cursor()) : -1;
 
-        Color selectionFill = theme.primary.withAlpha(0.35f);
+        Color selectionFill = theme.primary().withAlpha(0.35f);
         setRowWindow(firstRow, lastRow - firstRow + 1);
         for (int row = firstRow; row <= lastRow; row++) {
             int line = lineOfRow(row);
@@ -1747,7 +1747,7 @@ public class TextArea extends Widget {
                     shaped));
             float cy = lineTop(caretRowIdx, lineHeight);
             canvas.drawLine(cx, cy + Strokes.INK_BLEED, cx, cy + lineHeight - Strokes.INK_BLEED,
-                    Strokes.CARET, theme.text);
+                    Strokes.CARET, theme.text());
         }
         canvas.restore();
     }
@@ -1791,7 +1791,7 @@ public class TextArea extends Widget {
         // Highlight first, so it sits behind the ink rather than over it.
         for (ShapedText.Span s : focusBoxes) {
             canvas.fillRect(originX + s.x0(), top, s.width(), lineHeight,
-                    theme.primary.withAlpha(0.18f));
+                    theme.primary().withAlpha(0.18f));
         }
         canvas.drawText(row, originX, baseline, ink);
         // The BOTTOM OF THE INK BOX, from the line's own anchor, not "baseline + 2". A fixed
@@ -1805,11 +1805,11 @@ public class TextArea extends Widget {
         for (ShapedText.Span s : row.selection(cursorAt - rowStart,
                 cursorAt + preedit.length() - rowStart)) {
             canvas.drawLine(originX + s.x0(), underlineY, originX + s.x1(), underlineY,
-                    Strokes.IME_UNDERLINE, theme.textMuted);
+                    Strokes.IME_UNDERLINE, theme.textMuted());
         }
         for (ShapedText.Span s : focusBoxes) {
             canvas.drawLine(originX + s.x0(), underlineY, originX + s.x1(), underlineY,
-                    Strokes.IME_UNDERLINE_ACTIVE, theme.primary);
+                    Strokes.IME_UNDERLINE_ACTIVE, theme.primary());
         }
 
         if (caretHere && isFocused() && cursorVisible) {
@@ -1817,7 +1817,7 @@ public class TextArea extends Widget {
             float cx = originX
                     + row.caretX(lineLocal(composedCaret(cursorAt), rowStart, row));
             canvas.drawLine(cx, top + Strokes.INK_BLEED, cx, top + lineHeight - Strokes.INK_BLEED,
-                    Strokes.CARET, theme.text);
+                    Strokes.CARET, theme.text());
         }
     }
 
@@ -1898,7 +1898,7 @@ public class TextArea extends Widget {
 
     private void handleMouse(MouseEvent event) {
         // Scrollbar drags never reach here; the ScrollBar children consume them.
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         // The same two pads onPaint translates by, per axis. A press maps to the character
         // that was drawn under it only while these two expressions stay identical.
         float padX = t.fieldPadH();
@@ -2706,7 +2706,7 @@ public class TextArea extends Widget {
      * this widget's whole box for that frame on its own.
      */
     private void damageBorder() {
-        float thickness = Theme.current().tokensFor(this).radiusMedium()
+        float thickness = Theme.of(this).tokensFor(this).radiusMedium()
                 + Strokes.FOCUS_RING + 1;
         float w = width();
         float h = height();

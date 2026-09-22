@@ -63,7 +63,7 @@ final class ListScene {
         ListView list = buildList(status::setText);
 
         Label heading = new Label("Virtualized list: headers + cards (variable heights)")
-                .setFont(Theme.current().title);
+                .setFont(Theme.current().title());
 
         Column page = new Column();
         page.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -73,7 +73,7 @@ final class ListScene {
 
         Widget root = new Padding(Insets.all(20), page);
         Scene scene = new Scene(root);
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -151,7 +151,7 @@ final class ListScene {
         private final Widget content;
 
         HeaderCell() {
-            label = new Label("").setFont(Theme.current().label).setMuted(true);
+            label = new Label("").setFont(Theme.current().label()).setMuted(true);
             content = new Padding(new Insets(14, 8, 6, 8), label);
             add(content);
         }
@@ -174,7 +174,7 @@ final class ListScene {
         @Override
         protected void onPaint(Canvas canvas) {
             // A hairline under the group title.
-            canvas.fillRect(6, height() - 1, width() - 12, 1, Theme.current().outline);
+            canvas.fillRect(6, height() - 1, width() - 12, 1, Theme.current().outline());
         }
     }
 
@@ -190,8 +190,8 @@ final class ListScene {
         CardCell(Image placeholder, IntConsumer onOpen, ObjIntConsumer<Boolean> onFavorite) {
             Theme theme = Theme.current();
             image = new ImageView(placeholder).setFit(ImageView.Fit.CONTAIN);
-            title = new Label("").setFont(theme.body);
-            subtitle = new Label("").setFont(theme.label).setMuted(true);
+            title = new Label("").setFont(theme.body());
+            subtitle = new Label("").setFont(theme.label()).setMuted(true);
             Column texts = new Column();
             texts.gap(4).crossAlignment(Flex.CrossAlignment.START);
             texts.add(title);
@@ -238,8 +238,8 @@ final class ListScene {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            canvas.fillRoundRect(3, 3, width() - 6, height() - 6, theme.tokensFor(this).radiusMedium(), theme.surfaceRaised);
-            canvas.drawRoundRect(3.5f, 3.5f, width() - 7, height() - 7, theme.tokensFor(this).radiusMedium(), 1, theme.outline);
+            canvas.fillRoundRect(3, 3, width() - 6, height() - 6, theme.tokensFor(this).radiusMedium(), theme.surfaceRaised());
+            canvas.drawRoundRect(3.5f, 3.5f, width() - 7, height() - 7, theme.tokensFor(this).radiusMedium(), 1, theme.outline());
         }
     }
 }

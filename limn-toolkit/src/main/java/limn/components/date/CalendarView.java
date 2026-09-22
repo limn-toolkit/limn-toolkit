@@ -271,7 +271,7 @@ public class CalendarView extends Widget {
     private Consumer<DateRange> onSelectRange;
 
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing)
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing)
                     // One ring, wherever the roving cursor is, so that is what each frame of the
                     // fade repaints. Without this a Tab landing in the calendar repainted the
                     // whole grid eleven times over -- see Transition.damages.
@@ -1322,7 +1322,7 @@ public class CalendarView extends Widget {
 
     /** The header strip: the two arrows, the title, and the roving ring on whichever holds it. */
     private void damageHeader() {
-        float pad = Theme.current().tokensFor(this).spacingSmall();
+        float pad = Theme.of(this).tokensFor(this).spacingSmall();
         invalidate(0, 0, width(), pad + headerH + pad);
     }
 
@@ -1640,7 +1640,7 @@ public class CalendarView extends Widget {
      */
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         rebuildGrid();
         TextRuler ruler = textRuler();
         TextMetrics title = ruler.measure(headerTitle.isEmpty() ? "Hg" : headerTitle, t.body());
@@ -1658,7 +1658,7 @@ public class CalendarView extends Widget {
 
     @Override
     protected void onLayout() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         rebuildGrid();
         TextRuler ruler = textRuler();
         float pad = t.spacingSmall();
@@ -1739,7 +1739,7 @@ public class CalendarView extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         LayoutDirection direction = layoutDirection();
         boolean rtl = direction.isRightToLeft();
@@ -1768,7 +1768,7 @@ public class CalendarView extends Widget {
                         ShapedText.Direction.of(weekText[w], neutral));
                 canvas.drawText(week,
                         weekColumnLeft(rtl) + (weekColW - week.metrics().width()) / 2,
-                        top + (cellH - fm.height()) / 2 + fm.ascent(), theme.textMuted);
+                        top + (cellH - fm.height()) / 2 + fm.ascent(), theme.textMuted());
             }
             for (int c = 0; c < DAYS_IN_WEEK; c++) {
                 int index = w * DAYS_IN_WEEK + c;
@@ -1783,26 +1783,26 @@ public class CalendarView extends Widget {
                 if (band && !end) {
                     // A wash rather than a fill, and square rather than rounded: the band is one
                     // shape across a week, and rounding every cell would draw it as seven pills.
-                    canvas.fillRect(left, top, cellW, cellH, theme.primary.withAlpha(0.18f));
+                    canvas.fillRect(left, top, cellW, cellH, theme.primary().withAlpha(0.18f));
                 }
                 if (end) {
                     canvas.fillRoundRect(left + inset, top + inset, cellW - 2 * inset,
-                            cellH - 2 * inset, radius, enabled ? theme.primary : theme.disabledFill);
+                            cellH - 2 * inset, radius, enabled ? theme.primary() : theme.disabledFill());
                 } else if (day.equals(hover) && selectable) {
                     canvas.fillRoundRect(left + inset, top + inset, cellW - 2 * inset,
-                            cellH - 2 * inset, radius, theme.surfaceRaised);
+                            cellH - 2 * inset, radius, theme.surfaceRaised());
                 }
                 if (day.equals(today) && !end) {
                     // A ring, so today is legible under a band and under a hover alike.
                     canvas.drawRoundRect(left + inset, top + inset, cellW - 2 * inset,
-                            cellH - 2 * inset, radius, Strokes.BORDER, theme.primary);
+                            cellH - 2 * inset, radius, Strokes.BORDER, theme.primary());
                 }
 
                 String text = dayText[index];
                 ShapedText line = ruler.shape(text, body, ShapedText.Direction.of(text, neutral));
-                Color ink = !selectable ? theme.disabledText
-                        : end ? theme.onPrimary
-                        : inMonth ? theme.text : theme.textMuted;
+                Color ink = !selectable ? theme.disabledText()
+                        : end ? theme.onPrimary()
+                        : inMonth ? theme.text() : theme.textMuted();
                 canvas.drawText(line, left + (cellW - line.metrics().width()) / 2,
                         top + (cellH - fm.height()) / 2 + fm.ascent(), ink);
 
@@ -1810,7 +1810,7 @@ public class CalendarView extends Widget {
                 if (mark != null) {
                     float dot = Math.max(1.5f, t.popupDotRadius());
                     canvas.fillCircle(left + cellW / 2, top + cellH - dot - t.spacingSmall() / 2,
-                            dot, end ? theme.onPrimary : mark.dot());
+                            dot, end ? theme.onPrimary() : mark.dot());
                 }
                 // Gated on the fade rather than on isFocused, so the ring keeps rendering while it
                 // fades out: focus is already gone by then and the ring would otherwise blink off.
@@ -1818,7 +1818,7 @@ public class CalendarView extends Widget {
                 if (focus > 0.001f && day.equals(cursor)) {
                     float gap = Strokes.FOCUS_GAP_INDICATOR;
                     canvas.drawRoundRect(left + gap, top + gap, cellW - 2 * gap, cellH - 2 * gap,
-                            radius, Strokes.FOCUS_RING_THIN, theme.focusRing.withAlpha(focus));
+                            radius, Strokes.FOCUS_RING_THIN, theme.focusRing().withAlpha(focus));
                 }
             }
         }
@@ -1851,24 +1851,24 @@ public class CalendarView extends Widget {
             boolean offered = enabled && isChooserCellOffered(i);
             int stands = terminal ? stood[i] : i == current ? 2 : 0;
             if (stands == 1) {
-                canvas.fillRect(left, top, cellW, cellH, theme.primary.withAlpha(0.18f));
+                canvas.fillRect(left, top, cellW, cellH, theme.primary().withAlpha(0.18f));
             }
             if (stands == 2) {
                 canvas.fillRoundRect(left + inset, top + inset, cellW - 2 * inset,
-                        cellH - 2 * inset, radius, enabled ? theme.primary : theme.disabledFill);
+                        cellH - 2 * inset, radius, enabled ? theme.primary() : theme.disabledFill());
             } else if (i == hoverChooserCell && offered) {
                 canvas.fillRoundRect(left + inset, top + inset, cellW - 2 * inset,
-                        cellH - 2 * inset, radius, theme.surfaceRaised);
+                        cellH - 2 * inset, radius, theme.surfaceRaised());
             }
             String text = chooserText[i];
             ShapedText line = ruler.shape(text, font, ShapedText.Direction.of(text, neutral));
-            Color ink = !offered ? theme.disabledText : stands == 2 ? theme.onPrimary : theme.text;
+            Color ink = !offered ? theme.disabledText() : stands == 2 ? theme.onPrimary() : theme.text();
             canvas.drawText(line, left + (cellW - line.metrics().width()) / 2,
                     top + (cellH - fm.height()) / 2 + fm.ascent(), ink);
             if (focus > 0.001f && i == effectiveChooserCursor()) {
                 float gap = Strokes.FOCUS_GAP_INDICATOR;
                 canvas.drawRoundRect(left + gap, top + gap, cellW - 2 * gap, cellH - 2 * gap,
-                        radius, Strokes.FOCUS_RING_THIN, theme.focusRing.withAlpha(focus));
+                        radius, Strokes.FOCUS_RING_THIN, theme.focusRing().withAlpha(focus));
             }
         }
     }
@@ -1972,10 +1972,10 @@ public class CalendarView extends Widget {
         if (titleHover && enabled) {
             float padX = t.spacingSmall();
             canvas.fillRoundRect(titleX - padX, pad, titleWidth + 2 * padX, headerH,
-                    t.radiusSmall(), theme.surfaceRaised);
+                    t.radiusSmall(), theme.surfaceRaised());
         }
         canvas.drawText(title, titleX, pad + (headerH - fm.height()) / 2 + fm.ascent(),
-                enabled ? theme.text : theme.disabledText);
+                enabled ? theme.text() : theme.disabledText());
         // The arrow that goes BACK is in the gutter reading starts from, and points that way; both
         // its side and its ink turn over, while what it does does not. Same split SegmentedControl
         // draws its scroll chevrons with, and for the same reason.
@@ -1998,7 +1998,7 @@ public class CalendarView extends Widget {
             float ringW = part == Part.TITLE
                     ? Math.max(0, width() - 2 * (pad + buttonW)) : buttonW;
             canvas.drawRoundRect(ringX + gap, pad + gap, ringW - 2 * gap, headerH - 2 * gap,
-                    t.radiusSmall(), Strokes.FOCUS_RING_THIN, theme.focusRing.withAlpha(focus));
+                    t.radiusSmall(), Strokes.FOCUS_RING_THIN, theme.focusRing().withAlpha(focus));
         }
     }
 
@@ -2012,9 +2012,9 @@ public class CalendarView extends Widget {
         float cy = t.spacingSmall() + headerH / 2;
         if (hovered && enabled) {
             canvas.fillRoundRect(x, t.spacingSmall(), w, headerH, t.radiusSmall(),
-                    theme.surfaceRaised);
+                    theme.surfaceRaised());
         }
-        Color ink = !enabled ? theme.disabledText : hovered ? theme.text : theme.textMuted;
+        Color ink = !enabled ? theme.disabledText() : hovered ? theme.text() : theme.textMuted();
         float s = t.chevronHalfW();
         float tip = cx + pointing * s / 2;
         float tail = cx - pointing * s / 2;
@@ -2035,14 +2035,14 @@ public class CalendarView extends Widget {
             ShapedText shaped = ruler.shape(glyph, font, ShapedText.Direction.of(glyph, neutral));
             canvas.drawText(shaped,
                     weekColumnLeft(rtl) + (weekColW - shaped.metrics().width()) / 2,
-                    top + (weekdayH - fm.height()) / 2 + fm.ascent(), theme.textMuted);
+                    top + (weekdayH - fm.height()) / 2 + fm.ascent(), theme.textMuted());
         }
         for (int c = 0; c < DAYS_IN_WEEK; c++) {
             String text = weekdayText[c];
             ShapedText shaped = ruler.shape(text, font, ShapedText.Direction.of(text, neutral));
             canvas.drawText(shaped,
                     cellLeft(c, rtl) + (cellW - shaped.metrics().width()) / 2,
-                    top + (weekdayH - fm.height()) / 2 + fm.ascent(), theme.textMuted);
+                    top + (weekdayH - fm.height()) / 2 + fm.ascent(), theme.textMuted());
         }
     }
 
@@ -2068,7 +2068,7 @@ public class CalendarView extends Widget {
      * which.
      */
     private int pagingAt(float localX, float localY, boolean rtl) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float pad = t.spacingSmall();
         if (localY < pad || localY > pad + headerH) {
             return 0;
@@ -2108,7 +2108,7 @@ public class CalendarView extends Widget {
      * year is a small target, and the whole gap belongs to it.
      */
     private boolean onTitle(float localX, float localY) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float pad = t.spacingSmall();
         if (localY < pad || localY > pad + headerH) {
             return false;
@@ -2656,7 +2656,7 @@ public class CalendarView extends Widget {
     @Override
     protected void onAccessibility(Accessibility a) {
         rebuildGrid();
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         Locale locale = locale();
         boolean rtl = isRightToLeft();
         boolean days = view == View.DAYS;

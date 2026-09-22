@@ -69,9 +69,9 @@ public class Slider extends Widget {
     private FloatConsumer onCommit;
 
     private final Transition hover =
-            new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
     private boolean dragging;
     private boolean pointerInside;
 
@@ -298,7 +298,7 @@ public class Slider extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         // sliderHeight() is max(MIN_HIT_TARGET, 2 * sliderPad()); the clamp genuinely binds at
         // XSMALL (21 -> 24). No baselineOffset() override: a Slider carries no text, so the base
         // class's "align on the bottom edge" is the correct BASELINE reference.
@@ -307,7 +307,7 @@ public class Slider extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         boolean enabled = isEnabled();
         // One resolution for the whole frame, exactly as the token row is resolved once here.
@@ -325,8 +325,8 @@ public class Slider extends Widget {
         float rail = t.sliderRail();
         float trackTop = cy - rail / 2;
 
-        canvas.fillRoundRect(left, trackTop, tw, rail, rail / 2, theme.surfaceRaised);
-        Color fillColor = enabled ? theme.primary : theme.disabledFill;
+        canvas.fillRoundRect(left, trackTop, tw, rail, rail / 2, theme.surfaceRaised());
+        Color fillColor = enabled ? theme.primary() : theme.disabledFill();
         // The fill is anchored at the end min sits at and stops under the thumb, so reading right
         // to left it starts at the thumb and runs to the track's right edge. The rail underneath
         // is the whole symmetric track and does not move.
@@ -347,12 +347,12 @@ public class Slider extends Widget {
             // treatment as Button/Checkbox, not a washed-out halo. The gap and the weight are
             // pixel-locked: a focus indicator is specified in absolute thickness.
             canvas.drawCircle(thumbX, cy, radius + Strokes.FOCUS_GAP_SLIDER, Strokes.FOCUS_RING,
-                    theme.focusRing.withAlpha(focus));
+                    theme.focusRing().withAlpha(focus));
         }
-        Color knob = enabled ? theme.primary : theme.disabledFill;
+        Color knob = enabled ? theme.primary() : theme.disabledFill();
         canvas.fillCircle(thumbX, cy, radius, knob);
         canvas.drawCircle(thumbX, cy, radius, Strokes.INDICATOR_BORDER,
-                enabled ? theme.primaryPressed : theme.disabledText);
+                enabled ? theme.primaryPressed() : theme.disabledText());
     }
 
     // ------------------------------------------------------------------ input
@@ -362,7 +362,7 @@ public class Slider extends Widget {
         // One resolution of each for the whole event, threaded into applyFromX. The pointer path
         // must agree with the frame the user aimed at, and that only holds if both read one row
         // and one direction.
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         boolean rtl = isRightToLeft();
         switch (event.type()) {
             case ENTER -> {

@@ -1786,7 +1786,7 @@ public class Tree<T> extends Widget implements Scrollable {
     // --------------------------------------------------------------------------- layout
 
     private SizeTokens tokens() {
-        return Theme.current().tokensFor(this);
+        return Theme.of(this).tokensFor(this);
     }
 
     /** The indent one level costs: the triangle's own width and the gap beside it. */
@@ -2754,11 +2754,11 @@ public class Tree<T> extends Widget implements Scrollable {
 
     @Override
     protected void paintChildren(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         if (tintedFor != theme) {
             tintedFor = theme;
-            selectionTint = theme.primary.withAlpha(0.18f);
+            selectionTint = theme.primary().withAlpha(0.18f);
         }
         float viewH = viewportHeight();
         canvas.save();
@@ -2835,7 +2835,7 @@ public class Tree<T> extends Widget implements Scrollable {
         float height = cell.height() - 2 * inset;
         if (to > from && height > 0) {
             canvas.drawRoundRect(from, cell.y() + inset, to - from, height, t.radiusSmall(),
-                    Strokes.FOCUS_RING_THIN, theme.focusRing);
+                    Strokes.FOCUS_RING_THIN, theme.focusRing());
         }
     }
 
@@ -2869,7 +2869,7 @@ public class Tree<T> extends Widget implements Scrollable {
             twisty.moveTo(cx - halfH, cy - halfW).lineTo(cx + halfH, cy).lineTo(cx - halfH, cy + halfW);
         }
         canvas.drawPath(twisty, Strokes.ARROW_PEN,
-                isEnabled() ? theme.textMuted : theme.disabledText);
+                isEnabled() ? theme.textMuted() : theme.disabledText());
     }
 
     /**

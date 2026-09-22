@@ -556,7 +556,7 @@ final class CubeGadget {
                     ? "Hit-test: PRECISE (cube silhouette)"
                     : "Hit-test: GRAB (generous box)")
                     + "; click a cube, then P toggles";
-            limn.graphics.Font font = Theme.current().body;
+            limn.graphics.Font font = Theme.current().body();
             TextMetrics m = textRuler().measure(text, font);
             float padX = 14;
             float padY = 8;

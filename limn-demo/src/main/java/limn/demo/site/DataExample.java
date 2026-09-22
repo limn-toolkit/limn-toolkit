@@ -86,7 +86,7 @@ public final class DataExample {
      */
     public static Scene scene() {
         Scene scene = new Scene(screen());
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 

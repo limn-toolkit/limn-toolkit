@@ -127,7 +127,7 @@ public class Spinner extends Widget {
     private long holdToken;  // bumped to cancel a scheduled auto-repeat tick
     private DoubleConsumer onChange;
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
     private final Path2D triangle = new Path2D();
 
     private boolean editable = true;
@@ -623,7 +623,7 @@ public class Spinner extends Widget {
     }
 
     private void afterEditChange() {
-        ensureCaretVisible(Theme.current().tokensFor(this));
+        ensureCaretVisible(Theme.of(this).tokensFor(this));
         resetBlink();
         invalidate();
     }
@@ -847,7 +847,7 @@ public class Spinner extends Widget {
 
     @Override
     protected float baselineOffset() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         return baselineFor(textRuler().measure("Hg", t.body()));
     }
 
@@ -855,7 +855,7 @@ public class Spinner extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float pad = t.spacingMedium(); // the same pad the value is drawn against, one at each end
         // Measure the WIDEST value this spinner can ever show, not the current one:
         // the box must not resize as the user steps, and the value must not slide
@@ -882,7 +882,7 @@ public class Spinner extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         boolean enabled = isEnabled();
         float w = width();
@@ -890,7 +890,7 @@ public class Spinner extends Widget {
         float focus = focusFade.value();
         float radius = t.radiusMedium(); // one resolution: fill, clip and border must agree
 
-        Color fill = enabled ? theme.surface : theme.disabledFill;
+        Color fill = enabled ? theme.surface() : theme.disabledFill();
         canvas.fillRoundRect(0, 0, w, h, radius, fill);
 
         // Clip the content to the rounded box so the button hover fill and the
@@ -907,12 +907,12 @@ public class Spinner extends Widget {
         float half = Strokes.HALF_PIXEL_INSET;
         canvas.drawRoundRect(half, half, w - 2 * half, h - 2 * half, radius,
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
-                theme.outline.lerp(theme.focusRing, focus));
+                theme.outline().lerp(theme.focusRing(), focus));
     }
 
     private void paintValue(Canvas canvas, Theme theme, SizeTokens t, boolean enabled, float focus) {
         Font font = t.body();
-        Color ink = enabled ? theme.text : theme.disabledText;
+        Color ink = enabled ? theme.text() : theme.disabledText();
         float baseline = baselineFor(textRuler().measure("Hg", font));
 
         if (edit != null) {
@@ -945,10 +945,10 @@ public class Spinner extends Widget {
                 float padX = t.spinnerFieldPadX();
                 float inset = t.spinnerFieldInset(); // shared with the divider: one optical margin
                 canvas.fillRoundRect(fx - padX, inset, fw + 2 * padX, height() - 2 * inset,
-                        t.radiusSmall(), theme.primary.withAlpha(0.20f * focus));
+                        t.radiusSmall(), theme.primary().withAlpha(0.20f * focus));
             }
             canvas.drawText(hh, hhX, baseline, ink);
-            canvas.drawText(colon, colonX, baseline, theme.textMuted);
+            canvas.drawText(colon, colonX, baseline, theme.textMuted());
             canvas.drawText(mm, mmX, baseline, ink);
         } else {
             // The one place a spinner's value is a string with no strong character and no
@@ -982,7 +982,7 @@ public class Spinner extends Widget {
             for (ShapedText.Span span : line.selection(edit.selectionStart(), edit.selectionEnd())) {
                 canvas.fillRect(originX + span.x0(), inkTop - Strokes.INK_BLEED, span.width(),
                         metrics.height() + 2 * Strokes.INK_BLEED,
-                        theme.primary.withAlpha(0.35f));
+                        theme.primary().withAlpha(0.35f));
             }
         }
         canvas.drawText(line, originX, baseline, ink);
@@ -1008,8 +1008,8 @@ public class Spinner extends Widget {
         float seam = rtl ? columnEnd : bx;
         float mid = height() / 2;
         float inset = t.spinnerFieldInset();
-        canvas.drawLine(seam, inset, seam, height() - inset, Strokes.BORDER, theme.outline);
-        canvas.drawLine(bx, mid, columnEnd, mid, Strokes.BORDER, theme.outline);
+        canvas.drawLine(seam, inset, seam, height() - inset, Strokes.BORDER, theme.outline());
+        canvas.drawLine(bx, mid, columnEnd, mid, Strokes.BORDER, theme.outline());
 
         boolean canUp = enabled && value < max;
         boolean canDown = enabled && value > min;
@@ -1023,7 +1023,7 @@ public class Spinner extends Widget {
             // The inset IS the divider width, so the fill can never cover a divider.
             float in = Strokes.SPINNER_HOVER_INSET;
             canvas.fillRect(bx + in, top + in, t.spinnerButtonW() - 2 * in, h - 2 * in,
-                    theme.surfaceRaised);
+                    theme.surfaceRaised());
         }
         // Centred in the column, pointing up or down: a mark on the vertical axis, and the one
         // thing in this widget that a mirrored layout leaves exactly where it found it. It
@@ -1037,7 +1037,7 @@ public class Spinner extends Widget {
         } else {
             triangle.moveTo(cx - s, cy - s / 2).lineTo(cx, cy + s / 2).lineTo(cx + s, cy - s / 2);
         }
-        Color color = !active ? theme.disabledText : hovered ? theme.text : theme.textMuted;
+        Color color = !active ? theme.disabledText() : hovered ? theme.text() : theme.textMuted();
         canvas.drawPath(triangle, Strokes.ARROW_PEN, color);
     }
 
@@ -1047,7 +1047,7 @@ public class Spinner extends Widget {
     protected void onMouseEvent(MouseEvent event) {
         // Resolved once for the whole event: a second resolution could classify the click
         // against a different step than the one that painted the stepper column.
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         switch (event.type()) {
             case MOVE, ENTER -> {
                 int region = regionAt(t, sceneToLocalX(event.x()), sceneToLocalY(event.y()));
@@ -1234,7 +1234,7 @@ public class Spinner extends Widget {
         boolean shift = (mods & Keys.MOD_SHIFT) != 0;
         // Resolved once for this keystroke: the visual arrows step over a line, and a line shaped
         // in one size row cannot answer for a caret placed against another.
-        SizeTokens tokens = Theme.current().tokensFor(this);
+        SizeTokens tokens = Theme.of(this).tokensFor(this);
         switch (key) {
             // Left and Right are VISUAL while there is text: they are named for a direction on
             // the screen, so they step one cluster that way on the line actually drawn, whatever
@@ -1513,7 +1513,7 @@ public class Spinner extends Widget {
 
         // Resolved ONCE for the whole hook, the rule this widget already states for its event
         // handlers: an index into the five cached rows, and not an allocation.
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float w = Math.max(0, width());
         float columnW = Math.min(t.spinnerButtonW(), w);
         float columnX = isRightToLeft() ? 0 : w - columnW;

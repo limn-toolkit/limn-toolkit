@@ -120,7 +120,7 @@ public class ToolBar extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         syncSeparatorInsets(t);
         float pad = t.toolBarPad();
         float gapBetween = gapOf(t);
@@ -147,7 +147,7 @@ public class ToolBar extends Widget {
 
     @Override
     protected void onLayout() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float pad = t.toolBarPad();
         float gapBetween = gapOf(t);
         float x = pad;
@@ -172,12 +172,12 @@ public class ToolBar extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
-        canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), theme.surface);
+        canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), theme.surface());
         float inset = Strokes.HALF_PIXEL_INSET; // lands the 1pt stroke on one device pixel
         canvas.drawRoundRect(inset, inset, width() - 2 * inset, height() - 2 * inset,
-                t.radiusMedium(), Strokes.BORDER, theme.outline);
+                t.radiusMedium(), Strokes.BORDER, theme.outline());
     }
 
     /**

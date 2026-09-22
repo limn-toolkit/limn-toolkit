@@ -133,8 +133,8 @@ public final class PerfFooter extends Widget {
         }
 
         Theme theme = Theme.current();
-        canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface);
-        canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(), 1, theme.outline);
+        canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
+        canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(), 1, theme.outline());
 
         float pad = 10;
         float gap = 6;
@@ -281,7 +281,7 @@ public final class PerfFooter extends Widget {
             float cx = rtl ? x + w - (i + 1) * cardW : x + i * cardW;
             drawCard(canvas, gauges[i], cx, y, cardW, h, rtl);
             if (i > 0) {
-                canvas.drawLine(x + i * cardW, y + 4, x + i * cardW, y + h - 4, 1, theme.outline);
+                canvas.drawLine(x + i * cardW, y + 4, x + i * cardW, y + h - 4, 1, theme.outline());
             }
         }
     }
@@ -299,9 +299,9 @@ public final class PerfFooter extends Widget {
         float nameX = rtl ? x + w - pad - name.metrics().width() : x + pad;
         float valueX = rtl ? x + w - pad - value.metrics().width() : x + pad;
         float unitX = rtl ? x + w - pad - unit.metrics().width() : x + pad;
-        canvas.drawText(name, nameX, y + 11, theme.textMuted);
+        canvas.drawText(name, nameX, y + 11, theme.textMuted());
         canvas.drawText(value, valueX, y + 27, gauge.color);
-        canvas.drawText(unit, unitX, y + 38, theme.textMuted);
+        canvas.drawText(unit, unitX, y + 38, theme.textMuted());
 
         // The chart takes 45% on the side reading ends on: the unit line is the
         // widest text here ("of 4096 MB", "12.3k tris") and the two share one card.

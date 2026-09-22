@@ -55,17 +55,17 @@ class ThemeContrastTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void textClearsEverySurfaceItLandsOn(Theme theme) {
-        atLeast(12, theme.text, theme.background, "text on the canvas");
-        atLeast(10, theme.text, theme.surface, "text on a card");
-        atLeast(8, theme.text, theme.surfaceRaised, "text on a popover");
+        atLeast(12, theme.text(), theme.background(), "text on the canvas");
+        atLeast(10, theme.text(), theme.surface(), "text on a card");
+        atLeast(8, theme.text(), theme.surfaceRaised(), "text on a popover");
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void mutedTextIsStillBodyTextAndClears45(Theme theme) {
-        atLeast(4.5, theme.textMuted, theme.background, "muted text on the canvas");
-        atLeast(4.5, theme.textMuted, theme.surface, "muted text on a card");
-        atLeast(4.5, theme.textMuted, theme.surfaceRaised, "muted text on a popover");
+        atLeast(4.5, theme.textMuted(), theme.background(), "muted text on the canvas");
+        atLeast(4.5, theme.textMuted(), theme.surface(), "muted text on a card");
+        atLeast(4.5, theme.textMuted(), theme.surfaceRaised(), "muted text on a popover");
     }
 
     /**
@@ -78,17 +78,17 @@ class ThemeContrastTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void theAccentLabelSurvivesEveryStateOfTheAccent(Theme theme) {
-        atLeast(4.5, theme.onPrimary, theme.primary, "label on the accent");
-        atLeast(4.5, theme.onPrimary, theme.primaryHover, "label on the hovered accent");
-        atLeast(4.5, theme.onPrimary, theme.primaryPressed, "label on the pressed accent");
+        atLeast(4.5, theme.onPrimary(), theme.primary(), "label on the accent");
+        atLeast(4.5, theme.onPrimary(), theme.primaryHover(), "label on the hovered accent");
+        atLeast(4.5, theme.onPrimary(), theme.primaryPressed(), "label on the pressed accent");
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void theAccentReadsOnEverySurface(Theme theme) {
-        atLeast(4.5, theme.primary, theme.background, "accent on the canvas");
-        atLeast(3, theme.primary, theme.surface, "accent on a card");
-        atLeast(3, theme.primary, theme.surfaceRaised, "accent on a popover");
+        atLeast(4.5, theme.primary(), theme.background(), "accent on the canvas");
+        atLeast(3, theme.primary(), theme.surface(), "accent on a card");
+        atLeast(3, theme.primary(), theme.surfaceRaised(), "accent on a popover");
     }
 
     /**
@@ -101,17 +101,17 @@ class ThemeContrastTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void theFocusRingIsVisibleOnTheControlItSurrounds(Theme theme) {
-        atLeast(2, theme.focusRing, theme.primary, "focus ring on an accent-filled button");
-        atLeast(3, theme.focusRing, theme.surface, "focus ring on a card");
-        atLeast(3, theme.focusRing, theme.background, "focus ring on the canvas");
+        atLeast(2, theme.focusRing(), theme.primary(), "focus ring on an accent-filled button");
+        atLeast(3, theme.focusRing(), theme.surface(), "focus ring on a card");
+        atLeast(3, theme.focusRing(), theme.background(), "focus ring on the canvas");
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void bordersAndElevationAreVisible(Theme theme) {
-        atLeast(2, theme.outline, theme.surface, "a border on a card");
-        stepsApart(5, theme.surface, theme.background, "a card lifting off the canvas");
-        stepsApart(5, theme.surfaceRaised, theme.surface, "a popover lifting off a card");
+        atLeast(2, theme.outline(), theme.surface(), "a border on a card");
+        stepsApart(5, theme.surface(), theme.background(), "a card lifting off the canvas");
+        stepsApart(5, theme.surfaceRaised(), theme.surface(), "a popover lifting off a card");
     }
 
     /**
@@ -122,18 +122,18 @@ class ThemeContrastTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void semanticStatesClearTheFurthestSurface(Theme theme) {
-        atLeast(4.5, theme.danger, theme.surfaceRaised, "error text on a dialog");
-        atLeast(4.5, theme.success, theme.surfaceRaised, "success text on a dialog");
-        atLeast(4.5, theme.warning, theme.surfaceRaised, "warning text on a dialog");
-        atLeast(4.5, theme.info, theme.surfaceRaised, "informational text on a dialog");
+        atLeast(4.5, theme.danger(), theme.surfaceRaised(), "error text on a dialog");
+        atLeast(4.5, theme.success(), theme.surfaceRaised(), "success text on a dialog");
+        atLeast(4.5, theme.warning(), theme.surfaceRaised(), "warning text on a dialog");
+        atLeast(4.5, theme.info(), theme.surfaceRaised(), "informational text on a dialog");
     }
 
     /** Disabled text must read as unavailable and still be legible. */
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void disabledTextIsDimmedWithoutDisappearing(Theme theme) {
-        atLeast(2, theme.disabledText, theme.surface, "disabled text on a card");
-        assertTrue(Color.contrastRatio(theme.disabledText, theme.surface) < Color.contrastRatio(theme.textMuted, theme.surface),
+        atLeast(2, theme.disabledText(), theme.surface(), "disabled text on a card");
+        assertTrue(Color.contrastRatio(theme.disabledText(), theme.surface()) < Color.contrastRatio(theme.textMuted(), theme.surface()),
                 "disabled text must be dimmer than muted text, or the two states look alike");
     }
 
@@ -145,9 +145,9 @@ class ThemeContrastTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("limnPair")
     void theLimnPairIsOneFamily(Theme theme) {
-        Color accent = theme.primary;
+        Color accent = theme.primary();
         assertTrue(accent.b() > accent.r() && accent.r() > accent.g(),
-                theme.name + ": the accent is not in the violet family (b > r > g)");
+                theme.name() + ": the accent is not in the violet family (b > r > g)");
     }
 
     static List<Theme> limnPair() {
@@ -174,11 +174,11 @@ class ThemeContrastTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void theModalVeilVeilsWithoutHiding(Theme theme) {
-        float alpha = theme.scrim.a();
+        float alpha = theme.scrim().a();
         assertTrue(alpha >= 89 / 255f,
-                theme.name + ": the modal veil is too faint to read as blocking (" + alpha + ')');
+                theme.name() + ": the modal veil is too faint to read as blocking (" + alpha + ')');
         assertTrue(alpha <= 230 / 255f,
-                theme.name + ": the modal veil hides what it blocks instead of dimming it ("
+                theme.name() + ": the modal veil hides what it blocks instead of dimming it ("
                         + alpha + ')');
     }
 
@@ -186,7 +186,7 @@ class ThemeContrastTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("palettes")
     void theModeFlagAgreesWithTheCanvas(Theme theme) {
-        assertTrue(theme.dark == (theme.background.relativeLuminance() < 0.2),
-                theme.name + ": the dark flag disagrees with the canvas it ships");
+        assertTrue(theme.isDark() == (theme.background().relativeLuminance() < 0.2),
+                theme.name() + ": the dark flag disagrees with the canvas it ships");
     }
 }

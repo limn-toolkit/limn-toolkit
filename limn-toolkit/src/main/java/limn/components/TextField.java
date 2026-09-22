@@ -130,7 +130,7 @@ public class TextField extends Widget {
     private int blinkGeneration;
     /** Focus-ring fade: morphs the border between outline and focusRing. */
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
 
     /** An empty single-line field. */
     public TextField() {
@@ -485,7 +485,7 @@ public class TextField extends Widget {
      * {@link #paintDisplayText} is the one call that may hand it to a canvas.
      */
     ShapedText displayLine() {
-        return displayLine(Theme.current().tokensFor(this));
+        return displayLine(Theme.of(this).tokensFor(this));
     }
 
     /**
@@ -666,7 +666,7 @@ public class TextField extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = textRuler().measure("Hg", t.body());
         return constraints.constrain(preferredWidth >= 0 ? preferredWidth : t.fieldWidth(),
                 t.resolvedHeight(metrics.lineHeight()));
@@ -674,7 +674,7 @@ public class TextField extends Widget {
 
     @Override
     protected float baselineOffset() {
-        TextMetrics metrics = textRuler().measure("Hg", Theme.current().tokensFor(this).body());
+        TextMetrics metrics = textRuler().measure("Hg", Theme.of(this).tokensFor(this).body());
         return textTop(metrics) + metrics.ascent();
     }
 
@@ -715,7 +715,7 @@ public class TextField extends Widget {
 
     /** Entry-point form: resolves the step once for callers that have no tokens in hand. */
     private void ensureCursorVisible() {
-        ensureCursorVisible(Theme.current().tokensFor(this));
+        ensureCursorVisible(Theme.of(this).tokensFor(this));
     }
 
     private void ensureCursorVisible(SizeTokens t) {
@@ -776,7 +776,7 @@ public class TextField extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         Font f = t.body();
         TextMetrics metrics = textRuler().measure("Hg", f);
@@ -785,7 +785,7 @@ public class TextField extends Widget {
         // selection band, the text and the caret all compose from this one answer.
         boolean rtl = isRightToLeft();
 
-        Color fill = isEnabled() ? theme.surface : theme.disabledFill;
+        Color fill = isEnabled() ? theme.surface() : theme.disabledFill();
         canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
         float focus = focusFade.value();
 
@@ -794,7 +794,7 @@ public class TextField extends Widget {
             float ico = t.fieldIcon();
             float iconX = rtl ? width() - t.fieldPadH() - ico : t.fieldPadH();
             leadingIcon.paint(canvas, iconX, (height() - ico) / 2, ico,
-                    isEnabled() ? theme.textMuted : theme.disabledText, theme.dark,
+                    isEnabled() ? theme.textMuted() : theme.disabledText(), theme.isDark(),
                     rtl && leadingMirroring == Icon.Mirroring.IN_RTL);
         }
         // Trailing coupled button (ComboBox-caret idiom): a themed background that
@@ -807,8 +807,8 @@ public class TextField extends Widget {
             float regionX = trailingRegionX(t);
             if (isEnabled() && (trailingHover || trailingArmed)) {
                 Color bg = trailingArmed
-                        ? theme.surfaceRaised.lerp(theme.text, 0.10f)
-                        : theme.surfaceRaised;
+                        ? theme.surfaceRaised().lerp(theme.text(), 0.10f)
+                        : theme.surfaceRaised();
                 float r = t.radiusMedium();
                 // Square on the divider side and rounded on the outer one, so the region reads as
                 // one coupled button either way round; which side is which is the direction's.
@@ -820,12 +820,12 @@ public class TextField extends Widget {
             // stands on the region's inner edge, which is the far one reading right to left.
             float dividerX = rtl ? regionX + regionW : regionX;
             canvas.drawLine(dividerX, t.fieldDividerInset(), dividerX,
-                    height() - t.fieldDividerInset(), Strokes.BORDER, theme.outline);
+                    height() - t.fieldDividerInset(), Strokes.BORDER, theme.outline());
             float ico = t.fieldIcon();
-            Color tint = !isEnabled() ? theme.disabledText
-                    : (trailingHover || trailingArmed) ? theme.primary : theme.textMuted;
+            Color tint = !isEnabled() ? theme.disabledText()
+                    : (trailingHover || trailingArmed) ? theme.primary() : theme.textMuted();
             trailingIcon.paint(canvas, regionX + (regionW - ico) / 2,
-                    (height() - ico) / 2, ico, tint, theme.dark,
+                    (height() - ico) / 2, ico, tint, theme.isDark(),
                     rtl && trailingMirroring == Icon.Mirroring.IN_RTL);
         }
 
@@ -857,11 +857,11 @@ public class TextField extends Widget {
                     ShapedText.Direction.of(hint, neutralBase()));
             float hintX = rtl ? left + inner - hintLine.metrics().width() : left;
             float caretX = rtl ? left + inner : left;
-            canvas.drawText(hintLine, hintX, baseline, theme.textMuted);
+            canvas.drawText(hintLine, hintX, baseline, theme.textMuted());
             if (isFocused() && cursorVisible) {
                 canvas.drawLine(caretX, inkTop - Strokes.INK_BLEED,
                         caretX, inkTop + metrics.height() + Strokes.INK_BLEED,
-                        Strokes.CARET, theme.text);
+                        Strokes.CARET, theme.text());
             }
         } else if (composing) {
             paintComposing(canvas, theme, t, metrics, originX, inkTop, baseline);
@@ -876,10 +876,10 @@ public class TextField extends Widget {
                     float x0 = spans[i * 2];
                     canvas.fillRect(originX + x0, inkTop - Strokes.INK_BLEED, spans[i * 2 + 1] - x0,
                             metrics.height() + 2 * Strokes.INK_BLEED,
-                            theme.primary.withAlpha(0.35f));
+                            theme.primary().withAlpha(0.35f));
                 }
             }
-            Color ink = isEnabled() ? theme.text : theme.disabledText;
+            Color ink = isEnabled() ? theme.text() : theme.disabledText();
             paintDisplayText(canvas, line, originX, baseline, metrics, t, ink);
             if (isFocused() && cursorVisible && !model.hasSelection()) {
                 // ONE caret, not the two caretAt() offers: the model stores the side, so there is
@@ -888,7 +888,7 @@ public class TextField extends Widget {
                 float cx = originX + line.caretX(model.caret());
                 canvas.drawLine(cx, inkTop - Strokes.INK_BLEED,
                         cx, inkTop + metrics.height() + Strokes.INK_BLEED,
-                        Strokes.CARET, theme.text);
+                        Strokes.CARET, theme.text());
             }
         }
         canvas.restore();
@@ -905,11 +905,11 @@ public class TextField extends Widget {
 
     private Color borderColor(Theme theme, float focus) {
         return switch (validation) {
-            case NONE -> theme.outline.lerp(theme.focusRing, focus);
-            case ERROR -> theme.danger;
-            case WARNING -> theme.warning;
-            case SUCCESS -> theme.success;
-            case INFO -> theme.info;
+            case NONE -> theme.outline().lerp(theme.focusRing(), focus);
+            case ERROR -> theme.danger();
+            case WARNING -> theme.warning();
+            case SUCCESS -> theme.success();
+            case INFO -> theme.info();
         };
     }
 
@@ -930,7 +930,7 @@ public class TextField extends Widget {
                                 float originX, float inkTop, float baseline) {
         ShapedText line = composedLine(t);
         int c = Math.min(model.cursor(), model.length());
-        Color ink = isEnabled() ? theme.text : theme.disabledText;
+        Color ink = isEnabled() ? theme.text() : theme.disabledText();
         float bandTop = inkTop - Strokes.INK_BLEED;
         float bandH = metrics.height() + 2 * Strokes.INK_BLEED;
         float underlineY = inkTop + metrics.height();
@@ -944,7 +944,7 @@ public class TextField extends Widget {
         // Highlight first, so it sits behind the ink rather than over it.
         for (ShapedText.Span s : focusBoxes) {
             canvas.fillRect(originX + s.x0(), bandTop, s.width(), bandH,
-                    theme.primary.withAlpha(0.18f));
+                    theme.primary().withAlpha(0.18f));
         }
         // NOT through paintDisplayText, deliberately: that seam exists for a subclass that
         // substitutes its own marks, and there is no such thing as a masked composition -- the one
@@ -953,16 +953,16 @@ public class TextField extends Widget {
         canvas.drawText(line, originX, baseline, ink);
         for (ShapedText.Span s : line.selection(c, c + preedit.length())) {
             canvas.drawLine(originX + s.x0(), underlineY, originX + s.x1(), underlineY,
-                    Strokes.IME_UNDERLINE, theme.textMuted);
+                    Strokes.IME_UNDERLINE, theme.textMuted());
         }
         // The 1-vs-2 contrast is what says "this block is converting"; scaling either erases it.
         for (ShapedText.Span s : focusBoxes) {
             canvas.drawLine(originX + s.x0(), underlineY, originX + s.x1(), underlineY,
-                    Strokes.IME_UNDERLINE_ACTIVE, theme.primary);
+                    Strokes.IME_UNDERLINE_ACTIVE, theme.primary());
         }
         if (isFocused() && cursorVisible) {
             float cx = originX + caretDisplayX(t); // the same x caretRect() reports
-            canvas.drawLine(cx, bandTop, cx, bandTop + bandH, Strokes.CARET, theme.text);
+            canvas.drawLine(cx, bandTop, cx, bandTop + bandH, Strokes.CARET, theme.text());
         }
     }
 
@@ -990,7 +990,7 @@ public class TextField extends Widget {
     }
 
     private void handleMouse(MouseEvent event) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float lx = sceneToLocalX(event.x());
         float ly = sceneToLocalY(event.y());
         // Bounded on both axes: a DRAG that leaves the field vertically used to keep
@@ -1254,7 +1254,7 @@ public class TextField extends Widget {
         }
         // Its own resolve: the scene also calls this from the async blink chain, where there
         // is no enclosing measure/paint pass to thread tokens down from.
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = textRuler().measure("Hg", t.body());
         float left = contentLeft(t);
         float liveWidth = (preedit.isEmpty() ? displayLine(t) : composedLine(t))
@@ -1462,7 +1462,7 @@ public class TextField extends Widget {
                 || (composing && (accessibleTextPreedit != preedit
                         || accessibleTextCursor != cursor))) {
             String rebuilt = composing
-                    ? composedLine(Theme.current().tokensFor(this)).text()
+                    ? composedLine(Theme.of(this).tokensFor(this)).text()
                     : model.text();
             accessibleTextVersion = version;
             accessibleTextComposing = composing;
@@ -1534,7 +1534,7 @@ public class TextField extends Widget {
         a.action(Accessible.Action.SHOW_MENU);
         publishText(a);
         if (trailingIcon != null) {
-            SizeTokens t = Theme.current().tokensFor(this);
+            SizeTokens t = Theme.of(this).tokensFor(this);
             a.child(TRAILING_BUTTON);
             // The hit region's own two expressions, which are the painted region's: the icon's
             // centred square is smaller than what a click lands in, and a node whose box is the

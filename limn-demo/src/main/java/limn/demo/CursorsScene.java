@@ -46,7 +46,7 @@ final class CursorsScene {
     /** Standalone {@code --scene cursors}. */
     static Scene create() {
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -114,7 +114,7 @@ final class CursorsScene {
     }
 
     private static Label heading(String text) {
-        return new Label(text).setFont(Theme.current().title);
+        return new Label(text).setFont(Theme.current().title());
     }
 
 
@@ -207,14 +207,14 @@ final class CursorsScene {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            Color fill = theme.surface.lerp(theme.surfaceRaised, hover.value());
+            Color fill = theme.surface().lerp(theme.surfaceRaised(), hover.value());
             canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), fill);
             canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(),
-                    1, theme.outline.lerp(theme.primaryHover, hover.value()));
-            Font font = theme.body;
+                    1, theme.outline().lerp(theme.primaryHover(), hover.value()));
+            Font font = theme.body();
             TextMetrics m = textRuler().measure(label, font);
             canvas.drawText(label, (width() - m.width()) / 2,
-                    (height() - m.height()) / 2 + m.ascent(), font, theme.text);
+                    (height() - m.height()) / 2 + m.ascent(), font, theme.text());
         }
 
         @Override
@@ -241,15 +241,15 @@ final class CursorsScene {
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
             canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(),
-                    inside ? theme.surfaceRaised : theme.surface);
+                    inside ? theme.surfaceRaised() : theme.surface());
             canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(),
-                    1, inside ? theme.primaryHover : theme.outline);
+                    1, inside ? theme.primaryHover() : theme.outline());
             String text = inside ? "Cursor hidden; move out to restore" : "Hover to hide the cursor";
-            Font font = theme.body;
+            Font font = theme.body();
             TextMetrics m = textRuler().measure(text, font);
             canvas.drawText(text, (width() - m.width()) / 2,
                     (height() - m.height()) / 2 + m.ascent(), font,
-                    inside ? theme.text : theme.textMuted);
+                    inside ? theme.text() : theme.textMuted());
         }
 
         /** Pointer mode is window state, so it is restored through the live scene,
@@ -311,28 +311,28 @@ final class CursorsScene {
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
             canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(),
-                    captured ? theme.surfaceRaised : theme.surface);
+                    captured ? theme.surfaceRaised() : theme.surface());
             canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(),
-                    1, captured ? theme.primary : theme.outline);
+                    1, captured ? theme.primary() : theme.outline());
 
             // Dial: a circle with a needle at 'angle'.
             float cx = height() / 2f;
             float cy = height() / 2f;
             float r = height() / 2f - 16;
-            canvas.drawCircle(cx, cy, r, 2, captured ? theme.primary : theme.outline);
+            canvas.drawCircle(cx, cy, r, 2, captured ? theme.primary() : theme.outline());
             float nx = cx + (float) Math.cos(angle) * r;
             float ny = cy + (float) Math.sin(angle) * r;
-            canvas.drawLine(cx, cy, nx, ny, 2, theme.text);
+            canvas.drawLine(cx, cy, nx, ny, 2, theme.text());
 
             String text = captured
                     ? String.format("Captured: dx %.0f  dy %.0f  (click or ESC releases)",
                             totalX, totalY)
                     : "Click to capture the pointer (RELATIVE)";
-            Font font = theme.body;
+            Font font = theme.body();
             TextMetrics m = textRuler().measure(text, font);
             canvas.drawText(text, cx * 2 + 12,
                     (height() - m.height()) / 2 + m.ascent(), font,
-                    captured ? theme.text : theme.textMuted);
+                    captured ? theme.text() : theme.textMuted());
         }
 
         private void setCaptured(boolean on) {
@@ -401,14 +401,14 @@ final class CursorsScene {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            Color fill = theme.surface.lerp(theme.surfaceRaised, hover.value());
+            Color fill = theme.surface().lerp(theme.surfaceRaised(), hover.value());
             canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), fill);
             canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(),
-                    1, theme.outline.lerp(theme.primaryHover, hover.value()));
-            Font font = theme.body;
+                    1, theme.outline().lerp(theme.primaryHover(), hover.value()));
+            Font font = theme.body();
             TextMetrics m = textRuler().measure(label, font);
             canvas.drawText(label, (width() - m.width()) / 2,
-                    (height() - m.height()) / 2 + m.ascent(), font, theme.text);
+                    (height() - m.height()) / 2 + m.ascent(), font, theme.text());
         }
 
         @Override

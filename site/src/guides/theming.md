@@ -5,12 +5,11 @@ description: "Palettes, density and how to make the toolkit look like your produ
 
 ## Picking a palette
 
-A theme is a palette plus one shape metric. Switching one is a single call, plus a relayout
-so the sizes are re-measured:
+A theme is a palette plus one shape metric. Switching one is a single call, which makes it
+current, applies its font and repaints the scenes you hand it:
 
 ```java
-Theme.setCurrent(Theme.limnLight());
-scene.root().markNeedsLayout();
+Theme.limnLight().apply(scene);
 ```
 
 Fifteen palettes ship with the toolkit. `Theme.limn()` and `Theme.limnLight()` are the
@@ -29,11 +28,13 @@ rather than after it: a palette that has had its ink darkened and its accent dee
 longer the palette it was borrowed from, and shipping it under the original name would be a
 claim about someone else's work.
 
-The palette is process-wide. Switching it tells whoever subscribed through
-`Theme.observeChanges`, and a scene is not a subscriber: call `invalidate()` on each live
-scene's root afterwards, and that one line is the whole migration for a running application.
-A palette is a repaint and never a re-measure, which is what keeps a switch cheap enough for
-a colour well to make one on every frame of a drag.
+The palette is process-wide, so hand `apply` every live scene: each one repaints, and nothing
+is re-measured, because a palette carries colours and corner radii and nothing in the toolkit
+measures from either. A palette's font is the exception that re-measures, and `apply` applies it
+through the font axis, which does its own relayout. `Theme.setCurrent` is the cheaper half on its
+own: it switches the palette and tells whoever subscribed through `Theme.observeChanges`, and
+repaints nothing, which is what a colour well wants when it changes the palette on every frame of
+a drag and repaints its own preview.
 
 ## Building your own
 
@@ -125,15 +126,19 @@ loads in an application that has never heard of it.
 | `outline` `focusRing` | borders and the focus ring |
 | `disabledFill` `disabledText` | unavailable controls |
 | `danger` `success` `warning` `info` | the four states |
+| `scrim` | the veil a modal dialog lays over what it blocks |
 | `cornerScale` | how round the corners are, the one metric a palette carries |
+| `fontFamily` | the face the palette prefers; applied by `apply`, or by `applyFontFamily()` |
 
-Read them from `Theme.current()` when you paint, never at construction time: a colour
-copied in a constructor is a colour that will not follow the next theme switch:
+Each is an accessor on the palette. Read the palette through `Theme.of(this)` when you paint,
+never at construction time: a colour copied in a constructor will not follow the next theme
+switch, and asking through the widget is what lets a palette per subtree be added later without
+your widget changing:
 
 ```java
 @Override
 protected void onPaint(Canvas canvas) {
-    canvas.fillRoundRect(0, 0, width(), height(), 8, Theme.current().surface);
+    canvas.fillRoundRect(0, 0, width(), height(), 8, Theme.of(this).surface());
 }
 ```
 
@@ -174,7 +179,7 @@ The toolkit does not read the platform's light/dark preference for you. Read it 
 platform layer already does, and set the matching palette:
 
 ```java
-Theme.setCurrent(systemPrefersDark ? Theme.limn() : Theme.limnLight());
+(systemPrefersDark ? Theme.limn() : Theme.limnLight()).apply(scene);
 ```
 
 ## Fonts

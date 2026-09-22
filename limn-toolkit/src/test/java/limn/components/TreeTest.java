@@ -2498,7 +2498,7 @@ class TreeTest extends ComponentTestBase {
         scene.renderFrame(painted);
         List<RingCanvas.Ring> found = new ArrayList<>();
         for (RingCanvas.Ring ring : painted.rings) {
-            if (ring.paint().equals(Theme.current().focusRing)) {
+            if (ring.paint().equals(Theme.current().focusRing())) {
                 found.add(ring);
             }
         }

@@ -44,7 +44,7 @@ final class AudioScene {
     /** Standalone {@code --scene audio}. */
     static Scene create() {
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -313,13 +313,13 @@ final class AudioScene {
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
             float radius = theme.tokensFor(this).radiusMedium();
-            canvas.fillRoundRect(0, 0, width(), height(), radius, theme.surface);
+            canvas.fillRoundRect(0, 0, width(), height(), radius, theme.surface());
             canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1,
-                    radius, 1, theme.outline);
+                    radius, 1, theme.outline());
             float cx = width() / 2;
             float cy = height() - 24; // listener near the bottom, "facing up"
-            canvas.fillCircle(cx, cy, 6, theme.primary);
-            canvas.drawLine(cx, cy, cx, cy - 16, 2, theme.primary);
+            canvas.fillCircle(cx, cy, 6, theme.primary());
+            canvas.drawLine(cx, cy, cx, cy - 16, 2, theme.primary());
             if (!Float.isNaN(emitterX)) {
                 float ex = cx + emitterX / WORLD * (width() / 2 - 20);
                 float ey = cy + emitterZ / WORLD * (height() - 48);

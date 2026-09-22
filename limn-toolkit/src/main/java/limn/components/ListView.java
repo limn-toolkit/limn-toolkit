@@ -195,7 +195,7 @@ public class ListView extends Widget implements Scrollable {
      * parent and could never be corrected. Do not copy the pattern for metrics.
      */
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing)
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing)
                     // The fade draws one row's outline, so that is what each of its frames
                     // repaints. Without this the list repainted itself whole eleven times over
                     // for a Tab to land in it -- see Transition.damages.
@@ -515,7 +515,7 @@ public class ListView extends Widget implements Scrollable {
      * clamp disagree, which is a scroll that sticks near the ends.
      */
     private SizeTokens tokens() {
-        return Theme.current().tokensFor(this);
+        return Theme.of(this).tokensFor(this);
     }
 
     /**
@@ -980,7 +980,7 @@ public class ListView extends Widget implements Scrollable {
             if (selectedIndex >= 0) {
                 Widget cell = cellFor(selectedIndex);
                 if (cell != null) {
-                    Theme theme = Theme.current();
+                    Theme theme = Theme.of(this);
                     SizeTokens t = theme.tokensFor(this);
                     float f = focusFade.value();
                     // The textbook locked case: the ring animates 1.5 -> 2 pt as focus fades in,
@@ -993,7 +993,7 @@ public class ListView extends Widget implements Scrollable {
                             width() - 2 * inset, cell.height() - 2 * inset, t.radiusMedium(),
                             Strokes.FOCUS_RING_THIN
                                     + (Strokes.FOCUS_RING - Strokes.FOCUS_RING_THIN) * f,
-                            theme.outline.lerp(theme.focusRing, f));
+                            theme.outline().lerp(theme.focusRing(), f));
                 }
             }
         } finally {

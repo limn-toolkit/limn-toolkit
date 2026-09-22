@@ -230,7 +230,7 @@ public class DateField extends Widget {
     private boolean lastMoveWasTime;
 
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
 
     /**
      * Whether this field paints its own box and border. A field inside a {@link DatePicker} does
@@ -1637,7 +1637,7 @@ public class DateField extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         ensureParts();
         TextMetrics metrics = textRuler().measure(widestForm.isEmpty() ? "Hg" : widestForm, t.body());
         return constraints.constrain(metrics.width() + 2 * t.fieldPadH(),
@@ -1646,7 +1646,7 @@ public class DateField extends Widget {
 
     @Override
     protected float baselineOffset() {
-        TextMetrics metrics = textRuler().measure("Hg", Theme.current().tokensFor(this).body());
+        TextMetrics metrics = textRuler().measure("Hg", Theme.of(this).tokensFor(this).body());
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
 
@@ -1657,7 +1657,7 @@ public class DateField extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         ensureParts();
         boolean enabled = isEnabled();
@@ -1667,7 +1667,7 @@ public class DateField extends Widget {
         float radius = t.radiusMedium();
 
         if (chrome) {
-            canvas.fillRoundRect(0, 0, w, h, radius, enabled ? theme.surface : theme.disabledFill);
+            canvas.fillRoundRect(0, 0, w, h, radius, enabled ? theme.surface() : theme.disabledFill());
         }
         canvas.save();
         canvas.clipRoundRect(RoundRect.of(0, 0, w, h, radius));
@@ -1683,7 +1683,7 @@ public class DateField extends Widget {
             return;
         }
         float half = Strokes.HALF_PIXEL_INSET;
-        Color border = validity != null ? theme.danger : theme.outline.lerp(theme.focusRing, focus);
+        Color border = validity != null ? theme.danger() : theme.outline().lerp(theme.focusRing(), focus);
         canvas.drawRoundRect(half, half, w - 2 * half, h - 2 * half, radius,
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus, border);
     }
@@ -1706,7 +1706,7 @@ public class DateField extends Widget {
         float pad = t.fieldPadH();
         float x = isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
         int slot = 0;
-        Color ink = enabled ? theme.text : theme.disabledText;
+        Color ink = enabled ? theme.text() : theme.disabledText();
         for (DatePattern.Part part : parts) {
             String text = part instanceof DatePattern.Literal literal
                     ? literal.text()
@@ -1720,13 +1720,13 @@ public class DateField extends Widget {
                     float inset = t.spinnerFieldInset();
                     canvas.fillRoundRect(x - padX, inset, pieceWidth + 2 * padX,
                             height() - 2 * inset, t.radiusSmall(),
-                            theme.primary.withAlpha(0.20f * focus));
+                            theme.primary().withAlpha(0.20f * focus));
                 }
                 slot++;
             }
             boolean placeholder = isField && text.startsWith("-");
             canvas.drawText(line, x, baseline,
-                    part instanceof DatePattern.Literal || placeholder ? theme.textMuted : ink);
+                    part instanceof DatePattern.Literal || placeholder ? theme.textMuted() : ink);
             x += pieceWidth;
         }
     }
@@ -1808,7 +1808,7 @@ public class DateField extends Widget {
      */
     private int slotAt(float localX) {
         ensureParts();
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextRuler ruler = textRuler();
         Font font = t.body();
         ShapedText.Direction neutral = neutralBase();
@@ -2033,7 +2033,7 @@ public class DateField extends Widget {
     @Override
     protected void onAccessibility(Accessibility a) {
         ensureParts();
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         a.role(Accessible.Role.GROUP);
         // No value facet on the group, and this is a correction the tests forced rather than a
         // choice made up front. The first cut published the whole date here as a valueText, which

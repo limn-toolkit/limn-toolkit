@@ -22,7 +22,7 @@ final class PerfScene {
     static Scene create() {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(new Label("Performance monitor").setFont(Theme.current().title));
+        column.add(new Label("Performance monitor").setFont(Theme.current().title()));
         column.add(new Label("The footer measures, live, the FPS, the frame time (CPU: tick + layout + "
                 + "paint) and the event-processing time, with averages and sparklines.")
                 .setMuted(true).setWrap(true));
@@ -40,7 +40,7 @@ final class PerfScene {
         column.add(new PerfFooter());
 
         Scene scene = new Scene(new Padding(Insets.all(20), column));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         partialRendering.onChange(scene::setPartialRendering);
         damageDebug.onChange(scene::setDamageDebug);
         return scene;

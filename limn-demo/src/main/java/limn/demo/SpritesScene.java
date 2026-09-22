@@ -35,7 +35,7 @@ final class SpritesScene {
     /** Standalone {@code --scene sprites}. */
     static Scene create() {
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -75,7 +75,7 @@ final class SpritesScene {
     }
 
     private static Label heading(String text) {
-        return new Label(text).setFont(Theme.current().title);
+        return new Label(text).setFont(Theme.current().title());
     }
 
     // ------------------------------------------------- procedural sprite art
@@ -179,7 +179,7 @@ final class SpritesScene {
         protected void onPaint(Canvas canvas) {
             armTicker();
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface);
+            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
             int frame = (int) (time * 10) % FRAMES;
 
             // The whole sheet at 2×, pixelated so cells read clearly.
@@ -188,7 +188,7 @@ final class SpritesScene {
             float sheetY = (height() - COIN * 2) / 2;
             canvas.drawImage(sheet, 16, sheetY, FRAMES * COIN * 2, COIN * 2);
             canvas.drawRect(16 + frame * COIN * 2, sheetY, COIN * 2, COIN * 2,
-                    2, theme.primary);
+                    2, theme.primary());
             // The played sprite at 3× (fits the 96px widget; drawing outside
             // the bounds would leave stale pixels under partial rendering):
             // ONE cell of the sheet via source rect.
@@ -216,7 +216,7 @@ final class SpritesScene {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface);
+            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
             float size = 96;
             float y = (height() - size) / 2;
             float leftX = width() / 2 - size - 40;
@@ -226,13 +226,13 @@ final class SpritesScene {
             canvas.setSampling(Sampling.PIXELATED);
             canvas.drawImage(sprite, rightX, y, size, size);
             canvas.restore();
-            var font = theme.body;
+            var font = theme.body();
             var m1 = textRuler().measure("SMOOTH", font);
             canvas.drawText("SMOOTH", leftX + (size - m1.width()) / 2,
-                    y + size + m1.ascent() - 4, font, theme.textMuted);
+                    y + size + m1.ascent() - 4, font, theme.textMuted());
             var m2 = textRuler().measure("PIXELATED", font);
             canvas.drawText("PIXELATED", rightX + (size - m2.width()) / 2,
-                    y + size + m2.ascent() - 4, font, theme.textMuted);
+                    y + size + m2.ascent() - 4, font, theme.textMuted());
         }
     }
 
@@ -273,10 +273,10 @@ final class SpritesScene {
                     canvas.fillCircle(gx, gy, 34, GLOWS[i]);
                 }
                 canvas.restore();
-                var font = theme.body;
+                var font = theme.body();
                 var m = textRuler().measure(names[p], font);
                 canvas.drawText(names[p], x + (panelW - m.width()) / 2,
-                        120 + m.ascent() + 6, font, theme.textMuted);
+                        120 + m.ascent() + 6, font, theme.textMuted());
             }
         }
     }
@@ -295,7 +295,7 @@ final class SpritesScene {
         protected void onPaint(Canvas canvas) {
             armTicker();
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface);
+            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
             float offset = (float) ((time * SPEED) % (COIN + 24));
             paintStrip(canvas, 14, offset, true, theme);
             canvas.save();
@@ -312,10 +312,10 @@ final class SpritesScene {
                 canvas.drawImage(sheet, 0, 0, COIN, COIN, x, y + 4, COIN, COIN);
             }
             canvas.restore();
-            var font = theme.label;
+            var font = theme.label();
             String label = snapped ? "pixel snap ON (default)" : "pixel snap OFF (sub-pixel)";
             var m = textRuler().measure(label, font);
-            canvas.drawText(label, 16, y + 44 + m.ascent() + 2, font, theme.textMuted);
+            canvas.drawText(label, 16, y + 44 + m.ascent() + 2, font, theme.textMuted());
         }
     }
 }

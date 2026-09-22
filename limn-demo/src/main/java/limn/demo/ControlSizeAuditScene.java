@@ -84,7 +84,7 @@ final class ControlSizeAuditScene {
         page.add(trackRow());
 
         Scene scene = new Scene(new Padding(Insets.all(20), new TargetOverlay(page)));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -254,7 +254,7 @@ final class ControlSizeAuditScene {
             boolean meets = shorter >= Strokes.MIN_HIT_TARGET;
             tally.record(w.getClass().getSimpleName(), shorter, meets);
 
-            Color ink = meets ? theme.success : theme.danger;
+            Color ink = meets ? theme.success() : theme.danger();
             // The box, at the half-pixel inset every 1pt outline in the toolkit uses, so the
             // annotation lands on the same device pixel row as the border it traces.
             canvas.drawRect(x + Strokes.HALF_PIXEL_INSET, y + Strokes.HALF_PIXEL_INSET,
@@ -295,7 +295,7 @@ final class ControlSizeAuditScene {
             // Optical centring on the row: the visual middle of a line of text is the middle of
             // its ink box, which sits above the baseline by (ascent - descent) / 2.
             canvas.drawText(text, x, centreY + (m.ascent() - m.descent()) / 2,
-                    t.label(), row.belowFloor == 0 ? theme.textMuted : theme.danger);
+                    t.label(), row.belowFloor == 0 ? theme.textMuted() : theme.danger());
         }
 
         /** The page total, plus the worst measured extent per offending component. */
@@ -304,13 +304,13 @@ final class ControlSizeAuditScene {
             boolean rtl = isRightToLeft();
             float top = height() - 2 * ref.lineHeight();
             canvas.drawLine(0, top - t.spacingSmall(), width(), top - t.spacingSmall(),
-                    Strokes.HAIRLINE, theme.outline);
+                    Strokes.HAIRLINE, theme.outline());
 
             String head = String.format(Locale.ROOT,
                     "WCAG 2.2 SC 2.5.8 (AA), %.0fpt: %d targets, %d short",
                     Strokes.MIN_HIT_TARGET, page.targets, page.belowFloor);
             canvas.drawText(head, leadingX(canvas, head, t, rtl), top + ref.ascent(),
-                    t.label(), theme.text);
+                    t.label(), theme.text());
 
             String detail;
             if (page.belowFloor == 0) {
@@ -329,7 +329,7 @@ final class ControlSizeAuditScene {
             }
             canvas.drawText(detail, leadingX(canvas, detail, t, rtl),
                     top + ref.lineHeight() + ref.ascent(), t.label(),
-                    page.belowFloor == 0 ? theme.success : theme.danger);
+                    page.belowFloor == 0 ? theme.success() : theme.danger());
         }
 
         /** Where a line of the footer starts: the edge this overlay reads from. */

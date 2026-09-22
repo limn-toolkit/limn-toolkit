@@ -126,10 +126,10 @@ public class DatePicker extends Widget {
      */
     private final CalendarButton button = new CalendarButton();
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
     /** The trailing button's own ring, which fades on its own widget rather than on the box. */
     private final Transition buttonFocus =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
 
     private Consumer<LocalDate> onSelect;
 
@@ -931,7 +931,7 @@ public class DatePicker extends Widget {
                 if (!open) {
                     return false;
                 }
-                sceneFade = (float) Math.min(1, sceneFade + dt / Theme.current().animWindow);
+                sceneFade = (float) Math.min(1, sceneFade + dt / Theme.of(this).animWindow);
                 fading.invalidate();
                 return sceneFade < 1;
             });
@@ -945,7 +945,7 @@ public class DatePicker extends Widget {
             return;
         }
         NativeWindow parent = scene.window();
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float gap = t.popupGap();
         float factor = parent.logicalToScreenFactor();
         Size content = popupContentSize();
@@ -983,7 +983,7 @@ public class DatePicker extends Widget {
                 : anchorBottom;
         popupWindow.setScreenPosition(screenX, screenY);
         if (parent.isVisible()) {
-            popupScene.fadeWindowIn(Theme.current().animWindow);
+            popupScene.fadeWindowIn(Theme.of(this).animWindow);
             popupWindow.show();
         }
         popupWindow.requestFrame();
@@ -991,7 +991,7 @@ public class DatePicker extends Widget {
 
     /** The popup's box: the grid's own measurement, the time row's under it, and the panel's padding. */
     private Size popupContentSize() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float pad = t.popupPadV();
         Size grid = calendar.measure(Constraints.loose(Float.POSITIVE_INFINITY,
                 Float.POSITIVE_INFINITY));
@@ -1069,7 +1069,7 @@ public class DatePicker extends Widget {
                 closing.requestClose();
             };
             if (closingScene != null) {
-                closingScene.fadeWindowOut(Theme.current().animWindow, () -> {
+                closingScene.fadeWindowOut(Theme.of(this).animWindow, () -> {
                     destroy.run();
                     releaseCalendar();
                 });
@@ -1094,7 +1094,7 @@ public class DatePicker extends Widget {
             DateField pending = refocus; // the fade's end is where the focus can move: closeTo
             refocus = null;
             owner.addRealTimeTicker(dt -> {
-                sceneFade = (float) Math.max(0, sceneFade - dt / Theme.current().animWindow);
+                sceneFade = (float) Math.max(0, sceneFade - dt / Theme.of(this).animWindow);
                 closing.invalidate();
                 if (sceneFade > 0) {
                     return true;
@@ -1128,7 +1128,7 @@ public class DatePicker extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         Size first = field.measure(constraints.loosened());
         float width = first.width();
         float height = first.height();
@@ -1151,7 +1151,7 @@ public class DatePicker extends Widget {
 
     @Override
     protected void onLayout() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         boolean rtl = isRightToLeft();
         float button = buttonWidth(t);
         // The button takes the gutter on the side reading ends on, exactly as a search field's
@@ -1185,7 +1185,7 @@ public class DatePicker extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         boolean enabled = isEnabled();
         float focus = focusFade.value();
@@ -1193,12 +1193,12 @@ public class DatePicker extends Widget {
         float w = width();
         float h = height();
 
-        canvas.fillRoundRect(0, 0, w, h, radius, enabled ? theme.surface : theme.disabledFill);
+        canvas.fillRoundRect(0, 0, w, h, radius, enabled ? theme.surface() : theme.disabledFill());
         boolean invalid = !field.isValid() || endField != null && !endField.isValid();
         float half = Strokes.HALF_PIXEL_INSET;
         canvas.drawRoundRect(half, half, w - 2 * half, h - 2 * half, radius,
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
-                invalid ? theme.danger : theme.outline.lerp(theme.focusRing, focus));
+                invalid ? theme.danger() : theme.outline().lerp(theme.focusRing(), focus));
 
         if (endField != null) {
             // The dash sits in the gap the layout left between the two fields, centred in it.
@@ -1213,7 +1213,7 @@ public class DatePicker extends Widget {
             float gapWidth = separatorWidth(t);
             canvas.drawText(shaped, gapLeft + (gapWidth - shaped.metrics().width()) / 2,
                     (h - fm.height()) / 2 + fm.ascent(),
-                    enabled ? theme.textMuted : theme.disabledText);
+                    enabled ? theme.textMuted() : theme.disabledText());
         }
     }
 
@@ -1286,7 +1286,7 @@ public class DatePicker extends Widget {
 
         @Override
         protected Size onMeasure(Constraints constraints) {
-            SizeTokens t = Theme.current().tokensFor(DatePicker.this);
+            SizeTokens t = Theme.of(this).tokensFor(DatePicker.this);
             return constraints.constrain(buttonWidth(t), t.controlHeight());
         }
 
@@ -1313,17 +1313,17 @@ public class DatePicker extends Widget {
          */
         @Override
         protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
+            Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(DatePicker.this);
             boolean enabled = isEnabled();
             if (hover && enabled) {
                 canvas.fillRoundRect(Strokes.SPINNER_HOVER_INSET, Strokes.SPINNER_HOVER_INSET,
                         width() - 2 * Strokes.SPINNER_HOVER_INSET,
                         height() - 2 * Strokes.SPINNER_HOVER_INSET, t.radiusSmall(),
-                        theme.surfaceRaised);
+                        theme.surfaceRaised());
             }
-            Color ink = !enabled ? theme.disabledText
-                    : open || hover || isFocused() ? theme.text : theme.textMuted;
+            Color ink = !enabled ? theme.disabledText()
+                    : open || hover || isFocused() ? theme.text() : theme.textMuted();
 
             float size = Math.round(t.fieldIcon());
             float sceneX = localToSceneX();
@@ -1352,7 +1352,7 @@ public class DatePicker extends Widget {
             if (focus > 0.001f) {
                 float gap = Strokes.FOCUS_GAP_BUTTON;
                 canvas.drawRoundRect(gap, gap, width() - 2 * gap, height() - 2 * gap,
-                        t.radiusSmall(), Strokes.FOCUS_RING, theme.focusRing.withAlpha(focus));
+                        t.radiusSmall(), Strokes.FOCUS_RING, theme.focusRing().withAlpha(focus));
             }
         }
 
@@ -1468,7 +1468,7 @@ public class DatePicker extends Widget {
          */
         @Override
         protected void onLayout() {
-            SizeTokens t = Theme.current().tokensFor(DatePicker.this);
+            SizeTokens t = Theme.of(this).tokensFor(DatePicker.this);
             float pad = t.popupPadV();
             float w = Math.max(0, width() - 2 * pad);
             float h = Math.max(0, height() - 2 * pad);
@@ -1499,7 +1499,7 @@ public class DatePicker extends Widget {
          */
         @Override
         protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
+            Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(DatePicker.this);
             float radius = t.radiusLarge();
             boolean fading = fading();
@@ -1512,11 +1512,11 @@ public class DatePicker extends Widget {
             // the scene the same translucency would composite over the form underneath, and a
             // calendar you can read the form through is not frosted glass, it is unreadable.
             canvas.fillRoundRect(0, 0, width(), height(), radius,
-                    scenePopup != null ? theme.surfaceRaised : theme.surfaceRaised.withAlpha(0.94f));
+                    scenePopup != null ? theme.surfaceRaised() : theme.surfaceRaised().withAlpha(0.94f));
             canvas.drawRoundRect(Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
                     width() - 2 * Strokes.HALF_PIXEL_INSET,
                     height() - 2 * Strokes.HALF_PIXEL_INSET, radius, Strokes.BORDER,
-                    theme.outline);
+                    theme.outline());
             if (fading) {
                 canvas.restore();
             }
@@ -1566,7 +1566,7 @@ public class DatePicker extends Widget {
 
         @Override
         protected void onLayout() {
-            SizeTokens t = Theme.current().tokensFor(DatePicker.this);
+            SizeTokens t = Theme.of(this).tokensFor(DatePicker.this);
             boolean rtl = DatePicker.this.isRightToLeft();
             float gap = t.popupGap();
             float anchorX = DatePicker.this.localToSceneX();

@@ -561,7 +561,7 @@ public final class Dialog {
         // Opaque styles fill with the surface color; translucent shows the
         // desktop through the transparent framebuffer's rounded corners.
         Theme theme = Theme.current();
-        modalScene.setBackground(style.transparent() ? Color.TRANSPARENT : theme.surface);
+        modalScene.setBackground(style.transparent() ? Color.TRANSPARENT : theme.surface());
         // Resolved once, after the host link: the window is sized from this row and the
         // content must be laid out from the same one.
         SizeTokens t = theme.tokensFor(panel);
@@ -901,7 +901,7 @@ public final class Dialog {
             // Silent form: we are already inside the pass that consumes the gap, and a
             // markNeedsLayout() from within onMeasure dirties the whole ancestor chain with
             // no pass scheduled to clear it (the layoutPass flag is reset afterwards).
-            gapSilently(Theme.current().tokensFor(this).gapButtonRow());
+            gapSilently(Theme.of(this).tokensFor(this).gapButtonRow());
             return super.onMeasure(constraints);
         }
     }
@@ -1094,7 +1094,7 @@ public final class Dialog {
             if (modalWindow == null || ownerWindow == null || closing) {
                 return;
             }
-            SizeTokens t = Theme.current().tokensFor(this);
+            SizeTokens t = Theme.of(this).tokensFor(this);
             Size budget = nativeBudget(ownerWindow);
             Size wanted = child.measure(Constraints.loose(
                     Math.min(t.dialogMaxWidth(), budget.width()), budget.height()));
@@ -1127,7 +1127,7 @@ public final class Dialog {
 
         @Override
         protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
+            Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(this);
             float w = width();
             float h = height();
@@ -1137,9 +1137,9 @@ public final class Dialog {
             // In-scene: always the glassy rounded card, composited over the scrim.
             if (displayMode == DisplayMode.IN_SCENE || style == WindowStyle.UNDECORATED_TRANSLUCENT) {
                 canvas.fillRoundRect(0, 0, w, h, t.radiusLarge(),
-                        theme.surface.withAlpha(0.98f * fade));
+                        theme.surface().withAlpha(0.98f * fade));
                 canvas.drawRoundRect(inset, inset, w - 2 * inset, h - 2 * inset, t.radiusLarge(),
-                        Strokes.BORDER, theme.outline.withAlpha(fade));
+                        Strokes.BORDER, theme.outline().withAlpha(fade));
                 return;
             }
             switch (style) {
@@ -1147,7 +1147,7 @@ public final class Dialog {
                     // Opaque solid card: the scene already cleared to surface;
                     // just a border around the borderless window.
                         canvas.drawRect(inset, inset, w - 2 * inset, h - 2 * inset,
-                                Strokes.BORDER, theme.outline);
+                                Strokes.BORDER, theme.outline());
                 case DECORATED -> {
                     // The OS draws the frame; the surface fill is the scene clear.
                 }
@@ -1270,7 +1270,7 @@ public final class Dialog {
             // budget even though the overlay itself inherits the host scene's step. Called
             // from paintChildren too (the fade slide), which is safe because resolution is a
             // memo read plus an array index, never a re-measure.
-            SizeTokens t = Theme.current().tokensFor(card);
+            SizeTokens t = Theme.of(this).tokensFor(card);
             float maxW = Math.min(t.dialogMaxWidth(), width() - 2 * t.spacingLarge());
             // The same margin down the other axis, which the height had never been given: an
             // in-scene card cannot leave the window that owns it, so the window IS the bound,
@@ -1289,7 +1289,7 @@ public final class Dialog {
             // The palette's veil over everything below this overlay, fading in. The fade
             // scales the token's own alpha rather than replacing it, so a palette that asks
             // for a lighter veil gets a lighter one all the way through the fade.
-            Color veil = Theme.current().scrim;
+            Color veil = Theme.of(this).scrim();
             canvas.fillRect(0, 0, width(), height(), veil.withAlpha(veil.a() * fade));
         }
 

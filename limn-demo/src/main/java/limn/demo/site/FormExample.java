@@ -118,7 +118,7 @@ public final class FormExample {
         TextField email = new TextField();
         email.setText("ada@example");
         Label emailMessage = new Label("Enter an address like ada@example.com");
-        emailMessage.setColor(Theme.current().danger);
+        emailMessage.setColor(Theme.current().danger());
         validate(email, emailMessage);
         // setText above was the application's write, and a handler runs for the user alone, so
         // the rule in validate did not run: the starting state is set here, explicitly.
@@ -200,7 +200,7 @@ public final class FormExample {
                 .crossAlignment(Flex.CrossAlignment.CENTER);
         centred.add(new SizedBox(420, SizedBox.UNSET, form()));
         Scene scene = new Scene(new Padding(Insets.all(32), centred));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

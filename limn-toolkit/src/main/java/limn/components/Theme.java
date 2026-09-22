@@ -1,5 +1,8 @@
 package limn.components;
 
+import limn.scene.Scene;
+import limn.scene.Widget;
+
 import limn.animation.Easing;
 import limn.graphics.Color;
 import limn.graphics.Font;
@@ -19,9 +22,11 @@ import limn.lang.Checks;
  * {@link #limnLight()}, plus
  * ones drawn from familiar editor palettes (Darkling, Draculite, Nordic,
  * Arch&nbsp;Dark, Onyx&nbsp;Dark, Monoko&nbsp;Pro, Grovebox&nbsp;Dark, Solaris light/dark,
- * GitHub&nbsp;light, High&nbsp;contrast).
- * The active theme is process-wide ({@link #current()}/{@link #setCurrent}).
- * After switching, call {@code root.markNeedsLayout()} so sizes/typography update.
+ * Octo&nbsp;Light, High&nbsp;contrast).
+ *
+ * <p><b>Switching one is one call:</b> {@link #apply(Scene...) theme.apply(scene)}, which makes the palette
+ * current, applies its font and repaints each scene you pass (decision 117). A widget reads the
+ * palette it paints with through {@link #of(Widget)}, never through a field (ADR 046 §7).
  *
  * <p><b>An application can build its own.</b> {@link #builder(String, boolean)} starts from
  * a working palette and {@link #toBuilder()} starts from this one, so a palette of your own
@@ -44,24 +49,24 @@ public final class Theme {
 
     // ------------------------------------------------------------ identity
     /** Human-readable name, the label a theme picker shows. */
-    public final String name;
+    private final String name;
     /** Whether this is a dark palette (lets callers group/pick a sensible default). */
-    public final boolean dark;
+    private final boolean dark;
 
     // ------------------------------------------------------------- palette
-    public final Color background;
-    public final Color surface;
-    public final Color surfaceRaised;
-    public final Color primary;
-    public final Color primaryHover;
-    public final Color primaryPressed;
-    public final Color onPrimary;
-    public final Color text;
-    public final Color textMuted;
-    public final Color outline;
-    public final Color focusRing;
-    public final Color disabledFill;
-    public final Color disabledText;
+    private final Color background;
+    private final Color surface;
+    private final Color surfaceRaised;
+    private final Color primary;
+    private final Color primaryHover;
+    private final Color primaryPressed;
+    private final Color onPrimary;
+    private final Color text;
+    private final Color textMuted;
+    private final Color outline;
+    private final Color focusRing;
+    private final Color disabledFill;
+    private final Color disabledText;
     /**
      * The veil an in-scene modal dialog paints over everything beneath it, <b>alpha
      * included</b>: the one tone in a palette whose alpha carries meaning. It is painted
@@ -76,17 +81,17 @@ public final class Theme {
      * this.</b> That veil lives a layer below, where no palette can be seen at all, so
      * moving this tone does not move it and the two are only ever approximately alike.
      */
-    public final Color scrim;
+    private final Color scrim;
 
     // ------------------------------------------------------- semantic states
     /** Error / destructive (red). */
-    public final Color danger;
+    private final Color danger;
     /** Success / valid (green). */
-    public final Color success;
+    private final Color success;
     /** Warning / caution (amber). */
-    public final Color warning;
+    private final Color warning;
     /** Informational / neutral accent (blue). */
-    public final Color info;
+    private final Color info;
 
     // ----------------------------------------------------------------- shape
     /**
@@ -101,7 +106,7 @@ public final class Theme {
      * of colour. {@code ThemeShapeTest} asserts that, and it is what the whole design rests
      * on; see {@link #tokens}.
      */
-    public final float cornerScale;
+    private final float cornerScale;
 
     // -------------------------------------------------------- preferred type
     /**
@@ -124,7 +129,7 @@ public final class Theme {
      * palette's type preference through that mechanism is the only shape that does not need a
      * theme-change listener this repository does not have.
      */
-    public final String fontFamily;
+    private final String fontFamily;
 
     // ---------------------------------------------------------- typography
     // Rebased: NOT constant variables (Font.of is a method call), so nothing was ever
@@ -132,9 +137,9 @@ public final class Theme {
     // (assertSame(theme.body, theme.tokens(MEDIUM).body())) and collapses 13 palettes'
     // 13 distinct Font instances into one, so the backend's identity-keyed font memo
     // carries one entry for one logical face instead of 13.
-    public final Font body = SizeTokens.MEDIUM.body();
-    public final Font label = SizeTokens.MEDIUM.label();
-    public final Font title = SizeTokens.MEDIUM.title();
+    private final Font body = SizeTokens.MEDIUM.body();
+    private final Font label = SizeTokens.MEDIUM.label();
+    private final Font title = SizeTokens.MEDIUM.title();
 
     // ------------------------------------------------------------- spacing
     // JLS 4.12.4 constant variables: a final primitive with a constant initializer is a
@@ -393,10 +398,9 @@ public final class Theme {
     private static volatile Theme current = DARK;
 
     /**
-     * Listeners notified when the palette changes. Every live {@link limn.scene.Scene}
-     * subscribes in its constructor, so unbound (headless) scenes hear it too. Mirrors
-     * {@link Fonts#observeChanges}, with {@link limn.scene.Scene#invalidate()} for a response
-     * where the four measurement axes answer with a relayout.
+     * Listeners notified when the palette changes. No scene is one of them (see
+     * {@link #setCurrent}); {@link #apply} is what repaints the scenes it is handed. Mirrors
+     * {@link Fonts#observeChanges}.
      */
     private static final limn.concurrent.ChangeListeners LISTENERS = new limn.concurrent.ChangeListeners();
 
@@ -444,6 +448,167 @@ public final class Theme {
         return current;
     }
 
+    /**
+     * The palette {@code widget} paints with: the one resolver every component reads its colours
+     * through (ADR 046 §7). Today every widget answers the process-wide {@link #current()}; the
+     * point of asking through the widget is that a palette per subtree can be added behind this
+     * call later, as the locale, the direction and the control size already resolve per subtree,
+     * without any component changing. A static on this class rather than a method on
+     * {@code Widget}, because {@code limn.scene} names no {@code limn.components} type.
+     *
+     * @param widget the widget about to paint
+     * @return the palette it paints with
+     */
+    public static Theme of(Widget widget) {
+        Objects.requireNonNull(widget, "widget");
+        return current;
+    }
+
+    /**
+     * Switches to this palette and shows it: makes it current, applies its font
+     * ({@link #applyFontFamily}), and repaints every scene given (decision 117). A palette is a
+     * repaint and never a re-measure; the font, when it changes, relayouts through its own axis.
+     * The call a theme picker or a settings screen makes. UI thread.
+     *
+     * <pre>{@code Theme.limnLight().apply(scene);}</pre>
+     *
+     * @param scenes the live scenes to repaint, usually every window's
+     */
+    public void apply(Scene... scenes) {
+        setCurrent(this);
+        applyFontFamily();
+        for (Scene scene : scenes) {
+            if (scene.root() != null) {
+                scene.root().invalidate();
+            }
+        }
+    }
+
+    /** @return this palette's {@code name} */
+    public String name() {
+        return name;
+    }
+
+    /** @return whether this is a dark palette */
+    public boolean isDark() {
+        return dark;
+    }
+
+    /** @return this palette's {@code background} */
+    public Color background() {
+        return background;
+    }
+
+    /** @return this palette's {@code surface} */
+    public Color surface() {
+        return surface;
+    }
+
+    /** @return this palette's {@code surfaceRaised} */
+    public Color surfaceRaised() {
+        return surfaceRaised;
+    }
+
+    /** @return this palette's {@code primary} */
+    public Color primary() {
+        return primary;
+    }
+
+    /** @return this palette's {@code primaryHover} */
+    public Color primaryHover() {
+        return primaryHover;
+    }
+
+    /** @return this palette's {@code primaryPressed} */
+    public Color primaryPressed() {
+        return primaryPressed;
+    }
+
+    /** @return this palette's {@code onPrimary} */
+    public Color onPrimary() {
+        return onPrimary;
+    }
+
+    /** @return this palette's {@code text} */
+    public Color text() {
+        return text;
+    }
+
+    /** @return this palette's {@code textMuted} */
+    public Color textMuted() {
+        return textMuted;
+    }
+
+    /** @return this palette's {@code outline} */
+    public Color outline() {
+        return outline;
+    }
+
+    /** @return this palette's {@code focusRing} */
+    public Color focusRing() {
+        return focusRing;
+    }
+
+    /** @return this palette's {@code disabledFill} */
+    public Color disabledFill() {
+        return disabledFill;
+    }
+
+    /** @return this palette's {@code disabledText} */
+    public Color disabledText() {
+        return disabledText;
+    }
+
+    /** @return this palette's {@code scrim} */
+    public Color scrim() {
+        return scrim;
+    }
+
+    /** @return this palette's {@code danger} */
+    public Color danger() {
+        return danger;
+    }
+
+    /** @return this palette's {@code success} */
+    public Color success() {
+        return success;
+    }
+
+    /** @return this palette's {@code warning} */
+    public Color warning() {
+        return warning;
+    }
+
+    /** @return this palette's {@code info} */
+    public Color info() {
+        return info;
+    }
+
+    /** @return this palette's {@code cornerScale} */
+    public float cornerScale() {
+        return cornerScale;
+    }
+
+    /** @return this palette's {@code fontFamily} */
+    public String fontFamily() {
+        return fontFamily;
+    }
+
+    /** @return this palette's {@code body} */
+    public Font body() {
+        return body;
+    }
+
+    /** @return this palette's {@code label} */
+    public Font label() {
+        return label;
+    }
+
+    /** @return this palette's {@code title} */
+    public Font title() {
+        return title;
+    }
+
     // ---------------------------------------------------------- size tokens
 
     /**
@@ -487,9 +652,10 @@ public final class Theme {
     }
 
     /**
-     * Switches the process-wide palette and tells whoever is listening. Call
-     * {@code scene.invalidate()} on each live scene afterwards: this axis has subscribers, but a
-     * {@code Scene} is not one of them.
+     * Switches the process-wide palette and tells whoever is listening, and does nothing else:
+     * no scene repaints and no font changes. That is the call for a colour well that switches the
+     * palette on every frame of a drag and repaints its own preview; everything else wants
+     * {@link #apply}, which is this plus the repaint and the font.
      *
      * <p><b>Why a scene does not subscribe itself, unlike the four measurement axes.</b>
      * {@code Scene} is {@code limn.scene}, the layer this package is built on, and no file there
@@ -563,7 +729,7 @@ public final class Theme {
      *         .deriveAccentStates()
      *         .deriveDisabled()
      *         .build();
-     * Theme.setCurrent(mine);
+     * mine.apply(scene);
      * }</pre>
      *
      * @param name the palette's identifier and its fallback display text; see

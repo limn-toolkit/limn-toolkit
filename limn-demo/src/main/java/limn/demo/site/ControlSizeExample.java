@@ -102,7 +102,7 @@ public final class ControlSizeExample {
                 .crossAlignment(Flex.CrossAlignment.STRETCH);
         centred.add(board());
         Scene scene = new Scene(centred);
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

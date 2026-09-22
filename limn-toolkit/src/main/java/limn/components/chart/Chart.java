@@ -134,7 +134,7 @@ public abstract class Chart extends Widget {
     /** Drives every value interpolation in the chart; 1 = the data as it stands. */
     private final Transition anim = new Transition(this, 1);
     private final Transition tooltipFade =
-            new Transition(this).duration(Theme.current().animFade).easing(Theme.current().animEasing)
+            new Transition(this).duration(Theme.of(this).animFade).easing(Theme.of(this).animEasing)
                     // A tooltip is a panel over a corner of a chart, and its fade used to repaint
                     // every mark, axis and label for fourteen frames each way -- including the way
                     // OUT, where the panel is not drawn at all and the animation ran on regardless.
@@ -299,7 +299,7 @@ public abstract class Chart extends Widget {
         beginDataChange();
         newSeries.owner = this;
         newSeries.fade = new Transition(this, newSeries.isVisible() ? 1 : 0)
-                .duration(stateFadeSeconds()).easing(Theme.current().animEasing);
+                .duration(stateFadeSeconds()).easing(Theme.of(this).animEasing);
         series.add(newSeries);
         onSeriesAdded(newSeries);
         endDataChange();
@@ -412,7 +412,7 @@ public abstract class Chart extends Widget {
 
     /** The palette in force: the one that was set, or the built-in one for this theme. */
     public ChartPalette palette() {
-        return palette != null ? palette : ChartPalette.defaultFor(Theme.current());
+        return palette != null ? palette : ChartPalette.defaultFor(Theme.of(this));
     }
 
     /**
@@ -855,7 +855,7 @@ public abstract class Chart extends Widget {
 
     /** The tokens for the step resolved on this chart; resolve once per pass, never in a field. */
     protected final SizeTokens tokens() {
-        return Theme.current().tokensFor(this);
+        return Theme.of(this).tokensFor(this);
     }
 
 
@@ -922,7 +922,7 @@ public abstract class Chart extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = tokens();
         boolean rtl = isRightToLeft();
         if (background != null) {
@@ -945,7 +945,7 @@ public abstract class Chart extends Widget {
             float titleX = rtl
                     ? width() - t.spacingMedium() - line.metrics().width()
                     : t.spacingMedium();
-            canvas.drawText(line, titleX, t.spacingSmall() + m.ascent(), theme.text);
+            canvas.drawText(line, titleX, t.spacingSmall() + m.ascent(), theme.text());
         }
         paintLegend(canvas, t, theme, rtl);
         if (contentWidth > 1 && contentHeight > 1) {
@@ -957,7 +957,7 @@ public abstract class Chart extends Widget {
     protected void onPaintOverlay(Canvas canvas) {
         SizeTokens t = tokens();
         boolean rtl = isRightToLeft();
-        paintTooltip(canvas, t, Theme.current(), rtl);
+        paintTooltip(canvas, t, Theme.of(this), rtl);
         // What this frame put on screen that depends on the hover, so the next damage knows what
         // to erase. Read after the paint and from the same two methods the paint used.
         paintedMarks = hovered == null ? null : hoverRegion(hovered);
@@ -1182,7 +1182,7 @@ public abstract class Chart extends Widget {
             } else {
                 canvas.drawRoundRect(swatchX + Strokes.HALF_PIXEL_INSET,
                         swatchY + Strokes.HALF_PIXEL_INSET,
-                        swatch - 1, swatch - 1, radius, Strokes.BORDER, theme.textMuted);
+                        swatch - 1, swatch - 1, radius, Strokes.BORDER, theme.textMuted());
             }
             // The run's LEFT edge in both directions, which is what drawText places against:
             // reading right to left the name ends where the swatch begins, so its left edge is
@@ -1191,14 +1191,14 @@ public abstract class Chart extends Widget {
                     ? x + w - swatch - t.gapIcon() - m.width()
                     : x + swatch + t.gapIcon();
             float baseline = y + (h - m.height()) / 2 + m.ascent();
-            Color ink = !entry.visible() ? theme.disabledText
-                    : i == hoveredLegend ? theme.text : theme.textMuted;
+            Color ink = !entry.visible() ? theme.disabledText()
+                    : i == hoveredLegend ? theme.text() : theme.textMuted();
             canvas.drawText(line, textX, baseline, ink);
             if (!entry.visible()) {
                 // Struck through, so "hidden" survives being read in grayscale.
                 float midline = y + h / 2;
                 canvas.drawLine(textX, midline, textX + m.width(), midline, Strokes.BORDER,
-                        theme.disabledText);
+                        theme.disabledText());
             }
         }
     }
@@ -1316,15 +1316,15 @@ public abstract class Chart extends Widget {
         try {
             canvas.setOpacity(canvas.opacity() * fade);
             canvas.fillRoundRect(px, py, panelWidth, panelHeight, t.radiusSmall(),
-                    theme.surfaceRaised);
+                    theme.surfaceRaised());
             canvas.drawRoundRect(px + Strokes.HALF_PIXEL_INSET, py + Strokes.HALF_PIXEL_INSET,
-                    panelWidth - 1, panelHeight - 1, t.radiusSmall(), Strokes.BORDER, theme.outline);
+                    panelWidth - 1, panelHeight - 1, t.radiusSmall(), Strokes.BORDER, theme.outline());
             float y = py + padV;
             if (!heading.isEmpty()) {
                 ShapedText line = shapeText(heading, headingFont);
                 TextMetrics m = line.metrics();
                 float headingX = rtl ? px + panelWidth - padH - m.width() : px + padH;
-                canvas.drawText(line, headingX, y + m.ascent(), theme.text);
+                canvas.drawText(line, headingX, y + m.ascent(), theme.text());
                 y += headingHeight;
             }
             for (ChartPoint row : rows) {
@@ -1339,14 +1339,14 @@ public abstract class Chart extends Widget {
                         ? px + panelWidth - padH - swatch - t.gapIcon() - m.width()
                         : px + padH + swatch + t.gapIcon();
                 float baseline = y + (rowHeight - m.height()) / 2 + m.ascent();
-                canvas.drawText(nameLine, textX, baseline, theme.textMuted);
+                canvas.drawText(nameLine, textX, baseline, theme.textMuted());
                 if (tooltipFormat == null) {
                     // The value is the row's far column, so it swaps sides with the name in the
                     // same pass; separately they would collide.
                     ShapedText valueLine = shapeText(tooltipRowValue(row), rowFont);
                     float valueWidth = valueLine.metrics().width();
                     float valueX = rtl ? px + padH : px + panelWidth - padH - valueWidth;
-                    canvas.drawText(valueLine, valueX, baseline, theme.text);
+                    canvas.drawText(valueLine, valueX, baseline, theme.text());
                 }
                 y += rowHeight;
             }
@@ -1609,7 +1609,7 @@ public abstract class Chart extends Widget {
      * {@link #setAnimationDuration(double)} turned animation off, so "off" means all of it.
      */
     protected final double stateFadeSeconds() {
-        return animationSeconds <= 0 ? 0 : Theme.current().animFade;
+        return animationSeconds <= 0 ? 0 : Theme.of(this).animFade;
     }
 
     /**

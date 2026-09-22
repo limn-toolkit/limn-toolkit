@@ -359,7 +359,7 @@ public abstract class CartesianChart extends Chart {
 
     @Override
     protected void paintContent(Canvas canvas, float x, float y, float w, float h) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = tokens();
         // Resolved once for the whole pass, before anything that reads it. Two resolutions
         // inside one frame is how the grid ends up mirrored and the marks standing on it do not.
@@ -570,8 +570,8 @@ public abstract class CartesianChart extends Chart {
     }
 
     private void paintGrid(Canvas canvas, SizeTokens t, Theme theme) {
-        Color grid = theme.outline.withAlpha(0.45f);
-        Color axisLine = theme.outline;
+        Color grid = theme.outline().withAlpha(0.45f);
+        Color axisLine = theme.outline();
         if (valueAxis.hasGrid()) {
             for (int i = 0; i < scale.tickCount(); i++) {
                 double value = scale.tick(i);
@@ -652,7 +652,7 @@ public abstract class CartesianChart extends Chart {
         }
         float start = bandStart(point.index());
         float size = bandSize();
-        Color ink = theme.outline.withAlpha(0.28f);
+        Color ink = theme.outline().withAlpha(0.28f);
         if (horizontal) {
             canvas.fillRect(plotX, start, plotWidth, size, ink);
         } else {
@@ -672,10 +672,10 @@ public abstract class CartesianChart extends Chart {
                     // Centred on its own tick, and a centre does not move: the tick itself
                     // already carries the mirror out of valuePosition.
                     canvas.drawText(line, p - m.width() / 2, plotY + plotHeight + gap + m.ascent(),
-                            theme.textMuted);
+                            theme.textMuted());
                 } else {
                     canvas.drawText(line, gutterLabelX(gap, m.width()),
-                            p + m.height() / 2 - m.descent(), theme.textMuted);
+                            p + m.height() / 2 - m.descent(), theme.textMuted());
                 }
             }
         }
@@ -734,14 +734,14 @@ public abstract class CartesianChart extends Chart {
                 TextMetrics m = line.metrics();
                 float center = bandCenter(i);
                 canvas.drawText(line, gutterLabelX(gap, m.width()),
-                        center + m.height() / 2 - m.descent(), theme.textMuted);
+                        center + m.height() / 2 - m.descent(), theme.textMuted());
             } else {
                 // Centred on its band, which bandCenter already put on the right side of the plot.
                 ShapedText line = shapeLabel(text, font);
                 TextMetrics m = line.metrics();
                 float center = bandCenter(i);
                 canvas.drawText(line, center - m.width() / 2,
-                        plotY + plotHeight + gap + m.ascent(), theme.textMuted);
+                        plotY + plotHeight + gap + m.ascent(), theme.textMuted());
             }
         }
     }
@@ -773,7 +773,7 @@ public abstract class CartesianChart extends Chart {
     private void drawCentered(Canvas canvas, String text, Font font, Theme theme,
                               float centerX, float baseline) {
         ShapedText line = shapeLabel(text, font);
-        canvas.drawText(line, centerX - line.metrics().width() / 2, baseline, theme.textMuted);
+        canvas.drawText(line, centerX - line.metrics().width() / 2, baseline, theme.textMuted());
     }
 
     /**
@@ -799,7 +799,7 @@ public abstract class CartesianChart extends Chart {
         try {
             canvas.translate(baselineX, centerY);
             canvas.rotate((float) -Math.PI / 2);
-            canvas.drawText(line, -m.width() / 2, 0, theme.textMuted);
+            canvas.drawText(line, -m.width() / 2, 0, theme.textMuted());
         } finally {
             canvas.restore();
         }

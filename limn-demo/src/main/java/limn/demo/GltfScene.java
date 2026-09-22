@@ -39,7 +39,7 @@ final class GltfScene {
     static Scene create(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -47,7 +47,7 @@ final class GltfScene {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("3D viewport: glTF model").setFont(theme.title).setStrong(true));
+        col.add(new Label("3D viewport: glTF model").setFont(theme.title()).setStrong(true));
         col.add(new Label("Loaded without AWT and off the UI thread: node hierarchy, PBR "
                 + "metallic-roughness materials and a texture (PNG decoded via stb). The textured box "
                 + "is a child of the red one, inheriting its rotation. Drag to orbit · scroll to "

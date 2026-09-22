@@ -149,7 +149,7 @@ final class BidiScene {
         TextField hebrew = new TextField().setPreferredWidth(PARAGRAPH_COLUMN)
                 .setText(SHALOM + " " + ISLAND);
         Scene scene = new Scene(new Padding(Insets.all(20), content(arabic, hebrew)));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         scene.requestFocus(arabic);
         // Derived from the fixtures rather than written down: editing either constant would
         // otherwise slide a literal index onto the wrong side of the boundary this has to cross.

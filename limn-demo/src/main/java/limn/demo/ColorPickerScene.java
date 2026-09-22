@@ -35,7 +35,7 @@ final class ColorPickerScene {
     static Scene create(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(content())));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -43,7 +43,7 @@ final class ColorPickerScene {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("Colour picker").setFont(theme.title).setStrong(true));
+        col.add(new Label("Colour picker").setFont(theme.title()).setStrong(true));
         col.add(new Label("Saturation/value field, hue ramp, a before/after swatch, a hex "
                 + "field, and one line per channel in RGB, HSV or CMYK (letter, rail, "
                 + "number), with alpha as one more line when the mode offers it. Drag the "

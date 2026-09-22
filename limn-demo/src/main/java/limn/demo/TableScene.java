@@ -99,7 +99,7 @@ final class TableScene {
         page.add(actions);
         Widget root = new Padding(Insets.all(16), page);
         Scene scene = new Scene(root);
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         stateFor(scene, table, customer);
         return scene;
     }

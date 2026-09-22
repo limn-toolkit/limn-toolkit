@@ -124,7 +124,7 @@ final class FormsScene {
 
         Column form = new Column();
         form.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-        form.add(new Label("Form").setFont(Theme.current().title));
+        form.add(new Label("Form").setFont(Theme.current().title()));
         form.add(new Label("Name").setMuted(true));
         form.add(name);
         form.add(new Label("Password").setMuted(true));
@@ -135,7 +135,7 @@ final class FormsScene {
         form.add(new SizedBox(SizedBox.UNSET, 150, notes));
         form.add(new SizedBox(SizedBox.UNSET, 18, status));
 
-        form.add(new Label("Flex floors").setFont(Theme.current().title));
+        form.add(new Label("Flex floors").setFont(Theme.current().title()));
         form.add(new Label("Same caption, same stepper, same 200pt slot, caption outweighing "
                 + "the stepper four to one. Left takes the weighted share as given and the "
                 + "value lands under the buttons; right declares Expanded.atLeast, so the "
@@ -148,7 +148,7 @@ final class FormsScene {
         page.add(new SizedBox(520, SizedBox.UNSET, form));
 
         Scene scene = new Scene(Padding.all(20, page));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return new Built(scene, combo);
     }
 }

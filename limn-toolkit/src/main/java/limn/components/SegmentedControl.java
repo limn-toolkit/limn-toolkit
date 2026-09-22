@@ -77,12 +77,12 @@ public class SegmentedControl extends Widget {
     private IntConsumer onSelect;
     // The selected indicator slides by animating its two x edges (snap on first layout).
     private final Transition indicatorLeft =
-            new Transition(this).duration(Theme.current().animTab).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animTab).easing(Theme.of(this).animEasing);
     private final Transition indicatorRight =
-            new Transition(this).duration(Theme.current().animTab).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animTab).easing(Theme.of(this).animEasing);
     /** Fades the focus ring in and out, so keyboard focus arrives rather than blinks on. */
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
     private boolean indicatorPlaced;
     /** The pill's edges last handed to its transitions; see the same pair in TabbedPane. */
     private float indicatorTargetLeft = Float.NaN;
@@ -394,7 +394,7 @@ public class SegmentedControl extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         // The row and the direction are each resolved once here and handed down. The measure
         // cache is keyed on the resolved direction, so the size returned has to be a function of
         // the one this pass read, and never of a second reading of it.
@@ -405,7 +405,7 @@ public class SegmentedControl extends Widget {
 
     @Override
     protected float baselineOffset() {
-        TextMetrics fm = textRuler().measure("Hg", Theme.current().tokensFor(this).body());
+        TextMetrics fm = textRuler().measure("Hg", Theme.of(this).tokensFor(this).body());
         return (height() - fm.height()) / 2 + fm.ascent();
     }
 
@@ -425,7 +425,7 @@ public class SegmentedControl extends Widget {
 
     @Override
     protected void onLayout() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         // One resolution for the whole pass, as the size row is. The paint resolves its own, and
         // the two agree because neither is held across a change: a change of direction is a
         // relayout followed by a repaint.
@@ -498,21 +498,21 @@ public class SegmentedControl extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         // One resolution for this whole paint, threaded into the two things that need it: where
         // the cells land, and which gutter each chevron is drawn in. The track, the border, the
         // clip and the focus ring are all symmetric about the track's centre and take no branch.
         LayoutDirection direction = layoutDirection();
         boolean rtl = direction.isRightToLeft();
-        canvas.fillRoundRect(trackLeft, 0, trackWidth, height(), t.radiusMedium(), theme.surface);
+        canvas.fillRoundRect(trackLeft, 0, trackWidth, height(), t.radiusMedium(), theme.surface());
         canvas.drawRoundRect(trackLeft + Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
                 trackWidth - 2 * Strokes.HALF_PIXEL_INSET, height() - 2 * Strokes.HALF_PIXEL_INSET,
-                t.radiusMedium(), Strokes.BORDER, theme.outline);
+                t.radiusMedium(), Strokes.BORDER, theme.outline());
 
         float indLeft = indicatorLeft.value();
         float indRight = indicatorRight.value();
-        Color accent = isEnabled() ? theme.primary : theme.disabledFill;
+        Color accent = isEnabled() ? theme.primary() : theme.disabledFill();
 
         // Everything that scrolls is drawn inside the clip, and nothing outside it: a segment
         // past the last one that fits would otherwise paint over whatever the control is
@@ -543,9 +543,9 @@ public class SegmentedControl extends Widget {
             // which is symmetric and so is the same offset in both directions; only the cell moves.
             ShapedText line = ruler.shape(label, font, ShapedText.Direction.of(label, neutral));
             float textWidth = line.metrics().width();
-            Color ink = !isEnabled() ? theme.disabledText
-                    : i == selected ? theme.onPrimary
-                    : i == hoverIndex ? theme.text : theme.textMuted;
+            Color ink = !isEnabled() ? theme.disabledText()
+                    : i == selected ? theme.onPrimary()
+                    : i == hoverIndex ? theme.text() : theme.textMuted();
             canvas.drawText(line, cellLeft + (cellWidth - textWidth) / 2,
                     (height() - fm.height()) / 2 + fm.ascent(), ink);
         }
@@ -575,7 +575,7 @@ public class SegmentedControl extends Widget {
             canvas.drawRoundRect(trackLeft - gapOut, -gapOut,
                     trackWidth + 2 * gapOut, height() + 2 * gapOut,
                     t.radiusMedium() + gapOut, Strokes.FOCUS_RING,
-                    theme.focusRing.withAlpha(focus));
+                    theme.focusRing().withAlpha(focus));
         }
     }
 
@@ -620,8 +620,8 @@ public class SegmentedControl extends Widget {
      */
     private void paintChevron(Canvas canvas, SizeTokens t, Theme theme,
                               int direction, float cx, int pointing, boolean live) {
-        Color ink = !isEnabled() || !live ? theme.disabledText
-                : chevronHover == direction ? theme.text : theme.textMuted;
+        Color ink = !isEnabled() || !live ? theme.disabledText()
+                : chevronHover == direction ? theme.text() : theme.textMuted();
         float cy = height() / 2;
         float s = t.tabChevron();
         float tip = cx + pointing * s / 2;

@@ -404,7 +404,7 @@ public final class SiteShowcase {
     }
 
     private static Scene kitchen(Theme theme) {
-        return retheme(KitchenSinkScene.create(!theme.dark).scene(), theme);
+        return retheme(KitchenSinkScene.create(!theme.isDark()).scene(), theme);
     }
 
     private static Scene viewport(Theme theme) {
@@ -421,7 +421,7 @@ public final class SiteShowcase {
     private static Scene retheme(Scene scene, Theme theme) {
         Theme.setCurrent(theme);
         scene.root().markNeedsLayout();
-        scene.setBackground(theme.background);
+        scene.setBackground(theme.background());
         return scene;
     }
 }

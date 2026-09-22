@@ -554,7 +554,7 @@ public final class ThemeEditor extends Widget {
             return;
         }
         if (scene.background().a() >= 1f) {
-            scene.setBackground(Theme.current().background);
+            scene.setBackground(Theme.current().background());
         }
         scene.root().invalidate();
     }
@@ -866,9 +866,9 @@ public final class ThemeEditor extends Widget {
             // otherwise read: an editor whose warnings are invisible in the palette that
             // caused them is the joke it sounds like.
             Color ink = switch (finding.level()) {
-                case ERROR -> theme.danger;
-                case WARNING -> theme.warning;
-                case INFO -> theme.textMuted;
+                case ERROR -> theme.danger();
+                case WARNING -> theme.warning();
+                case INFO -> theme.textMuted();
             };
             // One line per finding, clipped with an ellipsis and the whole of it on the
             // tooltip. Wrapping instead would let a single finding take three lines of a

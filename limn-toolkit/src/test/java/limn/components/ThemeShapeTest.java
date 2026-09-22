@@ -227,9 +227,9 @@ class ThemeShapeTest extends ComponentTestBase {
 
     @Test
     void theScaleIsClampedAndNeverNonsense() {
-        assertEquals(0f, Theme.dark().toBuilder().cornerScale(-5).build().cornerScale);
+        assertEquals(0f, Theme.dark().toBuilder().cornerScale(-5).build().cornerScale());
         assertEquals(Theme.MAX_CORNER_SCALE,
-                Theme.dark().toBuilder().cornerScale(1000).build().cornerScale);
+                Theme.dark().toBuilder().cornerScale(1000).build().cornerScale());
         assertThrows(IllegalArgumentException.class,
                 () -> Theme.dark().toBuilder().cornerScale(Float.NaN));
         assertThrows(IllegalArgumentException.class,
@@ -239,7 +239,7 @@ class ThemeShapeTest extends ComponentTestBase {
     @Test
     void everyBuiltinShipsTheDefaultShape() {
         for (Theme theme : Theme.builtins()) {
-            assertEquals(1f, theme.cornerScale, theme.name);
+            assertEquals(1f, theme.cornerScale(), theme.name());
         }
     }
 
@@ -247,12 +247,12 @@ class ThemeShapeTest extends ComponentTestBase {
     void shapeSurvivesTheRoundTrip() {
         Theme shaped = Theme.builder("Pill", true).cornerScale(2.5f).build();
         assertEquals(shaped, ThemeFormat.parse(ThemeFormat.write(shaped)));
-        assertEquals(2.5f, ThemeFormat.parse(ThemeFormat.write(shaped)).cornerScale);
+        assertEquals(2.5f, ThemeFormat.parse(ThemeFormat.write(shaped)).cornerScale());
     }
 
     @Test
     void aFileWithoutAShapeGetsTheShippedRamp() {
-        assertEquals(1f, ThemeFormat.parse("name = Ocean\ndark = true\n").cornerScale);
+        assertEquals(1f, ThemeFormat.parse("name = Ocean\ndark = true\n").cornerScale());
     }
 
     @Test

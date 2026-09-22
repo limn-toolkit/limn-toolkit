@@ -299,7 +299,7 @@ public class Label extends Widget {
         // before the first layout pass there is no box, and ellipsizing against zero
         // would cache a lone ellipsis for a label that is about to be measured properly.
         if (!wrap && scene() != null && width() > 0) {
-            SizeTokens t = Theme.current().tokensFor(this);
+            SizeTokens t = Theme.of(this).tokensFor(this);
             Font f = effectiveFont(t);
             TextRuler ruler = textRuler();
             // Compared as SHAPED widths, because that is the number onMeasure would produce.
@@ -568,7 +568,7 @@ public class Label extends Widget {
 
     @Override
     protected float baselineOffset() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = textRuler().measure("Hg", effectiveFont(t));
         return textTop(metrics.lineHeight()) + metrics.ascent();
     }
@@ -591,12 +591,12 @@ public class Label extends Widget {
 
     /** Test seam: the font a pass would draw with, resolved exactly the way a pass does. */
     Font resolvedFont() {
-        return effectiveFont(Theme.current().tokensFor(this));
+        return effectiveFont(Theme.of(this).tokensFor(this));
     }
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextRuler ruler = textRuler();
         Font f = effectiveFont(t);
         TextMetrics line = ruler.measure("Hg", f);
@@ -618,7 +618,7 @@ public class Label extends Widget {
 
     @Override
     protected void onLayout() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextRuler ruler = textRuler();
         Font f = effectiveFont(t);
         float iconBox = icon == null ? 0 : iconBox(t, f);
@@ -637,12 +637,12 @@ public class Label extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         Font f = effectiveFont(t);
-        Color ink = !isEnabled() ? theme.disabledText
+        Color ink = !isEnabled() ? theme.disabledText()
                 : color != null ? color
-                : muted ? theme.textMuted : theme.text;
+                : muted ? theme.textMuted() : theme.text();
         TextRuler ruler = textRuler();
         TextMetrics metrics = ruler.measure("Hg", f);
         float lineHeight = metrics.lineHeight();
@@ -676,7 +676,7 @@ public class Label extends Widget {
                 // The flag says what the icon MEANS and the axis says which way this label reads;
                 // neither alone is the answer, and the flip itself is Icon.paint's, about the
                 // square it was just handed.
-                icon.paint(canvas, iconLeft, iconTop, iconBox, ink, theme.dark,
+                icon.paint(canvas, iconLeft, iconTop, iconBox, ink, theme.isDark(),
                         iconMirroring == limn.graphics.Icon.Mirroring.IN_RTL && rtl);
             } finally {
                 canvas.restore();

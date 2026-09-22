@@ -164,7 +164,7 @@ final class Bench {
             page.add(status);
 
             Scene scene = new Scene(new Padding(limn.scene.Insets.all(8), page));
-            scene.setBackground(Theme.current().background);
+            scene.setBackground(Theme.current().background());
             scene.setPartialRendering(partialRendering);
             scene.bind(window);
             window.show();

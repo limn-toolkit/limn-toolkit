@@ -407,7 +407,7 @@ public final class ColorPicker extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        applyStep(Theme.current().tokensFor(this));
+        applyStep(Theme.of(this).tokensFor(this));
         Size size = root.measure(constraints.loosened());
         return constraints.constrain(size.width(), size.height());
     }
@@ -437,7 +437,7 @@ public final class ColorPicker extends Widget {
 
     @Override
     protected void onLayout() {
-        applyStep(Theme.current().tokensFor(this));
+        applyStep(Theme.of(this).tokensFor(this));
         root.measure(Constraints.tight(width(), height()));
         root.layoutBox(0, 0, width(), height());
     }
@@ -1096,8 +1096,8 @@ public final class ColorPicker extends Widget {
 
         private boolean dragging;
         private final Transition focusFade =
-                new Transition(this).duration(Theme.current().animFocus)
-                        .easing(Theme.current().animEasing);
+                new Transition(this).duration(Theme.of(this).animFocus)
+                        .easing(Theme.of(this).animEasing);
 
         Rail() {
             setFocusable(true);
@@ -1136,7 +1136,7 @@ public final class ColorPicker extends Widget {
          */
         @Override
         protected Size onMeasure(Constraints constraints) {
-            SizeTokens t = Theme.current().tokensFor(this);
+            SizeTokens t = Theme.of(this).tokensFor(this);
             float needed = t.colorThumbH() + 2 * Strokes.FOCUS_GAP_SLIDER + Strokes.FOCUS_RING;
             return constraints.constrain(
                     constraints.hasBoundedWidth() ? constraints.maxWidth() : t.fieldIcon(),
@@ -1176,7 +1176,7 @@ public final class ColorPicker extends Widget {
 
         @Override
         protected void onPaint(Canvas canvas) {
-            SizeTokens t = Theme.current().tokensFor(this);
+            SizeTokens t = Theme.of(this).tokensFor(this);
             float w = width();
             float h = height();
             if (w < 1 || h < 1) {
@@ -1200,7 +1200,7 @@ public final class ColorPicker extends Widget {
             float focus = focusFade.value();
             canvas.drawRoundRect(0.5f, top + 0.5f, w - 1, rail - 1, radius,
                     Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
-                    Theme.current().outline.lerp(Theme.current().focusRing, focus));
+                    Theme.of(this).outline().lerp(Theme.of(this).focusRing(), focus));
             paintThumb(canvas, t, thumbCentreX(t, rtl), h / 2, focus);
         }
 
@@ -1279,7 +1279,7 @@ public final class ColorPicker extends Widget {
         }
 
         private void pick(MouseEvent event) {
-            SizeTokens t = Theme.current().tokensFor(this);
+            SizeTokens t = Theme.of(this).tokensFor(this);
             // The inverse of thumbCentreX, resolved once for this event: the pointer
             // arrives as a physical x, and the direction is what turns it back into a
             // distance travelled from the end the range starts at.
@@ -1517,7 +1517,7 @@ public final class ColorPicker extends Widget {
             float ringW = thumbW + 2 * Strokes.FOCUS_GAP_SLIDER;
             float ringH = h + 2 * Strokes.FOCUS_GAP_SLIDER;
             canvas.drawRoundRect(cx - ringW / 2, cy - ringH / 2, ringW, ringH, ringW / 2,
-                    Strokes.FOCUS_RING, Theme.current().focusRing.withAlpha(focus));
+                    Strokes.FOCUS_RING, Theme.current().focusRing().withAlpha(focus));
         }
     }
 
@@ -1586,7 +1586,7 @@ public final class ColorPicker extends Widget {
     private abstract static class Painted extends Widget {
         @Override
         protected Size onMeasure(Constraints constraints) {
-            SizeTokens t = Theme.current().tokensFor(this);
+            SizeTokens t = Theme.of(this).tokensFor(this);
             return constraints.constrain(
                     constraints.hasBoundedWidth() ? constraints.maxWidth() : t.colorRampW(),
                     constraints.hasBoundedHeight() ? constraints.maxHeight() : t.colorFieldH());
@@ -1617,7 +1617,7 @@ public final class ColorPicker extends Widget {
             if (w < 1 || h < 1) {
                 return;
             }
-            float radius = Theme.current().tokensFor(this).radiusSmall();
+            float radius = Theme.of(this).tokensFor(this).radiusSmall();
             canvas.save();
             canvas.clipRoundRect(RoundRect.of(0, 0, w, h, radius));
             // White → the pure hue across, then transparent → black down. Two
@@ -1628,7 +1628,7 @@ public final class ColorPicker extends Widget {
             canvas.fillRect(0, 0, w, h, new LinearGradient(0, 0, 0, h,
                     Color.rgba(0x000000, 0f), Color.BLACK));
             canvas.restore();
-            canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.current().outline);
+            canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.of(this).outline());
             paintCursor(canvas, saturation * w, (1 - value) * h, 6);
         }
 
@@ -1857,7 +1857,7 @@ public final class ColorPicker extends Widget {
             if (w < 1 || h < 1) {
                 return;
             }
-            float radius = Theme.current().tokensFor(this).radiusSmall();
+            float radius = Theme.of(this).tokensFor(this).radiusSmall();
             canvas.save();
             canvas.clipRoundRect(RoundRect.of(0, 0, w, h, radius));
             float band = h / (HUE_STOPS.length - 1);
@@ -1867,7 +1867,7 @@ public final class ColorPicker extends Widget {
                         new LinearGradient(0, y, 0, y + band, HUE_STOPS[i], HUE_STOPS[i + 1]));
             }
             canvas.restore();
-            canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.current().outline);
+            canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.of(this).outline());
             paintMarker(canvas, w, h, hue / 360f * h);
         }
 
@@ -2041,7 +2041,7 @@ public final class ColorPicker extends Widget {
             if (w < 2 || h < 1) {
                 return;
             }
-            SizeTokens t = Theme.current().tokensFor(this);
+            SizeTokens t = Theme.of(this).tokensFor(this);
             float radius = t.radiusSmall();
             canvas.save();
             canvas.clipRoundRect(RoundRect.of(0, 0, w, h, radius));
@@ -2056,7 +2056,7 @@ public final class ColorPicker extends Widget {
             canvas.fillRect(rtl ? w / 2 : 0, 0, w / 2, h, original);
             canvas.fillRect(rtl ? 0 : w / 2, 0, w / 2, h, color());
             canvas.restore();
-            canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.current().outline);
+            canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.of(this).outline());
         }
 
         /**

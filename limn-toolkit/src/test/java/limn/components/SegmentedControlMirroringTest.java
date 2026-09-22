@@ -346,7 +346,7 @@ class SegmentedControlMirroringTest extends ComponentTestBase {
      * The centre of the one chevron drawn in the disabled ink; fails unless there is exactly one.
      */
     private static float deadChevronCentre(InkCanvas canvas) {
-        Paint dead = Theme.current().disabledText;
+        Paint dead = Theme.current().disabledText();
         float centre = Float.NaN;
         int found = 0;
         for (int i = 0; i < canvas.lines.size(); i++) {

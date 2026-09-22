@@ -74,11 +74,11 @@ public class Checkbox extends Widget {
     private Consumer<Boolean> onChange;
     /** 0 = unchecked visual, 1 = checked visual; eased toward the state. */
     private final Transition progress =
-            new Transition(this, 0).duration(Theme.current().animFade).easing(Easing.LINEAR);
+            new Transition(this, 0).duration(Theme.of(this).animFade).easing(Easing.LINEAR);
     private final Transition hover =
-            new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
     /**
      * Reused each paint; the 3 points depend only on the corner the indicator was placed at and
      * the box it was drawn in, both of which are resolved by the pass that fills this.
@@ -231,7 +231,7 @@ public class Checkbox extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         // Sized from the line the paint will draw, so the column this row reserves and the ink
         // that lands in it are one number rather than two answers to the same question.
@@ -244,7 +244,7 @@ public class Checkbox extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         // Resolved once for the whole pass and handed down, as the reflection AND as the
         // shaper's fallback. Two resolutions that disagreed inside one paint would put the
@@ -270,7 +270,7 @@ public class Checkbox extends Widget {
             // the one case the string cannot answer and the surrounding interface can.
             ShapedText line = labelLine(t);
             TextMetrics metrics = line.metrics();
-            Color ink = isEnabled() ? theme.text : theme.disabledText;
+            Color ink = isEnabled() ? theme.text() : theme.disabledText();
             // The label starts where reading starts, one gap past the indicator. Reading right to
             // left that is its right edge, so the x a line is placed against -- always its LEFT
             // edge, in either direction -- is a whole label width further out. The width is this
@@ -290,7 +290,7 @@ public class Checkbox extends Widget {
             float gap = Strokes.FOCUS_GAP_INDICATOR;
             canvas.drawRoundRect(left - gap, cy - gap, indicatorWidth(t) + 2 * gap,
                     indicatorHeight(t) + 2 * gap, t.indicatorFocusRadius(),
-                    Strokes.FOCUS_RING_THIN, theme.focusRing.withAlpha(focus));
+                    Strokes.FOCUS_RING_THIN, theme.focusRing().withAlpha(focus));
         }
     }
 
@@ -315,7 +315,7 @@ public class Checkbox extends Widget {
         if (text.get().isEmpty()) {
             return super.baselineOffset();
         }
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = labelLine(t).metrics();
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
@@ -327,17 +327,17 @@ public class Checkbox extends Widget {
     private void paintBox(Canvas canvas, Theme theme, SizeTokens t, float left, float top) {
         float p = progress.value();
         float box = t.indicator();
-        Color border = !isEnabled() ? theme.disabledFill
-                : p > 0 ? theme.primary
-                : theme.outline.lerp(theme.primaryHover, hover.value());
+        Color border = !isEnabled() ? theme.disabledFill()
+                : p > 0 ? theme.primary()
+                : theme.outline().lerp(theme.primaryHover(), hover.value());
         // Fill fades in with the animation.
-        Color fill = (isEnabled() ? theme.primary : theme.disabledFill).withAlpha(p);
+        Color fill = (isEnabled() ? theme.primary() : theme.disabledFill()).withAlpha(p);
         canvas.fillRoundRect(left, top, box, box, t.indicatorRadius(), fill);
         canvas.drawRoundRect(left + Strokes.HALF_PIXEL_INSET, top + Strokes.HALF_PIXEL_INSET,
                 box - Strokes.BORDER, box - Strokes.BORDER,
                 t.indicatorRadius(), Strokes.INDICATOR_BORDER, border);
         if (p > 0.05f) {
-            Color ink = (isEnabled() ? theme.onPrimary : theme.disabledText).withAlpha(p);
+            Color ink = (isEnabled() ? theme.onPrimary() : theme.disabledText()).withAlpha(p);
             // The mark's extent follows the box; its pen does not (Strokes.CHECK_MARK).
             float s = box / CHECK_PATH_BOX;
             checkPath.reset();
@@ -361,13 +361,13 @@ public class Checkbox extends Widget {
         float p = progress.value();
         float trackW = t.switchTrackW();
         float trackH = t.switchTrackH();
-        Color off = isEnabled() ? theme.surfaceRaised : theme.disabledFill;
-        Color on = isEnabled() ? theme.primary : theme.disabledFill;
+        Color off = isEnabled() ? theme.surfaceRaised() : theme.disabledFill();
+        Color on = isEnabled() ? theme.primary() : theme.disabledFill();
         Color track = off.lerp(on, p);
         canvas.fillRoundRect(left, top, trackW, trackH, trackH / 2, track);
         canvas.drawRoundRect(left + Strokes.HALF_PIXEL_INSET, top + Strokes.HALF_PIXEL_INSET,
                 trackW - Strokes.BORDER, trackH - Strokes.BORDER,
-                trackH / 2, Strokes.BORDER, theme.outline.withAlpha(1 - p));
+                trackH / 2, Strokes.BORDER, theme.outline().withAlpha(1 - p));
         float inset = t.switchThumbInset();
         float thumbRadius = trackH / 2 - inset;
         // The thumb's travel is a horizontal value axis, so its low end is the leading one: OFF is
@@ -380,7 +380,7 @@ public class Checkbox extends Widget {
         // surface (the old thumb) are near-identical in dark palettes, so the thumb
         // rides on textMuted (a light neutral guaranteed to contrast with the track)
         // and brightens to onPrimary as it slides onto the accent track.
-        Color thumb = isEnabled() ? theme.textMuted.lerp(theme.onPrimary, p) : theme.disabledText;
+        Color thumb = isEnabled() ? theme.textMuted().lerp(theme.onPrimary(), p) : theme.disabledText();
         canvas.fillCircle(thumbX, top + trackH / 2, thumbRadius, thumb);
     }
 

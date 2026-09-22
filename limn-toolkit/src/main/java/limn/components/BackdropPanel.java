@@ -148,7 +148,7 @@ public class BackdropPanel extends Padding {
     protected void onPaint(Canvas canvas) {
         float radius = cornerRadius >= 0
                 ? cornerRadius
-                : Theme.current().tokensFor(this).radiusLarge();
+                : Theme.of(this).tokensFor(this).radiusLarge();
         // In order: each pass reads what the one before it wrote.
         for (BackdropEffect each : effects) {
             canvas.fillBackdropRoundRect(0, 0, width(), height(), radius, each);

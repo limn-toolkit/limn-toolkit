@@ -108,11 +108,16 @@ a new wither, and no caller breaks. The README and the guides move to `of`.
 
 ## 7. Decision: the theme is read through accessors, resolved by the widget (decision 123)
 
-`Theme`'s fields become private with accessors of the same name (`theme.background()`), and
-`Widget.theme()` becomes the one resolver a widget paints from. Today it answers the process-wide theme;
+`Theme`'s fields become private with accessors of the same name (`theme.background()`; `dark`
+becomes `isDark()`, because `Theme.dark()` is already the dark palette's factory), and
+`Theme.of(widget)` becomes the one resolver a widget paints from. *Amended while building it:* the
+record first said `Widget.theme()`, which cannot be — `Widget` is `limn.scene`, and no file there
+names a `limn.components` type, the layering `Theme.setCurrent` already explains — so the resolver
+is a static on `Theme` taking the widget, with the same effect. Today it answers the process-wide theme;
 it is the seam a per-subtree theme can be added behind later without breaking anyone, as the locale axis
-was. `Theme.apply(Scene...)` joins it, the one call that switches the palette, invalidates each scene
-and applies the theme's font (decision 117's rule, as API). The guides and the class Javadoc teach that
+was. `theme.apply(Scene...)` joins it, the one call that switches the palette, repaints each scene and
+applies the theme's font (decision 117's rule, as API); `Theme.setCurrent` stays as the cheaper
+half for a colour well that switches the palette on every frame of a drag. The guides and the class Javadoc teach that
 call and nothing else.
 
 ## 8. Order, and what proves each step

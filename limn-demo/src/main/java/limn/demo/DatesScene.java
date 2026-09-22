@@ -120,7 +120,7 @@ final class DatesScene {
         column.gap(14).crossAlignment(Flex.CrossAlignment.START);
         column.add(Labelled.above(caption, picker));
         Scene scene = new Scene(new Padding(Insets.all(20), column));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return new Built(scene, picker, null);
     }
 
@@ -159,7 +159,7 @@ final class DatesScene {
         picker.setDisplayMode(DisplayMode.IN_SCENE);
         column.add(Labelled.above("ja-JP picker: 1 May 2019, the first day of Reiwa", picker));
         Scene scene = new Scene(new Padding(Insets.all(20), column));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -169,7 +169,7 @@ final class DatesScene {
         DatePicker picker = calendarPicker();
         CalendarView grid = grid();
         Scene scene = new Scene(new Padding(Insets.all(20), content(picker, grid)));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return new Built(scene, picker, grid);
     }
 
@@ -265,10 +265,10 @@ final class DatesScene {
                 && day.getDayOfWeek() != DayOfWeek.SUNDAY);
         calendar.setDayMarks(day -> {
             if (HOLIDAYS.contains(day)) {
-                return DayMark.of(Theme.current().danger, I18nString.literal("holiday"));
+                return DayMark.of(Theme.current().danger(), I18nString.literal("holiday"));
             }
             if (DEADLINES.contains(day)) {
-                return DayMark.of(Theme.current().warning, I18nString.literal("deadline"));
+                return DayMark.of(Theme.current().warning(), I18nString.literal("deadline"));
             }
             return null;
         });

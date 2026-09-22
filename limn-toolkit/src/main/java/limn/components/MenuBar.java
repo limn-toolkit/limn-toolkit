@@ -333,7 +333,7 @@ public final class MenuBar extends Widget {
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float total = 0;
         for (int i = 0; i < entries.size(); i++) {
             total += titleWidth(i, t);
@@ -350,7 +350,7 @@ public final class MenuBar extends Widget {
         if (entries.isEmpty()) {
             return super.baselineOffset(); // no titles: a bare strip aligns on its bottom edge
         }
-        TextMetrics fm = textRuler().measure("Hg", Theme.current().tokensFor(this).body());
+        TextMetrics fm = textRuler().measure("Hg", Theme.of(this).tokensFor(this).body());
         return (height() - fm.height()) / 2 + fm.ascent();
     }
 
@@ -358,12 +358,12 @@ public final class MenuBar extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         // The bottom rule: one locked hairline, half-pixel inset so it lands on a whole device
         // pixel. Scaling it is exactly what the size axis must never do to a border.
         float ruleY = height() - Strokes.HALF_PIXEL_INSET;
-        canvas.drawLine(0, ruleY, width(), ruleY, Strokes.HAIRLINE, theme.outline);
+        canvas.drawLine(0, ruleY, width(), ruleY, Strokes.HAIRLINE, theme.outline());
         Font font = t.body();
         TextMetrics fm = textRuler().measure("Hg", font);
         float chip = t.menuBarChipInset();
@@ -375,11 +375,11 @@ public final class MenuBar extends Widget {
             float x = titleX(cursor, w, rtl);
             boolean active = i == openIndex || i == hoverIndex;
             if (active) {
-                Color fill = i == openIndex ? theme.primary.withAlpha(0.20f) : theme.surfaceRaised;
+                Color fill = i == openIndex ? theme.primary().withAlpha(0.20f) : theme.surfaceRaised();
                 canvas.fillRoundRect(x + chip, chip, w - 2 * chip, height() - 2 * chip,
                         t.radiusSmall(), fill);
             }
-            Color ink = i == openIndex ? theme.text : theme.textMuted.lerp(theme.text, i == hoverIndex ? 1 : 0);
+            Color ink = i == openIndex ? theme.text() : theme.textMuted().lerp(theme.text(), i == hoverIndex ? 1 : 0);
             // Titles are aligned on the leading pad, not centred in the (possibly floored) box:
             // the floor only ever widens the last few points on the trailing side. drawText
             // places a run's LEFT edge in either direction, so a mirrored title finds that edge
@@ -411,7 +411,7 @@ public final class MenuBar extends Widget {
     protected void onMouseEvent(MouseEvent event) {
         // One resolution of each axis for the whole event: the title a press lands on must be
         // the title the last paint drew there.
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         boolean rtl = isRightToLeft();
         switch (event.type()) {
             case MOVE, ENTER -> {
@@ -645,7 +645,7 @@ public final class MenuBar extends Widget {
         // the title the bar painted, and the popup itself takes this bar's step and its
         // direction through the anchor link below (a PopupMenu is parentless, being a native
         // window's scene root or an overlay, so the tree walk cannot reach us any other way).
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         boolean rtl = isRightToLeft();
         int n = entries.size();
         openIndex = index;
@@ -783,7 +783,7 @@ public final class MenuBar extends Widget {
         // One resolution of each axis for the whole hook, beside the paint and the hit test, for
         // the same reason they give: two resolutions that disagree inside one pass describe a
         // title at its neighbour's rectangle.
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         boolean rtl = isRightToLeft();
         int current = openIndex >= 0 ? openIndex : (isFocused() ? hoverIndex : -1);
         boolean showing = isShowingDropdown();

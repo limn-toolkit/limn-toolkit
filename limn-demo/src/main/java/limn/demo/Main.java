@@ -447,10 +447,10 @@ public final class Main {
                     // replaced: a scene that cleared to transparent did so to let the desktop
                     // through, and that is not a palette choice to override.
                     if (widgetScene.background().a() >= 1f) {
-                        widgetScene.setBackground(options.theme().background);
+                        widgetScene.setBackground(options.theme().background());
                     }
                 }
-                System.out.println("Theme: " + options.theme().name);
+                System.out.println("Theme: " + options.theme().name());
             }
             if (widgetScene != null) {
                 // Partial rendering is the toolkit's default (ADR 043), so every scene here runs

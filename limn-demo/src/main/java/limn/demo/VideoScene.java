@@ -129,7 +129,7 @@ final class VideoScene {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20),
                 tabContent(SCENE_PICTURE_WIDTH, SCENE_PICTURE_HEIGHT, SOURCES)));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -1042,12 +1042,12 @@ final class VideoScene {
             }
             float plateWidth = Math.min(width(), widest + 2 * tokens.tooltipPadH());
             canvas.fillRoundRect((width() - plateWidth) / 2, top, plateWidth, blockHeight,
-                    tokens.radiusSmall(), theme.surfaceRaised);
+                    tokens.radiusSmall(), theme.surfaceRaised());
             float y = top + pad;
             for (String line : lines) {
                 limn.graphics.TextMetrics metrics = textRuler().measure(line, font);
                 canvas.drawText(line, (width() - metrics.width()) / 2, y + metrics.ascent(), font,
-                        theme.text);
+                        theme.text());
                 y += lineHeight;
             }
         }
@@ -1069,11 +1069,11 @@ final class VideoScene {
             float left = (width() - pillWidth) / 2;
             float top = (height() - pillHeight) / 2;
             canvas.fillRoundRect(left, top, pillWidth, pillHeight, tokens.radiusSmall(),
-                    theme.surfaceRaised);
+                    theme.surfaceRaised());
             canvas.drawRoundRect(left + 0.5f, top + 0.5f, pillWidth - 1, pillHeight - 1,
-                    tokens.radiusSmall(), limn.components.Strokes.BORDER, theme.outline);
+                    tokens.radiusSmall(), limn.components.Strokes.BORDER, theme.outline());
             canvas.drawText(notice, left + (pillWidth - metrics.width()) / 2,
-                    top + (pillHeight - metrics.height()) / 2 + metrics.ascent(), font, theme.text);
+                    top + (pillHeight - metrics.height()) / 2 + metrics.ascent(), font, theme.text());
         }
 
         @Override
@@ -2283,7 +2283,7 @@ final class VideoScene {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
         column.add(new Label("Video: decoded planes, converted on the device")
-                .setFont(theme.title).setStrong(true));
+                .setFont(theme.title()).setStrong(true));
         column.add(picker);
         column.add(picture);
         column.add(controls);

@@ -182,7 +182,7 @@ public class DonutChart extends Chart {
             return this;
         }
         hiddenSlices.set(index, !visible);
-        weight(index).duration(stateFadeSeconds()).easing(Theme.current().animEasing);
+        weight(index).duration(stateFadeSeconds()).easing(Theme.of(this).animEasing);
         weight(index).to(visible ? 1 : 0);
         legendChanged();
         invalidate();
@@ -280,7 +280,7 @@ public class DonutChart extends Chart {
             return;
         }
         ChartPoint hovered = hoveredPoint();
-        Color lift = Theme.current().dark ? Color.WHITE : Color.BLACK;
+        Color lift = Theme.of(this).isDark() ? Color.WHITE : Color.BLACK;
         float sweepFactor = isEntering(ring) ? progress() : 1;
         double angle = Math.toRadians(startAngle);
         float inner = innerRadius * outerRadius;
@@ -430,8 +430,8 @@ public class DonutChart extends Chart {
     protected void onHoverChanged(ChartPoint picked) {
         // One transition for whichever slice is hovered: the pop belongs to the pointer, not
         // to the slice, so moving between slices does not queue two animations.
-        hoverPop.duration(animationDuration() <= 0 ? 0 : Theme.current().animHover)
-                .easing(Theme.current().animEasing);
+        hoverPop.duration(animationDuration() <= 0 ? 0 : Theme.of(this).animHover)
+                .easing(Theme.of(this).animEasing);
         if (picked == null) {
             hoverPop.to(0);
         } else {

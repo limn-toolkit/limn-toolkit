@@ -1795,7 +1795,7 @@ public class Table<T> extends Widget implements Scrollable {
     // --------------------------------------------------------------------------- estimates
 
     private SizeTokens tokens() {
-        return Theme.current().tokensFor(this);
+        return Theme.of(this).tokensFor(this);
     }
 
     private float avgRowHeight(SizeTokens t) {
@@ -2974,17 +2974,17 @@ public class Table<T> extends Widget implements Scrollable {
     private void tintsFor(Theme theme) {
         if (theme != tintTheme) {
             tintTheme = theme;
-            selectionTint = theme.primary.withAlpha(0.18f);
+            selectionTint = theme.primary().withAlpha(0.18f);
             // The text colour, faintly, and not the raised surface: the text always contrasts
             // with the surface it sits on, in every palette, while a raised surface sits one or
             // two greys away from the flat one in the light palettes and half of that is nothing.
-            stripeTint = theme.text.withAlpha(0.045f);
+            stripeTint = theme.text().withAlpha(0.045f);
         }
     }
 
     @Override
     protected void paintChildren(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         tintsFor(theme);
         SizeTokens t = theme.tokensFor(this);
         TextRuler ruler = textRuler();
@@ -3041,7 +3041,7 @@ public class Table<T> extends Widget implements Scrollable {
                     float x = textX(columns.get(c).alignment(), left, colW[s], tw, padH, rtl);
                     float baseline = top + (slot.height - line.metrics().height()) / 2
                             + line.metrics().ascent();
-                    canvas.drawText(line, x, baseline, theme.text);
+                    canvas.drawText(line, x, baseline, theme.text());
                 }
                 if (row == focusRow && isFocused() && !headerFocused
                         && focusColumn < shownCount) {
@@ -3049,7 +3049,7 @@ public class Table<T> extends Widget implements Scrollable {
                     float inset = Strokes.FOCUS_RING_THIN;
                     canvas.drawRoundRect(left + inset, top + inset,
                             colW[focusColumn] - 2 * inset, slot.height - 2 * inset,
-                            t.radiusSmall(), Strokes.FOCUS_RING_THIN, theme.focusRing);
+                            t.radiusSmall(), Strokes.FOCUS_RING_THIN, theme.focusRing());
                 }
             }
         } finally {
@@ -3062,9 +3062,9 @@ public class Table<T> extends Widget implements Scrollable {
             canvas.save();
             try {
                 canvas.clipRect(rowX, top, w, footerH);
-                canvas.fillRect(rowX, top, w, footerH, theme.surfaceRaised);
+                canvas.fillRect(rowX, top, w, footerH, theme.surfaceRaised());
                 canvas.drawLine(rowX, top + Strokes.HALF_PIXEL_INSET, rowX + w,
-                        top + Strokes.HALF_PIXEL_INSET, Strokes.HAIRLINE, theme.outline);
+                        top + Strokes.HALF_PIXEL_INSET, Strokes.HAIRLINE, theme.outline());
                 Font font = headerFont(t);
                 for (int s = 0; s < shownCount; s++) {
                     float left = columnLeft(s, rowX, w, rtl);
@@ -3082,7 +3082,7 @@ public class Table<T> extends Widget implements Scrollable {
                     float x = textX(columns.get(c).alignment(), left, colW[s], tw, padH, rtl);
                     float baseline = top + (footerH - line.metrics().height()) / 2
                             + line.metrics().ascent();
-                    canvas.drawText(line, x, baseline, theme.text);
+                    canvas.drawText(line, x, baseline, theme.text());
                 }
             } finally {
                 canvas.restore();
@@ -3093,7 +3093,7 @@ public class Table<T> extends Widget implements Scrollable {
             canvas.save();
             try {
                 canvas.clipRect(rowX, 0, w, headerH);
-                canvas.fillRect(rowX, 0, w, headerH, theme.surfaceRaised);
+                canvas.fillRect(rowX, 0, w, headerH, theme.surfaceRaised());
                 Font font = headerFont(t);
                 for (int s = 0; s < shownCount; s++) {
                     float left = columnLeft(s, rowX, w, rtl);
@@ -3115,7 +3115,7 @@ public class Table<T> extends Widget implements Scrollable {
                     }
                     float baseline = (headerH - line.metrics().height()) / 2
                             + line.metrics().ascent();
-                    canvas.drawText(line, x, baseline, theme.textMuted);
+                    canvas.drawText(line, x, baseline, theme.textMuted());
                     if (indicator > 0) {
                         // A chevron after the title on the reading side: up for ascending.
                         float half = t.chevronHalfW();
@@ -3123,17 +3123,17 @@ public class Table<T> extends Widget implements Scrollable {
                         float cy = headerH / 2;
                         float dy = sortOrder == SortOrder.ASCENDING ? half / 2 : -half / 2;
                         canvas.drawLine(cx - half, cy + dy, cx, cy - dy, Strokes.ARROW_PEN,
-                                theme.textMuted);
+                                theme.textMuted());
                         canvas.drawLine(cx, cy - dy, cx + half, cy + dy, Strokes.ARROW_PEN,
-                                theme.textMuted);
+                                theme.textMuted());
                     }
                     // The divider at the column's trailing edge, which is where a drag resizes it.
                     float edge = rtl ? left : left + colW[s];
                     canvas.drawLine(edge, t.padV(), edge, headerH - t.padV(), Strokes.HAIRLINE,
-                            hoverDivider == s || dragColumn == s ? theme.focusRing : theme.outline);
+                            hoverDivider == s || dragColumn == s ? theme.focusRing() : theme.outline());
                 }
                 canvas.drawLine(rowX, headerH - Strokes.HALF_PIXEL_INSET, rowX + w,
-                        headerH - Strokes.HALF_PIXEL_INSET, Strokes.HAIRLINE, theme.outline);
+                        headerH - Strokes.HALF_PIXEL_INSET, Strokes.HAIRLINE, theme.outline());
                 if (headerHoldsCursor() && headerColumn < shownCount) {
                     // The header's column cursor: the same thin ring the focus cell wears,
                     // inset in the header cell, so one mark means "the keyboard is here" in
@@ -3142,7 +3142,7 @@ public class Table<T> extends Widget implements Scrollable {
                     float inset = Strokes.FOCUS_RING_THIN;
                     canvas.drawRoundRect(left + inset, inset, colW[headerColumn] - 2 * inset,
                             headerH - 2 * inset, t.radiusSmall(), Strokes.FOCUS_RING_THIN,
-                            theme.focusRing);
+                            theme.focusRing());
                 }
             } finally {
                 canvas.restore();

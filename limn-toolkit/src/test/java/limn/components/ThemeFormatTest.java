@@ -62,7 +62,7 @@ class ThemeFormatTest {
     void aTypefacePreferenceSurvivesTheRoundTrip() {
         Theme serif = Theme.builder("Serif", false).fontFamily("Iowan Old Style").build();
         Theme back = ThemeFormat.parse(ThemeFormat.write(serif));
-        assertEquals("Iowan Old Style", back.fontFamily);
+        assertEquals("Iowan Old Style", back.fontFamily());
         assertEquals(serif, back);
     }
 
@@ -86,14 +86,14 @@ class ThemeFormatTest {
     void aFamilyNameKeepsItsSpaces() {
         Theme theme = Theme.builder("Spaced", true).fontFamily("Helvetica Neue LT Std").build();
         assertEquals("Helvetica Neue LT Std",
-                ThemeFormat.parse(ThemeFormat.write(theme)).fontFamily);
+                ThemeFormat.parse(ThemeFormat.write(theme)).fontFamily());
     }
 
     /** No key means no preference, which is what every built-in carries. */
     @Test
     void aFileWithoutTheKeyExpressesNoPreference() {
         Theme theme = ThemeFormat.parse("name = Plain\ndark = true\n");
-        assertEquals(Font.DEFAULT_FAMILY, theme.fontFamily);
+        assertEquals(Font.DEFAULT_FAMILY, theme.fontFamily());
     }
 
     /**
@@ -116,7 +116,7 @@ class ThemeFormatTest {
     void aFamilyNobodyHasStillLoads() {
         Theme theme = ThemeFormat.parse(
                 "name = Exotic\ndark = false\nfontFamily = No Such Face 9000\n");
-        assertEquals("No Such Face 9000", theme.fontFamily);
+        assertEquals("No Such Face 9000", theme.fontFamily());
     }
 
     /** Two palettes that differ only in typeface are different palettes. */
@@ -188,20 +188,20 @@ class ThemeFormatTest {
                 dark = true
                 primary = #4FD1C5
                 """);
-        assertEquals(Color.rgb(0x4FD1C5), parsed.primary);
-        assertEquals(Theme.dark().background, parsed.background);
-        assertEquals(Theme.dark().text, parsed.text);
+        assertEquals(Color.rgb(0x4FD1C5), parsed.primary());
+        assertEquals(Theme.dark().background(), parsed.background());
+        assertEquals(Theme.dark().text(), parsed.text());
 
         Theme light = ThemeFormat.parse("name = Ocean\ndark = false\n");
-        assertEquals(Theme.light().background, light.background);
+        assertEquals(Theme.light().background(), light.background());
     }
 
     @Test
     void commentsAndBlankLinesAndCarriageReturnsAreIgnored() {
         Theme parsed = ThemeFormat.parse("\r\n# a palette\r\n\r\n  name = Ocean  \r\n"
                 + "dark = true\r\n   # indented comment\r\nprimary = #4FD1C5\r\n");
-        assertEquals("Ocean", parsed.name);
-        assertEquals(Color.rgb(0x4FD1C5), parsed.primary);
+        assertEquals("Ocean", parsed.name());
+        assertEquals(Color.rgb(0x4FD1C5), parsed.primary());
     }
 
     /**
@@ -211,16 +211,16 @@ class ThemeFormatTest {
     @Test
     void aHashInsideAValueIsNotAComment() {
         Theme parsed = ThemeFormat.parse("name = Ocean\ndark = true\nbackground = #0B1A24\n");
-        assertEquals(Color.rgb(0x0B1A24), parsed.background);
+        assertEquals(Color.rgb(0x0B1A24), parsed.background());
     }
 
     @Test
     void hexIsAcceptedInEveryFormTheColourParserKnows() {
         Theme parsed = ThemeFormat.parse("name = Ocean\ndark = true\n"
                 + "background = 0B1A24\nsurface = #abc\nprimary = #4FD1C5FF\n");
-        assertEquals(Color.rgb(0x0B1A24), parsed.background);
-        assertEquals(Color.rgb(0xAABBCC), parsed.surface);
-        assertEquals(Color.rgb(0x4FD1C5), parsed.primary);
+        assertEquals(Color.rgb(0x0B1A24), parsed.background());
+        assertEquals(Color.rgb(0xAABBCC), parsed.surface());
+        assertEquals(Color.rgb(0x4FD1C5), parsed.primary());
     }
 
     // ------------------------------------------------------------------ what may not

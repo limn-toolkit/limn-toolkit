@@ -312,16 +312,16 @@ class ShippedTranslationsTest extends ComponentTestBase {
 
     @Test
     void onlyTheDescriptivePalettesAreTranslated() {
-        Theme light = Theme.builtins().stream().filter(t -> t.name.equals("Light")).findFirst()
+        Theme light = Theme.builtins().stream().filter(t -> t.name().equals("Light")).findFirst()
                 .orElseThrow();
-        Theme dracula = Theme.builtins().stream().filter(t -> t.name.equals("Draculite"))
+        Theme dracula = Theme.builtins().stream().filter(t -> t.name().equals("Draculite"))
                 .findFirst().orElseThrow();
 
         I18n.setLocale(Locale.forLanguageTag("pt-BR"));
         assertEquals("Claro", light.displayName().get());
         assertEquals("Draculite", dracula.displayName().get(),
                 "a palette's own name is not a word to translate");
-        assertEquals("Light", light.name, "the identifier never moves");
+        assertEquals("Light", light.name(), "the identifier never moves");
     }
 
     @Test

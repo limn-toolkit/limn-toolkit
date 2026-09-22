@@ -35,7 +35,7 @@ final class GlassScene {
     static Scene create(boolean lightTheme) {
         Theme.setCurrent(lightTheme ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -44,7 +44,7 @@ final class GlassScene {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
 
-        column.add(new Label("Backdrop effects").setFont(Theme.current().title));
+        column.add(new Label("Backdrop effects").setFont(Theme.current().title()));
         column.add(new Label("Each panel below samples the picture behind it and puts it through "
                 + "one effect. Clear gives the shape a body: a rounded rim whose width is also its "
                 + "optical depth, refracting by Snell's law, so the flat middle bends nothing and "
@@ -120,7 +120,7 @@ final class GlassScene {
         // The panel is added AFTER the picture: the effect samples what the frame has already
         // drawn, so a panel painted first would show the window background and nothing else.
         stack.add(new BackdropPanel(effect, Insets.all(14),
-                new Label(title).setFont(Theme.current().title)));
+                new Label(title).setFont(Theme.current().title())));
 
         Column column = new Column();
         column.gap(6);
@@ -143,7 +143,7 @@ final class GlassScene {
         // than on the picture. It is also the case that exercises the shape clamp, since
         // every displaced sample is then at the shape's own edge.
         BackdropPanel panel = new BackdropPanel(effect, Insets.all(14),
-                new Label(title).setFont(Theme.current().title));
+                new Label(title).setFont(Theme.current().title()));
         panel.setCornerRadius(0);
         stack.add(new SizedBox(240, 180, panel));
 
@@ -160,7 +160,7 @@ final class GlassScene {
         Stack layers = new Stack().alignment(Stack.Alignment.CENTER);
         layers.add(new ImageView(picture).setFit(ImageView.Fit.COVER));
         BackdropPanel panel = new BackdropPanel(effects[0], Insets.all(14),
-                new Label(title).setFont(Theme.current().title));
+                new Label(title).setFont(Theme.current().title()));
         panel.setEffects(effects);
         layers.add(new SizedBox(216, 156, panel));
 

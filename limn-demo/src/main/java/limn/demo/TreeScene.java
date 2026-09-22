@@ -309,7 +309,7 @@ final class TreeScene {
         page.add(treeRow);
         Widget root = new Padding(Insets.all(24), page);
         Scene scene = new Scene(root);
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return new Parts(scene, tree, deep, remote, trash, emptyFolder, docs,
                 docs.kids().get(0), docs.kids().get(0).kids().get(1));
     }

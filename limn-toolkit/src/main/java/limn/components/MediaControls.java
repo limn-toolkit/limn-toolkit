@@ -391,7 +391,7 @@ public class MediaControls extends Widget {
     }
 
     private float pad() {
-        return backdrop ? Theme.current().tokensFor(this).padV() : 0;
+        return backdrop ? Theme.of(this).tokensFor(this).padV() : 0;
     }
 
     /**
@@ -445,12 +445,12 @@ public class MediaControls extends Widget {
     @Override
     protected void onPaint(Canvas canvas) {
         if (backdrop) {
-            Theme theme = Theme.current();
-            float radius = Theme.current().tokensFor(this).radiusMedium();
+            Theme theme = Theme.of(this);
+            float radius = Theme.of(this).tokensFor(this).radiusMedium();
             canvas.fillRoundRect(0, 0, width(), height(), radius,
-                    theme.surface.withAlpha(0.92f));
+                    theme.surface().withAlpha(0.92f));
             canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, radius,
-                    Strokes.BORDER, theme.outline);
+                    Strokes.BORDER, theme.outline());
         }
         if (!polling && scene() != null && isShowing()) {
             polling = true;
@@ -625,7 +625,7 @@ public class MediaControls extends Widget {
 
         @Override
         protected Size onMeasure(Constraints constraints) {
-            float side = Theme.current().tokensFor(this).controlHeight();
+            float side = Theme.of(this).tokensFor(this).controlHeight();
             return constraints.constrain(side, side);
         }
 
@@ -636,22 +636,22 @@ public class MediaControls extends Widget {
 
         @Override
         protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
-            float radius = Theme.current().tokensFor(this).radiusMedium();
+            Theme theme = Theme.of(this);
+            float radius = Theme.of(this).tokensFor(this).radiusMedium();
             float lift = !isEnabled() ? 0 : (armed || keyArmed) ? 0.26f : 0.14f * hover;
             if (lift > 0.001f) {
                 canvas.fillRoundRect(0, 0, width(), height(), radius,
-                        theme.text.withAlpha(lift * 0.5f));
+                        theme.text().withAlpha(lift * 0.5f));
             }
             if (isFocused()) {
                 float gap = Strokes.FOCUS_GAP_BUTTON;
                 canvas.drawRoundRect(-gap, -gap, width() + 2 * gap, height() + 2 * gap,
-                        radius + gap, Strokes.FOCUS_RING, theme.focusRing);
+                        radius + gap, Strokes.FOCUS_RING, theme.focusRing());
             }
             Color glyphInk = isEnabled()
-                    ? (ink != null ? ink : theme.text)
-                    : (mutedInk != null ? mutedInk : theme.textMuted);
-            float box = Theme.current().tokensFor(this).iconBox();
+                    ? (ink != null ? ink : theme.text())
+                    : (mutedInk != null ? mutedInk : theme.textMuted());
+            float box = Theme.of(this).tokensFor(this).iconBox();
             paintGlyph(canvas, (width() - box) / 2, (height() - box) / 2, box, glyphInk);
         }
 

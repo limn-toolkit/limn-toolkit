@@ -96,12 +96,12 @@ record DemoOptions(Path screenshotFile, String scene, float scale, long exitAfte
     private static limn.components.Theme parseTheme(String raw) {
         String wanted = raw.replace(" ", "").replace("-", "");
         for (limn.components.Theme candidate : limn.components.Theme.builtins()) {
-            if (candidate.name.replace(" ", "").equalsIgnoreCase(wanted)) {
+            if (candidate.name().replace(" ", "").equalsIgnoreCase(wanted)) {
                 return candidate;
             }
         }
         System.err.println("invalid --theme: " + raw + " (expected one of "
-                + limn.components.Theme.builtins().stream().map(t -> t.name).toList() + ")");
+                + limn.components.Theme.builtins().stream().map(t -> t.name()).toList() + ")");
         System.exit(2);
         return null; // unreachable
     }

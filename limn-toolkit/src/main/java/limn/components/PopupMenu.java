@@ -132,7 +132,7 @@ public final class PopupMenu {
      * re-read. Both sides of the geometry read this field: {@link Column}'s constructor, which
      * measures the labels and builds {@code top[]}/{@code hgt[]}, and
      * {@link MenuSurface#paintColumn}, which draws them. They used to read
-     * {@code Theme.current().body} independently, which is a live bug the moment the two reads
+     * {@code Theme.of(this).body} independently, which is a live bug the moment the two reads
      * can disagree: a column would measure at one step and paint at another.
      *
      * <p>Fixed at open on purpose: a menu is constructed, shown and discarded, so there is no
@@ -952,7 +952,7 @@ public final class PopupMenu {
         }
 
         private void paintColumn(Canvas canvas, Column col) {
-            Theme theme = Theme.current();
+            Theme theme = Theme.of(this);
             SizeTokens t = tokens; // the row the columns were BUILT from, never re-resolved here
             // And the direction the columns were PLACED with, for the same reason: a row whose
             // gutters were drawn against a direction the cascade was not positioned with would
@@ -962,9 +962,9 @@ public final class PopupMenu {
             float y = col.y - offsetY;
             float inset = Strokes.HALF_PIXEL_INSET;
             canvas.fillRoundRect(x, y, col.w, col.visibleH, t.radiusMedium(),
-                    theme.surfaceRaised.withAlpha(0.98f));
+                    theme.surfaceRaised().withAlpha(0.98f));
             canvas.drawRoundRect(x + inset, y + inset, col.w - 2 * inset, col.visibleH - 2 * inset,
-                    t.radiusMedium(), Strokes.BORDER, theme.outline);
+                    t.radiusMedium(), Strokes.BORDER, theme.outline());
 
             Font font = t.body();
             TextMetrics fm = ruler.measure("Hg", font);
@@ -999,7 +999,7 @@ public final class PopupMenu {
                     // own box, not from the scene.
                     float sepY = iy + col.hgt[i] / 2;
                     canvas.drawLine(x + t.menuSepInsetX(), sepY, x + col.w - t.menuSepInsetX(),
-                            sepY, Strokes.HAIRLINE, theme.outline);
+                            sepY, Strokes.HAIRLINE, theme.outline());
                     continue;
                 }
                 float rowH = col.hgt[i];
@@ -1007,9 +1007,9 @@ public final class PopupMenu {
                 if (active) {
                     canvas.fillRoundRect(x + t.menuHiliteInsetX(), iy + t.menuHiliteInsetY(),
                             col.w - 2 * t.menuHiliteInsetX(), rowH - 2 * t.menuHiliteInsetY(),
-                            t.radiusSmall(), theme.primary.withAlpha(0.28f));
+                            t.radiusSmall(), theme.primary().withAlpha(0.28f));
                 }
-                Color ink = item.isEnabled() ? theme.text : theme.disabledText;
+                Color ink = item.isEnabled() ? theme.text() : theme.disabledText();
                 if (item.kind() == MenuItem.Kind.CHECK && item.isChecked()) {
                     // The check sits in the leading gutter. The tick itself is NOT mirrored —
                     // no platform mirrors a check mark — so only its box moves, and because
@@ -1019,7 +1019,7 @@ public final class PopupMenu {
                             ? x + col.w - t.menuCheckInset() - t.checkGlyphW()
                             : x + t.menuCheckInset();
                     paintCheck(canvas, checkX, iy + rowH / 2,
-                            item.isEnabled() ? theme.primary : theme.disabledText, t);
+                            item.isEnabled() ? theme.primary() : theme.disabledText(), t);
                 }
                 float baseline = iy + (rowH - fm.height()) / 2 + fm.ascent();
                 // drawText places a run's LEFT edge for either base direction (a right-to-left
@@ -1048,7 +1048,7 @@ public final class PopupMenu {
                             ? x + t.menuArrowGutter()
                             : x + col.w - t.menuArrowGutter() - accelW;
                     canvas.drawText(accel, accelX, baseline,
-                            item.isEnabled() ? theme.textMuted : theme.disabledText);
+                            item.isEnabled() ? theme.textMuted() : theme.disabledText());
                 }
                 if (item.hasSubmenu()) {
                     // The chevron sits in the trailing gutter and must point at the side the
@@ -1081,18 +1081,18 @@ public final class PopupMenu {
          */
         private void paintScrollHint(Canvas canvas, Column col, float x, float bandY, boolean up,
                                     SizeTokens t) {
-            Theme theme = Theme.current();
+            Theme theme = Theme.of(this);
             canvas.fillRect(x + Strokes.ROW_CLIP, bandY, col.w - 2 * Strokes.ROW_CLIP,
-                    Strokes.MENU_SCROLL_HINT_H, theme.surfaceRaised.withAlpha(0.92f));
+                    Strokes.MENU_SCROLL_HINT_H, theme.surfaceRaised().withAlpha(0.92f));
             float cx = x + col.w / 2;
             float cy = bandY + Strokes.MENU_SCROLL_HINT_H / 2;
             float s = t.scrollChevronHalf();
             if (up) {
-                canvas.drawLine(cx - s, cy + s / 2, cx, cy - s / 2, Strokes.ARROW_PEN, theme.textMuted);
-                canvas.drawLine(cx, cy - s / 2, cx + s, cy + s / 2, Strokes.ARROW_PEN, theme.textMuted);
+                canvas.drawLine(cx - s, cy + s / 2, cx, cy - s / 2, Strokes.ARROW_PEN, theme.textMuted());
+                canvas.drawLine(cx, cy - s / 2, cx + s, cy + s / 2, Strokes.ARROW_PEN, theme.textMuted());
             } else {
-                canvas.drawLine(cx - s, cy - s / 2, cx, cy + s / 2, Strokes.ARROW_PEN, theme.textMuted);
-                canvas.drawLine(cx, cy + s / 2, cx + s, cy - s / 2, Strokes.ARROW_PEN, theme.textMuted);
+                canvas.drawLine(cx - s, cy - s / 2, cx, cy + s / 2, Strokes.ARROW_PEN, theme.textMuted());
+                canvas.drawLine(cx, cy + s / 2, cx + s, cy - s / 2, Strokes.ARROW_PEN, theme.textMuted());
             }
         }
 

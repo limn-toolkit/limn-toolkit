@@ -60,7 +60,7 @@ final class MenuScene {
         page.add(new SizedBox(SizedBox.UNSET, 18, status));
 
         Scene scene = new Scene(new Padding(Insets.all(20), page));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
 
         // The pointer and keyboard routes are ContextMenus' business; this one exists only so a
         // screenshot can open the menu without a pointer, and it hands the popup back because a
@@ -165,13 +165,13 @@ final class MenuScene {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusLarge(), theme.surface);
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusLarge(), 1, theme.outline);
+            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusLarge(), theme.surface());
+            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusLarge(), 1, theme.outline());
             String hint = "Right-click, or press the Menu key, to open the context menu";
-            Font font = theme.body;
+            Font font = theme.body();
             TextMetrics m = textRuler().measure(hint, font);
             canvas.drawText(hint, (width() - m.width()) / 2,
-                    (height() - m.height()) / 2 + m.ascent(), font, theme.textMuted);
+                    (height() - m.height()) / 2 + m.ascent(), font, theme.textMuted());
         }
     }
 }

@@ -748,7 +748,7 @@ class DialogTest extends ComponentTestBase {
 
             canvas.fills.clear();
             host.renderFrame(canvas);
-            assertTrue(canvas.fills.contains(veiled.scrim),
+            assertTrue(canvas.fills.contains(veiled.scrim()),
                     "the settled veil must be the palette's scrim, was " + canvas.fills);
         } finally {
             Theme.setCurrent(before);

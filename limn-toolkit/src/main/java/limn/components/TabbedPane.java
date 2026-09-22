@@ -118,9 +118,9 @@ public class TabbedPane extends Widget {
     // across a row of tabs. Measured at 21.6% of a window per frame against a strip that is a
     // twentieth of it. The strip is declared above these two, so it exists by the time they are.
     private final Transition indicatorLeft =
-            new Transition(strip).duration(Theme.current().animTab).easing(Theme.current().animEasing);
+            new Transition(strip).duration(Theme.of(this).animTab).easing(Theme.of(this).animEasing);
     private final Transition indicatorRight =
-            new Transition(strip).duration(Theme.current().animTab).easing(Theme.current().animEasing);
+            new Transition(strip).duration(Theme.of(this).animTab).easing(Theme.of(this).animEasing);
     private boolean indicatorPlaced;
     private int indicatorTab = -1;
     /**
@@ -536,13 +536,13 @@ public class TabbedPane extends Widget {
 
     /** Entry form for the paths that hold no row yet (the strip and its buttons). */
     private float stripHeight() {
-        return stripHeight(Theme.current().tokensFor(this));
+        return stripHeight(Theme.of(this).tokensFor(this));
     }
 
 
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float stripH = stripHeight(t);
         boolean boundedW = constraints.hasBoundedWidth();
         boolean boundedH = constraints.hasBoundedHeight();
@@ -575,7 +575,7 @@ public class TabbedPane extends Widget {
 
     @Override
     protected void onLayout() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float stripH = stripHeight(t);
         int n = headers.size();
         headerWidths = new float[n];
@@ -694,11 +694,11 @@ public class TabbedPane extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         // Separator under the strip. A hairline is a weight: 1pt at XSMALL and at XLARGE, so
         // the strip and the controls above it keep one border read across a mixed-step window.
         float y = stripHeight(theme.tokensFor(this));
-        canvas.drawLine(0, y, width(), y, Strokes.HAIRLINE, theme.outline);
+        canvas.drawLine(0, y, width(), y, Strokes.HAIRLINE, theme.outline());
     }
 
     /**
@@ -941,7 +941,7 @@ public class TabbedPane extends Widget {
             float y = height() - Strokes.TAB_INDICATOR;
             float left = indicatorLeft.value();
             float indicatorWidth = Math.max(0, indicatorRight.value() - left);
-            canvas.fillRect(left, y, indicatorWidth, Strokes.TAB_INDICATOR, Theme.current().primary);
+            canvas.fillRect(left, y, indicatorWidth, Strokes.TAB_INDICATOR, Theme.of(this).primary());
             canvas.restore();
         }
 
@@ -1050,7 +1050,7 @@ public class TabbedPane extends Widget {
 
         private final Kind kind;
         private final Transition hover =
-                new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
+                new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
 
         StripButton(Kind kind) {
             this.kind = kind;
@@ -1079,15 +1079,15 @@ public class TabbedPane extends Widget {
 
         @Override
         protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
+            Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(this);
             float h = hover.value();
             if (isEnabled() && h > 0.01f) {
                 float inset = t.stripBtnHoverInset();
                 canvas.fillRoundRect(inset, inset, width() - 2 * inset, height() - 2 * inset,
-                        t.radiusSmall(), theme.surfaceRaised.withAlpha(0.6f * h));
+                        t.radiusSmall(), theme.surfaceRaised().withAlpha(0.6f * h));
             }
-            Color ink = isEnabled() ? theme.textMuted.lerp(theme.text, h) : theme.disabledText;
+            Color ink = isEnabled() ? theme.textMuted().lerp(theme.text(), h) : theme.disabledText();
             // Chevrons drawn with lines (no glyph-coverage risk). The glyph's half-size grows
             // with the step; the pen that draws it does not; it is floored at its MEDIUM
             // extent for the two dense steps so pen/extent stays legible there.
@@ -1254,9 +1254,9 @@ public class TabbedPane extends Widget {
         private final Icon.Mirroring iconMirroring;
         private final int index;
         private final Transition hover =
-                new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
+                new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
         private final Transition focusFade =
-                new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+                new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
 
         /** Moves focus here with the origin of the gesture the pane is handling. */
         void focusFrom(Change.Origin origin) {
@@ -1289,7 +1289,7 @@ public class TabbedPane extends Widget {
 
         @Override
         protected Size onMeasure(Constraints constraints) {
-            SizeTokens t = Theme.current().tokensFor(this);
+            SizeTokens t = Theme.of(this).tokensFor(this);
             TextMetrics metrics = textRuler().measure(title.get(), t.body());
             // The height must be numerically identical to TabbedPane.stripHeight(): same two
             // tokens, same expression. Anything else and the strip clips its own headers.
@@ -1303,27 +1303,27 @@ public class TabbedPane extends Widget {
             if (title.get().isEmpty()) {
                 return super.baselineOffset(); // no text: align on the bottom edge
             }
-            TextMetrics metrics = textRuler().measure(title.get(), Theme.current().tokensFor(this).body());
+            TextMetrics metrics = textRuler().measure(title.get(), Theme.of(this).tokensFor(this).body());
             return (height() - metrics.height()) / 2 + metrics.ascent();
         }
 
         @Override
         protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
+            Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(this);
             boolean isSelected = index == selected;
             float h = hover.value();
             Font font = t.body();
-            Color ink = !isEnabled() ? theme.disabledText
-                    : isSelected ? theme.text
-                    : theme.textMuted.lerp(theme.text, h);
+            Color ink = !isEnabled() ? theme.disabledText()
+                    : isSelected ? theme.text()
+                    : theme.textMuted().lerp(theme.text(), h);
 
             if (!isSelected && h > 0.01f) {
                 // tabHoverInset > FOCUS_GAP_TAB must hold at every step, or the hover pill
                 // swallows the focus ring drawn inside it.
                 float inset = t.tabHoverInset();
                 canvas.fillRoundRect(inset, inset, width() - 2 * inset, height() - 2 * inset,
-                        hoverPillRadius(t), theme.surfaceRaised.withAlpha(0.6f * h));
+                        hoverPillRadius(t), theme.surfaceRaised().withAlpha(0.6f * h));
             }
             TextMetrics metrics = textRuler().measure(title.get(), font);
             float advance = iconAdvance(t);
@@ -1339,7 +1339,7 @@ public class TabbedPane extends Widget {
                 float iconLeft = rtl ? blockLeft + metrics.width() + t.tabIconGap() : blockLeft;
                 // Where the icon sits is this tab's decision; whether the drawing inside it turns
                 // around is the caller's, declared when the tab was added.
-                icon.paint(canvas, iconLeft, (height() - is) / 2, is, ink, theme.dark,
+                icon.paint(canvas, iconLeft, (height() - is) / 2, is, ink, theme.isDark(),
                         rtl && iconMirroring == Icon.Mirroring.IN_RTL);
             }
             // Shaped here rather than left to the canvas, so this tab's own direction is the
@@ -1358,7 +1358,7 @@ public class TabbedPane extends Widget {
                 float gap = Strokes.FOCUS_GAP_TAB;
                 canvas.drawRoundRect(gap, gap, width() - 2 * gap, height() - 2 * gap,
                         t.radiusSmall(), Strokes.FOCUS_RING_THIN,
-                        theme.focusRing.withAlpha(focus));
+                        theme.focusRing().withAlpha(focus));
             }
         }
 

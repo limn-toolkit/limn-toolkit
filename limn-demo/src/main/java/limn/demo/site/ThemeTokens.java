@@ -68,24 +68,24 @@ public final class ThemeTokens {
 
     private static String palette(Theme t) {
         StringBuilder b = new StringBuilder();
-        b.append("  --limn-color-scheme: ").append(t.dark ? "dark" : "light").append(";\n");
-        token(b, "background", t.background);
-        token(b, "surface", t.surface);
-        token(b, "surface-raised", t.surfaceRaised);
-        token(b, "primary", t.primary);
-        token(b, "primary-hover", t.primaryHover);
-        token(b, "primary-pressed", t.primaryPressed);
-        token(b, "on-primary", t.onPrimary);
-        token(b, "text", t.text);
-        token(b, "text-muted", t.textMuted);
-        token(b, "outline", t.outline);
-        token(b, "focus-ring", t.focusRing);
-        token(b, "disabled-fill", t.disabledFill);
-        token(b, "disabled-text", t.disabledText);
-        token(b, "danger", t.danger);
-        token(b, "success", t.success);
-        token(b, "warning", t.warning);
-        token(b, "info", t.info);
+        b.append("  --limn-color-scheme: ").append(t.isDark() ? "dark" : "light").append(";\n");
+        token(b, "background", t.background());
+        token(b, "surface", t.surface());
+        token(b, "surface-raised", t.surfaceRaised());
+        token(b, "primary", t.primary());
+        token(b, "primary-hover", t.primaryHover());
+        token(b, "primary-pressed", t.primaryPressed());
+        token(b, "on-primary", t.onPrimary());
+        token(b, "text", t.text());
+        token(b, "text-muted", t.textMuted());
+        token(b, "outline", t.outline());
+        token(b, "focus-ring", t.focusRing());
+        token(b, "disabled-fill", t.disabledFill());
+        token(b, "disabled-text", t.disabledText());
+        token(b, "danger", t.danger());
+        token(b, "success", t.success());
+        token(b, "warning", t.warning());
+        token(b, "info", t.info());
         return b.toString();
     }
 

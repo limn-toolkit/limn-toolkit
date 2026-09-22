@@ -87,9 +87,9 @@ public class ComboBox extends Widget {
     private long lastTypedNanos;
     private boolean open;
     private final Transition hover =
-            new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
     private IntConsumer onSelect;
 
     /** Reused each paint; the caret's 3 points are recomputed from the size. */
@@ -395,7 +395,7 @@ public class ComboBox extends Widget {
                 closing.requestClose();
             };
             if (closingScene != null) {
-                closingScene.fadeWindowOut(Theme.current().animWindow, destroy);
+                closingScene.fadeWindowOut(Theme.of(this).animWindow, destroy);
             } else {
                 destroy.run();
             }
@@ -417,7 +417,7 @@ public class ComboBox extends Widget {
             // holding input capture and focus. Frozen, the list would stay open over a paused
             // application with the field underneath unreachable.
             owner.addRealTimeTicker(dt -> {
-                sceneFade = (float) Math.max(0, sceneFade - dt / Theme.current().animWindow);
+                sceneFade = (float) Math.max(0, sceneFade - dt / Theme.of(this).animWindow);
                 closing.invalidate();
                 if (sceneFade > 0) {
                     return true;
@@ -519,7 +519,7 @@ public class ComboBox extends Widget {
                 if (!open) {
                     return false; // closed mid-fade: the fade-out ticker takes over
                 }
-                sceneFade = (float) Math.min(1, sceneFade + dt / Theme.current().animWindow);
+                sceneFade = (float) Math.min(1, sceneFade + dt / Theme.of(this).animWindow);
                 fading.invalidate();
                 return sceneFade < 1;
             });
@@ -535,7 +535,7 @@ public class ComboBox extends Widget {
             return;
         }
         NativeWindow parent = scene.window();
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float gap = t.popupGap();
         float factor = parent.logicalToScreenFactor();
         int screenX = parent.screenX() + Math.round(localToSceneX() * factor);
@@ -582,7 +582,7 @@ public class ComboBox extends Widget {
         // Screenshot mode keeps everything hidden; interactive mode shows the
         // popup without stealing focus (WindowConfig.popup → focusOnShow=false).
         if (parent.isVisible()) {
-            popupScene.fadeWindowIn(Theme.current().animWindow); // transparent → visible
+            popupScene.fadeWindowIn(Theme.of(this).animWindow); // transparent → visible
             popupWindow.show();
         }
         popupWindow.requestFrame();
@@ -637,7 +637,7 @@ public class ComboBox extends Widget {
      */
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         if (open && popupWindow != null && popupStep != controlSize()) {
             // The window was sized at popupStep and cannot be resized in place without
             // reflowing rows the user is aiming at; deferred so a measure pass never mutates
@@ -679,21 +679,21 @@ public class ComboBox extends Widget {
     /** Mixed-step rows align on this, not on the box; see {@code Flex.CrossAlignment.BASELINE}. */
     @Override
     protected float baselineOffset() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = textRuler().measure(selectedItem(), t.body());
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         Font font = t.body();
         // One resolution for the whole pass: the label, the clip that keeps it off the chevron
         // and the chevron's own gutter have to agree about which side reading starts on.
         boolean rtl = isRightToLeft();
-        Color fill = !isEnabled() ? theme.disabledFill
-                : theme.surface.lerp(theme.surfaceRaised, open ? 1f : hover.value());
+        Color fill = !isEnabled() ? theme.disabledFill()
+                : theme.surface().lerp(theme.surfaceRaised(), open ? 1f : hover.value());
         canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
         float focus = focusFade.value();
         // One rect whose weight animates BORDER -> FOCUS_RING; a ternary here would delete
@@ -701,14 +701,14 @@ public class ComboBox extends Widget {
         canvas.drawRoundRect(Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
                 width() - Strokes.BORDER, height() - Strokes.BORDER, t.radiusMedium(),
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
-                theme.outline.lerp(theme.focusRing, focus));
+                theme.outline().lerp(theme.focusRing(), focus));
 
         String label = selectedItem();
         // The vertical band stays the measured one, because that is what baselineOffset()
         // reports and a row aligned on a baseline the paint does not use is a row out of line.
         // Only the horizontal placement needs the shaped run.
         TextMetrics metrics = textRuler().measure(label, font);
-        Color ink = isEnabled() ? theme.text : theme.disabledText;
+        Color ink = isEnabled() ? theme.text() : theme.disabledText();
         canvas.save();
         // The band that keeps the label off the chevron: its variable edge is the one reading
         // ends on, so the reserved strip is on the left of a right-to-left field.
@@ -742,7 +742,7 @@ public class ComboBox extends Widget {
             caret.moveTo(cx - halfW, cy - halfH).lineTo(cx, cy + halfH).lineTo(cx + halfW, cy - halfH);
         }
         canvas.drawPath(caret, Strokes.ARROW_PEN,
-                isEnabled() ? theme.textMuted : theme.disabledText);
+                isEnabled() ? theme.textMuted() : theme.disabledText());
     }
 
     @Override
@@ -803,7 +803,7 @@ public class ComboBox extends Widget {
         if (popupPanel == null) {
             return 1;
         }
-        SizeTokens t = Theme.current().tokensFor(popupPanel);
+        SizeTokens t = Theme.of(this).tokensFor(popupPanel);
         float itemHeight = t.popupItemHeight();
         if (itemHeight <= 0) {
             return 1;
@@ -884,7 +884,7 @@ public class ComboBox extends Widget {
             // Resolved once for the whole event, on the panel: damage and reveal must agree
             // with each other and with the paint loop, or the highlight scrolls to one row
             // and repaints another.
-            SizeTokens t = Theme.current().tokensFor(popupPanel);
+            SizeTokens t = Theme.of(this).tokensFor(popupPanel);
             popupPanel.damageRow(old, t); // partial rendering: repaint the two affected rows
             popupPanel.damageRow(highlightedIndex, t);
             popupPanel.revealRow(highlightedIndex, t); // keyboard highlight stays in view
@@ -1139,7 +1139,7 @@ public class ComboBox extends Widget {
 
         @Override
         protected void onLayout() {
-            SizeTokens t = Theme.current().tokensFor(ComboBox.this);
+            SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
             // The field's direction and not the overlay's, for the reason the tokens are the
             // field's: this list belongs to the combo, and the overlay is only the layer it is
             // drawn on. Resolved once for the pass.
@@ -1322,7 +1322,7 @@ public class ComboBox extends Widget {
          * entered from the scroll bar's own pass and so cannot be handed one.
          */
         private SizeTokens tokens() {
-            return Theme.current().tokensFor(this);
+            return Theme.of(this).tokensFor(this);
         }
 
         private float clampScroll(float value, SizeTokens t) {
@@ -1461,7 +1461,7 @@ public class ComboBox extends Widget {
 
         @Override
         protected void onPaint(Canvas canvas) {
-            Theme theme = Theme.current();
+            Theme theme = Theme.of(this);
             SizeTokens t = tokens();
             boolean rtl = isRtl();
             float itemH = t.popupItemHeight();
@@ -1480,11 +1480,11 @@ public class ComboBox extends Widget {
             // paints the theme's surface as the theme wrote it.
             canvas.fillRoundRect(Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
                     width() - Strokes.BORDER, height() - Strokes.BORDER, t.radiusLarge(),
-                    scenePopup != null ? theme.surfaceRaised
-                            : theme.surfaceRaised.withAlpha(0.94f));
+                    scenePopup != null ? theme.surfaceRaised()
+                            : theme.surfaceRaised().withAlpha(0.94f));
             canvas.drawRoundRect(Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
                     width() - Strokes.BORDER, height() - Strokes.BORDER, t.radiusLarge(),
-                    Strokes.BORDER, theme.outline);
+                    Strokes.BORDER, theme.outline());
 
             Font font = t.body();
             TextMetrics metrics = textRuler().measure("Hg", font);
@@ -1512,12 +1512,12 @@ public class ComboBox extends Widget {
                     // highlighted rows fusing, and 3pt of it reads as a deliberate stripe.
                     canvas.fillRoundRect(inset, top + Strokes.ROW_GUTTER,
                             width() - 2 * inset, itemH - 2 * Strokes.ROW_GUTTER,
-                            t.radiusSmall(), theme.primary.withAlpha(0.28f));
+                            t.radiusSmall(), theme.primary().withAlpha(0.28f));
                 }
                 if (i == selectedIndex) {
                     // The one mark that scales: pure area, no pen, and 2.5pt vanishes in a
                     // 42pt row.
-                    canvas.fillCircle(dotX, top + itemH / 2, t.popupDotRadius(), theme.primary);
+                    canvas.fillCircle(dotX, top + itemH / 2, t.popupDotRadius(), theme.primary());
                 }
                 // Shaped against this list's own direction as the neutral fallback, for the
                 // reason the field's label is, and only for the rows that survived the
@@ -1531,7 +1531,7 @@ public class ComboBox extends Widget {
                 canvas.clipRect(bandX, top, bandW, itemH);
                 canvas.drawText(line, rtl ? textStart - line.metrics().width() : textStart,
                         top + (itemH - metrics.height()) / 2 + metrics.ascent(),
-                        theme.text);
+                        theme.text());
                 canvas.restore();
             }
             canvas.restore();

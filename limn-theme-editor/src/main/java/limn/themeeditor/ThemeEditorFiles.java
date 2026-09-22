@@ -130,7 +130,7 @@ public final class ThemeEditorFiles {
 
     /** {@code "Ocean Deep"} → {@code "ocean-deep.limntheme"}, a name a file system accepts. */
     static String fileNameFor(Theme theme) {
-        String slug = theme.name.trim().toLowerCase(java.util.Locale.ROOT)
+        String slug = theme.name().trim().toLowerCase(java.util.Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-+)|(-+$)", "");
         if (slug.length() > MAX_SLUG_LENGTH) {

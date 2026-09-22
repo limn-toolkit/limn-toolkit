@@ -49,8 +49,8 @@ final class ThemeStrings {
      * table, so its own name stands, as a literal, since nothing could translate it.
      */
     static I18nString of(Theme theme) {
-        I18nString known = BY_NAME.get(theme.name);
-        return known != null ? known : I18nString.literal(theme.name);
+        I18nString known = BY_NAME.get(theme.name());
+        return known != null ? known : I18nString.literal(theme.name());
     }
 
     private ThemeStrings() {

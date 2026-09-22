@@ -1041,7 +1041,7 @@ public class VideoView extends Widget {
      * it is not.
      */
     private void paintNotice(Canvas canvas, String message) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         // Resolved on the branch that draws it, and this is where the direction is resolved too:
         // the video path sizes nothing from the step, reads no direction, and would pay a lookup
         // per picture for values it never uses.
@@ -1064,12 +1064,12 @@ public class VideoView extends Widget {
         float left = (width() - pillWidth) / 2;
         float top = (height() - pillHeight) / 2;
         canvas.fillRoundRect(left, top, pillWidth, pillHeight, tokens.radiusSmall(),
-                theme.surfaceRaised);
+                theme.surfaceRaised());
         canvas.drawRoundRect(left + 0.5f, top + 0.5f, pillWidth - 1, pillHeight - 1,
-                tokens.radiusSmall(), Strokes.BORDER, theme.outline);
+                tokens.radiusSmall(), Strokes.BORDER, theme.outline());
         // Centred inside an already-centred pill: unchanged in either direction.
         canvas.drawText(line, left + (pillWidth - metrics.width()) / 2,
-                top + (pillHeight - metrics.height()) / 2 + metrics.ascent(), theme.text);
+                top + (pillHeight - metrics.height()) / 2 + metrics.ascent(), theme.text());
     }
 
     /**

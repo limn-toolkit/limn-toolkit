@@ -82,7 +82,7 @@ class Dot extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        canvas.fillCircle(width() / 2, height() / 2, 8, Theme.current().primary);
+        canvas.fillCircle(width() / 2, height() / 2, 8, Theme.of(this).primary());
     }
 }
 ```

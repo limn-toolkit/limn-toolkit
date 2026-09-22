@@ -246,7 +246,7 @@ public class LineChart extends CartesianChart {
 
     @Override
     protected void paintMarks(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         ChartPoint hovered = hoveredPoint();
         if (hovered != null && tooltipMode() == TooltipMode.INDEX) {
             paintCrosshair(canvas, theme, hovered.index());
@@ -322,7 +322,7 @@ public class LineChart extends CartesianChart {
             return;
         }
         int count = categoryCount();
-        Color ring = theme.surface;
+        Color ring = theme.surface();
         for (int c = 0; c < count; c++) {
             if (!real[c]) {
                 continue;
@@ -351,7 +351,7 @@ public class LineChart extends CartesianChart {
 
     private void paintCrosshair(Canvas canvas, Theme theme, int category) {
         float center = bandCenter(category);
-        Color ink = theme.outline;
+        Color ink = theme.outline();
         if (isHorizontal()) {
             canvas.drawLine(plotX(), center, plotX() + plotWidth(), center, Strokes.HAIRLINE, ink);
         } else {

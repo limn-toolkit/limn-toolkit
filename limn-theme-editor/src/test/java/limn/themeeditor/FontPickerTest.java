@@ -136,7 +136,7 @@ class FontPickerTest extends EditorTestBase {
         press(scene, Keys.ENTER);
 
         assertEquals(target, combo.selectedIndex());
-        assertEquals("Helvetica Neue", editor.theme().fontFamily);
+        assertEquals("Helvetica Neue", editor.theme().fontFamily());
         assertTrue(editor.isModified());
     }
 }

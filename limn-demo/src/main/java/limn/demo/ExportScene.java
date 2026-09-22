@@ -37,7 +37,7 @@ final class ExportScene {
     static Scene create(boolean lightTheme) {
         Theme.setCurrent(lightTheme ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -46,7 +46,7 @@ final class ExportScene {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
 
-        column.add(new Label("PNG round trip").setFont(Theme.current().title));
+        column.add(new Label("PNG round trip").setFont(Theme.current().title()));
         column.add(new Label("The left picture is drawn in Java, pixel by pixel. It is encoded to "
                 + "PNG by the toolkit's own encoder (no backend, no native library) and decoded "
                 + "back by the backend's stb_image. The two must be indistinguishable: the checker "
@@ -89,7 +89,7 @@ final class ExportScene {
         column.add(buttons);
 
         if (Graphics3D.isAvailable()) {
-            column.add(new Label("From the GPU").setFont(Theme.current().title));
+            column.add(new Label("From the GPU").setFont(Theme.current().title()));
             column.add(new Label("A 3D viewport renders into an offscreen target whose contents are "
                     + "scene-referred linear light. Capturing it reads back the display-referred "
                     + "picture (exposure, tonemap and sRGB encode applied once, exactly as the "

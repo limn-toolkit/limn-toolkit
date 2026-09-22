@@ -463,7 +463,7 @@ class CalendarViewTest extends ComponentTestBase {
         FakeCanvas recording = new FakeCanvas(400, 400) {
             @Override
             public void fillRoundRect(RoundRect roundRect, Paint paint) {
-                if (paint.equals(Theme.current().primary)) {
+                if (paint.equals(Theme.current().primary())) {
                     solid.add(roundRect);
                 }
             }

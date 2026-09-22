@@ -252,7 +252,7 @@ public class BarChart extends CartesianChart {
         ChartPoint hovered = hoveredPoint();
         // Toward the surface's opposite: lightening a mark on a light theme washes it out,
         // and darkening one on a dark theme reads as disabled.
-        Color lift = limn.components.Theme.current().dark ? Color.WHITE : Color.BLACK;
+        Color lift = limn.components.Theme.of(this).isDark() ? Color.WHITE : Color.BLACK;
         for (int c = 0; c < categories; c++) {
             for (int i = 0; i < seriesCount(); i++) {
                 if (!markRect(i, c)) {

@@ -331,9 +331,9 @@ class ControlSizeTest extends ComponentTestBase {
         assertSame(theme.tokens(ControlSize.MEDIUM), SizeTokens.MEDIUM);
         // Rebasing the three Font fields buys object identity, which is what keeps the
         // backend's identity-keyed font memo at one entry per logical face.
-        assertSame(theme.body, SizeTokens.MEDIUM.body());
-        assertSame(theme.label, SizeTokens.MEDIUM.label());
-        assertSame(theme.title, SizeTokens.MEDIUM.title());
+        assertSame(theme.body(), SizeTokens.MEDIUM.body());
+        assertSame(theme.label(), SizeTokens.MEDIUM.label());
+        assertSame(theme.title(), SizeTokens.MEDIUM.title());
     }
 
     @Test

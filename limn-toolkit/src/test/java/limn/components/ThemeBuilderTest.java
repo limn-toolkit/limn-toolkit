@@ -41,7 +41,7 @@ class ThemeBuilderTest {
     static List<Theme> derivedBuiltins() {
         List<Theme> derived = new ArrayList<>();
         for (Theme theme : Theme.builtins()) {
-            if (!HAND_TUNED.contains(theme.name)) {
+            if (!HAND_TUNED.contains(theme.name())) {
                 derived.add(theme);
             }
         }
@@ -50,28 +50,34 @@ class ThemeBuilderTest {
 
     // ------------------------------------------------------------- the vocabulary
 
+    /** The public colours are accessors since ADR 046 §7: a no-argument instance method returning a Color. */
+    private static boolean isColourAccessor(java.lang.reflect.Method method) {
+        return method.getReturnType() == Color.class && method.getParameterCount() == 0
+                && !java.lang.reflect.Modifier.isStatic(method.getModifiers());
+    }
+
     @Test
-    void everyColourFieldHasAToken() {
-        Set<String> fields = new LinkedHashSet<>();
-        for (Field field : Theme.class.getFields()) {
-            if (field.getType() == Color.class) {
-                fields.add(field.getName());
+    void everyColourAccessorHasAToken() {
+        Set<String> accessors = new LinkedHashSet<>();
+        for (java.lang.reflect.Method method : Theme.class.getMethods()) {
+            if (isColourAccessor(method)) {
+                accessors.add(method.getName());
             }
         }
         Set<String> tokens = new LinkedHashSet<>();
         for (Theme.Token token : Theme.Token.values()) {
             tokens.add(token.key());
         }
-        assertEquals(fields, tokens,
-                "Theme.Token must name every public Color field, and only those");
+        assertEquals(new java.util.TreeSet<>(accessors), new java.util.TreeSet<>(tokens),
+                "Theme.Token must name every public Color accessor, and only those");
     }
 
     @Test
-    void aTokenReadsTheFieldItIsNamedAfter() throws Exception {
+    void aTokenReadsTheAccessorItIsNamedAfter() throws Exception {
         Theme theme = Theme.limn();
         for (Theme.Token token : Theme.Token.values()) {
-            Field field = Theme.class.getField(token.key());
-            assertEquals(field.get(theme), token.read(theme), token.key());
+            java.lang.reflect.Method accessor = Theme.class.getMethod(token.key());
+            assertEquals(accessor.invoke(theme), token.read(theme), token.key());
         }
     }
 
@@ -109,8 +115,8 @@ class ThemeBuilderTest {
         Theme.Builder builder = Theme.builder("Mine", true);
         Theme first = builder.build();
         Theme second = builder.primary(Color.rgb(0x4FD1C5)).build();
-        assertEquals(Theme.dark().primary, first.primary, "the first build must not see later edits");
-        assertEquals(Color.rgb(0x4FD1C5), second.primary);
+        assertEquals(Theme.dark().primary(), first.primary(), "the first build must not see later edits");
+        assertEquals(Color.rgb(0x4FD1C5), second.primary());
     }
 
     // -------------------------------------------------------------- the seeding
@@ -122,7 +128,7 @@ class ThemeBuilderTest {
 
         Theme light = Theme.builder("Mine", false).build();
         assertEquals(Theme.light().toBuilder().name("Mine").build(), light);
-        assertFalse(light.dark);
+        assertFalse(light.isDark());
     }
 
     @Test
@@ -163,10 +169,10 @@ class ThemeBuilderTest {
     @MethodSource("derivedBuiltins")
     void theShippedRampsAreTheDocumentedDerivations(Theme theme) {
         Theme derived = theme.toBuilder().deriveAccentStates().deriveDisabled().build();
-        assertEquals(theme.primaryHover, derived.primaryHover, theme.name + " hovered accent");
-        assertEquals(theme.primaryPressed, derived.primaryPressed, theme.name + " pressed accent");
-        assertEquals(theme.disabledFill, derived.disabledFill, theme.name + " disabled fill");
-        assertEquals(theme.disabledText, derived.disabledText, theme.name + " disabled ink");
+        assertEquals(theme.primaryHover(), derived.primaryHover(), theme.name() + " hovered accent");
+        assertEquals(theme.primaryPressed(), derived.primaryPressed(), theme.name() + " pressed accent");
+        assertEquals(theme.disabledFill(), derived.disabledFill(), theme.name() + " disabled fill");
+        assertEquals(theme.disabledText(), derived.disabledText(), theme.name() + " disabled ink");
     }
 
     /**
@@ -178,8 +184,8 @@ class ThemeBuilderTest {
         Theme limn = Theme.limn();
         Theme derived = limn.toBuilder().deriveAccentStates().build();
         assertNotEquals(limn, derived);
-        assertTrue(Color.contrastRatio(limn.onPrimary, limn.primaryPressed)
-                        > Color.contrastRatio(limn.onPrimary, derived.primaryPressed),
+        assertTrue(Color.contrastRatio(limn.onPrimary(), limn.primaryPressed())
+                        > Color.contrastRatio(limn.onPrimary(), derived.primaryPressed()),
                 "the hand-solved pressed tone must be the more legible one");
     }
 
@@ -214,7 +220,7 @@ class ThemeBuilderTest {
                 Color tone = token.read(theme);
                 for (float channel : new float[]{tone.r(), tone.g(), tone.b(), tone.a()}) {
                     assertEquals(Math.round(channel * 255f) / 255f, channel, 0f,
-                            theme.name + '.' + token.key());
+                            theme.name() + '.' + token.key());
                 }
             }
         }
@@ -226,9 +232,9 @@ class ThemeBuilderTest {
                 .deriveSemanticStates().build();
         Theme light = Theme.builder("Mine", false).primary(Color.rgb(0x00FF00))
                 .deriveSemanticStates().build();
-        assertEquals(Theme.dark().danger, dark.danger);
-        assertEquals(Theme.light().danger, light.danger);
-        assertNotEquals(dark.danger, light.danger);
+        assertEquals(Theme.dark().danger(), dark.danger());
+        assertEquals(Theme.light().danger(), light.danger());
+        assertNotEquals(dark.danger(), light.danger());
     }
 
     // --------------------------------------------------------------- the metrics
@@ -242,7 +248,7 @@ class ThemeBuilderTest {
     void aCustomPaletteMeasuresLikeEveryOther() {
         Theme mine = Theme.builder("Mine", true).background(Color.BLACK).build();
         assertEquals(Theme.dark().spacingLarge, mine.spacingLarge);
-        assertSame(Theme.dark().body, mine.body);
+        assertSame(Theme.dark().body(), mine.body());
         assertSame(SizeTokens.MEDIUM, mine.tokens(limn.scene.ControlSize.MEDIUM));
     }
 

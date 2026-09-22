@@ -91,7 +91,7 @@ public final class Separator extends Widget {
     protected Size onMeasure(Constraints constraints) {
         // Resolved once per pass, as everywhere: the step is inherited, so this is the only
         // place the box thickness may be read from.
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         float box = t.separatorBox();
         if (orientation == Orientation.HORIZONTAL) {
             float w = constraints.hasBoundedWidth() ? constraints.maxWidth() : FALLBACK_LENGTH;
@@ -105,7 +105,7 @@ public final class Separator extends Widget {
     protected void onPaint(Canvas canvas) {
         // No SizeTokens read here: the line's weight is locked and its position derives from the
         // laid-out box, so paint cannot disagree with measure about which step it is on.
-        Color color = Theme.current().outline;
+        Color color = Theme.of(this).outline();
         if (orientation == Orientation.HORIZONTAL) {
             float y = lineCenter(height());
             canvas.drawLine(inset, y, width() - inset, y, Strokes.HAIRLINE, color);

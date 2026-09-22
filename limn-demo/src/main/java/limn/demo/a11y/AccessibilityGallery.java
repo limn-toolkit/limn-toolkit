@@ -1117,7 +1117,7 @@ public final class AccessibilityGallery {
         calendar.setMinDate(java.time.LocalDate.of(2026, 9, 2));
         calendar.setDateFilter(day -> day.getDayOfWeek() != java.time.DayOfWeek.SUNDAY);
         calendar.setDayMarks(day -> day.getDayOfMonth() == 21
-                ? DayMark.of(Theme.current().danger, GalleryStrings.HOLIDAY)
+                ? DayMark.of(Theme.current().danger(), GalleryStrings.HOLIDAY)
                 : null);
         page.add(Labelled.above(GalleryStrings.DELIVERY_DATE, calendar));
         return Built.focusing(pinnedForReaders(page), calendar);
@@ -1476,7 +1476,7 @@ public final class AccessibilityGallery {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            canvas.drawText(text, 12, height() / 2 + 5, theme.body, theme.text);
+            canvas.drawText(text, 12, height() / 2 + 5, theme.body(), theme.text());
         }
     }
 

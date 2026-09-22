@@ -396,7 +396,7 @@ class ImageViewAccessibilityTest extends AccessibleComponentTestBase {
         int published = bridge.published.size();
         bridge.events.clear();
 
-        view.setTint(Theme.current().primary);
+        view.setTint(Theme.current().primary());
         frame();
         view.setTint(null);
         frame();

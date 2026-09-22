@@ -217,7 +217,7 @@ final class CaptureScenes {
     static Built tabsAlignment(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Column col = column();
-        col.add(new Label("TabbedPane: tab alignment").setFont(Theme.current().title));
+        col.add(new Label("TabbedPane: tab alignment").setFont(Theme.current().title()));
         col.add(alignedTabs("Left", TabbedPane.TabAlignment.LEFT));
         col.add(alignedTabs("Center", TabbedPane.TabAlignment.CENTER));
         col.add(alignedTabs("Right", TabbedPane.TabAlignment.RIGHT));
@@ -229,7 +229,7 @@ final class CaptureScenes {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Column col = column();
         col.add(new Label("ComboBox: popup taller than the screen (clamp + scroll + reveal)")
-                .setFont(Theme.current().title));
+                .setFont(Theme.current().title()));
         java.util.List<String> items = new java.util.ArrayList<>();
         for (int i = 1; i <= 40; i++) {
             items.add("Option " + i);
@@ -245,7 +245,7 @@ final class CaptureScenes {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Column col = column();
         col.add(new Label("TabbedPane: overflow (scrollable strip + tab list)")
-                .setFont(Theme.current().title));
+                .setFont(Theme.current().title()));
         TabbedPane tabs = new TabbedPane();
         for (int i = 1; i <= 14; i++) {
             tabs.addTab("Tab " + i, body("Contents of tab " + i));
@@ -276,7 +276,7 @@ final class CaptureScenes {
 
     private static Scene scene(Widget content) {
         Scene scene = new Scene(new Padding(Insets.all(22), content));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

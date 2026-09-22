@@ -93,7 +93,7 @@ public final class ChartPalette {
 
     /** The built-in set matching {@code theme}'s mode, what a chart uses unless told otherwise. */
     public static ChartPalette defaultFor(Theme theme) {
-        return theme.dark ? DARK : LIGHT;
+        return theme.isDark() ? DARK : LIGHT;
     }
 
     /**

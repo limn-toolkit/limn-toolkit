@@ -62,7 +62,7 @@ final class ShowcaseScene {
         iconButtons.add(new Label("Favorite").setIcon(heart));
         iconButtons.add(new Label("Settings").setIcon(gear).setMuted(true));
         // Standalone tinted icons in the accent color.
-        iconButtons.add(new SizedBox(28, 28, new ImageView(star).setTint(Theme.current().primary)));
+        iconButtons.add(new SizedBox(28, 28, new ImageView(star).setTint(Theme.current().primary())));
 
         // Progress bars.
         ProgressBar p30 = new ProgressBar().setProgress(0.30f);
@@ -87,7 +87,7 @@ final class ShowcaseScene {
         content.add(new SizedBox(SizedBox.UNSET, 18, status));
 
         Scene scene = new Scene(limn.scene.layout.Padding.all(22, content));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
 
         // Now that widgets are in a scene, the indeterminate bar can animate.
         indeterminate.setIndeterminate(true);

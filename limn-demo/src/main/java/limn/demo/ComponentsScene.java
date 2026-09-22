@@ -89,12 +89,12 @@ final class ComponentsScene {
 
         Widget root = Padding.all(20, content);
         Scene scene = new Scene(root);
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         themeToggle.onAction(() -> {
             boolean toLight = Theme.current() == Theme.dark();
             Theme.setCurrent(toLight ? Theme.light() : Theme.dark());
             themeToggle.setText(toLight ? "Switch to dark theme" : "Switch to light theme");
-            scene.setBackground(Theme.current().background);
+            scene.setBackground(Theme.current().background());
             root.markNeedsLayout(); // typography/sizes may differ between themes
         });
         return scene;

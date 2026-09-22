@@ -125,7 +125,7 @@ final class IconsScene {
     static Scene create(boolean light, String query) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20), content(query)));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 

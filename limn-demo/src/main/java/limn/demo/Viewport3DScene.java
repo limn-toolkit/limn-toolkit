@@ -81,7 +81,7 @@ final class Viewport3DScene {
     static Scene create(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -94,7 +94,7 @@ final class Viewport3DScene {
 
         Column col = new Column();
         col.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("3D viewport: retained Scene3D (PBR)").setFont(theme.title).setStrong(true));
+        col.add(new Label("3D viewport: retained Scene3D (PBR)").setFont(theme.title()).setStrong(true));
         col.add(new Label("Declarative scene graph: mesh + light nodes, traversal and frustum culling "
                 + "emitting the same draws as the imperative version. Composited as a 2D layer; the "
                 + "ScrollView clips it at the edge like any other widget.").setMuted(true).setWrap(true));
@@ -175,7 +175,7 @@ final class Viewport3DScene {
 
         Column col = new Column();
         col.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("3D showcase: subsystem capabilities").setFont(theme.title).setStrong(true));
+        col.add(new Label("3D showcase: subsystem capabilities").setFont(theme.title()).setStrong(true));
         col.add(picker);
         col.add(captionRow);
         // Flexed, not fixed: the demos declare 560×320 but the kitchen tab body
@@ -341,14 +341,14 @@ final class Viewport3DScene {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("3D viewport: Normal mapping").setFont(theme.title).setStrong(true));
+        col.add(new Label("3D viewport: Normal mapping").setFont(theme.title()).setStrong(true));
         col.add(new Label("Two identical flat planes under one directional light. The right one "
                 + "carries a tangent-space normal map; its tangent frame is derived per pixel from "
                 + "screen-space derivatives, so no mesh tangents are needed. Drag to orbit.")
                 .setMuted(true).setWrap(true));
         col.add(normalMapViewport(700, 500));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background);
+        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -358,14 +358,14 @@ final class Viewport3DScene {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("3D viewport: Transparency").setFont(theme.title).setStrong(true));
+        col.add(new Label("3D viewport: Transparency").setFont(theme.title()).setStrong(true));
         col.add(new Label("A translucent pane (BlendMode.NORMAL) and an additive glow "
                 + "(BlendMode.ADDITIVE) over an opaque, shadow-casting scene. Blended surfaces "
                 + "draw after the opaque ones, test depth without writing it, and cast no "
                 + "shadow. Drag to orbit.").setMuted(true).setWrap(true));
         col.add(blendViewport(700, 500));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background);
+        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -737,7 +737,7 @@ final class Viewport3DScene {
         Column col = new Column();
         col.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
         col.add(new Label("3D viewport: Application surface + dynamic mesh")
-                .setFont(theme.title).setStrong(true));
+                .setFont(theme.title()).setStrong(true));
         col.add(new Label("Material.Surface: the application supplies the four surface "
                 + "expressions in the toolkit's own shader IR, and the engine still lights them. "
                 + "This one cross-fades two cells of a sprite sheet by a per-vertex weight (UV1 + "
@@ -747,7 +747,7 @@ final class Viewport3DScene {
                 .setMuted(true).setWrap(true));
         col.add(customSurfaceViewport(700, 460));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background);
+        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -757,12 +757,12 @@ final class Viewport3DScene {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("3D viewport: Shadow mapping").setFont(theme.title).setStrong(true));
+        col.add(new Label("3D viewport: Shadow mapping").setFont(theme.title()).setStrong(true));
         col.add(new Label("Depth pass from the directional light + 3×3 PCF. The objects spin, casting "
                 + "dynamic shadows on the ground. Drag to orbit.").setMuted(true).setWrap(true));
         col.add(shadowViewport(700, 500));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background);
+        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -772,13 +772,13 @@ final class Viewport3DScene {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("3D viewport: immediate-mode debug draw").setFont(theme.title).setStrong(true));
+        col.add(new Label("3D viewport: immediate-mode debug draw").setFont(theme.title()).setStrong(true));
         col.add(new Label("Grid and world-space culling AABBs are depth-tested (occluded by geometry); "
                 + "the oriented bounds draw as X-ray overlay. Debug lines never cast shadows. "
                 + "Drag to orbit.").setMuted(true).setWrap(true));
         col.add(debugViewport(700, 460, true, false));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background);
+        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -1149,7 +1149,7 @@ final class Viewport3DScene {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("3D viewport: Bloom").setFont(theme.title).setStrong(true));
+        col.add(new Label("3D viewport: Bloom").setFont(theme.title()).setStrong(true));
         col.add(new Label("Emissive spheres brightening left to right across the threshold: the "
                 + "dimmest stays quiet, the others glow. The viewport background is transparent, so "
                 + "the glow also has to composite over the UI without a halo of darkness or a hard "
@@ -1157,7 +1157,7 @@ final class Viewport3DScene {
                 .setMuted(true).setWrap(true));
         col.add(bloomDemo(700, 480, false));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background);
+        scene.setBackground(theme.background());
         return scene;
     }
 
@@ -1167,14 +1167,14 @@ final class Viewport3DScene {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("3D viewport: Image-based lighting").setFont(theme.title).setStrong(true));
+        col.add(new Label("3D viewport: Image-based lighting").setFont(theme.title()).setStrong(true));
         col.add(new Label("Procedural environment: diffuse irradiance via spherical harmonics + specular "
                 + "sky reflection (sharper on smoother surfaces) + skybox. Metallic spheres with "
                 + "roughness increasing from left to right. Drag to orbit.")
                 .setMuted(true).setWrap(true));
         col.add(iblViewport(700, 500));
         Scene scene = new Scene(new Padding(Insets.all(20), new ScrollView(col)));
-        scene.setBackground(theme.background);
+        scene.setBackground(theme.background());
         return scene;
     }
 

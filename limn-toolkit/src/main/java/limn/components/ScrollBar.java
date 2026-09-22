@@ -378,7 +378,7 @@ public class ScrollBar extends Widget {
         float[] t = thumbRect(rtl);
         float radius = Math.min(t[2], t[3]) / 2;
         float alpha = (dragging ? 0.9f : hoverBar ? 0.75f : 0.5f) * op;
-        canvas.fillRoundRect(t[0], t[1], t[2], t[3], radius, Theme.current().textMuted.withAlpha(alpha));
+        canvas.fillRoundRect(t[0], t[1], t[2], t[3], radius, Theme.of(this).textMuted().withAlpha(alpha));
     }
 
     /** Transparent to events while effectively invisible, so it never blocks the content. */

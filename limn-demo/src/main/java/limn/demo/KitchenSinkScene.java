@@ -253,13 +253,13 @@ final class KitchenSinkScene {
         Row aboutHead = new Row();
         aboutHead.gap(14).crossAlignment(Flex.CrossAlignment.CENTER);
         aboutHead.add(new SizedBox(56, 56, new ImageView(logo).setFit(ImageView.Fit.CONTAIN)));
-        aboutHead.add(new Label(KitchenStrings.ABOUT_NAME).setFont(Theme.current().title));
+        aboutHead.add(new Label(KitchenStrings.ABOUT_NAME).setFont(Theme.current().title()));
         about.add(aboutHead);
         about.add(new Label(KitchenStrings.ABOUT_BLURB).setWrap(true).setMuted(true));
         Row aboutIcons = new Row();
         aboutIcons.gap(16).crossAlignment(Flex.CrossAlignment.CENTER);
-        aboutIcons.add(new SizedBox(24, 24, new ImageView(heart).setTint(Theme.current().primary)));
-        aboutIcons.add(new SizedBox(24, 24, new ImageView(star).setTint(Theme.current().primary)));
+        aboutIcons.add(new SizedBox(24, 24, new ImageView(heart).setTint(Theme.current().primary())));
+        aboutIcons.add(new SizedBox(24, 24, new ImageView(star).setTint(Theme.current().primary())));
         aboutIcons.add(new Label(KitchenStrings.ABOUT_ICONS).setMuted(true));
         about.add(aboutIcons);
 
@@ -401,7 +401,7 @@ final class KitchenSinkScene {
 
         limn.scene.Widget root = new Padding(limn.scene.Insets.all(20), page);
         Scene scene = new Scene(root);
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         barAnim.setIndeterminate(true); // now that it is in a scene
 
         // The dropdown of the dialog built last, for the capture that opens it.
@@ -529,7 +529,7 @@ final class KitchenSinkScene {
             if (builtin >= 0) {
                 themePicker.setSelectedIndex(builtin);
             }
-            scene.setBackground(t.background);
+            scene.setBackground(t.background());
             root.markNeedsLayout();
             status.setText(KitchenStrings.STATUS_THEME_CHANGED.format(t.displayName().get()));
         };
@@ -737,13 +737,13 @@ final class KitchenSinkScene {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface);
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(), 1, theme.outline);
+            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
+            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(), 1, theme.outline());
             String hint = "right-click here";
-            Font font = theme.body;
+            Font font = theme.body();
             TextMetrics m = textRuler().measure(hint, font);
             canvas.drawText(hint, (width() - m.width()) / 2,
-                    (height() - m.height()) / 2 + m.ascent(), font, theme.textMuted);
+                    (height() - m.height()) / 2 + m.ascent(), font, theme.textMuted());
         }
 
         @Override

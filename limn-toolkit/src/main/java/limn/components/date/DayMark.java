@@ -18,7 +18,7 @@ import java.util.Objects;
  *
  * <p><b>The colour is the application's.</b> A holiday is red in a payroll screen and green in a
  * booking one, and the toolkit has no opinion about which; what it does have is
- * {@link limn.components.Theme}, so {@code Theme.current().danger} and its neighbours are the
+ * {@link limn.components.Theme}, so {@code Theme.of(this).danger} and its neighbours are the
  * colours a mark should normally be built from rather than a literal that will not follow a
  * palette.
  *

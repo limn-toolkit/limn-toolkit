@@ -210,7 +210,7 @@ public final class ReaderDriver {
             }
             DocumentationDay.pin(built.root());
             Scene scene = new Scene(new Padding(Insets.all(16), built.root()));
-            scene.setBackground(Theme.current().background);
+            scene.setBackground(Theme.current().background());
             scene.bind(window);
             placeKeyboardOnFirstFrame(window, scene, built, System.out::println);
             window.show();

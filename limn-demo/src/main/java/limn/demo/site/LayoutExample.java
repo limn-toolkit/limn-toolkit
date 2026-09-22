@@ -249,7 +249,7 @@ public final class LayoutExample {
     /** The shell on a canvas, for the capture the guide page shows. */
     public static Scene scene() {
         Scene scene = new Scene(shell());
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

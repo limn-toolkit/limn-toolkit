@@ -43,7 +43,7 @@ final class NewControlsScene {
     static Scene create(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Scene scene = new Scene(new Padding(Insets.all(20), content()));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 
@@ -141,20 +141,20 @@ final class NewControlsScene {
         Row states = new Row();
         states.gap(16).crossAlignment(Flex.CrossAlignment.START);
         states.add(Expanded.of(validated("E-mail", "user@", TextField.Validation.ERROR,
-                "close", theme.danger, "Incomplete address."), 1));
+                "close", theme.danger(), "Incomplete address."), 1));
         states.add(Expanded.of(validated("Username", "adm", TextField.Validation.WARNING,
-                "warning", theme.warning, "Too short (min. 4)."), 1));
+                "warning", theme.warning(), "Too short (min. 4)."), 1));
         states.add(Expanded.of(validated("Coupon", "LIMN2026", TextField.Validation.SUCCESS,
-                "check", theme.success, "Valid coupon!"), 1));
+                "check", theme.success(), "Valid coupon!"), 1));
         states.add(Expanded.of(validated("Phone", "+55", TextField.Validation.INFO,
-                "info", theme.info, "Optional: include the area code."), 1));
+                "info", theme.info(), "Optional: include the area code."), 1));
         col.add(states);
 
         return new ScrollView(col);
     }
 
     private static Label heading(String text) {
-        return new Label(text).setFont(Theme.current().body).setStrong(true);
+        return new Label(text).setFont(Theme.current().body()).setStrong(true);
     }
 
     private static Button iconButton(String iconName, String label) {
@@ -178,7 +178,7 @@ final class NewControlsScene {
         fieldGroup.add(field);
         fieldGroup.add(new Label(message)
                 .setColor(color)
-                .setFont(Theme.current().body.withSize(12))
+                .setFont(Theme.current().body().withSize(12))
                 .setIcon(SvgIcon.fromResource(icon(iconName))));
         column.add(fieldGroup);
         return column;

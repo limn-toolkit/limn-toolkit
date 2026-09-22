@@ -43,7 +43,7 @@ final class FontsScene {
         content.gap(12).crossAlignment(Flex.CrossAlignment.START);
 
         content.add(new Label("Fonts & scripts: per-run fallback")
-                .setFont(Theme.current().title));
+                .setFont(Theme.current().title()));
         content.add(new Label("Roboto for Latin/Greek/Cyrillic; Noto Sans CJK, Arabic, Hebrew, "
                 + "Devanagari, Thai and Color Emoji fill the rest.")
                 .setMuted(true));
@@ -94,7 +94,7 @@ final class FontsScene {
 
     /** One "Name: sample text" line with a muted script label. */
     private static Widget sample(String script, String text) {
-        return new Label(script + ":  " + text).setFont(Theme.current().body);
+        return new Label(script + ":  " + text).setFont(Theme.current().body());
     }
 
     static Scene create(boolean lightTheme) {

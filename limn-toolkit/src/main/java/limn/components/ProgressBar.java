@@ -57,7 +57,7 @@ public class ProgressBar extends Widget {
     private float thickness = UNSET;
     /** The drawn fill fraction, eased toward {@link #progress}. */
     private final Transition fill =
-            new Transition(this).duration(Theme.current().animFade).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFade).easing(Theme.of(this).animEasing);
 
     /**
      * Sets the determinate progress, clamped to {@code [0..1]}; the fill eases to it. A bar that
@@ -231,7 +231,7 @@ public class ProgressBar extends Widget {
     protected Size onMeasure(Constraints constraints) {
         // The bar's entire size axis is this one token; onPaint reads none, because every
         // coordinate it draws is a function of the laid-out box.
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         return constraints.constrain(
                 preferredWidth >= 0 ? preferredWidth : DEFAULT_WIDTH,
                 thickness >= 0 ? thickness : t.progressThickness());
@@ -242,10 +242,10 @@ public class ProgressBar extends Widget {
         if (indeterminate) {
             startSweep(); // re-arm after being hidden (ticker paused itself)
         }
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         float radius = height() / 2;
-        canvas.fillRoundRect(0, 0, width(), height(), radius, theme.surfaceRaised);
-        var fillColor = isEnabled() ? theme.primary : theme.disabledFill;
+        canvas.fillRoundRect(0, 0, width(), height(), radius, theme.surfaceRaised());
+        var fillColor = isEnabled() ? theme.primary() : theme.disabledFill();
 
         if (indeterminate) {
             float pillWidth = width() * SWEEP_FRACTION;

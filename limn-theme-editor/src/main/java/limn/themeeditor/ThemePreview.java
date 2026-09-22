@@ -83,14 +83,14 @@ public final class ThemePreview extends Widget {
 
         canvas.save();
         canvas.clipRoundRect(RoundRect.of(0, 0, w, h, t.radiusMedium()));
-        canvas.fillRect(0, 0, w, h, theme.background);
+        canvas.fillRect(0, 0, w, h, theme.background());
 
         // A card on the canvas, holding the type ramp.
         float cardX = pad;
         float cardY = pad;
         float cardW = w - 2 * pad;
         float cardH = h - 2 * pad - row - gap;
-        canvas.fillRoundRect(cardX, cardY, cardW, cardH, t.radiusMedium(), theme.surface);
+        canvas.fillRoundRect(cardX, cardY, cardW, cardH, t.radiusMedium(), theme.surface());
         outline(canvas, cardX, cardY, cardW, cardH, t.radiusMedium());
 
         float textX = cardX + pad;
@@ -101,11 +101,11 @@ public final class ThemePreview extends Widget {
         canvas.save();
         canvas.clipRect(textX, cardY, cardW - 2 * pad, cardH);
         cursorY = line(canvas, ThemeEditorStrings.PREVIEW_TITLE.get(), textX, cursorY,
-                t.title(), theme.text);
+                t.title(), theme.text());
         cursorY = line(canvas, ThemeEditorStrings.PREVIEW_BODY.get(), textX, cursorY,
-                t.body(), theme.text);
+                t.body(), theme.text());
         cursorY = line(canvas, ThemeEditorStrings.PREVIEW_BODY.get(), textX, cursorY,
-                t.body(), theme.textMuted);
+                t.body(), theme.textMuted());
         canvas.restore();
 
         // One button in its four states, side by side: the row a running application shows
@@ -114,34 +114,34 @@ public final class ThemePreview extends Widget {
         float chipW = Math.max(row, (cardW - 2 * pad - 3 * gap) / 4);
         float chipY = cursorY + gap;
         float chipX = textX;
-        chipX = accentChip(canvas, t, chipX, chipY, chipW, row, theme.primary,
-                theme.onPrimary, action) + gap;
-        chipX = accentChip(canvas, t, chipX, chipY, chipW, row, theme.primaryHover,
-                theme.onPrimary, action) + gap;
-        chipX = accentChip(canvas, t, chipX, chipY, chipW, row, theme.primaryPressed,
-                theme.onPrimary, action) + gap;
-        accentChip(canvas, t, chipX, chipY, chipW, row, theme.disabledFill,
-                theme.disabledText, action);
+        chipX = accentChip(canvas, t, chipX, chipY, chipW, row, theme.primary(),
+                theme.onPrimary(), action) + gap;
+        chipX = accentChip(canvas, t, chipX, chipY, chipW, row, theme.primaryHover(),
+                theme.onPrimary(), action) + gap;
+        chipX = accentChip(canvas, t, chipX, chipY, chipW, row, theme.primaryPressed(),
+                theme.onPrimary(), action) + gap;
+        accentChip(canvas, t, chipX, chipY, chipW, row, theme.disabledFill(),
+                theme.disabledText(), action);
 
         // A focused field: the ring is drawn outside its box, which is the only way to see
         // whether it survives on the surface it lands on.
         float fieldY = chipY + row + gap + Strokes.FOCUS_RING_OUTSET;
         float fieldW = Math.min(cardW - 2 * pad, 6 * row);
         if (fieldY + row <= cardY + cardH - pad) {
-            canvas.fillRoundRect(textX, fieldY, fieldW, row, t.radiusSmall(), theme.surfaceRaised);
+            canvas.fillRoundRect(textX, fieldY, fieldW, row, t.radiusSmall(), theme.surfaceRaised());
             outline(canvas, textX, fieldY, fieldW, row, t.radiusSmall());
             float ring = Strokes.FOCUS_GAP_BUTTON;
             canvas.drawRoundRect(textX - ring, fieldY - ring, fieldW + 2 * ring, row + 2 * ring,
-                    t.radiusSmall() + ring, Strokes.FOCUS_RING, theme.focusRing);
+                    t.radiusSmall() + ring, Strokes.FOCUS_RING, theme.focusRing());
         }
 
         // The semantic four, on the canvas, as a strip along the bottom.
         float stripY = h - pad - row;
         float stripW = (w - 2 * pad - 3 * gap) / 4;
-        Color[] semantic = {theme.danger, theme.warning, theme.success, theme.info};
+        Color[] semantic = {theme.danger(), theme.warning(), theme.success(), theme.info()};
         for (int i = 0; i < semantic.length; i++) {
             float x = pad + i * (stripW + gap);
-            canvas.fillRoundRect(x, stripY, stripW, row, t.radiusSmall(), theme.surfaceRaised);
+            canvas.fillRoundRect(x, stripY, stripW, row, t.radiusSmall(), theme.surfaceRaised());
             outline(canvas, x, stripY, stripW, row, t.radiusSmall());
             float dot = t.iconBox() / 2;
             canvas.fillCircle(x + gap + dot / 2, stripY + row / 2, dot / 2, semantic[i]);
@@ -185,6 +185,6 @@ public final class ThemePreview extends Widget {
     private void outline(Canvas canvas, float x, float y, float w, float h, float radius) {
         float inset = Strokes.HALF_PIXEL_INSET;
         canvas.drawRoundRect(x + inset, y + inset, w - 2 * inset, h - 2 * inset, radius,
-                Strokes.BORDER, theme.outline);
+                Strokes.BORDER, theme.outline());
     }
 }

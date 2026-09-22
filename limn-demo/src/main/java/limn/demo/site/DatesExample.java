@@ -106,7 +106,7 @@ public final class DatesExample {
                 && day.getDayOfWeek() != DayOfWeek.SUNDAY);
         calendar.setShowWeekNumbers(true);
         calendar.setDayMarks(day -> HOLIDAYS.contains(day)
-                ? DayMark.of(Theme.current().danger, I18nString.literal("holiday"))
+                ? DayMark.of(Theme.current().danger(), I18nString.literal("holiday"))
                 : null);
         calendar.onSelect(day -> System.out.println("picked " + day));
         return calendar;
@@ -147,7 +147,7 @@ public final class DatesExample {
                 .crossAlignment(Flex.CrossAlignment.CENTER);
         centred.add(row);
         Scene scene = new Scene(new Padding(Insets.all(28), centred));
-        scene.setBackground(Theme.current().background);
+        scene.setBackground(Theme.current().background());
         return scene;
     }
 }

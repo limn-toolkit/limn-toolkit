@@ -90,7 +90,7 @@ class ThemeEditorTest extends EditorTestBase {
 
         editor.setToken(Theme.Token.PRIMARY, Color.rgb(0x4FD1C5));
 
-        assertEquals(Color.rgb(0x4FD1C5), editor.theme().primary);
+        assertEquals(Color.rgb(0x4FD1C5), editor.theme().primary());
         assertEquals(Color.rgb(0x4FD1C5), editor.wellFor(Theme.Token.PRIMARY).color());
         assertEquals(List.of(Change.Origin.CODE), heard, "a watcher hears the caller's write");
         assertEquals(List.of(), changes,
@@ -121,7 +121,7 @@ class ThemeEditorTest extends EditorTestBase {
         assertEquals(1, heard.size(),
                 "a caller applying what it is handed must be told the palette went back, and a"
                         + " watcher is how it asks to be");
-        assertEquals(Theme.dark().primary, heard.get(0).primary);
+        assertEquals(Theme.dark().primary(), heard.get(0).primary());
         assertEquals(List.of(), changes, "the handler is for the user's edits");
     }
 
@@ -139,7 +139,7 @@ class ThemeEditorTest extends EditorTestBase {
     @Test
     void theNameIsKeptAndTheToneIsNot() {
         editor.setTheme(Theme.dark().toBuilder().name("Ocean").build());
-        assertEquals("Ocean", editor.theme().name);
+        assertEquals("Ocean", editor.theme().name());
     }
 
     // --- the derivations ----------------------------------------------------
@@ -152,7 +152,7 @@ class ThemeEditorTest extends EditorTestBase {
 
         click(ThemeEditorStrings.DERIVE_ACCENT.get());
 
-        assertEquals(Color.rgb(0x666666), editor.theme().primaryPressed,
+        assertEquals(Color.rgb(0x666666), editor.theme().primaryPressed(),
                 "20% toward black, the ramp the built-in palettes were built from");
         assertEquals(Color.rgb(0x666666), editor.wellFor(Theme.Token.PRIMARY_PRESSED).color(),
                 "the well has to follow, or the screen disagrees with the palette");
@@ -171,10 +171,10 @@ class ThemeEditorTest extends EditorTestBase {
 
         click(ThemeEditorStrings.DERIVE_ACCENT.get());
 
-        assertEquals(Color.rgb(0x666666), editor.theme().primaryPressed);
+        assertEquals(Color.rgb(0x666666), editor.theme().primaryPressed());
         // 12% toward white, not the 16% a dark palette uses (which would be #949494): the
         // derivation read the builder the editor holds now, not the dark one it opened on.
-        assertEquals(Color.rgb(0x8F8F8F), editor.theme().primaryHover);
+        assertEquals(Color.rgb(0x8F8F8F), editor.theme().primaryHover());
     }
 
     /** Clicks the button whose caption is {@code caption}, wherever the layout put it. */
@@ -216,7 +216,7 @@ class ThemeEditorTest extends EditorTestBase {
 
         assertEquals(nord, editor.baseChoice().selectedIndex(),
                 "the control has to still show the palette it just applied");
-        assertEquals(Theme.builtins().get(nord - 1).primary, editor.theme().primary);
+        assertEquals(Theme.builtins().get(nord - 1).primary(), editor.theme().primary());
     }
 
     @Test
@@ -225,7 +225,7 @@ class ThemeEditorTest extends EditorTestBase {
         int nord = baseEntryFor("Nordic");
         editor.pickBase(nord);
 
-        assertEquals("Ocean", editor.theme().name, "the name is the user's, not the base's");
+        assertEquals("Ocean", editor.theme().name(), "the name is the user's, not the base's");
         assertEquals(nord, editor.baseChoice().selectedIndex());
     }
 
@@ -271,7 +271,7 @@ class ThemeEditorTest extends EditorTestBase {
     /** The entry of the base list a built-in sits at: one past its index, after "Custom". */
     private static int baseEntryFor(String name) {
         for (int i = 0; i < Theme.builtins().size(); i++) {
-            if (Theme.builtins().get(i).name.equals(name)) {
+            if (Theme.builtins().get(i).name().equals(name)) {
                 return i + 1;
             }
         }
@@ -282,10 +282,10 @@ class ThemeEditorTest extends EditorTestBase {
 
     @Test
     void theShapeSliderIsAnEditLikeAnyOther() {
-        assertEquals(1f, editor.theme().cornerScale);
+        assertEquals(1f, editor.theme().cornerScale());
         dragSliderToStart(editor.cornerSlider());
 
-        assertEquals(0f, editor.theme().cornerScale);
+        assertEquals(0f, editor.theme().cornerScale());
         assertEquals(0f, editor.theme().tokens(limn.scene.ControlSize.MEDIUM).radiusMedium());
         assertFalse(changes.isEmpty(), "shape is part of the palette the listener is handed");
         assertTrue(editor.isModified());
@@ -394,7 +394,7 @@ class ThemeEditorTest extends EditorTestBase {
 
         assertTrue(live.isApplyLive(), "an editor applies what it edits unless told not to");
         live.setToken(Theme.Token.BACKGROUND, Color.rgb(0x101010));
-        assertEquals(Color.rgb(0x101010), Theme.current().background);
+        assertEquals(Color.rgb(0x101010), Theme.current().background());
         assertEquals(Color.rgb(0x101010), liveScene.background(),
                 "the clear colour is the one thing a repaint cannot fix");
 
@@ -480,7 +480,7 @@ class ThemeEditorTest extends EditorTestBase {
     void theReportFollowsTheEdit() {
         assertNotNull(editor.audit());
         // Text the same colour as the surface it sits on is the plainest failure there is.
-        editor.setToken(Theme.Token.TEXT, Theme.dark().surface);
+        editor.setToken(Theme.Token.TEXT, Theme.dark().surface());
         boolean flagged = editor.audit().stream()
                 .anyMatch(f -> f.subject() == Theme.Token.TEXT
                         && f.against() == Theme.Token.SURFACE

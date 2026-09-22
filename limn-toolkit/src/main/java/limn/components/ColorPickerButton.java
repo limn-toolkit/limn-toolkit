@@ -67,9 +67,9 @@ public class ColorPickerButton extends Widget {
     private Consumer<Color> onChange;
 
     private final Transition hover =
-            new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
     private final Transition focusFade =
-            new Transition(this).duration(Theme.current().animFocus).easing(Theme.current().animEasing);
+            new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
     private boolean armed;    // mouse press in progress
     private boolean keyArmed; // Space/Enter held
     /**
@@ -387,7 +387,7 @@ public class ColorPickerButton extends Widget {
      */
     @Override
     protected Size onMeasure(Constraints constraints) {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = textRuler().measure(text(), t.body());
         return constraints.constrain(
                 metrics.width() + chipAdvance(t) + 2 * t.padH(),
@@ -397,7 +397,7 @@ public class ColorPickerButton extends Widget {
     /** The baseline BASELINE rows align on, the expression {@link #onPaint} draws with. */
     @Override
     protected float baselineOffset() {
-        SizeTokens t = Theme.current().tokensFor(this);
+        SizeTokens t = Theme.of(this).tokensFor(this);
         TextMetrics metrics = textRuler().measure(text(), t.body());
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
@@ -410,7 +410,7 @@ public class ColorPickerButton extends Widget {
 
     @Override
     protected void onPaint(Canvas canvas) {
-        Theme theme = Theme.current();
+        Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         float w = width();
         float h = height();
@@ -423,13 +423,13 @@ public class ColorPickerButton extends Widget {
         // Secondary-button chrome: the control is a button, and the colour is its value.
         // Filling the whole face with the colour instead would make hover and pressed
         // unstateable: the two states would have to be shown IN the value being chosen.
-        Color fill = !isEnabled() ? theme.disabledFill
-                : isArmed() ? theme.outline
-                : theme.surface.lerp(theme.surfaceRaised, hover.value());
+        Color fill = !isEnabled() ? theme.disabledFill()
+                : isArmed() ? theme.outline()
+                : theme.surface().lerp(theme.surfaceRaised(), hover.value());
         canvas.fillRoundRect(0, 0, w, h, radius, fill);
         float inset = Strokes.HALF_PIXEL_INSET; // lands the 1pt stroke on one device pixel
         canvas.drawRoundRect(inset, inset, w - 2 * inset, h - 2 * inset, radius,
-                Strokes.BORDER, theme.outline);
+                Strokes.BORDER, theme.outline());
 
         float chip = t.iconBox();
         // The chip is the leading item of the pair, so its left edge is one pad in from the
@@ -450,14 +450,14 @@ public class ColorPickerButton extends Widget {
                     ? w - t.padH() - chipAdvance(t) - metrics.width()
                     : t.padH() + chipAdvance(t);
             canvas.drawText(line, captionX, (h - metrics.height()) / 2 + metrics.ascent(),
-                    isEnabled() ? theme.text : theme.disabledText);
+                    isEnabled() ? theme.text() : theme.disabledText());
         }
 
         float focus = focusFade.value();
         if (focus > 0.001f) {
             float gapOut = Strokes.FOCUS_GAP_BUTTON;
             canvas.drawRoundRect(-gapOut, -gapOut, w + 2 * gapOut, h + 2 * gapOut,
-                    radius + gapOut, Strokes.FOCUS_RING, theme.focusRing.withAlpha(focus));
+                    radius + gapOut, Strokes.FOCUS_RING, theme.focusRing().withAlpha(focus));
         }
     }
 
@@ -482,10 +482,10 @@ public class ColorPickerButton extends Widget {
             ColorPicker.paintChecker(canvas, t, x, y, w, h);
         }
         canvas.fillRect(x, y, w, h,
-                isEnabled() ? color : color.lerp(theme.disabledFill, 0.6f));
+                isEnabled() ? color : color.lerp(theme.disabledFill(), 0.6f));
         canvas.restore();
         canvas.drawRoundRect(x + Strokes.HALF_PIXEL_INSET, y + Strokes.HALF_PIXEL_INSET,
-                w - 1, h - 1, radius, Strokes.BORDER, theme.outline);
+                w - 1, h - 1, radius, Strokes.BORDER, theme.outline());
     }
 
     /** @return whether the button currently renders in its pressed state */
