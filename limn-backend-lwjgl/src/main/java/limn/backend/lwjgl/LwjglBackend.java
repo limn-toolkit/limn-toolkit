@@ -571,6 +571,12 @@ public final class LwjglBackend implements Backend {
     // this net exists for raw frame callbacks and callback-resident code).
     private static final int CRASH_STREAK_LIMIT = 100;
 
+    /** How often the loop looks again at a covered window with a frame waiting. */
+    private static final long COVERED_RECHECK_NANOS = 250_000_000L;
+
+    /** Holds the loop to the refresh rate when the vsynced swap does not block (decision 113). */
+    private final FramePacer pacer = FramePacer.real(0);
+
     @Override
     public void runEventLoop() {
         uiRuntime.checkUiThread();
@@ -579,6 +585,7 @@ public final class LwjglBackend implements Backend {
             throw new IllegalStateException("event loop is already running");
         }
         running = true;
+        pacer.setPeriodNanos(primaryRefreshPeriodNanos());
         int crashStreak = 0;
         try {
             while (running) {
@@ -589,11 +596,24 @@ public final class LwjglBackend implements Backend {
                     break;
                 }
 
+                // A covered window's frame waits (decision 113): it is not drawn, and it does not
+                // keep the loop polling; the loop wakes at least every COVERED_RECHECK to see
+                // whether the window has been uncovered, and draws the frame then.
                 boolean framePending = false;
+                boolean coveredPending = false;
                 for (LwjglWindow window : windows) {
-                    framePending |= window.frameRequested();
+                    if (window.frameRequested()) {
+                        if (window.isCovered()) {
+                            coveredPending = true;
+                        } else {
+                            framePending = true;
+                        }
+                    }
                 }
                 long sleepBudgetNanos = uiRuntime.nanosUntilNextDeadline();
+                if (coveredPending && (sleepBudgetNanos < 0 || sleepBudgetNanos > COVERED_RECHECK_NANOS)) {
+                    sleepBudgetNanos = COVERED_RECHECK_NANOS;
+                }
                 try {
                     parkedInPump = true;
                     try {
@@ -656,7 +676,7 @@ public final class LwjglBackend implements Backend {
                 // down to refresh/N fps each (six bouncing gadgets = 10 fps).
                 boolean vsyncTaken = false;
                 for (LwjglWindow window : List.copyOf(windows)) {
-                    if (window.closeRequested()) {
+                    if (window.closeRequested() || window.isCovered()) {
                         continue;
                     }
                     try {
@@ -681,6 +701,10 @@ public final class LwjglBackend implements Backend {
                     }
                 }
 
+                if (vsyncTaken) {
+                    pacer.afterVsyncedPresent();
+                }
+
                 if (!crashed) {
                     crashStreak = 0;
                 } else if (++crashStreak >= CRASH_STREAK_LIMIT) {
@@ -692,6 +716,16 @@ public final class LwjglBackend implements Backend {
         } finally {
             running = false;
         }
+    }
+
+    /** @return the primary monitor's refresh period, or 0 when GLFW cannot say */
+    private static long primaryRefreshPeriodNanos() {
+        long monitor = org.lwjgl.glfw.GLFW.glfwGetPrimaryMonitor();
+        if (monitor == NULL) {
+            return 0;
+        }
+        org.lwjgl.glfw.GLFWVidMode mode = org.lwjgl.glfw.GLFW.glfwGetVideoMode(monitor);
+        return mode == null || mode.refreshRate() <= 0 ? 0 : 1_000_000_000L / mode.refreshRate();
     }
 
     /**

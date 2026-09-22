@@ -160,6 +160,8 @@ final class LwjglWindow implements NativeWindow {
     private float contentScaleOverride;
     private float pixelsPerScreenCoord = 1f;
     private boolean frameRequested = true;
+    /** Whether a frame has been presented since the window was made; see {@link #isCovered}. */
+    private boolean presentedOnce;
     private boolean rendering;
     private boolean destroyed;
     private final boolean resizable;
@@ -656,6 +658,28 @@ final class LwjglWindow implements NativeWindow {
         return frameRequested;
     }
 
+    /**
+     * Whether this window is on screen and entirely covered, so a frame drawn now would be seen by
+     * nobody (decision 113, PF-1). macOS only, where it is read off {@code occlusionState}; every
+     * other platform answers false and paces through {@link FramePacer} alone.
+     *
+     * <p>Only for a window that GLFW calls visible and that has presented at least once: a hidden
+     * window renders on purpose (the gallery captures from hidden windows), and a window just
+     * shown may not have its visible bit yet, and must draw its first frame regardless.
+     */
+    boolean isCovered() {
+        if (!MACOS || destroyed || !presentedOnce
+                || org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(handle, org.lwjgl.glfw.GLFW.GLFW_VISIBLE) == 0) {
+            return false;
+        }
+        long nsWindow = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle);
+        if (nsWindow == NULL) {
+            return false;
+        }
+        // NSWindowOcclusionStateVisible = 1 << 1; an NSUInteger, which rides the pointer slot.
+        return (ObjC.msg(nsWindow, "occlusionState") & 2L) == 0;
+    }
+
     boolean closeRequested() {
         return destroyed || glfwWindowShouldClose(handle);
     }
@@ -731,6 +755,7 @@ final class LwjglWindow implements NativeWindow {
             glViewport(0, 0, framebufferWidth, framebufferHeight);
             frameRequested = false; // callback may re-request for the next frame
             float scale = effectiveScale();
+            presentedOnce = true;
             renderer.beginFrame(framebufferWidth, framebufferHeight, scale, rePresent);
             try {
                 frameCallback.onFrame(renderer,
