@@ -64,9 +64,22 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             if (objc == null) return NONE;
             long contentView = ObjC.msg(nsWindow, "contentView");
             if (contentView == 0) return NONE;
-            return new AxBridge(objc, contentView);
+            AxBridge bridge = new AxBridge(objc, contentView);
+            if (Boolean.getBoolean(TRACE_PROPERTY)) {
+                bridge.trace(line -> System.err.println(java.time.Instant.now() + " AX " + line));
+            }
+            return bridge;
         });
     }
+
+    /**
+     * {@code -Dlimn.a11y.ax.trace=true} sends this bridge's diagnostic lines ({@link #trace}) to
+     * standard error, each stamped with the wall clock, and adds one for every verb a client's write
+     * or action performs — so a reader run can say which write a screen reader made and when, which
+     * a notification observer outside the process cannot (it sees the change, not its cause). Off by
+     * default; a run that sets it pays one string per line.
+     */
+    public static final String TRACE_PROPERTY = "limn.a11y.ax.trace";
 
     /**
      * Runs the whole of an open, and says why when it fails.
@@ -339,7 +352,71 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         // frames can be hundreds of nodes wide.
         Consumer<String> to = trace;
         if (to != null) to.accept("emitted " + event.type() + "#" + event.nodeId());
+        switch (event.type()) {
+            // What a key does to where the user is and to what the user is on: moving the cursor
+            // or the focus, opening or closing a branch (a state), loading one (the structure).
+            // VoiceOver's cursor sync answers every one of them, not only the cursor moves — five
+            // of its eight stale writes on the tree script came after an open or a close.
+            case FOCUS_CHANGED, ACTIVE_DESCENDANT_CHANGED, STATE_CHANGED, STRUCTURE_CHANGED ->
+                    cursorMovedNanos = clock.getAsLong();
+            default -> { }
+        }
         events.add(event);
+    }
+
+    /**
+     * How long after the application's own change — its cursor or focus moving, a state such as a
+     * branch's opening, a structure change such as a load landing — a client's {@code SELECT} on
+     * another row of the same container is taken for VoiceOver's cursor sync and refused
+     * (decision 112). Measured on the macOS 26.6.2 guest on 2026-09-22 with the write trace on:
+     * VoiceOver wrote {@code AXSelected} YES on a row that was not the cursor's 38 ms after the table
+     * script's step 8 and, on the tree-loading script, 41–82 ms after seven steps and 689 ms after
+     * one ({@code readings/d110-macos/p11-table-trace-1}, {@code p11-tree-trace-1}); with the window
+     * opened by cursor moves alone, the five writes that followed an open or a close still landed
+     * ({@code readings/d112-macos/p12-tree-1}). A second covers
+     * every one of them with room for a slower machine, and a reader's own select — VO-Space on a
+     * row it walked to — comes when the user acts, not within a second of the application moving.
+     */
+    static final long STALE_SELECT_NANOS = 1_000_000_000L;
+
+    /** When the last focus, cursor, state or structure change was emitted; UI thread. */
+    private long cursorMovedNanos = Long.MIN_VALUE / 2;
+
+    private java.util.function.LongSupplier clock = System::nanoTime;
+
+    /** For tests: the clock {@link #STALE_SELECT_NANOS} is measured against. */
+    void clock(java.util.function.LongSupplier clock) {
+        this.clock = clock;
+    }
+
+    /**
+     * Whether a client's {@code SELECT} on {@code nodeId} is VoiceOver writing its own stale cursor
+     * back as a selection (decision 112): the node is a member of the same selection container as
+     * the row the user is in, it is not that row, and the application changed its tree — the cursor,
+     * the focus, a state, the structure — less than {@link #STALE_SELECT_NANOS} ago.
+     *
+     * <p>Why here and not in the model. The write is VoiceOver's cursor sync, which mirrors a
+     * cursor that did not follow ours into the selection through {@code setAccessibilitySelected:}
+     * on a row — "Himalayas" on a table whose cursor was on Caucasus, "Documents 2" eight times on a
+     * tree whose cursor had moved on — and neither NVDA nor Orca writes anything of the kind, so a
+     * rule in the model would refuse a fast client on two platforms to cure a reader on the third.
+     * Since decision 79 such a write moved no cursor, and it still selected a row nobody chose: the
+     * highlight jumped, and the next SPACE left two rows selected.
+     */
+    private boolean refusesAStaleSelect(long nodeId) {
+        if (clock.getAsLong() - cursorMovedNanos >= STALE_SELECT_NANOS) return false;
+        AccessibleTree tree = tree();
+        int at = tree.indexOf(nodeId);
+        int focus = tree.indexOf(tree.effectiveFocus());
+        if (at < 0 || focus < 0) return false;
+        AccessibleNode row = tree.node(at);
+        if (row.selectionItem() == null) return false;
+        // The member the user is in: the effective focus itself, or the nearest ancestor of it that
+        // is a member — a widget cell's row.
+        int member = focus;
+        while (member >= 0 && tree.node(member).selectionItem() == null) member = tree.node(member).parent();
+        if (member < 0 || member == at) return false;
+        return tree.node(member).selectionContainer() == row.selectionContainer();
     }
 
     @Override
@@ -400,9 +477,26 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     @Override
     public boolean perform(long nodeId, Accessible.Action action, Accessible.Argument argument) {
         Host current = host();
+        if (action == Accessible.Action.SELECT && refusesAStaleSelect(nodeId)) {
+            Consumer<String> to = trace;
+            if (to != null) {
+                to.accept("refused SELECT on " + nodeId + ": another row of the container the user is in, "
+                        + "within " + STALE_SELECT_NANOS / 1_000_000 + " ms of the application's own change");
+            }
+            return false;
+        }
         // Between a detach and an attach there is nobody to ask, and refusing is the only honest
         // answer: the scene that owned the widget is gone.
-        return current != null && current.perform(nodeId, action, argument);
+        boolean accepted = current != null && current.perform(nodeId, action, argument);
+        Consumer<String> to = trace;
+        if (to != null) {
+            AccessibleNode node = tree().find(nodeId);
+            to.accept("performed " + action + (argument == Accessible.Argument.NONE ? "" : " " + argument)
+                    + " on " + nodeId + (node == null ? "" : "=" + node.role()
+                            + (node.name() == null ? "" : " '" + node.name() + "'"))
+                    + " -> " + (accepted ? "accepted" : "refused"));
+        }
+        return accepted;
     }
 
     /**

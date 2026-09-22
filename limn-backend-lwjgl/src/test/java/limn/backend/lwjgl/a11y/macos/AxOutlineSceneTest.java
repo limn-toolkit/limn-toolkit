@@ -319,6 +319,7 @@ class AxOutlineSceneTest {
     @Test
     void aReaderOpensARowByWritingAXDisclosingAndSelectsWithoutMovingTheCursor() {
         Tree<Node> tree = bindTree();
+        bridge.clock(nanos::get);
         scene.requestFocus(tree);
         frame();
         AxGrid grid = new AxGrid(bridge);
@@ -341,6 +342,9 @@ class AxOutlineSceneTest {
         assertTrue(perform(rows[0], Accessible.Action.FOCUS), "a reader puts the cursor on Documents");
         assertEquals(documents, tree.cursorNode(), "the fixture: FOCUS is the verb that moves it");
 
+        // A reader's own select, a second after the cursor moved: within that second a select on
+        // another row is VoiceOver's stale cursor and refused (decision 112, the test below).
+        nanos.addAndGet(AxBridge.STALE_SELECT_NANOS);
         assertTrue(write(AxSetters.forBool(grid, bridge.nodeFor(notesRow), AxSetters.SELECTED, true), notesRow));
         assertEquals(List.of(notes), tree.selectedNodes(), "the write selects the row, as natively");
         assertEquals(documents, tree.cursorNode(),
@@ -471,6 +475,7 @@ class AxOutlineSceneTest {
         // settability (readings/macos-outline-probe.txt), and a native table row's attribute names
         // carry AXSelected and no AXFocused (readings/macos-table-probe.txt).
         Tree<Node> tree = bindTree();
+        bridge.clock(nanos::get);
         scene.requestFocus(tree);
         frame();
         AxGrid grid = new AxGrid(bridge);
@@ -495,11 +500,68 @@ class AxOutlineSceneTest {
         // with a jar carrying it showed VoiceOver never used that route — every revert began with
         // AXSelectedRowsChanged, its cursor sync mirroring a stale row into our selection through
         // this setter — so what had to stop dragging the cursor was the SELECT itself.
+        // And since decision 112 of 2026-09-22 the same write within a second of the cursor move is
+        // refused: it is what VoiceOver's cursor sync sends, a stale row as a selection.
+        assertTrue(!write(AxSetters.forBool(grid, bridge.nodeFor(documentsRow), AxSetters.SELECTED, true),
+                documentsRow), "right after the key, a select on another row is VoiceOver's stale cursor");
+        nanos.addAndGet(AxBridge.STALE_SELECT_NANOS);
         assertTrue(write(AxSetters.forBool(grid, bridge.nodeFor(documentsRow), AxSetters.SELECTED, true),
-                documentsRow), "AXSelected on the row is still settable");
+                documentsRow), "AXSelected on the row is still settable, and a second later is a reader's own");
         assertEquals(List.of(documents), tree.selectedNodes(), "and selects that row");
         assertEquals(notes, tree.cursorNode(),
                 "while the cursor stays on Notes: on AppKit a selection write moves no focus");
+    }
+
+    /**
+     * Decision 112 (2026-09-22): VoiceOver's cursor sync writes {@code AXSelected} YES on a row that
+     * is not the application's cursor some 40–90 ms after every cursor move — "Documents 2" eight
+     * times on the tree-loading script — and since decision 79 that write no longer drags the cursor
+     * but still selects a row nobody chose. A {@code SELECT} on another row of the container the
+     * user is in, within a second of the application's own cursor move, is refused; the cursor's
+     * own row is not, and neither is the same write once the second has passed.
+     */
+    @Test
+    void aSelectOnAnotherRowRightAfterTheCursorMovedIsVoiceOversStaleCursorAndIsRefused() {
+        Tree<Node> tree = bindTree();
+        bridge.clock(nanos::get);
+        scene.requestFocus(tree);
+        frame();
+        AxGrid grid = new AxGrid(bridge);
+        long[] rows = grid.rows(only(Accessible.Role.TREE));
+        assertTrue(perform(rows[1], Accessible.Action.FOCUS), "the cursor moves, as a key moves it");
+        assertEquals(reports, tree.cursorNode(), "the fixture: the cursor is on the second row");
+        List<Node> before = tree.selectedNodes();
+
+        long documentsRow = bridge.nodeFor(rows[0]).id();
+        assertTrue(!bridge.perform(documentsRow, Accessible.Action.SELECT),
+                "another row, 0 ms after the application's own cursor move: VoiceOver's stale cursor");
+        ui.runtime().drain();
+        frame();
+        assertEquals(before, tree.selectedNodes(), "and nothing was selected");
+        assertTrue(trace.stream().anyMatch(line -> line.startsWith("refused SELECT on " + documentsRow)),
+                "the trace says why: " + trace);
+
+        assertTrue(bridge.perform(bridge.nodeFor(rows[1]).id(), Accessible.Action.SELECT),
+                "the cursor's own row is selected at once, as a reader's select there always is");
+        ui.runtime().drain();
+        frame();
+        assertEquals(List.of(reports), tree.selectedNodes());
+
+        // An open or a close moves no cursor and VoiceOver answers it all the same: five of its eight
+        // stale writes on the tree script came after one.
+        nanos.addAndGet(AxBridge.STALE_SELECT_NANOS);
+        assertTrue(perform(grid.rows(only(Accessible.Role.TREE))[1], Accessible.Action.COLLAPSE),
+                "Reports closes under the cursor");
+        assertTrue(!bridge.perform(bridge.nodeFor(grid.rows(only(Accessible.Role.TREE))[0]).id(),
+                Accessible.Action.SELECT), "and a select on Documents right after it is refused too");
+
+        nanos.addAndGet(AxBridge.STALE_SELECT_NANOS);
+        assertTrue(bridge.perform(bridge.nodeFor(grid.rows(only(Accessible.Role.TREE))[0]).id(),
+                Accessible.Action.SELECT), "a second later the same write is a reader's own, and taken");
+        ui.runtime().drain();
+        frame();
+        assertEquals(List.of(documents), tree.selectedNodes());
+        assertEquals(reports, tree.cursorNode(), "and, as since decision 79, it moves no cursor");
     }
 
     @Test
