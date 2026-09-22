@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.a11y.MenuAccessibility;
 import limn.backend.Cursor;
 import limn.concurrent.Subscription;
 import limn.graphics.Canvas;
@@ -775,10 +776,9 @@ public final class MenuBar extends Widget {
      */
     @Override
     protected void onAccessibility(Accessibility a) {
-        a.role(Accessible.Role.MENU_BAR);
-        a.state(Accessible.State.HORIZONTAL);
+        // The MENU shape's container half, written once (ADR 045 §3; decision 98).
+        MenuAccessibility.describeBar(a);
         a.name(ComponentStrings.MENU_BAR, Accessible.NameFrom.CONTENT);
-        a.selection(false, false);
         a.keyBinding(F10);
         // One resolution of each axis for the whole hook, beside the paint and the hit test, for
         // the same reason they give: two resolutions that disagree inside one pass describe a
@@ -801,48 +801,21 @@ public final class MenuBar extends Widget {
             // reference, a language and a translation epoch, and get() would allocate per title
             // per frame.
             a.name(entry.title(), Accessible.NameFrom.CONTENT);
-            a.selectionItem(i == current, i + 1, entries.size());
-            if (openIndex < 0) {
-                // FOCUS moves the bar's cursor onto this title and opens nothing (decision 11):
-                // the cursor is not the choice here, because choosing a title opens its menu, so a
-                // reader can walk the strip as Left and Right do. Every title, empty menus
-                // included, because the arrows land on those too. Not while a menu is down: the
-                // open title is then the cursor, and moving the cursor is opening another.
-                a.action(Accessible.Action.FOCUS);
-            }
-            if (i == current) {
-                // Selection and cursor are one thing here, so the current title is both. The
-                // active bit is what the tree resolves into the bar's cursor: the bar is the
-                // focused node, so the title it marks is its active descendant (ADR 039 §1.10,
-                // amended 2026-09-14), and `current` is already gated on the keyboard.
-                a.state(Accessible.State.ACTIVE);
-            }
-            if (!entry.menu().isEmpty()) {
-                a.state(Accessible.State.HAS_POPUP);
-                // From the popup and not from openIndex: the index is set before the popup is
-                // asked to show, and the ask is routinely refused. The verbs below read the same
-                // boolean and onSyntheticAction asks the same question (decision 2, "by state";
-                // until 2026-09-15 the verbs read openIndex, so a refused title published
-                // collapsed with COLLAPSE, the one verb a collapsed control refuses).
-                boolean down = i == openIndex && showing;
-                a.expand(down);
-                // The verbs the title accepts, by its state, and no other (ADR 039 §1.5,
-                // amended 2026-09-14; decision 2): a closed title opens on SHOW_MENU and on its
-                // synonym EXPAND, and the open one closes on COLLAPSE alone, which is exactly
-                // what onSyntheticAction answers below. The published list is the only refusal
-                // a platform can see -- Host#perform answers from the snapshot and a later
-                // refusal on the UI thread reaches nobody -- so a synonym accepted in silence
-                // was a control one platform invoked through its expand pattern and another
-                // could not see; PRESS was accepted the same way and is refused now. The two-
-                // argument form; the variable-argument one allocates an array per call.
-                if (down) {
-                    a.action(Accessible.Action.COLLAPSE);
-                } else {
-                    a.action(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND);
-                }
-                if (entry.binding() != null) {
-                    a.keyBinding(entry.binding());
-                }
+            // A title by the rules of the MENU shape (MenuAccessibility.describeRow, ADR 045 §3;
+            // decision 98). Selection and cursor are one thing here, so the current title is
+            // both, and `current` is already gated on the keyboard: the bar is the focused node,
+            // so the title it marks is its active descendant (ADR 039 §1.10). FOCUS is offered
+            // on every title, empty menus included, while no menu is down (decision 11): the
+            // open title is then the cursor, and moving the cursor is opening another. "Down" is
+            // read from the popup and not from openIndex, because the index is set before the
+            // popup is asked to show and the ask is routinely refused (decision 2, "by state";
+            // until 2026-09-15 a refused title published collapsed with COLLAPSE).
+            boolean hasMenu = !entry.menu().isEmpty();
+            boolean down = hasMenu && i == openIndex && showing;
+            MenuAccessibility.describeRow(a, MenuAccessibility.Kind.TITLE, true, i == current,
+                    i + 1, entries.size(), hasMenu, down, i == current, openIndex < 0, false);
+            if (hasMenu && entry.binding() != null) {
+                a.keyBinding(entry.binding());
             }
             a.endChild();
             cursor += w;
@@ -900,13 +873,48 @@ public final class MenuBar extends Widget {
         if (i < 0 || i >= entries.size()) {
             return false;
         }
-        if (action == Accessible.Action.FOCUS) {
-            // The keyboard first, so the cursor is published (the current title is gated on it),
-            // then the cursor, which is the field Left and Right move; nothing opens.
-            if (openIndex >= 0 || scene() == null) {
-                return false;
-            }
-            scene().requestFocus(this);
+        // By the rules of the MENU shape (MenuAccessibility.performOnRow, ADR 045 §3) over the
+        // bar's own mechanisms in MenuHost.
+        return MenuAccessibility.performOnRow(menuHost, i, action);
+    }
+
+    /**
+     * The bar's mechanisms as the menu shape drives them, over a title's index. {@code FOCUS}
+     * takes the keyboard first, so the cursor is published (the current title is gated on it),
+     * then moves the cursor, which is the field Left and Right move, and opens nothing; while a
+     * menu is down it is refused. An open answers whether a cascade is on screen, not whether
+     * the bar now believes one is: the show is refused outright over a window that cannot host
+     * a popup. A title chooses nothing, so {@code choose} is never asked.
+     */
+    private final class MenuHost implements MenuAccessibility.Host<Integer> {
+        @Override
+        public MenuAccessibility.Kind kindOf(Integer i) {
+            return MenuAccessibility.Kind.TITLE;
+        }
+
+        @Override
+        public boolean isSelectable(Integer i) {
+            return true;
+        }
+
+        @Override
+        public boolean hasSubmenu(Integer i) {
+            return !entries.get(i).menu().isEmpty();
+        }
+
+        @Override
+        public boolean isOpen(Integer i) {
+            return i == openIndex && isShowingDropdown();
+        }
+
+        @Override
+        public boolean canFocus(Integer i) {
+            return openIndex < 0 && scene() != null;
+        }
+
+        @Override
+        public boolean moveCursor(Integer i) {
+            scene().requestFocus(MenuBar.this);
             if (!isFocused()) {
                 return false;
             }
@@ -914,28 +922,23 @@ public final class MenuBar extends Widget {
             invalidate();
             return true;
         }
-        if (entries.get(i).menu().isEmpty()) {
-            return false;
+
+        @Override
+        public boolean open(Integer i) {
+            openMenu(i);
+            return isShowingDropdown();
         }
-        boolean down = i == openIndex && isShowingDropdown();
-        switch (action) {
-            case SHOW_MENU, EXPAND -> {
-                if (down) {
-                    return false;
-                }
-                openMenu(i);
-                return isShowingDropdown();
-            }
-            case COLLAPSE -> {
-                if (!down) {
-                    return false;
-                }
-                closeMenu();
-                return true;
-            }
-            default -> {
-                return false;
-            }
+
+        @Override
+        public void close(Integer i) {
+            closeMenu();
+        }
+
+        @Override
+        public void choose(Integer i) {
+            throw new UnsupportedOperationException("a title chooses nothing");
         }
     }
+
+    private final MenuHost menuHost = new MenuHost();
 }

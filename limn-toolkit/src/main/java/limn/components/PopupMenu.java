@@ -3,6 +3,7 @@ package limn.components;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.ToggleFacet;
+import limn.components.a11y.MenuAccessibility;
 import limn.backend.CrashPhase;
 import limn.backend.NativeWindow;
 import limn.backend.ScreenRect;
@@ -1627,15 +1628,14 @@ public final class PopupMenu {
             Column col = cols.get(c);
             a.child(COLUMN_KEY);
             a.bounds(col.x - offsetX, col.y - offsetY, col.w, col.visibleH);
-            a.role(Accessible.Role.MENU);
-            a.state(Accessible.State.VERTICAL); // the mirror of the bar's HORIZONTAL
+            // The MENU shape's container half, written once (ADR 045 §3; decision 98).
+            MenuAccessibility.describeMenu(a);
             if (c > 0) {
                 // A submenu is titled by the row that opened it, which is what all three
                 // platforms show. The root column is left unnamed: nothing names it, and the
                 // layer above already carries a name.
                 a.name(openerOf(c), Accessible.NameFrom.CONTENT);
             }
-            a.selection(false, false);
             // Published on every column on every frame, and from the same expressions the clamp
             // uses, so that reaching the clamp moves two numbers instead of making a facet appear
             // and disappear. The horizontal pair is the axis's nothing-to-scroll answer even
@@ -1696,65 +1696,29 @@ public final class PopupMenu {
                     a.disabled();
                 }
                 boolean current = i == col.highlight && item.isSelectable();
-                a.selectionItem(current, ++position, size);
-                if (item.kind() == MenuItem.Kind.CHECK) {
-                    a.toggle(item.isChecked() ? ToggleFacet.State.ON : ToggleFacet.State.OFF);
-                }
-                if (current && deepest) {
-                    // ACTIVE in the deepest column and nowhere else. The surface holds the focus
-                    // and its cursor is the FIRST node published active in document order below
-                    // it (ADR 039 §1.10, amended 2026-09-14), while the cursor keys act on the
-                    // deepest column: marking every column's highlight would resolve the cursor
-                    // to a root-column row and make the whole cascade silent. A parent column's
-                    // highlight is its SELECTED row and nothing more; the one cursor is the
-                    // surface's, and it is where the keys act.
-                    a.state(Accessible.State.ACTIVE);
-                }
-                // FOCUS on every row the cursor can land on (decision 11, 2026-09-15): the
-                // highlight is the cursor and choosing is a separate gesture, so a reader can move
-                // the one without the other, as the arrows and the pointer's hover do. A disabled
-                // row and a rule are skipped by the arrows and get none; a submenu with nothing in
-                // it is landed on and keeps it, though it has nothing to choose.
-                if (item.isSelectable()) {
-                    a.action(Accessible.Action.FOCUS);
-                }
-                if (item.hasSubmenu()) {
-                    a.state(Accessible.State.HAS_POPUP);
-                    boolean expanded = c + 1 < cols.size() && cols.get(c + 1).parentItem == i;
-                    a.expand(expanded);
-                    // The menu bar's rule (ADR 039 §1.5, amended 2026-09-14; decision 2): the
-                    // verbs the row accepts, by its state, and no other. A closed submenu row
-                    // opens on SHOW_MENU and on its synonym EXPAND, an open one closes on
-                    // COLLAPSE alone, and chooseRow answers exactly that. The published list is
-                    // the only refusal a platform can see, so the three synonyms accepted in
-                    // silence until that day were a control one platform invoked through its
-                    // expand pattern and another could not see; PRESS is refused now.
-                    if (expanded) {
-                        a.action(Accessible.Action.COLLAPSE);
-                    } else {
-                        a.action(Accessible.Action.SHOW_MENU, Accessible.Action.EXPAND);
-                    }
-                    if (expanded) {
-                        describeColumn(a, c + 1);
-                    }
-                } else if (item.isSelectable() && item.kind() != MenuItem.Kind.SUBMENU) {
-                    // A check row publishes TOGGLE beside PRESS, because it accepts both below
-                    // (the same rule): choosing it is one gesture, and it is the gesture the
-                    // pointer makes, but a platform that routes its toggle pattern by the facet
-                    // needs the verb it sends to be one the row says it takes. A submenu row
-                    // with nothing in it gets no verb at all -- hasSubmenu() is false there
-                    // while isSelectable() stays true and activate() is a no-op.
-                    if (item.kind() == MenuItem.Kind.CHECK) {
-                        a.action(Accessible.Action.PRESS, Accessible.Action.TOGGLE);
-                    } else {
-                        a.action(Accessible.Action.PRESS);
-                    }
-                    if (col.accel[i] != null) {
-                        // The string the column resolved when it was built, which is also what
-                        // its width was measured against; accelerator().display() would build one
-                        // per row per frame and be a second authority on the spelling.
-                        a.keyBinding(col.accel[i]);
-                    }
+                boolean expanded = item.hasSubmenu()
+                        && c + 1 < cols.size() && cols.get(c + 1).parentItem == i;
+                // A row by the rules of the MENU shape (MenuAccessibility.describeRow, ADR 045
+                // §3; decision 98). ACTIVE in the deepest column and nowhere else: the surface
+                // holds the focus and its cursor is the FIRST node published active in document
+                // order below it (ADR 039 §1.10, amended 2026-09-14), while the cursor keys act
+                // on the deepest column; a parent column's highlight is its SELECTED row and
+                // nothing more. FOCUS on every row the cursor can land on (decision 11): a
+                // disabled row and a rule are skipped by the arrows and get none; a submenu with
+                // nothing in it is landed on and keeps it, though it has nothing to choose and
+                // so gets no other verb -- hasSubmenu() is false there while isSelectable()
+                // stays true and activate() is a no-op.
+                MenuAccessibility.describeRow(a, kindOf(item), item.isSelectable(), current,
+                        ++position, size, item.hasSubmenu(), expanded, current && deepest,
+                        item.isSelectable(), item.isChecked());
+                if (expanded) {
+                    describeColumn(a, c + 1);
+                } else if (!item.hasSubmenu() && item.isSelectable()
+                        && item.kind() != MenuItem.Kind.SUBMENU && col.accel[i] != null) {
+                    // The string the column resolved when it was built, which is also what its
+                    // width was measured against; accelerator().display() would build one per
+                    // row per frame and be a second authority on the spelling.
+                    a.keyBinding(col.accel[i]);
                 }
                 a.endChild();
             }
@@ -1769,6 +1733,16 @@ public final class PopupMenu {
          * @return the label of the row that opened it, or {@code null} when the parent column's
          *         {@link Menu} has been mutated out from under the snapshot and that row is gone
          */
+        private static MenuAccessibility.Kind kindOf(MenuItem item) {
+            // What the menu shape calls a row: a check, a submenu (with rows or without), or a
+            // command; a separator is never described as a row.
+            return switch (item.kind()) {
+                case CHECK -> MenuAccessibility.Kind.CHECK;
+                case SUBMENU -> MenuAccessibility.Kind.SUBMENU;
+                default -> MenuAccessibility.Kind.COMMAND;
+            };
+        }
+
         private I18nString openerOf(int c) {
             List<MenuItem> items = cols.get(c - 1).menu.items();
             int i = cols.get(c).parentItem;
@@ -1911,53 +1885,78 @@ public final class PopupMenu {
          * @return whether it was done
          */
         private boolean chooseRow(int c, int i, MenuItem item, Accessible.Action action) {
-            if (action == Accessible.Action.FOCUS) {
-                if (!item.isSelectable()) {
-                    return false;
-                }
-                // The cursor keys' own shape: the row's column becomes the deepest (a submenu
-                // open below it closes, as the leading arrow closes one), the highlight moves and
-                // is revealed, nothing is chosen and nothing opens.
-                truncateTo(c);
-                Column col = cols.get(c);
-                col.reveal(col.highlight = i);
+            // By the rules of the MENU shape (MenuAccessibility.performOnRow, ADR 045 §3) over
+            // the cascade's own mechanisms in MenuHost.
+            return MenuAccessibility.performOnRow(menuHost, new RowRef(c, i, item), action);
+        }
+
+        /** A row addressed by a verb: its column, its index there and the item it shows. */
+        private record RowRef(int c, int i, MenuItem item) {
+        }
+
+        /**
+         * The cascade's mechanisms as the menu shape drives them. {@code FOCUS} has the cursor
+         * keys' own shape: the row's column becomes the deepest (a submenu open below it closes,
+         * as the leading arrow closes one), the highlight moves and is revealed, nothing is
+         * chosen and nothing opens. An open and a choice go through {@link #chooseItem}, which
+         * is literally the branch {@link #clickAt} calls, so an assistive technology's press runs
+         * the application's {@code Runnable} or flips the check exactly as a click does, and its
+         * open builds the same column with the same identifiers.
+         */
+        private final class MenuHost implements MenuAccessibility.Host<RowRef> {
+            @Override
+            public MenuAccessibility.Kind kindOf(RowRef row) {
+                return MenuSurface.kindOf(row.item());
+            }
+
+            @Override
+            public boolean isSelectable(RowRef row) {
+                return row.item().isSelectable();
+            }
+
+            @Override
+            public boolean hasSubmenu(RowRef row) {
+                return row.item().hasSubmenu();
+            }
+
+            @Override
+            public boolean isOpen(RowRef row) {
+                return row.c() + 1 < cols.size() && cols.get(row.c() + 1).parentItem == row.i();
+            }
+
+            @Override
+            public boolean canFocus(RowRef row) {
+                return true;
+            }
+
+            @Override
+            public boolean moveCursor(RowRef row) {
+                truncateTo(row.c());
+                Column col = cols.get(row.c());
+                col.reveal(col.highlight = row.i());
                 changed();
                 return true;
             }
-            boolean open = c + 1 < cols.size() && cols.get(c + 1).parentItem == i;
-            if (item.hasSubmenu()) {
-                switch (action) {
-                    case SHOW_MENU, EXPAND -> {
-                        if (open || !item.isSelectable()) {
-                            return false; // a disabled row opens nothing, as chooseItem says
-                        }
-                        chooseItem(c, i); // truncates, moves the highlight, opens: the click branch
-                        return true;
-                    }
-                    case COLLAPSE -> {
-                        if (!open) {
-                            return false;
-                        }
-                        truncateTo(c);
-                        changed();
-                        return true;
-                    }
-                    default -> {
-                        return false;
-                    }
-                }
+
+            @Override
+            public boolean open(RowRef row) {
+                chooseItem(row.c(), row.i()); // truncates, moves the highlight, opens: the click branch
+                return true;
             }
-            boolean toggle = action == Accessible.Action.TOGGLE
-                    && item.kind() == MenuItem.Kind.CHECK;
-            if (action != Accessible.Action.PRESS && !toggle) {
-                return false;
+
+            @Override
+            public void close(RowRef row) {
+                truncateTo(row.c());
+                changed();
             }
-            if (!item.isSelectable() || item.kind() == MenuItem.Kind.SUBMENU) {
-                return false;
+
+            @Override
+            public void choose(RowRef row) {
+                chooseItem(row.c(), row.i()); // activate() then close(), which is what a click does
             }
-            chooseItem(c, i); // activate() then close(), which is what a click on the row does
-            return true;
         }
+
+        private final MenuHost menuHost = new MenuHost();
 
         /**
          * @param key    a band key, which encodes its column's index and its side
