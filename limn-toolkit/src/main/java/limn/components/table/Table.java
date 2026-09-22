@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.CellFacet;
 import limn.backend.Cursor;
+import limn.components.a11y.GridAccessibility;
 import limn.components.a11y.RowsAccessibility;
 import limn.components.Accelerator;
 import limn.components.ScrollBar;
@@ -3591,11 +3592,11 @@ public class Table<T> extends Widget implements Scrollable {
         float viewH = rowsViewportHeight();
         float contentH = estimatedContentHeight(t);
 
-        a.role(Accessible.Role.TABLE);
-        a.table(describedRowCount, shownCount);
-        // The container half of the ROWS shape, written once (ADR 045 §3): the selection, and
+        // The GRID shape's container half, written once (ADR 045 §3; decision 99), then the
+        // ROWS shape's, written once as well: the selection, and
         // whenever there is a cursor, in every mode, the table's own PRESS, which opens the
         // cursor row as Enter and a double click do (decision 32 of 2026-09-14).
+        GridAccessibility.describeGrid(a, describedRowCount, shownCount);
         RowsAccessibility.describeContainer(a, rowsSelection(), false, hasCursorRow());
         a.scrollFrom(offsetX, Math.max(0, contentWidth - w), w, contentWidth,
                 estimatedOffset(t), Math.max(0, contentH - viewH), viewH, contentH);
@@ -3611,28 +3612,25 @@ public class Table<T> extends Widget implements Scrollable {
                 a.child(HEADER_CELL_KEY | c);
                 // In this widget's coordinates, as every synthetic box is, nested or not.
                 a.bounds(left, 0, colW[s], headerH);
-                a.role(Accessible.Role.COLUMN_HEADER);
-                a.name(column.title(), Accessible.NameFrom.CONTENT);
-                // The direction this column's rows run, on the cell that sorts them (decision 36,
-                // carrier settled 2026-09-15): the facet for the two platforms whose carrier is an
-                // enumeration (AT-SPI's `sort` attribute, AX's AXSortDirection), the localized
-                // phrase in the description below for the one whose carrier is a phrase (UIA's
-                // ItemStatus and HelpText, File Explorer's convention). Both, and not one of them:
-                // a bridge reads the snapshot on a platform's own thread where no locale scope is
-                // open, so a phrase has to be resolved here, and an enum is what the other two
-                // want rather than a string they would have to parse back.
+                // A header cell by the rules of the GRID shape (GridAccessibility.describeHeaderCell,
+                // ADR 045 §3): the direction this column's rows run, on the cell that sorts them
+                // (decision 36, carrier settled 2026-09-15), as the facet for the two platforms
+                // whose carrier is an enumeration (AT-SPI's `sort` attribute, AX's
+                // AXSortDirection), and PRESS where the column sorts, as a click does. The
+                // localized phrase in the description below is for the one platform whose carrier
+                // is a phrase (UIA's ItemStatus and HelpText, File Explorer's convention), and it
+                // stays here: a bridge reads the snapshot on a platform's own thread where no
+                // locale scope is open, so a phrase has to be resolved in the widget that holds
+                // the strings.
                 boolean sorted = column.isSortable() && column == sortColumn
                         && sortOrder != SortOrder.NONE;
-                a.cell(-1, s, !sorted ? CellFacet.Sort.NONE
-                        : sortOrder == SortOrder.ASCENDING ? CellFacet.Sort.ASCENDING
-                        : CellFacet.Sort.DESCENDING);
-                if (column.isSortable()) {
-                    // A press sorts, as a click does (decision 36 of 2026-09-14).
-                    a.action(Accessible.Action.PRESS);
-                    if (sorted) {
-                        a.description(sortOrder == SortOrder.ASCENDING
-                                ? TableStrings.SORTED_ASCENDING : TableStrings.SORTED_DESCENDING);
-                    }
+                GridAccessibility.describeHeaderCell(a, s, column.isSortable(), !sorted
+                        ? CellFacet.Sort.NONE : sortOrder == SortOrder.ASCENDING
+                        ? CellFacet.Sort.ASCENDING : CellFacet.Sort.DESCENDING);
+                a.name(column.title(), Accessible.NameFrom.CONTENT);
+                if (sorted) {
+                    a.description(sortOrder == SortOrder.ASCENDING
+                            ? TableStrings.SORTED_ASCENDING : TableStrings.SORTED_DESCENDING);
                 }
                 if (headerHoldsCursor() && s == headerColumn) {
                     a.state(Accessible.State.ACTIVE); // the header's column cursor
@@ -3697,16 +3695,14 @@ public class Table<T> extends Widget implements Scrollable {
                 float left = columnLeft(s, rowX, w, rtl);
                 a.child(CELL_KEY | (slot.id << COLUMN_BITS) | c);
                 a.bounds(left, top, colW[s], slot.height);
-                a.role(Accessible.Role.CELL);
+                // A data cell by the rules of the GRID shape (GridAccessibility.describeCell): its
+                // place, FOCUS because a table's cursor is a cell, and the cursor mark only while
+                // the table holds the keyboard (ADR 039 §1.10, amended 2026-09-14) in its rows:
+                // the cursor is the focused node's, one at a time, and while the header holds it
+                // the cursor is a header cell.
+                GridAccessibility.describeCell(a, row, s, true,
+                        row == focusRow && s == focusColumn && isFocused() && !headerFocused);
                 a.name(slot.texts[c], textEpoch, Accessible.NameFrom.CONTENT);
-                a.cell(row, s);
-                a.action(Accessible.Action.FOCUS);
-                if (row == focusRow && s == focusColumn && isFocused() && !headerFocused) {
-                    // Only while the table holds the keyboard (ADR 039 §1.10, amended
-                    // 2026-09-14) in its rows: the cursor is the focused node's, one at a time,
-                    // and while the header holds it the cursor is a header cell.
-                    a.state(Accessible.State.ACTIVE);
-                }
                 // Off screen with its row as well as with its column: the bit is per node, and
                 // nothing is inherited from a synthetic parent, so a kept row's cells were
                 // published SHOWING over the header band (TABLE-NEW-9, 2026-09-14).
@@ -3732,9 +3728,8 @@ public class Table<T> extends Widget implements Scrollable {
                 float left = columnLeft(s, rowX, w, rtl);
                 a.child(FOOTER_CELL_KEY | c);
                 a.bounds(left, top, colW[s], footerH);
-                a.role(Accessible.Role.CELL);
+                GridAccessibility.describeSummaryCell(a, s);
                 a.name(footerTexts[c], textEpoch, Accessible.NameFrom.CONTENT);
-                a.cell(-2, s);
                 if (left + colW[s] <= rowX || left >= rowX + w) {
                     a.offScreen();
                 }
@@ -3898,27 +3893,20 @@ public class Table<T> extends Widget implements Scrollable {
                                         Accessible.Argument arg) {
         if ((key & CELL_KEY) != 0) {
             int model = modelOfRowId((key & ~CELL_KEY) >>> COLUMN_BITS);
-            int c = (int) (key & COLUMN_MASK);
-            int s = shownIndexOf(c);
-            if (action == Accessible.Action.FOCUS && model >= 0 && s >= 0) {
-                focusCell(viewOf(model), s, Change.Origin.USER);
-                return true;
+            int s = shownIndexOf((int) (key & COLUMN_MASK));
+            if (model < 0 || s < 0) {
+                return false;
             }
-            return false;
+            // By the rules of the GRID shape (GridAccessibility.performOnCell, ADR 045 §3).
+            return GridAccessibility.performOnCell(gridHost, viewOf(model), s, action);
         }
         if ((key & HEADER_CELL_KEY) != 0) {
             int s = shownIndexOf((int) (key & COLUMN_MASK));
-            if (action == Accessible.Action.PRESS && s >= 0
-                    && columns.get(shownIndex[s]).isSortable()) {
-                // Sorts as a click does, and as the click does remembers the column for the
-                // header's cursor, so a Shift+Tab into the header after a reader's press on
-                // the Age title starts on Age; while the header holds the keyboard the cursor
-                // moves with the press, which the sort's own publish announces.
-                setHeaderColumn(s);
-                headerClicked(s);
-                return true;
+            if (s < 0) {
+                return false;
             }
-            return false;
+            // By the rules of the GRID shape (GridAccessibility.performOnHeader).
+            return GridAccessibility.performOnHeader(gridHost, s, action);
         }
         if ((key & FOOTER_CELL_KEY) != 0 || key < 0) {
             return false;
@@ -3929,6 +3917,31 @@ public class Table<T> extends Widget implements Scrollable {
         }
         return RowsAccessibility.performOnRow(rowsHost, model, action);
     }
+
+    /**
+     * The table's mechanisms as the grid shape drives them, over shown column and view row
+     * indices. A press sorts as a click does, and as the click does remembers the column for the
+     * header's cursor, so a Shift+Tab into the header after a reader's press on the Age title
+     * starts on Age; while the header holds the keyboard the cursor moves with the press, which
+     * the sort's own publish announces.
+     */
+    private final GridAccessibility.Host gridHost = new GridAccessibility.Host() {
+        @Override
+        public boolean isSortable(int column) {
+            return columns.get(shownIndex[column]).isSortable();
+        }
+
+        @Override
+        public void sort(int column) {
+            setHeaderColumn(column);
+            headerClicked(column);
+        }
+
+        @Override
+        public void focusCell(int row, int column) {
+            Table.this.focusCell(row, column, Change.Origin.USER);
+        }
+    };
 
     /** The table's selection mode as the rows shape names it. */
     private RowsAccessibility.Selection rowsSelection() {

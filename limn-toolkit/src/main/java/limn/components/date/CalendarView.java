@@ -1,9 +1,11 @@
 package limn.components.date;
 
 import limn.accessibility.Accessibility;
+import limn.accessibility.CellFacet;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
+import limn.components.a11y.GridAccessibility;
 import limn.components.a11y.RowsAccessibility;
 import limn.components.SizeTokens;
 import limn.components.Strokes;
@@ -2637,8 +2639,8 @@ public class CalendarView extends Widget {
         boolean rtl = isRightToLeft();
         boolean days = view == View.DAYS;
         int columns = days && showWeekNumbers ? DAYS_IN_WEEK + 1 : columns();
-        a.role(Accessible.Role.TABLE);
-        a.table(rows(), columns);
+        // The GRID shape's container half, written once (ADR 045 §3; decision 99).
+        GridAccessibility.describeGrid(a, rows(), columns);
         // Single in every mode, RANGE included (decision 105, 2026-09-22): a range is a band and
         // not a set, no day offers ADD_TO_SELECTION or DESELECT, and a container that said
         // "multiple" promised a reader two verbs no member had. Until then RANGE published
@@ -2690,21 +2692,19 @@ public class CalendarView extends Widget {
         if (showWeekNumbers) {
             a.child(KEY_HEAD_BASE - column);
             a.bounds(weekColumnLeft(rtl), pad + headerH, weekColW, weekdayH);
-            a.role(Accessible.Role.COLUMN_HEADER);
+            GridAccessibility.describeHeaderCell(a, column, false, CellFacet.Sort.NONE);
             a.name(DateStrings.WEEK_COLUMN, Accessible.NameFrom.CONTENT);
-            a.cell(-1, column);
             a.endChild();
             column++;
         }
         for (int c = 0; c < DAYS_IN_WEEK; c++, column++) {
             a.child(KEY_HEAD_BASE - column);
             a.bounds(cellLeft(c, rtl), pad + headerH, cellW, weekdayH);
-            a.role(Accessible.Role.COLUMN_HEADER);
+            GridAccessibility.describeHeaderCell(a, column, false, CellFacet.Sort.NONE);
             // The WHOLE weekday name and not the narrow letter that is drawn: a reader crossing the
             // header row would otherwise hear seven single letters, which name nothing.
             a.name(CalendarChronology.fullWeekday(weekdays[c], locale), textEpoch,
                     Accessible.NameFrom.CONTENT);
-            a.cell(-1, column);
             a.endChild();
         }
         a.endChild();
@@ -2744,11 +2744,12 @@ public class CalendarView extends Widget {
                 // back with, and the identity a paged month must not hand to another date.
                 a.child(KEY_DAY_BASE + day.toEpochDay());
                 a.bounds(cellLeft(d, rtl), top, cellW, cellH);
-                a.role(Accessible.Role.CELL);
+                // A day is a grid cell whose verbs are the rows shape's (below), so no FOCUS and
+                // no cursor mark from the grid half.
+                GridAccessibility.describeCell(a, w, c, false, false);
                 ChronoLocalDate drawn = CalendarChronology.date(chronology, day);
                 a.name(cellName(chronology, drawn, day, today, locale), textEpoch,
                         Accessible.NameFrom.CONTENT);
-                a.cell(w, c);
                 boolean cursorHere = day.equals(cursor) && focusHere(Part.GRID);
                 if (selectionMode != SelectionMode.NONE) {
                     // A day is a member of the calendar's selection: the ROWS shape, written
@@ -2837,9 +2838,8 @@ public class CalendarView extends Widget {
                 }
                 a.child(cellBase - index);
                 a.bounds(cellLeft(column, rtl), top, cellW, cellH);
-                a.role(Accessible.Role.CELL);
+                GridAccessibility.describeCell(a, row, column, false, false);
                 a.name(chooserName[index], textEpoch, Accessible.NameFrom.CONTENT);
-                a.cell(row, column);
                 if (terminal) {
                     a.selectionItem(periodSelection(index) > 0, index + 1, count);
                 }
