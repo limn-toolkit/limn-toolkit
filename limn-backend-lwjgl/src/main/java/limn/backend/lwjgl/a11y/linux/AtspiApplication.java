@@ -478,6 +478,10 @@ final class AtspiApplication {
             if (trace != null) {
                 trace.accept("not joined, nothing sent for " + event);
             }
+            // And no later difference says it again, because the tree already holds it: the
+            // frame's ACTIVE, its Activate and the initial focus were the whole of what a reader
+            // heard nothing of (P5U-1). The frame after the join says the window's state again.
+            window.startupOwed = true;
             return;
         }
         Link link = now.link();
@@ -568,7 +572,56 @@ final class AtspiApplication {
      * @param window the facade whose frame ended
      */
     void frameEnded(AtspiBridge window) {
+        sayTheStartupIfOwed(window);
         reconcileIfOwed(window);
+    }
+
+    /**
+     * Says a window's startup again, once, after a join its first publish beat (P5U-1, Ubuntu 24.04
+     * with at-spi 2.52 and Orca 46.1, 2026-09-16). User-interface thread.
+     *
+     * <p>The join is requested by the first publish that has a tree and lands on a thread of its own,
+     * so it can never precede that publish, and the events of that publish — the frame's
+     * {@code ACTIVE}, its {@code Activate}, the {@code FOCUSED} of the control the user starts in —
+     * were dropped as every event before the join is ({@link #emit}, which marks the window as
+     * owing this). Nothing re-sent them: a later publish emits only what moved, and those bits
+     * had not. A join that lands before the publish's own events are emitted — the other side of
+     * the race — drops nothing, marks nothing, and says nothing twice. Measured on the guest, the announcement scene lost
+     * its whole burst six times in six: Orca said nothing at startup, named the window five seconds
+     * late off an unrelated event, and never named the control that held the focus, while a client
+     * that <em>walked</em> the tree saw every bit in place ({@code readings/phase5-ubuntu/summary.md}).
+     *
+     * <p>So the frame after the join says the burst from the tree as it stands — the frame's active
+     * state, then the window's activation, whose reconcile says the focus and the cursor after it,
+     * in the order a window that activates later sends (decision 28) — through {@link #emit}, so a
+     * bus not joined, a bit already said, or a frame that is not the active one are handled where
+     * they always are. A window whose frame is not active has no burst to owe: its focus is where
+     * the user would return to, and the active frame's own startup says where the user is.
+     *
+     * @param window the facade whose frame is ending, or about to publish
+     */
+    private void sayTheStartupIfOwed(AtspiBridge window) {
+        if (!window.startupOwed) {
+            return;
+        }
+        Joined now = joined.get();
+        if (now == null) {
+            return;   // still owed: a join that was lost before this frame is joined again later
+        }
+        window.startupOwed = false;
+        AccessibleTree tree = window.tree();
+        if (tree.nodeCount() == 0
+                || !tree.node(0).has(limn.accessibility.Accessible.State.ACTIVE)) {
+            return;
+        }
+        long frame = tree.node(0).id();
+        java.util.function.Consumer<String> trace = AtspiTrace.trace;
+        if (trace != null) {
+            trace.accept("joined after this window's first publish: saying its startup again "
+                    + "from the frame " + frame);
+        }
+        emit(window, AccessibleEvent.state(frame, limn.accessibility.Accessible.State.ACTIVE, true));
+        emit(window, AccessibleEvent.of(AccessibleEvent.Type.WINDOW_ACTIVATED, frame));
     }
 
     /**
@@ -580,6 +633,7 @@ final class AtspiApplication {
      * @param window the facade about to publish
      */
     void publishing(AtspiBridge window) {
+        sayTheStartupIfOwed(window);
         reconcileIfOwed(window);
     }
 

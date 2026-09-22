@@ -711,6 +711,70 @@ class AtspiApplicationTest {
     }
 
     /**
+     * P5U-1 (Ubuntu 24.04, at-spi 2.52, Orca 46.1, 2026-09-16): the join is requested by the first
+     * publish with a tree and lands on its own thread, so every event of that publish — the frame's
+     * active state, the window's activation, the initial focus — went into nothing, and no later
+     * publish repeated them, because nothing had moved. Orca was silent at startup, named the window
+     * seconds late off an unrelated event, and never named the focused control; a client that walked
+     * the tree saw every bit. The frame after the join says the burst again, once, from the tree.
+     */
+    @Test
+    void aWindowWhoseFirstPublishBeatItsJoinSaysItsStartupAgainOnceJoined() {
+        FakeBus bus = new FakeBus();
+        List<Runnable> joins = new ArrayList<>();
+        AtspiApplication app = new AtspiApplication(bus, (name, body) -> joins.add(body),
+                System::nanoTime);
+        app.enabled(true);
+        Frames main = new Frames(app.window());
+        main.publish(true, 3001);
+        assertEquals(1, joins.size(), "the first publish with a tree asked for the join");
+        assertEquals(List.of(), spoken(bus.signals),
+                "and everything that publish emitted went nowhere: the join had not landed");
+        main.window.frameEnded();
+        assertEquals(List.of(), spoken(bus.signals), "nothing is said to a bus not joined");
+
+        joins.get(0).run();  // the join lands, after the frame that asked for it
+        assertTrue(app.isJoined());
+        assertEquals(List.of(), spoken(bus.signals),
+                "the join itself says nothing: the registry reads the frame it embeds");
+        main.window.frameEnded();
+        assertEquals(List.of("StateChanged active 1 " + path(3000), "Activate  0 " + path(3000),
+                        "StateChanged focused 1 " + path(3001)), spoken(bus.signals),
+                "the frame's active state, the window's activation and the focus, in the order a "
+                        + "window that activates later sends them, at the first frame after the join");
+
+        bus.signals.clear();
+        main.window.frameEnded();
+        main.publish(true, 3001);
+        main.window.frameEnded();
+        assertEquals(List.of(), spoken(bus.signals),
+                "said once; a later frame and a publish that moved nothing say nothing");
+    }
+
+    /**
+     * A window whose frame is not the active one when the join lands owes no burst: its focus is
+     * where the user would return to, not where the user is, and the active frame's startup says
+     * that. The join lands with the debt on every window, and an inactive one pays nothing.
+     */
+    @Test
+    void aWindowThatIsNotActiveWhenTheJoinLandsSaysNoStartup() {
+        FakeBus bus = new FakeBus();
+        List<Runnable> joins = new ArrayList<>();
+        AtspiApplication app = new AtspiApplication(bus, (name, body) -> joins.add(body),
+                System::nanoTime);
+        app.enabled(true);
+        Frames main = new Frames(app.window());
+        main.publish(false, 3001);
+        joins.get(0).run();
+        main.window.frameEnded();
+        assertEquals(List.of(), spoken(bus.signals), "an inactive frame has nothing to say again");
+        main.publish(true, 3001);
+        List<String> sent = spoken(bus.signals);
+        assertEquals(1, java.util.Collections.frequency(sent, "Activate  0 " + path(3000)),
+                "and when it activates, the activation is the publish's own and is sent once: " + sent);
+    }
+
+    /**
      * A refusal after the last tail event of a publish leaves nothing in that publish to reconcile
      * at, so the reconcile runs when the window next publishes, before its tree is replaced and
      * before any signal of the new publish.

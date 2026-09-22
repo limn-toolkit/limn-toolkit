@@ -80,6 +80,15 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
      * that, before this window's next publish replaces its tree. UI thread.
      */
     boolean reconcileOwed;
+
+    /**
+     * Whether this window's startup was said into nothing — published before the application had
+     * joined the bus, every event of it dropped — and is to be said again once the join has landed
+     * (P5U-1). Set on the user-interface thread by the event that was dropped, read there again
+     * once the joined state is visible; cleared by the one frame that says it. Volatile because
+     * the joined state it is read against is published by the joiner thread.
+     */
+    volatile boolean startupOwed;
     /**
      * The tree this window published before its current one, which a bit this platform derives
      * (COLLAPSED) is diffed against when its events arrive. UI thread: written by the publish and
