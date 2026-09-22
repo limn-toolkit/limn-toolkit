@@ -16,13 +16,28 @@ import limn.lang.Checks;
  *                          by the backend's timer queries; {@link Float#NaN} when
  *                          no new sample is available (results arrive a few frames
  *                          late, and not every backend can measure)
+ * @param bufferAge         how many presents old the back buffer's contents are: 1 when it holds the
+ *                          previous frame, 2 for ordinary double buffering once two frames of this
+ *                          size have been presented, 0 when the backend does not know (the first
+ *                          frames, a resize), which repaints the whole window. Partial rendering
+ *                          repaints what changed over that many frames (ADR 046 §5) instead of
+ *                          assuming two buffers everywhere, as it did until 2026-09-22.
  */
 public record FrameInfo(int framebufferWidth, int framebufferHeight, float contentScale,
-                        boolean rePresent, float gpuFrameMs) {
+                        boolean rePresent, float gpuFrameMs, int bufferAge) {
 
     public FrameInfo {
         Checks.notNegativeSize(framebufferWidth, framebufferHeight, "framebuffer size");
         Checks.positive(contentScale, "contentScale");
+        if (bufferAge < 0) {
+            throw new IllegalArgumentException("bufferAge must not be negative: " + bufferAge);
+        }
+    }
+
+    /** Without the buffer's age: 0, the whole window, which is always safe. */
+    public FrameInfo(int framebufferWidth, int framebufferHeight, float contentScale, boolean rePresent,
+                     float gpuFrameMs) {
+        this(framebufferWidth, framebufferHeight, contentScale, rePresent, gpuFrameMs, 0);
     }
 
     /** Without a GPU-time sample. */

@@ -162,6 +162,28 @@ final class LwjglWindow implements NativeWindow {
     private boolean frameRequested = true;
     /** Whether a frame has been presented since the window was made; see {@link #isCovered}. */
     private boolean presentedOnce;
+    /** How many frames have been presented at the current framebuffer size; see {@link #bufferAge}. */
+    private int presentsAtSize;
+    private int presentedWidth = -1;
+    private int presentedHeight = -1;
+
+    /**
+     * How old the back buffer's contents are, for partial rendering (ADR 046 §5). GLFW's contexts
+     * are double buffered and no call here reads the age back, so this says what double buffering
+     * guarantees and nothing more: 2 once two frames of this size have been presented, and 0 — the
+     * whole window — before that, which covers the first frames and every resize, where the back
+     * buffer's contents are undefined.
+     */
+    private int bufferAge() {
+        if (framebufferWidth != presentedWidth || framebufferHeight != presentedHeight) {
+            presentedWidth = framebufferWidth;
+            presentedHeight = framebufferHeight;
+            presentsAtSize = 0;
+        }
+        int age = presentsAtSize >= 2 ? 2 : 0;
+        presentsAtSize++;
+        return age;
+    }
     private boolean rendering;
     private boolean destroyed;
     private final boolean resizable;
@@ -760,7 +782,7 @@ final class LwjglWindow implements NativeWindow {
             try {
                 frameCallback.onFrame(renderer,
                         new FrameInfo(framebufferWidth, framebufferHeight, scale, rePresent,
-                                renderer.takeGpuFrameMs()));
+                                renderer.takeGpuFrameMs(), bufferAge()));
             } finally {
                 // User code may have switched GL contexts (posting is the
                 // sanctioned path for window creation, but stay safe).

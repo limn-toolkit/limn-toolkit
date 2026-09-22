@@ -566,4 +566,50 @@ class PartialRenderingTest extends SceneTestBase {
         assertTrue(canvas.partialFramePainted());
         assertRectEquals(shadow, canvas.lastClip);
     }
+
+    /**
+     * ADR 046 §5: the scene repaints across as many frames as the backend says its back buffer is
+     * old, instead of assuming two. 0 is a backend that does not know — the whole window; 1 a buffer
+     * that keeps the last frame — only what changed now; 3 triple buffering — two frames of history.
+     */
+    @Test
+    void theBufferAgeDecidesHowManyFramesOfDamageARepaintCovers() {
+        scene.setPartialRendering(true);
+        frame();
+        frame(); // history settled: nothing damaged since
+
+        top.invalidate();
+        canvas.reset();
+        scene.renderFrame(canvas, false, Float.NaN, 1);
+        assertTrue(canvas.partialFramePainted(), canvas.log.toString());
+        assertEquals(1, canvas.clips.size(), "one frame of damage: " + canvas.clips);
+        assertRectEquals(expectedDamage(top), canvas.lastClip);
+
+        canvas.reset();
+        scene.renderFrame(canvas, false, Float.NaN, 1); // a frame that damaged nothing
+        bottom.invalidate();
+        canvas.reset();
+        scene.renderFrame(canvas, false, Float.NaN, 3);
+        assertTrue(canvas.partialFramePainted(), canvas.log.toString());
+        // top's damage is two frames old now: only a history of two frames still holds it
+        assertTrue(coveredBy(canvas.clips, expectedDamage(top))
+                        && coveredBy(canvas.clips, expectedDamage(bottom)),
+                "top's damage two frames ago is repainted with bottom's now: " + canvas.clips);
+
+        bottom.invalidate();
+        canvas.reset();
+        scene.renderFrame(canvas, false, Float.NaN, 0);
+        assertTrue(canvas.fullFramePainted(), "an unknown age repaints the whole window");
+    }
+
+    private static boolean coveredBy(List<Rect> clips, Rect r) {
+        for (Rect c : clips) {
+            if (c.x() <= r.x() + EPS && c.y() <= r.y() + EPS
+                    && c.x() + c.width() >= r.x() + r.width() - EPS
+                    && c.y() + c.height() >= r.y() + r.height() - EPS) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

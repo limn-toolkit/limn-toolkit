@@ -364,7 +364,7 @@ public final class Scene implements WindowInput {
         window.setInput(this);
         this.renderRequester = window::requestFrame;
         window.setFrameCallback((renderer, frame) ->
-                renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs()));
+                renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs(), frame.bufferAge()));
         // Last, and after the two calls that make this window usable. It walks and publishes, which
         // is more than the rest of this method does, and a bind that threw here would leave the
         // window holding neither input nor a frame callback — a window that is up, attached and
@@ -694,6 +694,8 @@ public final class Scene implements WindowInput {
     private final DamageRects pendingDamage = new DamageRects(MAX_DAMAGE_RECTS, false);
     private final DamageRects freshDamage = new DamageRects(MAX_DAMAGE_RECTS, false);
     private final DamageRects frameDamage1 = new DamageRects(MAX_DAMAGE_RECTS, true); // previous frame's fresh damage
+    private final DamageRects frameDamage2 = new DamageRects(MAX_DAMAGE_RECTS, true); // and the one before it
+    private final DamageRects olderDamage = new DamageRects(MAX_DAMAGE_RECTS, true); // scratch: the two unioned
     private final DamageRects repaintRegion = new DamageRects(MAX_DAMAGE_RECTS, false);
     private final DamageRects lastRepaintRegion = new DamageRects(MAX_DAMAGE_RECTS, true); // what it repainted
     /** Scratch for the clip walk, so damaging a widget makes no object. UI thread only. */
@@ -3002,8 +3004,19 @@ public final class Scene implements WindowInput {
      *                   {@link #metrics()} alongside this frame's CPU numbers
      */
     public void renderFrame(Canvas canvas, boolean rePresent, float gpuFrameMs) {
+        renderFrame(canvas, rePresent, gpuFrameMs, 2);
+    }
+
+    /**
+     * @param bufferAge how many presents old the canvas's contents are ({@link
+     *                  limn.backend.FrameInfo#bufferAge}): 0 repaints the whole frame, 1 what changed
+     *                  since the last frame, 2 that plus the frame before, and so on. The overloads
+     *                  without it assume 2, ordinary double buffering, which is what rendering into a
+     *                  canvas of one's own has always been treated as
+     */
+    public void renderFrame(Canvas canvas, boolean rePresent, float gpuFrameMs, int bufferAge) {
         try {
-            renderFrameImpl(canvas, rePresent, gpuFrameMs);
+            renderFrameImpl(canvas, rePresent, gpuFrameMs, bufferAge);
             frameCrashStreak = 0;
         } catch (limn.backend.Crashes.ShutdownRequested shutdown) {
             throw shutdown; // already dispatched below (or by nested code)
@@ -3031,7 +3044,7 @@ public final class Scene implements WindowInput {
         }
     }
 
-    private void renderFrameImpl(Canvas canvas, boolean rePresent, float gpuFrameMs) {
+    private void renderFrameImpl(Canvas canvas, boolean rePresent, float gpuFrameMs, int bufferAge) {
         long frameStart = clock.getAsLong();
         metrics.beginFrame();
         if (!rePresent && lastFrameStartNanos >= 0) {
@@ -3110,9 +3123,19 @@ public final class Scene implements WindowInput {
             // carries the backdrop rects too: the other buffer needs them for the same reason
             // this one does.
             withBackdropDependants(fresh);
-            // Double buffering: the back buffer holds the frame from two
-            // presents ago, so the previous frame's damage repaints too.
-            repaint.unionOf(fresh, frameDamage1);
+            // The back buffer holds the frame from bufferAge presents ago, so the damage of every
+            // frame since repaints too (ADR 046 §5): the previous frame's for double buffering,
+            // two frames' for triple, nothing extra for a buffer that keeps its contents, and the
+            // whole frame for a backend that does not know.
+            if (bufferAge <= 1) {
+                repaint.copyFrom(fresh);
+            } else if (bufferAge == 2) {
+                repaint.unionOf(fresh, frameDamage1);
+            } else {
+                olderDamage.unionOf(frameDamage1, frameDamage2);
+                repaint.unionOf(fresh, olderDamage);
+            }
+            frameDamage2.copyFrom(frameDamage1);
             frameDamage1.copyFrom(fresh);
             if (damageDebug) {
                 List<Rect> flashNow = updateDamageFlashes(fresh.isWhole() ? null : fresh.toList(),
@@ -3123,7 +3146,8 @@ public final class Scene implements WindowInput {
                 flashPrev2 = flashPrev1;
                 flashPrev1 = flashNow;
             }
-            if (!partialRendering || repaint.coversWhole(canvas.width(), canvas.height())) {
+            if (!partialRendering || bufferAge <= 0
+                    || repaint.coversWhole(canvas.width(), canvas.height())) {
                 repaint.setWhole();
             }
             lastRepaintRegion.copyFrom(repaint);
