@@ -30,6 +30,7 @@ final class UiaWindow {
 
     /** {@code WM_GETOBJECT}: a client asking what this window offers. */
     private static final int WM_GETOBJECT = 0x003D;
+    private static final int WM_DESTROY = 0x0002;
 
     /** {@code UiaRootObjectId}: which object it is asking for, of the several a window can offer. */
     private static final int UIA_ROOT_OBJECT_ID = -25;
@@ -103,6 +104,14 @@ final class UiaWindow {
                 // after a focus event it can hear, which a closed gate never raises. This is
                 // what breaks that circle.
                 bridge.noteAsked();
+            }
+            if (message == WM_DESTROY) {
+                // The documented teardown for a window that had a provider: hand UI Automation
+                // NULL for this HWND so its cache lets the provider go. The bridge does the same
+                // when the scene detaches it while the window is alive (the usual order); this
+                // is for a window destroyed under a still-attached bridge.
+                say("WM_DESTROY: withdrawing the window's provider");
+                Uia.returnRawElementProvider(window, 0, 0, 0);
             }
             if (message == WM_GETOBJECT && (int) lparam == UIA_ROOT_OBJECT_ID) {
                 long answer = bridge.answerGetObject(wparam, lparam);

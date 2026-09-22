@@ -342,12 +342,16 @@ class UiaBridgeTest {
     }
 
     @Test
-    void theRootProviderIsDisconnectedBeforeTheRegistryFreesIt() {
+    void everyProviderAClientWasHandedIsDisconnectedBeforeTheRegistryFreesIt() {
         // UiaDisconnectProvider releases the platform's references, and a release is a call
         // through the object's own vtable -- closures this bridge made. Freed first, the call
         // lands in freed trampoline memory: an access violation on every window close once a
         // client had asked for the root, which is how the benchmark and two probe runs ended on
-        // the guest. The platform call is a no-op here; the order is what this pins.
+        // the guest. And not the root alone (P5W-3, 2026-09-22): every element a client had
+        // navigated to was freed with the platform's references still on it, and closing a date
+        // picker's native popup under NVDA -- fourteen objects, one disconnected -- killed the
+        // process in jvm.dll every time. The platform call is a no-op here; the order is what this
+        // pins: each disconnect before any free.
         UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
         java.util.List<String> trace = new java.util.ArrayList<>();
         java.util.function.Consumer<String> before = UiaWindow.trace;
@@ -359,6 +363,12 @@ class UiaBridgeTest {
             // platform call that is a no-op here; the window procedure checked them, not this.
             bridge.answerGetObject(0, 0);
             assertEquals(1, bridge.elementCount(), "the root was asked for, so it exists");
+            UiaObject root = bridge.objectFor(1000);
+            // What a client's Navigate does: the button's element, handed over with a reference.
+            UiaObject child = bridge.objectFor(1001);
+            assertEquals(2, bridge.elementCount(), "and so does the child a client reached");
+            // And what a client's proxy does: keeps that reference past the window's close.
+            child.addRef();
             bridge.detach();
             String disconnect = trace.stream()
                     .filter(line -> line.startsWith("disconnected root provider"))
@@ -367,8 +377,31 @@ class UiaBridgeTest {
             assertNotNull(disconnect, "the root provider was never disconnected: " + trace);
             assertTrue(disconnect.endsWith("alive=true"),
                     "disconnected after the closures it calls through were freed: " + trace);
-            assertTrue(trace.stream().anyMatch(line -> line.startsWith("freed 1 objects")),
-                    "the registry was never emptied: " + trace);
+            int others = trace.indexOf("disconnected 1 more providers");
+            // Both objects were handed over with a reference -- the root to
+            // UiaReturnRawElementProvider, the child to the client -- and on a host without the
+            // platform nothing ever releases those, which is exactly the case the registry must
+            // not free through: on the guest the disconnects above make the platform release
+            // its own, and the count then frees what is left at once.
+            int freed = trace.indexOf("freed 0 objects, kept 2 the platform still references, "
+                    + "to be freed when it lets go");
+            int withdrawn = trace.indexOf("withdrew the window's provider");
+            assertTrue(others >= 0, "the child the client held was never disconnected: " + trace);
+            assertTrue(freed >= 0, "the registry was never emptied, or freed what a client still "
+                    + "held: " + trace);
+            assertTrue(trace.indexOf(disconnect) < freed && others < freed,
+                    "every disconnect comes before the free: " + trace);
+            assertTrue(withdrawn >= 0 && withdrawn < trace.indexOf(disconnect),
+                    "and the window's own registration is withdrawn (UiaReturnRawElementProvider "
+                            + "with NULL) before the root it named is disconnected: " + trace);
+            assertEquals(0, UiaObject.freeRetired(),
+                    "nothing to free while the platform's references stand");
+            assertEquals(0, child.release(), "the platform lets go, on a thread of its own");
+            assertEquals(1, UiaObject.freeRetired(),
+                    "and the object is freed at the next chance on the user-interface thread, "
+                            + "never inside the Release that dropped the last reference");
+            assertEquals(0, root.release(), "the root's reference, released by the platform");
+            assertEquals(1, UiaObject.freeRetired());
         } finally {
             UiaWindow.trace = before;
         }

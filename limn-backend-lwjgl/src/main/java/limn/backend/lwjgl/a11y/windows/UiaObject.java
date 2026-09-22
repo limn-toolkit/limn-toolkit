@@ -134,13 +134,7 @@ final class UiaObject {
         // interface and one calling it through the simple interface are releasing one object.
         this.queryInterface = (UiaCom.PPP) (self, riid, out) -> query(riid, out);
         this.addRef = (UiaCom.P) self -> references.incrementAndGet();
-        this.release = (UiaCom.P) self -> {
-            int left = references.decrementAndGet();
-            if (left == 0) {
-                onLastRelease.run();
-            }
-            return left;
-        };
+        this.release = (UiaCom.P) self -> release();
         synchronized (this) {
             for (Served one : served) {
                 build(one.iface(), one.ownSlots());
@@ -275,6 +269,78 @@ final class UiaObject {
         references.incrementAndGet();
     }
 
+    /**
+     * One reference dropped, by the platform through {@code IUnknown::Release} or by a test
+     * standing in for it.
+     *
+     * <p>A retired object whose last reference this was is queued for {@link #freeRetired}
+     * rather than freed here: this runs inside one of the object's own closures, and freeing the
+     * trampoline that is executing is a return into freed memory.
+     *
+     * @return the references left
+     */
+    int release() {
+        int left = references.decrementAndGet();
+        if (left == 0) {
+            onLastRelease.run();
+            if (retired) {
+                RETIRED.add(this);
+            }
+        }
+        return left;
+    }
+
+    /**
+     * Objects the registry let go of while the platform still held them, whose last platform
+     * reference has since been released; freed by the next {@link #freeRetired} on the
+     * user-interface thread.
+     */
+    private static final java.util.concurrent.ConcurrentLinkedQueue<UiaObject> RETIRED =
+            new java.util.concurrent.ConcurrentLinkedQueue<>();
+
+    private volatile boolean retired;
+
+    /**
+     * The registry lets this object go: its own reference is dropped, and the object is freed now
+     * if nothing else holds it, or once the platform's last reference is released.
+     *
+     * <p>P5W-3 (2026-09-22): the registry used to free every object outright when a window's
+     * tree went away, on the reading that {@code UiaDisconnectProvider} had released every
+     * platform reference first. It had not — a client's proxies release theirs on threads of
+     * their own, after the disconnect returns — and closing a date picker's native popup under
+     * NVDA freed fourteen objects and died in a freed trampoline ({@code jvm.dll} at one offset,
+     * every run). A reference count is what COM gives an object for exactly this, so the count
+     * decides: an object the platform still holds outlives the registry, answers nothing (its
+     * bridge is closed), and is freed when the platform lets go. One that never lets go is a
+     * bounded leak, which is the failure to prefer.
+     *
+     * @return whether it was freed now
+     */
+    synchronized boolean retire() {
+        retired = true;
+        int left = references.decrementAndGet();
+        if (left <= 0) {
+            free();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Frees every retired object whose last reference has been released, on the user-interface
+     * thread, where no closure of theirs can be executing.
+     *
+     * @return how many were freed
+     */
+    static int freeRetired() {
+        int freed = 0;
+        for (UiaObject object = RETIRED.poll(); object != null; object = RETIRED.poll()) {
+            object.free();
+            freed++;
+        }
+        return freed;
+    }
+
     private int query(long riid, long out) {
         if (out == 0) {
             // A caller that passed nowhere to write to. E_POINTER would be the letter of it; what
@@ -320,8 +386,9 @@ final class UiaObject {
      * Frees the object's memory and its closures, every interface it ever built included.
      *
      * <p>Never called from {@code Release} and never from a finalizer: the registry decides, after
-     * the count has reached zero, and freeing under a client that still holds a pointer is a crash
-     * in that client's process rather than a fault anyone would trace here.
+     * the count has reached zero ({@link #retire}, {@link #freeRetired}), and freeing under a
+     * client that still holds a pointer is a crash in this process, inside a closure that no
+     * longer exists, which is what P5W-3 was.
      */
     synchronized void free() {
         UiaCom.freeClosures(closures);

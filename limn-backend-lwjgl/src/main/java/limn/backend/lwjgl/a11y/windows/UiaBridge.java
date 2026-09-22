@@ -450,6 +450,7 @@ public final class UiaBridge extends PlatformBridge {
      */
     @Override
     public void frameEnded() {
+        freeTheRetired();
         boolean owed = frameEndOwed;
         frameEndOwed = false;
         if (owed && !closed && drain != null) {
@@ -1774,17 +1775,121 @@ public final class UiaBridge extends PlatformBridge {
         // And any other window's drain thread raising on one of these elements, or RPC thread
         // handing one over, finishes first (raiseOnElement, handOverFromAnotherWindow).
         String disconnected;
+        int others;
+        int freedNow = 0;
+        int kept = 0;
+        // Whatever an earlier teardown left for the platform to release has been released by now
+        // is freed first, on this thread, where none of its closures can be running.
+        freeTheRetired();
         synchronized (vendGuard) {
+            // First, the window's own registration: UI Automation caches the provider a window
+            // answered WM_GETOBJECT with, keyed by the HWND, and the documented teardown is to
+            // hand it NULL for that window before the provider goes (what a WM_DESTROY handler
+            // does; here the scene detaches while the window is still alive, and UiaWindow does
+            // the same on WM_DESTROY for a window that dies under an attached bridge). Without
+            // it the cache kept a pointer to the root, and the popup's close crashed the process
+            // in a freed trampoline some 240 ms after the objects below were freed, with every
+            // object disconnected (P5W-3, readings/p5w3-windows/date-picker-native-fix-1).
+            withdrawTheWindowsProvider();
             // Then, while every closure the platform may call back through is still there.
+            long root = rootProviderForDisconnect;
             disconnected = disconnectRootProvider();
             distinct.addAll(objects.values());
+            others = disconnectEveryOther(distinct, root);
             objects.clear();
             elements.empty();
-            distinct.forEach(UiaObject::free);
+            // Then each object is let go of, and freed now only if the platform holds no reference
+            // on it any more: the disconnects above release UI Automation's own, a client's proxies
+            // release theirs on their own threads afterwards, and an object freed under one of
+            // those is P5W-3 (UiaObject#retire).
+            for (UiaObject object : distinct) {
+                if (object.retire()) {
+                    freedNow++;
+                } else {
+                    kept++;
+                }
+            }
             ANNOUNCED.updateAndGet(last -> last != null && last.owner() == this ? null : last);
         }
         sayDisconnected(disconnected);
-        UiaWindow.say("freed " + distinct.size() + " objects");
+        sayDisconnectedOthers(others);
+        UiaWindow.say("freed " + freedNow + " objects" + (kept == 0 ? ""
+                : ", kept " + kept + " the platform still references, to be freed when it lets go"));
+    }
+
+    /**
+     * Every other element a client was handed, disconnected the same way and for the same reason
+     * as the root, before its closures go (P5W-3, read on the Windows guest 2026-09-22).
+     *
+     * <p>Until then the root was the one provider disconnected here, on the reading that it is the
+     * one {@code UiaReturnRawElementProvider} handed over. Every other element a client had reached
+     * — through {@code Navigate}, {@code GetFocus}, a pattern's {@code GetPatternProvider} — was
+     * handed over with a reference of its own and then freed here with whatever references UI
+     * Automation still held on it, and a release through one of those after the free is the same
+     * call into freed trampoline memory the root's order avoids. With NVDA attached, closing a date
+     * picker's native popup freed fourteen objects of which one was disconnected, and the process
+     * died in {@code jvm.dll} with an access violation about 30 ms later, every time
+     * ({@code readings/p5w3-windows/date-picker-native-1}: {@code freed 14 objects}, then a Windows
+     * Application Error 1000, {@code 0xc0000005}; the 2026-09-16 runs of the same script hung
+     * instead, on the order this bridge had then). {@code UiaDisconnectProvider} takes any
+     * {@code IRawElementProviderSimple}, so each object is disconnected through the simple interface
+     * every one of them serves: one call per element a client was ever handed, on the
+     * user-interface thread, under the guard, while the closures it calls back through are alive.
+     * A window nobody read holds no element and pays nothing here.
+     *
+     * @param distinct every object of the registry, by identity
+     * @param root     the root's pointer, disconnected already, or {@code 0}
+     * @return how many were disconnected here
+     */
+    private static int disconnectEveryOther(java.util.Set<UiaObject> distinct, long root) {
+        int count = 0;
+        for (UiaObject object : distinct) {
+            long simple = object.pointerFor(UiaInterfaces.RAW_ELEMENT_PROVIDER_SIMPLE);
+            if (simple == 0 || simple == root) {
+                continue;
+            }
+            Uia.disconnectProvider(simple);
+            count++;
+        }
+        return count;
+    }
+
+    /**
+     * Tells UI Automation this window answers with no provider any more:
+     * {@code UiaReturnRawElementProvider(hwnd, 0, 0, NULL)}, the call the platform documents for
+     * {@code WM_DESTROY}. Under the guard, before the root is disconnected; a no-op on a machine
+     * without the platform, and harmless for a window that was never asked.
+     */
+    private void withdrawTheWindowsProvider() {
+        if (hwnd == 0) {
+            return;
+        }
+        Uia.returnRawElementProvider(hwnd, 0, 0, 0);
+        UiaWindow.say("withdrew the window's provider");
+    }
+
+    /**
+     * Frees the objects a teardown kept for the platform whose last reference has since been
+     * released ({@link UiaObject#freeRetired}): once per frame of any window, and before any
+     * teardown, on the user-interface thread.
+     */
+    private static void freeTheRetired() {
+        int freed = UiaObject.freeRetired();
+        if (freed > 0) {
+            UiaWindow.say("freed " + freed + " retired objects the platform had let go of");
+        }
+    }
+
+    /** Says how many providers besides the root were disconnected, once the guard is released. */
+    private static void sayDisconnectedOthers(int count) {
+        if (count == 0) {
+            return;
+        }
+        if (UiaTrace.on()) {
+            UiaTrace.line("CALL", "UiaDisconnectProvider on " + count
+                    + " more providers, each before its closures are freed");
+        }
+        UiaWindow.say("disconnected " + count + " more providers");
     }
 
     /**
