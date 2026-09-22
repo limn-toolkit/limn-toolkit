@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The scene-level shortcut hook and (the reason it exists) the order a key event is offered
@@ -69,8 +70,8 @@ class SceneShortcutTest extends SceneTestBase {
     }
 
     private static void press(Scene scene, int key, int modifiers) {
-        scene.keyEvent(key, true, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -143,10 +144,10 @@ class SceneShortcutTest extends SceneTestBase {
         Hook hook = new Hook();
         scene.addShortcutHandler(hook);
 
-        scene.keyEvent(Keys.LEFT_ALT, true, false, Keys.MOD_ALT);
-        scene.keyEvent(Keys.LEFT_ALT, true, true, Keys.MOD_ALT);
-        scene.keyEvent(Keys.LEFT_ALT, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT_ALT, true, false, Keys.MOD_ALT);
+        drive(scene).keyEvent(Keys.LEFT_ALT, true, true, Keys.MOD_ALT);
+        drive(scene).keyEvent(Keys.LEFT_ALT, false, false, 0);
+        drive(scene).inputBatchEnded();
 
         assertEquals(3, hook.seen.size(), "press, auto-repeat and release all reached the hook");
     }

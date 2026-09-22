@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The guarantees ADR 040 §2 makes about the channel itself, as a base-class mechanism rather than
@@ -385,9 +386,9 @@ class WidgetChangeChannelTest {
         assertEquals(List.of("a/CODE", "b/CODE"), order, "so is the public traversal");
         order.clear();
 
-        scene.keyEvent(limn.input.Keys.TAB, true, false, 0);
-        scene.keyEvent(limn.input.Keys.TAB, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(limn.input.Keys.TAB, true, false, 0);
+        drive(scene).keyEvent(limn.input.Keys.TAB, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(List.of("b/USER", "a/USER"), order, "Tab is the user's, loser first");
         order.clear();
 

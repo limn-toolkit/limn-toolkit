@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a chart is allowed to cost per frame, expressed in text measurements: the one unit
@@ -81,8 +82,8 @@ class ChartLayoutCostTest extends ComponentTestBase {
 
         ruler.calls.set(0);
         for (int i = 0; i < 20; i++) {
-            scene.mouseMoved(60 + i * 5, 150);
-            scene.inputBatchEnded();
+            drive(scene).mouseMoved(60 + i * 5, 150);
+            drive(scene).inputBatchEnded();
         }
         return new Probe(paint, ruler.calls.get());
     }

@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link SegmentedControl} becomes in the accessible tree: one horizontal radio group, one
@@ -354,9 +355,9 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
 
         float x = second.x() + second.width() / 2;
         float y = second.y() + second.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
 
         assertEquals(1, seg.selectedIndex(),
                 "the hook calls the widget's own logical-to-physical mapping rather than "
@@ -474,8 +475,8 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
                         + "own maximum; computing it from the track instead would overstate how "
                         + "much is on screen by the two gutters" + describe(tree()));
 
-        scene.scrolled(0, -10, seg.localToSceneX() + NARROW / 2, seg.localToSceneY() + HEIGHT / 2);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -10, seg.localToSceneX() + NARROW / 2, seg.localToSceneY() + HEIGHT / 2);
+        drive(scene).inputBatchEnded();
         frame();
 
         ScrollFacet moved = group().scroll();
@@ -694,8 +695,8 @@ class SegmentedControlAccessibilityTest extends AccessibleComponentTestBase {
         float y = node.y() + node.height() / 2;
 
         for (AccessibleNode child : segments()) {
-            scene.mouseMoved(child.x() + child.width() / 2, y);
-            scene.inputBatchEnded();
+            drive(scene).mouseMoved(child.x() + child.width() / 2, y);
+            drive(scene).inputBatchEnded();
             frame();
         }
 

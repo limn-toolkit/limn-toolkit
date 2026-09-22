@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Frame-crash containment: an exception in widget paint/layout code must never
@@ -234,7 +235,7 @@ class SceneCrashContainmentTest extends SceneTestBase {
         });
         scene.observeWindowClosed(() -> ran.add("second"));
 
-        assertDoesNotThrow(scene::windowClosed);
+        assertDoesNotThrow(drive(scene)::windowClosed);
         assertEquals(List.of("second"), ran, "later observers must still run");
         assertEquals(1, handler.crashes.size());
         assertEquals(CrashPhase.WINDOW_CLOSE, handler.crashes.get(0).phase());

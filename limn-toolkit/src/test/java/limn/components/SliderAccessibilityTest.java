@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link Slider} becomes in the accessible tree: one horizontal {@code SLIDER} node, a tab
@@ -132,9 +133,9 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Moves the pointer to the centre of the slider's box, as a hover does. */
     private void hover() {
-        scene.mouseMoved(slider.localToSceneX() + slider.width() / 2,
+        drive(scene).mouseMoved(slider.localToSceneX() + slider.width() / 2,
                 slider.localToSceneY() + slider.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
     }
 
     /**
@@ -571,9 +572,9 @@ class SliderAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         bridge.events.clear();
 
-        scene.keyEvent(Keys.END, true, false, 0);
-        scene.keyEvent(Keys.END, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).keyEvent(Keys.END, false, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals(facet(100, 5), sliderNode().value(), describe(tree()));

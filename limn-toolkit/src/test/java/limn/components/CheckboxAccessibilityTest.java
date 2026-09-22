@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link Checkbox} becomes in the accessible tree: one node with the check-box or switch
@@ -86,9 +87,9 @@ class CheckboxAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Moves the pointer to the centre of the checkbox's box, as a hover does. */
     private void hover() {
-        scene.mouseMoved(checkbox.localToSceneX() + checkbox.width() / 2,
+        drive(scene).mouseMoved(checkbox.localToSceneX() + checkbox.width() / 2,
                 checkbox.localToSceneY() + checkbox.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
     }
 
     /** @return every checked-state event raised so far, in order */

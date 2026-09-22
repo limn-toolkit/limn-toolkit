@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The three things a tree does that a list cannot: an order that is a traversal, a row that opens,
@@ -480,16 +481,16 @@ class TreeTest extends ComponentTestBase {
         Widget cell = cellOf(tree, name);
         float x = cell.localToSceneX() + cell.width() / 2;
         float y = cell.localToSceneY() + cell.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, modifiers, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, modifiers, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, modifiers, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, modifiers, x, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
     }
 
     private void press(int key, int modifiers) {
-        scene.keyEvent(key, true, false, modifiers);
-        scene.keyEvent(key, false, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).keyEvent(key, false, false, modifiers);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
     }
 
@@ -741,9 +742,9 @@ class TreeTest extends ComponentTestBase {
         // inside it at every depth, and the other test of this widget aims the same way.
         float x = cell.localToSceneX() - 8;
         float y = cell.localToSceneY() + cell.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
     }
 
@@ -1391,9 +1392,9 @@ class TreeTest extends ComponentTestBase {
         assertTrue(line != null, "the loading line is mounted: " + drawn(tree));
         float x = line.localToSceneX() + line.width() / 2;
         float y = line.localToSceneY() + line.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         assertEquals(List.of(remote), tree.selectedNodes(),
                 "a click on the line selects the row it belongs to, the folder that is loading");
     }
@@ -1576,11 +1577,11 @@ class TreeTest extends ComponentTestBase {
 
         float midX = tree.width() / 2;
         float midY = tree.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0,
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0,
                 tree.localToSceneX() + midX, tree.localToSceneY() + midY);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0,
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0,
                 tree.localToSceneX() + midX, tree.localToSceneY() + midY);
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
 
         assertFalse(tree.selectedNodes().isEmpty(),
@@ -1723,8 +1724,8 @@ class TreeTest extends ComponentTestBase {
         small.setTextRuler(RULER);
         small.layoutPass(220, 200);
         small.renderFrame(new RecordingTestCanvas(220, 200));
-        small.scrolled(0, -3, shortTree.localToSceneX() + 10, shortTree.localToSceneY() + 10);
-        small.inputBatchEnded();
+        drive(small).scrolled(0, -3, shortTree.localToSceneX() + 10, shortTree.localToSceneY() + 10);
+        drive(small).inputBatchEnded();
         assertEquals(1, shortTree.visibleRowCount(), "nothing moved, and nothing was consumed");
     }
 
@@ -2039,9 +2040,9 @@ class TreeTest extends ComponentTestBase {
 
         float x = tree.localToSceneX() + 200;
         float y = top.localToSceneY() + top.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
         assertEquals("level-1", tree.leadNode().name(), "the press selected the row");
         assertEquals(before, mounted(cells, "level-1").x(), 0.01f,
@@ -2191,9 +2192,9 @@ class TreeTest extends ComponentTestBase {
 
         float x = tree.localToSceneX() + 20;
         float y = tree.localToSceneY() + 20;
-        scene.mouseMoved(x, y);
-        scene.scrolled(-1, -1, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).scrolled(-1, -1, x, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
 
         deepest = mounted(cells, "level-14");
@@ -2202,11 +2203,11 @@ class TreeTest extends ComponentTestBase {
         assertEquals(yBefore - Strokes.WHEEL_STEP, deepest.y(), 0.01f,
                 "and the vertical half scrolled the rows in the same event");
 
-        scene.scrolled(0, -1, x, y);
-        scene.inputBatchEnded();
-        scene.keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
-        scene.scrolled(0, -1, x, y); // a plain vertical notch, Shift held
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -1, x, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
+        drive(scene).scrolled(0, -1, x, y); // a plain vertical notch, Shift held
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
         deepest = mounted(cells, "level-14");
         assertEquals(xBefore - 2 * Strokes.WHEEL_STEP, deepest.x(), 0.01f,
@@ -2233,10 +2234,10 @@ class TreeTest extends ComponentTestBase {
 
         float x = tree.localToSceneX() + 20;
         float y = tree.localToSceneY() + 20;
-        scene.mouseMoved(x, y);
-        scene.keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
-        scene.scrolled(-1, 0, x, y); // the shape macOS gives Shift and a notch
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
+        drive(scene).scrolled(-1, 0, x, y); // the shape macOS gives Shift and a notch
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
 
         deepest = mounted(cells, "level-14");
@@ -2259,12 +2260,12 @@ class TreeTest extends ComponentTestBase {
         ScrollView pane = (ScrollView) scene.root();
         float x = tree.localToSceneX() + 20;
         float y = tree.localToSceneY() + 20;
-        scene.mouseMoved(x, y);
+        drive(scene).mouseMoved(x, y);
 
         // Up at the top: the tree has nowhere to go, so the pane takes the detent — and it too is
         // at its top, so nothing moves and nothing broke.
-        scene.scrolled(0, 1, x, y);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, 1, x, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
         assertEquals(0, mounted(cells, "level-1").y(), 0.01f, "the tree stayed at its first row");
         assertEquals(0, pane.offsetY(), 0.01f, "and the pane had nowhere to go either");
@@ -2272,8 +2273,8 @@ class TreeTest extends ComponentTestBase {
         // Down: the tree takes every detent until it rests on its last row, then the pane moves.
         int notches = 0;
         while (pane.offsetY() == 0 && notches < 100) {
-            scene.scrolled(0, -1, x, y);
-            scene.inputBatchEnded();
+            drive(scene).scrolled(0, -1, x, y);
+            drive(scene).inputBatchEnded();
             scene.layoutPass(220, 200);
             notches++;
         }
@@ -2285,8 +2286,8 @@ class TreeTest extends ComponentTestBase {
                 "the tree is at its end when the pane starts moving");
 
         // Up: the tree is at its end and not at its top, so it takes the detent back first.
-        scene.scrolled(0, 1, x, y);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, 1, x, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
         assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), 0.01f,
                 "the tree could move up, so it did and the pane did not");
@@ -2294,19 +2295,19 @@ class TreeTest extends ComponentTestBase {
         // Up to the top and past it: the pane takes what the tree cannot. Then sideways at the
         // leading edge, which nothing can use, and toward the trailing edge, which the tree can.
         for (int i = 0; i < 40; i++) {
-            scene.scrolled(0, 1, x, y);
-            scene.inputBatchEnded();
+            drive(scene).scrolled(0, 1, x, y);
+            drive(scene).inputBatchEnded();
         }
         scene.layoutPass(220, 200);
         assertEquals(0, pane.offsetY(), 0.01f, "the pane took the detents the tree could not");
         float atStart = mounted(cells, "level-14").x();
-        scene.scrolled(1, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(1, 0, x, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
         assertEquals(atStart, mounted(cells, "level-14").x(), 0.01f,
                 "a sideways notch at the leading edge moves nothing");
-        scene.scrolled(-1, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(-1, 0, x, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
         assertEquals(atStart - Strokes.WHEEL_STEP, mounted(cells, "level-14").x(), 0.01f,
                 "and the other way is the tree's");
@@ -2386,11 +2387,11 @@ class TreeTest extends ComponentTestBase {
 
         float x = tree.localToSceneX() + 20;
         float y = tree.localToSceneY() + 20;
-        scene.mouseMoved(x, y);
+        drive(scene).mouseMoved(x, y);
         int notches = 0;
         while (pane.offsetY() == 0 && notches < 200) {
-            scene.scrolled(0, -1, x, y);
-            scene.inputBatchEnded();
+            drive(scene).scrolled(0, -1, x, y);
+            drive(scene).inputBatchEnded();
             scene.layoutPass(220, 200);
             notches++;
         }
@@ -2407,8 +2408,8 @@ class TreeTest extends ComponentTestBase {
         float paneAtEnd = pane.offsetY();
         notches = 0;
         while (notches < 200) {
-            scene.scrolled(0, 1, x, y);
-            scene.inputBatchEnded();
+            drive(scene).scrolled(0, 1, x, y);
+            drive(scene).inputBatchEnded();
             scene.layoutPass(220, 200);
             notches++;
             Widget top = cells.get("row 0");
@@ -2608,9 +2609,9 @@ class TreeTest extends ComponentTestBase {
 
         float x = tree.localToSceneX() + triangleX + 2;
         float y = tree.localToSceneY() + rowMid;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
 
         assertTrue(tree.visibleRowCount() < 14,
@@ -2621,23 +2622,23 @@ class TreeTest extends ComponentTestBase {
     private void wheelSideways(Tree<Node> tree, float notches) {
         float x = tree.localToSceneX() + tree.width() / 2;
         float y = tree.localToSceneY() + tree.height() / 2;
-        scene.mouseMoved(x, y);
-        scene.scrolled(notches, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).scrolled(notches, 0, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     private void wheel(Tree<Node> tree, float notches) {
         float x = tree.localToSceneX() + tree.width() / 2;
         float y = tree.localToSceneY() + tree.height() / 2;
-        scene.mouseMoved(x, y);
-        scene.scrolled(0, notches, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).scrolled(0, notches, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     private void press(int key) {
-        scene.keyEvent(key, true, false, 0);
-        scene.keyEvent(key, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).keyEvent(key, false, false, 0);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(220, 200);
     }
 

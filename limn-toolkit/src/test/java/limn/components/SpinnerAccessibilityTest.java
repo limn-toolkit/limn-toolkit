@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link Spinner} becomes in the accessible tree: one {@code SPIN_BUTTON}, a tab stop with
@@ -162,17 +163,17 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
     /** Presses and releases {@code key} on the focused spinner, as a user does. */
     private void press(int key) {
         scene.requestFocus(spinner);
-        scene.keyEvent(key, true, false, 0);
-        scene.keyEvent(key, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).keyEvent(key, false, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
     /** Types one character into the focused spinner, which is what opens an edit. */
     private void type(int codepoint) {
         scene.requestFocus(spinner);
-        scene.charTyped(codepoint);
-        scene.inputBatchEnded();
+        drive(scene).charTyped(codepoint);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
@@ -797,8 +798,8 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Moves the pointer to one scene point and renders the frame that would republish. */
     private void hoverAt(float x, float y) {
-        scene.mouseMoved(x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
@@ -806,9 +807,9 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
     private void clickCentreOf(AccessibleNode box) {
         float x = box.x() + box.width() / 2;
         float y = box.y() + box.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         frame();
     }
 

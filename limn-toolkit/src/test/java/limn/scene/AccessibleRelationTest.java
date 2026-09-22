@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The link from a popup back to whatever opened it, in both directions, and what happens when it
@@ -213,8 +214,8 @@ class AccessibleRelationTest extends AccessibleTestBase {
         Group root = new Group();
         root.add(new Probe(Accessible.Role.BUTTON, "Save"));
         bind(root);
-        scene.windowFocusChanged(true);
-        scene.inputBatchEnded();
+        drive(scene).windowFocusChanged(true);
+        drive(scene).inputBatchEnded();
         assertEquals(0, bridge.countOf(AccessibleEvent.Type.WINDOW_ACTIVATED),
                 "nothing is handed over before the walk that publishes the bit: " + bridge.events);
         frame();
@@ -226,8 +227,8 @@ class AccessibleRelationTest extends AccessibleTestBase {
                 "and the tree handed with it already says so" + describe(tree()));
         bridge.events.clear();
 
-        scene.windowFocusChanged(false);
-        scene.inputBatchEnded();
+        drive(scene).windowFocusChanged(false);
+        drive(scene).inputBatchEnded();
         assertEquals(0, bridge.countOf(AccessibleEvent.Type.WINDOW_DEACTIVATED), bridge.events.toString());
         frame();
         assertEquals(1, bridge.countOf(AccessibleEvent.Type.WINDOW_DEACTIVATED), bridge.events.toString());

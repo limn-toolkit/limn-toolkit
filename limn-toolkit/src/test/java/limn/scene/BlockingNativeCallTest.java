@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a scene comes back to after the UI thread has been parked inside a
@@ -93,7 +94,7 @@ class BlockingNativeCallTest extends SceneTestBase {
     /** The scene sees a batch exactly as the event loop delivers one. */
     private void batch(Runnable events) {
         events.run();
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
     }
 
     // ------------------------------------------------- keys and the pointer
@@ -102,13 +103,13 @@ class BlockingNativeCallTest extends SceneTestBase {
     void everyKeyHeldWhenTheChooserTookFocusComesBackReleased() {
         Recorder r = attach();
         batch(() -> {
-            scene.keyEvent(Keys.S, true, false, 0);
-            scene.keyEvent(Keys.LEFT_CONTROL, true, false, Keys.MOD_CONTROL);
+            drive(scene).keyEvent(Keys.S, true, false, 0);
+            drive(scene).keyEvent(Keys.LEFT_CONTROL, true, false, Keys.MOD_CONTROL);
         });
         r.keys.clear();
 
         // The panel takes focus; the physical key-ups happen over there.
-        batch(() -> scene.windowFocusChanged(false));
+        batch(() -> drive(scene).windowFocusChanged(false));
 
         assertEquals(List.of(Keys.S, Keys.LEFT_CONTROL), r.releasedKeys(),
                 "both held keys are released, or they stay down for the rest of the session");
@@ -117,17 +118,17 @@ class BlockingNativeCallTest extends SceneTestBase {
     @Test
     void theHeldButtonIsReleasedSoTheNextMoveIsNotStillADrag() {
         Recorder r = attach();
-        batch(() -> scene.mouseButton(0, true, 0, 10, 10));
-        batch(() -> scene.mouseMoved(20, 20));
+        batch(() -> drive(scene).mouseButton(0, true, 0, 10, 10));
+        batch(() -> drive(scene).mouseMoved(20, 20));
         assertTrue(r.mouseTypes().contains(MouseEvent.Type.DRAG),
                 "precondition: the button is held, so a move is a drag");
 
-        batch(() -> scene.windowFocusChanged(false));
+        batch(() -> drive(scene).windowFocusChanged(false));
         assertTrue(r.mouseTypes().contains(MouseEvent.Type.RELEASE),
                 "the button comes back released: the real mouse-up happened in another process");
 
         r.mouse.clear();
-        batch(() -> scene.mouseMoved(30, 30));
+        batch(() -> drive(scene).mouseMoved(30, 30));
         assertEquals(List.of(MouseEvent.Type.ENTER, MouseEvent.Type.MOVE), r.mouseTypes(),
                 "the drag is over: pointing at the window again is a move, not a resumed drag");
     }
@@ -135,16 +136,16 @@ class BlockingNativeCallTest extends SceneTestBase {
     @Test
     void modifiersAreDroppedOnFocusLossAndTheNextPressIsAuthoritative() {
         attach();
-        batch(() -> scene.keyEvent(Keys.LEFT_SHIFT, true, false, 0));
+        batch(() -> drive(scene).keyEvent(Keys.LEFT_SHIFT, true, false, 0));
         assertEquals(Keys.MOD_SHIFT, scene.modifiers(), "precondition: Shift is held");
 
-        batch(() -> scene.windowFocusChanged(false));
+        batch(() -> drive(scene).windowFocusChanged(false));
         assertEquals(0, scene.modifiers(),
                 "no key-up for Shift will ever arrive; believing it is still down is forever");
 
         // The next native event that carries a mask replaces the mirror wholesale,
         // so a modifier pressed while the panel was up is not missed either.
-        batch(() -> scene.mouseButton(0, true, Keys.MOD_CONTROL, 10, 10));
+        batch(() -> drive(scene).mouseButton(0, true, Keys.MOD_CONTROL, 10, 10));
         assertEquals(Keys.MOD_CONTROL, scene.modifiers(),
                 "a press carries the authoritative native mask");
     }

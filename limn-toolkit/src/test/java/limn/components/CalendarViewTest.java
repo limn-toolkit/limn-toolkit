@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** The month grid: paging, the cursor, selection, periods, bounds and the calendar it draws. */
 class CalendarViewTest extends ComponentTestBase {
@@ -59,9 +60,9 @@ class CalendarViewTest extends ComponentTestBase {
     }
 
     private void key(int keyCode, int modifiers) {
-        scene.keyEvent(keyCode, true, false, modifiers);
-        scene.keyEvent(keyCode, false, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, modifiers);
+        drive(scene).keyEvent(keyCode, false, false, modifiers);
+        drive(scene).inputBatchEnded();
     }
 
     @Test

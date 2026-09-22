@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The scene enables the platform IME only while a text-editing widget is
@@ -115,8 +116,8 @@ class ScenePreeditTest extends SceneTestBase {
     void preeditGoesToTheFocusedTextWidget() {
         build();
         scene.requestFocus(text);
-        scene.preeditChanged("あ", new int[]{1}, 0, 1);
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged("あ", new int[]{1}, 0, 1);
+        drive(scene).inputBatchEnded();
         assertEquals("あ", text.lastPreedit.text());
         assertEquals(1, text.lastPreedit.caret());
     }
@@ -125,8 +126,8 @@ class ScenePreeditTest extends SceneTestBase {
     void preeditWithNothingFocusedIsDropped() {
         build();
         text.lastPreedit = null;
-        scene.preeditChanged("あ", new int[]{1}, 0, 1);
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged("あ", new int[]{1}, 0, 1);
+        drive(scene).inputBatchEnded();
         assertNull(text.lastPreedit, "no focus → composition has nowhere to go");
     }
 
@@ -134,8 +135,8 @@ class ScenePreeditTest extends SceneTestBase {
     void focusLeavingATextWidgetCancelsTheOsComposition() {
         build();
         scene.requestFocus(text);
-        scene.preeditChanged("にほん", new int[]{3}, 0, 3);
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged("にほん", new int[]{3}, 0, 3);
+        drive(scene).inputBatchEnded();
         scene.requestFocus(button);
         assertEquals(1, win.preeditResets,
                 "composition owned by the old text widget must be cancelled on focus change");

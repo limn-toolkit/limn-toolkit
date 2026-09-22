@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The picker as wiring: the field is a child that already works, the grid is a widget that already
@@ -59,9 +60,9 @@ class DatePickerTest extends ComponentTestBase {
     }
 
     private void key(int keyCode, int modifiers) {
-        scene.keyEvent(keyCode, true, false, modifiers);
-        scene.keyEvent(keyCode, false, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, modifiers);
+        drive(scene).keyEvent(keyCode, false, false, modifiers);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -124,9 +125,9 @@ class DatePickerTest extends ComponentTestBase {
 
     private void type(String text) {
         for (int i = 0; i < text.length(); i++) {
-            scene.charTyped(text.charAt(i));
+            drive(scene).charTyped(text.charAt(i));
         }
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
     }
 
     /**
@@ -673,8 +674,8 @@ class DatePickerTest extends ComponentTestBase {
         build(new DatePicker());
         picker.open();
         assertTrue(picker.isOpen());
-        scene.windowFocusChanged(false);
-        scene.inputBatchEnded();
+        drive(scene).windowFocusChanged(false);
+        drive(scene).inputBatchEnded();
         runtime.drain(); // the dismiss decision is deferred one loop turn
         assertFalse(picker.isOpen(), "a popup left floating over another application is stranded");
     }

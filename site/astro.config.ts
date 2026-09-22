@@ -111,6 +111,7 @@ export default defineConfig({
           label: "Shipping",
           items: [
             { slug: "docs/background-work" },
+            { slug: "docs/testing" },
             { slug: "docs/packaging" },
           ],
         },

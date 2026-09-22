@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a screen reader is told about a month grid; ADR 042 §8.
@@ -864,21 +865,21 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
             Clock.fixed(Instant.parse("2026-09-09T12:00:00Z"), ZoneOffset.UTC);
 
     private void key(int keyCode, int modifiers) {
-        scene.keyEvent(keyCode, true, false, modifiers);
-        scene.keyEvent(keyCode, false, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, modifiers);
+        drive(scene).keyEvent(keyCode, false, false, modifiers);
+        drive(scene).inputBatchEnded();
     }
 
     /** The centre of a published cell, which is where a click on it lands. */
     private void pointerTo(AccessibleNode cell, boolean click) {
         float x = cell.x() + cell.width() / 2;
         float y = cell.y() + cell.height() / 2;
-        scene.mouseMoved(x, y);
+        drive(scene).mouseMoved(x, y);
         if (click) {
-            scene.mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, x, y);
-            scene.mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, x, y);
+            drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, x, y);
+            drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, x, y);
         }
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
     }
 
     private List<AccessibleNode> selectedDays() {

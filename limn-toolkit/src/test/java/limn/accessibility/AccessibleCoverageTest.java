@@ -1,7 +1,7 @@
 package limn.accessibility;
 
 import limn.scene.Widget;
-import limn.testing.RepositoryRoot;
+import limn.testfixtures.RepositoryRoot;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;

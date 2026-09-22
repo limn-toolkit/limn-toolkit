@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The split's behaviour, driven through a real scene with no GL.
@@ -82,13 +83,13 @@ class SplitPaneTest extends ComponentTestBase {
         float before = left.width();
         float x = divider.localToSceneX() + 1;
         float y = divider.localToSceneY() + divider.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(400, 200);
 
         assertEquals(before, left.width(), 0.01f, "the press alone moved the split");
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -180,10 +181,10 @@ class SplitPaneTest extends ComponentTestBase {
         Widget divider = split.divider();
         float x = divider.localToSceneX() + divider.width() / 2;
         float y = divider.localToSceneY() + divider.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseMoved(x + delta, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x + delta, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseMoved(x + delta, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x + delta, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(400, 200);
     }
 
@@ -196,8 +197,8 @@ class SplitPaneTest extends ComponentTestBase {
     }
 
     private void press(int key, int modifiers) {
-        scene.keyEvent(key, true, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(400, 200);
     }
 
@@ -265,14 +266,14 @@ class SplitPaneTest extends ComponentTestBase {
         Color rest = lineColor(host, clock);
         divider.requestFocus();
         Color focused = lineColor(host, clock);
-        host.mouseMoved(x, y);
-        host.inputBatchEnded();
+        drive(host).mouseMoved(x, y);
+        drive(host).inputBatchEnded();
         Color hovered = lineColor(host, clock);
-        host.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        host.inputBatchEnded();
+        drive(host).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(host).inputBatchEnded();
         Color dragged = lineColor(host, clock);
-        host.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        host.inputBatchEnded();
+        drive(host).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(host).inputBatchEnded();
 
         Theme theme = Theme.current();
         assertEquals(theme.outline(), rest, "at rest a divider is a hairline separator");

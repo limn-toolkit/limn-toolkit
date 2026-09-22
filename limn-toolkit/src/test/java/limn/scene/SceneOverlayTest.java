@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** Modal overlay layer: input capture and focus confinement. */
 class SceneOverlayTest extends SceneTestBase {
@@ -61,8 +62,8 @@ class SceneOverlayTest extends SceneTestBase {
         scene.pushOverlay(overlay);
         scene.layoutPass(200, 200);
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 50, 50);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 50, 50);
+        drive(scene).inputBatchEnded();
         assertTrue(log.contains("overlay"), "overlay receives the press");
         assertFalse(log.contains("content"), "content behind the modal must not: " + log);
     }
@@ -83,8 +84,8 @@ class SceneOverlayTest extends SceneTestBase {
         assertSame(overlayBox, scene.focusedWidget());
 
         // Tab traversal stays inside the overlay (single focusable → itself).
-        scene.keyEvent(Keys.TAB, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.TAB, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertSame(overlayBox, scene.focusedWidget(), "Tab cannot escape the modal layer");
 
         scene.removeOverlay(overlayBox);
@@ -175,15 +176,15 @@ class SceneOverlayTest extends SceneTestBase {
 
         // Over the yielded strip: the pointer falls through to the content bar; it
         // hovers and its cursor wins, exactly like a menu bar behind a fullscreen menu.
-        scene.mouseMoved(100, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(100, 10);
+        drive(scene).inputBatchEnded();
         assertTrue(hits.contains("bar") && !hits.contains("overlay"), "bar hovered through the strip: " + hits);
         assertEquals(Cursor.POINTER, win.cursor, "content cursor applies over the strip");
 
         hits.clear();
         // Below the strip the overlay captures as usual, with its own (default) cursor.
-        scene.mouseMoved(100, 100);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(100, 100);
+        drive(scene).inputBatchEnded();
         assertTrue(hits.contains("overlay") && !hits.contains("bar"), "overlay captured below the strip: " + hits);
         assertEquals(Cursor.DEFAULT, win.cursor, "overlay cursor below the strip");
     }
@@ -217,8 +218,8 @@ class SceneOverlayTest extends SceneTestBase {
         scene.pushOverlay(second);
         scene.layoutPass(200, 200);
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 50, 50);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 50, 50);
+        drive(scene).inputBatchEnded();
         assertTrue(log.contains("second") && !log.contains("first"),
                 "only the topmost overlay gets input: " + log);
     }

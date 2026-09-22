@@ -19,6 +19,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link ColorPickerButton} read right to left: which side the chip is on, where its caption
@@ -269,10 +270,10 @@ class ColorPickerButtonMirroringTest extends ComponentTestBase {
         build(LayoutDirection.RTL);
         button.requestFocus();
 
-        scene.keyEvent(Keys.SPACE, true, false, 0);
-        scene.inputBatchEnded();
-        scene.keyEvent(Keys.SPACE, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.SPACE, true, false, 0);
+        drive(scene).inputBatchEnded();
+        drive(scene).keyEvent(Keys.SPACE, false, false, 0);
+        drive(scene).inputBatchEnded();
 
         assertTrue(button.isPickerOpen(),
                 "the keys that do belong to this control are untouched by the direction");
@@ -281,10 +282,10 @@ class ColorPickerButtonMirroringTest extends ComponentTestBase {
     // ------------------------------------------------------------------- driving
 
     private void press(int key) {
-        scene.keyEvent(key, true, false, 0);
-        scene.inputBatchEnded();
-        scene.keyEvent(key, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).inputBatchEnded();
+        drive(scene).keyEvent(key, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     // ------------------------------------------------------------- reading a frame

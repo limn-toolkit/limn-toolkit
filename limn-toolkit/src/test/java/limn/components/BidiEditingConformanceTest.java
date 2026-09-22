@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Bidirectional caret, selection and hit-testing, over the real widgets, driven through the real
@@ -153,21 +154,21 @@ class BidiEditingConformanceTest extends ComponentTestBase {
     }
 
     private void key(int keyCode, int mods) {
-        scene.keyEvent(keyCode, true, false, mods);
-        scene.keyEvent(keyCode, false, false, mods);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, mods);
+        drive(scene).keyEvent(keyCode, false, false, mods);
+        drive(scene).inputBatchEnded();
     }
 
     /** A press and release at {@code localX}, on the field's centre line. */
     private void click(float localX) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, localX, 16);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, localX, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, localX, 16);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, localX, 16);
+        drive(scene).inputBatchEnded();
     }
 
     private void type(int codePoint) {
-        scene.charTyped(codePoint);
-        scene.inputBatchEnded();
+        drive(scene).charTyped(codePoint);
+        drive(scene).inputBatchEnded();
     }
 
     /** Where the field says its caret is, in its own coordinates. */
@@ -556,17 +557,17 @@ class BidiEditingConformanceTest extends ComponentTestBase {
         assertEquals(PAD + 2 * cell, column(secret), EPS,
                 "the caret counts cells forward, whatever direction the plaintext reads");
 
-        host.keyEvent(Keys.A, true, false, Keys.MOD_CONTROL);
-        host.keyEvent(Keys.A, false, false, Keys.MOD_CONTROL);
-        host.keyEvent(Keys.C, true, false, Keys.MOD_CONTROL);
-        host.keyEvent(Keys.C, false, false, Keys.MOD_CONTROL);
-        host.inputBatchEnded();
+        drive(host).keyEvent(Keys.A, true, false, Keys.MOD_CONTROL);
+        drive(host).keyEvent(Keys.A, false, false, Keys.MOD_CONTROL);
+        drive(host).keyEvent(Keys.C, true, false, Keys.MOD_CONTROL);
+        drive(host).keyEvent(Keys.C, false, false, Keys.MOD_CONTROL);
+        drive(host).inputBatchEnded();
         assertEquals("", vault.value, "copy is refused while masked");
 
         secret.setRevealed(true);
-        host.keyEvent(Keys.C, true, false, Keys.MOD_CONTROL);
-        host.keyEvent(Keys.C, false, false, Keys.MOD_CONTROL);
-        host.inputBatchEnded();
+        drive(host).keyEvent(Keys.C, true, false, Keys.MOD_CONTROL);
+        drive(host).keyEvent(Keys.C, false, false, Keys.MOD_CONTROL);
+        drive(host).inputBatchEnded();
         assertEquals(MARHABA, vault.value, "and allowed once the user has revealed it");
 
         Ink revealed = paint(host, 240, 32);

@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The tooltip is the one surface a {@link Scene} paints itself rather than delegating to a widget,
@@ -90,8 +91,8 @@ class TooltipMirroringTest extends ComponentTestBase {
         scene.bind(new StubWindow(false));
         scene.layoutPass(SCENE_W, SCENE_H);
 
-        scene.mouseMoved(200, 100);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(200, 100);
+        drive(scene).inputBatchEnded();
         // The show is posted behind the dwell; move the clock past it and let it fire.
         nanos.addAndGet(5_000_000_000L);
         runtime.drain();

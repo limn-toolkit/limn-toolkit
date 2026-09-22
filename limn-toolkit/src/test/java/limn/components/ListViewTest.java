@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The virtualization contract of {@link ListView}: only visible rows get a
@@ -278,19 +279,19 @@ class ListViewTest extends ComponentTestBase {
         Scene scene = scene(list, canvas);
         list.requestFocus();
 
-        scene.keyEvent(Keys.END, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(99, list.selectedIndex());
         scene.renderFrame(canvas);
         assertTrue(list.firstVisibleIndex() >= 90 && list.firstVisibleIndex() <= 99,
                 "End reveals the last row: first=" + list.firstVisibleIndex());
 
-        scene.keyEvent(Keys.HOME, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.HOME, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(0, list.selectedIndex());
 
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(1, list.selectedIndex());
     }
 
@@ -301,9 +302,9 @@ class ListViewTest extends ComponentTestBase {
         Scene scene = scene(list, canvas);
 
         // x=10 (left, away from the scrollbar), y=90 → row 2 (rows at 0,40,80,…).
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 90);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 90);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 90);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 90);
+        drive(scene).inputBatchEnded();
         assertEquals(2, list.selectedIndex());
     }
 
@@ -406,8 +407,8 @@ class ListViewTest extends ComponentTestBase {
             assertEquals(6 * t.listRowSeed(), list.measure(unbounded()).height(), EPS,
                     step + ": rows of 40 and 90 were measured and the preference did not move");
 
-            scene.scrolled(0, -10, 10, 50);
-            scene.inputBatchEnded();
+            drive(scene).scrolled(0, -10, 10, 50);
+            drive(scene).inputBatchEnded();
             scene.renderFrame(canvas);
             assertEquals(6 * t.listRowSeed(), list.measure(unbounded()).height(), EPS,
                     step + ": nor after a scroll realized rows of the other height");
@@ -461,8 +462,8 @@ class ListViewTest extends ComponentTestBase {
         // Down: the list takes every detent until it rests on its last row.
         int notches = 0;
         while (pane.offsetY() == 0 && notches < 100) {
-            scene.scrolled(0, -1, 50, 50);
-            scene.inputBatchEnded();
+            drive(scene).scrolled(0, -1, 50, 50);
+            drive(scene).inputBatchEnded();
             scene.renderFrame(canvas);
             notches++;
             if (notches * Strokes.WHEEL_STEP < listMax) {
@@ -475,16 +476,16 @@ class ListViewTest extends ComponentTestBase {
         assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), EPS, "one notch of the pane");
 
         // Up: the list is at its end and not at its top, so it takes the detent back first.
-        scene.scrolled(0, 1, 50, 50);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, 1, 50, 50);
+        drive(scene).inputBatchEnded();
         scene.renderFrame(canvas);
         assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), EPS,
                 "the list could move up, so it did and the pane did not");
 
         // Up at the top: the list scrolled back to zero, and the next detent is the pane's.
         for (int i = 0; i < 40; i++) {
-            scene.scrolled(0, 1, 50, 50);
-            scene.inputBatchEnded();
+            drive(scene).scrolled(0, 1, 50, 50);
+            drive(scene).inputBatchEnded();
             scene.renderFrame(canvas);
         }
         assertEquals(0, list.firstVisibleIndex(), "the list is back at its first row");
@@ -504,8 +505,8 @@ class ListViewTest extends ComponentTestBase {
                     .filter(c -> c instanceof Cell).findFirst().orElseThrow();
             float before = firstRow.y();
 
-            scene.scrolled(0, -1, 10, 50); // one notch down, away from the scrollbar
-            scene.inputBatchEnded();
+            drive(scene).scrolled(0, -1, 10, 50); // one notch down, away from the scrollbar
+            drive(scene).inputBatchEnded();
 
             assertEquals(before - Strokes.WHEEL_STEP, firstRow.y(), EPS,
                     step + ": one notch is 48 logical points");
@@ -599,8 +600,8 @@ class ListViewTest extends ComponentTestBase {
         list.requestFocus();
 
         list.setSelectedIndex(7);
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(7, activated.get());
     }
 
@@ -733,16 +734,16 @@ class ListViewTest extends ComponentTestBase {
         list.requestFocus();
 
         for (int i = 0; i < 6; i++) {
-            scene.keyEvent(Keys.DOWN, true, false, 0);
+            drive(scene).keyEvent(Keys.DOWN, true, false, 0);
         }
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
         assertEquals(2, list.selectedIndex(), "Down past the last row stays on it");
 
         for (int i = 0; i < 6; i++) {
-            scene.keyEvent(Keys.UP, true, false, 0);
+            drive(scene).keyEvent(Keys.UP, true, false, 0);
         }
-        scene.keyEvent(Keys.PAGE_UP, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.PAGE_UP, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(0, list.selectedIndex(), "Up and Page Up past the first row stay on it");
 
         ListView empty = list(0, index -> 40);
@@ -750,9 +751,9 @@ class ListViewTest extends ComponentTestBase {
         empty.requestFocus();
         for (int key : new int[] {Keys.HOME, Keys.END, Keys.DOWN, Keys.UP,
                                   Keys.PAGE_DOWN, Keys.PAGE_UP}) {
-            emptyScene.keyEvent(key, true, false, 0);
+            drive(emptyScene).keyEvent(key, true, false, 0);
         }
-        emptyScene.inputBatchEnded();
+        drive(emptyScene).inputBatchEnded();
         assertEquals(-1, empty.selectedIndex(), "an empty list has nothing for a key to reach");
     }
 

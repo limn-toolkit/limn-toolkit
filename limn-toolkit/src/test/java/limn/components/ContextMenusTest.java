@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The context-menu gesture and the region that answers it.
@@ -105,8 +106,8 @@ class ContextMenusTest extends ComponentTestBase {
         Region content = new Region();
         Scene scene = attachedScene(content, asked);
 
-        scene.mouseButton(Keys.MOUSE_RIGHT, true, 0, 40, 40);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_RIGHT, true, 0, 40, 40);
+        drive(scene).inputBatchEnded();
 
         assertEquals(1, asked.get(), "the region was asked for a menu");
     }
@@ -116,9 +117,9 @@ class ContextMenusTest extends ComponentTestBase {
         AtomicInteger asked = new AtomicInteger();
         Scene scene = attachedScene(new Region(), asked);
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 40, 40);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 40, 40);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 40, 40);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 40, 40);
+        drive(scene).inputBatchEnded();
 
         assertEquals(0, asked.get());
     }
@@ -136,8 +137,8 @@ class ContextMenusTest extends ComponentTestBase {
         content.eatsRightPress = true;
         Scene scene = attachedScene(content, asked);
 
-        scene.mouseButton(Keys.MOUSE_RIGHT, true, 0, 40, 40);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_RIGHT, true, 0, 40, 40);
+        drive(scene).inputBatchEnded();
 
         assertEquals(1, content.presses.get(), "the child saw the press");
         assertEquals(0, asked.get(), "and the region did not ask for a menu behind it");
@@ -150,12 +151,12 @@ class ContextMenusTest extends ComponentTestBase {
         Scene scene = attachedScene(content, asked);
         content.requestFocus();
 
-        scene.keyEvent(Keys.F10, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.F10, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         assertEquals(1, asked.get(), "Shift+F10 bubbled from the focused child to the region");
 
-        scene.keyEvent(Keys.MENU, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.MENU, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(2, asked.get(), "and so does the dedicated Menu key");
     }
 
@@ -171,8 +172,8 @@ class ContextMenusTest extends ComponentTestBase {
         scene.setTextRuler(RULER);
         scene.layoutPass(300, 200);
 
-        scene.mouseButton(Keys.MOUSE_RIGHT, true, 0, 40, 40);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_RIGHT, true, 0, 40, 40);
+        drive(scene).inputBatchEnded();
 
         ContextMenus.showAt(content, null, 0, 0);
         ContextMenus.showAt(content, new Menu(), 0, 0);

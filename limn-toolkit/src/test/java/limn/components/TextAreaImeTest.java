@@ -12,6 +12,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * IME composition (preedit) routing for the multiline {@link TextArea}: the
@@ -39,13 +40,13 @@ class TextAreaImeTest extends ComponentTestBase {
     }
 
     private void preedit(String text, int[] blocks, int focusedBlock, int caret) {
-        scene.preeditChanged(text, blocks, focusedBlock, caret);
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged(text, blocks, focusedBlock, caret);
+        drive(scene).inputBatchEnded();
     }
 
     private void commit(String text) {
-        text.codePoints().forEach(scene::charTyped);
-        scene.inputBatchEnded();
+        text.codePoints().forEach(drive(scene)::charTyped);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -188,8 +189,8 @@ class TextAreaImeTest extends ComponentTestBase {
             SizeTokens t = SizeTokens.of(step);
             host.layoutPass(t.areaWidth(), t.areaHeight());
             host.requestFocus(a);
-            host.preeditChanged("にほn", new int[]{3}, 0, 3);
-            host.inputBatchEnded();
+            drive(host).preeditChanged("にほn", new int[]{3}, 0, 3);
+            drive(host).inputBatchEnded();
 
             UnderlineRecorder canvas = new UnderlineRecorder(t.areaWidth(), t.areaHeight());
             host.renderFrame(canvas);

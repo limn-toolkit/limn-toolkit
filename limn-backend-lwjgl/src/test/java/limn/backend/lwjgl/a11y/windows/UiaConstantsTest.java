@@ -135,7 +135,7 @@ class UiaConstantsTest {
     private static String sourceOf(String file) {
         try {
             return java.nio.file.Files.readString(
-                    limn.testing.RepositoryRoot.find().resolve(WINDOWS_PACKAGE).resolve(file),
+                    limn.testfixtures.RepositoryRoot.find().resolve(WINDOWS_PACKAGE).resolve(file),
                     java.nio.charset.StandardCharsets.UTF_8);
         } catch (java.io.IOException unreadable) {
             throw new java.io.UncheckedIOException(unreadable);

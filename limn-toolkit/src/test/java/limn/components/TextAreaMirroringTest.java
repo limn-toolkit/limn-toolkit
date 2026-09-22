@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link TextArea} read right to left: where content space sits, where each line sits inside it,
@@ -156,9 +157,9 @@ class TextAreaMirroringTest extends ComponentTestBase {
     }
 
     private void click(float localX, float localY) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, localX, localY);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, localX, localY);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, localX, localY);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, localX, localY);
+        drive(scene).inputBatchEnded();
     }
 
     // ------------------------------------------------ the held lines' cache key
@@ -309,8 +310,8 @@ class TextAreaMirroringTest extends ComponentTestBase {
         build(LayoutDirection.RTL, "");
         area.setSoftWrap(true);
         area.setText(sixWords());
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, RTL_START - 1, PAD_Y + 12 + 1);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, RTL_START - 1, PAD_Y + 12 + 1);
+        drive(scene).inputBatchEnded();
         assertEquals(16, area.model().cursor(),
                 "the second row's first character sits at the right edge, where reading starts");
     }

@@ -51,6 +51,11 @@ val publishedModules = mapOf(
     "limn-toolkit" to
             "The widget set, layout, the scene graph, the backend SPIs and the pure-Java video " +
             "decoders; depends on nothing.",
+    "limn-test" to
+            "Testing a Limn UI without a display: a SceneDriver that clicks, types and presses keys " +
+            "through a scene's window input, a headless UI runtime and backend, stub windows, " +
+            "fixed text rulers and the accessibility contracts the toolkit's own widgets are " +
+            "held to. Depends on limn-toolkit only, and on no test framework.",
     "limn-theme-editor" to
             "The screen that authors a Theme; an application opts in. Also a program: the jar " +
             "names ThemeEditorApp as its Main-Class and the POM brings a backend and every " +

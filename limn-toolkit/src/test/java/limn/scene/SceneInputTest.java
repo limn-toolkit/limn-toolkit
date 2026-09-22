@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Event pipeline tests with a fake input source (the WindowInput methods) and
@@ -106,8 +107,8 @@ class SceneInputTest extends SceneTestBase {
     @Test
     void hoverFollowsContentMovingUnderAStationaryMouse() {
         buildScene(null);
-        scene.mouseMoved(10, 10); // pointer over 'a' (0..100)
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(10, 10); // pointer over 'a' (0..100)
+        drive(scene).inputBatchEnded();
         assertTrue(log.contains("a:ENTER"));
         log.clear();
 
@@ -141,17 +142,17 @@ class SceneInputTest extends SceneTestBase {
     @Test
     void pushOverlayCancelsAnInFlightDrag() {
         buildScene(null);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10); // press captures 'a'
-        scene.mouseMoved(12, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10); // press captures 'a'
+        drive(scene).mouseMoved(12, 10);
+        drive(scene).inputBatchEnded();
         assertTrue(log.contains("a:DRAG"), "sanity: the drag reaches the captured widget");
         log.clear();
 
         scene.pushOverlay(new Recorder("modal", log, 200, 200));
         assertTrue(log.contains("a:RELEASE"), "the capture is released when the modal opens");
         log.clear();
-        scene.mouseMoved(40, 10); // pointer still physically down in the OS
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(40, 10); // pointer still physically down in the OS
+        drive(scene).inputBatchEnded();
         assertTrue(log.stream().noneMatch(s -> s.equals("a:DRAG")),
                 "no DRAG keeps flowing beneath the scrim: " + log);
     }
@@ -160,9 +161,9 @@ class SceneInputTest extends SceneTestBase {
     void consecutiveMovesCoalesceToTheNewest() {
         buildScene(null);
         for (int i = 0; i < 5; i++) {
-            scene.mouseMoved(10 + i, 10);
+            drive(scene).mouseMoved(10 + i, 10);
         }
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
         assertEquals(List.of("a:ENTER", "a:MOVE"), log);
         assertEquals(14, a.lastMouse.x(), 1e-3);
     }
@@ -170,10 +171,10 @@ class SceneInputTest extends SceneTestBase {
     @Test
     void scrollsAccumulateDeltas() {
         buildScene(null);
-        scene.scrolled(0, -1, 10, 10);
-        scene.scrolled(0, -1, 10, 10);
-        scene.scrolled(1, -1, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -1, 10, 10);
+        drive(scene).scrolled(0, -1, 10, 10);
+        drive(scene).scrolled(1, -1, 10, 10);
+        drive(scene).inputBatchEnded();
         long wheels = log.stream().filter(s -> s.endsWith("WHEEL")).count();
         assertEquals(1, wheels);
         assertEquals(-3, a.lastWheel.scrollY(), 1e-3);
@@ -183,20 +184,20 @@ class SceneInputTest extends SceneTestBase {
     @Test
     void clicksAreNeverDroppedAndKeepOrderWithMoves() {
         buildScene(null);
-        scene.mouseMoved(10, 10);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.mouseMoved(12, 10); // between press and release: DRAG
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 12, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(10, 10);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).mouseMoved(12, 10); // between press and release: DRAG
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 12, 10);
+        drive(scene).inputBatchEnded();
         assertEquals(List.of("a:ENTER", "a:MOVE", "a:PRESS", "a:DRAG", "a:RELEASE", "a:CLICK"), log);
     }
 
     @Test
     void releaseOutsideThePressedWidgetCancelsTheClick() {
         buildScene(null);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);   // press on a
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 150); // release over b
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);   // press on a
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 150); // release over b
+        drive(scene).inputBatchEnded();
         assertTrue(log.contains("a:PRESS"));
         assertTrue(log.contains("a:RELEASE"), "release goes to the pressed widget");
         assertTrue(log.stream().noneMatch(s -> s.endsWith("CLICK")), "no click: " + log);
@@ -212,15 +213,15 @@ class SceneInputTest extends SceneTestBase {
         Scene s2 = new Scene(outer);
         s2.layoutPass(200, 200);
 
-        s2.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        s2.inputBatchEnded();
+        drive(s2).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(s2).inputBatchEnded();
         assertTrue(log.contains("child:PRESS") && log.contains("outer:PRESS"),
                 "unconsumed press bubbles: " + log);
 
         log.clear();
         child.consumeType = MouseEvent.Type.PRESS;
-        s2.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        s2.inputBatchEnded();
+        drive(s2).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(s2).inputBatchEnded();
         assertTrue(log.contains("child:PRESS") && !log.contains("outer:PRESS"),
                 "consumed press must not bubble: " + log);
     }
@@ -228,20 +229,20 @@ class SceneInputTest extends SceneTestBase {
     @Test
     void hoverTransitionsDispatchEnterAndExit() {
         buildScene(null);
-        scene.mouseMoved(10, 10);
-        scene.inputBatchEnded();
-        scene.mouseMoved(10, 150);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(10, 10);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(10, 150);
+        drive(scene).inputBatchEnded();
         assertEquals(List.of("a:ENTER", "a:MOVE", "a:EXIT", "b:ENTER", "b:MOVE"), log);
     }
 
     @Test
     void pointerLeavingTheWindowClearsHover() {
         buildScene(null);
-        scene.mouseMoved(10, 10);
-        scene.inputBatchEnded();
-        scene.pointerEntered(false);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(10, 10);
+        drive(scene).inputBatchEnded();
+        drive(scene).pointerEntered(false);
+        drive(scene).inputBatchEnded();
         assertTrue(log.contains("a:EXIT"));
     }
 
@@ -251,16 +252,16 @@ class SceneInputTest extends SceneTestBase {
         a.setFocusable(true);
         b.setFocusable(true);
 
-        scene.keyEvent(Keys.TAB, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.TAB, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertSame(a, scene.focusedWidget());
 
-        scene.keyEvent(Keys.TAB, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.TAB, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertSame(b, scene.focusedWidget());
 
-        scene.keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         assertSame(a, scene.focusedWidget());
     }
 
@@ -268,12 +269,12 @@ class SceneInputTest extends SceneTestBase {
     void clickFocusesTheNearestFocusableAncestor() {
         buildScene(null);
         b.setFocusable(true);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 150);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 150);
+        drive(scene).inputBatchEnded();
         assertSame(b, scene.focusedWidget());
         // a is not focusable: pressing it keeps focus where it was.
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertSame(b, scene.focusedWidget());
     }
 
@@ -282,9 +283,9 @@ class SceneInputTest extends SceneTestBase {
         buildScene(null);
         b.setFocusable(true);
         scene.requestFocus(b);
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.charTyped('x');
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).charTyped('x');
+        drive(scene).inputBatchEnded();
         assertTrue(log.contains("b:KEY" + Keys.ENTER), log.toString());
         assertTrue(log.contains("b:CHAR" + (int) 'x'), log.toString());
         assertTrue(log.stream().noneMatch(s -> s.startsWith("a:KEY")), "a never sees the key");
@@ -294,8 +295,8 @@ class SceneInputTest extends SceneTestBase {
     void disabledSubtreesAreNotHit() {
         buildScene(null);
         a.setEnabled(false);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertTrue(log.stream().noneMatch(s -> s.startsWith("a:")), log.toString());
     }
 
@@ -304,8 +305,8 @@ class SceneInputTest extends SceneTestBase {
         // Every clock read advances 10 ms: any handler appears to take 10 ms.
         AtomicLong fake = new AtomicLong();
         buildScene(() -> fake.addAndGet(TimeUnit.MILLISECONDS.toNanos(10)));
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertTrue(scene.slowHandlerCount() > 0, "10 ms handlers exceed the 8 ms budget");
     }
 
@@ -344,11 +345,11 @@ class SceneInputTest extends SceneTestBase {
         Scene s2 = new Scene(column);
         s2.layoutPass(200, 200);
 
-        s2.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10); // press removes the widget
-        s2.inputBatchEnded();
+        drive(s2).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10); // press removes the widget
+        drive(s2).inputBatchEnded();
         s2.layoutPass(200, 200); // survivor moves up to fill the space
-        s2.mouseMoved(10, 20);
-        s2.inputBatchEnded();
+        drive(s2).mouseMoved(10, 20);
+        drive(s2).inputBatchEnded();
         assertTrue(log.contains("survivor:MOVE"),
                 "capture must be released; the live tree gets the moves: " + log);
         assertTrue(log.stream().noneMatch(s -> s.endsWith(":DRAG")),
@@ -360,8 +361,8 @@ class SceneInputTest extends SceneTestBase {
         // Regression (code review): clearing hover state without an EXIT left
         // components painting their hover visuals forever after re-enable.
         buildScene(null);
-        scene.mouseMoved(10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(10, 10);
+        drive(scene).inputBatchEnded();
         assertTrue(log.contains("a:ENTER"));
 
         a.setEnabled(false);
@@ -371,8 +372,8 @@ class SceneInputTest extends SceneTestBase {
     @Test
     void disablingThePressedWidgetSynthesizesRelease() {
         buildScene(null);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         a.setEnabled(false);
         assertTrue(log.contains("a:RELEASE"), "synthetic RELEASE on disable: " + log);
     }
@@ -382,8 +383,8 @@ class SceneInputTest extends SceneTestBase {
         buildScene(null);
         b.setFocusable(true);
         scene.requestFocus(b);
-        scene.mouseMoved(10, 150);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(10, 150);
+        drive(scene).inputBatchEnded();
         rootColumn.remove(b);
         assertNull(scene.focusedWidget());
     }
@@ -396,27 +397,27 @@ class SceneInputTest extends SceneTestBase {
         buildScene(null);
         a.throwOnType = MouseEvent.Type.PRESS;
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);   // a: PRESS handler throws
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 150);  // b, queued behind the throw
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 150);
-        scene.inputBatchEnded(); // must not throw
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);   // a: PRESS handler throws
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 150);  // b, queued behind the throw
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 150);
+        drive(scene).inputBatchEnded(); // must not throw
         assertTrue(log.contains("b:CLICK"), "events after the throw are still delivered: " + log);
 
         log.clear();
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
         assertTrue(log.isEmpty(), "nothing is replayed on the next batch: " + log);
     }
 
     @Test
     void droppedFilesDispatchToTheWidgetUnderThePointer() {
         buildScene(null);
-        scene.mouseMoved(10, 150); // the platform moves the cursor onto the window before dropping
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(10, 150); // the platform moves the cursor onto the window before dropping
+        drive(scene).inputBatchEnded();
         log.clear();
 
-        scene.filesDropped(List.of(java.nio.file.Path.of("a.txt"), java.nio.file.Path.of("b.png")));
-        scene.inputBatchEnded();
+        drive(scene).filesDropped(List.of(java.nio.file.Path.of("a.txt"), java.nio.file.Path.of("b.png")));
+        drive(scene).inputBatchEnded();
 
         assertEquals(List.of("b:DROP2"), log, "the drop bubbles from the widget under the pointer");
     }
@@ -426,19 +427,19 @@ class SceneInputTest extends SceneTestBase {
         // Regression (code review): Cmd-Tab while holding a drag left pressed
         // state stuck: the RELEASE happens in another app and never arrives.
         buildScene(null);
-        scene.mouseMoved(10, 10);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(10, 10);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         log.clear();
 
-        scene.windowFocusChanged(false);
-        scene.inputBatchEnded();
+        drive(scene).windowFocusChanged(false);
+        drive(scene).inputBatchEnded();
         assertTrue(log.contains("a:RELEASE"), "blur synthesizes the RELEASE: " + log);
         assertTrue(log.contains("a:EXIT"), "blur clears hover: " + log);
 
         log.clear();
-        scene.mouseMoved(12, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(12, 10);
+        drive(scene).inputBatchEnded();
         assertTrue(log.stream().noneMatch(s -> s.endsWith(":DRAG")),
                 "after blur, moves are plain MOVEs again: " + log);
     }
@@ -468,15 +469,15 @@ class SceneInputTest extends SceneTestBase {
         Scene s = new Scene(box);
         s.layoutPass(200, 200);
         s.requestFocus(box);
-        s.keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
-        s.keyEvent(Keys.W, true, false, Keys.MOD_SHIFT);
-        s.keyEvent(Keys.A, true, false, Keys.MOD_SHIFT);
-        s.keyEvent(Keys.A, false, false, Keys.MOD_SHIFT); // released normally, before the blur
-        s.inputBatchEnded();
+        drive(s).keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
+        drive(s).keyEvent(Keys.W, true, false, Keys.MOD_SHIFT);
+        drive(s).keyEvent(Keys.A, true, false, Keys.MOD_SHIFT);
+        drive(s).keyEvent(Keys.A, false, false, Keys.MOD_SHIFT); // released normally, before the blur
+        drive(s).inputBatchEnded();
         box.keys.clear();
 
-        s.windowFocusChanged(false);
-        s.inputBatchEnded();
+        drive(s).windowFocusChanged(false);
+        drive(s).inputBatchEnded();
 
         assertEquals(List.of("up " + Keys.W, "up " + Keys.LEFT_SHIFT), box.keys,
                 "exactly the keys still held, with no modifiers: focus is gone, so what is still"
@@ -492,15 +493,15 @@ class SceneInputTest extends SceneTestBase {
         Scene s = new Scene(box);
         s.layoutPass(200, 200);
         s.requestFocus(box);
-        s.keyEvent(Keys.SPACE, true, false, 0);
-        s.inputBatchEnded();
-        s.windowFocusChanged(false);
-        s.inputBatchEnded();
+        drive(s).keyEvent(Keys.SPACE, true, false, 0);
+        drive(s).inputBatchEnded();
+        drive(s).windowFocusChanged(false);
+        drive(s).inputBatchEnded();
         box.keys.clear();
 
-        s.windowFocusChanged(true);
-        s.windowFocusChanged(false);
-        s.inputBatchEnded();
+        drive(s).windowFocusChanged(true);
+        drive(s).windowFocusChanged(false);
+        drive(s).inputBatchEnded();
 
         assertEquals(List.of(), box.keys, "nothing was held the second time");
     }
@@ -513,12 +514,12 @@ class SceneInputTest extends SceneTestBase {
         Scene s = new Scene(box);
         s.layoutPass(200, 200);
         s.requestFocus(box);
-        s.keyEvent(Keys.W, true, true, 0); // repeat, no preceding press in this scene
-        s.inputBatchEnded();
+        drive(s).keyEvent(Keys.W, true, true, 0); // repeat, no preceding press in this scene
+        drive(s).inputBatchEnded();
         box.keys.clear();
 
-        s.windowFocusChanged(false);
-        s.inputBatchEnded();
+        drive(s).windowFocusChanged(false);
+        drive(s).inputBatchEnded();
 
         assertEquals(List.of("up " + Keys.W), box.keys, "the repeat left a key to release");
     }
@@ -531,8 +532,8 @@ class SceneInputTest extends SceneTestBase {
         Recorder overlay = new Recorder("overlay", log, 200, 200);
         scene.pushOverlay(overlay);
         log.clear();
-        scene.charTyped('x');
-        scene.inputBatchEnded();
+        drive(scene).charTyped('x');
+        drive(scene).inputBatchEnded();
         assertTrue(log.contains("overlay:CHAR" + (int) 'x'), log.toString());
         assertTrue(log.stream().noneMatch(s -> s.startsWith("a:CHAR")),
                 "blocked content must not see chars: " + log);

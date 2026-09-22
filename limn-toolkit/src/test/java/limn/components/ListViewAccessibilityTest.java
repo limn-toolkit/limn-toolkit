@@ -34,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link ListView} becomes in the accessible tree: one {@code LIST} node over the rows it
@@ -368,9 +369,9 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(rowNodes().size() < 100, "only the rows that fit are realized: " + describe(tree()));
         bridge.events.clear();
 
-        scene.keyEvent(Keys.END, true, false, 0);
-        scene.keyEvent(Keys.END, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).keyEvent(Keys.END, false, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals(199, list.selectedIndex());
@@ -645,8 +646,8 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         float x = list.localToSceneX() + list.width() / 2;
         float y = list.localToSceneY() + list.height() / 2;
-        scene.scrolled(0, -10, x, y);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -10, x, y);
+        drive(scene).inputBatchEnded();
         frame();
         AccessibleNode kept = rowNode(0);
         assertNotNull(kept, "the cursor row is kept while the list holds the keyboard: "

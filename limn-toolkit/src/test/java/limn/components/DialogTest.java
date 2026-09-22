@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Dialog resolution logic driven headlessly through its panel
@@ -76,11 +77,11 @@ class DialogTest extends ComponentTestBase {
         assertFalse(done.get(), "not resolved until a button is activated");
 
         scene.focusTraverse(false); // focus the first button (Cancelar)
-        scene.keyEvent(Keys.TAB, true, false, 0); // move to OK
-        scene.inputBatchEnded();
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.keyEvent(Keys.ENTER, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.TAB, true, false, 0); // move to OK
+        drive(scene).inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, false, false, 0);
+        drive(scene).inputBatchEnded();
 
         assertTrue(done.get());
         assertEquals("ok", result.get());
@@ -91,9 +92,9 @@ class DialogTest extends ComponentTestBase {
         build();
         AtomicReference<String> result = new AtomicReference<>("<open>");
         dialog.result().thenAccept(result::set);
-        scene.keyEvent(Keys.ESCAPE, true, false, 0);
-        scene.keyEvent(Keys.ESCAPE, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ESCAPE, true, false, 0);
+        drive(scene).keyEvent(Keys.ESCAPE, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals("cancel", result.get());
     }
 
@@ -117,9 +118,9 @@ class DialogTest extends ComponentTestBase {
         scene.focusTraverse(false);
         assertTrue(scene.focusedWidget() instanceof TextField,
                 "sanity: the body's field is focused first, ahead of the buttons");
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.keyEvent(Keys.ENTER, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, false, false, 0);
+        drive(scene).inputBatchEnded();
 
         assertEquals("rename", result.get());
     }
@@ -134,9 +135,9 @@ class DialogTest extends ComponentTestBase {
         dialog.result().thenAccept(result::set);
 
         scene.focusTraverse(false); // the first button: Cancelar
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.keyEvent(Keys.ENTER, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, false, false, 0);
+        drive(scene).inputBatchEnded();
 
         assertEquals("cancel", result.get());
     }
@@ -154,9 +155,9 @@ class DialogTest extends ComponentTestBase {
         AtomicReference<String> result = new AtomicReference<>("<open>");
         dialog.result().thenAccept(result::set);
 
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.keyEvent(Keys.ENTER, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, false, false, 0);
+        drive(scene).inputBatchEnded();
 
         assertEquals("<open>", result.get());
     }
@@ -179,9 +180,9 @@ class DialogTest extends ComponentTestBase {
 
         scene.focusTraverse(false);
         assertTrue(scene.focusedWidget() instanceof Button, "sanity: the footer holds the focus");
-        scene.keyEvent(Keys.PAGE_DOWN, true, false, 0);
-        scene.keyEvent(Keys.PAGE_DOWN, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.PAGE_DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.PAGE_DOWN, false, false, 0);
+        drive(scene).inputBatchEnded();
 
         assertTrue(body.offsetY() > 0, "the body scrolled: " + body.offsetY());
     }
@@ -224,9 +225,9 @@ class DialogTest extends ComponentTestBase {
         // Label does not consume presses, but it stopped testing what the name says, and the
         // padding it was written against is now a token that moves.
         float grab = SizeTokens.MEDIUM.spacingLarge() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, grab, grab);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, grab, grab);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, grab, grab);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, grab, grab);
+        drive(scene).inputBatchEnded();
         assertEquals("<open>", result.get(), "clicking the panel must not resolve the dialog");
     }
 
@@ -257,14 +258,14 @@ class DialogTest extends ComponentTestBase {
         build();
         AtomicReference<String> result = new AtomicReference<>();
         dialog.result().thenAccept(result::set);
-        scene.keyEvent(Keys.ESCAPE, true, false, 0);
-        scene.keyEvent(Keys.ESCAPE, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ESCAPE, true, false, 0);
+        drive(scene).keyEvent(Keys.ESCAPE, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals("cancel", result.get());
         // A second ESC must not change the already-completed result.
-        scene.keyEvent(Keys.ESCAPE, true, false, 0);
-        scene.keyEvent(Keys.ESCAPE, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ESCAPE, true, false, 0);
+        drive(scene).keyEvent(Keys.ESCAPE, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals("cancel", result.get());
     }
 
@@ -286,9 +287,9 @@ class DialogTest extends ComponentTestBase {
         pump(clock, host, canvas);
         assertNull(host.focusedWidget(), "sanity: nothing to focus in a buttonless dialog");
 
-        host.keyEvent(Keys.ESCAPE, true, false, 0);
-        host.keyEvent(Keys.ESCAPE, false, false, 0);
-        host.inputBatchEnded();
+        drive(host).keyEvent(Keys.ESCAPE, true, false, 0);
+        drive(host).keyEvent(Keys.ESCAPE, false, false, 0);
+        drive(host).inputBatchEnded();
         pump(clock, host, canvas);
         assertEquals("cancel", result.get());
     }
@@ -311,12 +312,12 @@ class DialogTest extends ComponentTestBase {
         inScene.show(host).thenAccept(result::set);
         pump(clock, host, canvas); // fade in settles
 
-        host.keyEvent(Keys.ESCAPE, true, false, 0);
-        host.keyEvent(Keys.ESCAPE, false, false, 0);
-        host.inputBatchEnded(); // fade-out starts; no frames rendered after this
+        drive(host).keyEvent(Keys.ESCAPE, true, false, 0);
+        drive(host).keyEvent(Keys.ESCAPE, false, false, 0);
+        drive(host).inputBatchEnded(); // fade-out starts; no frames rendered after this
         assertNull(result.get(), "mid-fade: not resolved yet");
 
-        host.windowClosed(); // owner destroyed before the fade finished
+        drive(host).windowClosed(); // owner destroyed before the fade finished
         assertEquals("cancel", result.get(), "close must flush the pending resolution");
     }
 
@@ -420,7 +421,7 @@ class DialogTest extends ComponentTestBase {
         pump(clock, host, canvas); // fully open, nothing pressed
         assertNull(result.get(), "still open");
 
-        host.windowClosed();
+        drive(host).windowClosed();
         assertEquals("cancel", result.get(),
                 "an unanswered dialog whose window dies must resolve as cancelled");
     }
@@ -445,7 +446,7 @@ class DialogTest extends ComponentTestBase {
         pump(clock, host, canvas);
 
         inScene.dismiss("ok");    // answered; the fade-out has not finished
-        host.windowClosed();      // and now the window dies under it
+        drive(host).windowClosed();      // and now the window dies under it
         assertEquals("ok", result.get(), "the answer wins over the cancel fallback");
     }
 
@@ -469,9 +470,9 @@ class DialogTest extends ComponentTestBase {
         assertTrue(inScene.fadeLevel() > 0.9f, "overlay faded in");
         assertNull(result.get(), "still open until ESC/button");
 
-        host.keyEvent(Keys.ESCAPE, true, false, 0);
-        host.keyEvent(Keys.ESCAPE, false, false, 0);
-        host.inputBatchEnded();
+        drive(host).keyEvent(Keys.ESCAPE, true, false, 0);
+        drive(host).keyEvent(Keys.ESCAPE, false, false, 0);
+        drive(host).inputBatchEnded();
         pump(clock, host, canvas); // fade out settles
         assertEquals("cancel", result.get());
     }
@@ -661,12 +662,12 @@ class DialogTest extends ComponentTestBase {
         float grab = SizeTokens.MEDIUM.spacingLarge() / 2;
         float px = x0 + grab;
         float py = y0 + grab;
-        host.mouseButton(Keys.MOUSE_LEFT, true, 0, px, py);
-        host.inputBatchEnded();
-        host.mouseMoved(px + 40, py + 25);
-        host.inputBatchEnded();
-        host.mouseButton(Keys.MOUSE_LEFT, false, 0, px + 40, py + 25);
-        host.inputBatchEnded();
+        drive(host).mouseButton(Keys.MOUSE_LEFT, true, 0, px, py);
+        drive(host).inputBatchEnded();
+        drive(host).mouseMoved(px + 40, py + 25);
+        drive(host).inputBatchEnded();
+        drive(host).mouseButton(Keys.MOUSE_LEFT, false, 0, px + 40, py + 25);
+        drive(host).inputBatchEnded();
         host.renderFrame(canvas); // re-layout applies the drag offset
 
         assertEquals(x0 + 40, card.x(), 0.5f, "card follows the drag on x");
@@ -691,9 +692,9 @@ class DialogTest extends ComponentTestBase {
         pump(clock, host, canvas);
 
         // Click the scrim (top-left corner, well outside the centered card).
-        host.mouseButton(Keys.MOUSE_LEFT, true, 0, 4, 4);
-        host.mouseButton(Keys.MOUSE_LEFT, false, 0, 4, 4);
-        host.inputBatchEnded();
+        drive(host).mouseButton(Keys.MOUSE_LEFT, true, 0, 4, 4);
+        drive(host).mouseButton(Keys.MOUSE_LEFT, false, 0, 4, 4);
+        drive(host).inputBatchEnded();
         pump(clock, host, canvas);
         assertEquals("<open>", result.get(), "modal in-scene dialog ignores scrim clicks");
     }
@@ -714,9 +715,9 @@ class DialogTest extends ComponentTestBase {
         inScene.show(host).thenAccept(result::set);
         pump(clock, host, canvas);
 
-        host.mouseButton(Keys.MOUSE_LEFT, true, 0, 4, 4);
-        host.mouseButton(Keys.MOUSE_LEFT, false, 0, 4, 4);
-        host.inputBatchEnded();
+        drive(host).mouseButton(Keys.MOUSE_LEFT, true, 0, 4, 4);
+        drive(host).mouseButton(Keys.MOUSE_LEFT, false, 0, 4, 4);
+        drive(host).inputBatchEnded();
         pump(clock, host, canvas); // fade out settles
         assertEquals("cancel", result.get(), "with dismissOnScrim it closes on the scrim");
     }

@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 class TextAreaTest extends ComponentTestBase {
 
@@ -81,16 +82,16 @@ class TextAreaTest extends ComponentTestBase {
     }
 
     private void key(int keyCode, int mods) {
-        scene.keyEvent(keyCode, true, false, mods);
-        scene.keyEvent(keyCode, false, false, mods);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, mods);
+        drive(scene).keyEvent(keyCode, false, false, mods);
+        drive(scene).inputBatchEnded();
     }
 
     /** A left-button press {@code contentX} points into line 0's text, through the two pads. */
     private void pressOnFirstLine(float contentX) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0,
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0,
                 PAD_X + contentX, SizeTokens.of(ControlSize.MEDIUM).areaPad() + 1);
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
     }
 
     /** Where the caret is painted, as a content x: {@link TextArea#caretRect()} less the inset. */
@@ -104,18 +105,18 @@ class TextAreaTest extends ComponentTestBase {
         // fire the Ctrl letter shortcuts (select-all/undo/cut...).
         build("abc");
         key(Keys.A, Keys.MOD_CONTROL | Keys.MOD_ALT);
-        scene.charTyped('ą');
-        scene.inputBatchEnded();
+        drive(scene).charTyped('ą');
+        drive(scene).inputBatchEnded();
         assertEquals("abcą", area.text());
     }
 
     @Test
     void enterInsertsNewlinesAndArrowsNavigateLines() {
         build("");
-        scene.charTyped('a');
+        drive(scene).charTyped('a');
         key(Keys.ENTER, 0);
-        scene.charTyped('b');
-        scene.inputBatchEnded();
+        drive(scene).charTyped('b');
+        drive(scene).inputBatchEnded();
         assertEquals("a\nb", area.text());
 
         key(Keys.UP, 0);
@@ -142,16 +143,16 @@ class TextAreaTest extends ComponentTestBase {
         // 30 lines x 12pt = 360pt of content in a 100pt-high area.
         build("line\n".repeat(30).trim());
         assertEquals(0, area.scrollYOffset(), 1e-3);
-        scene.scrolled(0, -1, 50, 50);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -1, 50, 50);
+        drive(scene).inputBatchEnded();
         // A detent is a DEVICE unit and has no five-column row; read it from Strokes rather
         // than re-baking the 48, so this line is a guard on the lock instead of a duplicate.
         assertEquals(Strokes.WHEEL_STEP, area.scrollYOffset(), 1e-3);
-        scene.scrolled(0, -100, 50, 50);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -100, 50, 50);
+        drive(scene).inputBatchEnded();
         assertTrue(area.scrollYOffset() < 360, "clamped to content");
-        scene.scrolled(0, +1000, 50, 50);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, +1000, 50, 50);
+        drive(scene).inputBatchEnded();
         assertEquals(0, area.scrollYOffset(), 1e-3, "clamped to top");
     }
 
@@ -174,13 +175,13 @@ class TextAreaTest extends ComponentTestBase {
         // ScrollBar does not participate in the size axis, so this strip is 15pt at
         // every step; see the class javadoc on what that costs at XSMALL.
         float thumbX = 200 - 4; // inside the right-edge scrollbar strip
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, thumbX, 6);
-        scene.inputBatchEnded();
-        scene.mouseMoved(thumbX, 55);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, thumbX, 6);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(thumbX, 55);
+        drive(scene).inputBatchEnded();
         assertTrue(area.scrollYOffset() > 0, "dragging the thumb scrolls: " + area.scrollYOffset());
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, thumbX, 55);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, thumbX, 55);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -470,8 +471,8 @@ class TextAreaTest extends ComponentTestBase {
         scene.renderFrame(canvas); // the first frame is allowed to resolve everything
         ruler.shapes = 0;
         ruler.scans = 0;
-        scene.charTyped('x');
-        scene.inputBatchEnded();
+        drive(scene).charTyped('x');
+        drive(scene).inputBatchEnded();
         scene.renderFrame(canvas);
         return new Keystroke(ruler.shapes, ruler.scans);
     }
@@ -598,8 +599,8 @@ class TextAreaTest extends ComponentTestBase {
             Scene host = a.scene();
             host.layoutPass(200, 100);
             a.setText("line\n".repeat(30).trim());
-            host.scrolled(0, -1, 50, 50);
-            host.inputBatchEnded();
+            drive(host).scrolled(0, -1, 50, 50);
+            drive(host).inputBatchEnded();
             assertEquals(Strokes.WHEEL_STEP, a.scrollYOffset(), 1e-3, step + " detent");
         }
     }
@@ -618,8 +619,8 @@ class TextAreaTest extends ComponentTestBase {
             host.layoutPass(200, 100);
             a.setText("abcdef");
             SizeTokens t = SizeTokens.of(step);
-            host.mouseButton(Keys.MOUSE_LEFT, true, 0, t.fieldPadH() + 26, t.areaPad() + 1);
-            host.inputBatchEnded();
+            drive(host).mouseButton(Keys.MOUSE_LEFT, true, 0, t.fieldPadH() + 26, t.areaPad() + 1);
+            drive(host).inputBatchEnded();
             assertEquals(3, a.model().cursor(), step + " maps the press through the two pads");
         }
     }
@@ -924,8 +925,8 @@ class TextAreaTest extends ComponentTestBase {
     @Test
     void softWrapClickLandsOnTheRowUnderThePointer() {
         buildWrapped("a".repeat(40));
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, PAD_X + 22, PAD_Y + 12 + 1);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, PAD_X + 22, PAD_Y + 12 + 1);
+        drive(scene).inputBatchEnded();
         assertEquals(19, area.model().cursor(), "the second row starts at 17; 22 pt is its third char");
     }
 
@@ -969,9 +970,9 @@ class TextAreaTest extends ComponentTestBase {
     void softWrapRewrapsTheEditedLineOnEachKeystroke() {
         buildWrapped("aaaa bbbb");
         for (int i = 0; i < 10; i++) {
-            scene.charTyped('c');
+            drive(scene).charTyped('c');
         }
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
         assertEquals("aaaa bbbbcccccccccc", area.text());
         // The unbreakable tail moved whole to a second row: [0, 5), [5, 19).
         assertEquals(PAD_X + 140, area.caretRect().x(), EPS);
@@ -1018,8 +1019,8 @@ class TextAreaTest extends ComponentTestBase {
     void softWrapComposingGrowsARowAndTheLinesBelowMoveHonestly() {
         buildWrapped("aaaa bbbb cccc\nzzz"); // both lines fit: one row each
         area.model().setCursor(14, false);   // end of the first line
-        scene.preeditChanged("ddddd", new int[]{5}, 0, 5);
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged("ddddd", new int[]{5}, 0, 5);
+        drive(scene).inputBatchEnded();
         // The composed first line, "aaaa bbbb ccccddddd" (190 pt), wraps to [0, 10), [10, 19):
         // the caret sits after the preedit on the second row, and "zzz" paints a row lower.
         assertEquals(PAD_X + 90, area.caretRect().x(), EPS);
@@ -1028,8 +1029,8 @@ class TextAreaTest extends ComponentTestBase {
         scene.renderFrame(composing);
         assertEquals(PAD_Y + 2 * 12 + 8, yOf(composing, "zzz"), EPS);
         // The composition ends: the committed line is one row again and "zzz" moves back up.
-        scene.preeditChanged("", new int[]{}, -1, 0);
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged("", new int[]{}, -1, 0);
+        drive(scene).inputBatchEnded();
         TextCanvas committed = new TextCanvas(200, 100);
         scene.renderFrame(committed);
         assertEquals(PAD_Y + 12 + 8, yOf(committed, "zzz"), EPS);

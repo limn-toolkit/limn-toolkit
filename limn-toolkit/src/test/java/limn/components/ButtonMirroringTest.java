@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link Button} read right to left: which end of the caption block the icon takes, which end the
@@ -327,12 +328,12 @@ class ButtonMirroringTest extends ComponentTestBase {
     @Test
     void thePrimaryMouseButtonStillPressesReadingRightToLeft() {
         build(LayoutDirection.RTL, "abc");
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertTrue(button.isArmed(), "the press arms it whichever way the button reads");
 
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertEquals(1, fired.get());
     }
 
@@ -360,9 +361,9 @@ class ButtonMirroringTest extends ComponentTestBase {
     }
 
     private void pressAndRelease(int key) {
-        scene.keyEvent(key, true, false, 0);
-        scene.keyEvent(key, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).keyEvent(key, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     // ------------------------------------------------------------------ fixtures

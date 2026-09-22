@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What an open menu cascade becomes in the accessible tree.
@@ -178,15 +179,15 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
 
     /** A press and a release at one point, which is what synthesizes a click. */
     private void click(float x, float y) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
     private void key(int code) {
-        scene.keyEvent(code, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(code, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
@@ -973,8 +974,8 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(bridge.events.isEmpty(), bridge.events.toString());
 
         AccessibleNode first = rowsOf(rootColumn()).get(0);
-        scene.mouseMoved(first.x() + first.width() / 2, first.y() + first.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(first.x() + first.width() / 2, first.y() + first.height() / 2);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals(published, bridge.published.size(),

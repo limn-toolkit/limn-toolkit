@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a strip of top-level menu titles becomes in the accessible tree.
@@ -186,9 +187,9 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
     /** Clicks the middle of a title's published box, through the scene. */
     private void clickTitle(int index) {
         AccessibleNode title = titles().get(index);
-        scene.mouseButton(Keys.MOUSE_LEFT, true,
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true,
                 0, title.x() + title.width() / 2, title.y() + title.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
         frame();
     }
 
@@ -521,8 +522,8 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(titles().get(2).id(), tree().activeDescendant(), describe(tree()));
         assertFalse(bar.isOpen(), "a cursor move opens nothing");
 
-        scene.keyEvent(Keys.LEFT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals(List.of("Edit"), activeNames(),
                 "and it is the field the arrows move, not a copy of it" + describe(tree()));
@@ -576,8 +577,8 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
                 bridge.events.toString());
 
         bridge.events.clear();
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals(List.of("Edit"), activeNames(), describe(tree()));
@@ -589,8 +590,8 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
         bridge.events.clear();
 
         AccessibleNode third = titles().get(2);
-        scene.mouseMoved(third.x() + third.width() / 2, third.y() + third.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(third.x() + third.width() / 2, third.y() + third.height() / 2);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals(List.of(), activeNames(),
@@ -610,8 +611,8 @@ class MenuBarAccessibilityTest extends AccessibleComponentTestBase {
 
         // Off the strip entirely, which is what happens the moment the pointer moves down into
         // the cascade: the bar's own EXIT clears the hover unconditionally, open or not.
-        scene.mouseMoved(200, 200);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(200, 200);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertTrue(bar.isOpen());

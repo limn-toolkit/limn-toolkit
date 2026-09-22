@@ -13,6 +13,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Partial rendering (Phase A): damage accumulation from {@link Widget#invalidate()},
@@ -361,11 +362,11 @@ class PartialRenderingTest extends SceneTestBase {
         scene.setPartialRendering(true);
         frame();
         frame(); // settle history
-        scene.mouseMoved(50, 25); // over `top`, which does not react to hover
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(50, 25); // over `top`, which does not react to hover
+        drive(scene).inputBatchEnded();
         frame();
-        scene.mouseMoved(60, 80); // crosses into `bottom`: hover CHANGES, nobody cares
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(60, 80); // crosses into `bottom`: hover CHANGES, nobody cares
+        drive(scene).inputBatchEnded();
         frame();
         frame();
         assertTrue(canvas.nothingPainted()); // no reaction → no damage → no repaint
@@ -381,14 +382,14 @@ class PartialRenderingTest extends SceneTestBase {
         scene = new Scene(column);
         scene.setPartialRendering(true);
         frame();
-        scene.mouseMoved(50, 25); // ENTER a
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(50, 25); // ENTER a
+        drive(scene).inputBatchEnded();
         frame(); // full: history still holds the first frame
-        scene.mouseMoved(50, 80); // EXIT a + ENTER b: both invalidate
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(50, 80); // EXIT a + ENTER b: both invalidate
+        drive(scene).inputBatchEnded();
         frame();
-        scene.mouseMoved(40, 85); // move within b: hover unchanged, no damage
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(40, 85); // move within b: hover unchanged, no damage
+        drive(scene).inputBatchEnded();
         frame();
         // Repaint = previous frame's damage (a ∪ b): clipped, never full.
         assertTrue(canvas.partialFramePainted());

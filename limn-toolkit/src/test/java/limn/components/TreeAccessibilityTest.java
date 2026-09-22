@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link Tree} becomes in the accessible tree: one {@code TREE} node over the rows it
@@ -593,8 +594,8 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
         float x = tree.localToSceneX() + tree.width() / 2;
         float y = tree.localToSceneY() + tree.height() / 2;
-        scene.scrolled(0, -20, x, y); // twenty notches: well past the box, clamped to the end
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -20, x, y); // twenty notches: well past the box, clamped to the end
+        drive(scene).inputBatchEnded();
         frame();
 
         assertTrue(treeNode().scroll().verticalPercent() > 0.9,
@@ -641,8 +642,8 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         float x = tree.localToSceneX() + tree.width() / 2;
         float y = tree.localToSceneY() + tree.height() / 2;
-        scene.scrolled(0, -20, x, y);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -20, x, y);
+        drive(scene).inputBatchEnded();
         frame();
         long kept = node("row 2").id();
 
@@ -707,9 +708,9 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
         wheelToTheEnd();
         assertOutOfTheBox("before Space");
-        scene.keyEvent(limn.input.Keys.SPACE, true, false, 0);
-        scene.keyEvent(limn.input.Keys.SPACE, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(limn.input.Keys.SPACE, true, false, 0);
+        drive(scene).keyEvent(limn.input.Keys.SPACE, false, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals(List.of(), tree.selectedNodes(), "Space toggled the cursor row off");
         assertTrue(node("row 2").has(Accessible.State.SHOWING),
@@ -782,10 +783,10 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         for (int key : new int[] {limn.input.Keys.END, limn.input.Keys.HOME}) {
-            scene.keyEvent(key, true, false, 0);
-            scene.keyEvent(key, false, false, 0);
+            drive(scene).keyEvent(key, true, false, 0);
+            drive(scene).keyEvent(key, false, false, 0);
         }
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals(List.of(Node.leaf("row 1")), tree.selectedNodes(), "Home selected the first row");
@@ -793,11 +794,11 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(showing("row 40"), "not the last: " + describe(tree()));
 
         // And a scroll after a reveal the pass has not settled moves from where the rows stand.
-        scene.keyEvent(limn.input.Keys.END, true, false, 0);
-        scene.keyEvent(limn.input.Keys.END, false, false, 0);
-        scene.scrolled(0, -1, tree.localToSceneX() + tree.width() / 2,
+        drive(scene).keyEvent(limn.input.Keys.END, true, false, 0);
+        drive(scene).keyEvent(limn.input.Keys.END, false, false, 0);
+        drive(scene).scrolled(0, -1, tree.localToSceneX() + tree.width() / 2,
                 tree.localToSceneY() + tree.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
         frame();
         assertFalse(showing("row 1"), "the notch scrolled from the top: " + describe(tree()));
         assertTrue(showing("row 4"), "by one notch: " + describe(tree()));
@@ -809,8 +810,8 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         float x = tree.localToSceneX() + tree.width() / 2;
         float y = tree.localToSceneY() + tree.height() / 2;
         for (int i = 0; i < 10 && !showing(name); i++) {
-            scene.scrolled(0, notches, x, y);
-            scene.inputBatchEnded();
+            drive(scene).scrolled(0, notches, x, y);
+            drive(scene).inputBatchEnded();
             frame();
         }
         assertTrue(showing(name), "wheeled to " + name + ": " + describe(tree()));
@@ -826,8 +827,8 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
     private void wheelToTheEnd() {
         float x = tree.localToSceneX() + tree.width() / 2;
         float y = tree.localToSceneY() + tree.height() / 2;
-        scene.scrolled(0, -20, x, y);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -20, x, y);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
@@ -854,8 +855,8 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         float x = tree.localToSceneX() + tree.width() / 2;
         float y = tree.localToSceneY() + tree.height() / 2;
-        scene.scrolled(0, -20, x, y);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -20, x, y);
+        drive(scene).inputBatchEnded();
         frame();
         AccessibleNode spared = node("row 2");
         assertFalse(spared.has(Accessible.State.SHOWING), describe(tree()));
@@ -1123,9 +1124,9 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
 
         // The anchor: Shift+Down from the cursor extends from where the anchor is. Had either
         // verb moved it onto "three", the range would run from there.
-        scene.keyEvent(limn.input.Keys.DOWN, true, false, limn.input.Keys.MOD_SHIFT);
-        scene.keyEvent(limn.input.Keys.DOWN, false, false, limn.input.Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(limn.input.Keys.DOWN, true, false, limn.input.Keys.MOD_SHIFT);
+        drive(scene).keyEvent(limn.input.Keys.DOWN, false, false, limn.input.Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals(List.of(one, two), tree.selectedNodes(),
                 "the range runs from the anchor the verbs left on the first row");

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Partial rendering inside menus: moving the hover between items must damage
@@ -45,8 +46,8 @@ class MenuDamageTest extends ComponentTestBase {
         // item-height above that is safely inside row 0 (rows are contiguous).
         float yRow1 = -1;
         for (float y = 21; y < 280 && yRow1 < 0; y += 2) {
-            scene.mouseMoved(40, y);
-            scene.inputBatchEnded();
+            drive(scene).mouseMoved(40, y);
+            drive(scene).inputBatchEnded();
             if (popup.highlightForTest(0) == 1) {
                 yRow1 = y;
             }
@@ -55,8 +56,8 @@ class MenuDamageTest extends ComponentTestBase {
         float yRow0 = yRow1 - itemH;
 
         // Park the hover on row 0 and drain all pending damage/history.
-        scene.mouseMoved(40, yRow0);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(40, yRow0);
+        drive(scene).inputBatchEnded();
         assertTrue(popup.highlightForTest(0) == 0, "parked on row 0");
         boolean settled = false;
         for (int i = 0; i < 10 && !settled; i++) {
@@ -67,8 +68,8 @@ class MenuDamageTest extends ComponentTestBase {
         assertTrue(settled, "an open, idle menu must not keep painting");
 
         // Hover moves one row down: the frame must clip to ~two rows.
-        scene.mouseMoved(40, yRow1);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(40, yRow1);
+        drive(scene).inputBatchEnded();
         canvas.reset();
         scene.renderFrame(canvas);
         if (canvas.cleared || canvas.firstClip == null) {

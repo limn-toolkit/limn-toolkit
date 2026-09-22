@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link MenuBar} title geometry and hit mapping, pinned before the size axis reaches it.
@@ -97,11 +98,11 @@ class MenuBarTest extends ComponentTestBase {
 
         // And the two boxes still tile without overlapping: a click just left of the boundary
         // opens the first, just right of it the second.
-        tightScene.mouseButton(Keys.MOUSE_LEFT, true, 0, Strokes.MIN_HIT_TARGET - 1, 12);
-        tightScene.inputBatchEnded();
+        drive(tightScene).mouseButton(Keys.MOUSE_LEFT, true, 0, Strokes.MIN_HIT_TARGET - 1, 12);
+        drive(tightScene).inputBatchEnded();
         assertTrue(tight.isOpen(), "the last point of title 0 belongs to title 0");
-        tightScene.mouseButton(Keys.MOUSE_LEFT, true, 0, Strokes.MIN_HIT_TARGET - 1, 12);
-        tightScene.inputBatchEnded();
+        drive(tightScene).mouseButton(Keys.MOUSE_LEFT, true, 0, Strokes.MIN_HIT_TARGET - 1, 12);
+        drive(tightScene).inputBatchEnded();
         assertFalse(tight.isOpen(), "and the same point closes it");
     }
 
@@ -115,12 +116,12 @@ class MenuBarTest extends ComponentTestBase {
         // this scene never reaches.
         for (int i = 0; i < 3; i++) {
             float centre = i * TITLE_W + TITLE_W / 2;
-            scene.mouseButton(Keys.MOUSE_LEFT, true, 0, centre, 16);
-            scene.inputBatchEnded();
+            drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, centre, 16);
+            drive(scene).inputBatchEnded();
             assertTrue(bar.isOpen(), "title " + i + " opens on a click at its centre");
 
-            scene.mouseButton(Keys.MOUSE_LEFT, true, 0, centre, 16);
-            scene.inputBatchEnded();
+            drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, centre, 16);
+            drive(scene).inputBatchEnded();
             assertFalse(bar.isOpen(), "title " + i + " closes on a second click at the same x");
         }
     }
@@ -132,11 +133,11 @@ class MenuBarTest extends ComponentTestBase {
         // exact left edge of title i belongs to i, and one point before it belongs to i - 1.
         for (int i = 1; i < 3; i++) {
             float edge = i * TITLE_W;
-            scene.mouseButton(Keys.MOUSE_LEFT, true, 0, edge, 16);
-            scene.inputBatchEnded();
+            drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, edge, 16);
+            drive(scene).inputBatchEnded();
             assertTrue(bar.isOpen(), "the exact left edge of title " + i + " opens something");
-            scene.mouseButton(Keys.MOUSE_LEFT, true, 0, edge, 16);
-            scene.inputBatchEnded();
+            drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, edge, 16);
+            drive(scene).inputBatchEnded();
             assertFalse(bar.isOpen(), "and the same point closes it, so both hit one title");
         }
     }
@@ -144,20 +145,20 @@ class MenuBarTest extends ComponentTestBase {
     @Test
     void aClickPastTheLastTitleHitsNothing() {
         build();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 3 * TITLE_W + 10, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 3 * TITLE_W + 10, 16);
+        drive(scene).inputBatchEnded();
         assertFalse(bar.isOpen(), "beyond the last title there is no menu to open");
     }
 
     @Test
     void clickingTheOpenTitleAgainClosesIt() {
         build();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, TITLE_W / 2, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, TITLE_W / 2, 16);
+        drive(scene).inputBatchEnded();
         assertTrue(bar.isOpen());
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, TITLE_W / 2, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, TITLE_W / 2, 16);
+        drive(scene).inputBatchEnded();
         assertFalse(bar.isOpen(), "the same title toggles");
     }
 
@@ -171,8 +172,8 @@ class MenuBarTest extends ComponentTestBase {
         freshScene.setTextRuler(RULER);
         freshScene.layoutPass(400, MEDIUM.controlHeight());
 
-        freshScene.mouseButton(Keys.MOUSE_LEFT, true, 0, TITLE_W / 2, 16);
-        freshScene.inputBatchEnded();
+        drive(freshScene).mouseButton(Keys.MOUSE_LEFT, true, 0, TITLE_W / 2, 16);
+        drive(freshScene).inputBatchEnded();
         assertTrue(fresh.isOpen(), "the dropdown is open before the item can be reached");
     }
 }

@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What the panel a {@link ComboBox} draws its options on becomes in the accessible tree: the list,
@@ -173,9 +174,9 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
      * @param key the raw key code
      */
     private void key(int key) {
-        scene.keyEvent(key, true, false, 0);
-        scene.keyEvent(key, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).keyEvent(key, false, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
@@ -334,9 +335,9 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
             AccessibleNode option = options.get(i);
             float x = option.x() + option.width() / 2;
             float y = option.y() + option.height() / 2;
-            scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-            scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-            scene.inputBatchEnded();
+            drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+            drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+            drive(scene).inputBatchEnded();
             assertEquals(i, combo.selectedIndex(),
                     "the centre of option " + i + "'s published box committed option "
                             + combo.selectedIndex() + ". The published box has to be the box the "

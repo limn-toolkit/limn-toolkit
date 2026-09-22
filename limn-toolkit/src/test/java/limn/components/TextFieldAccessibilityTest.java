@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link TextField} becomes in the accessible tree: one editable {@code TEXT_FIELD} node
@@ -184,8 +185,8 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Opens a composition of {@code text} with its caret at the end, as the platform does. */
     private void compose(String text) {
-        scene.preeditChanged(text, new int[] {text.length()}, 0, text.length());
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged(text, new int[] {text.length()}, 0, text.length());
+        drive(scene).inputBatchEnded();
         frame();
     }
 
@@ -684,8 +685,8 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         scene.requestFocus(field);
         field.model().setCursor(2, false);
         frame();
-        scene.preeditChanged("XY", new int[] {2}, 0, 2);
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged("XY", new int[] {2}, 0, 2);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals("abXYcd", fieldNode().text().text(),
@@ -711,8 +712,8 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
 
         // Committed, the same verb is answered: the refusal is the composition's and not the
         // widget's, and it lasts exactly as long as the composition does.
-        "XY".codePoints().forEach(scene::charTyped);
-        scene.inputBatchEnded();
+        "XY".codePoints().forEach(drive(scene)::charTyped);
+        drive(scene).inputBatchEnded();
         frame();
         perform(fieldNode().id(), Accessible.Action.SET_CARET,
                 new Accessible.Argument.OfRange(4, 4));

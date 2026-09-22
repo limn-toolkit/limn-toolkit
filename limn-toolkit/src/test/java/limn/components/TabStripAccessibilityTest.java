@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link TabbedPane}'s header strip becomes in the accessible tree: one tab list above the
@@ -284,8 +285,8 @@ class TabStripAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode before = stripNode();
         double viewSize = before.scroll().horizontalViewSize();
 
-        scene.scrolled(0, -1, before.x() + before.width() / 2, before.y() + before.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -1, before.x() + before.width() / 2, before.y() + before.height() / 2);
+        drive(scene).inputBatchEnded();
         frame();
 
         AccessibleNode after = stripNode();

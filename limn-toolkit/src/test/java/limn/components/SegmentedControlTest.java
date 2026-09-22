@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Segmented single-selection via click and Left/Right, and the control-size ramp.
@@ -134,9 +135,9 @@ class SegmentedControlTest extends ComponentTestBase {
         Scene scene = out[0];
 
         // The track is [137, 263); 380 is well past its right edge.
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 380, 16);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 380, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 380, 16);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 380, 16);
+        drive(scene).inputBatchEnded();
         assertEquals(0, seg.selectedIndex(),
                 "a click in the margin should not have selected the last segment");
     }
@@ -152,18 +153,18 @@ class SegmentedControlTest extends ComponentTestBase {
 
         // Chevrons take min(height, width/4) = 25 a side, so the viewport is [25, 75).
         // Unscrolled, the left edge of the viewport is segment A.
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 30, 16);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 30, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 30, 16);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 30, 16);
+        drive(scene).inputBatchEnded();
         assertEquals(0, seg.selectedIndex(), "before scrolling, the viewport starts at A");
 
-        scene.scrolled(0, -10, 50, 16); // wheel down/right: move the strip on
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -10, 50, 16); // wheel down/right: move the strip on
+        drive(scene).inputBatchEnded();
         scene.renderFrame(canvas);
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 30, 16);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 30, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 30, 16);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 30, 16);
+        drive(scene).inputBatchEnded();
         assertTrue(seg.selectedIndex() > 0,
                 "after scrolling, the same point should land on a later segment, not on A");
     }
@@ -229,21 +230,21 @@ class SegmentedControlTest extends ComponentTestBase {
         assertEquals(0, seg.selectedIndex(), "defaults to first");
 
         // Click within segment B.
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 63, 16);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 63, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 63, 16);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 63, 16);
+        drive(scene).inputBatchEnded();
         assertEquals(1, seg.selectedIndex());
         assertEquals(1, chosen.get());
 
         // The click focused the control; RIGHT advances to C.
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(2, seg.selectedIndex());
         assertEquals(2, chosen.get());
 
         // LEFT goes back; already-at-edge does not underflow.
-        scene.keyEvent(Keys.LEFT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(1, seg.selectedIndex());
     }
 
@@ -276,9 +277,9 @@ class SegmentedControlTest extends ComponentTestBase {
 
         // Floored: A[0,24) B[24,48) C[48,72). Unfloored the segments would be 22.6 wide and
         // x=47 would land in C; the assertion below is exactly that discrimination.
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 47, 12);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 47, 12);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 47, 12);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 47, 12);
+        drive(scene).inputBatchEnded();
         assertEquals(1, seg.selectedIndex());
     }
 
@@ -381,14 +382,14 @@ class SegmentedControlTest extends ComponentTestBase {
         scene.layoutPass(300, 40);
         scene.requestFocus(control);
 
-        scene.keyEvent(Keys.END, true, false, 0);
-        scene.keyEvent(Keys.END, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).keyEvent(Keys.END, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(3, control.selectedIndex());
 
-        scene.keyEvent(Keys.HOME, true, false, 0);
-        scene.keyEvent(Keys.HOME, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.HOME, true, false, 0);
+        drive(scene).keyEvent(Keys.HOME, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(0, control.selectedIndex());
     }
 }

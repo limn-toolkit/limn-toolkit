@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a window that cannot be positioned does to the components that draw outside their own
@@ -55,9 +56,9 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
         assertTrue(popup.isInSceneForTest(), "a menu window would have opened away from the anchor");
 
         // The fallback is not a picture of a menu: it navigates and chooses like the real one.
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals("two", chosen.get());
         assertFalse(popup.isOpen());
     }
@@ -196,9 +197,9 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
         scene.layoutPass(400, 300);
 
         // Keyboard reaches the combo through the overlay that took the focus from it.
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
 
         assertEquals(1, picked.get(), "Down then Enter chooses the second item");
         assertFalse(combo.isOpen());
@@ -215,8 +216,8 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
 
         combo.open();
         scene.layoutPass(400, 300);
-        scene.keyEvent(Keys.ESCAPE, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ESCAPE, true, false, 0);
+        drive(scene).inputBatchEnded();
 
         assertFalse(combo.isOpen());
         assertNull(picked.get(), "closing is not choosing");

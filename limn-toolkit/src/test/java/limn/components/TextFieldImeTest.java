@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * IME composition (preedit) routing for {@link TextField}: the still-composing
@@ -28,13 +29,13 @@ class TextFieldImeTest extends ComponentTestBase {
     }
 
     private void preedit(String text, int[] blocks, int focusedBlock, int caret) {
-        scene.preeditChanged(text, blocks, focusedBlock, caret);
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged(text, blocks, focusedBlock, caret);
+        drive(scene).inputBatchEnded();
     }
 
     private void commit(String text) {
-        text.codePoints().forEach(scene::charTyped);
-        scene.inputBatchEnded();
+        text.codePoints().forEach(drive(scene)::charTyped);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -54,8 +55,8 @@ class TextFieldImeTest extends ComponentTestBase {
         passwordScene.requestFocus(password);
         assertFalse(password.acceptsTextInput());
 
-        passwordScene.preeditChanged("秘密", new int[]{2}, 0, 2);
-        passwordScene.inputBatchEnded();
+        drive(passwordScene).preeditChanged("秘密", new int[]{2}, 0, 2);
+        drive(passwordScene).inputBatchEnded();
         assertEquals("", password.composingText(), "composition must never reach a password field");
         assertEquals("", password.text());
     }

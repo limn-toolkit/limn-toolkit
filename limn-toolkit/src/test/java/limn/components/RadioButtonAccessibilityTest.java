@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link RadioButton} becomes in the accessible tree: one node with the radio role, named
@@ -104,9 +105,9 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Moves the pointer to the centre of a radio's box, as a hover does. */
     private void hover(RadioButton radio) {
-        scene.mouseMoved(radio.localToSceneX() + radio.width() / 2,
+        drive(scene).mouseMoved(radio.localToSceneX() + radio.width() / 2,
                 radio.localToSceneY() + radio.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
     }
 
     /** @return every selected-state event raised so far, in order */

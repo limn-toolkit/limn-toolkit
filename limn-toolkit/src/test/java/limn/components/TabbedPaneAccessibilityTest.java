@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link TabbedPane} itself becomes in the accessible tree, which is nothing, and what it
@@ -216,9 +217,9 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Moves the pointer to the centre of a widget's box, as a hover does. */
     private void hover(Widget widget) {
-        scene.mouseMoved(widget.localToSceneX() + widget.width() / 2,
+        drive(scene).mouseMoved(widget.localToSceneX() + widget.width() / 2,
                 widget.localToSceneY() + widget.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
     }
 
     // ------------------------------------------------------------------------------ the deletion

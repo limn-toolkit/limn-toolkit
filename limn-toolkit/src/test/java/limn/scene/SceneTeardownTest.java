@@ -7,6 +7,7 @@ import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@code windowClosed} unsubscribes the scene from every process-wide change source it
@@ -35,7 +36,7 @@ class SceneTeardownTest extends SceneTestBase {
             assertTrue(window.frameRequests > 0,
                     "a live scene hears a locale change, or this test observes nothing");
 
-            scene.windowClosed();
+            drive(scene).windowClosed();
             int atClose = window.frameRequests;
             I18n.setLocale(second);
             assertEquals(atClose, window.frameRequests,

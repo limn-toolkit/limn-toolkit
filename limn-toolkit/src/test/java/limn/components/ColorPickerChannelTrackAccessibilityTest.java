@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link ColorPicker}'s channel rails become in the accessible tree: one horizontal
@@ -523,16 +524,16 @@ class ColorPickerChannelTrackAccessibilityTest extends AccessibleComponentTestBa
         // range it physically points at, so it is the arm that does turn round.
         scene.requestFocus(picker.rail(0));
         frame();
-        scene.keyEvent(Keys.LEFT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals(channel(53, 255), rail("R").value(),
                 "reading right to left, Left is the way the value grows" + describe(tree()));
 
         root.setLayoutDirection(LayoutDirection.LTR);
         frame();
-        scene.keyEvent(Keys.LEFT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals(channel(52, 255), rail("R").value(),
                 "and left to right it is the way it shrinks, while the verb above did the same "

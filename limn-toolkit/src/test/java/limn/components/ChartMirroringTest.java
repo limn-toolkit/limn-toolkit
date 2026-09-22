@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link Chart} read right to left: where the title is pinned, which end of the legend the first
@@ -163,8 +164,8 @@ class ChartMirroringTest extends ComponentTestBase {
      * the assertions read.
      */
     private void hover(float x, float y) {
-        scene.mouseMoved(x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).inputBatchEnded();
         scene.renderFrame(canvas);
         nanos.addAndGet(500_000_000L);
         scene.renderFrame(canvas);
@@ -172,9 +173,9 @@ class ChartMirroringTest extends ComponentTestBase {
     }
 
     private void click(float x, float y) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     private Text textOf(String wanted) {

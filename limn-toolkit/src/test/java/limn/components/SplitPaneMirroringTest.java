@@ -12,6 +12,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link SplitPane} read right to left: which side the first pane takes, where the grab band
@@ -172,10 +173,10 @@ class SplitPaneMirroringTest extends ComponentTestBase {
 
     /** Presses at {@code x}, moves the pointer {@code delta} points to the right, releases. */
     private void drag(float x, float y, float delta) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseMoved(x + delta, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x + delta, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseMoved(x + delta, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x + delta, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(WIDTH, HEIGHT);
     }
 
@@ -264,14 +265,14 @@ class SplitPaneMirroringTest extends ComponentTestBase {
         stacked.divider().requestFocus();
         float before = top.height();
 
-        stackedScene.keyEvent(Keys.LEFT, true, false, 0);
-        stackedScene.keyEvent(Keys.RIGHT, true, false, 0);
-        stackedScene.inputBatchEnded();
+        drive(stackedScene).keyEvent(Keys.LEFT, true, false, 0);
+        drive(stackedScene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(stackedScene).inputBatchEnded();
         stackedScene.layoutPass(WIDTH, HEIGHT);
         assertEquals(before, top.height(), EPS, "a horizontal key moved a vertical split");
 
-        stackedScene.keyEvent(Keys.DOWN, true, false, 0);
-        stackedScene.inputBatchEnded();
+        drive(stackedScene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(stackedScene).inputBatchEnded();
         stackedScene.layoutPass(WIDTH, HEIGHT);
         assertEquals(before + 10, top.height(), EPS,
                 "and Down still grows the top pane, in either direction");
@@ -357,8 +358,8 @@ class SplitPaneMirroringTest extends ComponentTestBase {
     }
 
     private void press(int key, int modifiers) {
-        scene.keyEvent(key, true, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(WIDTH, HEIGHT);
     }
 }

@@ -1539,7 +1539,7 @@ class AtspiTreeTest {
     @Test
     void everyVerbThisBridgePostsIsPostedAtOnePlaceBehindAccepts() throws java.io.IOException {
         List<String> lines = java.nio.file.Files.readAllLines(
-                limn.testing.RepositoryRoot.find().resolve(ATSPI_TREE),
+                limn.testfixtures.RepositoryRoot.find().resolve(ATSPI_TREE),
                 java.nio.charset.StandardCharsets.UTF_8);
         List<Integer> posts = new ArrayList<>();
         for (int i = 0; i < lines.size(); i++) {

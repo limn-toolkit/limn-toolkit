@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The picker's behaviour, driven through a real scene with no GL.
@@ -99,8 +100,8 @@ class ColorPickerTest extends ComponentTestBase {
         changes.clear();
         // The saturation/value field is the first thing in the column, so its
         // top-left corner is the widget's, and that corner is white.
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 2, 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 2, 2);
+        drive(scene).inputBatchEnded();
 
         Color chosen = picker.color();
         assertTrue(chosen.saturation() < 0.1f, "near-zero saturation at the left edge");
@@ -112,11 +113,11 @@ class ColorPickerTest extends ComponentTestBase {
     void aDragReportsExactlyOneCommitCarryingTheSettledColour() {
         List<Color> committed = new ArrayList<>();
         picker.onCommit(committed::add);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 20, 20);
-        scene.mouseMoved(40, 40);
-        scene.mouseMoved(60, 60);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 60, 60);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 20, 20);
+        drive(scene).mouseMoved(40, 40);
+        drive(scene).mouseMoved(60, 60);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 60, 60);
+        drive(scene).inputBatchEnded();
         assertEquals(1, committed.size(), "an undo gesture must close once, not once per move");
         // The decision, not a preview: what onCommit carries is what the picker is left showing,
         // so a caller can write it straight to a document without asking the widget again.
@@ -149,8 +150,8 @@ class ColorPickerTest extends ComponentTestBase {
         picker.setInitialColor(Color.hsv(0, 0.5f, 0.5f, 1));
         changes.clear();
         picker.requestFocus();
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertFalse(changes.isEmpty(), "an arrow key must move the selection");
         assertTrue(picker.color().saturation() > 0.5f);
     }
@@ -386,11 +387,11 @@ class ColorPickerTest extends ComponentTestBase {
         // 255 steps, so a point of travel is under a step.
         Widget rail = picker.rail(2);
         float y = rail.localToSceneY() + rail.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, railX(rail, 0.5f), y);
-        scene.mouseMoved(railX(rail, 0.5f) + 0.2f, y);
-        scene.mouseMoved(railX(rail, 0.5f) + 0.4f, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, railX(rail, 0.5f) + 0.4f, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, railX(rail, 0.5f), y);
+        drive(scene).mouseMoved(railX(rail, 0.5f) + 0.2f, y);
+        drive(scene).mouseMoved(railX(rail, 0.5f) + 0.4f, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, railX(rail, 0.5f) + 0.4f, y);
+        drive(scene).inputBatchEnded();
         assertEquals(1, changes.size(), "a drag reports once per value, not once per move");
     }
 
@@ -502,8 +503,8 @@ class ColorPickerTest extends ComponentTestBase {
     }
 
     private void pressOnRail(int key, int modifiers) {
-        scene.keyEvent(key, true, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).inputBatchEnded();
     }
 
     /** Presses and releases at {@code fraction} along the rail at {@code index}. */
@@ -518,10 +519,10 @@ class ColorPickerTest extends ComponentTestBase {
 
     private void dragRail(Widget rail, float from, float to) {
         float y = rail.localToSceneY() + rail.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, railX(rail, from), y);
-        scene.mouseMoved(railX(rail, to), y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, railX(rail, to), y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, railX(rail, from), y);
+        drive(scene).mouseMoved(railX(rail, to), y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, railX(rail, to), y);
+        drive(scene).inputBatchEnded();
     }
 
     /**
@@ -549,8 +550,8 @@ class ColorPickerTest extends ComponentTestBase {
         picker.channel(index).requestFocus();
         assertEquals(picker.channel(index), scene.focusedWidget(),
                 "the spinner never took focus, so the key went nowhere");
-        scene.keyEvent(key, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     private void assertRow(int... expected) {
@@ -569,10 +570,10 @@ class ColorPickerTest extends ComponentTestBase {
 
     /** A press-drag-release inside the saturation/value field. */
     private void dragFieldTo(float x, float y) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, Math.min(y, 20));
-        scene.mouseMoved(x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, Math.min(y, 20));
+        drive(scene).mouseMoved(x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     @Test

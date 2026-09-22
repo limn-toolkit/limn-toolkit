@@ -24,6 +24,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link ComboBox} read right to left: where the selected label sits, which gutter the chevron
@@ -323,15 +324,15 @@ class ComboBoxMirroringTest extends ComponentTestBase {
         // direction; nothing about the search reverses.
         paintList(LayoutDirection.RTL);
 
-        scene.charTyped('t');
-        scene.inputBatchEnded();
+        drive(scene).charTyped('t');
+        drive(scene).inputBatchEnded();
         assertEquals(1, combo.highlightedIndex(), "\"two\" is the first label starting with t");
     }
 
     private void key(int keyCode) {
-        scene.keyEvent(keyCode, true, false, 0);
-        scene.keyEvent(keyCode, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, 0);
+        drive(scene).keyEvent(keyCode, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     // ---------------------------------------------------------- the shaper's base

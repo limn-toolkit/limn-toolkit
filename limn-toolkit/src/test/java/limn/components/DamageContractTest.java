@@ -36,6 +36,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What every public widget's own gestures repaint, with partial rendering on.
@@ -134,9 +135,9 @@ class DamageContractTest extends ComponentTestBase {
         return new Gesture(name, (s, w) -> {
             float x = dx < 0 ? centreX(w) : w.localToSceneX() + dx;
             float y = dy < 0 ? centreY(w) : w.localToSceneY() + dy;
-            s.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-            s.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-            s.inputBatchEnded();
+            drive(s).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+            drive(s).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+            drive(s).inputBatchEnded();
         }, 0, ANY, null);
     }
 
@@ -146,17 +147,17 @@ class DamageContractTest extends ComponentTestBase {
 
     private static Gesture key(String name, int key) {
         return new Gesture(name, (s, w) -> {
-            s.keyEvent(key, true, false, 0);
-            s.keyEvent(key, false, false, 0);
-            s.inputBatchEnded();
+            drive(s).keyEvent(key, true, false, 0);
+            drive(s).keyEvent(key, false, false, 0);
+            drive(s).inputBatchEnded();
         }, 0, ANY, null);
     }
 
     private static Gesture wheel() {
         return new Gesture("wheel", (s, w) -> {
             move(s, centreX(w), centreY(w));
-            s.scrolled(0, -3, centreX(w), centreY(w));
-            s.inputBatchEnded();
+            drive(s).scrolled(0, -3, centreX(w), centreY(w));
+            drive(s).inputBatchEnded();
         }, 0, ANY, null);
     }
 
@@ -177,8 +178,8 @@ class DamageContractTest extends ComponentTestBase {
     }
 
     private static void move(Scene scene, float x, float y) {
-        scene.mouseMoved(x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).inputBatchEnded();
     }
 
     private static float centreX(Widget w) {
@@ -418,10 +419,10 @@ class DamageContractTest extends ComponentTestBase {
     private static Gesture loadingRowOpens() {
         return new Gesture("a row that loads opens, then only its spinner repaints", (s, w) -> {
             for (int key : new int[] {Keys.HOME, Keys.DOWN, Keys.DOWN, Keys.DOWN, Keys.RIGHT}) {
-                s.keyEvent(key, true, false, 0);
-                s.keyEvent(key, false, false, 0);
+                drive(s).keyEvent(key, true, false, 0);
+                drive(s).keyEvent(key, false, false, 0);
             }
-            s.inputBatchEnded();
+            drive(s).inputBatchEnded();
         }, 2, 0.005f, null);
     }
 
@@ -431,9 +432,9 @@ class DamageContractTest extends ComponentTestBase {
             float x = centreX(w);
             float y = centreY(w);
             int mods = Accelerator.commandModifier();
-            s.mouseButton(Keys.MOUSE_LEFT, true, mods, x, y);
-            s.mouseButton(Keys.MOUSE_LEFT, false, mods, x, y);
-            s.inputBatchEnded();
+            drive(s).mouseButton(Keys.MOUSE_LEFT, true, mods, x, y);
+            drive(s).mouseButton(Keys.MOUSE_LEFT, false, mods, x, y);
+            drive(s).inputBatchEnded();
         }, 0, ANY, null);
     }
 
@@ -456,8 +457,8 @@ class DamageContractTest extends ComponentTestBase {
     private static Gesture wheelSideways() {
         return new Gesture("wheel sideways", (s, w) -> {
             move(s, centreX(w), centreY(w));
-            s.scrolled(-3, 0, centreX(w), centreY(w));
-            s.inputBatchEnded();
+            drive(s).scrolled(-3, 0, centreX(w), centreY(w));
+            drive(s).inputBatchEnded();
         }, 0, ANY, null);
     }
 
@@ -482,17 +483,17 @@ class DamageContractTest extends ComponentTestBase {
     private static Gesture tableSidewaysWheel() {
         return new Gesture("sideways wheel", (s, w) -> {
             move(s, centreX(w), centreY(w));
-            s.scrolled(3, 0, centreX(w), centreY(w));
-            s.inputBatchEnded();
+            drive(s).scrolled(3, 0, centreX(w), centreY(w));
+            drive(s).inputBatchEnded();
         }, 0, ANY, null);
     }
 
     /** A key with modifiers held, for the table's header stop (decision 36). */
     private static Gesture tableKey(String name, int key, int modifiers) {
         return new Gesture(name, (s, w) -> {
-            s.keyEvent(key, true, false, modifiers);
-            s.keyEvent(key, false, false, modifiers);
-            s.inputBatchEnded();
+            drive(s).keyEvent(key, true, false, modifiers);
+            drive(s).keyEvent(key, false, false, modifiers);
+            drive(s).inputBatchEnded();
         }, 0, ANY, null);
     }
 

@@ -1,4 +1,4 @@
-package limn.demo.a11y;
+package limn.testing;
 
 import limn.backend.Backend;
 import limn.backend.NativeWindow;
@@ -10,8 +10,9 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * A backend that mints {@link HeadlessWindow}s and remembers them, so that a dialog which opens
- * as a window of its own — the demo's default — opens somewhere a test can read.
+ * A backend that mints {@link HeadlessWindow}s and remembers them, so that a dialog, a menu or a
+ * popup which opens as a window of its own opens somewhere a test can read. Install it with a
+ * {@link HeadlessUi}'s runtime: {@code new HeadlessBackend(ui.runtime())}.
  *
  * <p>Modality is the two bits the toolkit asks a window about and nothing more: the modal's own
  * bit and its owner's blocked bit, set and cleared exactly as a platform would.

@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The transport bar and the one decision it owns: media playback reads left to right in either
@@ -207,23 +208,23 @@ class MediaControlsTest extends ComponentTestBase {
         Slider bar = scrubBar(controls);
         float y = bar.localToSceneY() + bar.height() / 2;
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, alongBar(bar, 0.2f), y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, alongBar(bar, 0.2f), y);
+        drive(scene).inputBatchEnded();
         assertEquals(1, stream.seeks, "the press seeks");
 
         nanos.addAndGet(TimeUnit.MILLISECONDS.toNanos(100));
-        scene.mouseMoved(alongBar(bar, 0.4f), y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(alongBar(bar, 0.4f), y);
+        drive(scene).inputBatchEnded();
         assertEquals(1, stream.seeks, "a tenth of a second on is inside the interval");
 
         nanos.addAndGet(TimeUnit.MILLISECONDS.toNanos(200));
-        scene.mouseMoved(alongBar(bar, 0.6f), y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(alongBar(bar, 0.6f), y);
+        drive(scene).inputBatchEnded();
         assertEquals(2, stream.seeks, "three tenths on, the next seek goes through");
         assertEquals(VideoStreamSource.SeekMode.KEYFRAME, stream.seekedMode, "a drag seeks keyframes");
 
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, alongBar(bar, 0.6f), y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, alongBar(bar, 0.6f), y);
+        drive(scene).inputBatchEnded();
         assertEquals(3, stream.seeks, "and letting go lands, throttled by nothing");
         assertEquals(VideoStreamSource.SeekMode.EXACT, stream.seekedMode);
     }

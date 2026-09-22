@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link TextField} read right to left: where the text starts, where the caret sits, which side
@@ -47,8 +48,8 @@ class TextFieldMirroringTest extends ComponentTestBase {
     }
 
     private void type(String text) {
-        text.codePoints().forEach(scene::charTyped);
-        scene.inputBatchEnded();
+        text.codePoints().forEach(drive(scene)::charTyped);
+        drive(scene).inputBatchEnded();
     }
 
     /** The x of the one vertical line a focused, unselected field draws: its caret. */
@@ -123,9 +124,9 @@ class TextFieldMirroringTest extends ComponentTestBase {
     }
 
     private void click(float localX) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, localX, 16);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, localX, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, localX, 16);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, localX, 16);
+        drive(scene).inputBatchEnded();
     }
 
     // ------------------------------------------------------------------ icons
@@ -151,8 +152,8 @@ class TextFieldMirroringTest extends ComponentTestBase {
         boolean[] fired = {false};
         field.setTrailingButton(icon, () -> fired[0] = true);
         scene.layoutPass(WIDTH, 32);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, t.fieldTrailing() / 2, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, t.fieldTrailing() / 2, 16);
+        drive(scene).inputBatchEnded();
         assertTrue(fired[0], "the trailing button is on the trailing side, which is the left");
     }
 

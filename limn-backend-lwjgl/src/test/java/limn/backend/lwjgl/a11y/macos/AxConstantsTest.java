@@ -246,7 +246,7 @@ class AxConstantsTest {
      */
     @Test
     void everyFactReadOffAGuestRatherThanOffTheDumpCitesItsReading() throws IOException {
-        java.nio.file.Path source = limn.testing.RepositoryRoot.find()
+        java.nio.file.Path source = limn.testfixtures.RepositoryRoot.find()
                 .resolve("limn-backend-lwjgl/src/main/java/limn/backend/lwjgl/a11y/macos");
         java.util.List<java.nio.file.Path> readings = readingsDirectories();
         for (String[] site : CITED) {
@@ -286,7 +286,7 @@ class AxConstantsTest {
      */
     private static java.util.List<java.nio.file.Path> readingsDirectories() throws IOException {
         java.util.List<java.nio.file.Path> found = new java.util.ArrayList<>();
-        for (java.nio.file.Path at = limn.testing.RepositoryRoot.find(); at != null; at = at.getParent()) {
+        for (java.nio.file.Path at = limn.testfixtures.RepositoryRoot.find(); at != null; at = at.getParent()) {
             java.nio.file.Path pending = at.resolve(".claude").resolve("pending");
             if (!java.nio.file.Files.isDirectory(pending)) continue;
             try (java.util.stream.Stream<java.nio.file.Path> rounds = java.nio.file.Files.list(pending)) {

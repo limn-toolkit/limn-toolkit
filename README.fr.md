@@ -259,6 +259,7 @@ application charge avec `ThemeFormat`.
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 et AAC/Opus/Vorbis via FFmpeg ; la charge est `limn-ffmpeg-natives`, versionné avec FFmpeg, un classifier par cible de bureau |
 | `limn-icons-tabler` | le jeu d’icônes Tabler, si vous le voulez — désormais un artefact à part entière, versionné avec Tabler (`3.46.0.x` est Tabler 3.46.0) |
 | `limn-theme-editor` | l’écran qui compose un thème, intégrable dans votre application |
+| `limn-test` | tester votre interface sans écran : un pilote qui clique, saisit du texte et appuie sur des touches dans une scène, un runtime et un backend sans affichage, et les contrats d’accessibilité que respectent les widgets |
 | `limn-fonts-all` | les fontes pan-CJC et emoji couleur (26 Mo qu’une application qui ne les dessine jamais ne devrait pas porter), plus le reste des replis, dans les versions avec lesquelles cette publication a été testée — chaque fonte est un artefact à part entière, versionné avec la fonte |
 
 ## Documentation

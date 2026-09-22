@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What {@link MediaControls} becomes in the accessible tree: one horizontal {@code TOOL_BAR}
@@ -210,14 +211,14 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
     private void click(Widget target) {
         float x = target.localToSceneX() + target.width() / 2;
         float y = target.localToSceneY() + target.height() / 2;
-        scene.mouseMoved(x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).inputBatchEnded();
         frame();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).inputBatchEnded();
         frame(); // a frame with the button held, so a published PRESSED would be seen
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         frame();
     }
 

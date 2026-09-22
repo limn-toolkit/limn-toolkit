@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Press-and-hold auto-repeat on the Spinner's up/down buttons. Uses a manual
@@ -76,8 +77,8 @@ class SpinnerHoldTest {
     @Test
     void holdingTheUpButtonKeepsIncrementingUntilRelease() {
         // Press (steps once immediately) and keep holding: no release yet.
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, UP_Y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, UP_Y);
+        drive(scene).inputBatchEnded();
         assertEquals(1.0, spinner.value(), "press steps once immediately");
 
         // Nothing repeats before the initial hold delay (350 ms) elapses.
@@ -95,8 +96,8 @@ class SpinnerHoldTest {
         assertEquals(5.0, spinner.value(), "repeats at the steady cadence while held");
 
         // Release stops it: further time advances change nothing.
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, BUTTON_X, UP_Y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, BUTTON_X, UP_Y);
+        drive(scene).inputBatchEnded();
         double atRelease = spinner.value();
         advanceMs(500);
         assertEquals(atRelease, spinner.value(), "no repeat after release");
@@ -105,23 +106,23 @@ class SpinnerHoldTest {
     @Test
     void holdOnTheDownButtonRepeatsDownward() {
         spinner.setValue(500);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, DOWN_Y); // down button (y >= mid 16)
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, DOWN_Y); // down button (y >= mid 16)
+        drive(scene).inputBatchEnded();
         assertEquals(499.0, spinner.value());
 
         advanceMs(400); // past initial delay → one repeat
         advanceMs(55);  // → another
         assertEquals(497.0, spinner.value(), "held down button steps downward");
 
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, BUTTON_X, DOWN_Y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, BUTTON_X, DOWN_Y);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
     void holdStopsAutomaticallyAtTheBoundInsteadOfBusyRepeating() {
         spinner.setValue(999); // one below max
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, UP_Y); // +1 → 1000 (max)
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, UP_Y); // +1 → 1000 (max)
+        drive(scene).inputBatchEnded();
         assertEquals(1000.0, spinner.value());
 
         // Hold well past several repeat intervals.

@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link ListView} read right to left: which side the scrollbar's strip is on, where a row's
@@ -203,8 +204,8 @@ class ListViewMirroringTest extends ComponentTestBase {
             list.setSelectedIndex(1);
             list.requestFocus();
             for (int key : new int[] {Keys.LEFT, Keys.RIGHT}) {
-                scene.keyEvent(key, true, false, 0);
-                scene.inputBatchEnded();
+                drive(scene).keyEvent(key, true, false, 0);
+                drive(scene).inputBatchEnded();
                 assertEquals(1, list.selectedIndex(),
                         "a horizontal key moved the selection reading " + direction);
             }
@@ -218,12 +219,12 @@ class ListViewMirroringTest extends ComponentTestBase {
         build(LayoutDirection.RTL, ScrollGutters.Layout.RESERVED);
         list.requestFocus();
 
-        scene.keyEvent(Keys.END, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(ROWS - 1, list.selectedIndex(), "End is the last row in both directions");
 
-        scene.keyEvent(Keys.HOME, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.HOME, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(0, list.selectedIndex(), "and Home is the first");
     }
 

@@ -193,7 +193,7 @@ class AtspiConstantsTest {
      */
     @Test
     void thePlatformFactsWithoutOneReadingSayWhichHalfWasTakenAndWhy() throws java.io.IOException {
-        java.nio.file.Path source = limn.testing.RepositoryRoot.find()
+        java.nio.file.Path source = limn.testfixtures.RepositoryRoot.find()
                 .resolve("limn-backend-lwjgl/src/main/java/limn/backend/lwjgl/a11y/linux");
         for (String[] site : CITED_OR_ARGUED) {
             java.util.List<String> lines = java.nio.file.Files.readAllLines(

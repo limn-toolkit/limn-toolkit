@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a modal blocks is published, not only enforced.
@@ -437,8 +438,8 @@ class AccessibleModalTest extends AccessibleTestBase {
         assertFalse(tree().node(0).has(Accessible.State.ACTIVE),
                 "nothing has said the window has the focus yet" + describe(tree()));
 
-        scene.windowFocusChanged(true);
-        scene.inputBatchEnded();
+        drive(scene).windowFocusChanged(true);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertTrue(tree().node(0).has(Accessible.State.ACTIVE),
@@ -447,8 +448,8 @@ class AccessibleModalTest extends AccessibleTestBase {
                 "ACTIVE on a control means the container's active descendant, which is a "
                         + "different fact and must not be confused with this one" + describe(tree()));
 
-        scene.windowFocusChanged(false);
-        scene.inputBatchEnded();
+        drive(scene).windowFocusChanged(false);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertFalse(tree().node(0).has(Accessible.State.ACTIVE),

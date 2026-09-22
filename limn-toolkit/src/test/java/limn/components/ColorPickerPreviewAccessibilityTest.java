@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link ColorPicker}'s before/after swatch becomes in the accessible tree: one
@@ -384,9 +385,9 @@ class ColorPickerPreviewAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertEquals(picker, scene.focusedWidget(), "the arrows are the picker's own");
         bridge.events.clear();
-        scene.keyEvent(Keys.LEFT, true, false, 0);
-        scene.keyEvent(Keys.LEFT, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT, true, false, 0);
+        drive(scene).keyEvent(Keys.LEFT, false, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals("Colour #FF67CC, was #FFFFFF", swatch().name(),
                 "the picker's own arrows walk the saturation/value plane by one of the 255 steps "

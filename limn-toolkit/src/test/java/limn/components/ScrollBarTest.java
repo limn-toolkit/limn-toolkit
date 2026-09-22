@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** Dragging and track-paging math of the shared {@link ScrollBar}. */
 class ScrollBarTest extends ComponentTestBase {
@@ -58,10 +59,10 @@ class ScrollBarTest extends ComponentTestBase {
     void draggingTheThumbScrolls() {
         Model model = new Model();
         mount(ScrollBar.Policy.ALWAYS, model);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 3, 8); // grab the thumb near the top
-        scene.inputBatchEnded();
-        scene.mouseMoved(3, 108); // drag +100 down the track
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 3, 8); // grab the thumb near the top
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(3, 108); // drag +100 down the track
+        drive(scene).inputBatchEnded();
         assertTrue(model.offset > 300 && model.offset < 700, "dragged proportionally: " + model.offset);
     }
 
@@ -69,9 +70,9 @@ class ScrollBarTest extends ComponentTestBase {
     void clickingTheTrackPagesTowardThePointer() {
         Model model = new Model();
         mount(ScrollBar.Policy.ALWAYS, model);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 3, 180); // well below the thumb
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 3, 180);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 3, 180); // well below the thumb
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 3, 180);
+        drive(scene).inputBatchEnded();
         assertEquals(model.viewport, model.offset, 0.01f, "paged down by one viewport");
     }
 
@@ -79,9 +80,9 @@ class ScrollBarTest extends ComponentTestBase {
     void hiddenPolicyIsTransparentToClicks() {
         Model model = new Model();
         mount(ScrollBar.Policy.HIDDEN, model);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 3, 8);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 3, 8);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 3, 8);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 3, 8);
+        drive(scene).inputBatchEnded();
         assertEquals(0, model.offset, "a hidden bar ignores clicks");
     }
 
@@ -127,13 +128,13 @@ class ScrollBarTest extends ComponentTestBase {
     void restingThePointerOnTheBarHoldsItWithoutAnyTimer() {
         Model model = new Model();
         ScrollBar bar = mount(ScrollBar.Policy.AUTO, model);
-        scene.mouseMoved(ScrollBar.thickness() / 2, 100);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(ScrollBar.thickness() / 2, 100);
+        drive(scene).inputBatchEnded();
         assertTrue(bar.revealing(), "the pointer over the bar shows it");
         // Nothing timed is pending here: hover ends by its own EXIT event, so a bar rested on
         // asks for no frame, where it used to keep a ticker alive for as long as the rest.
-        scene.mouseMoved(-50, -50);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(-50, -50);
+        drive(scene).inputBatchEnded();
         long[] now = {System.nanoTime() + 5_000_000_000L};
         bar.clock(() -> now[0]);
         bar.onHoldElapsed();

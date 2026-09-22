@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Relative-capture MOTION delivery ({@code WindowInput.mouseDelta} → focused
@@ -53,10 +54,10 @@ class PointerInputTest extends SceneTestBase {
         scene.layoutPass(200, 200);
         box.requestFocus();
 
-        scene.mouseDelta(2f, 3f);
-        scene.mouseDelta(1f, -1f);
-        scene.mouseDelta(0.5f, 0f);
-        scene.inputBatchEnded();
+        drive(scene).mouseDelta(2f, 3f);
+        drive(scene).mouseDelta(1f, -1f);
+        drive(scene).mouseDelta(0.5f, 0f);
+        drive(scene).inputBatchEnded();
 
         assertEquals(1, box.motions.size(), "one coalesced MOTION per batch");
         MouseEvent motion = box.motions.get(0);
@@ -76,10 +77,10 @@ class PointerInputTest extends SceneTestBase {
         scene.layoutPass(200, 200);
         box.requestFocus();
 
-        scene.mouseDelta(1f, 0f);
-        scene.keyEvent(limn.input.Keys.SPACE, true, false, 0);
-        scene.mouseDelta(2f, 0f);
-        scene.inputBatchEnded();
+        drive(scene).mouseDelta(1f, 0f);
+        drive(scene).keyEvent(limn.input.Keys.SPACE, true, false, 0);
+        drive(scene).mouseDelta(2f, 0f);
+        drive(scene).inputBatchEnded();
 
         // Key between the deltas: order is preserved, so two MOTION events.
         assertEquals(2, box.motions.size());
@@ -102,8 +103,8 @@ class PointerInputTest extends SceneTestBase {
         scene.bind(new RecordingWindow());
         scene.layoutPass(200, 200);
 
-        scene.mouseDelta(4f, 5f);
-        scene.inputBatchEnded();
+        drive(scene).mouseDelta(4f, 5f);
+        drive(scene).inputBatchEnded();
 
         assertEquals(1, rootMotions.size());
         assertEquals(4f, rootMotions.get(0).deltaX(), 1e-6);
@@ -125,12 +126,12 @@ class PointerInputTest extends SceneTestBase {
         scene.bind(win);
         scene.layoutPass(200, 200);
 
-        scene.mouseMoved(50, 20); // over 'custom'
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(50, 20); // over 'custom'
+        drive(scene).inputBatchEnded();
         assertSame(crosshair, win.imageCursor);
 
-        scene.mouseMoved(50, 60); // over 'plain'
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(50, 60); // over 'plain'
+        drive(scene).inputBatchEnded();
         assertNull(win.imageCursor, "image cursor clears off the widget");
         assertEquals(Cursor.DEFAULT, win.cursor);
     }
@@ -149,8 +150,8 @@ class PointerInputTest extends SceneTestBase {
         scene.bind(win);
         scene.layoutPass(200, 200);
 
-        scene.mouseMoved(50, 20); // over the child
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(50, 20); // over the child
+        drive(scene).inputBatchEnded();
         assertSame(brush, win.imageCursor);
     }
 
@@ -165,8 +166,8 @@ class PointerInputTest extends SceneTestBase {
         scene.bind(win);
         scene.layoutPass(200, 200);
 
-        scene.mouseMoved(50, 20);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(50, 20);
+        drive(scene).inputBatchEnded();
         assertNull(win.imageCursor);
 
         box.setImageCursor(first); // while hovered: no extra mouse move needed

@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** TextField editing driven through the Scene with a mock clipboard. */
 class TextFieldTest extends ComponentTestBase {
@@ -79,14 +80,14 @@ class TextFieldTest extends ComponentTestBase {
     }
 
     private void type(String text) {
-        text.codePoints().forEach(scene::charTyped);
-        scene.inputBatchEnded();
+        text.codePoints().forEach(drive(scene)::charTyped);
+        drive(scene).inputBatchEnded();
     }
 
     private void key(int keyCode, int mods) {
-        scene.keyEvent(keyCode, true, false, mods);
-        scene.keyEvent(keyCode, false, false, mods);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, mods);
+        drive(scene).keyEvent(keyCode, false, false, mods);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -95,7 +96,7 @@ class TextFieldTest extends ComponentTestBase {
         // global UI queue forever; window close must run the focus-lost path.
         build();
         assertTrue(field.isFocused());
-        scene.windowClosed();
+        drive(scene).windowClosed();
         assertNull(scene.focusedWidget());
         assertFalse(field.isFocused());
     }
@@ -110,18 +111,18 @@ class TextFieldTest extends ComponentTestBase {
         pwScene.setClipboard(new MockClipboard());
         pwScene.layoutPass(240, 32);
         pwScene.requestFocus(password);
-        "top secret".codePoints().forEach(pwScene::charTyped);
-        pwScene.inputBatchEnded();
+        "top secret".codePoints().forEach(drive(pwScene)::charTyped);
+        drive(pwScene).inputBatchEnded();
 
-        pwScene.keyEvent(Keys.LEFT, true, false, Keys.MOD_CONTROL);
-        pwScene.keyEvent(Keys.LEFT, false, false, Keys.MOD_CONTROL);
-        pwScene.inputBatchEnded();
+        drive(pwScene).keyEvent(Keys.LEFT, true, false, Keys.MOD_CONTROL);
+        drive(pwScene).keyEvent(Keys.LEFT, false, false, Keys.MOD_CONTROL);
+        drive(pwScene).inputBatchEnded();
         assertEquals(9, password.model().cursor(), "one character, not one word");
 
         password.setRevealed(true);
-        pwScene.keyEvent(Keys.LEFT, true, false, Keys.MOD_CONTROL);
-        pwScene.keyEvent(Keys.LEFT, false, false, Keys.MOD_CONTROL);
-        pwScene.inputBatchEnded();
+        drive(pwScene).keyEvent(Keys.LEFT, true, false, Keys.MOD_CONTROL);
+        drive(pwScene).keyEvent(Keys.LEFT, false, false, Keys.MOD_CONTROL);
+        drive(pwScene).inputBatchEnded();
         assertEquals(4, password.model().cursor(), "revealed: word jumps come back");
     }
 
@@ -216,14 +217,14 @@ class TextFieldTest extends ComponentTestBase {
         build();
         type("0123456789");
         // fieldPadH at MEDIUM is 12; glyphs are 10pt wide → x=12+35 lands at index 3..4 boundary.
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 12 + 35, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 12 + 35, 16);
+        drive(scene).inputBatchEnded();
         int pressIndex = field.model().cursor();
         assertTrue(pressIndex == 3 || pressIndex == 4, "got " + pressIndex);
 
-        scene.mouseMoved(12 + 75, 16); // drag to ~7.5 glyphs
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 12 + 75, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(12 + 75, 16); // drag to ~7.5 glyphs
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 12 + 75, 16);
+        drive(scene).inputBatchEnded();
         assertTrue(field.model().hasSelection());
         assertFalse(field.model().selectedText().isEmpty());
     }
@@ -403,9 +404,9 @@ class TextFieldTest extends ComponentTestBase {
         formScene.requestFocus(first);
         assertFalse(second.model().hasSelection(), "nothing has arrived at the second field yet");
 
-        formScene.keyEvent(Keys.TAB, true, false, 0);
-        formScene.keyEvent(Keys.TAB, false, false, 0);
-        formScene.inputBatchEnded();
+        drive(formScene).keyEvent(Keys.TAB, true, false, 0);
+        drive(formScene).keyEvent(Keys.TAB, false, false, 0);
+        drive(formScene).inputBatchEnded();
 
         assertTrue(second.isFocused());
         assertEquals("replace me", second.model().selectedText(),
@@ -413,10 +414,10 @@ class TextFieldTest extends ComponentTestBase {
 
         // Now leave and come back by clicking: the caret the click placed must survive.
         formScene.requestFocus(first);
-        formScene.mouseMoved(5, second.y() + 5);
-        formScene.mouseButton(Keys.MOUSE_LEFT, true, 0, 5, second.y() + 5);
-        formScene.mouseButton(Keys.MOUSE_LEFT, false, 0, 5, second.y() + 5);
-        formScene.inputBatchEnded();
+        drive(formScene).mouseMoved(5, second.y() + 5);
+        drive(formScene).mouseButton(Keys.MOUSE_LEFT, true, 0, 5, second.y() + 5);
+        drive(formScene).mouseButton(Keys.MOUSE_LEFT, false, 0, 5, second.y() + 5);
+        drive(formScene).inputBatchEnded();
 
         assertTrue(second.isFocused());
         assertFalse(second.model().hasSelection(),
@@ -447,9 +448,9 @@ class TextFieldTest extends ComponentTestBase {
 
     /** Presses and releases at a display-x measured from the left edge of the text run. */
     private void click(float displayX) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, PAD + displayX, 16);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, PAD + displayX, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, PAD + displayX, 16);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, PAD + displayX, 16);
+        drive(scene).inputBatchEnded();
     }
 
     /** The x of the one vertical line a focused, unselected field draws: its caret. */
@@ -628,8 +629,8 @@ class TextFieldTest extends ComponentTestBase {
         ShapeRecorder ruler = buildRecording();
         field.setText("ab");
         field.model().setCursor(1, false);
-        scene.preeditChanged("XY", new int[]{2}, 0, 2);
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged("XY", new int[]{2}, 0, 2);
+        drive(scene).inputBatchEnded();
         scene.renderFrame(new FakeCanvas(240, 32));
 
         assertEquals(1, ruler.count("aXYb"), "the composed line, shaped whole and held");
@@ -646,8 +647,8 @@ class TextFieldTest extends ComponentTestBase {
         build();
         field.setText("ab");
         field.model().setCursor(1, false);
-        scene.preeditChanged("XY", new int[]{2}, 0, 2);
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged("XY", new int[]{2}, 0, 2);
+        drive(scene).inputBatchEnded();
 
         AnchorCanvas canvas = new AnchorCanvas(240, 32);
         scene.renderFrame(canvas);
@@ -681,7 +682,7 @@ class TextFieldTest extends ComponentTestBase {
         assertEquals(List.of("abc"), submitted, "Enter hands the handler the text");
         assertTrue(heard.contains("SUBMITTED/USER"), "announced to the watchers too: " + heard);
 
-        scene.preeditChanged("xy", new int[] {2}, 0, 2);
+        drive(scene).preeditChanged("xy", new int[] {2}, 0, 2);
         key(Keys.ENTER, 0);
         assertEquals(List.of("abc"), submitted, "while composing, Enter is the input method's");
     }

@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link MenuBar} and {@link PopupMenu} read right to left: which end of the strip the first
@@ -381,13 +382,13 @@ class MenuMirroringTest extends ComponentTestBase {
     }
 
     private void clickBar(float x) {
-        barScene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, MEDIUM.controlHeight() / 2);
-        barScene.inputBatchEnded();
+        drive(barScene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, MEDIUM.controlHeight() / 2);
+        drive(barScene).inputBatchEnded();
     }
 
     private void keyBar(int key) {
-        barScene.keyEvent(key, true, false, 0);
-        barScene.inputBatchEnded();
+        drive(barScene).keyEvent(key, true, false, 0);
+        drive(barScene).inputBatchEnded();
     }
 
     @Test

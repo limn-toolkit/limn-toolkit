@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a screen reader is told about a date picker as it stands in a form, closed; ADR 042 §8,
@@ -346,9 +347,9 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertEquals(ninth.id(), tree().effectiveFocus(), describe(tree()));
 
-        scene.keyEvent(limn.input.Keys.UP, true, false, Accelerator.commandModifier());
-        scene.keyEvent(limn.input.Keys.UP, false, false, Accelerator.commandModifier());
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(limn.input.Keys.UP, true, false, Accelerator.commandModifier());
+        drive(scene).keyEvent(limn.input.Keys.UP, false, false, Accelerator.commandModifier());
+        drive(scene).inputBatchEnded();
         frame();
 
         List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE).stream()
@@ -386,9 +387,9 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
                 "and the day is marked" + describe(tree()));
         assertEquals(LocalDate.of(2026, 9, 9), picker.date(), "and nothing is committed");
 
-        scene.keyEvent(limn.input.Keys.ENTER, true, false, 0);
-        scene.keyEvent(limn.input.Keys.ENTER, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(limn.input.Keys.ENTER, true, false, 0);
+        drive(scene).keyEvent(limn.input.Keys.ENTER, false, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         assertFalse(picker.isOpen(), "Enter on the marked day commits and closes"
                 + describe(tree()));

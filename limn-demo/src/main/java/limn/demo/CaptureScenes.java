@@ -14,6 +14,7 @@ import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Small, single-purpose scenes for the spec's named verification screenshots:
@@ -84,8 +85,8 @@ final class CaptureScenes {
         // Latin glyphs keep the capture legible: the render path is glyph-agnostic,
         // so it exercises the underline/focused-block/caret exactly as CJK would.
         Runnable afterLayout = () -> {
-            scene.preeditChanged("konnichiwa", new int[] {8, 2}, 1, 10);
-            scene.inputBatchEnded();
+            drive(scene).preeditChanged("konnichiwa", new int[] {8, 2}, 1, 10);
+            drive(scene).inputBatchEnded();
         };
         return new Built(scene, afterLayout);
     }
@@ -137,8 +138,8 @@ final class CaptureScenes {
         Runnable afterLayout = () -> {
             // Put the caret mid-way on the second line, then inject a composition.
             area.model().setCursor("first line\n".length() + 6, false);
-            scene.preeditChanged("konnichiwa", new int[] {8, 2}, 1, 10);
-            scene.inputBatchEnded();
+            drive(scene).preeditChanged("konnichiwa", new int[] {8, 2}, 1, 10);
+            drive(scene).inputBatchEnded();
         };
         return new Built(scene, afterLayout);
     }

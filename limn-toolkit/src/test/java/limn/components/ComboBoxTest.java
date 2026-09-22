@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** Headless ComboBox: the open/highlight/commit state machine without a native popup. */
 class ComboBoxTest extends ComponentTestBase {
@@ -40,9 +41,9 @@ class ComboBoxTest extends ComponentTestBase {
     }
 
     private void key(int keyCode) {
-        scene.keyEvent(keyCode, true, false, 0);
-        scene.keyEvent(keyCode, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, 0);
+        drive(scene).keyEvent(keyCode, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -52,8 +53,8 @@ class ComboBoxTest extends ComponentTestBase {
         build();
         combo.open();
         assertTrue(combo.isOpen());
-        scene.windowFocusChanged(false);
-        scene.inputBatchEnded();
+        drive(scene).windowFocusChanged(false);
+        drive(scene).inputBatchEnded();
         runtime.drain(); // the dismiss decision is deferred one loop turn
         assertFalse(combo.isOpen());
     }
@@ -110,11 +111,11 @@ class ComboBoxTest extends ComponentTestBase {
     @Test
     void clickTogglesOpenState() {
         build();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertTrue(combo.isOpen());
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertFalse(combo.isOpen());
     }
 
@@ -202,8 +203,8 @@ class ComboBoxTest extends ComponentTestBase {
         // filler's bottom edge (28 + 40) and dismissed for the wrong reason. The combo is
         // 32 tall now, so 70 lands inside the filler by luck rather than by construction.
         float insideTheFiller = combo.height() + filler.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 20, insideTheFiller);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 20, insideTheFiller);
+        drive(scene).inputBatchEnded();
         assertFalse(combo.isOpen(), "outside press must dismiss the popup");
     }
 
@@ -238,9 +239,9 @@ class ComboBoxTest extends ComponentTestBase {
         SizeTokens t = Theme.current().tokensFor(combo);
         float rowCentre = combo.height() + t.popupGap()          // the list's top edge
                 + t.popupPadV() + 1.5f * t.popupItemHeight();    // the middle of row 1
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, rowCentre);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, rowCentre);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, rowCentre);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 10, rowCentre);
+        drive(scene).inputBatchEnded();
 
         assertEquals(1, combo.selectedIndex(),
                 "the row under the pointer is the row that was drawn there");
@@ -276,9 +277,9 @@ class ComboBoxTest extends ComponentTestBase {
         SizeTokens t = Theme.current().tokensFor(combo);
         float rowCentre = combo.height() + t.popupGap()
                 + t.popupPadV() + 1.5f * t.popupItemHeight();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, rowCentre);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, rowCentre);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, rowCentre);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 10, rowCentre);
+        drive(scene).inputBatchEnded();
 
         assertEquals(0, combo.selectedIndex(),
                 "the same row a click commits when the combo is enabled");
@@ -401,8 +402,8 @@ class ComboBoxTest extends ComponentTestBase {
     }
 
     private void type(String text) {
-        text.codePoints().forEach(scene::charTyped);
-        scene.inputBatchEnded();
+        text.codePoints().forEach(drive(scene)::charTyped);
+        drive(scene).inputBatchEnded();
     }
 
     /**
@@ -528,15 +529,15 @@ class ComboBoxTest extends ComponentTestBase {
         box.open();
         box.setSelectedIndex(0);
 
-        scene.keyEvent(Keys.PAGE_DOWN, true, false, 0);
-        scene.keyEvent(Keys.PAGE_DOWN, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.PAGE_DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.PAGE_DOWN, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertTrue(box.highlightedIndex() > 0, "Page Down must move the highlight");
 
         int reached = box.highlightedIndex();
-        scene.keyEvent(Keys.PAGE_UP, true, false, 0);
-        scene.keyEvent(Keys.PAGE_UP, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.PAGE_UP, true, false, 0);
+        drive(scene).keyEvent(Keys.PAGE_UP, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertTrue(box.highlightedIndex() < reached, "Page Up must move it back");
     }
 }

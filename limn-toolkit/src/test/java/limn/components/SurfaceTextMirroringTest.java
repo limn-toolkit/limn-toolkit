@@ -24,6 +24,7 @@ import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link VideoView} and {@link Viewport3D} read right to left: the two widgets whose content is a
@@ -258,10 +259,10 @@ class SurfaceTextMirroringTest extends ComponentTestBase {
             public void zoom(float amount) {
             }
         });
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 100, 100);
-        scene.mouseMoved(130, 100);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 130, 100);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 100, 100);
+        drive(scene).mouseMoved(130, 100);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 130, 100);
+        drive(scene).inputBatchEnded();
         assertEquals(1, drags.size(), "one drag was delivered");
         return drags.get(0);
     }
@@ -297,9 +298,9 @@ class SurfaceTextMirroringTest extends ComponentTestBase {
     }
 
     private void pressBothArrows() {
-        scene.keyEvent(Keys.LEFT, true, false, 0);
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT, true, false, 0);
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     // ---------------------------------------------------------------- fakes

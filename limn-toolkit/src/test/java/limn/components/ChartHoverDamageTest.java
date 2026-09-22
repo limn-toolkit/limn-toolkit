@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * A hover repaints the marks it lights and the panel it raises, not the chart.
@@ -72,8 +73,8 @@ class ChartHoverDamageTest extends ComponentTestBase {
      * @return the worst share of the widget any of those frames repainted
      */
     private float worstShareOf(float x, float y, String what) {
-        scene.mouseMoved(x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).inputBatchEnded();
         float box = Math.max(1, subject.width() * subject.height());
         float worst = 0;
         int painted = 0;

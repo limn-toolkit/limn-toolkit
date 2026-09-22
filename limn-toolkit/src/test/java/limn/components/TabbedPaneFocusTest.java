@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Roving focus in the tab strip: the whole strip is a single tab stop; only the
@@ -61,9 +62,9 @@ class TabbedPaneFocusTest extends ComponentTestBase {
         float stripH = tabs.children().get(0).height();
         float cx = tabs.localToSceneX() + tabs.width() - 1.5f * stripH; // › chevron
         float cy = tabs.localToSceneY() + stripH / 2;
-        scene.mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, cx, cy);
-        scene.mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, cx, cy);
-        scene.inputBatchEnded(); // no layout pass in between
+        drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, cx, cy);
+        drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, cx, cy);
+        drive(scene).inputBatchEnded(); // no layout pass in between
     }
 
     @Test

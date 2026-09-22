@@ -17,6 +17,7 @@ import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The date widgets read right to left; ADR 042 §9.
@@ -168,9 +169,9 @@ class DateMirroringTest extends AccessibleComponentTestBase {
     }
 
     private void key(int keyCode) {
-        scene.keyEvent(keyCode, true, false, 0);
-        scene.keyEvent(keyCode, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, 0);
+        drive(scene).keyEvent(keyCode, false, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
     }
 

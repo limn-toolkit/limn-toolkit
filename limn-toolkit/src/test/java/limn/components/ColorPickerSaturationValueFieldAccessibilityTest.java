@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link ColorPicker}'s saturation/value plane becomes in the accessible tree: one
@@ -236,16 +237,16 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
 
     /** Presses the left button at a scene point and lets the frame that follows publish. */
     private void pressAt(float x, float y) {
-        scene.mouseMoved(x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
     /** Lets go, which is the only thing on this widget's pointer path that commits. */
     private void releaseAt(float x, float y) {
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         frame();
     }
 

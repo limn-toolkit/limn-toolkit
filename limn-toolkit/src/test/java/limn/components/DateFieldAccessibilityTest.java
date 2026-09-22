@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a screen reader is told about a segmented date field; ADR 042 §8.
@@ -167,9 +168,9 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
                 "the caret starts in the day segment: " + describe(tree()));
         bridge.events.clear();
 
-        scene.charTyped('1');
-        scene.charTyped('5');
-        scene.inputBatchEnded();
+        drive(scene).charTyped('1');
+        drive(scene).charTyped('5');
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals(LocalDate.of(2026, 12, 15), field.date(), "the day took the two digits");
@@ -206,8 +207,8 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(field.text().startsWith("--"), "which stay drawn: " + field.text());
         bridge.events.clear();
 
-        scene.charTyped('1');
-        scene.inputBatchEnded();
+        drive(scene).charTyped('1');
+        drive(scene).inputBatchEnded();
         frame();
         day = segmentNodes().get(0);
         assertFalse(day.value().empty());
@@ -219,9 +220,9 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode month = segmentNodes().get(1);
         assertTrue(month.value().empty());
-        scene.keyEvent(limn.input.Keys.RIGHT, true, false, 0);
-        scene.keyEvent(limn.input.Keys.UP, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(limn.input.Keys.RIGHT, true, false, 0);
+        drive(scene).keyEvent(limn.input.Keys.UP, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals(3, segmentNodes().get(1).value().value(),
                 "the first step from empty is today's month by the field's clock");
@@ -287,9 +288,9 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(day.id(), tree().activeDescendant(), describe(tree()));
         bridge.events.clear();
 
-        scene.keyEvent(limn.input.Keys.RIGHT, true, false, 0);
-        scene.keyEvent(limn.input.Keys.RIGHT, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(limn.input.Keys.RIGHT, true, false, 0);
+        drive(scene).keyEvent(limn.input.Keys.RIGHT, false, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals(month.id(), tree().activeDescendant(),

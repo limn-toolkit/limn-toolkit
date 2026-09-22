@@ -13,6 +13,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link SegmentedControl} read right to left: where the segments land, where a click lands, which
@@ -62,15 +63,15 @@ class SegmentedControlMirroringTest extends ComponentTestBase {
     }
 
     private void click(float localX) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, localX, HEIGHT / 2);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, localX, HEIGHT / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, localX, HEIGHT / 2);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, localX, HEIGHT / 2);
+        drive(scene).inputBatchEnded();
     }
 
     private void press(int key) {
-        scene.keyEvent(key, true, false, 0);
-        scene.keyEvent(key, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).keyEvent(key, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     private InkCanvas paint(float width) {
@@ -420,8 +421,8 @@ class SegmentedControlMirroringTest extends ComponentTestBase {
         LayoutDirection[] directions = { LayoutDirection.LTR, LayoutDirection.RTL };
         for (int i = 0; i < directions.length; i++) {
             build(directions[i], NARROW);
-            scene.scrolled(0, -1, PROBE, HEIGHT / 2);
-            scene.inputBatchEnded();
+            drive(scene).scrolled(0, -1, PROBE, HEIGHT / 2);
+            drive(scene).inputBatchEnded();
             scene.layoutPass(NARROW, HEIGHT);
             click(PROBE);
             afterDetent[i] = control.selectedIndex();

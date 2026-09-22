@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The row the keyboard is in survives a scroll that moves it out of the viewport, in both the
@@ -98,8 +99,8 @@ class TableFocusedRowTest extends AccessibleComponentTestBase {
     }
 
     private void wheelDown(int detents) {
-        scene.scrolled(0, -detents, 200, 150);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -detents, 200, 150);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
@@ -203,10 +204,10 @@ class TableFocusedRowTest extends AccessibleComponentTestBase {
         Button first = buttonOf(table, "Person 0");
         first.requestFocus();
         frame();
-        scene.keyEvent(Keys.PAGE_DOWN, true, false, 0);
-        scene.inputBatchEnded();
-        scene.keyEvent(Keys.PAGE_DOWN, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.PAGE_DOWN, true, false, 0);
+        drive(scene).inputBatchEnded();
+        drive(scene).keyEvent(Keys.PAGE_DOWN, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertTrue(table.firstVisibleRow() > 3, "paged away: " + table.firstVisibleRow());

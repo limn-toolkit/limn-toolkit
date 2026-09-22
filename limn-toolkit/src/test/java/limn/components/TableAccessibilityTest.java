@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** What a screen reader is told about a table; ADR 041 §7. */
 class TableAccessibilityTest extends AccessibleComponentTestBase {
@@ -141,8 +142,8 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(tableNode().id(), tree().focused());
         assertEquals(cell.id(), tree().activeDescendant(),
                 "the tree's cursor is the first active node below the focused table");
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         AccessibleNode moved = childrenOf(rowNodes().get(3)).get(1);
         assertTrue(moved.has(Accessible.State.ACTIVE), "Right moves the cursor a column");
@@ -639,8 +640,8 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("[2, 6]", java.util.Arrays.toString(table.selectedRows()));
         assertEquals(2, table.focusRow(), "and so did the deselect");
         scene.requestFocus(table);
-        scene.keyEvent(Keys.DOWN, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         assertEquals("[2, 3]", java.util.Arrays.toString(table.selectedRows()),
                 "a Shift range still extends from the anchor on row 2");
         assertTrue(perform(rowNodes().get(7).id(), Accessible.Action.SELECT, null));
@@ -822,8 +823,8 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                 "a column that cannot be sorted offers no press: " + describe(tree()));
         bridge.events.clear();
 
-        scene.keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         frame();
         assertTrue(table.isHeaderFocused());
         assertEquals(tableNode().id(), tree().focused(), "the table is still the focused node");
@@ -837,8 +838,8 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                 limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
                 "the cursor left the focus cell for the header, once: " + bridge.events);
 
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals(new CellFacet(-1, 1), nodesWith(Accessible.State.ACTIVE).get(0).cell(),
                 "Right moves the header's cursor a column");
@@ -851,15 +852,15 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                 "the sorted header says which way: " + describe(tree()));
         assertTrue(headers.get(1).description() == null || headers.get(1).description().isEmpty(),
                 "the others say nothing: " + describe(tree()));
-        scene.keyEvent(Keys.LEFT, true, false, 0);
-        scene.inputBatchEnded();
-        scene.keyEvent(Keys.SPACE, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT, true, false, 0);
+        drive(scene).inputBatchEnded();
+        drive(scene).keyEvent(Keys.SPACE, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals("Sorted descending", childrenOf(headerGroup()).get(0).description());
 
-        scene.keyEvent(Keys.TAB, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.TAB, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         assertFalse(table.isHeaderFocused());
         active = nodesWith(Accessible.State.ACTIVE);
@@ -874,8 +875,8 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertEquals("Age", table.sortColumn().title().english(), "the press sorted by the pressed column");
         assertFalse(table.isHeaderFocused(), "and left the keyboard in the rows");
-        scene.keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals(new CellFacet(-1, 1, CellFacet.Sort.ASCENDING),
                 nodesWith(Accessible.State.ACTIVE).get(0).cell(),
@@ -1104,8 +1105,8 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         table.setSelectedRow(3);
         frame();
         bridge.events.clear();
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         List<AccessibleNode> active = nodesWith(Accessible.State.ACTIVE);
         assertEquals(1, active.size(), "one cursor: " + describe(tree()));
@@ -1115,8 +1116,8 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(1, bridge.countOf(
                 limn.accessibility.AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED),
                 "one cursor move, announced once: " + bridge.events);
-        scene.keyEvent(Keys.LEFT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals(new CellFacet(3, 0), nodesWith(Accessible.State.ACTIVE).get(0).cell(),
                 "and Left brings the cursor back to the value cell");
@@ -1270,8 +1271,8 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         table.setSelectedRow(2);
         frame();
         for (int i = 0; i < 2; i++) {
-            scene.keyEvent(Keys.RIGHT, true, false, 0);
-            scene.inputBatchEnded();
+            drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+            drive(scene).inputBatchEnded();
             frame();
         }
         assertEquals(2, table.focusColumn());
@@ -1343,11 +1344,11 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         scene.requestFocus(table);
         table.setSelectedRow(2);
         frame();
-        scene.keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.TAB, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         for (int i = 0; i < 2; i++) {
-            scene.keyEvent(Keys.RIGHT, true, false, 0);
-            scene.inputBatchEnded();
+            drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+            drive(scene).inputBatchEnded();
         }
         frame();
         assertTrue(table.isHeaderFocused());

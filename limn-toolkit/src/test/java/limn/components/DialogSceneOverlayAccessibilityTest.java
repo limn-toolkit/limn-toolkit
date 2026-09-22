@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link Dialog}'s in-scene overlay becomes in the accessible tree, which depends on where
@@ -221,16 +222,16 @@ class DialogSceneOverlayAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     private void pressEscape() {
-        scene.keyEvent(Keys.ESCAPE, true, false, 0);
-        scene.keyEvent(Keys.ESCAPE, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ESCAPE, true, false, 0);
+        drive(scene).keyEvent(Keys.ESCAPE, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     /** Presses and releases on the scrim's top-left corner, which no centred card reaches. */
     private void pressTheScrim() {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 2, 2);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 2, 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 2, 2);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 2, 2);
+        drive(scene).inputBatchEnded();
     }
 
     private static String resultNow(Dialog dialog) {

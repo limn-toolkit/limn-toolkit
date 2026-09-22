@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** {@link ScrollView} offset clamping, wheel scrolling and scrolled hit-testing. */
 class ScrollViewTest extends ComponentTestBase {
@@ -61,8 +62,8 @@ class ScrollViewTest extends ComponentTestBase {
         Scene scene = new Scene(scroll);
         scene.layoutPass(100, 100);
 
-        scene.scrolled(0, -1, 50, 50); // wheel down
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -1, 50, 50); // wheel down
+        drive(scene).inputBatchEnded();
         assertEquals(48, scroll.offsetY(), EPS, "one notch = 48 logical points");
     }
 
@@ -159,9 +160,9 @@ class ScrollViewTest extends ComponentTestBase {
     }
 
     private static void press(Scene scene, int key) {
-        scene.keyEvent(key, true, false, 0);
-        scene.keyEvent(key, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).keyEvent(key, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -170,8 +171,8 @@ class ScrollViewTest extends ComponentTestBase {
         ScrollView scroll = new ScrollView(content);
         Scene scene = new Scene(scroll);
         scene.layoutPass(100, 100);
-        scene.scrolled(0, -1, 50, 25);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -1, 50, 25);
+        drive(scene).inputBatchEnded();
         assertEquals(0, scroll.offsetY(), EPS);
     }
 
@@ -276,9 +277,9 @@ class ScrollViewTest extends ComponentTestBase {
         scene.setTextRuler(RULER);
         scene.layoutPass(100, 100);
 
-        scene.keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
-        scene.scrolled(0, -1, 50, 50); // a plain vertical wheel, Shift held
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
+        drive(scene).scrolled(0, -1, 50, 50); // a plain vertical wheel, Shift held
+        drive(scene).inputBatchEnded();
 
         assertTrue(scroll.offsetX() > 0,
                 "Shift must send a vertical wheel to the horizontal axis");
@@ -294,8 +295,8 @@ class ScrollViewTest extends ComponentTestBase {
         scene.setTextRuler(RULER);
         scene.layoutPass(100, 100);
 
-        scene.scrolled(0, -1, 50, 50);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -1, 50, 50);
+        drive(scene).inputBatchEnded();
 
         assertTrue(scroll.offsetY() > 0, "no Shift, no axis swap");
         assertEquals(0, scroll.offsetX(), EPS);

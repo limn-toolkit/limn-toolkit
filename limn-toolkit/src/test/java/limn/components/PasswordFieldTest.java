@@ -15,6 +15,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link PasswordField}'s masking: the substitution and the dot's geometry.
@@ -232,8 +233,8 @@ class PasswordFieldTest extends ComponentTestBase {
         // times the mask advance: derived, never baked literals.
         float textLeft = SizeTokens.of(step).fieldPadH();
         float cell = ADVANCE * SizeTokens.of(step).body().size();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, textLeft + 2 * cell, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, textLeft + 2 * cell, 10);
+        drive(scene).inputBatchEnded();
 
         assertEquals(3, field.model().cursor(),
                 "the caret sits on a code-point boundary, past the whole surrogate pair");

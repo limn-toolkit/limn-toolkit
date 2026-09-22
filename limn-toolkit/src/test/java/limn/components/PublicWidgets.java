@@ -1,7 +1,7 @@
 package limn.components;
 
 import limn.scene.Widget;
-import limn.testing.RepositoryRoot;
+import limn.testfixtures.RepositoryRoot;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

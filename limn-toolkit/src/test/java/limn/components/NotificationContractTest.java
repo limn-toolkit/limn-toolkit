@@ -23,7 +23,7 @@ import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.layout.SizedBox;
-import limn.testing.RepositoryRoot;
+import limn.testfixtures.RepositoryRoot;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -48,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The four obligations ADR 040 §1.11 puts on a component author, pinned for every widget the
@@ -163,8 +164,8 @@ class NotificationContractTest extends ComponentTestBase {
                             (w, ran) -> ((PasswordField) w).onChange(t -> ran.run()),
                             (scene, w) -> {
                                 scene.requestFocus(w);
-                                scene.charTyped('a');
-                                scene.inputBatchEnded();
+                                drive(scene).charTyped('a');
+                                drive(scene).inputBatchEnded();
                             })),
             new Row("limn.components.ProgressBar",
                     ProgressBar::new,
@@ -212,8 +213,8 @@ class NotificationContractTest extends ComponentTestBase {
                             (w, ran) -> ((SearchField) w).onChange(t -> ran.run()),
                             (scene, w) -> {
                                 scene.requestFocus(w);
-                                scene.charTyped('a');
-                                scene.inputBatchEnded();
+                                drive(scene).charTyped('a');
+                                drive(scene).inputBatchEnded();
                             })),
             new Row("limn.components.SegmentedControl",
                     () -> new SegmentedControl(List.of("A", "B", "C")),
@@ -264,8 +265,8 @@ class NotificationContractTest extends ComponentTestBase {
                             (w, ran) -> ((TextArea) w).onChange(t -> ran.run()),
                             (scene, w) -> {
                                 scene.requestFocus(w);
-                                scene.charTyped('a');
-                                scene.inputBatchEnded();
+                                drive(scene).charTyped('a');
+                                drive(scene).inputBatchEnded();
                             })),
             new Row("limn.components.TextField",
                     TextField::new,
@@ -274,8 +275,8 @@ class NotificationContractTest extends ComponentTestBase {
                             (w, ran) -> ((TextField) w).onChange(t -> ran.run()),
                             (scene, w) -> {
                                 scene.requestFocus(w);
-                                scene.charTyped('a');
-                                scene.inputBatchEnded();
+                                drive(scene).charTyped('a');
+                                drive(scene).inputBatchEnded();
                             })),
             new Row("limn.components.TokenBox",
                     () -> new TokenBox(SizeTokens::fieldIcon, null, new Plain()),
@@ -443,17 +444,17 @@ class NotificationContractTest extends ComponentTestBase {
     }
 
     private static void key(Scene scene, int keyCode) {
-        scene.keyEvent(keyCode, true, false, 0);
-        scene.keyEvent(keyCode, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, 0);
+        drive(scene).keyEvent(keyCode, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     private static void click(Scene scene, Widget w) {
         float x = w.localToSceneX() + w.width() / 2;
         float y = w.localToSceneY() + w.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     /** A scene laid out around the widget, big enough for any row here. */
@@ -836,17 +837,17 @@ class NotificationContractTest extends ComponentTestBase {
         PopupMenu popup = new PopupMenu(menu);
         popup.showInSceneForTest(scene, 20, 20, 0, 0);
         scene.layoutPass(300, 200); // lays out the pushed overlay; its first item is highlighted
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(List.of("new"), ran, "Enter on a highlighted item runs it");
         assertFalse(popup.isOpen());
 
         popup = new PopupMenu(menu);
         popup.showInSceneForTest(scene, 20, 20, 0, 0);
         scene.layoutPass(300, 200);
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(List.of("new", "wrap=true"), ran, "and a check item flips and reports");
     }
 

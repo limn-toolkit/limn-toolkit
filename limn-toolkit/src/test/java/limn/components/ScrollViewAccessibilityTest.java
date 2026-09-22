@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link ScrollView} becomes in the accessible tree: one {@code SCROLL_PANE} node whether
@@ -235,8 +236,8 @@ class ScrollViewAccessibilityTest extends AccessibleComponentTestBase {
         ScrollView pane = new ScrollView(new Box(100, 400));
         bindIn(100, 100, pane);
 
-        scene.scrolled(0, -1, 50, 50);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -1, 50, 50);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals(48, pane.offsetY(), 1e-3, "one notch");
@@ -258,9 +259,9 @@ class ScrollViewAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(inside.isFocused(), "the key has to bubble up from a focused descendant");
         double before = paneNode().scroll().verticalPercent();
 
-        scene.keyEvent(Keys.PAGE_DOWN, true, false, 0);
-        scene.keyEvent(Keys.PAGE_DOWN, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.PAGE_DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.PAGE_DOWN, false, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals(100, pane.offsetY(), 1e-3, "a page is the viewport");

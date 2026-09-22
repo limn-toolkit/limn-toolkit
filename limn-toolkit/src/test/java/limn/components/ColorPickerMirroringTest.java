@@ -18,6 +18,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link ColorPicker} read right to left, and the parts of it that must not turn round.
@@ -313,9 +314,9 @@ class ColorPickerMirroringTest extends ComponentTestBase {
 
         float x = plane.localToSceneX() + 0.25f * plane.width();
         float y = plane.localToSceneY() + plane.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
 
         assertEquals(0.25f, picker.color().saturation(), 0.01f,
                 "the press is the cursor's inverse and has to stay unreflected with it");
@@ -399,15 +400,15 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     }
 
     private void press(int key, int modifiers) {
-        scene.keyEvent(key, true, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).inputBatchEnded();
     }
 
     private void pressRailAt(Widget rail, float sceneX) {
         float y = rail.localToSceneY() + rail.height() / 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, sceneX, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, sceneX, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, sceneX, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, sceneX, y);
+        drive(scene).inputBatchEnded();
     }
 
     /**

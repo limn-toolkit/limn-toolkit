@@ -33,6 +33,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Renders every gallery entry twice (once in {@code Limn}, once in {@code Limn Light})
@@ -1050,18 +1051,18 @@ public final class Gallery {
          */
         private void applyFilmStep() {
             Motion.Frame step = film.next();
-            scene.mouseMoved(step.x(), step.y());
+            drive(scene).mouseMoved(step.x(), step.y());
             if (step.down() != buttonDown) {
                 buttonDown = step.down();
-                scene.mouseButton(limn.input.Keys.MOUSE_LEFT, buttonDown, 0, step.x(), step.y());
+                drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, buttonDown, 0, step.x(), step.y());
             }
             if (step.wheel() != 0) {
                 // After the move, so the notch is delivered to whatever the pointer is over on
                 // this frame rather than to what it was over on the last one.
-                scene.scrolled(0, step.wheel(), step.x(), step.y());
+                drive(scene).scrolled(0, step.wheel(), step.x(), step.y());
             }
             if (step.typed() != 0) {
-                scene.charTyped(step.typed());
+                drive(scene).charTyped(step.typed());
             }
             if (built.pointer() != null) {
                 built.pointer().setPointer(step.x(), step.y(), step.pointerVisible(), buttonDown);

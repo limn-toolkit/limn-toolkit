@@ -43,6 +43,7 @@ dependencyResolutionManagement {
 //   nothing reads the editor.
 include(
     "limn-toolkit",
+    "limn-test",
     "limn-theme-editor",
     "limn-video-ffmpeg",
     "limn-video-ffmpeg-natives-all",

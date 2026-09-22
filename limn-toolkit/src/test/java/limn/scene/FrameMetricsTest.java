@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** The {@link FrameMetrics} ring buffer and the {@link Scene} event-time hook. */
 class FrameMetricsTest extends SceneTestBase {
@@ -87,11 +88,11 @@ class FrameMetricsTest extends SceneTestBase {
         scene.layoutPass(100, 100);
         assertEquals(0, scene.metrics().eventTime().count());
 
-        scene.mouseMoved(5, 5);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(5, 5);
+        drive(scene).inputBatchEnded();
         assertEquals(1, scene.metrics().eventTime().count(), "one batch with input is timed");
 
-        scene.inputBatchEnded(); // queue empty now
+        drive(scene).inputBatchEnded(); // queue empty now
         assertEquals(1, scene.metrics().eventTime().count(), "an empty batch is not recorded");
     }
 

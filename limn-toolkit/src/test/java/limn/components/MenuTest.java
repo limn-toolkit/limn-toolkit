@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Menu model + {@link PopupMenu} behavior (keyboard/mouse navigation, checked
@@ -219,9 +220,9 @@ class MenuTest extends ComponentTestBase {
         assertTrue(r[0] >= 0 && r[0] + r[2] <= 400 + 1e-3, "column stays within the scene bounds");
 
         // Keyboard reaches the focused overlay surface; choose the second item.
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals("two", chosen.get());
         assertFalse(popup.isOpen(), "choosing an item removed the overlay and closed");
     }
@@ -246,10 +247,10 @@ class MenuTest extends ComponentTestBase {
         scene.renderFrame(new FakeCanvas(400, 300));  // stale snapshot must not throw
 
         // Navigation resyncs and can reach (and choose) the new item.
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals("two", chosen.get());
     }
 
@@ -274,9 +275,9 @@ class MenuTest extends ComponentTestBase {
         float[] r = popup.columnRectForTest(0);
         float cx = r[0] + r[2] / 2;
         float bottomBand = r[1] + r[3] - 4; // inside the lower hint band
-        scene.mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, cx, bottomBand);
-        scene.mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, cx, bottomBand);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, cx, bottomBand);
+        drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, cx, bottomBand);
+        drive(scene).inputBatchEnded();
 
         assertTrue(popup.isOpen(), "the band click is a scroll step, not a dismiss");
         assertEquals(null, chosen.get(), "no item activates under the chevron band");

@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Where a node is: in the scene, on the screen, and in a mirrored interface.
@@ -176,8 +177,8 @@ class AccessibleGeometryTest extends AccessibleTestBase {
         float firstX = node("first").x();
         bridge.events.clear();
 
-        scene.windowResized(320, 200);
-        scene.inputBatchEnded();
+        drive(scene).windowResized(320, 200);
+        drive(scene).inputBatchEnded();
         canvas = new NoopCanvas(320, 200);
         frame();
 

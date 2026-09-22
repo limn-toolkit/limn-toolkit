@@ -1,4 +1,4 @@
-package limn.testing;
+package limn.testfixtures;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

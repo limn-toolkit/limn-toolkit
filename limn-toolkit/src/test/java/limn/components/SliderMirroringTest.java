@@ -13,6 +13,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link Slider} read right to left: which end of the track holds {@code min}, which way the fill
@@ -53,15 +54,15 @@ class SliderMirroringTest extends ComponentTestBase {
     }
 
     private void click(float localX) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, localX, HEIGHT / 2);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, localX, HEIGHT / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, localX, HEIGHT / 2);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, localX, HEIGHT / 2);
+        drive(scene).inputBatchEnded();
     }
 
     private void press(int key) {
-        scene.keyEvent(key, true, false, 0);
-        scene.keyEvent(key, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).keyEvent(key, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     private void focus() {
@@ -201,16 +202,16 @@ class SliderMirroringTest extends ComponentTestBase {
     @Test
     void draggingPastEitherEndReachesTheValueThatEndHolds() {
         build(LayoutDirection.RTL, new Slider(0, 100));
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, trackX(0.5f), HEIGHT / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, trackX(0.5f), HEIGHT / 2);
+        drive(scene).inputBatchEnded();
         assertEquals(50f, slider.value(), EPS);
 
-        scene.mouseMoved(-WIDTH, HEIGHT / 2); // past the left end, which is max here
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(-WIDTH, HEIGHT / 2); // past the left end, which is max here
+        drive(scene).inputBatchEnded();
         assertEquals(100f, slider.value(), EPS);
 
-        scene.mouseMoved(2 * WIDTH, HEIGHT / 2); // and past the right end, which is min
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(2 * WIDTH, HEIGHT / 2); // and past the right end, which is min
+        drive(scene).inputBatchEnded();
         assertEquals(0f, slider.value(), EPS);
     }
 

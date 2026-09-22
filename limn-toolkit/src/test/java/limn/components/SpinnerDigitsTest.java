@@ -15,6 +15,7 @@ import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * ADR 033 at the widget: a spinner's value is displayed in the locale's digits, an Arabic
@@ -69,8 +70,8 @@ class SpinnerDigitsTest extends ComponentTestBase {
 
     private void typeInto(String text) {
         scene.requestFocus(spinner);
-        text.codePoints().forEach(scene::charTyped);
-        scene.inputBatchEnded();
+        text.codePoints().forEach(drive(scene)::charTyped);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -109,8 +110,8 @@ class SpinnerDigitsTest extends ComponentTestBase {
         build(new Spinner(0, 100, 1).setValue(3));
         typeInto("٤٢");
         assertTrue(spinner.isEditing(), "U+0660s start an edit exactly as ASCII digits do");
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(42.0, spinner.value(), "the localized digits commit as the value they name");
     }
 
@@ -142,8 +143,8 @@ class SpinnerDigitsTest extends ComponentTestBase {
         I18n.setLocale(ARABIC);
         build(new Spinner(0, 100, 1).setValue(42));
         typeInto("٥");
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(5.0, spinner.value());
         assertTrue(painted().contains("٥"), "and the committed value is displayed localized again");
     }

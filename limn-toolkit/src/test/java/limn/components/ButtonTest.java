@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 class ButtonTest extends ComponentTestBase {
 
@@ -45,21 +46,21 @@ class ButtonTest extends ComponentTestBase {
     @Test
     void clickFiresTheActionOnce() {
         build();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertEquals(1, fired.get());
     }
 
     @Test
     void pressShowsArmedStateAndReleaseOutsideCancels() {
         build();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertTrue(button.isArmed(), "pressed visual state while held");
 
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 500, 500); // release outside
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 500, 500); // release outside
+        drive(scene).inputBatchEnded();
         assertFalse(button.isArmed());
         assertEquals(0, fired.get(), "no click synthesized outside the button");
     }
@@ -68,17 +69,17 @@ class ButtonTest extends ComponentTestBase {
     void disabledButtonNeverFires() {
         build();
         button.setEnabled(false);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertEquals(0, fired.get());
     }
 
     @Test
     void clickAlsoFocusesTheButton() {
         build();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertSame(button, scene.focusedWidget());
     }
 
@@ -86,11 +87,11 @@ class ButtonTest extends ComponentTestBase {
     void spaceAndEnterActivateWhenFocused() {
         build();
         scene.requestFocus(button);
-        scene.keyEvent(Keys.SPACE, true, false, 0);
-        scene.keyEvent(Keys.SPACE, false, false, 0);
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.keyEvent(Keys.ENTER, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.SPACE, true, false, 0);
+        drive(scene).keyEvent(Keys.SPACE, false, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(2, fired.get());
     }
 
@@ -98,11 +99,11 @@ class ButtonTest extends ComponentTestBase {
     void keyRepeatDoesNotAutofire() {
         build();
         scene.requestFocus(button);
-        scene.keyEvent(Keys.SPACE, true, false, 0);
-        scene.keyEvent(Keys.SPACE, true, true, 0); // auto-repeat
-        scene.keyEvent(Keys.SPACE, true, true, 0);
-        scene.keyEvent(Keys.SPACE, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.SPACE, true, false, 0);
+        drive(scene).keyEvent(Keys.SPACE, true, true, 0); // auto-repeat
+        drive(scene).keyEvent(Keys.SPACE, true, true, 0);
+        drive(scene).keyEvent(Keys.SPACE, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(1, fired.get());
     }
 
@@ -111,10 +112,10 @@ class ButtonTest extends ComponentTestBase {
         // Regression (code review): Space held elsewhere + click-to-focus + key-up
         // must not double-fire: keyboard arming is independent of the mouse.
         build();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10); // focuses + arms (mouse)
-        scene.keyEvent(Keys.SPACE, false, false, 0);         // key-up without key-down here
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10); // focuses + arms (mouse)
+        drive(scene).keyEvent(Keys.SPACE, false, false, 0);         // key-up without key-down here
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertEquals(1, fired.get(), "exactly one activation for one physical click");
     }
 

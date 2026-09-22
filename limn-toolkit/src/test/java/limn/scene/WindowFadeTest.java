@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link Scene#fadeWindow} and friends drive {@link NativeWindow#setOpacity}
@@ -98,7 +99,7 @@ class WindowFadeTest extends SceneTestBase {
 
         // The window is torn down mid-fade; the backend notifies the scene. Without
         // this flush the fade-out callback (a dialog's result completion) would leak.
-        scene.windowClosed();
+        drive(scene).windowClosed();
         assertEquals(1, calls.get(), "arrival callback flushed on teardown");
 
         advance(500);

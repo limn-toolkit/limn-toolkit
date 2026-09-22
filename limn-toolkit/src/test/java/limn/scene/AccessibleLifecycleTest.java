@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * When a tree exists, when a window opens and closes, and what a bridge is left holding.
@@ -164,8 +165,8 @@ class AccessibleLifecycleTest extends AccessibleTestBase {
         window.logicalHeight = 300;
         scene = new Scene(sceneWithAButton(), nanos::get);
         // An embedder that knows the window has focus before it binds the scene into it.
-        scene.windowFocusChanged(true);
-        scene.inputBatchEnded();
+        drive(scene).windowFocusChanged(true);
+        drive(scene).inputBatchEnded();
         scene.bind(window);
         frame();
 
@@ -204,7 +205,7 @@ class AccessibleLifecycleTest extends AccessibleTestBase {
         assertEquals(1, bridge.countOf(AccessibleEvent.Type.WINDOW_OPENED));
         assertEquals(0, bridge.countOf(AccessibleEvent.Type.WINDOW_CLOSED));
 
-        scene.windowClosed();
+        drive(scene).windowClosed();
         assertEquals(1, bridge.countOf(AccessibleEvent.Type.WINDOW_CLOSED));
         assertTrue(bridge.elements.isEmpty(), "and it is left holding nothing");
     }

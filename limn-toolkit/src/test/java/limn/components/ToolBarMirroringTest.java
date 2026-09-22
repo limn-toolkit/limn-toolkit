@@ -19,6 +19,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link ToolBar} and {@link ContextMenus} read right to left: which end of the strip the first
@@ -323,8 +324,8 @@ class ToolBarMirroringTest extends ComponentTestBase {
     }
 
     private void pressMenuKey() {
-        menuScene.keyEvent(Keys.MENU, true, false, 0);
-        menuScene.inputBatchEnded();
+        drive(menuScene).keyEvent(Keys.MENU, true, false, 0);
+        drive(menuScene).inputBatchEnded();
     }
 
     // ------------------------------------------------ the keyboard route's corner
@@ -413,13 +414,13 @@ class ToolBarMirroringTest extends ComponentTestBase {
         float py = 150;
 
         buildRegion(LayoutDirection.LTR);
-        menuScene.mouseButton(Keys.MOUSE_RIGHT, true, 0, px, py);
-        menuScene.inputBatchEnded();
+        drive(menuScene).mouseButton(Keys.MOUSE_RIGHT, true, 0, px, py);
+        drive(menuScene).inputBatchEnded();
         RoundRect ltr = openedColumn();
 
         buildRegion(LayoutDirection.RTL);
-        menuScene.mouseButton(Keys.MOUSE_RIGHT, true, 0, px, py);
-        menuScene.inputBatchEnded();
+        drive(menuScene).mouseButton(Keys.MOUSE_RIGHT, true, 0, px, py);
+        drive(menuScene).inputBatchEnded();
         RoundRect rtl = openedColumn();
 
         assertEquals(ltr.width(), rtl.width(), EPS, "the column is exactly as wide either way");

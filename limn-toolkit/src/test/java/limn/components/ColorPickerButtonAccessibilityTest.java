@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link ColorPickerButton} becomes in the accessible tree: one button node carrying a
@@ -172,14 +173,14 @@ class ColorPickerButtonAccessibilityTest extends AccessibleComponentTestBase {
     private void click() {
         float x = well.localToSceneX() + well.width() / 2;
         float y = well.localToSceneY() + well.height() / 2;
-        scene.mouseMoved(x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).inputBatchEnded();
         frame();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).inputBatchEnded();
         frame(); // a frame with the button held, so a published PRESSED would be seen
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         frame();
     }
 

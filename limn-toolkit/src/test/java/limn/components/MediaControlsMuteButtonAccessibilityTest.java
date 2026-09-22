@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What the mute button of a {@link MediaControls} becomes in the accessible tree: one plain
@@ -167,9 +168,9 @@ class MediaControlsMuteButtonAccessibilityTest extends AccessibleComponentTestBa
 
     /** Presses and releases {@code key} on whatever holds the focus, as a keyboard does. */
     private void type(int key) {
-        scene.keyEvent(key, true, false, 0);
-        scene.keyEvent(key, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).keyEvent(key, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     // -------------------------------------------------------------------------------- the shape

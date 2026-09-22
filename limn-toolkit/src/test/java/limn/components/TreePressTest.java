@@ -14,6 +14,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * A press on a tree that does not sit at the scene's origin, which is every tree in a window.
@@ -76,9 +77,9 @@ class TreePressTest extends ComponentTestBase {
     private void pressAtLocal(Tree<Node> tree, float localX, float localY) {
         float x = tree.localToSceneX() + localX;
         float y = tree.localToSceneY() + localY;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         scene.layoutPass(TREE_W + 2 * INSET, TREE_H + 2 * INSET);
     }
 

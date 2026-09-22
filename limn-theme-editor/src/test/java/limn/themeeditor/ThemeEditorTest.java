@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The editor, driven headlessly through a real scene.
@@ -183,10 +184,10 @@ class ThemeEditorTest extends EditorTestBase {
         assertNotNull(button, "no button captioned \"" + caption + '"');
         float x = button.localToSceneX() + button.width() / 2;
         float y = button.localToSceneY() + button.height() / 2;
-        scene.mouseMoved(x, y);
-        scene.mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     private static limn.components.Button findButton(limn.scene.Widget root, String caption) {
@@ -241,9 +242,9 @@ class ThemeEditorTest extends EditorTestBase {
     private void dragSliderToStart(limn.components.Slider slider) {
         float x = slider.localToSceneX() + 1;
         float y = slider.localToSceneY() + slider.height() / 2;
-        scene.mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     /**

@@ -26,6 +26,10 @@ dependencies {
     // it. The payload itself is the limn-ffmpeg-natives artifact (ADR 037): the shim arrives
     // with this module, and the libraries are named below.
     implementation(project(":limn-video-ffmpeg"))
+    // The scene driver: the gallery's films, the captures and the accessibility gallery replay
+    // clicks and keys into a scene of their own, which is a window's input and not the scene's
+    // public API (ADR 046 §4).
+    implementation(project(":limn-test"))
     // The opt-in faces, taken here for the same reason the icon pack is: the demo is an
     // APPLICATION, and this is an application's choice (ADR 036). Roboto and the complex-script
     // faces need no line — they come with the backend — but the i18n scenes draw CJK and emoji,
@@ -51,6 +55,7 @@ dependencies {
     // promises it.
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    // RepositoryRoot, for the tests that read a file of the checkout's.
     testImplementation(testFixtures(project(":limn-toolkit")))
     testRuntimeOnly(libs.junit.platform.launcher)
 }

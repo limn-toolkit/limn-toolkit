@@ -248,6 +248,7 @@ Same macOS flag as above. What it saves is plain data, which your application lo
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis via FFmpeg; the payload is `limn-ffmpeg-natives`, versioned with FFmpeg, one classifier per desktop target |
 | `limn-icons-tabler` | the Tabler icon pack, if you want it — an artifact of its own now, versioned with Tabler (`3.46.0.x` is Tabler 3.46.0) |
 | `limn-theme-editor` | the screen that authors a theme, embeddable in your application |
+| `limn-test` | testing your UI with no display: a driver that clicks, types and presses keys in a scene, a headless runtime and backend, and the accessibility contracts the widgets are held to |
 | `limn-fonts-all` | the pan-CJK and colour-emoji faces (26 MB an app that never draws them should not carry), plus the rest of the fallbacks, at the versions this release was tested with — each face an artifact of its own that versions with the font |
 
 ## Documentation

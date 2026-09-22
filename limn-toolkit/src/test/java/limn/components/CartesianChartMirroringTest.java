@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * A cartesian chart read right to left: which end of the plot the value scale starts at, which
@@ -420,8 +421,8 @@ class CartesianChartMirroringTest extends ComponentTestBase {
         // the chart from the one the pointer is over.
         BarChart chart = upright(LayoutDirection.RTL);
         float inside = left(chart) + span(chart) - band(chart) / 2;
-        scene.mouseMoved(inside, top(chart) + tall(chart) / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(inside, top(chart) + tall(chart) / 2);
+        drive(scene).inputBatchEnded();
 
         ChartPoint point = chart.hoveredPoint();
         assertNotNull(point, "a pointer inside the plot must report a datum");

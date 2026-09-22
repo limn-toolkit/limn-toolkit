@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a chart draws, what it reports, and what it animates. Geometry cases run with the
@@ -288,8 +289,8 @@ class ChartTest extends ComponentTestBase {
         RecordingCanvas canvas = new RecordingCanvas(400, 300);
         Scene scene = sceneOf(chart, canvas);
 
-        scene.mouseMoved(300, 200); // inside the second category
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(300, 200); // inside the second category
+        drive(scene).inputBatchEnded();
         ChartPoint point = chart.hoveredPoint();
         assertNotNull(point, "a pointer inside the plot must report a datum");
         assertEquals(1, point.index(), "the second category");
@@ -297,8 +298,8 @@ class ChartTest extends ComponentTestBase {
         assertEquals("b", point.label());
         assertSame(point, seen.get(), "and the hover callback must see the same datum");
 
-        scene.mouseMoved(-5, -5); // out of the widget
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(-5, -5); // out of the widget
+        drive(scene).inputBatchEnded();
         assertNull(chart.hoveredPoint(), "leaving clears the hover");
         assertNull(seen.get(), "and reports null");
     }
@@ -314,9 +315,9 @@ class ChartTest extends ComponentTestBase {
         RecordingCanvas canvas = new RecordingCanvas(400, 300);
         Scene scene = sceneOf(chart, canvas);
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 300, 200);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 300, 200);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 300, 200);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 300, 200);
+        drive(scene).inputBatchEnded();
 
         assertNotNull(clicked.get(), "a click on a bar must be reported");
         assertEquals(1, clicked.get().index());
@@ -336,9 +337,9 @@ class ChartTest extends ComponentTestBase {
         Scene scene = sceneOf(chart, canvas);
 
         // Category "a" is 1 out of 40: near the top of its column there is no bar at all.
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 120, 40);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 120, 40);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 120, 40);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 120, 40);
+        drive(scene).inputBatchEnded();
 
         assertNotNull(clicked.get(), "the column is the target, not just the bar");
         assertEquals(0, clicked.get().index());
@@ -354,8 +355,8 @@ class ChartTest extends ComponentTestBase {
         RecordingCanvas canvas = new RecordingCanvas(400, 300);
         Scene scene = sceneOf(chart, canvas);
 
-        scene.mouseMoved(300, 200);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(300, 200);
+        drive(scene).inputBatchEnded();
         canvas.reset();
         scene.renderFrame(canvas);
 
@@ -378,9 +379,9 @@ class ChartTest extends ComponentTestBase {
 
         // The legend sits at the bottom of the box; its entries are the only thing there.
         float legendY = 300 - 6 - 6; // padding, then the row
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 260, legendY);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 260, legendY);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 260, legendY);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 260, legendY);
+        drive(scene).inputBatchEnded();
         canvas.reset();
         scene.renderFrame(canvas);
 
@@ -515,8 +516,8 @@ class ChartTest extends ComponentTestBase {
 
         // The first slice starts at noon and sweeps a quarter turn clockwise; this is
         // half-past-one at a radius well inside the ring.
-        scene.mouseMoved(306, 94);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(306, 94);
+        drive(scene).inputBatchEnded();
         ChartPoint point = chart.hoveredPoint();
         assertNotNull(point, "the ring must report the slice under the pointer");
         assertEquals(0, point.index(), "noon-to-three is the first slice");
@@ -533,8 +534,8 @@ class ChartTest extends ComponentTestBase {
         RecordingCanvas canvas = new RecordingCanvas(400, 400);
         Scene scene = sceneOf(chart, canvas);
 
-        scene.mouseMoved(200, 200); // the middle of the hole
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(200, 200); // the middle of the hole
+        drive(scene).inputBatchEnded();
         assertNull(chart.hoveredPoint(), "the hole belongs to whatever is in it");
     }
 
@@ -553,8 +554,8 @@ class ChartTest extends ComponentTestBase {
         scene.renderFrame(canvas);
         assertEquals(3, canvas.paths, "the hidden slice is gone");
 
-        scene.mouseMoved(200, 340); // six o'clock: the border of two slices, now inside one
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(200, 340); // six o'clock: the border of two slices, now inside one
+        drive(scene).inputBatchEnded();
         ChartPoint point = chart.hoveredPoint();
         assertNotNull(point, "the remaining slices must have grown into the gap");
         assertEquals(1.0 / 3, point.share(), 1e-6, "three slices now share the ring");
@@ -576,16 +577,16 @@ class ChartTest extends ComponentTestBase {
         Scene scene = sceneOf(chart, canvas);
 
         // Categories run down the side now: the lower half of the plot is "second".
-        scene.mouseMoved(200, 230);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(200, 230);
+        drive(scene).inputBatchEnded();
         ChartPoint hovered = chart.hoveredPoint();
         assertNotNull(hovered, "a pointer inside the plot must report a datum");
         assertEquals(1, hovered.index(), "the lower band is the second category");
         assertEquals("second", hovered.label());
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 200, 230);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 200, 230);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 200, 230);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 200, 230);
+        drive(scene).inputBatchEnded();
         assertNotNull(clicked.get(), "and clicking must report the same one");
         assertEquals(1, clicked.get().index());
         assertEquals(20, clicked.get().value(), 1e-9);
@@ -604,8 +605,8 @@ class ChartTest extends ComponentTestBase {
         Scene scene = sceneOf(chart, canvas);
 
         for (float[] corner : new float[][] { {396, 8}, {396, 292}, {6, 292}, {6, 8} }) {
-            scene.mouseMoved(corner[0], corner[1]);
-            scene.inputBatchEnded();
+            drive(scene).mouseMoved(corner[0], corner[1]);
+            drive(scene).inputBatchEnded();
             canvas.reset();
             scene.renderFrame(canvas);
             for (float[] rect : canvas.rects) {

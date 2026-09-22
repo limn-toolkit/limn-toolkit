@@ -11,6 +11,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Modifier state on synthesized pointer events. The platform reports modifiers
@@ -63,14 +64,14 @@ class InputModifiersTest extends SceneTestBase {
     private Scene scene;
 
     private void pump() {
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
     }
 
     @Test
     void dragCarriesModifiersPressedBeforeTheDrag() {
         Recorder recorder = attach();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, Keys.MOD_SHIFT, 50, 50);
-        scene.mouseMoved(70, 70);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, Keys.MOD_SHIFT, 50, 50);
+        drive(scene).mouseMoved(70, 70);
         pump();
         assertEquals(Keys.MOD_SHIFT, recorder.lastModifiersOf(MouseEvent.Type.DRAG),
                 "a drag must report the modifiers held at press time");
@@ -80,19 +81,19 @@ class InputModifiersTest extends SceneTestBase {
     void dragPicksUpAModifierPressedMidDrag() {
         // The real-world case: start dragging, THEN hold Shift to constrain.
         Recorder recorder = attach();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 50, 50);
-        scene.mouseMoved(60, 60);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 50, 50);
+        drive(scene).mouseMoved(60, 60);
         pump();
         assertEquals(0, recorder.lastModifiersOf(MouseEvent.Type.DRAG));
 
-        scene.keyEvent(Keys.LEFT_SHIFT, true, false, 0); // GLFW omits the bit here
-        scene.mouseMoved(70, 70);
+        drive(scene).keyEvent(Keys.LEFT_SHIFT, true, false, 0); // GLFW omits the bit here
+        drive(scene).mouseMoved(70, 70);
         pump();
         assertEquals(Keys.MOD_SHIFT, recorder.lastModifiersOf(MouseEvent.Type.DRAG),
                 "pressing Shift during the drag must be visible to the widget");
 
-        scene.keyEvent(Keys.LEFT_SHIFT, false, false, Keys.MOD_SHIFT); // release still announces it
-        scene.mouseMoved(80, 80);
+        drive(scene).keyEvent(Keys.LEFT_SHIFT, false, false, Keys.MOD_SHIFT); // release still announces it
+        drive(scene).mouseMoved(80, 80);
         pump();
         assertEquals(0, recorder.lastModifiersOf(MouseEvent.Type.DRAG),
                 "releasing it must clear the bit");
@@ -101,8 +102,8 @@ class InputModifiersTest extends SceneTestBase {
     @Test
     void wheelCarriesModifiersEvenThoughThePlatformOmitsThem() {
         Recorder recorder = attach();
-        scene.keyEvent(Keys.LEFT_CONTROL, true, false, 0);
-        scene.scrolled(0, 1, 50, 50);
+        drive(scene).keyEvent(Keys.LEFT_CONTROL, true, false, 0);
+        drive(scene).scrolled(0, 1, 50, 50);
         pump();
         assertEquals(Keys.MOD_CONTROL, recorder.lastModifiersOf(MouseEvent.Type.WHEEL),
                 "Ctrl+wheel is the canonical zoom gesture: the mask must arrive");
@@ -111,8 +112,8 @@ class InputModifiersTest extends SceneTestBase {
     @Test
     void moveCarriesHeldModifiers() {
         Recorder recorder = attach();
-        scene.keyEvent(Keys.LEFT_ALT, true, false, 0);
-        scene.mouseMoved(90, 90);
+        drive(scene).keyEvent(Keys.LEFT_ALT, true, false, 0);
+        drive(scene).mouseMoved(90, 90);
         pump();
         assertEquals(Keys.MOD_ALT, recorder.lastModifiersOf(MouseEvent.Type.MOVE));
     }
@@ -120,9 +121,9 @@ class InputModifiersTest extends SceneTestBase {
     @Test
     void severalModifiersCombine() {
         Recorder recorder = attach();
-        scene.keyEvent(Keys.LEFT_SHIFT, true, false, 0);
-        scene.keyEvent(Keys.LEFT_ALT, true, false, Keys.MOD_SHIFT);
-        scene.mouseMoved(90, 90);
+        drive(scene).keyEvent(Keys.LEFT_SHIFT, true, false, 0);
+        drive(scene).keyEvent(Keys.LEFT_ALT, true, false, Keys.MOD_SHIFT);
+        drive(scene).mouseMoved(90, 90);
         pump();
         int mask = recorder.lastModifiersOf(MouseEvent.Type.MOVE);
         assertTrue((mask & Keys.MOD_SHIFT) != 0, "shift still held");
@@ -134,8 +135,8 @@ class InputModifiersTest extends SceneTestBase {
         // The authoritative source when it exists: a press mask wins over the
         // mirror, so a modifier pressed while the window was unfocused heals.
         Recorder recorder = attach();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, Keys.MOD_SUPER, 50, 50);
-        scene.mouseMoved(60, 60);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, Keys.MOD_SUPER, 50, 50);
+        drive(scene).mouseMoved(60, 60);
         pump();
         assertEquals(Keys.MOD_SUPER, recorder.lastModifiersOf(MouseEvent.Type.DRAG));
     }
@@ -145,15 +146,15 @@ class InputModifiersTest extends SceneTestBase {
         // Alt-tab: the OS delivers no key-up, so without clearing, the toolkit
         // would believe the modifier is held forever.
         Recorder recorder = attach();
-        scene.keyEvent(Keys.LEFT_SHIFT, true, false, 0);
-        scene.mouseMoved(60, 60);
+        drive(scene).keyEvent(Keys.LEFT_SHIFT, true, false, 0);
+        drive(scene).mouseMoved(60, 60);
         pump();
         assertEquals(Keys.MOD_SHIFT, recorder.lastModifiersOf(MouseEvent.Type.MOVE));
 
-        scene.windowFocusChanged(false);
+        drive(scene).windowFocusChanged(false);
         pump();
-        scene.windowFocusChanged(true);
-        scene.mouseMoved(70, 70);
+        drive(scene).windowFocusChanged(true);
+        drive(scene).mouseMoved(70, 70);
         pump();
         assertEquals(0, recorder.lastModifiersOf(MouseEvent.Type.MOVE),
                 "focus loss must not leave a modifier stuck down");
@@ -163,7 +164,7 @@ class InputModifiersTest extends SceneTestBase {
     void sceneExposesTheHeldModifiers() {
         attach();
         assertEquals(0, scene.modifiers());
-        scene.keyEvent(Keys.LEFT_CONTROL, true, false, 0);
+        drive(scene).keyEvent(Keys.LEFT_CONTROL, true, false, 0);
         pump();
         assertEquals(Keys.MOD_CONTROL, scene.modifiers());
     }

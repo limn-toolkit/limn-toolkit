@@ -1,5 +1,7 @@
 package limn.demo.a11y;
 
+import limn.testing.HeadlessBackend;
+import limn.testing.HeadlessWindow;
 import limn.components.Button;
 import limn.components.ComboBox;
 import limn.components.Dialog;

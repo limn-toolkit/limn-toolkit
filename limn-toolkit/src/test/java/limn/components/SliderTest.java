@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** {@link Slider}: clamping/snapping, click-to-jump, drag, and keyboard, driven headlessly. */
 class SliderTest extends ComponentTestBase {
@@ -70,8 +71,8 @@ class SliderTest extends ComponentTestBase {
     @Test
     void clickingTheTrackJumpsToThePointerAndFires() {
         build(new Slider(0, 100));
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, trackX(0.75f), HEIGHT / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, trackX(0.75f), HEIGHT / 2);
+        drive(scene).inputBatchEnded();
         assertEquals(75f, slider.value(), 0.5f);
         assertEquals(75f, changed.get(), 0.5f, "a user change fires onChange");
     }
@@ -79,11 +80,11 @@ class SliderTest extends ComponentTestBase {
     @Test
     void draggingUpdatesTheValueAndClampsAtTheEnd() {
         build(new Slider(0, 100));
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, trackX(0.5f), HEIGHT / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, trackX(0.5f), HEIGHT / 2);
+        drive(scene).inputBatchEnded();
         assertEquals(50f, slider.value(), 0.5f);
-        scene.mouseMoved(2 * WIDTH, HEIGHT / 2); // drag past the right end
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(2 * WIDTH, HEIGHT / 2); // drag past the right end
+        drive(scene).inputBatchEnded();
         assertEquals(100f, slider.value(), 0.5f);
     }
 
@@ -93,17 +94,17 @@ class SliderTest extends ComponentTestBase {
         scene.focusTraverse(false);
         assertSame(slider, scene.focusedWidget());
 
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(60f, slider.value());
         assertEquals(60f, changed.get());
 
-        scene.keyEvent(Keys.HOME, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.HOME, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(0f, slider.value());
 
-        scene.keyEvent(Keys.END, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(100f, slider.value());
     }
 
@@ -122,17 +123,17 @@ class SliderTest extends ComponentTestBase {
         });
         slider.onCommit(commits::add);
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, trackX(0.2f), HEIGHT / 2);
-        scene.inputBatchEnded();
-        scene.mouseMoved(trackX(0.5f), HEIGHT / 2);
-        scene.inputBatchEnded();
-        scene.mouseMoved(trackX(0.8f), HEIGHT / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, trackX(0.2f), HEIGHT / 2);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(trackX(0.5f), HEIGHT / 2);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(trackX(0.8f), HEIGHT / 2);
+        drive(scene).inputBatchEnded();
         assertEquals(3, changes.size(), "a preview per position the thumb passed through");
         assertEquals(0, commits.size(), "and no decision while it is still moving");
 
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, trackX(0.8f), HEIGHT / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, trackX(0.8f), HEIGHT / 2);
+        drive(scene).inputBatchEnded();
         assertEquals(1, commits.size(), "exactly one when the user lets go");
         assertEquals(80f, commits.get(0), 0.5f, "carrying the value they settled on");
     }
@@ -142,10 +143,10 @@ class SliderTest extends ComponentTestBase {
         build(new Slider(0, 100).setValue(40));
         java.util.List<Float> commits = new java.util.ArrayList<>();
         slider.onCommit(commits::add);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, trackX(0.4f), HEIGHT / 2);
-        scene.inputBatchEnded();
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, trackX(0.4f), HEIGHT / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, trackX(0.4f), HEIGHT / 2);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, trackX(0.4f), HEIGHT / 2);
+        drive(scene).inputBatchEnded();
         assertEquals(1, commits.size(), "the user still chose that value");
     }
 
@@ -155,8 +156,8 @@ class SliderTest extends ComponentTestBase {
         java.util.List<Float> commits = new java.util.ArrayList<>();
         slider.onCommit(commits::add);
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(1, commits.size(), "there is no drag to end: the change is the decision");
         assertEquals(60f, commits.get(0));
     }
@@ -174,11 +175,11 @@ class SliderTest extends ComponentTestBase {
     void endReachesMaxEvenWhenStepDoesNotDivideTheRange() {
         build(new Slider(0, 100).setStep(30)); // grid 0,30,60,90: 100 is off-grid
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.END, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(100f, slider.value(), "End reaches max despite the off-grid step");
-        scene.keyEvent(Keys.HOME, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.HOME, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(0f, slider.value());
     }
 

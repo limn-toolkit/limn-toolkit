@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link DonutChart} becomes in the accessible tree: one chart node, named by its title and
@@ -202,10 +203,10 @@ class DonutChartAccessibilityTest extends AccessibleComponentTestBase {
     private void click(AccessibleNode node) {
         float x = node.x() + node.width() / 2;
         float y = node.y() + node.height() / 2;
-        scene.mouseMoved(x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     /** @return every checked-state event raised so far, in order */

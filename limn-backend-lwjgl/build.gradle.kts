@@ -71,6 +71,8 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    testImplementation(project(":limn-test"))
+    // RepositoryRoot, for the tests that read a file of the checkout's.
     testImplementation(testFixtures(project(":limn-toolkit")))
     testRuntimeOnly(libs.junit.platform.launcher)
     // The opt-in faces, for the tests only: the CJK/emoji fallback chain, the colour-emoji

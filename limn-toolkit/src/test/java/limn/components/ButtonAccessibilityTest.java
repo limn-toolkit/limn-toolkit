@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link Button} becomes in the accessible tree: one node with the button role, named by
@@ -82,14 +83,14 @@ class ButtonAccessibilityTest extends AccessibleComponentTestBase {
     private void click() {
         float x = button.localToSceneX() + button.width() / 2;
         float y = button.localToSceneY() + button.height() / 2;
-        scene.mouseMoved(x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).inputBatchEnded();
         frame();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).inputBatchEnded();
         frame(); // a frame with the button held, so a published PRESSED would be seen
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         frame();
     }
 

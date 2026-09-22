@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * An animation repaints what it draws, not the widget that owns it.
@@ -118,8 +119,8 @@ class FadeDamageTest extends ComponentTestBase {
     void aSplitPaneDividerFadesWithoutRepaintingThePanes() {
         SplitPane pane = SplitPane.horizontal(new Spinner(0, 100, 1), new Spinner(0, 100, 1));
         mount(pane);
-        scene.mouseMoved(INSET + pane.width() / 2, INSET + 100);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(INSET + pane.width() / 2, INSET + 100);
+        drive(scene).inputBatchEnded();
         assertFadeStaysUnder(pane, 0, 0.15f, "a pointer arriving on a split pane's divider");
     }
 
@@ -149,8 +150,8 @@ class FadeDamageTest extends ComponentTestBase {
         // whatever the child measured, and a bar as wide as the window measures nothing.
         float t = ScrollBar.thickness();
         mount(bar, new Insets(INSET, INSET, INSET, W - INSET - t));
-        scene.mouseMoved(bar.x() + bar.width() / 2, bar.y() + 100);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(bar.x() + bar.width() / 2, bar.y() + 100);
+        drive(scene).inputBatchEnded();
         int painted = 0;
         for (int i = 0; i < FRAMES; i++) {
             nanos.addAndGet(16_000_000L);

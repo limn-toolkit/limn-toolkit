@@ -202,6 +202,7 @@ macOS 的开关和上面一样。它存下来的是纯数据，你的应用用 `
 | `limn-video-ffmpeg` | 通过 FFmpeg 支持 H.264/HEVC/VP9/VP8 与 AAC/Opus/Vorbis；载荷是 `limn-ffmpeg-natives`，版本跟着 FFmpeg 走，每个桌面目标一个 classifier |
 | `limn-icons-tabler` | Tabler 图标包，如果你需要的话——如今是独立的一个构件，版本跟着 Tabler 走（`3.46.0.x` 即 Tabler 3.46.0）|
 | `limn-theme-editor` | 编写主题的那个界面，可以嵌入你的应用 |
+| `limn-test` | 无需显示器测试你的界面：在场景中点击、输入和按键的驱动器，无显示的运行时和后端，以及控件所遵循的无障碍契约 |
 | `limn-fonts-all` | 泛中日韩字体与彩色表情符号字体（一个从不绘制它们的应用不该背上的 26 兆字节），加上其余的回退字体，各自固定在本次发布测试过的版本——每个字体都是独立的一个构件，版本跟着字体走 |
 
 ## 文档

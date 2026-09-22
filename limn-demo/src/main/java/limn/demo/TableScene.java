@@ -18,6 +18,7 @@ import limn.scene.layout.Row;
 
 import java.util.ArrayList;
 import java.util.List;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Demo of {@link Table}: a hundred thousand rows over five columns, one of them a widget
@@ -126,8 +127,8 @@ final class TableScene {
             case "sorted" -> table.setSort(customer, SortOrder.ASCENDING);
             case "header" -> {
                 // Shift+Tab from the rows: the header is the stop before them (decision 36).
-                scene.keyEvent(limn.input.Keys.TAB, true, false, limn.input.Keys.MOD_SHIFT);
-                scene.inputBatchEnded();
+                drive(scene).keyEvent(limn.input.Keys.TAB, true, false, limn.input.Keys.MOD_SHIFT);
+                drive(scene).inputBatchEnded();
             }
             case "strip" -> {
                 customer.width(420).weight(0);

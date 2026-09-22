@@ -70,6 +70,7 @@ import limn.scene.layout.SizedBox;
 
 import java.util.List;
 import java.util.function.Supplier;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Every component with an accessibility surface, each in a small scene built the way a screen
@@ -244,12 +245,12 @@ public final class AccessibilityGallery {
          */
         public void sendTo(Scene scene) {
             if (codepoint >= 0) {
-                scene.charTyped(codepoint);
+                drive(scene).charTyped(codepoint);
             } else {
-                scene.keyEvent(key, true, false, resolvedModifiers());
-                scene.keyEvent(key, false, false, resolvedModifiers());
+                drive(scene).keyEvent(key, true, false, resolvedModifiers());
+                drive(scene).keyEvent(key, false, false, resolvedModifiers());
             }
-            scene.inputBatchEnded();
+            drive(scene).inputBatchEnded();
         }
 
         private static String keyName(int key) {

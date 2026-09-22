@@ -49,7 +49,7 @@ import java.util.function.LongSupplier;
  * chorded presses (two buttons held at once) synthesize a CLICK only for the
  * most recent one.
  */
-public final class Scene implements WindowInput {
+public final class Scene {
 
     /** Animation hook, called once per frame while registered. */
     @FunctionalInterface
@@ -361,7 +361,7 @@ public final class Scene implements WindowInput {
         // attach() and not a tree: at this instant the scene has never laid out, so every box in
         // it would be a zero-size rectangle at the origin. The first frame is where the boxes are.
         this.bridge.attach(accessibilityHost());
-        window.setInput(this);
+        window.setInput(input);
         this.renderRequester = window::requestFrame;
         window.setFrameCallback((renderer, frame) ->
                 renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs(), frame.bufferAge()));
@@ -2511,8 +2511,63 @@ public final class Scene implements WindowInput {
 
     // -------------------------------------------------- WindowInput (queue)
 
-    @Override
-    public void mouseMoved(float x, float y) {
+    /**
+     * What the window delivers input to: a private adapter and not the scene itself, so that a
+     * window's plumbing — raw key codes, the end of an input batch, the close — is not part of what
+     * an application calls on its scene (ADR 046 §4). A test drives a scene through the same
+     * adapter, reached by {@code limn.testing.SceneDriver} in the {@code limn-test} module.
+     */
+    private final class Input implements WindowInput {
+        @Override public void mouseMoved(float x, float y) { Scene.this.mouseMoved(x, y); }
+        @Override public void mouseDelta(float dx, float dy) { Scene.this.mouseDelta(dx, dy); }
+        @Override public void mouseButton(int button, boolean pressed, int modifiers, float x, float y,
+                                          int clickCount) {
+            Scene.this.mouseButton(button, pressed, modifiers, x, y, clickCount);
+        }
+        @Override public void scrolled(float deltaX, float deltaY, float x, float y) {
+            Scene.this.scrolled(deltaX, deltaY, x, y);
+        }
+        @Override public void keyEvent(int key, boolean pressed, boolean repeat, int modifiers) {
+            Scene.this.keyEvent(key, pressed, repeat, modifiers);
+        }
+        @Override public void charTyped(int codepoint) { Scene.this.charTyped(codepoint); }
+        @Override public void preeditChanged(String text, int[] blockSizes, int focusedBlock, int caret) {
+            Scene.this.preeditChanged(text, blockSizes, focusedBlock, caret);
+        }
+        @Override public void pointerEntered(boolean entered) { Scene.this.pointerEntered(entered); }
+        @Override public void windowResized(float logicalWidth, float logicalHeight) {
+            Scene.this.windowResized(logicalWidth, logicalHeight);
+        }
+        @Override public void filesDropped(java.util.List<java.nio.file.Path> paths) {
+            Scene.this.filesDropped(paths);
+        }
+        @Override public void windowFocusChanged(boolean focused) { Scene.this.windowFocusChanged(focused); }
+        @Override public void inputBatchEnded() { Scene.this.inputBatchEnded(); }
+        @Override public void windowClosed() { Scene.this.windowClosed(); }
+
+        Scene scene() {
+            return Scene.this;
+        }
+    }
+
+    private final Input input = new Input();
+
+    static {
+        limn.scene.internal.SceneAccess.install(new limn.scene.internal.SceneAccess.Hook() {
+            @Override
+            public WindowInput inputOf(Scene scene) {
+                return scene.input;
+            }
+
+            @Override
+            public Scene sceneOf(WindowInput input) {
+                return input instanceof Input own ? own.scene() : null;
+            }
+        });
+    }
+
+
+    private void mouseMoved(float x, float y) {
         Raw last = queue.isEmpty() ? null : queue.get(queue.size() - 1);
         if (last instanceof RawMove) {
             queue.set(queue.size() - 1, new RawMove(x, y)); // coalesce: newest wins
@@ -2521,8 +2576,7 @@ public final class Scene implements WindowInput {
         }
     }
 
-    @Override
-    public void mouseDelta(float dx, float dy) {
+    private void mouseDelta(float dx, float dy) {
         Raw last = queue.isEmpty() ? null : queue.get(queue.size() - 1);
         if (last instanceof RawDelta d) {
             queue.set(queue.size() - 1, new RawDelta(d.dx + dx, d.dy + dy)); // coalesce: sum
@@ -2531,13 +2585,7 @@ public final class Scene implements WindowInput {
         }
     }
 
-    @Override
-    public void mouseButton(int button, boolean pressed, int modifiers, float x, float y) {
-        mouseButton(button, pressed, modifiers, x, y, 0);
-    }
-
-    @Override
-    public void mouseButton(int button, boolean pressed, int modifiers, float x, float y, int clickCount) {
+    private void mouseButton(int button, boolean pressed, int modifiers, float x, float y, int clickCount) {
         queue.add(new RawButton(button, pressed, modifiers, x, y, clickCount)); // never dropped
     }
 
@@ -2571,8 +2619,7 @@ public final class Scene implements WindowInput {
         return lastClickCount;
     }
 
-    @Override
-    public void scrolled(float deltaX, float deltaY, float x, float y) {
+    private void scrolled(float deltaX, float deltaY, float x, float y) {
         Raw last = queue.isEmpty() ? null : queue.get(queue.size() - 1);
         if (last instanceof RawScroll s) {
             queue.set(queue.size() - 1, new RawScroll(s.dx + deltaX, s.dy + deltaY, x, y));
@@ -2581,40 +2628,33 @@ public final class Scene implements WindowInput {
         }
     }
 
-    @Override
-    public void keyEvent(int key, boolean pressed, boolean repeat, int modifiers) {
+    private void keyEvent(int key, boolean pressed, boolean repeat, int modifiers) {
         queue.add(new RawKey(key, pressed, repeat, modifiers)); // never dropped
     }
 
-    @Override
-    public void charTyped(int codepoint) {
+    private void charTyped(int codepoint) {
         queue.add(new RawChar(codepoint));
     }
 
-    @Override
-    public void preeditChanged(String text, int[] blockSizes, int focusedBlock, int caret) {
+    private void preeditChanged(String text, int[] blockSizes, int focusedBlock, int caret) {
         queue.add(new RawPreedit(text, blockSizes, focusedBlock, caret));
     }
 
-    @Override
-    public void pointerEntered(boolean entered) {
+    private void pointerEntered(boolean entered) {
         queue.add(new RawPointer(entered));
     }
 
-    @Override
-    public void filesDropped(java.util.List<java.nio.file.Path> paths) {
+    private void filesDropped(java.util.List<java.nio.file.Path> paths) {
         if (!paths.isEmpty()) {
             queue.add(new RawDrop(paths)); // never dropped, like clicks/keys
         }
     }
 
-    @Override
-    public void windowFocusChanged(boolean focused) {
+    private void windowFocusChanged(boolean focused) {
         queue.add(new RawFocus(focused));
     }
 
-    @Override
-    public void windowResized(float logicalWidth, float logicalHeight) {
+    private void windowResized(float logicalWidth, float logicalHeight) {
         Raw last = queue.isEmpty() ? null : queue.get(queue.size() - 1);
         RawResize resize = new RawResize(logicalWidth, logicalHeight);
         if (last instanceof RawResize) {
@@ -2624,8 +2664,7 @@ public final class Scene implements WindowInput {
         }
     }
 
-    @Override
-    public void inputBatchEnded() {
+    private void inputBatchEnded() {
         boolean hadInput = !queue.isEmpty();
         long start = hadInput ? clock.getAsLong() : 0;
         processInput();
@@ -3786,8 +3825,7 @@ public final class Scene implements WindowInput {
      * this scene against GC. Clearing through {@link #setFocus} also runs the
      * normal focus-lost path (composition dropped, IME state torn down).
      */
-    @Override
-    public void windowClosed() {
+    private void windowClosed() {
         // Every step must run even when an earlier app callback throws: a
         // skipped axis-listener release pins this scene's wrappers in the
         // process-wide listener lists forever, and a skipped close observer is

@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Tooltips under partial rendering: showing, fading and following the pointer
@@ -56,8 +57,8 @@ class TooltipDamageTest {
 
         // Hover the button; let its hover transition settle WITHIN the 600 ms
         // tooltip dwell (7 × 70 ms = 490 ms < 600).
-        scene.mouseMoved(30, 15);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(30, 15);
+        drive(scene).inputBatchEnded();
         boolean settled = false;
         for (int i = 0; i < 7 && !settled; i++) {
             nanos.addAndGet(70_000_000L);

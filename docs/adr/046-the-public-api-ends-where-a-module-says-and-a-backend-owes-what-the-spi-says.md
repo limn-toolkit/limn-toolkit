@@ -98,6 +98,17 @@ carries what an application needs to test its own UI without a display: `Headles
 headless `Backend`, `NoopCanvas`, the fixed text rulers, and a `SceneDriver` that clicks, types, presses
 keys and renders frames through the scene's adapter (reached by a qualified export). The repository's
 own tests use it, which is how the driver stays honest.
+*Built as:* the adapter is a private inner class of `Scene`, and `limn.scene.internal.SceneAccess` lends
+it out; only `Scene`'s own static initializer can install that hook, so whoever loads first cannot
+replace it. `SceneDriver.drive(scene)` is itself a `WindowInput` for the raw calls, and adds gestures
+that are a whole user action each, batch included: `click(widget)`, `click(x, y)`, `type`, `press`,
+`moveTo`, `scroll`. Rendering stays on `Scene`, as above, so the driver does not render. The module
+is the old test fixtures moved (package `limn.testing`, no JUnit), plus the demo's `HeadlessBackend`
+and `HeadlessWindow` and the driver. `RepositoryRoot`, which only a test inside this checkout needs,
+stays behind as the toolkit's one unpublished fixture, in `limn.testfixtures`. The demo's own program
+depends on `limn-test`, because its gallery films, captures and accessibility gallery replay input into
+scenes of their own. About 1,400 call sites in 140 test files moved from `scene.keyEvent(…)` to
+`drive(scene).keyEvent(…)`. The testing guide is new, and its example is compiled and run.
 
 ## 5. Decision: the backend contract is written on the SPI (decision 122)
 

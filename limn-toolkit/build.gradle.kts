@@ -10,18 +10,17 @@
 
 plugins {
     `java-library`
-    // The test fixtures under src/testFixtures are the one place a test double every module
-    // needs lives once: the null canvas, the fixed ruler, the allocation probe, the recording
-    // accessibility bridge, the headless runtime. They are a dependency of the other modules'
-    // TESTS and of nothing that ships, which is what kept them from existing for so long -- every
-    // copy said "deliberately a copy, because a shared test module is one every module would
-    // depend on". In test scope that is the point, not the cost.
+    // src/testFixtures holds what this repository's tests need and no application does:
+    // RepositoryRoot, for a test that reads a file of the checkout's. The doubles every module's
+    // tests share — the headless runtime and backend, the stub window, the null canvas, the fixed
+    // ruler, the scene driver — are the published limn-test module since ADR 046 §4.
     `java-test-fixtures`
 }
 
 dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    testImplementation(project(":limn-test"))
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 

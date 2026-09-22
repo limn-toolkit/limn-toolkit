@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The {@link ComboBox} dropdown's row contract, which had no test of its own.
@@ -105,12 +106,12 @@ class PopupPanelTest extends ComponentTestBase {
         combo.open();
         assertEquals(3, combo.highlightedIndex(), "the open row is the selected one");
 
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(4, combo.highlightedIndex());
 
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(4, combo.selectedIndex(), "Enter commits the highlighted row, exactly");
         assertFalse(combo.isOpen());
     }
@@ -120,14 +121,14 @@ class PopupPanelTest extends ComponentTestBase {
         build(3);
         combo.setSelectedIndex(0);
         combo.open();
-        scene.keyEvent(Keys.UP, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(0, combo.highlightedIndex(), "no wrap past the first row");
 
         for (int i = 0; i < 6; i++) {
-            scene.keyEvent(Keys.DOWN, true, false, 0);
+            drive(scene).keyEvent(Keys.DOWN, true, false, 0);
         }
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
         assertEquals(2, combo.highlightedIndex(), "no wrap past the last row");
     }
 
@@ -136,9 +137,9 @@ class PopupPanelTest extends ComponentTestBase {
         build(5);
         combo.setSelectedIndex(1);
         combo.open();
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.keyEvent(Keys.ESCAPE, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.ESCAPE, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(1, combo.selectedIndex(), "a cancelled navigation commits nothing");
         assertFalse(combo.isOpen());
     }
@@ -154,10 +155,10 @@ class PopupPanelTest extends ComponentTestBase {
         });
         combo.setSelectedIndex(0);
         combo.open();
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(2, fired.get(), "the committed index, not the navigation path");
         assertEquals(1, count.get(), "one commit, one notification");
     }

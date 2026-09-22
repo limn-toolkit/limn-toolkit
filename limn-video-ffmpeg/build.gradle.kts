@@ -60,7 +60,7 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
-    testImplementation(testFixtures(project(":limn-toolkit")))
+    testImplementation(project(":limn-test"))
     testRuntimeOnly(libs.junit.platform.launcher)
     // The FFmpeg libraries, for the tests: all six classifiers, because this is a library and the
     // suite should run wherever a developer or a runner happens to be, and because six on one

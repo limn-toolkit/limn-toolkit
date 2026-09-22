@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Moving the selection in a list or a table repaints the rows that changed, not the widget.
@@ -131,8 +132,8 @@ class SelectionDamageTest extends ComponentTestBase {
     /** One key, delivered and rendered, with the canvas reset immediately before it. */
     private void press(RecordingTestCanvas canvas, int key) {
         canvas.reset();
-        scene.keyEvent(key, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).inputBatchEnded();
         scene.renderFrame(canvas);
     }
 

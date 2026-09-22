@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link Dialog}'s action row becomes in the accessible tree, which is nothing, and the one
@@ -131,9 +132,9 @@ class DialogActionRowAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     private void pressReturn() {
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.keyEvent(Keys.ENTER, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     // ------------------------------------------------------------------------------ no node

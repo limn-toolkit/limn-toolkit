@@ -19,6 +19,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link TabbedPane} read right to left: where the header run starts and which way it advances,
@@ -105,9 +106,9 @@ class TabbedPaneMirroringTest extends ComponentTestBase {
     }
 
     private void click(float x, float y) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     /** Selects and focuses header {@code index} through the pointer, wherever it was placed. */
@@ -117,8 +118,8 @@ class TabbedPaneMirroringTest extends ComponentTestBase {
     }
 
     private void press(int key) {
-        scene.keyEvent(key, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     private TraceCanvas render(float width) {

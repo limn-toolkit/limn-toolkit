@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The scene's four observers and the weak axis listener on the one fan-out shape: the press and
@@ -62,9 +63,9 @@ class SceneObserversTest {
     }
 
     private static void press(Scene scene, float x, float y) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     // ------------------------------------------------------------------- presses and blur
@@ -118,18 +119,18 @@ class SceneObserversTest {
         AtomicInteger blurs = new AtomicInteger();
         Subscription handle = scene.observeWindowBlur(blurs::incrementAndGet);
 
-        scene.windowFocusChanged(true);
-        scene.inputBatchEnded();
+        drive(scene).windowFocusChanged(true);
+        drive(scene).inputBatchEnded();
         assertEquals(0, blurs.get());
-        scene.windowFocusChanged(false);
-        scene.inputBatchEnded();
+        drive(scene).windowFocusChanged(false);
+        drive(scene).inputBatchEnded();
         assertEquals(1, blurs.get());
 
         handle.cancel();
-        scene.windowFocusChanged(true);
-        scene.inputBatchEnded();
-        scene.windowFocusChanged(false);
-        scene.inputBatchEnded();
+        drive(scene).windowFocusChanged(true);
+        drive(scene).inputBatchEnded();
+        drive(scene).windowFocusChanged(false);
+        drive(scene).inputBatchEnded();
         assertEquals(1, blurs.get());
     }
 
@@ -151,13 +152,13 @@ class SceneObserversTest {
             late.set(scene.observeWindowClosed(() -> ran.add("late")));
         });
 
-        scene.windowClosed();
+        drive(scene).windowClosed();
         assertEquals(List.of("first"), ran, "the walk is over the array it started with");
 
-        scene.windowClosed();
+        drive(scene).windowClosed();
         assertEquals(List.of("first", "late"), ran, "and the late registration survived the clear");
 
-        scene.windowClosed();
+        drive(scene).windowClosed();
         assertEquals(List.of("first", "late"), ran, "observers run once and are dropped");
     }
 
@@ -172,7 +173,7 @@ class SceneObserversTest {
         CrashHandler quiet = (phase, error) -> true;
         Crashes.install(quiet);
         try {
-            scene.windowClosed();
+            drive(scene).windowClosed();
         } finally {
             Crashes.uninstall(quiet);
         }
@@ -196,9 +197,9 @@ class SceneObserversTest {
         CrashHandler quiet = (phase, error) -> true;
         Crashes.install(quiet);
         try {
-            scene.keyEvent(Keys.S, true, false, Keys.MOD_CONTROL);
-            scene.keyEvent(Keys.S, false, false, Keys.MOD_CONTROL);
-            scene.inputBatchEnded();
+            drive(scene).keyEvent(Keys.S, true, false, Keys.MOD_CONTROL);
+            drive(scene).keyEvent(Keys.S, false, false, Keys.MOD_CONTROL);
+            drive(scene).inputBatchEnded();
         } finally {
             Crashes.uninstall(quiet);
         }

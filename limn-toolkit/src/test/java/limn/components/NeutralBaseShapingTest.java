@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The neutral fallback, in the files that used to draw plain strings: {@link Spinner},
@@ -199,8 +200,8 @@ class NeutralBaseShapingTest extends ComponentTestBase {
         // widget is now asked of.
         buildSpinner(new Spinner(0, 1000, 1), LayoutDirection.RTL);
         spinnerScene.requestFocus(spinner);
-        "42".codePoints().forEach(spinnerScene::charTyped);
-        spinnerScene.inputBatchEnded();
+        "42".codePoints().forEach(drive(spinnerScene)::charTyped);
+        drive(spinnerScene).inputBatchEnded();
         assertTrue(spinner.isEditing(), "typing a digit starts an edit");
         assertBase(ShapedText.Direction.RTL, paintSpinner().line("42"),
                 "the text being typed reads the way the form reads");

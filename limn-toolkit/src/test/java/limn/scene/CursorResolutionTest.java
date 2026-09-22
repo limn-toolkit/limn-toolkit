@@ -4,6 +4,7 @@ import limn.backend.Cursor;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The scene resolves the hovered widget's cursor (walking up ancestors to
@@ -80,8 +81,8 @@ class CursorResolutionTest extends SceneTestBase {
             x += w.x();
             y += w.y();
         }
-        scene.mouseMoved(x + target.width() / 2, y + target.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x + target.width() / 2, y + target.height() / 2);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -111,8 +112,8 @@ class CursorResolutionTest extends SceneTestBase {
         build();
         moveTo(pointer);
         assertEquals(Cursor.POINTER, win.cursor);
-        scene.pointerEntered(false);
-        scene.inputBatchEnded();
+        drive(scene).pointerEntered(false);
+        drive(scene).inputBatchEnded();
         assertEquals(Cursor.DEFAULT, win.cursor);
     }
 

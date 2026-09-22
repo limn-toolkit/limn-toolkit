@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Which rows the text widgets' context menu offers, and that a right press raises it.
@@ -137,10 +138,10 @@ class TextContextMenuTest extends ComponentTestBase {
         field.setText("hello");
 
         assertFalse(field.isFocused());
-        scene.mouseMoved(20, 10);
-        scene.mouseButton(Keys.MOUSE_RIGHT, true, 0, 20, 10);
-        scene.mouseButton(Keys.MOUSE_RIGHT, false, 0, 20, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(20, 10);
+        drive(scene).mouseButton(Keys.MOUSE_RIGHT, true, 0, 20, 10);
+        drive(scene).mouseButton(Keys.MOUSE_RIGHT, false, 0, 20, 10);
+        drive(scene).inputBatchEnded();
 
         assertTrue(field.isFocused(), "the menu's edits apply here, so the caret must be here");
     }
@@ -154,10 +155,10 @@ class TextContextMenuTest extends ComponentTestBase {
         scene.layoutPass(200, 100);
         area.setText("hello\nthere");
 
-        scene.mouseMoved(20, 20);
-        scene.mouseButton(Keys.MOUSE_RIGHT, true, 0, 20, 20);
-        scene.mouseButton(Keys.MOUSE_RIGHT, false, 0, 20, 20);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(20, 20);
+        drive(scene).mouseButton(Keys.MOUSE_RIGHT, true, 0, 20, 20);
+        drive(scene).mouseButton(Keys.MOUSE_RIGHT, false, 0, 20, 20);
+        drive(scene).inputBatchEnded();
 
         assertTrue(area.isFocused());
     }

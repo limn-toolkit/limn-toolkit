@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The colour well, driven through a real scene with no GL. The dialog it raises is
@@ -174,20 +175,20 @@ class ColorPickerButtonTest extends ComponentTestBase {
         button.requestFocus();
         assertTrue(button.isFocused());
 
-        scene.keyEvent(Keys.SPACE, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.SPACE, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertFalse(button.isPickerOpen(), "the press arms; the release is what acts");
 
-        scene.keyEvent(Keys.SPACE, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.SPACE, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertTrue(button.isPickerOpen());
     }
 
     @Test
     void clickingOpensThePicker() {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 10, 10);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 10, 10);
+        drive(scene).inputBatchEnded();
         assertTrue(button.isPickerOpen());
     }
 

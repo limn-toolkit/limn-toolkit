@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link TabbedPane}'s tab header becomes in the accessible tree: one tab node per header,
@@ -165,9 +166,9 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Moves the pointer to the centre of a widget's box, as a hover does. */
     private void hover(Widget widget) {
-        scene.mouseMoved(widget.localToSceneX() + widget.width() / 2,
+        drive(scene).mouseMoved(widget.localToSceneX() + widget.width() / 2,
                 widget.localToSceneY() + widget.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
     }
 
     // ------------------------------------------------------------------------------ what it is

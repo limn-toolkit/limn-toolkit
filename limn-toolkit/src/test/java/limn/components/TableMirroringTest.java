@@ -16,6 +16,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link Table} read right to left: which edge the first column starts at, where numbers,
@@ -112,20 +113,20 @@ class TableMirroringTest extends ComponentTestBase {
     }
 
     private static void key(Scene scene, int key, int modifiers) {
-        scene.keyEvent(key, true, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).inputBatchEnded();
     }
 
     private void drag(float fromX, float toX) {
         float y = headerHeight() / 2;
-        scene.mouseMoved(fromX, y);
-        scene.inputBatchEnded();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, fromX, y);
-        scene.inputBatchEnded();
-        scene.mouseMoved(toX, y);
-        scene.inputBatchEnded();
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, toX, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(fromX, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, fromX, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(toX, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, toX, y);
+        drive(scene).inputBatchEnded();
     }
 
     // ------------------------------------------------------------- where the columns sit
@@ -195,15 +196,15 @@ class TableMirroringTest extends ComponentTestBase {
         // not as "the same as ScrollView": the vertical half is a separate detent.
         buildWide(LayoutDirection.LTR, 5);
         float at = widgetX();
-        scene.scrolled(-1, 0, 50, 100);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(-1, 0, 50, 100);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals(at - Strokes.WHEEL_STEP, widgetX(), EPS, "left to right: the first column moves left");
 
         buildWide(LayoutDirection.RTL, 5);
         at = widgetX();
-        scene.scrolled(-1, 0, 50, 100);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(-1, 0, 50, 100);
+        drive(scene).inputBatchEnded();
         frame();
         assertEquals(at + Strokes.WHEEL_STEP, widgetX(), EPS,
                 "right to left the same detent moves the first column right: later columns either way");
@@ -349,10 +350,10 @@ class TableMirroringTest extends ComponentTestBase {
         }
         assertTrue(edges.contains(STRIP), "the last column's divider is at the strip's edge: " + edges);
         float rowY = headerHeight() + 2;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, STRIP + 118, rowY);
-        scene.inputBatchEnded();
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, STRIP + 118, rowY);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, STRIP + 118, rowY);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, STRIP + 118, rowY);
+        drive(scene).inputBatchEnded();
         assertEquals(4, table.focusColumn(),
                 "a click just inside the last column's right edge lands on the last column");
 

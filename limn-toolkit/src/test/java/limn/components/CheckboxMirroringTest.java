@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link Checkbox} read right to left: which edge the indicator sits on, where the label starts,
@@ -65,9 +66,9 @@ class CheckboxMirroringTest extends ComponentTestBase {
     }
 
     private void click(float x) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, HEIGHT / 2);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, HEIGHT / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, HEIGHT / 2);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, HEIGHT / 2);
+        drive(scene).inputBatchEnded();
     }
 
     // ------------------------------------------------------------- the box, and its label
@@ -231,9 +232,9 @@ class CheckboxMirroringTest extends ComponentTestBase {
         for (LayoutDirection direction : LayoutDirection.values()) {
             build(Checkbox.Variant.BOX, direction, false);
             scene.requestFocus(checkbox);
-            scene.keyEvent(Keys.LEFT, true, false, 0);
-            scene.keyEvent(Keys.RIGHT, true, false, 0);
-            scene.inputBatchEnded();
+            drive(scene).keyEvent(Keys.LEFT, true, false, 0);
+            drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+            drive(scene).inputBatchEnded();
             assertFalse(checkbox.isChecked(), "an arrow toggled the box reading " + direction);
         }
     }
@@ -253,8 +254,8 @@ class CheckboxMirroringTest extends ComponentTestBase {
     void spaceStillTogglesReadingRightToLeft() {
         build(Checkbox.Variant.SWITCH, LayoutDirection.RTL, false);
         scene.requestFocus(checkbox);
-        scene.keyEvent(Keys.SPACE, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.SPACE, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertTrue(checkbox.isChecked());
     }
 

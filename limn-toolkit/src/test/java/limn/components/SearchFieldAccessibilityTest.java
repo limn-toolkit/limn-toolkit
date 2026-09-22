@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link SearchField} becomes in the accessible tree: the one editable node
@@ -295,8 +296,8 @@ class SearchFieldAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         bridge.events.clear();
 
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
 
         assertEquals(List.of("boots"), submitted, "the key path still runs" + describe(tree()));

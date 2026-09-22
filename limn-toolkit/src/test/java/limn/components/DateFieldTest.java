@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** The segmented editor: what the locale orders, what typing does, and what an incomplete field is. */
 class DateFieldTest extends ComponentTestBase {
@@ -50,16 +51,16 @@ class DateFieldTest extends ComponentTestBase {
     }
 
     private void key(int keyCode) {
-        scene.keyEvent(keyCode, true, false, 0);
-        scene.keyEvent(keyCode, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, 0);
+        drive(scene).keyEvent(keyCode, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     private void type(String digits) {
         for (int i = 0; i < digits.length(); i++) {
-            scene.charTyped(digits.charAt(i));
+            drive(scene).charTyped(digits.charAt(i));
         }
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -302,9 +303,9 @@ class DateFieldTest extends ComponentTestBase {
     private void paste(String text) {
         scene.setClipboard(clipboard);
         clipboard.set(text);
-        scene.keyEvent(Keys.V, true, false, Keys.MOD_CONTROL);
-        scene.keyEvent(Keys.V, false, false, Keys.MOD_CONTROL);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.V, true, false, Keys.MOD_CONTROL);
+        drive(scene).keyEvent(Keys.V, false, false, Keys.MOD_CONTROL);
+        drive(scene).inputBatchEnded();
     }
 
     @Test

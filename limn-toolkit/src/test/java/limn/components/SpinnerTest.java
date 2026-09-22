@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** {@link Spinner}: numeric + time stepping via buttons, wheel and keyboard, headless. */
 class SpinnerTest extends ComponentTestBase {
@@ -66,27 +67,27 @@ class SpinnerTest extends ComponentTestBase {
     @Test
     void upAndDownButtonsStepAndClamp() {
         build(new Spinner(0, 10, 1).setValue(5));
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, UP_Y); // up button (top-right)
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, BUTTON_X, UP_Y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, UP_Y); // up button (top-right)
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, BUTTON_X, UP_Y);
+        drive(scene).inputBatchEnded();
         assertEquals(6.0, spinner.value());
         assertEquals(6.0, changed.get());
 
         spinner.setValue(0);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, DOWN_Y); // down button (bottom-right)
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, BUTTON_X, DOWN_Y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, DOWN_Y); // down button (bottom-right)
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, BUTTON_X, DOWN_Y);
+        drive(scene).inputBatchEnded();
         assertEquals(0.0, spinner.value(), "clamped at min");
     }
 
     @Test
     void theWheelDoesNotChangeTheValue() {
         build(new Spinner(0, 10, 1).setValue(5));
-        scene.scrolled(0, 1, 60, MID_Y); // wheel up over the value area
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, 1, 60, MID_Y); // wheel up over the value area
+        drive(scene).inputBatchEnded();
         assertEquals(5.0, spinner.value(), "the wheel is not a value gesture");
-        scene.scrolled(0, -1, 60, MID_Y);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -1, 60, MID_Y);
+        drive(scene).inputBatchEnded();
         assertEquals(5.0, spinner.value());
     }
 
@@ -110,8 +111,8 @@ class SpinnerTest extends ComponentTestBase {
         panelScene.layoutPass(200, 100);
 
         // The pointer sits over the spinner, which is the whole point of the bug.
-        panelScene.scrolled(0, -1, 60, 10);
-        panelScene.inputBatchEnded();
+        drive(panelScene).scrolled(0, -1, 60, 10);
+        drive(panelScene).inputBatchEnded();
 
         assertEquals(5.0, inspectorField.value(), "the spinner under the pointer is untouched");
         assertEquals(48, panel.offsetY(), 1e-3, "and the panel scrolled one notch");
@@ -121,14 +122,14 @@ class SpinnerTest extends ComponentTestBase {
     void keyboardStepsAndJumpsToBounds() {
         build(new Spinner(0, 10, 2).setValue(4));
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.UP, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(6.0, spinner.value());
-        scene.keyEvent(Keys.END, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(10.0, spinner.value());
-        scene.keyEvent(Keys.HOME, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.HOME, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(0.0, spinner.value());
     }
 
@@ -144,13 +145,13 @@ class SpinnerTest extends ComponentTestBase {
         assertEquals("07:30", spinner.text());
         scene.focusTraverse(false);
 
-        scene.keyEvent(Keys.UP, true, false, 0); // hours field active by default → +60
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, 0); // hours field active by default → +60
+        drive(scene).inputBatchEnded();
         assertEquals("08:30", spinner.text());
 
-        scene.keyEvent(Keys.RIGHT, true, false, 0); // move to the minutes field
-        scene.keyEvent(Keys.UP, true, false, 0);    // → +1 minute
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0); // move to the minutes field
+        drive(scene).keyEvent(Keys.UP, true, false, 0);    // → +1 minute
+        drive(scene).inputBatchEnded();
         assertEquals("08:31", spinner.text());
     }
 
@@ -158,13 +159,13 @@ class SpinnerTest extends ComponentTestBase {
     void numericEndAndUpReachMaxWhenStepDoesNotDivideTheRange() {
         build(new Spinner(0, 100, 7)); // grid tops out at 98; 100 is off-grid
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.END, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(100.0, spinner.value(), "End reaches max even off-grid");
 
         spinner.setValue(98); // the highest grid point
-        scene.keyEvent(Keys.UP, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(100.0, spinner.value(), "Up from the top grid point advances to max");
     }
 
@@ -173,12 +174,12 @@ class SpinnerTest extends ComponentTestBase {
         // The point of the binding: PageUp is missing from laptop keyboards.
         build(new Spinner(0, 100, 2).setValue(50));
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         assertEquals(70.0, spinner.value(), "Shift+Up is ten steps");
 
-        scene.keyEvent(Keys.PAGE_DOWN, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.PAGE_DOWN, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(50.0, spinner.value(), "and PageDown still undoes exactly that");
     }
 
@@ -186,8 +187,8 @@ class SpinnerTest extends ComponentTestBase {
     void altArrowStepsOneUnitOfTheLastDisplayedDigit() {
         build(new Spinner(0, 10, 0.05).setValue(1)); // two decimals shown
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.UP, true, false, Keys.MOD_ALT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, Keys.MOD_ALT);
+        drive(scene).inputBatchEnded();
         assertEquals(1.01, spinner.value(), 1e-9, "a fine step must be visible on screen");
         assertEquals("1.01", spinner.text());
     }
@@ -198,8 +199,8 @@ class SpinnerTest extends ComponentTestBase {
         // plain step rather than an invisible one.
         build(new Spinner(0, 10, 1).setValue(5));
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.UP, true, false, Keys.MOD_ALT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, Keys.MOD_ALT);
+        drive(scene).inputBatchEnded();
         assertEquals(6.0, spinner.value());
     }
 
@@ -207,13 +208,13 @@ class SpinnerTest extends ComponentTestBase {
     void fineStepsSnapToTheirOwnGridAndCoarseStepsRealign() {
         build(new Spinner(0, 10, 0.05).setValue(1));
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.UP, true, false, Keys.MOD_ALT);
-        scene.keyEvent(Keys.UP, true, false, Keys.MOD_ALT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, Keys.MOD_ALT);
+        drive(scene).keyEvent(Keys.UP, true, false, Keys.MOD_ALT);
+        drive(scene).inputBatchEnded();
         assertEquals(1.02, spinner.value(), 1e-9, "fine steps walk the fine grid");
 
-        scene.keyEvent(Keys.UP, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(1.05, spinner.value(), 1e-9, "a plain step returns to the step grid");
     }
 
@@ -221,8 +222,8 @@ class SpinnerTest extends ComponentTestBase {
     void altWinsWhenBothModifiersAreHeld() {
         build(new Spinner(0, 10, 0.05).setValue(1));
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.UP, true, false, Keys.MOD_ALT | Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, Keys.MOD_ALT | Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         assertEquals(1.01, spinner.value(), 1e-9);
     }
 
@@ -230,8 +231,8 @@ class SpinnerTest extends ComponentTestBase {
     void modifiedArrowsAlsoWorkSidewaysInNumericMode() {
         build(new Spinner(0, 100, 2).setValue(50));
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.RIGHT, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         assertEquals(70.0, spinner.value());
     }
 
@@ -241,12 +242,12 @@ class SpinnerTest extends ComponentTestBase {
         // hour bump into ten of them.
         build(Spinner.time().setValue(7 * 60 + 30));
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         assertEquals("08:30", spinner.text());
 
-        scene.keyEvent(Keys.UP, true, false, Keys.MOD_ALT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, Keys.MOD_ALT);
+        drive(scene).inputBatchEnded();
         assertEquals("09:30", spinner.text());
     }
 
@@ -254,8 +255,8 @@ class SpinnerTest extends ComponentTestBase {
     void modifiedArrowsRespectBoundsAndFireOnce() {
         build(new Spinner(0, 10, 1).setValue(9));
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT); // +10 → clamped
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT); // +10 → clamped
+        drive(scene).inputBatchEnded();
         assertEquals(10.0, spinner.value());
         assertEquals(10.0, changed.get());
     }
@@ -279,8 +280,8 @@ class SpinnerTest extends ComponentTestBase {
     @Test
     void steppingStaysExactWithoutSnapping() {
         build(new Spinner(0, 100, 10).setSnapToStep(false).setValue(37));
-        scene.keyEvent(Keys.UP, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(47.0, spinner.value(), "stepping moves by step from the value actually held");
     }
 
@@ -294,8 +295,8 @@ class SpinnerTest extends ComponentTestBase {
     void timeClampsAtTheUpperBound() {
         build(Spinner.time().setValue(23 * 60 + 59)); // 23:59, hours field
         scene.focusTraverse(false);
-        scene.keyEvent(Keys.UP, true, false, 0); // +60 → 24:59 > max → clamped
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, 0); // +60 → 24:59 > max → clamped
+        drive(scene).inputBatchEnded();
         assertEquals("23:59", spinner.text());
     }
 
@@ -492,7 +493,7 @@ class SpinnerTest extends ComponentTestBase {
         // Focus leaving the spinner, whatever took it: clicking another field is
         // the same event as tabbing away.
         scene.requestFocus(null);
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
         assertEquals(7.0, spinner.value(), "a typed number was thrown away on blur");
     }
 
@@ -553,9 +554,9 @@ class SpinnerTest extends ComponentTestBase {
     void reachingForTheArrowsCommitsFirst() {
         build(new Spinner(0, 100, 1));
         typeInto("50");
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, UP_Y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, BUTTON_X, UP_Y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, BUTTON_X, UP_Y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, BUTTON_X, UP_Y);
+        drive(scene).inputBatchEnded();
         assertEquals(51.0, spinner.value(), "the button stepped the old value");
     }
 
@@ -659,13 +660,13 @@ class SpinnerTest extends ComponentTestBase {
     /** Focuses the spinner and types, the way a keyboard delivers it. */
     private void typeInto(String text) {
         scene.requestFocus(spinner);
-        text.codePoints().forEach(scene::charTyped);
-        scene.inputBatchEnded();
+        text.codePoints().forEach(drive(scene)::charTyped);
+        drive(scene).inputBatchEnded();
     }
 
     private void press(int key, int modifiers) {
-        scene.keyEvent(key, true, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).inputBatchEnded();
     }
 
     @Test

@@ -15,6 +15,7 @@ import limn.scene.layout.SizedBox;
 
 import java.util.List;
 import java.util.Map;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The tree, with the three things a still cannot show: a row that opens, a row that opens onto
@@ -96,9 +97,9 @@ final class TreeScene {
                 // selected, then Space toggles "2026.pdf" off and the cursor stays on it.
                 tree.requestFocus();
                 tree.setSelectedNodes(List.of(parts.documents(), parts.pdf()));
-                parts.scene().keyEvent(limn.input.Keys.SPACE, true, false, 0);
-                parts.scene().keyEvent(limn.input.Keys.SPACE, false, false, 0);
-                parts.scene().inputBatchEnded();
+                drive(parts.scene()).keyEvent(limn.input.Keys.SPACE, true, false, 0);
+                drive(parts.scene()).keyEvent(limn.input.Keys.SPACE, false, false, 0);
+                drive(parts.scene()).inputBatchEnded();
             });
             case "none" -> new Built(parts.scene(), () -> {
                 // NONE: nothing is ever selected, and the cursor walks: three Downs from nowhere
@@ -106,9 +107,9 @@ final class TreeScene {
                 tree.setSelectionMode(Tree.SelectionMode.NONE);
                 tree.requestFocus();
                 for (int i = 0; i < 3; i++) {
-                    parts.scene().keyEvent(limn.input.Keys.DOWN, true, false, 0);
-                    parts.scene().keyEvent(limn.input.Keys.DOWN, false, false, 0);
-                    parts.scene().inputBatchEnded();
+                    drive(parts.scene()).keyEvent(limn.input.Keys.DOWN, true, false, 0);
+                    drive(parts.scene()).keyEvent(limn.input.Keys.DOWN, false, false, 0);
+                    drive(parts.scene()).inputBatchEnded();
                 }
             });
             default -> new Built(parts.scene(), () -> tree.scrollBy(120));
@@ -155,9 +156,9 @@ final class TreeScene {
                 parts.tree().requestFocus();
                 parts.tree().setSelected(parts.deep());
                 for (int i = 0; i < 13; i++) {
-                    parts.scene().keyEvent(limn.input.Keys.DOWN, true, false, 0);
-                    parts.scene().keyEvent(limn.input.Keys.DOWN, false, false, 0);
-                    parts.scene().inputBatchEnded();
+                    drive(parts.scene()).keyEvent(limn.input.Keys.DOWN, true, false, 0);
+                    drive(parts.scene()).keyEvent(limn.input.Keys.DOWN, false, false, 0);
+                    drive(parts.scene()).inputBatchEnded();
                 }
             });
         }

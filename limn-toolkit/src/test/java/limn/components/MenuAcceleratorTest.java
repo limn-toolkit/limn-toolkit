@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Accelerators and mnemonics as an application meets them: a chord typed anywhere in the scene
@@ -81,8 +82,8 @@ class MenuAcceleratorTest extends ComponentTestBase {
     }
 
     private void press(int key, int modifiers) {
-        scene.keyEvent(key, true, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).inputBatchEnded();
     }
 
     private static int command() {
@@ -143,10 +144,10 @@ class MenuAcceleratorTest extends ComponentTestBase {
     @Test
     void anAutoRepeatIsNotASecondPress() {
         build();
-        scene.keyEvent(Keys.S, true, false, command());
-        scene.keyEvent(Keys.S, true, true, command());
-        scene.keyEvent(Keys.S, true, true, command());
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.S, true, false, command());
+        drive(scene).keyEvent(Keys.S, true, true, command());
+        drive(scene).keyEvent(Keys.S, true, true, command());
+        drive(scene).inputBatchEnded();
 
         assertEquals(List.of("save"), ran);
     }
@@ -188,16 +189,16 @@ class MenuAcceleratorTest extends ComponentTestBase {
         build();
         field.requestFocus();
 
-        scene.keyEvent(Keys.LEFT_ALT, true, false, Keys.MOD_ALT);
-        scene.keyEvent(Keys.LEFT_ALT, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT_ALT, true, false, Keys.MOD_ALT);
+        drive(scene).keyEvent(Keys.LEFT_ALT, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertTrue(bar.isFocused(), "a bare Alt, released, moves focus to the bar");
 
         field.requestFocus();
-        scene.keyEvent(Keys.LEFT_ALT, true, false, Keys.MOD_ALT);
-        scene.keyEvent(Keys.F, true, false, Keys.MOD_ALT);
-        scene.keyEvent(Keys.LEFT_ALT, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT_ALT, true, false, Keys.MOD_ALT);
+        drive(scene).keyEvent(Keys.F, true, false, Keys.MOD_ALT);
+        drive(scene).keyEvent(Keys.LEFT_ALT, false, false, 0);
+        drive(scene).inputBatchEnded();
         assertFalse(bar.isFocused(),
                 "an Alt that was part of a chord must not also focus the bar on its way up");
     }
@@ -218,8 +219,8 @@ class MenuAcceleratorTest extends ComponentTestBase {
         host.setTextRuler(RULER);
         host.layoutPass(400, 300);
 
-        host.keyEvent(Keys.F, true, false, Keys.MOD_ALT);
-        host.inputBatchEnded();
+        drive(host).keyEvent(Keys.F, true, false, Keys.MOD_ALT);
+        drive(host).inputBatchEnded();
 
         assertFalse(plain.isOpen(), "a title with no access letter answers no Alt chord");
     }

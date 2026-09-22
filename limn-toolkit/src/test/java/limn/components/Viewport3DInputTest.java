@@ -11,6 +11,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Viewport3D camera gestures are LEFT-button only: a right/middle-button
@@ -42,10 +43,10 @@ class Viewport3DInputTest extends ComponentTestBase {
     }
 
     private void drag(int button, float fromX, float fromY, float toX, float toY) {
-        scene.mouseButton(button, true, 0, fromX, fromY);
-        scene.mouseMoved(toX, toY);
-        scene.mouseButton(button, false, 0, toX, toY);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(button, true, 0, fromX, fromY);
+        drive(scene).mouseMoved(toX, toY);
+        drive(scene).mouseButton(button, false, 0, toX, toY);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -68,8 +69,8 @@ class Viewport3DInputTest extends ComponentTestBase {
         s.setTextRuler(RULER);
         s.layoutPass(200, 200);
 
-        s.scrolled(0, -3, 100, 100); // wheel over the viewport
-        s.inputBatchEnded();
+        drive(s).scrolled(0, -3, 100, 100); // wheel over the viewport
+        drive(s).inputBatchEnded();
         assertTrue(scrollView.offsetY() > 0, "the page scrolled: " + scrollView.offsetY());
     }
 
@@ -86,8 +87,8 @@ class Viewport3DInputTest extends ComponentTestBase {
                 zoomed[0] += amount;
             }
         });
-        scene.scrolled(0, 2, 100, 100);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, 2, 100, 100);
+        drive(scene).inputBatchEnded();
         assertEquals(2, zoomed[0], 0.01f);
     }
 

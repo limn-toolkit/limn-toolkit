@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link Dialog}'s card becomes in the accessible tree: one {@code DIALOG} node, named by
@@ -210,9 +211,9 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     private void pressEscape() {
-        scene.keyEvent(Keys.ESCAPE, true, false, 0);
-        scene.keyEvent(Keys.ESCAPE, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ESCAPE, true, false, 0);
+        drive(scene).keyEvent(Keys.ESCAPE, false, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     private String resultNow() {
@@ -686,16 +687,16 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
                 nodesWith(Accessible.State.FOCUSABLE).stream().map(AccessibleNode::name).toList(),
                 "the published tab stops are the keyboard's" + describe(tree()));
         // The keyboard: Tab lands on a published tab stop, Return answers.
-        scene.keyEvent(Keys.TAB, true, false, 0);
-        scene.keyEvent(Keys.TAB, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.TAB, true, false, 0);
+        drive(scene).keyEvent(Keys.TAB, false, false, 0);
+        drive(scene).inputBatchEnded();
         tick();
         assertEquals(1, nodesWith(Accessible.State.FOCUSED).size(), describe(tree()));
         assertTrue(nodesWith(Accessible.State.FOCUSED).get(0).has(Accessible.State.FOCUSABLE),
                 describe(tree()));
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.keyEvent(Keys.ENTER, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, false, false, 0);
+        drive(scene).inputBatchEnded();
         for (int i = 0; i < 100 && dialogIsPublished(); i++) {
             tick();
         }
@@ -714,10 +715,10 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
         AccessibleNode ok = node("OK");
         float x = ok.x() + ok.width() / 2;
         float y = ok.y() + ok.height() / 2;
-        scene.mouseMoved(x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
         for (int i = 0; i < 100 && dialogIsPublished(); i++) {
             tick();
         }
@@ -745,10 +746,10 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
         float grab = SizeTokens.MEDIUM.spacingLarge() / 2;
         float x = before.x() + grab;
         float y = before.y() + grab;
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseMoved(x + 30, y + 20);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x + 30, y + 20);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseMoved(x + 30, y + 20);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x + 30, y + 20);
+        drive(scene).inputBatchEnded();
         tick();
         tick();
 

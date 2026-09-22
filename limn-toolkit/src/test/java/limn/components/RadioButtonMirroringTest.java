@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link RadioButton} read right to left: which edge the ring sits on, where the label runs back
@@ -78,9 +79,9 @@ class RadioButtonMirroringTest extends ComponentTestBase {
     }
 
     private void click(float x) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, HEIGHT / 2);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, HEIGHT / 2);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, HEIGHT / 2);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, HEIGHT / 2);
+        drive(scene).inputBatchEnded();
     }
 
     // --------------------------------------------------------- the ring, and its label
@@ -279,8 +280,8 @@ class RadioButtonMirroringTest extends ComponentTestBase {
     void spaceStillSelectsReadingRightToLeft() {
         build(LayoutDirection.RTL, false);
         scene.requestFocus(radio);
-        scene.keyEvent(Keys.SPACE, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.SPACE, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertTrue(radio.isSelected());
     }
 
@@ -307,9 +308,9 @@ class RadioButtonMirroringTest extends ComponentTestBase {
     }
 
     private void arrow(int key) {
-        groupScene.keyEvent(key, true, false, 0);
-        groupScene.keyEvent(key, false, false, 0);
-        groupScene.inputBatchEnded();
+        drive(groupScene).keyEvent(key, true, false, 0);
+        drive(groupScene).keyEvent(key, false, false, 0);
+        drive(groupScene).inputBatchEnded();
     }
 
     // ----------------------------------------------------------------------- the fakes

@@ -1,5 +1,7 @@
 package limn.demo.a11y;
 
+import limn.testing.HeadlessBackend;
+import limn.testing.HeadlessWindow;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleRelation;

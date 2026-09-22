@@ -7,6 +7,7 @@ import limn.backend.lwjgl.LwjglBackend;
 import limn.concurrent.Ui;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Limn UI demo. Scenes: {@code testcard} (shapes, gradients, clip,
@@ -627,8 +628,8 @@ public final class Main {
                 // Click the first spinner to focus it, then hover its up-button.
                 Ui.postDelayed(() -> {
                     cs.focusTraverse(false); // focus the first slider → slider focus ring (#1)
-                    cs.mouseMoved(147, 333); // hover the first spinner's up-button (#2)
-                    cs.inputBatchEnded();
+                    drive(cs).mouseMoved(147, 333); // hover the first spinner's up-button (#2)
+                    drive(cs).inputBatchEnded();
                 }, 150);
                 Ui.postDelayed(() -> {
                     window.captureNextFrame(options.screenshotFile());
@@ -640,8 +641,8 @@ public final class Main {
             if (chartsCapture && boundScene != null) {
                 limn.scene.Scene cs = boundScene;
                 Ui.postDelayed(() -> {
-                    cs.mouseMoved(250, 150); // a bar in the revenue chart
-                    cs.inputBatchEnded();
+                    drive(cs).mouseMoved(250, 150); // a bar in the revenue chart
+                    drive(cs).inputBatchEnded();
                 }, 700); // after the entry animation settles
                 Ui.postDelayed(() -> {
                     window.captureNextFrame(options.screenshotFile());
@@ -670,18 +671,18 @@ public final class Main {
                     inner.set(new float[] {
                             d.localToSceneX() + d.width() / 2, d.localToSceneY() + d.height() / 2});
                     ss.focusTraverse(false);
-                    ss.inputBatchEnded();
+                    drive(ss).inputBatchEnded();
                 }, 150);
                 Ui.postDelayed(() -> captureSplitState(ss, window, base, "-focus"), 400);
                 Ui.postDelayed(() -> {
-                    ss.mouseMoved(inner.get()[0], inner.get()[1]);
-                    ss.inputBatchEnded();
+                    drive(ss).mouseMoved(inner.get()[0], inner.get()[1]);
+                    drive(ss).inputBatchEnded();
                 }, 550);
                 Ui.postDelayed(() -> captureSplitState(ss, window, base, "-hover"), 800);
                 Ui.postDelayed(() -> {
-                    ss.mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0,
+                    drive(ss).mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0,
                             inner.get()[0], inner.get()[1]);
-                    ss.inputBatchEnded();
+                    drive(ss).inputBatchEnded();
                 }, 950);
                 Ui.postDelayed(() -> captureSplitState(ss, window, base, "-drag"), 1200);
                 Ui.postDelayed(window::requestClose, 1400);

@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * The row the keyboard is in survives a scroll that moves it out of the viewport (ADR 039
@@ -148,8 +149,8 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
 
     /** Presses Page Down through the scene's own key path, as a keyboard does. */
     private void pageDown() {
-        scene.keyEvent(Keys.PAGE_DOWN, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.PAGE_DOWN, true, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
@@ -358,8 +359,8 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
 
     /** Wheels the list a long way down, as a pointer does, without moving the selection. */
     private void wheelFarDown() {
-        scene.scrolled(0, -30, 20, 100);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(0, -30, 20, 100);
+        drive(scene).inputBatchEnded();
         frame();
     }
 

@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /** The table's engine: virtualization, the permutation, selection, widths and the header. */
 class TableTest extends ComponentTestBase {
@@ -75,12 +76,12 @@ class TableTest extends ComponentTestBase {
     }
 
     private static void click(Scene scene, float x, float y, int modifiers) {
-        scene.mouseMoved(x, y);
-        scene.inputBatchEnded();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, modifiers, x, y);
-        scene.inputBatchEnded();
-        scene.mouseButton(Keys.MOUSE_LEFT, false, modifiers, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(x, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, modifiers, x, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, modifiers, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     @Test
@@ -147,11 +148,11 @@ class TableTest extends ComponentTestBase {
         scene.renderFrame(canvas);
         assertEquals(2, table.modelToView(0), "Carol is shown last now");
         assertEquals(2, table.focusRow(), "and the focus cell went with her");
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(0, table.selectedRow(), "Down from the last row stays on Carol");
-        scene.keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         assertArrayEquals(new int[] {0, 2}, table.selectedRows(),
                 "Shift+Up extends from Carol's row, where the anchor followed her: Bob and Carol");
         table.setSort(name, SortOrder.NONE);
@@ -237,30 +238,30 @@ class TableTest extends ComponentTestBase {
         FakeCanvas canvas = new FakeCanvas(300, 200);
         Scene scene = scene(table, canvas);
         scene.requestFocus(table);
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(0, table.selectedRow(), "the first Down lands on the first row");
         assertEquals(0, table.focusRow());
-        scene.keyEvent(Keys.DOWN, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(1, table.selectedRow());
-        scene.keyEvent(Keys.DOWN, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.DOWN, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         assertArrayEquals(new int[] {1, 2}, table.selectedRows(), "Shift extends the range");
         assertEquals(2, table.focusRow());
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(1, table.focusColumn());
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(1, table.focusColumn(), "no column past the last");
-        scene.keyEvent(Keys.END, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(49, table.selectedRow());
         scene.renderFrame(canvas);
         assertTrue(table.firstVisibleRow() > 30, "End scrolled the last row into view");
-        scene.keyEvent(Keys.A, true, false, Accelerator.commandModifier());
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.A, true, false, Accelerator.commandModifier());
+        drive(scene).inputBatchEnded();
         assertEquals(50, table.selectedRows().length, "select all");
         assertTrue(selects.get() >= 5, "every change fired once: " + selects);
     }
@@ -313,12 +314,12 @@ class TableTest extends ComponentTestBase {
         FakeCanvas canvas = new FakeCanvas(300, 300);
         Scene scene = scene(table, canvas);
         scene.requestFocus(table);
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(-1, activated.get(), "no cursor yet, nothing activated");
         table.setSelectedRow(3);
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(3, activated.get());
         activated.set(-1);
         float y = rowCenterY(table, 1);
@@ -331,26 +332,26 @@ class TableTest extends ComponentTestBase {
         click(scene, 30, rowCenterY(table, 3), Accelerator.commandModifier()); // toggled off
         assertEquals(1, table.selectedRow(), "the lead fell back to row 1");
         assertEquals(3, table.focusRow(), "the cursor stayed on row 3");
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(3, activated.get(), "Enter opens the cursor row, not the lead");
 
         table.setSelectionMode(Table.SelectionMode.NONE);
         click(scene, 30, rowCenterY(table, 2), 0);
         assertEquals(-1, table.selectedRow());
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(2, activated.get(), "in NONE the cursor row is what opens");
     }
 
     private static void tab(Scene scene, boolean backward) {
-        scene.keyEvent(Keys.TAB, true, false, backward ? Keys.MOD_SHIFT : 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.TAB, true, false, backward ? Keys.MOD_SHIFT : 0);
+        drive(scene).inputBatchEnded();
     }
 
     private static void key(Scene scene, int key) {
-        scene.keyEvent(key, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).inputBatchEnded();
     }
 
     /**
@@ -517,14 +518,14 @@ class TableTest extends ComponentTestBase {
         assertEquals(60, table.widthOf(age), EPS);
         // Drag the divider at the name column's trailing edge 40 points to the left.
         float y = headerHeight(table) / 2;
-        scene.mouseMoved(240, y);
-        scene.inputBatchEnded();
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 240, y);
-        scene.inputBatchEnded();
-        scene.mouseMoved(200, y);
-        scene.inputBatchEnded();
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 200, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseMoved(240, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 240, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(200, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 200, y);
+        drive(scene).inputBatchEnded();
         assertEquals(200, name.width(), EPS, "the dragged width is held on the column");
         scene.renderFrame(canvas);
         assertEquals(240, table.widthOf(name), EPS,
@@ -576,13 +577,13 @@ class TableTest extends ComponentTestBase {
         table.setRows(people(200));
         scene.renderFrame(canvas);
         scene.requestFocus(table);
-        scene.keyEvent(Keys.END, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).inputBatchEnded();
         scene.renderFrame(canvas);
         Scene plainScene = scene(plain, canvas);
         plainScene.requestFocus(plain);
-        plainScene.keyEvent(Keys.END, true, false, 0);
-        plainScene.inputBatchEnded();
+        drive(plainScene).keyEvent(Keys.END, true, false, 0);
+        drive(plainScene).inputBatchEnded();
         plainScene.renderFrame(canvas);
         assertTrue(table.firstVisibleRow() > plain.firstVisibleRow(),
                 "with a footer the last row sits higher, so the first shown row is later");
@@ -640,8 +641,8 @@ class TableTest extends ComponentTestBase {
         assertEquals("Carol", rows.get(2).name(), "the application sorted its list");
         assertEquals(2, table.selectedRow(), "and the selection followed her record");
         assertEquals(2, table.focusRow(), "as did the focus cell");
-        scene.keyEvent(Keys.UP, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals("Bob", rows.get(table.selectedRow()).name(), "Up from Carol is Bob");
     }
 
@@ -725,8 +726,8 @@ class TableTest extends ComponentTestBase {
         assertArrayEquals(new int[] {3}, table.selectedRows(), "Person 1 is fourth of six now");
         assertEquals("Person 1", rows.get(table.selectedRow()).name());
         assertEquals(1, table.focusRow(), "the focus row's record, Person 4, is second now");
-        scene.keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.UP, true, false, Keys.MOD_SHIFT);
+        drive(scene).inputBatchEnded();
         assertArrayEquals(new int[] {0, 1}, table.selectedRows(),
                 "Shift+Up extends from the anchor, which followed Person 4 too");
     }
@@ -1079,8 +1080,8 @@ class TableTest extends ComponentTestBase {
     }
 
     private static void wheel(Scene scene, FakeCanvas canvas, float sx, float sy) {
-        scene.scrolled(sx, sy, 50, 100);
-        scene.inputBatchEnded();
+        drive(scene).scrolled(sx, sy, 50, 100);
+        drive(scene).inputBatchEnded();
         scene.renderFrame(canvas);
     }
 
@@ -1117,7 +1118,7 @@ class TableTest extends ComponentTestBase {
 
         int row = wide.firstVisibleRow();
         float x1 = widgetX(wide);
-        scene.keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
+        drive(scene).keyEvent(Keys.LEFT_SHIFT, true, false, Keys.MOD_SHIFT);
         wheel(scene, canvas, 0, -1);
         assertEquals(row, wide.firstVisibleRow(), "Shift sends a plain wheel sideways, not down");
         assertEquals(x1 - Strokes.WHEEL_STEP, widgetX(wide), EPS);
@@ -1125,7 +1126,7 @@ class TableTest extends ComponentTestBase {
         assertEquals(x1 - 2 * Strokes.WHEEL_STEP, widgetX(wide), EPS,
                 "a tilt wheel with Shift held drives its own axis once");
         assertTrue(wide.firstVisibleRow() > row, "and its scrollY still moves the rows");
-        scene.keyEvent(Keys.LEFT_SHIFT, false, false, 0);
+        drive(scene).keyEvent(Keys.LEFT_SHIFT, false, false, 0);
 
         wheel(scene, canvas, -100, 0);
         assertEquals(x0 - (5 * 120 - 300), widgetX(wide), EPS,

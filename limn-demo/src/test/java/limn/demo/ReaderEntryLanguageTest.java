@@ -10,7 +10,7 @@ import limn.demo.a11y.AccessibilityGallery;
 import limn.demo.a11y.AccessibilityGallery.Entry;
 import limn.demo.a11y.AccessibilityGallery.Step;
 import limn.demo.a11y.GalleryStrings;
-import limn.demo.a11y.HeadlessWindow;
+import limn.testing.HeadlessWindow;
 import limn.demo.a11y.ReaderDriver;
 import limn.demo.a11y.Transcript;
 import limn.i18n.I18n;

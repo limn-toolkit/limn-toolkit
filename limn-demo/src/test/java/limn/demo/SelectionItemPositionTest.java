@@ -8,7 +8,7 @@ import limn.demo.AccessibleGalleryTest.Harness;
 import limn.demo.AccessibleGalleryTest.Palette;
 import limn.demo.a11y.AccessibilityGallery;
 import limn.demo.a11y.AccessibilityGallery.Entry;
-import limn.demo.a11y.HeadlessWindow;
+import limn.testing.HeadlessWindow;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 

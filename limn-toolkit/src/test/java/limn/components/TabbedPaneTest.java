@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * TabbedPane selection, content visibility, header alignment (left/center/
@@ -71,9 +72,9 @@ class TabbedPaneTest extends ComponentTestBase {
     }
 
     private void click(float x, float y) {
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
     }
 
     /** Clicks the middle of header {@code index} of a left-aligned strip at {@code step}. */
@@ -157,8 +158,8 @@ class TabbedPaneTest extends ComponentTestBase {
         assertEquals(2, tabs.selectedIndex(), "a refused index moves nothing");
         assertEquals(-1, changed.get(), "and announces nothing");
 
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(2, tabs.selectedIndex(), "Right past the last tab stays on it");
         assertEquals(-1, changed.get(), "a key that moved nothing announces nothing either");
     }
@@ -167,14 +168,14 @@ class TabbedPaneTest extends ComponentTestBase {
     void arrowKeysMoveSelectionWhenAHeaderIsFocused() {
         build(TabbedPane.TabAlignment.LEFT);
         clickHeader(0, ControlSize.MEDIUM); // select + focus header 0
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(1, tabs.selectedIndex());
-        scene.keyEvent(Keys.RIGHT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.RIGHT, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(2, tabs.selectedIndex());
-        scene.keyEvent(Keys.LEFT, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.LEFT, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals(1, tabs.selectedIndex());
     }
 

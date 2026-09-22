@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 class CheckboxTest extends ComponentTestBase {
 
@@ -42,15 +43,15 @@ class CheckboxTest extends ComponentTestBase {
         AtomicReference<Boolean> seen = new AtomicReference<>();
         checkbox.onChange(seen::set);
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 9, 20);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 9, 20);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 9, 20);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 9, 20);
+        drive(scene).inputBatchEnded();
         assertTrue(checkbox.isChecked());
         assertEquals(Boolean.TRUE, seen.get());
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 9, 20);
-        scene.mouseButton(Keys.MOUSE_LEFT, false, 0, 9, 20);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 9, 20);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 9, 20);
+        drive(scene).inputBatchEnded();
         assertFalse(checkbox.isChecked());
         assertEquals(Boolean.FALSE, seen.get());
     }
@@ -98,8 +99,8 @@ class CheckboxTest extends ComponentTestBase {
     void spaceTogglesWhenFocused() {
         build(Checkbox.Variant.SWITCH);
         scene.requestFocus(checkbox);
-        scene.keyEvent(Keys.SPACE, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.SPACE, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertTrue(checkbox.isChecked());
     }
 

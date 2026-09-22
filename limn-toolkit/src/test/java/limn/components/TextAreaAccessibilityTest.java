@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link TextArea} becomes in the accessible tree: one editable, multi-line
@@ -213,16 +214,16 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
 
     /** One press and release of {@code keyCode}, through the scene's own dispatch. */
     private void key(int keyCode) {
-        scene.keyEvent(keyCode, true, false, 0);
-        scene.keyEvent(keyCode, false, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(keyCode, true, false, 0);
+        drive(scene).keyEvent(keyCode, false, false, 0);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
     /** Opens a composition of {@code text} with its caret at the end, as the platform does. */
     private void compose(String text) {
-        scene.preeditChanged(text, new int[] {text.length()}, 0, text.length());
-        scene.inputBatchEnded();
+        drive(scene).preeditChanged(text, new int[] {text.length()}, 0, text.length());
+        drive(scene).inputBatchEnded();
         frame();
     }
 
@@ -982,8 +983,8 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("ab\ncXYd", areaNode().text().text(),
                 "and the text under composition did not jump" + describe(tree()));
 
-        "XY".codePoints().forEach(scene::charTyped);
-        scene.inputBatchEnded();
+        "XY".codePoints().forEach(drive(scene)::charTyped);
+        drive(scene).inputBatchEnded();
         frame();
         perform(areaNode().id(), Accessible.Action.SET_CARET,
                 new Accessible.Argument.OfRange(6, 6));

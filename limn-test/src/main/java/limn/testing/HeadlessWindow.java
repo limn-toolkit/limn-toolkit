@@ -1,4 +1,4 @@
-package limn.demo.a11y;
+package limn.testing;
 
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
@@ -24,8 +24,8 @@ import limn.testing.TestRulers;
 
 /**
  * A window with no platform behind it, whose accessibility bridge keeps the last tree it was
- * handed: what a demo scene is bound to so that its accessible tree can be read with no GL, no
- * fonts and no desktop.
+ * handed: what a scene is bound to so that its accessible tree can be read with no GL, no fonts
+ * and no desktop. {@link HeadlessBackend#open} makes one; a {@link SceneDriver} drives its scene.
  *
  * <p>A frame here is the scene's own frame callback, the one {@code Scene#bind} installs, driven
  * by hand: what a real backend does once per vertical blank this does when a test asks. That is
@@ -187,7 +187,7 @@ public final class HeadlessWindow implements NativeWindow {
      *         one is bound
      */
     public limn.scene.Scene scene() {
-        return input instanceof limn.scene.Scene bound ? bound : null;
+        return limn.scene.internal.SceneAccess.sceneOf(input);
     }
 
     /** @return the bridge that kept the newest tree this window's scene published */

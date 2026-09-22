@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * What a {@link SplitPane} becomes in the accessible tree, which is three widgets taking three
@@ -151,8 +152,8 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Delivers one key press to whatever has focus, and renders the frame that publishes it. */
     private void press(int key, int modifiers) {
-        scene.keyEvent(key, true, false, modifiers);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).inputBatchEnded();
         frame();
     }
 
@@ -298,9 +299,9 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
                 "this virtual machine does not count per-thread allocation");
         bindSplit();
         Widget divider = split.divider();
-        scene.mouseMoved(divider.localToSceneX() + divider.width() / 2,
+        drive(scene).mouseMoved(divider.localToSceneX() + divider.width() / 2,
                 divider.localToSceneY() + divider.height() / 2);
-        scene.inputBatchEnded();
+        drive(scene).inputBatchEnded();
         frame();
         int published = bridge.published.size();
         bridge.events.clear();

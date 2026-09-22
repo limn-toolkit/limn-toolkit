@@ -1,5 +1,7 @@
 package limn.demo.a11y;
 
+import limn.testing.HeadlessBackend;
+import limn.testing.HeadlessWindow;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
@@ -24,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * Decision 18 (2026-09-14) in the presentation where it matters: the calendar is a window of its
@@ -162,11 +165,11 @@ class DatePickerNativePopupTest {
         HeadlessWindow popup = popupWindow();
         settle(host, popup);
 
-        hostScene.keyEvent(limn.input.Keys.UP, true, false,
+        drive(hostScene).keyEvent(limn.input.Keys.UP, true, false,
                 limn.components.Accelerator.commandModifier());
-        hostScene.keyEvent(limn.input.Keys.UP, false, false,
+        drive(hostScene).keyEvent(limn.input.Keys.UP, false, false,
                 limn.components.Accelerator.commandModifier());
-        hostScene.inputBatchEnded();
+        drive(hostScene).inputBatchEnded();
         settle(host, popup);
 
         AccessibleTree popupTree = popup.bridge().tree();

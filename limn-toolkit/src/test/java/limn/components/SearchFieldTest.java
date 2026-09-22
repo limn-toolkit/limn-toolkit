@@ -10,6 +10,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static limn.testing.SceneDriver.drive;
 
 /**
  * {@link SearchField}: the Enter-to-submit path and the trailing clear button, neither of
@@ -37,8 +38,8 @@ class SearchFieldTest extends ComponentTestBase {
         field.onSubmit(submitted::set);
         field.setText("boots");
 
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals("boots", submitted.get());
     }
 
@@ -46,8 +47,8 @@ class SearchFieldTest extends ComponentTestBase {
     void enterDoesNotInsertANewline() {
         build();
         field.setText("query");
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
         assertEquals("query", field.text(), "a single-line field never grows a newline");
     }
 
@@ -56,9 +57,9 @@ class SearchFieldTest extends ComponentTestBase {
         build();
         AtomicReference<Integer> count = new AtomicReference<>(0);
         field.onSubmit(q -> count.updateAndGet(n -> n + 1));
-        scene.keyEvent(Keys.ENTER, true, false, 0);
-        scene.keyEvent(Keys.ENTER, true, true, 0); // repeat
-        scene.inputBatchEnded();
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).keyEvent(Keys.ENTER, true, true, 0); // repeat
+        drive(scene).inputBatchEnded();
         assertEquals(1, count.get(), "one physical press, one submit");
     }
 
@@ -109,12 +110,12 @@ class SearchFieldTest extends ComponentTestBase {
 
         // RULER is 10pt per code point, so x=60 is 6 characters into a field whose text starts
         // at padH, and fewer than that once a leading icon has pushed the text right.
-        plainScene.mouseButton(Keys.MOUSE_LEFT, true, 0, 60, 16);
-        plainScene.inputBatchEnded();
+        drive(plainScene).mouseButton(Keys.MOUSE_LEFT, true, 0, 60, 16);
+        drive(plainScene).inputBatchEnded();
         int plainCaret = plain.model().cursor();
 
-        scene.mouseButton(Keys.MOUSE_LEFT, true, 0, 60, 16);
-        scene.inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 60, 16);
+        drive(scene).inputBatchEnded();
         int searchCaret = field.model().cursor();
 
         assertTrue(searchCaret < plainCaret,
