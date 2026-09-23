@@ -137,7 +137,7 @@ widget's own. The order that works:
    an editable string is `TEXT`. A widget that fits none of these is a decision to ask for, not a
    new shape to invent in the code: `ShapeCoverageTest` refuses a node that classifies in none.
 2. **Implement the shape's host.** Each shape with behaviour to share is written once in
-   `limn.components.a11y`: `RowsAccessibility`, `ValueAccessibility`, `ToggleAccessibility`,
+   `limn.components.internal.a11y`: `RowsAccessibility`, `ValueAccessibility`, `ToggleAccessibility`,
    `LeafActionAccessibility`, `PopupOwnerAccessibility`, and `TextAccessibility` in its own
    package. The describe half is a function over the facts of the node — the widget says what its
    row *is* and what its rows *can do*, and the rules say which verbs that adds up to, by state.

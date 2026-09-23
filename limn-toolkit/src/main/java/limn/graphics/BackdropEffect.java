@@ -1,7 +1,7 @@
 package limn.graphics;
 
 import java.util.Objects;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * What a shape does to the pixels already behind it: a material, not a paint. Passed to

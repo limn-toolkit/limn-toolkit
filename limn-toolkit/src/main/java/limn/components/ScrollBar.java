@@ -1,7 +1,7 @@
 package limn.components;
 
 import limn.accessibility.Accessible;
-import limn.components.a11y.ValueAccessibility;
+import limn.components.internal.a11y.ValueAccessibility;
 import limn.accessibility.Accessibility;
 import limn.animation.Easing;
 import limn.animation.Transition;

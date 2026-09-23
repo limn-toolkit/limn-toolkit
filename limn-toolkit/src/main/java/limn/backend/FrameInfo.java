@@ -1,6 +1,6 @@
 package limn.backend;
 
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * Immutable per-frame metrics handed to a {@link FrameCallback}.

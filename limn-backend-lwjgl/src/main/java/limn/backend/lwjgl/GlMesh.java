@@ -1,6 +1,6 @@
 package limn.backend.lwjgl;
 
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.math.Aabb;
 import limn.render3d.GpuMesh;
 import limn.render3d.MeshData;

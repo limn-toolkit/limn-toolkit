@@ -3,7 +3,7 @@ package limn.graphics;
 import java.util.List;
 import java.util.Objects;
 import limn.backend.Installed;
-import limn.concurrent.ChangeListeners;
+import limn.concurrent.internal.ChangeListeners;
 import limn.concurrent.Subscription;
 
 /**

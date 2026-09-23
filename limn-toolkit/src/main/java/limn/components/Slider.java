@@ -2,7 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
-import limn.components.a11y.ValueAccessibility;
+import limn.components.internal.a11y.ValueAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.concurrent.Ui;
@@ -11,7 +11,7 @@ import limn.graphics.Color;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.scene.Change;
 import limn.scene.FloatConsumer;
 import limn.scene.Size;

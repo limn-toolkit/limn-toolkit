@@ -2,7 +2,7 @@ package limn.backend.lwjgl.a11y.linux;
 
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleTree;
-import limn.concurrent.Threads;
+import limn.concurrent.internal.Threads;
 
 import java.io.IOException;
 import java.util.IdentityHashMap;

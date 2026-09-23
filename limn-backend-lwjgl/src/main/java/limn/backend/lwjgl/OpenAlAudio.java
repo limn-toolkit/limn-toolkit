@@ -1,7 +1,7 @@
 package limn.backend.lwjgl;
 
-import limn.concurrent.Threads;
-import limn.io.Closeables;
+import limn.concurrent.internal.Threads;
+import limn.io.internal.Closeables;
 import limn.math.Scalars;
 import limn.math.Vec3;
 import limn.sound.AudioBus;

@@ -1,6 +1,6 @@
 package limn.scene;
 
-import limn.concurrent.ChangeListeners;
+import limn.concurrent.internal.ChangeListeners;
 import limn.graphics.ShapedText;
 
 import limn.concurrent.Ui;

@@ -2,7 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
-import limn.components.a11y.ToggleAccessibility;
+import limn.components.internal.a11y.ToggleAccessibility;
 import limn.accessibility.ToggleFacet;
 import limn.animation.Easing;
 import limn.animation.Transition;
@@ -15,7 +15,7 @@ import limn.graphics.ShapedText;
 import limn.i18n.I18nString;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
 import limn.scene.Size;

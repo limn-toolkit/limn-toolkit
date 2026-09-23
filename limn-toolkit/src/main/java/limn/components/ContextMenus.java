@@ -2,7 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
-import limn.components.a11y.PopupOwnerAccessibility;
+import limn.components.internal.a11y.PopupOwnerAccessibility;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.Size;

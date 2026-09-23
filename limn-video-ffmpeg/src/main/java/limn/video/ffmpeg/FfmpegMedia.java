@@ -1,6 +1,6 @@
 package limn.video.ffmpeg;
 
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.sound.AudioStreamSource;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;

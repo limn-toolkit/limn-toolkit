@@ -4,9 +4,9 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.backend.Cursor;
-import limn.components.text.CodePoints;
-import limn.components.text.TextAccessibility;
-import limn.components.text.TextEditModel;
+import limn.components.internal.text.CodePoints;
+import limn.components.internal.text.TextAccessibility;
+import limn.components.internal.text.TextEditModel;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -19,7 +19,7 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18nString;
 import limn.input.Keys;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -71,7 +71,7 @@ public sealed class TextField extends Widget permits PasswordField, SearchField 
      */
     private static final long TRAILING_BUTTON = 1L;
 
-    protected final TextEditModel model = new TextEditModel(true);
+    final TextEditModel model = new TextEditModel(true);
     private I18nString placeholder = I18nString.EMPTY;
     private Consumer<String> onChange;
     private Consumer<String> onSubmit;
@@ -393,8 +393,82 @@ public sealed class TextField extends Widget permits PasswordField, SearchField 
         return validation;
     }
 
-    /** @return the editing model (cursor/selection state), for tests and subclasses */
-    public TextEditModel model() {
+    // ------------------------------------------------------------ caret and selection
+
+    /** @return where the caret is, as a {@code char} offset into {@link #text()} */
+    public int caretPosition() {
+        return model.cursor();
+    }
+
+    /** @return where the selection starts, or the caret's offset when nothing is selected */
+    public int selectionStart() {
+        return model.selectionStart();
+    }
+
+    /** @return where the selection ends, or the caret's offset when nothing is selected */
+    public int selectionEnd() {
+        return model.selectionEnd();
+    }
+
+    /** @return the selected text, empty when nothing is selected */
+    public String selectedText() {
+        return model.selectedText();
+    }
+
+    /**
+     * Puts the caret at an offset and selects nothing. See {@link #select(int, int)}.
+     *
+     * @param offset a {@code char} offset, from 0 to the text's length
+     * @return this {@code TextField}
+     * @throws IndexOutOfBoundsException when {@code offset} is outside the text
+     */
+    public TextField setCaretPosition(int offset) {
+        return select(offset, offset);
+    }
+
+    /**
+     * Selects from {@code anchor} to {@code caret}, and the caret ends at {@code caret}, so a
+     * {@code caret} before the anchor is a selection made backwards, as Shift+Left makes one. An
+     * offset inside a grapheme cluster (a combining mark, an emoji sequence) moves to the start of
+     * that cluster, because a caret is never drawn inside one. Announces {@code SELECTION} as
+     * {@code CODE} when the caret or the selection moved, and reaches no handler. UI thread only.
+     *
+     * @param anchor where the selection starts, a {@code char} offset from 0 to the text's length
+     * @param caret  where it ends and the caret goes, likewise
+     * @return this {@code TextField}
+     * @throws IndexOutOfBoundsException when either offset is outside the text
+     */
+    public TextField select(int anchor, int caret) {
+        Ui.checkUiThread();
+        Objects.checkIndex(anchor, model.length() + 1);
+        Objects.checkIndex(caret, model.length() + 1);
+        int start = model.selectionStart();
+        int end = model.selectionEnd();
+        int before = model.cursor();
+        int from = model.alignToGrapheme(anchor);
+        int to = model.alignToGrapheme(caret);
+        model.setCursor(from, false);
+        model.setCursor(to, from != to);
+        ensureCursorVisible();
+        resetBlink();
+        invalidate();
+        if (model.selectionStart() != start || model.selectionEnd() != end || model.cursor() != before) {
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.CODE));
+        }
+        return this;
+    }
+
+    /**
+     * Selects the whole text, the caret at its end. See {@link #select(int, int)}.
+     *
+     * @return this {@code TextField}
+     */
+    public TextField selectAll() {
+        return select(0, model.length());
+    }
+
+    /** The editing model, for this package's own tests. */
+    TextEditModel model() {
         return model;
     }
 

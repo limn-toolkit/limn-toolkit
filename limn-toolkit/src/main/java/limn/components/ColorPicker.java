@@ -11,7 +11,7 @@ import limn.graphics.RoundRect;
 import limn.i18n.I18nString;
 import limn.i18n.LanguageWitness;
 import limn.input.Keys;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.math.Scalars;
 import limn.scene.Change;
 import limn.scene.Constraints;

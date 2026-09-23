@@ -1,6 +1,6 @@
 package limn.video;
 
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * The memory layout of a decoded {@link VideoFrame}: how many planes it has, what each one

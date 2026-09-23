@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * Central design tokens: colors, corner radii, typography and spacing.
@@ -402,7 +402,7 @@ public final class Theme {
      * {@link #setCurrent}); {@link #apply} is what repaints the scenes it is handed. Mirrors
      * {@link Fonts#observeChanges}.
      */
-    private static final limn.concurrent.ChangeListeners LISTENERS = new limn.concurrent.ChangeListeners();
+    private static final limn.concurrent.internal.ChangeListeners LISTENERS = new limn.concurrent.internal.ChangeListeners();
 
     /** The built-in light palette. */
     public static Theme light() {

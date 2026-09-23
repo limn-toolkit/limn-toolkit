@@ -7,7 +7,7 @@ import limn.accessibility.AccessibleTree;
 import limn.accessibility.StateNames;
 import limn.backend.AccessibilityBridge;
 import limn.backend.lwjgl.a11y.PlatformBridge;
-import limn.concurrent.Threads;
+import limn.concurrent.internal.Threads;
 import org.lwjgl.system.MemoryUtil;
 
 import java.util.ArrayList;

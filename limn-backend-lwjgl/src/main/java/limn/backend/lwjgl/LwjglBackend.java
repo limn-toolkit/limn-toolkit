@@ -9,7 +9,7 @@ import limn.backend.Platform;
 import limn.backend.WindowConfig;
 import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.sound.AudioClip;
 import limn.sound.Sounds;
 import org.lwjgl.PointerBuffer;

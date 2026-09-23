@@ -1,7 +1,7 @@
 package limn.video.decode;
 
-import limn.io.Closeables;
-import limn.lang.Checks;
+import limn.io.internal.Closeables;
+import limn.internal.lang.Checks;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;

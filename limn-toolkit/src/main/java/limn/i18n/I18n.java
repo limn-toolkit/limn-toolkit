@@ -1,6 +1,6 @@
 package limn.i18n;
 
-import limn.concurrent.ChangeListeners;
+import limn.concurrent.internal.ChangeListeners;
 import limn.concurrent.Ui;
 
 import java.text.Collator;

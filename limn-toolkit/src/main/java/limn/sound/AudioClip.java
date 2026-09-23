@@ -1,7 +1,7 @@
 package limn.sound;
 
 import java.util.Objects;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * An immutable, backend-independent chunk of PCM audio: interleaved 16-bit

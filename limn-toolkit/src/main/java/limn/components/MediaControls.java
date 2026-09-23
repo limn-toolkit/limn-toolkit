@@ -3,7 +3,7 @@ package limn.components;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.backend.CrashPhase;
-import limn.concurrent.Listeners;
+import limn.concurrent.internal.Listeners;
 import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;

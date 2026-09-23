@@ -14,7 +14,10 @@ import limn.i18n.PropertyBundle;
 final class DisplayStrings {
 
     static {
-        I18n.addBundle(PropertyBundle.family("/limn/i18n/display"));
+        // This module opens the catalog itself: on the module path it sits in a package of the
+        // backend's that no class loader can read.
+        I18n.addBundle(PropertyBundle.family("/limn/backend/lwjgl/i18n/display",
+                name -> DisplayStrings.class.getResourceAsStream(name)));
     }
 
     /**

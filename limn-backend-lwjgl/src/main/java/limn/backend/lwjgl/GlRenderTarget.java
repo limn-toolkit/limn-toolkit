@@ -2,7 +2,7 @@ package limn.backend.lwjgl;
 
 import limn.backend.RenderStats;
 import limn.graphics.Color;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.render3d.ColorSpace;
 import limn.render3d.RenderTarget;
 import org.lwjgl.opengl.GL33C;

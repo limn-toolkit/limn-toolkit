@@ -1,6 +1,6 @@
 package limn.scene.layout;
 
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;

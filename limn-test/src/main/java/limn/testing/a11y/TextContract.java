@@ -18,7 +18,7 @@ import java.util.List;
  * text replaces it and with anything else changes nothing; {@code SET_CARET} with a collapsed
  * range moves the caret and {@code SET_SELECTION} with a range selects it, each read back off
  * the facet; and the node keeps its id as the text changes. The helper itself,
- * {@code limn.components.text.TextAccessibility}, predates the record and is what the shape
+ * {@code limn.components.internal.text.TextAccessibility}, predates the record and is what the shape
  * was modelled on.
  */
 public final class TextContract {

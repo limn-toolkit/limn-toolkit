@@ -1,6 +1,6 @@
 package limn.backend;
 
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * An immutable screen mode: a pixel size and refresh rate. A normalized value

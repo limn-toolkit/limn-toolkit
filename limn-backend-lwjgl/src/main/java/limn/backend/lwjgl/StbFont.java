@@ -135,7 +135,7 @@ final class StbFont implements AutoCloseable {
      * {@link #close} it.
      */
     static StbFont loadResourceIfPresent(String resource, String name) {
-        byte[] bytes = Resources.bytesIfPresent(StbFont.class, resource, "font");
+        byte[] bytes = Resources.bytesIfPresent(FontStore.openBundled(resource), resource, "font");
         return bytes == null ? null : fromBytes(bytes, 0, name, resource);
     }
 

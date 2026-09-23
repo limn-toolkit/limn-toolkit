@@ -2,7 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
-import limn.components.a11y.MenuAccessibility;
+import limn.components.internal.a11y.MenuAccessibility;
 import limn.backend.Cursor;
 import limn.concurrent.Subscription;
 import limn.graphics.Canvas;

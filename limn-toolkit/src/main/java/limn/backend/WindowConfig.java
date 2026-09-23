@@ -1,7 +1,7 @@
 package limn.backend;
 
 import java.util.Objects;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * Initial configuration for a {@link NativeWindow}: start from {@link #of}, then change what differs

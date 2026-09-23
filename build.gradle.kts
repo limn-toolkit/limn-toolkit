@@ -88,7 +88,28 @@ val publishedModules = mapOf(
             "toolkit.",
 )
 
+// ADR 046 §1: limn-toolkit, limn-test, limn-video-ffmpeg and limn-backend-lwjgl carry a
+// module-info. These two name themselves in the manifest instead, so an application on the module
+// path requires a name that will not change with a file name:
+//   limn-theme-editor   its program, ThemeEditorApp, compiles against the backend, which an
+//                       embedding application brings itself; a module-info would have to require
+//                       it, and the published POM names the backend for running only.
+//   limn-demo           an application, run from the class path.
+// An automatic module reads everything and exports everything, which for these two is what the
+// class path already gives them; the toolkit's internal packages are still exported to them alone.
+val automaticModuleNames = mapOf(
+    "limn-theme-editor" to "limn.themeeditor",
+    "limn-demo" to "limn.demo",
+)
+
 subprojects {
+    automaticModuleNames[name]?.let { moduleName ->
+        plugins.withId("java") {
+            tasks.named<Jar>("jar") {
+                manifest { attributes("Automatic-Module-Name" to moduleName) }
+            }
+        }
+    }
     plugins.withId("java") {
         extensions.configure<JavaPluginExtension> {
             // The JDK this build runs on, pinned.
@@ -121,7 +142,11 @@ subprojects {
         tasks.withType<JavaCompile>().configureEach {
             options.release.set(17)
             options.encoding = "UTF-8"
-            options.compilerArgs.add("-Xlint:all,-processing,-serial,-requires-automatic")
+            // -missing-explicit-ctor: once limn-toolkit is a named module, javac points at every
+            // exported class whose constructor is the implicit one. Here that constructor is the
+            // API — new ProgressBar(), new Stack(), a Widget subclass's super() — so the warning
+            // would ask for thirty constructors that say nothing.
+            options.compilerArgs.add("-Xlint:all,-processing,-serial,-requires-automatic,-missing-explicit-ctor")
         }
 
         tasks.withType<Javadoc>().configureEach {
@@ -631,9 +656,19 @@ val aggregateJavadoc = tasks.register<Javadoc>("aggregateJavadoc") {
                 !sub.extensions.getByType<SourceSetContainer>()["main"].allJava.isEmpty
     }
     dependsOn(documented.map { "${it.path}:classes" })
+    // One tree of packages, as /api/ has always been laid out, and not one directory per module:
+    // the modules' classes are read from the class path even though three of them declare modules.
+    modularity.inferModulePath.set(false)
     setDestinationDir(layout.buildDirectory.dir("docs/aggregate-javadoc").get().asFile)
     title = "Limn UI ${project.version}"
-    source(documented.map { it.extensions.getByType<SourceSetContainer>()["main"].allJava })
+    // Without the module declarations, which one javadoc run cannot take several of, and without the
+    // internal packages, which are not API and which /api/ therefore does not show (ADR 046 §1).
+    source(documented.map {
+        it.extensions.getByType<SourceSetContainer>()["main"].allJava.matching {
+            exclude("module-info.java")
+            exclude("**/internal/**")
+        }
+    })
     classpath = files(documented.map {
         it.extensions.getByType<SourceSetContainer>()["main"].compileClasspath
     })

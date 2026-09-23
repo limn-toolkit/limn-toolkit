@@ -75,7 +75,8 @@ class ShapedAdvanceParityTest {
     };
 
     /** Every bundle family the toolkit and this backend ship, across both resource roots. */
-    private static final String[] BUNDLES = {"components", "theme", "colorpicker", "display"};
+    private static final String[] BUNDLES = {"/limn/i18n/components", "/limn/i18n/theme",
+            "/limn/i18n/colorpicker", "/limn/backend/lwjgl/i18n/display"};
 
     /**
      * Greek, which there is no bundle to draw on for, and the ADR's own eight rows so the corpus
@@ -331,7 +332,7 @@ class ShapedAdvanceParityTest {
                 // Absent combinations are normal: only one bundle family is translated into every
                 // locale. A missing file is a translation nobody wrote, not a broken classpath —
                 // which is what the corpus-size floor in the test above is for.
-                load("/limn/i18n/" + bundle + "_" + locale + ".properties", values);
+                load(bundle + "_" + locale + ".properties", values);
             }
         }
         values.addAll(List.of(EXTRA));

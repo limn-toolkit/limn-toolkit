@@ -68,7 +68,7 @@ final class CaptureScenes {
         col.add(field);
         Scene scene = scene(col);
         scene.requestFocus(field);
-        field.model().selectAll();
+        field.selectAll();
         return new Built(scene);
     }
 
@@ -137,7 +137,7 @@ final class CaptureScenes {
         scene.requestFocus(area);
         Runnable afterLayout = () -> {
             // Put the caret mid-way on the second line, then inject a composition.
-            area.model().setCursor("first line\n".length() + 6, false);
+            area.setCaretPosition("first line\n".length() + 6);
             drive(scene).preeditChanged("konnichiwa", new int[] {8, 2}, 1, 10);
             drive(scene).inputBatchEnded();
         };
@@ -180,7 +180,7 @@ final class CaptureScenes {
         }
         Scene scene = scene(col);
         scene.requestFocus(identityStep);
-        identityStep.model().selectAll();
+        identityStep.selectAll();
         return new Built(scene);
     }
 

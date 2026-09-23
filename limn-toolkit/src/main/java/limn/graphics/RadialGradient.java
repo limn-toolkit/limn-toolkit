@@ -1,7 +1,7 @@
 package limn.graphics;
 
 import java.util.Objects;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * Two-stop radial gradient: {@code center} color at {@code (cx,cy)} fading to

@@ -19,7 +19,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import limn.concurrent.Threads;
+import limn.concurrent.internal.Threads;
 
 /**
  * A minimal D-Bus client for the Limn screen-reader spike: SASL EXTERNAL over a

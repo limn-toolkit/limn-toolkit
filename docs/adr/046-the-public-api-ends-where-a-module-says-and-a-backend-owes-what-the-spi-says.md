@@ -1,8 +1,10 @@
 # ADR 046: The public API ends where a module says, and a backend owes what the SPI says
 
-- **Status: PROPOSED, 2026-09-22.** Decisions 118 to 124 (batch 28 of the 2026-09-22 review) are what
+- **Status: ACCEPTED, 2026-09-22.** Decisions 118 to 124 (batch 28 of the 2026-09-22 review) are what
   this record writes down; the owner took the recommended option on each of the seven and asked for
-  the whole round before 0.8.0, in one record, written before the code.
+  the whole round before 0.8.0, in one record, written before the code. All seven sections are built,
+  in the order §8 gives, with `check` green after each; the notes marked *Built as* and *Amended
+  while building it* say where the building moved the record.
 - **Date:** 2026-09-22
 - **Scope:** where the published API of `limn-toolkit` ends, what an application author can call on a
   widget and a scene, and what a backend must provide. Seven changes, each breaking, each cheaper now
@@ -58,6 +60,54 @@ them (`limn.backend.lwjgl`, `limn.video.ffmpeg`, `limn.themeeditor`, `limn.test`
 jbang, the fat jar, most applications — a `module-info` is ignored, so nothing changes there; on the
 module path the compiler enforces the boundary; and on either path a package named `internal` says
 what it is. `TextField`'s `model` field stops being protected (§2 makes the question moot).
+
+*Built as, and amended while building it:*
+
+- **The text helpers** went to `limn.components.internal.text`, beside `internal.a11y`, and not
+  to `limn.components.text.internal`. The text package held nothing else.
+- **The model accessor.** `TextField.model()` and `TextArea.model()` were public and returned the
+  model, the only way an application or the demo could select text or place the caret. Both now
+  answer only inside their package. The two widgets gained `caretPosition`, `selectionStart`,
+  `selectionEnd`, `selectedText`, `setCaretPosition`, `select(anchor, caret)` and `selectAll`.
+  A programmatic move is announced as `SELECTION` at `CODE` and snaps to a grapheme boundary.
+- **Four modules have a `module-info`**: `limn.toolkit`, `limn.test`, `limn.video.ffmpeg` and
+  `limn.backend.lwjgl`. The theme editor and the demo name themselves with
+  `Automatic-Module-Name` instead. The theme editor's program compiles against a backend that its
+  POM names for running only, and the demo is an application run from the class path.
+- **The backend** first got an automatic name too, because jlayer, its MP3 decoder, has no
+  module name. That failed on the first run: an automatic module cannot say it needs LWJGL, so
+  nothing resolved LWJGL. It is now a real module that requires the LWJGL modules. It reads the
+  class path for jlayer, through `--add-reads` at compile time and `Module.addReads` at run time.
+- **Resources had to change**, which this record did not foresee. On the module path a class's
+  resource lookup stays inside its module, so `Images.fromResource` and the like could no longer
+  reach an application's files.
+  - `Resources`' class form now falls back to the class loader.
+  - New stream forms of `Resources` let a module open its own encapsulated resources and hand
+    them over.
+  - `PropertyBundle.family(String)` reads the toolkit's own catalogs from its module first.
+  - A new `PropertyBundle.family(String, Function)` takes the owning module's own lookup.
+  - The backend opens its shaders, fonts and catalog itself. Its catalog moved from
+    `limn/i18n`, a package the toolkit owns, to `limn/backend/lwjgl/i18n`. On the module path
+    the old folder was a split package, which stops the JVM from starting.
+- **`/api/`** is still one tree of packages, and it no longer shows the internal ones.
+- **Proved from a consumer**: a module of its own, run with `java --module-path` on macOS on
+  2026-09-22.
+  - Headless through `limn-test`, nine checks passed. They covered driving the scene, the
+    toolkit's catalog, the application's catalogs and images in each placement, and the export
+    boundary both ways.
+  - With a window, it drew Roboto, Arabic, CJK and emoji from the font jars. It also drew the
+    toolkit's icons, the pt-BR placeholder, and both of the application's images.
+  - The font jars, the FFmpeg native jars, jlayer and LWJGL's native jars must be on the class
+    path. The packaging guide says so and why.
+- **What that run found elsewhere.** The frame pacer's skip for a covered window (decision 113)
+  also skipped a window owed a capture, so `captureNextFrame` on a covered window never
+  answered. A window with a capture pending now draws.
+- **Left for the repositories that own them**:
+  - Every `limn-fonts` jar keeps its faces under one `limn/fonts` folder. On the module path
+    that is a split package between them.
+  - The `limn-ffmpeg-natives` classifier jars all derive one automatic name.
+  - The theme editor documents `/limn/i18n/themeeditor` for an application's translation. A
+    named application module cannot use that folder, because the toolkit owns `limn.i18n`.
 
 ## 2. Decision: concrete widgets are final, `TextField` is sealed (decision 119)
 

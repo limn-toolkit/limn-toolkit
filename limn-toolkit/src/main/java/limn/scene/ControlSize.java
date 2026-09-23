@@ -1,6 +1,6 @@
 package limn.scene;
 
-import limn.concurrent.ChangeListeners;
+import limn.concurrent.internal.ChangeListeners;
 import limn.concurrent.Ui;
 
 import java.util.Objects;

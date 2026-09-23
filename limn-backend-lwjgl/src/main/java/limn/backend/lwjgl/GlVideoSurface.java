@@ -2,7 +2,7 @@ package limn.backend.lwjgl;
 
 import limn.backend.RenderStats;
 import limn.concurrent.Ui;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.video.PixelFormat;
 import limn.video.VideoFrame;
 import limn.video.VideoSurface;

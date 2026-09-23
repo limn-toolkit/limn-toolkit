@@ -2,9 +2,9 @@ package limn.video;
 
 import limn.backend.CrashPhase;
 import limn.backend.Crashes;
-import limn.concurrent.Threads;
+import limn.concurrent.internal.Threads;
 import limn.concurrent.Ui;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.sound.AudioStreamSource;
 import limn.sound.PlayOptions;
 import limn.sound.Playback;

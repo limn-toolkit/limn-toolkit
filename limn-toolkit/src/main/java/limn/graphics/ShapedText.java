@@ -5,7 +5,7 @@ import java.text.BreakIterator;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * One line of text after shaping: the glyphs a face draws for it, where each one sits, and every

@@ -1,6 +1,7 @@
 package limn.i18n;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
@@ -10,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.function.Function;
 import java.util.concurrent.ConcurrentHashMap;
 import limn.io.Resources;
 
@@ -41,6 +43,14 @@ public final class PropertyBundle implements StringBundle {
 
     private final String base;
     private final ClassLoader loader;
+    /**
+     * Where {@link #family(String)} looks first: this module, whose own catalogs a class loader
+     * cannot reach on the module path, where the package holding them is not open. Null for a
+     * family given its own loader.
+     */
+    private final Class<?> owner;
+    /** What {@link #family(String, Function)} was given: the owning module's own lookup, or null. */
+    private final Function<String, InputStream> opener;
 
     /**
      * One table per locale something is reading, and nothing else: a language nobody is
@@ -56,9 +66,12 @@ public final class PropertyBundle implements StringBundle {
      */
     private final Map<Locale, Map<String, String>> tables = new ConcurrentHashMap<>();
 
-    private PropertyBundle(String base, ClassLoader loader) {
+    private PropertyBundle(String base, ClassLoader loader, Class<?> owner,
+                           Function<String, InputStream> opener) {
         this.base = Objects.requireNonNull(base, "base");
         this.loader = loader;
+        this.owner = owner;
+        this.opener = opener;
     }
 
     /**
@@ -70,14 +83,39 @@ public final class PropertyBundle implements StringBundle {
      *                         {@code /i18n/settings_pt-BR.properties}
      */
     public static PropertyBundle family(String baseResourcePath) {
-        return family(baseResourcePath, PropertyBundle.class.getClassLoader());
+        String path = Objects.requireNonNull(baseResourcePath, "baseResourcePath");
+        return new PropertyBundle(path.startsWith("/") ? path.substring(1) : path,
+                PropertyBundle.class.getClassLoader(), PropertyBundle.class, null);
     }
 
     /** A family loaded through a specific class loader, for modular or plugin layouts. */
     public static PropertyBundle family(String baseResourcePath, ClassLoader loader) {
         String path = Objects.requireNonNull(baseResourcePath, "baseResourcePath");
         return new PropertyBundle(path.startsWith("/") ? path.substring(1) : path,
-                Objects.requireNonNull(loader, "loader"));
+                Objects.requireNonNull(loader, "loader"), null, null);
+    }
+
+    /**
+     * A family whose files the caller opens, for a named module that keeps its catalogs in a
+     * package it does not open, where no class loader can read them and only the module's own code
+     * can:
+     *
+     * <pre>{@code
+     * I18n.addBundle(PropertyBundle.family("/com/example/i18n/app",
+     *         name -> App.class.getResourceAsStream(name)));
+     * }</pre>
+     *
+     * <p>On the class path it behaves as {@link #family(String)} does.
+     *
+     * @param baseResourcePath an absolute path without the {@code .properties} suffix
+     * @param open             opens one file, given its absolute name with the leading slash, and
+     *                         answers {@code null} when there is no such file
+     * @return the family
+     */
+    public static PropertyBundle family(String baseResourcePath, Function<String, InputStream> open) {
+        String path = Objects.requireNonNull(baseResourcePath, "baseResourcePath");
+        return new PropertyBundle(path.startsWith("/") ? path.substring(1) : path, null, null,
+                Objects.requireNonNull(open, "open"));
     }
 
     /**
@@ -185,7 +223,15 @@ public final class PropertyBundle implements StringBundle {
     private Map<String, String> load(Locale locale) {
         Map<String, String> merged = new HashMap<>();
         for (String resource : candidates(locale)) {
-            String text = Resources.textIfPresent(loader, resource, "strings");
+            String text;
+            if (opener != null) {
+                byte[] bytes = Resources.bytesIfPresent(opener.apply("/" + resource), resource, "strings");
+                text = bytes == null ? null : new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+            } else if (owner != null) {
+                text = Resources.textIfPresent(owner, "/" + resource, "strings"); // module, then loader
+            } else {
+                text = Resources.textIfPresent(loader, resource, "strings");
+            }
             if (text == null) {
                 continue; // a language this domain does not translate
             }

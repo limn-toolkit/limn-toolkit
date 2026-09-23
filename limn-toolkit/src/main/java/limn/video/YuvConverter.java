@@ -2,7 +2,7 @@ package limn.video;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * Converts a decoded picture to 8-bit RGBA on the CPU: the reference implementation of the

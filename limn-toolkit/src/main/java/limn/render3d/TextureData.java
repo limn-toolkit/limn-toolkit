@@ -1,6 +1,6 @@
 package limn.render3d;
 
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * CPU-side pixels for a 2D texture: tightly packed 8-bit RGBA, row-major from the

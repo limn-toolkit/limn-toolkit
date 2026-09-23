@@ -24,7 +24,7 @@ import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Fonts;
 import limn.i18n.I18nString;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;

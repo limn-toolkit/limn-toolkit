@@ -1,7 +1,7 @@
 package limn.graphics;
 
 import java.util.Objects;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * An immutable, backend-independent bitmap: RGBA8 pixels, straight (non

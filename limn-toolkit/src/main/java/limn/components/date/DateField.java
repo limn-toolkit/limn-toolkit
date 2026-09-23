@@ -2,7 +2,7 @@ package limn.components.date;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
-import limn.components.a11y.PopupOwnerAccessibility;
+import limn.components.internal.a11y.PopupOwnerAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.SizeTokens;
@@ -20,7 +20,7 @@ import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.i18n.LanguageWitness;
 import limn.input.Keys;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Size;

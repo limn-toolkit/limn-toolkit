@@ -1,7 +1,7 @@
 package limn.video;
 
 import java.util.Objects;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * How the samples of a {@link VideoFrame} are to be turned into colour: which luma/chroma matrix

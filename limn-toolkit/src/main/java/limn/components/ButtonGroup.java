@@ -1,7 +1,7 @@
 package limn.components;
 
 import limn.concurrent.Ui;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.scene.Change;
 
 import java.util.ArrayList;

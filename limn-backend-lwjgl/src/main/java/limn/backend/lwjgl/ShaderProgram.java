@@ -115,6 +115,8 @@ final class ShaderProgram implements AutoCloseable {
     }
 
     private static String readResource(String resource) {
-        return Resources.text(ShaderProgram.class, resource, "shader");
+        // Opened here and not by Resources: on the module path the shaders sit in a package of this
+        // module that is open to nobody, and only this module's own code can read it.
+        return Resources.text(ShaderProgram.class.getResourceAsStream(resource), resource, "shader");
     }
 }

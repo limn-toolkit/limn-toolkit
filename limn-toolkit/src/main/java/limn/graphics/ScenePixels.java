@@ -1,7 +1,7 @@
 package limn.graphics;
 
 import java.util.Objects;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * Scene-referred pixels read back from a {@link ReadableSurface}: RGBA floats, <em>linear light</em>,

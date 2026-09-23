@@ -1,6 +1,6 @@
 package limn.sound;
 
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.math.Vec3;
 
 /**

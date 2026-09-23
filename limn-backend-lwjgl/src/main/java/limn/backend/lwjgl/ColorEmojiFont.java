@@ -65,7 +65,7 @@ final class ColorEmojiFont implements AutoCloseable {
      * does not install it must {@link #close} it.
      */
     static ColorEmojiFont loadResourceIfPresent(String resource) {
-        byte[] bytes = Resources.bytesIfPresent(ColorEmojiFont.class, resource, "font");
+        byte[] bytes = Resources.bytesIfPresent(FontStore.openBundled(resource), resource, "font");
         return bytes == null ? null : fromBytes(bytes, resource);
     }
 

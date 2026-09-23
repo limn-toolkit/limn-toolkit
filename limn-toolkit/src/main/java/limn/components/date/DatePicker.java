@@ -19,7 +19,7 @@ import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.input.Keys;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.Scene;

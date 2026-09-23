@@ -1,6 +1,6 @@
 package limn.video.decode;
 
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * What a {@linkplain SyntheticVideoDecoder synthetic} stream draws. Every pattern is a pure function

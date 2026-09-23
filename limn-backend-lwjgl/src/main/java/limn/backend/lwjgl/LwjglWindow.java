@@ -6,7 +6,7 @@ import limn.backend.FrameInfo;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.backend.WindowInput;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFWDropCallback;

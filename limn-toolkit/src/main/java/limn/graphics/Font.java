@@ -1,7 +1,7 @@
 package limn.graphics;
 
 import java.util.Objects;
-import limn.lang.Checks;
+import limn.internal.lang.Checks;
 
 /**
  * A typeface selection: family name, size in logical points, and weight/style

@@ -48,7 +48,7 @@ import static limn.testing.SceneDriver.drive;
  * things</b>, and each is pinned by a case below.
  *
  * <p><b>Wrong: "soft-wrap rows are reported as lines".</b> The line count is
- * {@link limn.components.text.TextEditModel#lineCount()} — hard lines — always, and four reasons
+ * {@link limn.components.internal.text.TextEditModel#lineCount()} — hard lines — always, and four reasons
  * from the source make rows unpublishable. A count of visual rows is a number no client could
  * reconcile with the string handed over in the same facet, whose line structure is {@code \n} and
  * whose caret and selection offsets are indices into it. Rows are derived from the column width,
@@ -513,7 +513,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * {@link limn.components.text.TextEditModel#setText} bumps the model's counter for a value
+     * {@link limn.components.internal.text.TextEditModel#setText} bumps the model's counter for a value
      * equal to the one already there, so a revision bumped per rebuild rather than per change
      * would publish a whole snapshot while reporting no event.
      */

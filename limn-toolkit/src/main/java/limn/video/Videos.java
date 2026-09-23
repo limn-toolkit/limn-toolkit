@@ -3,7 +3,7 @@ package limn.video;
 import limn.concurrent.Progress;
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
-import limn.io.Closeables;
+import limn.io.internal.Closeables;
 
 import java.lang.System.Logger.Level;
 import java.nio.file.Path;

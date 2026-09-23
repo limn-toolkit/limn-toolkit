@@ -2,7 +2,7 @@ package limn.components.chart;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
-import limn.components.a11y.ToggleAccessibility;
+import limn.components.internal.a11y.ToggleAccessibility;
 import limn.accessibility.ToggleFacet;
 import limn.animation.Transition;
 import limn.components.Theme;

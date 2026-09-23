@@ -90,6 +90,15 @@ dependencies {
 // own thread check throws, which the harness turns into a skipped test rather
 // than the SIGABRT Cocoa would raise if that check were ever disabled. macOS
 // only: no other JVM recognizes the flag, and one given it refuses to start.
+// jlayer has no module name, so Gradle keeps it on the class path while this module compiles as a
+// module; the module reads the class path to see it, here and, through Module.addReads, at run time.
+tasks.named<JavaCompile>("compileJava") {
+    options.compilerArgs.addAll(listOf("--add-reads", "limn.backend.lwjgl=ALL-UNNAMED"))
+}
+tasks.named<Javadoc>("javadoc") {
+    (options as StandardJavadocDocletOptions).addStringOption("-add-reads", "limn.backend.lwjgl=ALL-UNNAMED")
+}
+
 val hostIsMacOs: Boolean by rootProject.extra
 tasks.withType<Test>().configureEach {
     if (hostIsMacOs) {

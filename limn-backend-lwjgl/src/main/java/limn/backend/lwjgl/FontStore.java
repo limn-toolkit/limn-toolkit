@@ -70,9 +70,40 @@ final class FontStore implements AutoCloseable {
      * {@code getResource} probe, and it is the documented location an application could have
      * been placing a region-variant CJK file at since before the artifacts existed.
      */
+    /**
+     * Whether a bundled face is there. This module's own first, then its class loader, because the
+     * faces come from the limn-fonts jars and, on the module path, a class's own lookup does not
+     * leave its module.
+     */
+    private static boolean exists(String absolutePath) {
+        if (FontStore.class.getResource(absolutePath) != null) {
+            return true;
+        }
+        ClassLoader loader = FontStore.class.getClassLoader();
+        return loader != null && loader.getResource(absolutePath.substring(1)) != null;
+    }
+
+    /**
+     * Opens a bundled face the way {@link #exists} finds one: this module's own resources, which on
+     * the module path only this module's code can open, and then the limn-fonts jars through the
+     * class loader.
+     *
+     * @param absolutePath the face's path, with the leading slash
+     * @return the open stream, or {@code null} when neither has it
+     */
+    static java.io.InputStream openBundled(String absolutePath) {
+        java.io.InputStream own = FontStore.class.getResourceAsStream(absolutePath);
+        if (own != null) {
+            return own;
+        }
+        ClassLoader loader = FontStore.class.getClassLoader();
+        return loader == null || !absolutePath.startsWith("/")
+                ? null : loader.getResourceAsStream(absolutePath.substring(1));
+    }
+
     private static String bundledPath(String file) {
         String modern = "/limn/fonts/" + file;
-        return FontStore.class.getResource(modern) != null
+        return exists(modern)
                 ? modern
                 : "/limn/backend/lwjgl/fonts/" + file;
     }
@@ -212,7 +243,7 @@ final class FontStore implements AutoCloseable {
         // is a declared runtime dependency of this module and arrives transitively; the one way
         // it goes missing is a build that excluded it, and this message is for whoever did.
         String robotoRegular = bundledPath("Roboto-Regular.ttf");
-        if (FontStore.class.getResource(robotoRegular) == null) {
+        if (!exists(robotoRegular)) {
             throw new IllegalStateException(
                     "the default UI font is not on the classpath: limn-backend-lwjgl requires "
                             + "io.github.limn-toolkit:limn-fonts-roboto (a runtime dependency "

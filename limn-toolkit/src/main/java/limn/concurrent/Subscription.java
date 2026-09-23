@@ -19,9 +19,7 @@ package limn.concurrent;
  *
  * <p>It lives here rather than beside {@code Widget} because five registrars in four packages
  * return it and two of those packages ({@code limn.graphics}, {@code limn.i18n}) do not depend on
- * the widget layer at all. {@code limn.concurrent} is where the dependencies already point, and
- * it is where {@link Listeners} — the storage a fan-out hands this back from — lives for the same
- * reason.
+ * the widget layer at all. {@code limn.concurrent} is where the dependencies already point.
  *
  * <p><b>Cancelling twice is a no-op</b>, which is a promise about the handle rather than about
  * the removal: a handle drops the registration it captured on its first {@link #cancel()} and

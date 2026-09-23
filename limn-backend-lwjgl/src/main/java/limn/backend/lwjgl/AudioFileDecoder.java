@@ -29,6 +29,17 @@ import static org.lwjgl.stb.STBVorbis.stb_vorbis_stream_length_in_samples;
  */
 final class AudioFileDecoder implements AudioDecoder {
 
+    static {
+        // jlayer, the MP3 decoder, has no module name and so sits on the class path, which a named
+        // module does not read unless it says so. Said here, before any line that names a jlayer
+        // class is linked; on the class path this module is unnamed and reads everything already.
+        Module self = AudioFileDecoder.class.getModule();
+        ClassLoader loader = AudioFileDecoder.class.getClassLoader();
+        if (self.isNamed() && loader != null) {
+            self.addReads(loader.getUnnamedModule());
+        }
+    }
+
     /**
      * Decodes {@code fileBytes} fully into 16-bit PCM on the calling thread:
      * no I/O, but the whole clip is decoded before this returns, and the result

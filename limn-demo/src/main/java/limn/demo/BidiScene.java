@@ -155,10 +155,7 @@ final class BidiScene {
         // otherwise slide a literal index onto the wrong side of the boundary this has to cross.
         int insideTheArabic = 2;
         int intoTheLatin = MARHABA.length() + 1 + 4;
-        return new Built(scene, () -> {
-            arabic.model().setCursor(insideTheArabic, false);
-            arabic.model().setCursor(intoTheLatin, true);
-        });
+        return new Built(scene, () -> arabic.select(insideTheArabic, intoTheLatin));
     }
 
     /**

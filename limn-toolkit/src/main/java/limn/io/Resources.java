@@ -24,6 +24,15 @@ import java.util.Objects;
  * the way {@link ClassLoader#getResourceAsStream} does: always from the root, never with a
  * leading slash. A caller keeps whichever it had; the two are not interchangeable.
  *
+ * <p><b>On the module path</b>, a class in a named module finds only its own module's resources,
+ * so the class form asks the class's module first and then its class loader, which is where the
+ * class path's answer comes from. What the loader cannot see is a resource inside a named module's
+ * package that the module does not open: an application that is a named module keeps what the
+ * toolkit loads by name in a package it opens, in a directory whose name is not a package name
+ * ({@code static-assets/}, {@code app-images/}), or opens the stream itself, in its own code, and
+ * hands it to {@link #bytes(InputStream, String, String)}, which is what the toolkit's own modules
+ * do with theirs.
+ *
  * <p>A resource that is absent is an {@link IllegalStateException} (the jar was built without
  * it, which is a fact about the build and not a fault of the caller); a read that fails is an
  * {@link UncheckedIOException}. The {@code IfPresent} forms answer {@code null} for the first
@@ -83,7 +92,26 @@ public final class Resources {
     public static byte[] bytesIfPresent(Class<?> owner, String resource, String what) {
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(resource, "resource");
-        return readAll(owner.getResourceAsStream(resource), resource, what);
+        InputStream opened = owner.getResourceAsStream(resource);
+        if (opened == null && owner.getModule().isNamed()) {
+            // On the module path a class's own lookup stays inside its module, so a toolkit class
+            // asked for an application's resource finds nothing. The loader's lookup is the class
+            // path's: it reaches every jar on the class path, every automatic module and every
+            // package a named module opens.
+            ClassLoader loader = owner.getClassLoader() != null
+                    ? owner.getClassLoader() : ClassLoader.getSystemClassLoader();
+            opened = loader.getResourceAsStream(absolute(owner, resource));
+        }
+        return readAll(opened, resource, what);
+    }
+
+    /** The name {@link Class#getResourceAsStream} would resolve, as a class loader spells it. */
+    private static String absolute(Class<?> owner, String resource) {
+        if (resource.startsWith("/")) {
+            return resource.substring(1);
+        }
+        String pkg = owner.getPackageName();
+        return pkg.isEmpty() ? resource : pkg.replace('.', '/') + '/' + resource;
     }
 
     /**
@@ -142,6 +170,55 @@ public final class Resources {
     public static String textIfPresent(ClassLoader loader, String resource, String what) {
         byte[] bytes = bytesIfPresent(loader, resource, what);
         return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * The whole of a resource the caller opened, and closes it.
+     *
+     * <p>For a named module's own resource in a package it does not open, which only that module's
+     * code can open: {@code Resources.bytes(Icons.class.getResourceAsStream(name), name, "icon")}.
+     *
+     * @param opened   the open stream, or {@code null} when the lookup found nothing
+     * @param resource the resource name, for the message
+     * @param what     the noun for the message
+     * @return the bytes, never null
+     * @throws IllegalStateException if {@code opened} is null
+     * @throws UncheckedIOException  if reading it fails
+     */
+    public static byte[] bytes(InputStream opened, String resource, String what) {
+        byte[] bytes = bytesIfPresent(opened, resource, what);
+        if (bytes == null) {
+            throw missing(what, resource);
+        }
+        return bytes;
+    }
+
+    /**
+     * {@link #bytes(InputStream, String, String)}, or {@code null} when {@code opened} is null.
+     *
+     * @param opened   the open stream, or {@code null} when the lookup found nothing
+     * @param resource the resource name, for the message
+     * @param what     the noun for the message
+     * @return the bytes, or null if there was nothing to read
+     * @throws UncheckedIOException if reading it fails
+     */
+    public static byte[] bytesIfPresent(InputStream opened, String resource, String what) {
+        Objects.requireNonNull(resource, "resource");
+        return readAll(opened, resource, what);
+    }
+
+    /**
+     * {@link #bytes(InputStream, String, String)} as UTF-8 text.
+     *
+     * @param opened   the open stream, or {@code null} when the lookup found nothing
+     * @param resource the resource name, for the message
+     * @param what     the noun for the message
+     * @return the text, never null
+     * @throws IllegalStateException if {@code opened} is null
+     * @throws UncheckedIOException  if reading it fails
+     */
+    public static String text(InputStream opened, String resource, String what) {
+        return new String(bytes(opened, resource, what), StandardCharsets.UTF_8);
     }
 
     /**

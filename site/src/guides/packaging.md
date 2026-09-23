@@ -56,6 +56,58 @@ For something users can double-click, `jlink` trims a runtime to the modules you
 use and `jpackage` wraps that into an `.app`, an `.msi` or a `.deb`. Both ship with the JDK;
 neither needs anything from the toolkit.
 
+## On the module path
+
+Most applications run from the class path, and nothing in this section applies to them.
+An application that is a module of its own requires the backend, which brings the toolkit
+with it:
+
+```java
+module com.example.app {
+    requires limn.backend.lwjgl;
+}
+```
+
+| Module | What it is |
+| --- | --- |
+| `limn.toolkit` | the widgets, layout, scene graph and SPIs |
+| `limn.backend.lwjgl` | the LWJGL backend |
+| `limn.video.ffmpeg` | the FFmpeg video decoder |
+| `limn.test` | the test driver and headless doubles |
+| `limn.themeeditor` | the theme editor, as an automatic module |
+
+Packages with `internal` in their name are shared between these modules and are not
+exported to yours.
+
+Four kinds of jar belong on the class path even when the application is a module:
+
+- **The font jars.** Every `limn-fonts` artifact keeps its faces under the same folder, and the
+  backend reads them as resources.
+- **The FFmpeg native jars**, `limn-ffmpeg-natives`, which the video decoder also reads as
+  resources.
+- **LWJGL's native jars.** They are modules that nothing requires, so on the module path they are
+  never loaded, and LWJGL reports a missing `liblwjgl`.
+- **jlayer**, the MP3 decoder. It has no module name, and the backend reads it from the class
+  path.
+
+Gradle already puts the font jars, the FFmpeg native jars and jlayer there, because they have
+no module name. LWJGL's native jars do have one, so move them yourself, or run with
+`--add-modules` naming the native modules for your platform.
+
+**Your own resources.** On the module path, a module's resources are private to it. The
+toolkit can still load one by name, with `Images.fromResource` or `PropertyBundle.family`, in
+two cases. Either the resource sits in a package your module `opens`, or it sits in a folder
+whose name is not a valid package name, such as `app-images/`. Otherwise, open the resource
+in your own code and hand the stream over:
+
+```java
+Image logo = Images.decode(Resources.bytes(
+        App.class.getResourceAsStream("/com/example/app/logo.png"), "logo", "image"));
+
+I18n.addBundle(PropertyBundle.family("/com/example/app/i18n/strings",
+        name -> App.class.getResourceAsStream(name)));
+```
+
 ## Checking it before you send it
 
 Run the packaged build on a machine that has never seen your project. That is where a
