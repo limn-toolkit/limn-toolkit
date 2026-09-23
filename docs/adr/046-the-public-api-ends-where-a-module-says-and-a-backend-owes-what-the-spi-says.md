@@ -265,3 +265,11 @@ ones that change API are recorded here as they land.
   with a verb. Its first run found 73 such methods, not the six the review named, in 25 classes
   (the dialog's 17, the date picker's 9, the scene's 7, the media controls' 8 among them), and each
   now checks first. `Clipboard` states the rule: UI thread only.
+- **API-12, what a watcher hears (decision 140).** A radio a pre-selected newcomer displaces says
+  `VALUE`/`ADJUSTMENT`; a value or a validity that `DateField.setGranularity` trimmed, and a month
+  `CalendarView.setClock` moved, are `ADJUSTMENT`, the widget's own consequence, not `CODE`;
+  `CalendarView.setDateFilter` with the same filter is no change (a different one is announced
+  even if it happens to answer alike, since the calendar cannot know without asking every day);
+  `setAccessibleName` announces `NAME`/`CODE` when the name moves; and `TextField.setTrailingButton`
+  replaces the button whole, as configuration and not a handler slot, and announces
+  `CHILDREN`/`CODE`.

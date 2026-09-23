@@ -50,14 +50,21 @@ public final class ButtonGroup {
         Objects.requireNonNull(radio, "radio");
         members.add(radio);
         radio.attachToGroup(this);
+        RadioButton displaced = null;
         if (radio.isSelected()) {
-            // Keep a single selection invariant even if two pre-selected radios are added.
+            // Keep a single selection invariant even if two pre-selected radios are added. The one
+            // that loses says so, as an adjustment: the group made the change, not the caller and
+            // not the user, and a watcher of that member would otherwise keep showing it chosen.
             if (current != null && current != radio) {
+                displaced = current;
                 current.setSelectedSilently(false);
             }
             current = radio;
         }
         applyRovingFocus();
+        if (displaced != null) {
+            displaced.announceSelection(Change.Origin.ADJUSTMENT);
+        }
         for (RadioButton member : members) {
             member.invalidateAccessible();
         }

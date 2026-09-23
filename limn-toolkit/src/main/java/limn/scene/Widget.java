@@ -2404,8 +2404,14 @@ public abstract class Widget<W extends Widget<W>> {
      */
     public final W setAccessibleName(limn.i18n.I18nString name) {
         Ui.checkUiThread();
+        if (java.util.Objects.equals(overrides().name, name)) {
+            return self();
+        }
         overrides().name = name;
         invalidateAccessible();
+        // Said to a watcher like every other name change: a caption that mirrors a widget's name,
+        // or a test of what a reader hears, otherwise never learns it moved.
+        notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
         return self();
     }
 

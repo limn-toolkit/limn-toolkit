@@ -343,6 +343,11 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     /**
      * A named trailing button whose icon says whether it turns around when the interface does.
      *
+     * <p><b>A second call replaces the button whole</b> — icon, name and action — because the button
+     * is configuration and not a handler slot: a field that swaps a search glass for a clear cross
+     * as the text changes is the case it serves. The replacement is announced as
+     * {@code CHILDREN}/{@code CODE}, since the button is a child an assistive technology reads.
+     *
      * @param icon      the glyph, or {@code null} to remove the button
      * @param name      what the button does; {@code null} leaves it unnamed
      * @param action    what to run when it is pressed; {@code null} for nothing
@@ -353,12 +358,18 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     public TextField setTrailingButton(Icon icon, I18nString name, Runnable action,
                                        Icon.Mirroring mirroring) {
         Ui.checkUiThread();
+        Objects.requireNonNull(mirroring, "mirroring");
+        boolean had = trailingIcon != null;
         this.trailingIcon = icon;
         this.trailingName = name;
-        this.trailingMirroring = Objects.requireNonNull(mirroring, "mirroring");
+        this.trailingMirroring = mirroring;
         this.onTrailing = action != null ? action : () -> {
         };
         markNeedsLayout();
+        if (had || icon != null) {
+            invalidateAccessible();
+            notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+        }
         return this;
     }
 

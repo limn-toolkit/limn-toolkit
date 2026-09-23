@@ -347,11 +347,13 @@ public final class DateField extends Widget<DateField> {
         LocalTime timeWas = timeValue;
         rebuildValue();
         markNeedsLayout();
+        // The value and the validity moved because the level did: the field's own consequence of the
+        // call, an ADJUSTMENT, and not a value the caller wrote.
         if (!Objects.equals(dateWas, dateValue) || !Objects.equals(timeWas, timeValue)) {
             lastMoveWasTime = Objects.equals(dateWas, dateValue);
-            notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.CODE));
+            notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.ADJUSTMENT));
         }
-        refreshValidity(Change.Origin.CODE);
+        refreshValidity(Change.Origin.ADJUSTMENT);
         return this;
     }
 

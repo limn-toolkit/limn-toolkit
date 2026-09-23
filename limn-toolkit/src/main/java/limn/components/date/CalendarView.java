@@ -711,7 +711,8 @@ public final class CalendarView extends Widget<CalendarView> {
             if (!visibleMonth().equals(first)) {
                 visibleMonth = first;
                 markNeedsLayout();
-                notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.CODE));
+                // The month moved because today did: the calendar's own consequence of the call.
+                notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.ADJUSTMENT));
             }
         }
         invalidate(); // today's ring moves with the clock
@@ -822,11 +823,18 @@ public final class CalendarView extends Widget<CalendarView> {
      * filter that queries a database is a filter that stalls a frame, and one that answers
      * differently for the same day makes the grid flicker between two pictures of itself.
      *
+     * <p>Announced as {@code RANGE}/{@code CODE} when it is a different filter; handing the same one
+     * again is no change. Two different filters that happen to answer alike are still announced: the
+     * calendar cannot know that without asking every day there is.
+     *
      * @param filter answers whether a day may be picked, or {@code null} to allow every day
      * @return this
      */
     public CalendarView setDateFilter(Predicate<LocalDate> filter) {
         Ui.checkUiThread();
+        if (filter == dateFilter) {
+            return this;
+        }
         dateFilter = filter;
         invalidate();
         notifyChange(Change.of(Change.Aspect.RANGE, Change.Origin.CODE));
