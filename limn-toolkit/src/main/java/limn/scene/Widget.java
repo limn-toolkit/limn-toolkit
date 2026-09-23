@@ -1351,6 +1351,31 @@ public abstract class Widget {
     }
 
     /**
+     * Marks this widget's measure dirty and asks for a layout that repaints only what it moves:
+     * the form for a widget whose size may change for a reason of its own, such as a label whose
+     * text changed width.
+     *
+     * <p>It is the pass {@link #setVisible} uses. The scene climbs from the parent re-running each
+     * ancestor's own measure against the constraints it last had, stops at the first whose size
+     * did not change, lays that one out in place, and repaints the children that moved, where
+     * they were and where they went, plus this widget. Because each ancestor's own layout code
+     * runs, a parent that measures a child twice (loose to learn what it wants, then tight) sees
+     * the new size as a full pass would; whatever the scene cannot compare, it lays out in full.
+     * {@link #markNeedsLayout()} remains the form that makes no such claim.
+     */
+    protected final void markNeedsLayoutInPlace() {
+        Ui.checkUiThread();
+        for (Widget w = this; w != null; w = w.parent) {
+            w.needsMeasure = true;
+        }
+        if (scene != null && parent != null) {
+            scene.markVisibilityChanged(this);
+        } else if (scene != null) {
+            scene.markLayoutDirty(this); // a root has no parent to absorb it
+        }
+    }
+
+    /**
      * Asks for this widget's own subtree to be laid out again, <b>without</b> declaring that the
      * frame is a full repaint: the form for a container whose insides move while its box does
      * not, such as a virtualised list mounting and recycling rows as it scrolls.

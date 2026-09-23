@@ -1679,8 +1679,9 @@ public final class Scene {
     }
 
     /**
-     * See {@link Widget#setVisible}: a widget shown or hidden, laid out and damaged at the next
-     * frame by {@link #runVisibilityLayouts} rather than by a full pass.
+     * See {@link Widget#setVisible} and {@link Widget#markNeedsLayoutInPlace}: a widget shown or
+     * hidden, or one whose size may have changed, laid out and damaged at the next frame by
+     * {@link #runVisibilityLayouts} rather than by a full pass.
      */
     void markVisibilityChanged(Widget widget) {
         if (containedTarget != null && isInSubtree(widget, containedTarget)) {

@@ -291,10 +291,9 @@ public final class Label extends Widget {
         if (text.equals(newText)) {
             return this; // unchanged: no layout, no damage (status labels re-set often)
         }
-        // A layout pass repaints the WHOLE window (structural invariant), so a
-        // ticking counter ("8.3 s") in a status label would full-flash every
-        // update. When the new text occupies exactly the same box, and line
-        // breaking cannot change (no wrap), a local repaint is enough.
+        // When the new text occupies exactly the same box, and line breaking cannot change (no
+        // wrap), a local repaint is enough and no layout runs at all. Otherwise the layout below
+        // is the in-place one, which repaints what the new width moved and not the window.
         // width() > 0 because the fast path rebuilds the line against the CURRENT box:
         // before the first layout pass there is no box, and ellipsizing against zero
         // would cache a lone ellipsis for a label that is about to be measured properly.
@@ -322,7 +321,10 @@ public final class Label extends Widget {
         } else {
             this.text = newText;
         }
-        markNeedsLayout();
+        // Not a full layout: a label that changed width moves nothing outside the nearest ancestor
+        // whose size survives it, and repainting the window for a status line that ticks is what
+        // this avoids.
+        markNeedsLayoutInPlace();
         notifyChange(Change.of(Change.Aspect.NAME, Change.Origin.CODE));
         return this;
     }
