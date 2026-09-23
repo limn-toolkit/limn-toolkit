@@ -54,8 +54,25 @@ final class TableScene {
         return rows;
     }
 
+    /** The page, and what {@link #stateFor} drives in it. */
+    private record Parts(Widget<?> page, Table<Order> table, Column<Order> customer) {
+    }
+
     static Scene create() {
         Theme.setCurrent(Theme.dark());
+        Parts parts = parts();
+        Scene scene = new Scene(new Padding(Insets.all(16), parts.page()));
+        scene.setBackground(Theme.current().background());
+        stateFor(scene, parts.table(), parts.customer());
+        return scene;
+    }
+
+    /** The page without a scene of its own, for the kitchen sink's Table tab. */
+    static Widget<?> content() {
+        return parts().page();
+    }
+
+    private static Parts parts() {
         List<Order> rows = orders(100_000);
         Label status = new Label("No selection");
 
@@ -100,11 +117,7 @@ final class TableScene {
         page.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
         page.add(Expanded.of(table));
         page.add(actions);
-        Widget<?> root = new Padding(Insets.all(16), page);
-        Scene scene = new Scene(root);
-        scene.setBackground(Theme.current().background());
-        stateFor(scene, table, customer);
-        return scene;
+        return new Parts(page, table, customer);
     }
 
     /**

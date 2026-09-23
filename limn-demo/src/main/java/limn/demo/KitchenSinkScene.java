@@ -311,6 +311,12 @@ final class KitchenSinkScene {
         int tabMenus = tabs.tabCount();
         tabs.addTab(KitchenStrings.TAB_MENUS, controlPanel(menusTab));
         tabs.addTab(KitchenStrings.TAB_LIST, pad(ListScene.buildList(status::setText)));
+        // The table fills its tab and scrolls itself, as the list does. The tree keeps the fixed
+        // box its scene gives it, which is taller than a short window's tab, so it and the date
+        // widgets scroll in a ScrollView like the media tabs.
+        tabs.addTab(KitchenStrings.TAB_TABLE, pad(TableScene.content()));
+        tabs.addTab(KitchenStrings.TAB_TREE, new ScrollView(pad(TreeScene.content())));
+        tabs.addTab(KitchenStrings.TAB_DATES, new ScrollView(pad(DatesScene.content())));
         tabs.addTab(KitchenStrings.TAB_CONTROLS, pad(ControlsScene.content()));
         int tab3D = tabs.tabCount();
         tabs.addTab("3D", new ScrollView(pad(Viewport3DScene.tabContent())));

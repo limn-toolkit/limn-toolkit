@@ -116,6 +116,12 @@ final class KitchenStrings {
             new I18nString("kitchen.tab.menus", "Menus");
     static final I18nString TAB_LIST =
             new I18nString("kitchen.tab.list", "List");
+    static final I18nString TAB_TABLE =
+            new I18nString("kitchen.tab.table", "Table");
+    static final I18nString TAB_TREE =
+            new I18nString("kitchen.tab.tree", "Tree");
+    static final I18nString TAB_DATES =
+            new I18nString("kitchen.tab.dates", "Dates");
     static final I18nString TAB_CONTROLS =
             new I18nString("kitchen.tab.controls", "Controls");
     static final I18nString TAB_FILES =

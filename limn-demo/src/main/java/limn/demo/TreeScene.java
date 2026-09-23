@@ -59,9 +59,12 @@ final class TreeScene {
     record Built(Scene scene, Runnable afterLayout) {
     }
 
-    /** The scene and the tree inside it, so a capture variant can drive the widget. */
-    private record Parts(Scene scene, Tree<Node> tree, Node deep, Node remote, Node trash,
-                         Node emptyFolder, Node documents, Node reports, Node pdf) {
+    /**
+     * The page, its scene and the tree inside it, so a capture variant can drive the widget.
+     * The scene is null when the page is built to sit inside another window's tab.
+     */
+    private record Parts(Widget<?> page, Scene scene, Tree<Node> tree, Node deep, Node remote,
+                         Node trash, Node emptyFolder, Node documents, Node reports, Node pdf) {
     }
 
     /**
@@ -76,6 +79,11 @@ final class TreeScene {
 
     static Scene create() {
         return parts().scene();
+    }
+
+    /** The page without a scene of its own, for the kitchen sink's Tree tab. */
+    static Widget<?> content() {
+        return parts(false).page();
     }
 
     /**
@@ -186,6 +194,10 @@ final class TreeScene {
     }
 
     private static Parts parts() {
+        return parts(true);
+    }
+
+    private static Parts parts(boolean withScene) {
         // Long names on purpose: a row's cell is measured at the width the indent leaves, so
         // this is where a Label either contains itself or writes over the badge beside it.
         Node docs = Node.of("Documents",
@@ -310,10 +322,12 @@ final class TreeScene {
         limn.scene.layout.Row treeRow = new limn.scene.layout.Row();
         treeRow.add(new SizedBox(360, 320, tree));
         page.add(treeRow);
-        Widget<?> root = new Padding(Insets.all(24), page);
-        Scene scene = new Scene(root);
-        scene.setBackground(Theme.current().background());
-        return new Parts(scene, tree, deep, remote, trash, emptyFolder, docs,
+        Scene scene = null;
+        if (withScene) {
+            scene = new Scene(new Padding(Insets.all(24), page));
+            scene.setBackground(Theme.current().background());
+        }
+        return new Parts(page, scene, tree, deep, remote, trash, emptyFolder, docs,
                 docs.kids().get(0), docs.kids().get(0).kids().get(1));
     }
 }
