@@ -97,24 +97,28 @@ export const de: Catalog = {
   "home.features.layout.link": "Layout-Anleitung lesen",
   "home.features.layout.caption":
     "Ein Fenster aus einer Spalte, einer Zeile, einem Split und einem Expanded.",
+  "home.features.layout.alt": "Ein mit Limn gestaltetes Fenster",
 
   "home.features.forms.heading": "Formulare ohne Framework",
   "home.features.forms.body":
     "Ein Feld ist ein Widget, eine Validierungsregel ist ein Listener, und Absenden ist ein Methodenaufruf. Nichts zu binden, nichts zu registrieren, und Validierungszustände, die ein Feld in dem Moment umfärben, in dem der Nutzer es korrigiert.",
   "home.features.forms.link": "Formular-Anleitung lesen",
   "home.features.forms.caption": "Beschriftungen, Validierung, eine Auswahl und die Aktionszeile.",
+  "home.features.forms.alt": "Ein mit Limn gebautes Formular",
 
   "home.features.data.heading": "Tabellen, Bäume und Datumsangaben, schon gebaut",
   "home.features.data.body":
     "Eine Tabelle sind typisierte Spalten über der Liste, die Ihre Anwendung besitzt, sortiert vom Toolkit oder von Ihrem Server, mit einer Fußzeile, die summiert. Ein Baum ist eine Gliederung über Kindern, die Sie liefern, und eine Zeile darf Kinder versprechen, bevor sie sie benennen kann. Ein Datumsfeld tippt ein ISO-Datum im Kalender des Lesers selbst, und ein Datumswähler öffnet dahinter ein Monatsraster.",
   "home.features.data.link": "Listen-Anleitung lesen",
   "home.features.data.caption": "Eine Tabelle, ein Baum, ein Datumsfeld und ein Datumswähler in einem Fenster.",
+  "home.features.data.alt": "Eine Tabelle, ein Baum und zwei Datums-Widgets in einem Limn-Fenster",
 
   "home.features.media.heading": "Video und 3D sind auch nur Widgets",
   "home.features.media.body":
     "Ein physikalisch basierter 3D-Viewport und ein Videoplayer, zusammengesetzt wie gewöhnliche Widgets: eine Scroll-Ansicht beschneidet sie, ein Stapel zeichnet darüber, und sie nehmen am Layout teil wie eine Beschriftung.",
   "home.features.media.link": "Medien-Anleitung lesen",
   "home.features.media.caption": "Der 3D-Viewport, eingesetzt in ein gewöhnliches Fenster.",
+  "home.features.media.alt": "Der 3D-Viewport von Limn",
 
   "home.themes.heading": "Ihre Identität, nicht die des Toolkits",
   "home.themes.body":
@@ -164,6 +168,8 @@ export const de: Catalog = {
   "components.stop": "Stopp",
   "components.videoNote":
     "Die Video-Ansicht nutzt die reine Java-Testquelle, zeigt also das Widget in Betrieb und nicht die Codec-Abdeckung. An diesem Bild ist kein nativer Decoder beteiligt.",
+  "components.mediaCredit":
+    'Der Film unter dieser Transportleiste ist <a href="https://peach.blender.org/">Big Buck Bunny</a>, © 2008 Blender Foundation, verwendet unter <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>. Jedes andere Bild auf dieser Seite ist die eigene Arbeit des Toolkits.',
 
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn: Oberflächen",

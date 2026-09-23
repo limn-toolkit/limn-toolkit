@@ -96,24 +96,28 @@ export const ko: Catalog = {
     "위젯 넷과 표시자 하나. 열은 쌓고, 행은 펼치고, 스택은 겹치고, 패딩은 안쪽으로 들이고, Expanded가 남은 공간을 누가 가질지 정합니다. 어휘는 이게 전부이며, 설정할 제약 해결기도 설치할 레이아웃 매니저도 없습니다.",
   "home.features.layout.link": "레이아웃 가이드 읽기",
   "home.features.layout.caption": "열 하나, 행 하나, 분할 하나, Expanded 하나로 만든 창.",
+  "home.features.layout.alt": "Limn으로 배치한 창",
 
   "home.features.forms.heading": "프레임워크 없는 폼",
   "home.features.forms.body":
     "입력란은 위젯이고, 검증 규칙은 리스너이며, 제출은 메서드 호출입니다. 바인딩할 것도 등록할 것도 없고, 사용자가 고치는 순간 검증 상태가 입력란 색을 되돌립니다.",
   "home.features.forms.link": "폼 가이드 읽기",
   "home.features.forms.caption": "라벨, 검증, 선택, 그리고 동작 줄.",
+  "home.features.forms.alt": "Limn으로 만든 폼",
 
   "home.features.data.heading": "표와 트리와 날짜, 이미 만들어져 있습니다",
   "home.features.data.body":
     "표는 애플리케이션이 가진 목록 위에 놓인 형식 있는 열이고, 툴킷이나 당신의 서버가 정렬하며, 바닥글이 합계를 냅니다. 트리는 당신이 주는 자식 위에 놓인 개요이고, 행은 자식의 이름을 대기 전에 자식이 있다고 약속할 수 있습니다. 날짜 입력란은 읽는 사람 자신의 달력으로 ISO 날짜를 입력하고, 날짜 선택기는 그 뒤에 월 격자를 엽니다.",
   "home.features.data.link": "목록 가이드 읽기",
   "home.features.data.caption": "창 하나에 담긴 표, 트리, 날짜 입력란, 날짜 선택기.",
+  "home.features.data.alt": "Limn 창 안의 표, 트리, 날짜 위젯 두 개",
 
   "home.features.media.heading": "영상과 3D도 위젯입니다",
   "home.features.media.body":
     "물리 기반 3D 뷰포트와 비디오 플레이어가 보통 위젯처럼 합성됩니다. 스크롤 뷰가 잘라내고, 스택이 위에 그리며, 라벨과 똑같이 레이아웃에 참여합니다.",
   "home.features.media.link": "미디어 가이드 읽기",
   "home.features.media.caption": "평범한 창에 합성된 3D 뷰포트.",
+  "home.features.media.alt": "Limn의 3D 뷰포트",
 
   "home.themes.heading": "툴킷의 얼굴이 아니라, 당신 제품의 얼굴",
   "home.themes.body":
@@ -162,6 +166,8 @@ export const ko: Catalog = {
   "components.stop": "정지",
   "components.videoNote":
     "비디오 뷰는 순수 자바 테스트 소스를 쓰므로 코덱 지원 범위가 아니라 위젯의 동작을 보여 줍니다. 이 그림에 네이티브 디코더는 관여하지 않습니다.",
+  "components.mediaCredit":
+    '이 재생 컨트롤 아래의 영상은 <a href="https://peach.blender.org/">Big Buck Bunny</a>(© 2008 Blender Foundation)이며 <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>에 따라 사용했습니다. 이 페이지의 다른 그림은 모두 툴킷이 직접 그린 것입니다.',
 
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn: 화면",

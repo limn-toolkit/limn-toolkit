@@ -76,24 +76,28 @@ export const en = {
     "Four widgets and one marker: a column stacks, a row spreads, a stack overlays, padding insets, and Expanded says who takes the space that is left. That is the whole vocabulary; there is no constraint solver to configure and no layout manager to install.",
   "home.features.layout.link": "Read the layout guide",
   "home.features.layout.caption": "A window built from a column, a row, a split and one Expanded.",
+  "home.features.layout.alt": "A window laid out with Limn",
 
   "home.features.forms.heading": "Forms without a framework",
   "home.features.forms.body":
     "A field is a widget, a validation rule is a listener, and submitting is a method call. Nothing to bind, nothing to register, and validation states that recolour a field the moment the user fixes it.",
   "home.features.forms.link": "Read the forms guide",
   "home.features.forms.caption": "Captions, validation, a choice and the actions row.",
+  "home.features.forms.alt": "A form built with Limn",
 
   "home.features.data.heading": "Tables, trees and dates, already built",
   "home.features.data.body":
     "A table is typed columns over the list your application owns, sorted by the toolkit or by your server, with a footer that sums. A tree is an outline over children you provide, and a row may promise children before it can name them. A date field types an ISO date in the reader's own calendar, and a date picker opens a month grid behind it.",
   "home.features.data.link": "Read the lists guide",
   "home.features.data.caption": "A table, a tree, a date field and a date picker in one window.",
+  "home.features.data.alt": "A table, a tree and two date widgets in a Limn window",
 
   "home.features.media.heading": "Video and 3D are widgets too",
   "home.features.media.body":
     "A physically-based 3D viewport and a video player, composited as ordinary widgets: a scroll view clips them, a stack draws over them, and they take part in layout like a label does.",
   "home.features.media.link": "Read the media guide",
   "home.features.media.caption": "The 3D viewport, composited into an ordinary window.",
+  "home.features.media.alt": "The Limn 3D viewport",
 
   "home.themes.heading": "Your identity, not the toolkit's",
   "home.themes.body":

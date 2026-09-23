@@ -97,24 +97,28 @@ export const fr: Catalog = {
   "home.features.layout.link": "Lire le guide de mise en page",
   "home.features.layout.caption":
     "Une fenêtre faite d’une colonne, d’une rangée, d’un séparateur et d’un Expanded.",
+  "home.features.layout.alt": "Une fenêtre mise en page avec Limn",
 
   "home.features.forms.heading": "Des formulaires sans framework",
   "home.features.forms.body":
     "Un champ est un widget, une règle de validation est un écouteur, et soumettre est un appel de méthode. Rien à lier, rien à enregistrer, et des états de validation qui recolorent un champ à l’instant où l’utilisateur le corrige.",
   "home.features.forms.link": "Lire le guide des formulaires",
   "home.features.forms.caption": "Libellés, validation, un choix et la rangée d’actions.",
+  "home.features.forms.alt": "Un formulaire construit avec Limn",
 
   "home.features.data.heading": "Tableaux, arbres et dates, déjà construits",
   "home.features.data.body":
     "Un tableau, ce sont des colonnes typées sur la liste que possède votre application, triée par le toolkit ou par votre serveur, avec un pied qui additionne. Un arbre est un plan sur des enfants que vous fournissez, et une ligne peut promettre des enfants avant de pouvoir les nommer. Un champ de date saisit une date ISO dans le calendrier du lecteur lui-même, et un sélecteur de date ouvre une grille du mois derrière lui.",
   "home.features.data.link": "Lire le guide des listes",
   "home.features.data.caption": "Un tableau, un arbre, un champ de date et un sélecteur de date dans une fenêtre.",
+  "home.features.data.alt": "Un tableau, un arbre et deux widgets de date dans une fenêtre Limn",
 
   "home.features.media.heading": "La vidéo et la 3D sont aussi des widgets",
   "home.features.media.body":
     "Une vue 3D à matériaux physiquement réalistes et un lecteur vidéo, composés comme des widgets ordinaires : une vue défilante les rogne, une pile dessine par-dessus, et ils participent à la mise en page comme un libellé.",
   "home.features.media.link": "Lire le guide des médias",
   "home.features.media.caption": "La vue 3D, intégrée à une fenêtre ordinaire.",
+  "home.features.media.alt": "La vue 3D de Limn",
 
   "home.themes.heading": "Votre identité, pas celle du toolkit",
   "home.themes.body":
@@ -164,6 +168,8 @@ export const fr: Catalog = {
   "components.stop": "Arrêter",
   "components.videoNote":
     "La vue vidéo utilise la source de test en Java pur : elle montre donc le widget en fonctionnement, et non la couverture des codecs. Aucun décodeur natif n’intervient dans cette image.",
+  "components.mediaCredit":
+    'Le film sous ce transport est <a href="https://peach.blender.org/">Big Buck Bunny</a>, © 2008 Blender Foundation, utilisé sous <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>. Toutes les autres images de cette page sont l’œuvre du toolkit lui-même.',
 
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn : Écrans",

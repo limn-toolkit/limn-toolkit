@@ -97,24 +97,28 @@ export const es: Catalog = {
   "home.features.layout.link": "Leer la guía de disposición",
   "home.features.layout.caption":
     "Una ventana hecha de una columna, una fila, un divisor y un Expanded.",
+  "home.features.layout.alt": "Una ventana maquetada con Limn",
 
   "home.features.forms.heading": "Formularios sin framework",
   "home.features.forms.body":
     "Un campo es un widget, una regla de validación es un oyente y enviar es una llamada a un método. Nada que enlazar, nada que registrar, y estados de validación que recolorean el campo en el momento en que el usuario lo corrige.",
   "home.features.forms.link": "Leer la guía de formularios",
   "home.features.forms.caption": "Etiquetas, validación, una elección y la fila de acciones.",
+  "home.features.forms.alt": "Un formulario hecho con Limn",
 
   "home.features.data.heading": "Tablas, árboles y fechas, ya construidos",
   "home.features.data.body":
     "Una tabla son columnas tipadas sobre la lista que posee tu aplicación, ordenada por el toolkit o por tu servidor, con un pie que suma. Un árbol es un esquema sobre los hijos que tú proporcionas, y una fila puede prometer hijos antes de poder nombrarlos. Un campo de fecha escribe una fecha ISO en el calendario del propio lector, y un selector de fecha abre una cuadrícula del mes detrás de él.",
   "home.features.data.link": "Leer la guía de listas",
   "home.features.data.caption": "Una tabla, un árbol, un campo de fecha y un selector de fecha en una ventana.",
+  "home.features.data.alt": "Una tabla, un árbol y dos widgets de fecha en una ventana de Limn",
 
   "home.features.media.heading": "El vídeo y el 3D también son widgets",
   "home.features.media.body":
     "Una vista 3D con materiales físicamente realistas y un reproductor de vídeo, compuestos como widgets corrientes: una vista con desplazamiento los recorta, una pila dibuja encima y ambos participan en la disposición igual que una etiqueta.",
   "home.features.media.link": "Leer la guía de medios",
   "home.features.media.caption": "La vista 3D, compuesta en una ventana corriente.",
+  "home.features.media.alt": "La vista 3D de Limn",
 
   "home.themes.heading": "Tu identidad, no la del toolkit",
   "home.themes.body":
@@ -164,6 +168,8 @@ export const es: Catalog = {
   "components.stop": "Detener",
   "components.videoNote":
     "La vista de vídeo usa la fuente de prueba en Java puro, así que muestra el widget funcionando y no la cobertura de códecs. En esta imagen no interviene ningún decodificador nativo.",
+  "components.mediaCredit":
+    'La película bajo este transporte es <a href="https://peach.blender.org/">Big Buck Bunny</a>, © 2008 Blender Foundation, usada bajo <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>. Todas las demás imágenes de esta página son obra del propio toolkit.',
 
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn: Pantallas",

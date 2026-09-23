@@ -97,24 +97,28 @@ export const ar: Catalog = {
     "أربعة عناصر وعلامة واحدة: العمود يكدّس، والصف يوزّع، والرصّة تراكِب، والحشوة تُبعد الحواف، وExpanded يقول من يأخذ المساحة المتبقية. هذه هي المفردات كلها؛ لا حلّال قيود تضبطه ولا مدير تخطيط تثبّته.",
   "home.features.layout.link": "اقرأ دليل التخطيط",
   "home.features.layout.caption": "نافذة مبنية من عمود وصف وتقسيم وExpanded واحد.",
+  "home.features.layout.alt": "نافذة مصمَّمة بـLimn",
 
   "home.features.forms.heading": "نماذج بلا إطار عمل",
   "home.features.forms.body":
     "الحقل عنصر واجهة، وقاعدة التحقق مستمع، والإرسال استدعاء دالة. لا شيء يُربط، ولا شيء يُسجّل، وحالات تحقق تعيد تلوين الحقل لحظة يصلحه المستخدم.",
   "home.features.forms.link": "اقرأ دليل النماذج",
   "home.features.forms.caption": "تسميات، وتحقق، واختيار، وصف الأزرار.",
+  "home.features.forms.alt": "نموذج مبني بـLimn",
 
   "home.features.data.heading": "جداول وأشجار وتواريخ، مبنيّة سلفًا",
   "home.features.data.body":
     "الجدول أعمدة منمّطة فوق القائمة التي يملكها تطبيقك، يرتّبها طقم الأدوات أو خادمك، مع تذييل يجمع. والشجرة مخطّط فوق أبناء تقدّمها أنت، ويجوز للصف أن يعد بأبناء قبل أن يستطيع تسميتهم. وحقل التاريخ يكتب تاريخ ISO بتقويم القارئ نفسه، ومنتقي التاريخ يفتح خلفه شبكة الشهر.",
   "home.features.data.link": "اقرأ دليل القوائم",
   "home.features.data.caption": "جدول وشجرة وحقل تاريخ ومنتقي تاريخ في نافذة واحدة.",
+  "home.features.data.alt": "جدول وشجرة وأداتا تاريخ في نافذة من Limn",
 
   "home.features.media.heading": "الفيديو والعرض ثلاثي الأبعاد عناصر واجهة أيضًا",
   "home.features.media.body":
     "منفذ عرض ثلاثي الأبعاد قائم على الفيزياء ومشغّل فيديو، مركّبان كعناصر واجهة عادية: عرض التمرير يقصّهما، والرصّة ترسم فوقهما، ويشاركان في التخطيط كما تشارك التسمية.",
   "home.features.media.link": "اقرأ دليل الوسائط",
   "home.features.media.caption": "منفذ العرض ثلاثي الأبعاد، مركّبًا في نافذة عادية.",
+  "home.features.media.alt": "منفذ العرض ثلاثي الأبعاد في Limn",
 
   "home.themes.heading": "هويتك أنت، لا هوية الطقم",
   "home.themes.body":
@@ -162,6 +166,8 @@ export const ar: Catalog = {
   "components.stop": "إيقاف",
   "components.videoNote":
     "يستخدم عرض الفيديو مصدر الاختبار المكتوب بـ Java وحدها، فهو يُظهر عمل العنصر لا تغطية المرمّزات. لا مفكك ترميز أصلي في هذه الصورة.",
+  "components.mediaCredit":
+    'الفيلم تحت أزرار التشغيل هذه هو <a href="https://peach.blender.org/">Big Buck Bunny</a>، © 2008 Blender Foundation، مستخدَم بموجب <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>. كل صورة أخرى في هذه الصفحة من عمل الأداة نفسها.',
 
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn: الشاشات",

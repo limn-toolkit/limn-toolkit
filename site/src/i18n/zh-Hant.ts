@@ -94,24 +94,28 @@ export const zhHant: Catalog = {
     "四個元件加一個標記：欄往下堆疊，列往旁鋪開，堆疊層層相覆，內距往內縮，Expanded 決定誰拿走剩下的空間。整套語彙就這些。沒有約束求解器要設定，也沒有版面管理員要安裝。",
   "home.features.layout.link": "閱讀版面指南",
   "home.features.layout.caption": "由一欄、一列、一個分割與一個 Expanded 組成的視窗。",
+  "home.features.layout.alt": "用 Limn 排版的視窗",
 
   "home.features.forms.heading": "不需要框架的表單",
   "home.features.forms.body":
     "欄位就是元件，驗證規則就是監聽器，送出就是一次方法呼叫。沒有要繫結的，也沒有要註冊的；使用者一改正，驗證狀態就把欄位的顏色換回來。",
   "home.features.forms.link": "閱讀表單指南",
   "home.features.forms.caption": "標籤、驗證、一個選項與動作列。",
+  "home.features.forms.alt": "用 Limn 建構的表單",
 
   "home.features.data.heading": "表格、樹與日期，已經做好",
   "home.features.data.body":
     "表格是架在你的應用自己持有的清單上的具型別欄位，由工具包或你的伺服器排序，還有一列會加總的表尾。樹是架在你提供的子節點上的大綱，一列可以在說出子節點名字之前先承諾它們存在。日期欄位以讀者自己的曆法輸入一個 ISO 日期，日期選擇器則在它後面打開一個月份格線。",
   "home.features.data.link": "閱讀清單指南",
   "home.features.data.caption": "一個視窗裡的表格、樹、日期欄位與日期選擇器。",
+  "home.features.data.alt": "Limn 視窗中的表格、樹狀清單與兩個日期元件",
 
   "home.features.media.heading": "影片與 3D 同樣是元件",
   "home.features.media.body":
     "基於物理的 3D 視埠與影片播放器，像一般元件那樣參與合成：捲動視圖會裁切它們，堆疊會畫在它們上面，它們參與版面的方式和一個標籤沒有兩樣。",
   "home.features.media.link": "閱讀媒體指南",
   "home.features.media.caption": "合成進一般視窗中的 3D 視埠。",
+  "home.features.media.alt": "Limn 的 3D 視口",
 
   "home.themes.heading": "是你的產品氣質，不是工具包的",
   "home.themes.body":
@@ -160,6 +164,8 @@ export const zhHant: Catalog = {
   "components.stop": "停止",
   "components.videoNote":
     "影片視圖使用純 Java 的測試來源，因此展示的是元件本身的運作，而不是編解碼器的支援範圍。這張圖中沒有任何原生解碼器參與。",
+  "components.mediaCredit":
+    '這組播放控制項下的影片是 <a href="https://peach.blender.org/">Big Buck Bunny</a>，© 2008 Blender Foundation，依 <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a> 使用。本頁其餘所有圖像都出自工具組本身。',
 
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn：畫面",

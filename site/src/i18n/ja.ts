@@ -95,24 +95,28 @@ export const ja: Catalog = {
     "ウィジェット 4 つとマーカー 1 つ。列は積み、行は並べ、スタックは重ね、パディングは内側に寄せ、Expanded が残りの空間を誰が取るかを決めます。語彙はこれだけで、設定すべき制約ソルバーも、導入すべきレイアウトマネージャーもありません。",
   "home.features.layout.link": "レイアウトガイドを読む",
   "home.features.layout.caption": "列、行、分割、そして Expanded 1 つで組んだウィンドウ。",
+  "home.features.layout.alt": "Limn でレイアウトしたウィンドウ",
 
   "home.features.forms.heading": "フレームワークのないフォーム",
   "home.features.forms.body":
     "入力欄はウィジェット、検証ルールはリスナー、送信はメソッド呼び出しです。バインドするものも登録するものもなく、ユーザーが直したその瞬間に入力欄の色が戻ります。",
   "home.features.forms.link": "フォームガイドを読む",
   "home.features.forms.caption": "ラベル、検証、選択、そしてアクション行。",
+  "home.features.forms.alt": "Limn で作ったフォーム",
 
   "home.features.data.heading": "テーブルも、ツリーも、日付も、作ってあります",
   "home.features.data.body":
     "テーブルは、アプリケーションが持つリストの上に置く型付きの列で、ツールキットかあなたのサーバーが並べ替え、フッターが合計します。ツリーは、あなたが渡す子要素の上に置くアウトラインで、行は子の名前を挙げられる前から子がいると約束できます。日付フィールドは読み手自身の暦で ISO の日付を入力し、日付ピッカーはその後ろに月のグリッドを開きます。",
   "home.features.data.link": "リストガイドを読む",
   "home.features.data.caption": "1 つのウィンドウに並んだテーブル、ツリー、日付フィールド、日付ピッカー。",
+  "home.features.data.alt": "Limn のウィンドウに並んだテーブル、ツリー、2 つの日付ウィジェット",
 
   "home.features.media.heading": "動画も 3D もウィジェット",
   "home.features.media.body":
     "物理ベースの 3D ビューポートと動画プレーヤーが、普通のウィジェットとして合成されます。スクロールビューが切り取り、スタックが上に描き、ラベルと同じようにレイアウトに参加します。",
   "home.features.media.link": "メディアガイドを読む",
   "home.features.media.caption": "普通のウィンドウに合成された 3D ビューポート。",
+  "home.features.media.alt": "Limn の 3D ビューポート",
 
   "home.themes.heading": "あなたの製品の見た目に、ツールキットの見た目を持ち込まない",
   "home.themes.body":
@@ -161,6 +165,8 @@ export const ja: Catalog = {
   "components.stop": "停止",
   "components.videoNote":
     "動画ビューは純 Java のテスト用ソースを使っているので、コーデックの対応範囲ではなくウィジェットの動作を示しています。この画像にネイティブデコーダーは関与していません。",
+  "components.mediaCredit":
+    'この再生コントロールの下の映像は <a href="https://peach.blender.org/">Big Buck Bunny</a>（© 2008 Blender Foundation）で、<a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a> のもとで使用しています。このページのほかの画像はすべてツールキット自身が描いたものです。',
 
   // ---------------------------------------------------------------- showcase
   "showcase.title": "Limn：画面例",
