@@ -17,7 +17,7 @@ from the process-wide `SizeTokens` table and are identical in every palette.
 volatile field and notifies nobody, so a palette may only carry a metric nothing *measures*
 from. A radius is the only one: no `onMeasure`, `onLayout`, `baselineOffset` or
 `paintOutset` in the toolkit reads one. `ThemeShapeTest.shapeMovesNoWidgetByOnePoint` lays a
-tree of ~20 widget types out at scale 0 and scale 3, at all five size steps, and demands
+tree of every kind of widget it names out at scale 0 and scale 3, at all five size steps, and demands
 identical boxes; `shapeMovesTheInkItIsSupposedTo` demands that the ink *did* move, so a scale
 that quietly did nothing would not pass either.
 
@@ -140,9 +140,8 @@ severity scale invented here:
 
 - **ERROR**: a WCAG 2.1 bar for text (4.5:1). Something is hard to read.
 - **WARNING**: a bar for non-text (3:1), an elevation step, or a distinctness rule.
-- **INFO**: below a bar the guideline *exempts*. Disabled text is the only one today, and
-  reporting it as an error would teach a palette author to make a switched-off control
-  shout.
+- **INFO**: below a bar the guideline *exempts*, such as disabled text; reporting that as an
+  error would teach a palette author to make a switched-off control shout.
 
 Elevation is measured in CIE L*, never in contrast ratio. The step `Limn` uses between its
 canvas and its cards is 1.46:1; reproducing that ratio from a near-white canvas would
@@ -153,7 +152,8 @@ Two rules exist that no contrast check would find on its own:
 
 - **focusRing against primary.** A ring the same colour as the accent vanishes the moment
   it lands on an accent-filled control (a selected segment, a primary button), which is
-  where a keyboard user most needs it. Eight of the shipped palettes are built that way.
+  where a keyboard user most needs it. Some shipped palettes are built that way, keeping the
+  ring of the theme they came from, and the audit reports each one.
 - **primaryHover against primary.** A hover state that cannot be told from rest is a button
   that does not answer.
 

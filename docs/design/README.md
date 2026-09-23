@@ -35,7 +35,7 @@ documentation and a guarantee.
 
 | File | Covers |
 | --- | --- |
-| [accessibility.md](accessibility.md) | `limn.accessibility` and the three bridges: the snapshot model, the four widget hooks, transparent vs ignored, what a publish costs when nothing listens, the constants rule, and the traps a green suite cannot see |
+| [accessibility.md](accessibility.md) | `limn.accessibility` and the three bridges: the snapshot model, the widget hooks, transparent vs ignored, what a publish costs when nothing listens, the constants rule, and the traps a green suite cannot see |
 | [background-work.md](background-work.md) | `Ui.post`, `Ui.async`, `Ui.work`: which to reach for, what is ordered and what is not, the discard trap, the rule a loader obeys |
 | [size-axis.md](size-axis.md) | ControlSize, SizeTokens, Strokes: locked vs tabled, the density floor, the constructor trap |
 | [direction-axis.md](direction-axis.md) | LayoutDirection: why mirroring is a placement decision and never a transform, the shared host link, the two epochs, what a direction does to a held value, where a horizontal scroll starts, what deliberately does not mirror |
@@ -44,7 +44,7 @@ documentation and a guarantee.
 | [popups-and-dialogs.md](popups-and-dialogs.md) | Dialog, PopupMenu, ComboBox: window vs in-scene, stacking, the native refit |
 | [change-channel.md](change-channel.md) | `Widget#observeChanges` and the `onX` handler: the origin rule, what a seam looks like, the traps (announce last, never from a paint, chain `super`, the final setters), the scene's part, the axes, and what a new component owes the contract test |
 | [theming.md](theming.md) | Theme and its builder, the token enum, the 8-bit grid, the audit's bars, ColorPickerButton and the editor module's traps |
-| [video.md](video.md) | limn.video, VideoView, the decoders and the shim: the three lifetimes, the threads, what a seek touches, rotation, bit depth and colour, what is in the native |
+| [video.md](video.md) | limn.video, VideoView, the decoders and the shim: the lifetimes, the threads, what a seek touches, rotation, bit depth and colour, what is in the native |
 | [charts.md](charts.md) | limn.components.chart: why geometry is resolved twice, what the animation interpolates, how hiding re-flows a stack, the donut's hole, why the palette order is load-bearing |
-| [i18n.md](i18n.md) | limn.i18n: how a bundle family resolves and what stays resident, what the toolkit itself ships translated and why some of it deliberately is not, which scripts render today |
+| [i18n.md](i18n.md) | limn.i18n: how a bundle family resolves and what stays resident, what the toolkit itself ships translated and why some of it deliberately is not, which scripts render |
 | [website.md](website.md) | `site/`: the generators and what feeds them, the invariants, the build gates and what each one caught, the traps in the capture harness and in the Javadoc theming |

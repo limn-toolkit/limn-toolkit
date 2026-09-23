@@ -64,9 +64,9 @@ captures are the pristine input and the only copy the derivation may read.
   the Javadoc pages and the site cannot drift. It adopts Starlight's key *and* its vocabulary (`''`
   for auto): two scripts stamping `data-theme` from two keys cannot be kept in sync.
 - **Astro's built-in `i18n` block is deliberately unused.** With it on, Starlight reads the first
-  path segment as a locale and fans the English-only guide across every prefix, 681 pages where
-  there should be 36. Marketing locale routing comes from `src/lib/i18n.ts` instead.
-- **No code sample is typed into a page.** A guide writes `{% snippet guide:form %}` and gets the
+  path segment as a locale and fans the English-only guides across every locale prefix, publishing
+  each guide once per language instead of once. Marketing locale routing comes from `src/lib/i18n.ts` instead.
+- **A code sample is compiled wherever it can be.** A guide writes `{% snippet guide:form %}` and gets the
   text of that `// #region` out of a real Java file; `{% shot form %}` expands to the picture the
   toolkit rendered of that same example. The sample and the screenshot are one program.
 - **`sync-docs.mjs` clears the whole collection directory**, not just its own subtree. A leftover

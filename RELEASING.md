@@ -67,9 +67,10 @@ their releases with this key.
    so nothing renames it at release; the first change after this release opens the next section.
 2. **Bump `versions.properties`** (say `0.6.0` → `0.7.0`), commit, and push `main`.
 3. **Watch `tag-releases`, then `publish`.** The first checks the documentation, tags `v0.7.0`
-   and dispatches the second, which runs the full `check` under xvfb before anything is
-   uploaded, verifies the tag, uploads the signed bundle, builds the demo jar and drafts the
-   GitHub release. Nothing is committed by either.
+   and dispatches the second. That one verifies the tag and the documentation and refuses a
+   version it has already uploaded, then runs the full `check` under xvfb before anything is
+   uploaded, uploads the signed bundle, builds the demo jar and drafts the GitHub release.
+   Nothing is committed by either.
 4. **Inspect the deployment** on <https://central.sonatype.com/publishing/deployments>. This is
    the last reversible moment: **Drop** discards it and costs nothing.
 5. **Publish it** on the Portal. From here on the version exists and cannot be taken back.
@@ -94,8 +95,10 @@ the tag points at, so a dispatch from `main` fails by design rather than publish
 `main` has become. Once a version is published on Central, its tag is frozen: publish the fix
 as the next number.
 
-**The deployment is wrong.** Drop it on the Portal, delete the draft release, and start over with
-the same version — nothing was consumed.
+**The deployment is wrong.** Drop it on the Portal, delete the draft release, fix what was wrong,
+and re-run `publish` from the Actions tab with the tag as the ref and **force** ticked: nothing
+was consumed, but the run that uploaded succeeded, and `publish` refuses a second upload of a
+version with a successful run unless it is told the first was dropped.
 
 **A published version is wrong.** It stays published. Release the next patch version; there is no
 other move, which is what steps 5 and 6 are for.

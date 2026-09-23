@@ -403,9 +403,10 @@ for being a real directory this user owns that nobody else can write into. The w
 wins the rename, the loser uses the winner's copy" argument depends on it: it is sound between two
 of this user's processes and is trusting a stranger's files anywhere else.
 
-The shim locks with three mutexes (the demuxer, the video side, the audio side) because four
-threads reach a handle. The order is the entire rule: video or audio may take the demuxer, the
-demuxer is never held while taking either, and the two are never held at once.
+The shim locks with one mutex per part it guards (the demuxer, the video side, the audio side and
+the subtitle side) because several threads reach a handle. The order is the entire rule: a side may
+take the demuxer, the demuxer is never held while taking a side, and the video and audio sides are
+never held at once.
 
 ## Depth and colour: the four numbers that move together, and the one that does not
 

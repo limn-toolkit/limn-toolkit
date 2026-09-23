@@ -27,7 +27,7 @@ reader needs to know something, it has to already be in the snapshot.
 
 ## Describing a widget
 
-Six `protected` hooks on `Widget`, and a widget usually overrides one or two:
+The `protected` hooks on `Widget`; a widget usually overrides one or two:
 
 | Hook | Answers |
 | --- | --- |
@@ -36,7 +36,7 @@ Six `protected` hooks on `Widget`, and a widget usually overrides one or two:
 | `onAccessibilityChild(Widget child, Accessibility a)` | what a *child* is, when the parent knows better than the child does — and, through `Accessibility#delegate`, which of the child's verbs are the parent's to perform |
 | `onAccessibilityAction(action, arg)` | performing a verb this widget declared |
 | `onAccessibilityChildAction(child, key, action, arg)` | performing a verb this widget *delegated* onto a child: a list's `SELECT` on a row that is the application's own cell, published on the row where a reader addresses it and routed here with the key the list gave that row |
-| `performSyntheticAction(key, action, arg)` | performing a verb on something the widget *paints* rather than parents |
+| `onSyntheticAction(key, action, arg)` | performing a verb on something the widget *paints* rather than parents |
 
 And one answer hook beside them, `accessibleLabelTarget()`: a composite whose keyboard lands on an
 inner control — a date picker — answers that control, and a `Label` bound to the composite names the
@@ -49,8 +49,8 @@ is nearby; that is how a reader ends up confidently saying the wrong thing.
 
 **Behaviour is carried by typed facets**, not by the role. `ToggleFacet`, `ValueFacet`, `TextFacet`,
 `SelectionFacet`, `SelectionItemFacet`, `ScrollFacet`, `ExpandFacet`, `ActionFacet`, `WindowFacet`,
-since ADR 041 `TableFacet` and `CellFacet`, and since ADR 039's amendment of 2026-09-14
-`HierarchyFacet` (a tree row's level and flat row index). The three platform
+`TableFacet`, `CellFacet` (ADR 041) and `HierarchyFacet` (a tree row's level and flat row index,
+ADR 039). The three platform
 vocabularies disagree about where behaviour lives — a *pattern* on Windows, a state bit plus an
 action row on Linux, an attribute on macOS — so each bridge derives its own view from the same
 facet. A widget that publishes a `ToggleFacet` gets `IToggleProvider`, `AXValue` and the AT-SPI
@@ -58,10 +58,9 @@ facet. A widget that publishes a `ToggleFacet` gets `IToggleProvider`, `AXValue`
 
 **A facet's *presence* is a fact of its own, and two states are derived from it.** A node carrying an
 `ExpandFacet` is `EXPANDABLE` whether it is open or closed, and a node carrying a
-`SelectionItemFacet` is `SELECTABLE` whether it is selected or not (the second since 2026-09-16, when
-three live readers found that nothing in either module had ever published it: Orca discards an
-unnamed row that is "not focusable, selectable, or expandable" as layout-only, so a select-all over
-five selected rows said nothing at all). Neither bit is a widget's to set — `Accessibility#state`
+`SelectionItemFacet` is `SELECTABLE` whether it is selected or not (without the second bit, Orca
+discards an unnamed row that is "not focusable, selectable, or expandable" as layout-only, and a
+select-all over five selected rows says nothing at all). Neither bit is a widget's to set — `Accessibility#state`
 refuses both and names the facet that owns them — and neither costs a bridge anything: Linux reads
 them as state bits, Windows as patterns, macOS as attributes or as a settable value.
 
@@ -116,7 +115,7 @@ is no third answer.
 
 **Synthetic children** are for things a widget paints instead of parenting — a chart's series, a
 segmented control's segments. They get identity from an owner-chosen key, and their verbs go to
-`performSyntheticAction`.
+`onSyntheticAction`.
 
 **A name is an `I18nString`, resolved under the subtree's locale, and it carries its provenance.**
 Where the name came from is part of the node, because macOS maps `accessibilityTitle` and
@@ -148,8 +147,8 @@ widget's own. The order that works:
 3. **Run the shape's contract.** One `@TestFactory` method turns the contract's cases into dynamic
    tests: `RowsContract`, `ValueContract`, `ToggleContract`, `LeafActionContract`,
    `PopupOwnerContract`, `TextContract`, each over a *subject* that builds the widget fresh and
-   answers through its API what the tree cannot say. The cases are the rules the 2026-09-13 pass
-   decided, named after their decisions, plus the four invariants (`AccessibleInvariants`): every
+   answers through its API what the tree cannot say. The cases are the rules of the accessibility
+   model, named after the decisions that set them, plus the four invariants (`AccessibleInvariants`): every
    focusable node named, no `UNKNOWN` role, no shared id, and a showing node inside its showing
    ancestor. A widget's own test then holds only what is the widget's: which events it raises,
    what its lead row is, what `NONE` leaves on a row.
@@ -187,8 +186,8 @@ answers the question rather than the bridges:
 | **macOS** | the item | `accessibilityFocusedUIElement` and `isAccessibilityFocused` answer it; `FocusedUIElementChanged` is posted at application level |
 | **Linux** | the widget | `focused` stays on `focused()`; the item travels as `ActiveDescendantChanged` carrying its `(so)` reference |
 
-**On macOS the reader also writes focus back, so a row is not focus-settable** (measured 2026-09-16,
-ADR 039 §2.2's amendment of that date). VoiceOver keeps its cursor and the keyboard focus in step: a
+**On macOS the reader also writes focus back, so a row is not focus-settable** (measured on the
+guest; ADR 039 §2.2 records it). VoiceOver keeps its cursor and the keyboard focus in step: a
 moment after the application moves its own cursor, VoiceOver writes `AXFocused` on the row its cursor
 is still on. A native `NSOutlineView` row carries no `AXFocused` at all — it answers
 `kAXErrorAttributeUnsupported` for the value and for its settability, and a native `NSTableView`
@@ -199,8 +198,8 @@ the container, which post `SELECT`. The *getter* still answers on a row, because
 `accessibilityFocusedUIElement` names the cursor row and a client that walks there must get a
 truthful answer. Nothing changes for Windows or Linux, where the reader does not write focus back.
 
-**And on macOS a client is now told the truth before it writes** (2026-09-16, ADR 039 §2.2). Refusing
-a setter at the gate stops the write, but until this round it did not stop AppKit *advertising* the
+**And on macOS a client is told the truth before it writes** (ADR 039 §2.2). Refusing a setter at
+the gate stops the write, but on its own it does not stop AppKit *advertising* the
 attribute as settable: `AXUIElementIsAttributeSettable` discards the gate's refusal for any setter the
 element's class implements, so every element read as settable for all six — a leaf row's
 `AXDisclosing` included, where a native outline row reports `false`. AppKit's fall-back after that
@@ -224,9 +223,9 @@ mutate a tree and assert what did **not** change. It is also why a list that rec
 recycle the row the keyboard is in: a reader whose cursor follows the focus is standing on that
 node, and a scroll that deletes it drops the reader to the window.
 
-The rule is easy to state and was not followed everywhere. `CalendarView` keyed its day cells,
-week rows and week-number cells by their **position in the grid** until 2026-09-16, so paging a
-month renamed forty-two nodes rather than retiring and minting them — and that is precisely the
+The rule is easy to state and easy to break. A calendar that keyed its day cells, week rows and
+week-number cells by their **position in the grid**, as `CalendarView` once did, renames forty-two
+nodes on every page of a month rather than retiring and minting them — and that is precisely the
 "newly created" case above, read in reverse: a client told that a node it holds is now called
 something else believes the *thing* changed its name. NVDA 2024.4.2, subscribed to the focused
 element's name, spoke the incoming month's date before the focus had moved, in 6 of 7 paging
@@ -280,8 +279,7 @@ something has asked, which is why both owe a **priming publish**: the gate canno
 platform has been handed something to ask about. A bridge that is not listening allocates nothing
 and walks nothing — after the bind, that is: on Windows the bind itself publishes the window's own
 node, one node and no walk of the scene, because there a client asks whether the window has
-accessibility at all in a message that arrives long before the first frame and is not repeated
-(2026-09-16). It starts no thread either, with one deliberate exception: Linux's switch moves while
+accessibility at all in a message that arrives long before the first frame and is not repeated. It starts no thread either, with one deliberate exception: Linux's switch moves while
 an application runs, so the process keeps one session connection and one parked thread watching it
 (`AtspiStatusWatch`), and a window opened before the screen reader becomes readable when it starts.
 
@@ -308,8 +306,8 @@ a different right answer, and a shared one would make a bridge lie.
 
 **One model, three translations — with two declared exceptions, and they are listed in one place.**
 The rule is that the widget says one true thing, the model publishes it once, and each bridge says
-it in its platform's words. Since 2026-09-16 two decisions let one bridge answer differently from
-the other two, both because a *native* control of that shape, read on the guest, does not publish
+it in its platform's words. Two decisions let one bridge answer differently from the other
+two, both because a *native* control of that shape, read on the guest, does not publish
 what the model publishes: a menu title and the expand axis on Linux, and the focus *write* on a row.
 **ADR 039 §4.2** carries both, with the reading behind each. If you are about to make a bridge
 diverge, that section is where it goes — an exception nobody wrote down is a bridge lying quietly.
@@ -335,7 +333,7 @@ scene (`--scene form`) through the platform's own client and resolves every targ
 Linux one asks libatspi for the relation set, the Windows one reads LabeledBy through the
 managed client and DescribedBy through the core call the managed layer itself uses, since its
 public API has no identifier for it, and the macOS one follows the linked elements. All three
-resolved the caption and the message on 2026-09-09.
+resolve the caption and the message.
 
 ### The constants rule
 
@@ -439,11 +437,10 @@ desktop with no reader — seventeen processes held a UI Automation handler on t
 tools among them — so a bridge gated on it walks every damaged frame for nobody. The per-window
 answer is `IRawElementProviderAdviseEvents` on the root, plus the ask itself. And **never publish
 inside `WM_GETOBJECT`**: hand over the tree you have. A publish there raises the difference into the
-reader's own call, which is a reentrancy the design refuses everywhere. (The clause that used to
-follow — "and NVDA never spoke again" — was withdrawn on 2026-09-16: what silenced NVDA was
-*answering that message with no provider at all*, which is what a window with no tree did for the
+reader's own call, which is a reentrancy the design refuses everywhere. What silences NVDA is
+*answering that message with no provider at all*, which is what a window with no tree does for the
 first 300-500 ms of its life. **So have a tree before the message can arrive**: the bind publishes
-the window's own node.)
+the window's own node.
 
 **A raise is not a fire-and-forget on Windows.** `UiaRaise*` returns after every subscribed
 client's handler has run, and NVDA's handler calls back into the provider before it returns —
@@ -500,14 +497,12 @@ the line: it refuses a private IPv4 literal, a lab login and a `/Users/<name>` p
 ADR 039 §11 is the full list with the cost of each stated in terms of what a blind user loses. The
 ones most likely to be mistaken for bugs: no range-to-rectangle text geometry on any platform (so
 character review and braille cursor routing are degraded); no UI Automation `TextPattern`; **a row
-carries the verbs its container gives it, and how many that is differs by container** (ADR 039 §11's
-"not per-row actuation in a list" was reversed on 2026-09-14). A `Tree` row and a `Table` row each
+carries the verbs its container gives it, and how many that is differs by container** (ADR 039
+§11's "not per-row actuation in a list" was reversed by its own amendment). A `Tree` row and a `Table` row each
 carry their own by-state set — `SELECT`, `ADD_TO_SELECTION` or `DESELECT`, `EXPAND` or `COLLAPSE`
 (tree only), `FOCUS`, `SCROLL_INTO_VIEW` — so a reader addresses a particular row and the container
-performs it. (The divergence found 2026-09-16 — a `Table` row publishing no `SCROLL_INTO_VIEW`, and a
-`CalendarView` day cell the same — **was closed on 2026-09-17 in favour of this sentence**, under
-decision 81: the document was right and the code owed the verb. Both publish it now, so both vend
-`ScrollItem` on Windows. A table row performs it as its own `ensureVisible`; a day cell reveals its
+performs it. (A `Table` row and a `CalendarView` day cell publish `SCROLL_INTO_VIEW` as well, under
+decision 81, so both vend `ScrollItem` on Windows. A table row performs it as its own `ensureVisible`; a day cell reveals its
 rectangle through the pane the calendar sits in, because a calendar's grid does not scroll by
 itself.) A row also publishes `PRESS`, which opens **that** row, beside the container's, which
 opens the cursor's (decision 80; the container's is what Enter takes). A `ListView` row carries `SELECT`, plus
