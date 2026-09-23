@@ -1,9 +1,7 @@
 package limn.themeeditor;
 
 import limn.components.Theme;
-import limn.i18n.I18n;
 import limn.i18n.I18nString;
-import limn.i18n.PropertyBundle;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -11,20 +9,17 @@ import java.util.Map;
 /**
  * The editor's own vocabulary.
  *
- * <p><b>Declared, not translated.</b> Every string here is a key with English behind it,
- * so an application that wants the editor in another language registers a bundle for
- * {@code /limn/i18n/themeeditor} and every caption follows, but this module ships no
- * translation of its own, unlike the widget set, which ships nineteen. That is a decision
- * rather than an omission: what the editor names are the tokens of a design system, and a
- * palette author who reads {@code surfaceRaised} in the API is not helped by a screen that
- * calls it something else in a language the API does not speak. An application that
- * disagrees has every key.
+ * <p><b>Declared, not translated.</b> Every string here is a key under {@code limn.themeEditor.}
+ * with English behind it, and this module ships no translation of its own, unlike the widget
+ * set, which ships nineteen. That is a decision rather than an omission: what the editor names
+ * are the tokens of a design system, and a palette author who reads {@code surfaceRaised} in the
+ * API is not helped by a screen that calls it something else in a language the API does not
+ * speak. An application that disagrees translates the keys in any bundle it registers, as
+ * {@link ThemeEditor}'s documentation says; there is no fixed path to put a file at, because a
+ * fixed path under {@code limn/i18n} is a package the toolkit owns, and an application that is
+ * a named module cannot ship one.
  */
 final class ThemeEditorStrings {
-
-    static {
-        I18n.addBundle(PropertyBundle.family("/limn/i18n/themeeditor"));
-    }
 
     // --- the frame ---------------------------------------------------------
 

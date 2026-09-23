@@ -62,6 +62,17 @@ import java.util.function.Consumer;
  * file is an application's business, and {@link ThemeEditorFiles} is the optional half that
  * opens a chooser for one.
  *
+ * <p><b>In another language.</b> The editor ships its captions in English only. Every one is a
+ * key that starts with {@code limn.themeEditor.}, and an application translates them in any
+ * bundle it registers, the way it translates its own strings:
+ *
+ * <pre>{@code
+ * I18n.addBundle(PropertyBundle.family("/com/example/i18n/theme-editor"));
+ * }</pre>
+ *
+ * <p>{@link limn.i18n.I18n#declaredKeys()} lists every key with its English once this class
+ * has loaded, which is the starting file for a translation.
+ *
  * <p>UI thread only, like every widget here.
  */
 public final class ThemeEditor extends Widget {
