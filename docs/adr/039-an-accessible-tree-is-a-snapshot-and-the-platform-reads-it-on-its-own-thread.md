@@ -122,7 +122,8 @@ amended; where this summary and a section disagree, the section is right and thi
 - §11's verbless list row is reversed (decision 7); on `Tree` and `Table` a reader's `SELECT` leaves
   the cursor and a row's `PRESS` opens that row (decisions 79, 80; appendix A §2.2).
 - Windows is answered by a window node published at the bind, not by a publish inside
-  `WM_GETOBJECT` (§3.1, §5.2; 2026-09-16), and the seam gained `frameEnded` (§5.3; 2026-09-15).
+  `WM_GETOBJECT` (§3.1, §5.2; 2026-09-16), and nothing at the bind pumps the reader's asks in before
+  it (§3.1; 2026-09-23); the seam gained `frameEnded` (§5.3; 2026-09-15).
 - ADR 041 filled §4.1's table gap and ADR 044 added the tree: six roles, three facets. Since ADR 045
   (decision 93) §7's survey is historic and a widget is one of ten shapes `Shape.of` derives.
 
@@ -2472,6 +2473,24 @@ under it — role, title, the size the window already has, all true before any l
 identifier every later walk reuses — for a bridge that answers
 `AccessibilityBridge#needsRootBeforeTheFirstFrame()`, which is this platform and no other (§5.2).
 Evidence: `.claude/pending/2026-09-13/readings/phase5-windows-diagnosis/evidence-table.txt`.
+
+**Amended 2026-09-23: the bind itself let the asks in, and "two `0`s, silent" is not the rule.** The
+MULTI list's first reader round was silent under NVDA three times in three, and every run of every
+script since 2026-09-22 carried one to three `0` answers again — the table's control run too. A
+sent message reaches a thread only while it waits or makes a call that pumps, so the trace now
+records the Java stack of every `0` answer, and each one named the same call:
+`UiaReturnRawElementProvider(hwnd, 0, 0, NULL)`, the provider withdrawal the P5W-3 teardown added
+to `invalidateEverythingVended`, which `attach` runs at the first bind — after the window procedure
+is replaced and before the window's node is published. It pumped the reader's pending asks into the
+gap this amendment's predecessor had closed. The withdrawal is for a window whose provider UI
+Automation holds, so it now runs only where a root was handed over: a rebind or a detach after an
+answer, never the first bind. After it: six runs (four of the list, two of the table), no `0`
+answer, the focus subscription in each, and both scripts heard. And the count of `0`s does not decide
+alone: a diagnostic run with two `0`s spoke, and what separated the silent runs was that NVDA then
+read the window through MSAA (`WM_GETOBJECT` for `-5`, `-6`, `-2`, `-3`) and never asked UI
+Automation to advise it of focus. A `0` is a coin the reader may or may not keep; the rule is to
+never give one. Evidence: `.claude/pending/2026-09-23/readings/list-multi-windows/` (`list-multi-*`
+silent, `diag-*` with the stacks, `fix-*` after).
 
 **What the snapshot costs.** One allocation per publish, sized to the node count, on frames where the
 tree was dirty **and** a client is listening. Idle frames publish nothing. The arrays are never reused

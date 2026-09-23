@@ -116,6 +116,16 @@ final class UiaWindow {
             if (message == WM_GETOBJECT && (int) lparam == UIA_ROOT_OBJECT_ID) {
                 long answer = bridge.answerGetObject(wparam, lparam);
                 say("  answered " + answer);
+                if (answer == 0 && UiaTrace.on()) {
+                    // Who let the message in. A sent message reaches this thread only while it
+                    // waits or makes a call that pumps, so a "no provider" answer names the call
+                    // that dispatched it; that is how 2026-09-23 found the bind's own withdraw.
+                    StringBuilder where = new StringBuilder("  answered 0 from:");
+                    for (StackTraceElement frame : Thread.currentThread().getStackTrace()) {
+                        where.append("\n      ").append(frame);
+                    }
+                    say(where.toString());
+                }
                 if (answer != 0) {
                     return answer;
                 }
