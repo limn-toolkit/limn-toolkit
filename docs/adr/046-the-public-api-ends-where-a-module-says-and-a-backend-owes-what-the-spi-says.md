@@ -103,9 +103,12 @@ what it is. `TextField`'s `model` field stops being protected (§2 makes the que
   also skipped a window owed a capture, so `captureNextFrame` on a covered window never
   answered. A window with a capture pending now draws.
 - **Left for the repositories that own them**:
-  - Every `limn-fonts` jar keeps its faces under one `limn/fonts` folder. On the module path
-    that is a split package between them.
-  - The `limn-ffmpeg-natives` classifier jars all derive one automatic name.
+  - The `limn-fonts` jars have no module name and nothing requires them, so on the module path
+    they are never loaded. Resolving one (`--add-modules limn.fonts.roboto`) resolves them all.
+    A first draft of this note said the shared `limn/fonts` folder was a split package; it is
+    not, because an automatic module's packages come from its classes, and these jars have none.
+  - The `limn-ffmpeg-natives` main jar and its classifier jars all derive the automatic name
+    `limn.ffmpeg.natives`. Two of them in one module-path folder stop the JVM at startup.
   - The theme editor documents `/limn/i18n/themeeditor` for an application's translation. A
     named application module cannot use that folder, because the toolkit owns `limn.i18n`.
 
