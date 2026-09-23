@@ -41,7 +41,11 @@ dependencies {
     // is not a default worth shipping (ADR 006, ADR 032). The two heavyweights — pan-CJK at
     // 16 MB and colour emoji at 10 MB — are the application's choice, like the icon pack: add
     // limn-fonts-noto-cjk / limn-fonts-noto-emoji (or limn-fonts-all for everything at once).
-    runtimeOnly(libs.limn.fonts.roboto)
+    //
+    // Roboto is api rather than runtimeOnly because module-info requires limn.fonts.roboto
+    // (decision 125): javac resolves an application module's whole graph, so the jar has to be on
+    // the application's compile path too. It has no classes, so that costs nothing.
+    api(libs.limn.fonts.roboto)
     runtimeOnly(libs.limn.fonts.noto.scripts)
 
     implementation(platform(libs.lwjgl.bom))

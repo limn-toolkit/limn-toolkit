@@ -119,7 +119,7 @@ it is the one piece of Limn with a native payload and a licence of its own.
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
-    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.1:natives-macos-aarch64")
 }
 ```
 

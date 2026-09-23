@@ -57,8 +57,8 @@ dependencies {
     // Every fallback face at the versions this release was tested with…
     runtimeOnly("io.github.limn-toolkit:limn-fonts-all:{{version}}")
     // …or the two heavyweights by name, pinned to the FONT's own version:
-    // runtimeOnly("io.github.limn-toolkit:limn-fonts-noto-cjk:2.004.1")
-    // runtimeOnly("io.github.limn-toolkit:limn-fonts-noto-emoji:2.051.1")
+    // runtimeOnly("io.github.limn-toolkit:limn-fonts-noto-cjk:2.004.2")
+    // runtimeOnly("io.github.limn-toolkit:limn-fonts-noto-emoji:2.051.2")
 }
 ```
 

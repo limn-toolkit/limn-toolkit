@@ -53,10 +53,12 @@ dependencies {
     // this module uses none of them: what it implements is the same interface they do.
     api(project(":limn-toolkit"))
 
-    // The shim, for every platform, from the payload's main jar. runtimeOnly, because no Java
-    // here compiles against a .so; it is what makes "add limn-video-ffmpeg" bring the native
-    // half of itself along.
-    runtimeOnly(libs.limn.ffmpeg.natives)
+    // The shim, for every platform, from the payload's main jar: what makes "add
+    // limn-video-ffmpeg" bring the native half of itself along. api rather than runtimeOnly
+    // because module-info requires limn.ffmpeg.natives (decision 126), and javac resolves an
+    // application module's whole graph, so the jar has to be on the application's compile path
+    // too. It has no classes, so that costs nothing.
+    api(libs.limn.ffmpeg.natives)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)

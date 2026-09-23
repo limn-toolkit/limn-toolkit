@@ -121,7 +121,7 @@ una dependencia aparte porque es la única pieza de Limn con carga nativa y lice
 ```kotlin
 dependencies {
     implementation("io.github.limn-toolkit:limn-video-ffmpeg:x.y.z")
-    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.0:natives-macos-aarch64")
+    runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.1:natives-macos-aarch64")
 }
 ```
 

@@ -79,22 +79,15 @@ module com.example.app {
 Packages with `internal` in their name are shared between these modules and are not
 exported to yours.
 
-Four kinds of jar belong on the class path even when the application is a module:
+The font jars and the FFmpeg native jars need nothing: each names itself as a module, the
+backend and the video decoder require them, and the JVM loads them from the module path. Two
+kinds of jar still need a word:
 
-- **The font jars.** No module requires them, so on the module path they are never loaded, and
-  the backend stops at startup because Roboto is missing. `--add-modules limn.fonts.roboto`
-  also works, and it brings the other font jars with it.
-- **The FFmpeg native jars**, `limn-ffmpeg-natives`, which the video decoder also reads as
-  resources.
 - **LWJGL's native jars.** They are modules that nothing requires, so on the module path they are
-  never loaded. The backend then stops with the `--add-modules` line that loads them, if you
-  would rather keep them there.
+  never loaded. Put your platform's jars on the class path, or keep them on the module path and
+  add the `--add-modules` line the backend prints when it stops for want of them.
 - **jlayer**, the MP3 decoder. It has no module name, and the backend reads it from the class
-  path.
-
-Gradle already puts the font jars, the FFmpeg native jars and jlayer there, because they have
-no module name. LWJGL's native jars do have one, so move them yourself, or run with
-`--add-modules` naming the native modules for your platform.
+  path, which is where Gradle puts it.
 
 **Your own resources.** On the module path, a module's resources are private to it. The
 toolkit can still load one by name, with `Images.fromResource` or `PropertyBundle.family`, in

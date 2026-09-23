@@ -102,15 +102,26 @@ what it is. `TextField`'s `model` field stops being protected (§2 makes the que
 - **What that run found elsewhere.** The frame pacer's skip for a covered window (decision 113)
   also skipped a window owed a capture, so `captureNextFrame` on a covered window never
   answered. A window with a capture pending now draws.
-- **Left for the repositories that own them**:
-  - The `limn-fonts` jars have no module name and nothing requires them, so on the module path
-    they are never loaded. Resolving one (`--add-modules limn.fonts.roboto`) resolves them all.
-    A first draft of this note said the shared `limn/fonts` folder was a split package; it is
-    not, because an automatic module's packages come from its classes, and these jars have none.
-  - The `limn-ffmpeg-natives` main jar and its classifier jars all derive the automatic name
-    `limn.ffmpeg.natives`. Two of them in one module-path folder stop the JVM at startup.
-  - The theme editor documents `/limn/i18n/themeeditor` for an application's translation. A
-    named application module cannot use that folder, because the toolkit owns `limn.i18n`.
+- **What the run found, decided the same day (decisions 125 to 128), each measured first**:
+  - The `limn-fonts` jars had no module name and nothing required them, so on the module path
+    they were never loaded and the backend stopped on missing Roboto. A first draft of this note
+    blamed a split package on their shared `limn/fonts` folder; there is none, because an
+    automatic module's packages come from its classes. The jars now name themselves
+    (`limn.fonts.roboto` and so on, fonts `.2`), the backend requires Roboto, and resolving it
+    resolves every other font jar on the path.
+  - Every `limn-ffmpeg-natives` jar derived the one name `limn.ffmpeg.natives`, and two in one
+    module-path folder stopped the JVM. Each now has its own (`limn.ffmpeg.natives.macos.aarch64`
+    …, natives 7.1.5.1), and `limn.video.ffmpeg` requires the main one.
+  - The theme editor read an application's translation from `/limn/i18n/themeeditor`, a package the
+    toolkit owns, so a named application module shipping that file did not start. The path is
+    gone; any bundle the application registers translates the `limn.themeEditor.*` keys.
+  - LWJGL's natives jars are modules nothing requires, and six platforms share each name, so
+    requiring them would pick the wrong platform. The backend now says the fix when they fail to
+    load: the class path, or the `--add-modules` line it prints.
+  - Rehearsed twice: first with the fonts and natives built locally, then on 2026-09-23 with the
+    released fonts `.2` and natives 7.1.5.1 resolved from Maven Central: every font jar, the FFmpeg
+    main jar and a classifier jar side by side on the module path with no flag, ten headless
+    checks passing, and a window drawing Latin, Arabic, CJK and colour emoji.
 
 ## 2. Decision: concrete widgets are final, `TextField` is sealed (decision 119)
 
