@@ -59,8 +59,20 @@ final class NativeFrames {
             // The recycler carries the slot index and nothing else, which is what the SPI
             // designed it for: "a native producer's implementation is one call passing that
             // integer across the boundary". This is that call.
-            VideoFrame.Writer writer = VideoFrame.Writer.allocate(slot, frame ->
-                    media.releaseVideo(frame.slot()));
+            //
+            // Released by the UI thread (a view that drew it), the call is handed to the release
+            // thread with a task built here once, so neither the UI waits on libavcodec nor the
+            // hand-off allocates. Released anywhere else, it runs where it is, as it always did:
+            // a caller that releases and reads at once must find the slot free.
+            int ownSlot = slot;
+            Runnable releaseLater = () -> media.releaseVideo(ownSlot);
+            VideoFrame.Writer writer = VideoFrame.Writer.allocate(slot, frame -> {
+                if (limn.concurrent.Ui.isUiThread()) {
+                    ReleaseQueue.submit(releaseLater);
+                } else {
+                    media.releaseVideo(frame.slot());
+                }
+            });
             // Geometry and interpretation are set once. Doing it per picture would invalidate
             // every plane binding and force the rebind this class exists to avoid.
             writer.configure(width, height, format, color);
