@@ -39,6 +39,8 @@ held by a test to what its gestures repaint.
   (`Label.setDescriptionFor`) and a busy state.
 - A new widget of a known shape (a toggle, a list of rows, a grid, a menu and six more) needs a
   host, a describe call and a contract test, and no bridge code.
+- On macOS a list, a `ListView` or a combo box's open list, is published as a table, as AppKit's
+  own lists are. VoiceOver says "table" for it and now speaks its selection.
 
 **Languages.**
 - `PluralString` and `PluralRules` write a counted sentence with one key per grammatical form.
@@ -108,7 +110,7 @@ how an application module lets the toolkit read its own resources.
 
 ### Known, and left for later
 
-- NVDA says nothing at a select-all or a deselect in a table; VoiceOver and Orca do.
+- NVDA says nothing at a select-all or a deselect in a table or a list; VoiceOver and Orca do.
 - VoiceOver is given a sorted header's direction and does not read it out.
 - A date picker's year chooser keys its cells by position, so paging a block of years may make a
   reader speak a stale year first.
