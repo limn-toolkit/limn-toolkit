@@ -582,7 +582,7 @@ class DateFieldTest extends ComponentTestBase {
     void theHandlerRunsForTheUserAndNotForACallersWrite() {
         build(new DateField(), PT_BR);
         List<LocalDate> heard = new ArrayList<>();
-        field.onChange(heard::add);
+        field.onChange(() -> heard.add(field.date()));
         field.setDate(LocalDate.of(2026, 9, 9));
         assertTrue(heard.isEmpty(), "a caller's write reaches no handler (ADR 040)");
         key(Keys.UP);

@@ -222,7 +222,7 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
     void focusOnADayOfTheOpenCalendarMovesItsCursorAndCommitsNothing() throws InterruptedException {
         bindCaptioned(new DatePicker(), "Data de entrega");
         List<LocalDate> picked = new ArrayList<>();
-        picker.onSelect(picked::add);
+        picker.onSelect(() -> picked.add(picker.date()));
         picker.open();
         frame();
         AccessibleNode twelfth = nodesOf(Accessible.Role.CELL).stream()

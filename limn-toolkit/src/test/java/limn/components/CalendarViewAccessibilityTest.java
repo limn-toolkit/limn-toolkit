@@ -1082,7 +1082,7 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         calendar.setClock(SEPTEMBER_9);
         calendar.setMinDate(LocalDate.of(2026, 9, 5));
         List<LocalDate> picked = new ArrayList<>();
-        calendar.onSelect(picked::add);
+        calendar.onSelect(() -> picked.add(calendar.selectedDate()));
         frame();
         AccessibleNode fifteenth = dayNamed("15 de setembro");
         assertTrue(offers(fifteenth, Accessible.Action.FOCUS), describe(tree()));

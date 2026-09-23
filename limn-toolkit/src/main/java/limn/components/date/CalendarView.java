@@ -57,7 +57,7 @@ import java.util.function.Predicate;
  *         .setMinDate(LocalDate.now())
  *         .setDateFilter(day -> day.getDayOfWeek() != DayOfWeek.SATURDAY
  *                            && day.getDayOfWeek() != DayOfWeek.SUNDAY)
- *         .onSelect(day -> booking.setStart(day));
+ *         .onSelect(() -> booking.setStart(calendar.selectedDate()));
  * }</pre>
  *
  * <p><b>The value is ISO and the calendar drawn is the reader's</b> (ADR 042 &sect;1). Everything
@@ -98,7 +98,7 @@ public final class CalendarView extends Widget {
         NONE,
         /** One day. {@link #onSelect} is the handler. */
         SINGLE,
-        /** A period, anchored by the first click and closed by the second. {@link #onSelectRange}. */
+        /** A period, anchored by the first click and closed by the second. {@link #onSelect} too. */
         RANGE
     }
 
@@ -267,8 +267,7 @@ public final class CalendarView extends Widget {
     private Chronology declaredChronology;
     private DayOfWeek declaredFirstDayOfWeek;
 
-    private Consumer<LocalDate> onSelect;
-    private Consumer<DateRange> onSelectRange;
+    private Runnable onSelect;
 
     private final Transition focusFade =
             new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing)
@@ -928,38 +927,27 @@ public final class CalendarView extends Widget {
     // ------------------------------------------------------------------ handlers
 
     /**
-     * Called with the day the user picked, in {@link SelectionMode#SINGLE}.
+     * The application's response to the user picking: a day in {@link SelectionMode#SINGLE}, a
+     * closed period in {@link SelectionMode#RANGE}. The first click of a period reaches nothing:
+     * a range with one end is not a range. The handler reads what it needs, {@link #selectedDate()}
+     * or {@link #selectedRange()}, as every list-shaped widget's does.
      *
      * <p>The user alone: a {@link #setSelectedDate} from code never reaches it (ADR 040). Code that
      * wants every change, whoever made it, watches the widget with
-     * {@link Widget#observeChanges} and reads {@link #selectedDate()}.
+     * {@link Widget#observeChanges}.
      *
      * @param listener what to run, or {@code null} to clear the slot
      * @return this
      * @throws IllegalStateException if a handler is already registered
      */
-    public CalendarView onSelect(Consumer<LocalDate> listener) {
+    public CalendarView onSelect(Runnable listener) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, listener, "CalendarView.onSelect");
         return this;
     }
 
     /**
-     * Called with the period the user closed, in {@link SelectionMode#RANGE}. The first click of a
-     * period reaches nothing: a range with one end is not a range.
-     *
-     * @param listener what to run, or {@code null} to clear the slot
-     * @return this
-     * @throws IllegalStateException if a handler is already registered
-     */
-    public CalendarView onSelectRange(Consumer<DateRange> listener) {
-        Ui.checkUiThread();
-        this.onSelectRange = Checks.handlerSlot(onSelectRange, listener, "CalendarView.onSelectRange");
-        return this;
-    }
-
-    /**
-     * The two modes' handlers, each reached only in its own mode.
+     * The handler, reached for a day in {@code SINGLE} and a closed period in {@code RANGE}.
      *
      * <p>Chains to {@code super} for every other aspect, which is the link a subclass must not
      * break (ADR 040 &sect;1.11).
@@ -967,11 +955,10 @@ public final class CalendarView extends Widget {
     @Override
     protected void handleUserChange(Change.Aspect aspect) {
         if (aspect == Change.Aspect.SELECTION) {
-            if (selectionMode == SelectionMode.SINGLE && onSelect != null) {
-                onSelect.accept(selected);
-            } else if (selectionMode == SelectionMode.RANGE && onSelectRange != null
-                    && selectedRange != null) {
-                onSelectRange.accept(selectedRange);
+            boolean picked = selectionMode == SelectionMode.SINGLE
+                    || (selectionMode == SelectionMode.RANGE && selectedRange != null);
+            if (picked && onSelect != null) {
+                onSelect.run();
             }
             return;
         }

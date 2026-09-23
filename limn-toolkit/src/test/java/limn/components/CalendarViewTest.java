@@ -77,7 +77,7 @@ class CalendarViewTest extends ComponentTestBase {
     void theCursorMovesWithoutSelectingAndEnterCommits() {
         build();
         List<LocalDate> picked = new ArrayList<>();
-        calendar.onSelect(picked::add);
+        calendar.onSelect(() -> picked.add(calendar.selectedDate()));
         key(Keys.DOWN);
         key(Keys.DOWN);
         // Two weeks down from today's cursor, and nothing selected: a grid whose arrows selected
@@ -134,7 +134,7 @@ class CalendarViewTest extends ComponentTestBase {
         build();
         calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
         AtomicReference<DateRange> closed = new AtomicReference<>();
-        calendar.onSelectRange(closed::set);
+        calendar.onSelect(() -> closed.set(calendar.selectedRange()));
         calendar.setSelectedDate(null);
 
         calendar.setVisibleMonth(ANCHOR);
@@ -200,7 +200,7 @@ class CalendarViewTest extends ComponentTestBase {
         assertTrue(calendar.isSelectable(ANCHOR));
 
         List<LocalDate> picked = new ArrayList<>();
-        calendar.onSelect(picked::add);
+        calendar.onSelect(() -> picked.add(calendar.selectedDate()));
         calendar.setSelectedDate(LocalDate.of(2026, 9, 12)); // a Saturday
         scene.requestFocus(calendar);
         key(Keys.RIGHT);
@@ -429,7 +429,7 @@ class CalendarViewTest extends ComponentTestBase {
         calendar.setGranularity(CalendarView.View.MONTHS);
         assertEquals(CalendarView.View.MONTHS, calendar.view(), "nothing finer to show");
         List<LocalDate> picked = new ArrayList<>();
-        calendar.onSelect(picked::add);
+        calendar.onSelect(() -> picked.add(calendar.selectedDate()));
         scene.requestFocus(calendar);
         key(Keys.HOME);      // the cursor arrives on September; Home is the first of its row
         key(Keys.UP);
@@ -490,7 +490,7 @@ class CalendarViewTest extends ComponentTestBase {
         calendar.setGranularity(CalendarView.View.MONTHS);
         calendar.setSelectionMode(CalendarView.SelectionMode.RANGE);
         AtomicReference<DateRange> closed = new AtomicReference<>();
-        calendar.onSelectRange(closed::set);
+        calendar.onSelect(() -> closed.set(calendar.selectedRange()));
         scene.requestFocus(calendar);
         key(Keys.UP);        // September -> May
         key(Keys.LEFT);

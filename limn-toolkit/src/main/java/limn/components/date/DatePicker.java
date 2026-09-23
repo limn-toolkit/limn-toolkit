@@ -131,7 +131,9 @@ public final class DatePicker extends Widget {
     private final Transition buttonFocus =
             new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
 
-    private Consumer<LocalDate> onSelect;
+    private Runnable onSelect;
+    /** Set while {@link #setRange} fills both fields, so the half-set period is not announced. */
+    private boolean settingRange;
 
     /** A picker for a date. */
     public DatePicker() {
@@ -177,8 +179,13 @@ public final class DatePicker extends Widget {
         // The grid inherits the picker's step, direction and language through the tree in the
         // in-scene presentation and through the host link in the other; the link is set when the
         // popup is built, which is the only moment the panel has no parent.
-        calendar.onSelect(this::calendarPicked);
-        calendar.onSelectRange(this::calendarPickedRange);
+        calendar.onSelect(() -> {
+            if (calendar.selectionMode() == CalendarView.SelectionMode.RANGE) {
+                calendarPickedRange(calendar.selectedRange());
+            } else {
+                calendarPicked(calendar.selectedDate());
+            }
+        });
     }
 
     /**
@@ -204,6 +211,9 @@ public final class DatePicker extends Widget {
                     invalidate();
                 }
                 case VALUE -> {
+                    if (settingRange) {
+                        break; // setRange announces once, with the whole period
+                    }
                     syncCalendarFromFields();
                     // Forwarded so a watcher on the picker does not have to know it has children.
                     notifyChange(Change.of(Change.Aspect.VALUE, change.origin()));
@@ -401,12 +411,25 @@ public final class DatePicker extends Widget {
      * @throws IllegalStateException if this picker is not a range picker
      */
     public DatePicker setRange(DateRange range) {
+        Ui.checkUiThread();
         if (endField == null) {
             throw new IllegalStateException("this DatePicker has one field; build it with ofRange()");
         }
-        field.setDate(range == null ? null : range.start());
-        endField.setDate(range == null ? null : range.end());
+        DateRange was = range();
+        // Both ends, then one announcement: filling the fields one at a time announced twice, the
+        // first time with a period that was half the old one and half the new.
+        settingRange = true;
+        try {
+            field.setDate(range == null ? null : range.start());
+            endField.setDate(range == null ? null : range.end());
+        } finally {
+            settingRange = false;
+        }
+        syncCalendarFromFields();
         calendar.setSelectedRange(range);
+        if (!java.util.Objects.equals(was, range())) {
+            notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.CODE));
+        }
         return this;
     }
 
@@ -645,14 +668,15 @@ public final class DatePicker extends Widget {
     }
 
     /**
-     * Called with the date the user picked, whether they typed it or chose it from the grid. A
-     * range picker's handler is reached with the start; the whole period is {@link #range()}.
+     * The application's response to the user choosing: a date typed or picked from the grid, the
+     * end of a period, or a time of day. The handler reads what it needs, {@link #date()},
+     * {@link #range()} or {@link #dateTime()}.
      *
      * @param listener what to run, or {@code null} to clear the slot
      * @return this
      * @throws IllegalStateException if a handler is already registered
      */
-    public DatePicker onSelect(Consumer<LocalDate> listener) {
+    public DatePicker onSelect(Runnable listener) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, listener, "DatePicker.onSelect");
         return this;
@@ -662,7 +686,7 @@ public final class DatePicker extends Widget {
     protected void handleUserChange(Change.Aspect aspect) {
         if (aspect == Change.Aspect.VALUE) {
             if (onSelect != null) {
-                onSelect.accept(field.date());
+                onSelect.run();
             }
             return;
         }

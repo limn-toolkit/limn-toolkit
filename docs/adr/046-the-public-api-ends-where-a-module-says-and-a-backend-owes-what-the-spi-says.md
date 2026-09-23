@@ -241,3 +241,10 @@ ones that change API are recorded here as they land.
   index, as the table's does: equal items are two rows. `SINGLE` behaves and looks exactly as
   before, which the unchanged test suite and accessibility transcripts hold; the rows contract now
   runs with `MULTI` entered. A live reader run over a multiple-selection list is owed.
+- **API-9, the date widgets' handlers (decision 137).** One handler each, a `Runnable` that reads
+  what it needs: `DatePicker.onSelect` and `CalendarView.onSelect` (a day in `SINGLE`, a closed
+  period in `RANGE`; the first click of a period still reaches nothing) and `DateField.onChange`,
+  which now runs for the time of day too. `CalendarView.onSelectRange` and
+  `DateField.onTimeChange` are gone. The picker's handler used to be handed the start of a period
+  and nothing that said the time had moved. `DatePicker.setRange` checks the UI thread and
+  announces once, with the whole period, where it announced twice with a half-set period between.

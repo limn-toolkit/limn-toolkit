@@ -323,7 +323,7 @@ class NotificationContractTest extends ComponentTestBase {
                     w -> ((CalendarView) w).setSelectedDate(java.time.LocalDate.of(2026, 9, 15)),
                     Change.Aspect.SELECTION,
                     new Gesture(Change.Aspect.SELECTION,
-                            (w, ran) -> ((CalendarView) w).onSelect(d -> ran.run()),
+                            (w, ran) -> ((CalendarView) w).onSelect(ran),
                             (scene, w) -> {
                                 scene.requestFocus(w);
                                 key(scene, Keys.ENTER);
@@ -333,7 +333,7 @@ class NotificationContractTest extends ComponentTestBase {
                     w -> ((DateField) w).setDate(java.time.LocalDate.of(2026, 9, 15)),
                     Change.Aspect.VALUE,
                     new Gesture(Change.Aspect.VALUE,
-                            (w, ran) -> ((DateField) w).onChange(d -> ran.run()),
+                            (w, ran) -> ((DateField) w).onChange(ran),
                             (scene, w) -> {
                                 scene.requestFocus(w);
                                 key(scene, Keys.UP);
@@ -346,7 +346,7 @@ class NotificationContractTest extends ComponentTestBase {
                     w -> ((DatePicker) w).setDate(java.time.LocalDate.of(2026, 9, 15)),
                     Change.Aspect.VALUE,
                     new Gesture(Change.Aspect.VALUE,
-                            (w, ran) -> ((DatePicker) w).onSelect(d -> ran.run()),
+                            (w, ran) -> ((DatePicker) w).onSelect(ran),
                             (scene, w) -> {
                                 scene.requestFocus(((DatePicker) w).field());
                                 key(scene, Keys.UP);

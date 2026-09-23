@@ -84,7 +84,7 @@ public final class DatesExample {
     static Widget period() {
         DatePicker period = DatePicker.ofRange();
         period.setRange(new DateRange(LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 25)));
-        period.onSelect(start -> System.out.println("period now " + period.range()));
+        period.onSelect(() -> System.out.println("period now " + period.range()));
         return field("Reporting period", period);
     }
     // #endregion
@@ -108,7 +108,7 @@ public final class DatesExample {
         calendar.setDayMarks(day -> HOLIDAYS.contains(day)
                 ? DayMark.of(Theme.current().danger(), I18nString.literal("holiday"))
                 : null);
-        calendar.onSelect(day -> System.out.println("picked " + day));
+        calendar.onSelect(() -> System.out.println("picked " + calendar.selectedDate()));
         return calendar;
     }
     // #endregion

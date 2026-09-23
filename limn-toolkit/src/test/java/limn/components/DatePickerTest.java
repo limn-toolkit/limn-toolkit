@@ -196,8 +196,8 @@ class DatePickerTest extends ComponentTestBase {
         assertEquals(LocalDateTime.of(2026, 9, 9, 18, 30), picker.dateTime());
         assertEquals("09/09/2026 18:30", picker.field().text());
 
-        List<LocalDate> handled = new ArrayList<>();
-        picker.onSelect(handled::add);
+        List<LocalDateTime> handled = new ArrayList<>();
+        picker.onSelect(() -> handled.add(picker.dateTime()));
         picker.open();
         for (int i = 0; i < 4; i++) {
             key(Keys.TAB, 0);   // grid, previous, title, next, and on to the time row
@@ -207,7 +207,8 @@ class DatePickerTest extends ComponentTestBase {
         assertEquals(LocalTime.of(9, 5), picker.time(), "the digits went into the time row");
         assertEquals(ANCHOR, picker.date(), "and the date is untouched");
         assertFalse(handled.isEmpty(), "typing into the row is the user operating the picker");
-        assertEquals(ANCHOR, handled.get(handled.size() - 1));
+        assertEquals(LocalDateTime.of(2026, 9, 9, 9, 5), handled.get(handled.size() - 1),
+                "and the handler reads the time it moved, which a handler handed a date could not");
         assertTrue(picker.isOpen());
 
         key(Keys.TAB, 0);       // round to the grid again
@@ -374,7 +375,7 @@ class DatePickerTest extends ComponentTestBase {
         build(new DatePicker());
         List<LocalDate> handled = new ArrayList<>();
         List<Change.Aspect> watched = new ArrayList<>();
-        picker.onSelect(handled::add);
+        picker.onSelect(() -> handled.add(picker.date()));
         picker.observeChanges((widget, change) -> watched.add(change.aspect()));
 
         picker.setDate(ANCHOR);
@@ -680,13 +681,46 @@ class DatePickerTest extends ComponentTestBase {
         assertFalse(picker.isOpen(), "a popup left floating over another application is stranded");
     }
 
+    /**
+     * API-9: filling both ends of a period is one change. It used to be two, and a watcher between
+     * them read a period that was half the old one and half the new.
+     */
+    @Test
+    void setRangeAnnouncesTheWholePeriodOnceAndOnlyOnTheUiThread() throws Exception {
+        build(DatePicker.ofRange());
+        LocalDate from = LocalDate.of(2026, 9, 10);
+        LocalDate to = LocalDate.of(2026, 9, 14);
+        List<String> heard = new ArrayList<>();
+        picker.observeChanges((widget, change) -> {
+            if (change.aspect() == limn.scene.Change.Aspect.VALUE) {
+                heard.add(change.origin() + " " + picker.range());
+            }
+        });
+        picker.setRange(limn.components.date.DateRange.of(from, to));
+        assertEquals(List.of("CODE " + limn.components.date.DateRange.of(from, to)), heard);
+        picker.setRange(limn.components.date.DateRange.of(from, to));
+        assertEquals(1, heard.size(), "the same period again is no change");
+
+        Throwable[] thrown = new Throwable[1];
+        Thread other = new Thread(() -> {
+            try {
+                picker.setRange(null);
+            } catch (Throwable t) {
+                thrown[0] = t;
+            }
+        });
+        other.start();
+        other.join();
+        assertTrue(thrown[0] instanceof IllegalStateException, "off the UI thread it refuses: " + thrown[0]);
+    }
+
     @Test
     void theFieldsHandlerSlotIsStillTheApplicationsToTake() {
         build(new DatePicker());
         // The picker follows its field through observeChanges precisely so that this call works:
         // a picker that had taken onChange for its own wiring would throw here.
         List<LocalDate> heard = new ArrayList<>();
-        picker.field().onChange(heard::add);
+        picker.field().onChange(() -> heard.add(picker.field().date()));
         scene.requestFocus(picker.field());
         picker.setDate(ANCHOR);
         key(Keys.UP, 0);

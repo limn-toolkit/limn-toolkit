@@ -224,8 +224,7 @@ public final class DateField extends Widget {
     private Predicate<LocalDate> dateFilter;
 
     private I18nString validity;
-    private Consumer<LocalDate> onChange;
-    private Consumer<LocalTime> onTimeChange;
+    private Runnable onChange;
     /** Which half moved, so one announcement reaches the one handler it belongs to. */
     private boolean lastMoveWasTime;
 
@@ -800,9 +799,10 @@ public final class DateField extends Widget {
     // ------------------------------------------------------------------ handlers
 
     /**
-     * Called when the user moves the date, with what it is now &mdash; {@code null} while the
-     * segments are incomplete, which is the state a person is in for most of the time they are
-     * typing.
+     * The application's response to the user moving the value: the date, or the time of day in a
+     * field that has one. The handler reads what it needs, {@link #date()}, {@link #time()} or
+     * {@link #dateTime()}; the date is {@code null} while the segments are incomplete, which is the
+     * state a person is in for most of the time they are typing.
      *
      * <p>The user alone (ADR 040): {@link #setDate} from code never reaches it.
      *
@@ -810,36 +810,17 @@ public final class DateField extends Widget {
      * @return this
      * @throws IllegalStateException if a handler is already registered
      */
-    public DateField onChange(Consumer<LocalDate> listener) {
+    public DateField onChange(Runnable listener) {
         Ui.checkUiThread();
         this.onChange = Checks.handlerSlot(onChange, listener, "DateField.onChange");
-        return this;
-    }
-
-    /**
-     * Called when the user moves the time of day. A field with both halves reaches this one for a
-     * change to the clock and {@link #onChange} for a change to the date, so an application that
-     * wants the whole value reads {@link #dateTime()} from either.
-     *
-     * @param listener what to run, or {@code null} to clear the slot
-     * @return this
-     * @throws IllegalStateException if a handler is already registered
-     */
-    public DateField onTimeChange(Consumer<LocalTime> listener) {
-        Ui.checkUiThread();
-        this.onTimeChange = Checks.handlerSlot(onTimeChange, listener, "DateField.onTimeChange");
         return this;
     }
 
     @Override
     protected void handleUserChange(Change.Aspect aspect) {
         if (aspect == Change.Aspect.VALUE) {
-            if (lastMoveWasTime) {
-                if (onTimeChange != null) {
-                    onTimeChange.accept(timeValue);
-                }
-            } else if (onChange != null) {
-                onChange.accept(dateValue);
+            if (onChange != null) {
+                onChange.run();
             }
             return;
         }
