@@ -457,45 +457,24 @@ public final class Table<T> extends Widget implements Scrollable {
     }
 
     /**
-     * The ordinal of every entry that just arrived: how many rows before it carry an equal key.
-     * A read of the rows before each, which is the price of telling equal records apart when no
-     * {@link #rowKey} promises they differ; a handful of arrivals scan for themselves, and many
-     * (a range, a select-all) share one pass over the rows with a map of their keys.
+     * The ordinal of every entry that just arrived: how many rows before it carry an equal key,
+     * which is how a record is told apart from an equal one when no {@link #rowKey} promises they
+     * differ. Read from the occurrence cache the accessible describe keeps, so each row above is
+     * read once until the list changes, not once per keypress: an arrow near the end of a
+     * hundred thousand unkeyed rows used to cost a pass over all the rows above it each time.
      */
     private void ordinalsOfAdded() {
         int n = records.addedCount;
-        if (n <= 16) {
-            for (int i = 0; i < n; i++) {
-                int at = records.added[i];
-                Object key = records.keys[at];
-                int model = records.models[at];
-                int ordinal = 0;
-                for (int m = 0; m < model; m++) {
-                    if (Objects.equals(keyOf(rows.get(m)), key)) {
-                        ordinal++;
-                    }
-                }
-                records.ordinals[at] = ordinal;
-            }
-            return;
-        }
-        java.util.HashMap<Object, int[]> seen = new java.util.HashMap<>(n * 2);
+        int deepest = -1;
         for (int i = 0; i < n; i++) {
-            seen.putIfAbsent(records.keys[records.added[i]], new int[1]);
+            deepest = Math.max(deepest, records.models[records.added[i]]);
         }
-        int last = records.models[records.added[n - 1]];
-        int nextAdded = 0;
-        for (int m = 0; m <= last; m++) {
-            Object key = keyOf(rows.get(m));
-            int[] counter = seen.get(key);
-            if (counter == null) {
-                continue;
-            }
-            if (records.models[records.added[nextAdded]] == m) {
-                records.ordinals[records.added[nextAdded]] = counter[0];
-                nextAdded++;
-            }
-            counter[0]++;
+        if (deepest >= occurrencesRead) {
+            readOccurrences(deepest + 1);
+        }
+        for (int i = 0; i < n; i++) {
+            int at = records.added[i];
+            records.ordinals[at] = occurrence[records.models[at]];
         }
     }
 
@@ -1104,6 +1083,9 @@ public final class Table<T> extends Widget implements Scrollable {
     public Table<T> rowKey(Function<? super T, ?> key) {
         Ui.checkUiThread();
         this.rowKey = key;
+        // Before the records are read again: their ordinals come from the occurrences, which
+        // depend on the key.
+        forgetOccurrences();
         records.clear();
         syncRecords();
         for (int i = 0; i < mountedCount; i++) {
