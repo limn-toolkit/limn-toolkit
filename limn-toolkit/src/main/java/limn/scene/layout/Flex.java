@@ -1,5 +1,7 @@
 package limn.scene.layout;
 
+import limn.concurrent.Ui;
+
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -70,6 +72,7 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
 
     /** Space between children, in logical points. Not applied before the first or after the last. */
     public W gap(float newGap) {
+        Ui.checkUiThread();
         setGap(Math.max(0, newGap));
         return self();
     }
@@ -101,6 +104,7 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
 
     /** How leftover space along the layout axis is distributed. */
     public W mainAlignment(MainAlignment alignment) {
+        Ui.checkUiThread();
         // Validate BEFORE mutating: a stored null only explodes at the next
         // layout pass, killing the event loop far from the offending call.
         this.mainAlignment = java.util.Objects.requireNonNull(alignment, "alignment");
@@ -110,6 +114,7 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
 
     /** How children are placed across the layout axis; {@code BASELINE} is the one for a row that mixes size steps and carries text. */
     public W crossAlignment(CrossAlignment alignment) {
+        Ui.checkUiThread();
         this.crossAlignment = java.util.Objects.requireNonNull(alignment, "alignment");
         markNeedsLayout();
         return self();

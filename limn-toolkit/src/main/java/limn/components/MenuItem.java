@@ -131,6 +131,7 @@ public final class MenuItem {
 
     /** Enables or disables the item. */
     public MenuItem setEnabled(boolean value) {
+        Ui.checkUiThread();
         this.enabled = value;
         return this;
     }
@@ -142,6 +143,7 @@ public final class MenuItem {
 
     /** Sets a check item's state (does not fire {@code onToggle}). UI thread when displayed. */
     public MenuItem setChecked(boolean value) {
+        Ui.checkUiThread();
         this.checked = value;
         return this;
     }
@@ -162,6 +164,7 @@ public final class MenuItem {
      *         one; a shortcut on the <em>items inside</em> it is what was meant.
      */
     public MenuItem setAccelerator(Accelerator value) {
+        Ui.checkUiThread();
         if (kind == Kind.SUBMENU || kind == Kind.SEPARATOR) {
             throw new IllegalStateException("a " + kind + " item cannot carry an accelerator");
         }
@@ -192,6 +195,7 @@ public final class MenuItem {
      * @throws IllegalStateException on a separator
      */
     public MenuItem setMnemonic(char value) {
+        Ui.checkUiThread();
         if (kind == Kind.SEPARATOR) {
             throw new IllegalStateException("a separator cannot carry a mnemonic");
         }

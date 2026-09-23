@@ -1,5 +1,7 @@
 package limn.scene.layout;
 
+import limn.concurrent.Ui;
+
 import limn.scene.Widget;
 
 /**
@@ -17,6 +19,7 @@ public abstract class Container<W extends Container<W>> extends Widget<W> {
     /** Appends a child (UI thread only). */
     @Override
     public void add(Widget<?> child) {
+        Ui.checkUiThread();
         super.add(child);
     }
 
@@ -28,12 +31,14 @@ public abstract class Container<W extends Container<W>> extends Widget<W> {
      */
     @Override
     public void add(int index, Widget<?> child) {
+        Ui.checkUiThread();
         super.add(index, child);
     }
 
     /** Removes a child (UI thread only); a widget that is not a child is ignored. */
     @Override
     public void remove(Widget<?> child) {
+        Ui.checkUiThread();
         super.remove(child);
     }
 }

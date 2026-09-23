@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.concurrent.Ui;
+
 import limn.scene.Size;
 
 import java.util.Objects;
@@ -77,6 +79,7 @@ public final class ScrollGutters {
 
     /** Sets the mode (default {@link Layout#OVERLAY}); the host asks for the relayout. */
     public void setLayout(Layout newLayout) {
+        Ui.checkUiThread();
         this.layout = Objects.requireNonNull(newLayout, "layout");
     }
 

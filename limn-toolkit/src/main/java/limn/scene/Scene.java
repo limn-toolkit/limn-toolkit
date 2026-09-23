@@ -261,6 +261,7 @@ public final class Scene {
 
     /** Overrides the text measurer (tests use deterministic fake metrics). */
     public void setTextRuler(limn.graphics.TextRuler ruler) {
+        Ui.checkUiThread();
         this.textRuler = ruler;
         markLayoutDirty();
     }
@@ -436,6 +437,7 @@ public final class Scene {
 
     /** Overrides the clipboard (tests inject mocks). */
     public void setClipboard(limn.backend.Clipboard newClipboard) {
+        Ui.checkUiThread();
         this.clipboard = newClipboard;
     }
 
@@ -640,6 +642,7 @@ public final class Scene {
      * through where the window itself is translucent.
      */
     public void setBackground(Color color) {
+        Ui.checkUiThread();
         this.background = Objects.requireNonNull(color);
     }
 
@@ -654,6 +657,7 @@ public final class Scene {
 
     /** Budget above which an event handler is reported (default 8 ms). */
     public void setSlowHandlerBudgetMillis(long millis) {
+        Ui.checkUiThread();
         this.slowHandlerBudgetNanos = TimeUnit.MILLISECONDS.toNanos(Math.max(1, millis));
     }
 
@@ -792,6 +796,7 @@ public final class Scene {
 
     /** Schedules a frame and marks the whole scene damaged. */
     public void requestRender() {
+        Ui.checkUiThread();
         fullDamagePending = true;
         accessibleNodesDirty = true;
         renderRequester.run();
@@ -1391,6 +1396,7 @@ public final class Scene {
      * <p>Painted before the damage-debug flashes, so those stay legible on top of it.
      */
     public void setFrontPainter(java.util.function.Consumer<Canvas> painter) {
+        Ui.checkUiThread();
         this.frontPainter = painter;
         requestRender();
     }
@@ -2141,6 +2147,7 @@ public final class Scene {
      * entry point would report every keyboard-driven focus move in the toolkit as made by code.
      */
     public void requestFocus(Widget<?> widget) {
+        Ui.checkUiThread();
         requestFocus(widget, Change.Origin.CODE);
     }
 

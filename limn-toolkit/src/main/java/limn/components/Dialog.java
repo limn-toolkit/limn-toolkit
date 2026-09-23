@@ -240,11 +240,13 @@ public final class Dialog {
 
     /** Adds a secondary (outlined) button that resolves the dialog with {@code result}. */
     public Dialog addButton(String text, String resultValue) {
+        Ui.checkUiThread();
         return addButton(I18nString.literal(text), resultValue, false);
     }
 
     /** A secondary button whose caption follows the UI language. */
     public Dialog addButton(I18nString text, String resultValue) {
+        Ui.checkUiThread();
         return addButton(text, resultValue, false);
     }
 
@@ -257,11 +259,13 @@ public final class Dialog {
      * Return in a {@code TextArea} still inserts a newline.
      */
     public Dialog addPrimaryButton(String text, String resultValue) {
+        Ui.checkUiThread();
         return addButton(I18nString.literal(text), resultValue, true);
     }
 
     /** A primary button whose caption follows the UI language. */
     public Dialog addPrimaryButton(I18nString text, String resultValue) {
+        Ui.checkUiThread();
         return addButton(text, resultValue, true);
     }
 
@@ -289,6 +293,7 @@ public final class Dialog {
 
     /** Sets the result delivered on ESC / scrim dismiss (default {@code null}). */
     public Dialog setCancelResult(String value) {
+        Ui.checkUiThread();
         this.cancelResult = value;
         return this;
     }
@@ -302,6 +307,7 @@ public final class Dialog {
      * <p>{@code null} restores inheritance from the owner scene. UI thread only.
      */
     public Dialog setControlSize(ControlSize size) {
+        Ui.checkUiThread();
         panel.setControlSize(size);
         return this;
     }
@@ -321,6 +327,7 @@ public final class Dialog {
      * {@link #displayMode()} answers what actually happened; {@code keepInScene()} insists.
      */
     public Dialog setDisplayMode(DisplayMode mode) {
+        Ui.checkUiThread();
         this.displayMode = Objects.requireNonNull(mode, "mode");
         return this;
     }
@@ -363,6 +370,7 @@ public final class Dialog {
      * (default {@code true}). Only applies to {@link DisplayMode#NATIVE_WINDOW}.
      */
     public Dialog setAlwaysOnTop(boolean value) {
+        Ui.checkUiThread();
         this.alwaysOnTop = value;
         return this;
     }
@@ -375,6 +383,7 @@ public final class Dialog {
      * {@linkplain #setCancelResult cancel result} (a dismissable overlay).
      */
     public Dialog setDismissOnScrim(boolean value) {
+        Ui.checkUiThread();
         this.dismissOnScrim = value;
         return this;
     }
@@ -387,12 +396,14 @@ public final class Dialog {
      * {@link DisplayMode#IN_SCENE} (the internal card is always the glassy panel).
      */
     public Dialog setStyle(WindowStyle newStyle) {
+        Ui.checkUiThread();
         this.style = Objects.requireNonNull(newStyle, "newStyle");
         return this;
     }
 
     /** Programmatically closes the dialog, resolving with {@code result}. UI thread only. */
     public void dismiss(String result) {
+        Ui.checkUiThread();
         resolve(result);
     }
 
@@ -425,6 +436,7 @@ public final class Dialog {
      * @throws IllegalStateException if this dialog was already shown (dialogs are single-use)
      */
     public CompletionStage<String> show(Scene owner) {
+        Ui.checkUiThread();
         return displayMode == DisplayMode.IN_SCENE
                 ? presentInScene(owner, false)
                 : presentNative(owner, true, owner.window());
@@ -438,6 +450,7 @@ public final class Dialog {
      * @throws IllegalStateException if this dialog was already shown (dialogs are single-use)
      */
     public CompletionStage<String> showToolkitModal(Scene owner) {
+        Ui.checkUiThread();
         return displayMode == DisplayMode.IN_SCENE
                 ? presentInScene(owner, true)
                 : presentNative(owner, true, null);
@@ -453,6 +466,7 @@ public final class Dialog {
      *                               or if this dialog was already shown (dialogs are single-use)
      */
     public CompletionStage<String> showNonModal(Scene owner) {
+        Ui.checkUiThread();
         if (displayMode == DisplayMode.IN_SCENE) {
             throw new IllegalStateException(
                     "non-modal dialogs require DisplayMode.NATIVE_WINDOW "
@@ -470,6 +484,7 @@ public final class Dialog {
      * @throws IllegalStateException if {@code owner} is not in a scene, or the dialog was already shown
      */
     public CompletionStage<String> show(Widget<?> owner) {
+        Ui.checkUiThread();
         Scene scene = adoptSizeHost(owner);
         return displayMode == DisplayMode.IN_SCENE
                 ? presentInScene(scene, false)
@@ -478,6 +493,7 @@ public final class Dialog {
 
     /** {@link #showToolkitModal(Scene)}, inheriting the size step from {@code owner}. */
     public CompletionStage<String> showToolkitModal(Widget<?> owner) {
+        Ui.checkUiThread();
         Scene scene = adoptSizeHost(owner);
         return displayMode == DisplayMode.IN_SCENE
                 ? presentInScene(scene, true)
@@ -486,6 +502,7 @@ public final class Dialog {
 
     /** {@link #showNonModal(Scene)}, inheriting the size step from {@code owner}. */
     public CompletionStage<String> showNonModal(Widget<?> owner) {
+        Ui.checkUiThread();
         Scene scene = adoptSizeHost(owner);
         if (displayMode == DisplayMode.IN_SCENE) {
             throw new IllegalStateException(

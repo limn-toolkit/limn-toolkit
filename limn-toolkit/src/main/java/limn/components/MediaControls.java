@@ -191,6 +191,7 @@ public final class MediaControls extends Widget<MediaControls> {
      * Order of calls is the order on screen.
      */
     public MediaControls addLeading(Widget<?> widget) {
+        Ui.checkUiThread();
         leading.add(Objects.requireNonNull(widget, "widget"));
         rebuild();
         return this;
@@ -198,6 +199,7 @@ public final class MediaControls extends Widget<MediaControls> {
 
     /** Adds a widget between the scrub bar and the position clock. */
     public MediaControls addTrailing(Widget<?> widget) {
+        Ui.checkUiThread();
         trailing.add(Objects.requireNonNull(widget, "widget"));
         rebuild();
         return this;
@@ -205,6 +207,7 @@ public final class MediaControls extends Widget<MediaControls> {
 
     /** Whether the position clock is shown (default true). */
     public MediaControls setShowPosition(boolean show) {
+        Ui.checkUiThread();
         if (showPosition != show) {
             showPosition = show;
             rebuild();
@@ -217,6 +220,7 @@ public final class MediaControls extends Widget<MediaControls> {
      * chrome behind the controls — a glass strip over the picture — turns it off.
      */
     public MediaControls setBackdrop(boolean paint) {
+        Ui.checkUiThread();
         if (backdrop != paint) {
             backdrop = paint;
             markNeedsLayout();
@@ -260,6 +264,7 @@ public final class MediaControls extends Widget<MediaControls> {
      * it. {@code null}s restore the theme's answer.
      */
     public MediaControls setInk(Color newInk, Color newMutedInk) {
+        Ui.checkUiThread();
         ink = newInk;
         mutedInk = newMutedInk;
         if (newMutedInk != null) {
@@ -273,6 +278,7 @@ public final class MediaControls extends Widget<MediaControls> {
 
     /** Whether the mute button and volume slider are offered (default {@link Sound#AUTO}). */
     public MediaControls setSound(Sound mode) {
+        Ui.checkUiThread();
         sound = Objects.requireNonNull(mode, "mode");
         updateSoundCluster();
         return this;
@@ -283,6 +289,7 @@ public final class MediaControls extends Widget<MediaControls> {
      * mutes. This is what unmuting restores.
      */
     public MediaControls setVolume(float newLevel) {
+        Ui.checkUiThread();
         level = Math.max(0f, Math.min(1f, newLevel));
         muted = level <= 0;
         syncMuteTooltip();
@@ -302,6 +309,7 @@ public final class MediaControls extends Widget<MediaControls> {
      * every time somebody silenced a video for a moment.
      */
     public MediaControls setMuted(boolean newMuted) {
+        Ui.checkUiThread();
         muted = newMuted;
         if (!muted && level <= 0) {
             level = 0.7f; // unmuting a slider dragged to zero has to go somewhere

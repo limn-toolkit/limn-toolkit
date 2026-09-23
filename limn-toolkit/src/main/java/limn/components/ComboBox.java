@@ -260,6 +260,7 @@ public final class ComboBox extends Widget<ComboBox> {
      * announce it as {@code USER} through the same seam.
      */
     public void open() {
+        Ui.checkUiThread();
         open(Change.Origin.CODE);
     }
 
@@ -329,6 +330,7 @@ public final class ComboBox extends Widget<ComboBox> {
      * <p>Takes effect on the next open.
      */
     public ComboBox setDisplayMode(DisplayMode mode) {
+        Ui.checkUiThread();
         this.requested = Objects.requireNonNull(mode, "mode");
         return this;
     }
@@ -347,6 +349,7 @@ public final class ComboBox extends Widget<ComboBox> {
      * makes for itself -- the window losing focus, the field being detached -- is an adjustment.
      */
     public void close() {
+        Ui.checkUiThread();
         close(Change.Origin.CODE);
     }
 

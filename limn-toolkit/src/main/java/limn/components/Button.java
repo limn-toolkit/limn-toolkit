@@ -200,6 +200,7 @@ public final class Button extends Widget<Button> {
 
     /** Replaces the caption with a fixed string. UI thread only. */
     public Button setText(String newText) {
+        Ui.checkUiThread();
         Objects.requireNonNull(newText, "newText");
         if (text.isLiteral() && text.get().equals(newText)) {
             return this;

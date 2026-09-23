@@ -273,6 +273,7 @@ public final class PopupMenu {
      * (a press outside dismisses). Purely native: no in-scene overlay.
      */
     public PopupMenu setModal(boolean value) {
+        Ui.checkUiThread();
         this.modal = value;
         return this;
     }
@@ -310,11 +311,13 @@ public final class PopupMenu {
      * {@link limn.scene.event.MouseEvent#x()} reports), not anchor-local ones.
      */
     public void showAt(Widget<?> anchor, float x, float y) {
+        Ui.checkUiThread();
         showAnchored(anchor, x, y, 0, 0);
     }
 
     /** Opens the menu with its corner at the scene point {@code (x, y)}, at the scene's step. */
     public void showAt(Scene ownerScene, float x, float y) {
+        Ui.checkUiThread();
         showAnchored(ownerScene, x, y, 0, 0);
     }
 
@@ -325,6 +328,7 @@ public final class PopupMenu {
      * UI thread only.
      */
     public void showAnchored(Widget<?> anchor, float ax, float ay, float aw, float ah) {
+        Ui.checkUiThread();
         Objects.requireNonNull(anchor, "anchor");
         show(anchor.scene(), anchor, ax, ay, aw, ah);
     }
@@ -339,6 +343,7 @@ public final class PopupMenu {
      * ({@link #showAnchored(Widget, float, float, float, float)}) to get the former.
      */
     public void showAnchored(Scene ownerScene, float ax, float ay, float aw, float ah) {
+        Ui.checkUiThread();
         Objects.requireNonNull(ownerScene, "ownerScene");
         show(ownerScene, ownerScene.root(), ax, ay, aw, ah);
     }
@@ -659,6 +664,7 @@ public final class PopupMenu {
      * <p>Takes effect on the next open; a menu already on screen is not re-presented under it.
      */
     public PopupMenu setDisplayMode(DisplayMode mode) {
+        Ui.checkUiThread();
         this.requested = Objects.requireNonNull(mode, "mode");
         return this;
     }

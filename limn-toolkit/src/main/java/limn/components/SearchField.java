@@ -40,6 +40,7 @@ public final class SearchField extends TextField {
      */
     @Override
     public SearchField onSubmit(Consumer<String> listener) {
+        Ui.checkUiThread();
         super.onSubmit(listener);
         return this;
     }

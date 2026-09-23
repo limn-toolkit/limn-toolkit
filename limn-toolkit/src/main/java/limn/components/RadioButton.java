@@ -157,6 +157,7 @@ public final class RadioButton extends Widget<RadioButton> {
      * handler, exactly as {@link ButtonGroup#setSelectedIndex} does.
      */
     public void select() {
+        Ui.checkUiThread();
         select(Change.Origin.CODE);
     }
 

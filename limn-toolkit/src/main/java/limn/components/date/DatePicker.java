@@ -388,6 +388,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @return this
      */
     public DatePicker setDate(LocalDate date) {
+        Ui.checkUiThread();
         field.setDate(date);
         return this;
     }
@@ -399,6 +400,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @return this
      */
     public DatePicker setDateTime(LocalDateTime value) {
+        Ui.checkUiThread();
         field.setDateTime(value);
         return this;
     }
@@ -444,6 +446,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @return this
      */
     public DatePicker setMinDate(LocalDate date) {
+        Ui.checkUiThread();
         field.setMinDate(date);
         if (endField != null) {
             endField.setMinDate(date);
@@ -459,6 +462,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @return this
      */
     public DatePicker setMaxDate(LocalDate date) {
+        Ui.checkUiThread();
         field.setMaxDate(date);
         if (endField != null) {
             endField.setMaxDate(date);
@@ -476,6 +480,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @return this
      */
     public DatePicker setDateFilter(Predicate<LocalDate> filter) {
+        Ui.checkUiThread();
         field.setDateFilter(filter);
         if (endField != null) {
             endField.setDateFilter(filter);
@@ -491,6 +496,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @return this
      */
     public DatePicker setChronology(Chronology chronology) {
+        Ui.checkUiThread();
         field.setChronology(chronology);
         if (endField != null) {
             endField.setChronology(chronology);
@@ -507,6 +513,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @return this
      */
     public DatePicker setClock(Clock clock) {
+        Ui.checkUiThread();
         this.clock = clock;
         field.setClock(clock);
         if (endField != null) {
@@ -550,12 +557,14 @@ public final class DatePicker extends Widget<DatePicker> {
 
     /** Opens the calendar. Does nothing if it is already open or the picker is disabled. */
     public DatePicker open() {
+        Ui.checkUiThread();
         setOpen(true, Change.Origin.CODE);
         return this;
     }
 
     /** Closes the calendar. */
     public DatePicker close() {
+        Ui.checkUiThread();
         setOpen(false, Change.Origin.CODE);
         return this;
     }

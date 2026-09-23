@@ -94,6 +94,7 @@ public final class ChartSeries {
 
     /** Renames the series. */
     public ChartSeries setName(String value) {
+        Ui.checkUiThread();
         Objects.requireNonNull(value, "name");
         return setName(I18nString.literal(value));
     }

@@ -89,6 +89,7 @@ public final class Menu {
      * rebuilds its geometry instead of drawing rows that are gone.
      */
     public Menu clear() {
+        Ui.checkUiThread();
         items.clear();
         modCount++;
         return this;

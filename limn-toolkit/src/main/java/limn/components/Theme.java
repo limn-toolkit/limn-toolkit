@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.concurrent.Ui;
+
 import limn.scene.Scene;
 import limn.scene.Widget;
 
@@ -475,6 +477,7 @@ public final class Theme {
      * @param scenes the live scenes to repaint, usually every window's
      */
     public void apply(Scene... scenes) {
+        Ui.checkUiThread();
         setCurrent(this);
         applyFontFamily();
         for (Scene scene : scenes) {
@@ -709,6 +712,7 @@ public final class Theme {
      * <p>UI thread.
      */
     public void applyFontFamily() {
+        Ui.checkUiThread();
         Fonts.setDefaultFamily(fontFamily);
     }
 

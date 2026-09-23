@@ -275,6 +275,7 @@ public final class Label extends Widget<Label> {
 
     /** Replaces the text with a fixed string. Repaints without a layout pass when the box is unchanged. */
     public Label setText(String newText) {
+        Ui.checkUiThread();
         Objects.requireNonNull(newText, "newText");
         // Compared before wrapping: a status label re-set every frame must not allocate
         // a literal per update just to discover nothing changed.

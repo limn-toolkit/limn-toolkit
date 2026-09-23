@@ -319,6 +319,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
 
     /** Sets when the vertical scrollbar is shown (default {@link ScrollBar.Policy#AUTO}). */
     public ListView<T> setScrollbarPolicy(ScrollBar.Policy policy) {
+        Ui.checkUiThread();
         vBar.setPolicy(policy);
         return this;
     }

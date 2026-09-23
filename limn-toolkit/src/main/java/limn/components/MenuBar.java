@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.concurrent.Ui;
+
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.components.internal.a11y.MenuAccessibility;
@@ -100,11 +102,13 @@ public final class MenuBar extends Widget<MenuBar> {
 
     /** Appends a top-level menu with the given title, and no access letter. UI thread only. */
     public MenuBar addMenu(String title, Menu menu) {
+        Ui.checkUiThread();
         return addMenu(title, (char) 0, menu);
     }
 
     /** A top-level menu whose title follows the UI language, and no access letter. UI thread only. */
     public MenuBar addMenu(limn.i18n.I18nString title, Menu menu) {
+        Ui.checkUiThread();
         return addMenu(title, (char) 0, menu);
     }
 
@@ -117,12 +121,14 @@ public final class MenuBar extends Widget<MenuBar> {
      * @throws IllegalArgumentException for any other character
      */
     public MenuBar addMenu(String title, char mnemonic, Menu menu) {
+        Ui.checkUiThread();
         return addMenu(limn.i18n.I18nString.literal(Objects.requireNonNull(title, "title")),
                 mnemonic, menu);
     }
 
     /** {@link #addMenu(String, char, Menu)} with a title that follows the UI language. */
     public MenuBar addMenu(limn.i18n.I18nString title, char mnemonic, Menu menu) {
+        Ui.checkUiThread();
         char letter = MenuInk.checkedMnemonic(mnemonic);
         // A letter and a digit are their own key codes (Keys.A is 'A', Keys.NUM_0 is '0'), and the
         // check above has already refused everything else, so the uppercased letter is a legal
@@ -157,6 +163,7 @@ public final class MenuBar extends Widget<MenuBar> {
      * <p>Takes effect on the next open; a dropdown already down is not re-presented.
      */
     public MenuBar setDisplayMode(DisplayMode mode) {
+        Ui.checkUiThread();
         this.displayMode = Objects.requireNonNull(mode, "mode");
         return this;
     }

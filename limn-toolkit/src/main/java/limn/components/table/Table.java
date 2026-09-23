@@ -1608,6 +1608,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * @return this table
      */
     public Table<T> setScrollbarPolicy(ScrollBar.Policy policy) {
+        Ui.checkUiThread();
         vBar.setPolicy(policy);
         hBar.setPolicy(policy);
         return this;

@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.concurrent.Ui;
+
 import limn.accessibility.Accessible;
 import limn.components.internal.a11y.ValueAccessibility;
 import limn.accessibility.Accessibility;
@@ -128,6 +130,7 @@ public final class ScrollBar extends Widget<ScrollBar> {
 
     /** When the bar is shown: always, never, or only while the content overflows. */
     public ScrollBar setPolicy(Policy newPolicy) {
+        Ui.checkUiThread();
         this.policy = Objects.requireNonNull(newPolicy, "policy");
         refresh();
         return this;
@@ -188,6 +191,7 @@ public final class ScrollBar extends Widget<ScrollBar> {
      * the card is capped; only the bar says it can be scrolled.
      */
     public void refresh() {
+        Ui.checkUiThread();
         boolean overflow = hasOverflow();
         if (overflow && !overflowed) {
             lastScrollNanos = now();

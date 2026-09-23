@@ -313,6 +313,7 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
      * @see Dialog#setDisplayMode
      */
     public ColorPickerButton setPickerDisplayMode(DisplayMode mode) {
+        Ui.checkUiThread();
         this.pickerDisplayMode = Objects.requireNonNull(mode, "mode");
         return this;
     }

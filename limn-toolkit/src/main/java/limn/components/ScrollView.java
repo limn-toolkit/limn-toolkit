@@ -107,6 +107,7 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
 
     /** Sets the scrollbar visibility policy (default {@link ScrollBar.Policy#AUTO}). */
     public ScrollView setScrollbarPolicy(ScrollBar.Policy policy) {
+        Ui.checkUiThread();
         if (vBar != null) {
             vBar.setPolicy(policy);
         }

@@ -848,6 +848,7 @@ public abstract class Widget<W extends Widget<W>> {
      * <p>This is the method an application calls, so the focus move it makes is {@code CODE}.
      */
     public final void requestFocus() {
+        Ui.checkUiThread();
         requestFocus(Change.Origin.CODE);
     }
 

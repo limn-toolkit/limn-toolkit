@@ -1,5 +1,7 @@
 package limn.scene.layout;
 
+import limn.concurrent.Ui;
+
 import limn.scene.Constraints;
 import limn.scene.Insets;
 import limn.scene.Size;
@@ -45,6 +47,7 @@ public class Padding extends Widget<Padding> {
      * pass: a layout loop that never settles.
      */
     public final void setInsets(Insets newInsets) {
+        Ui.checkUiThread();
         Objects.requireNonNull(newInsets, "newInsets");
         if (insets.equals(newInsets)) {
             return;

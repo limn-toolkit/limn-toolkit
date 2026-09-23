@@ -259,3 +259,9 @@ ones that change API are recorded here as they land.
   application's own widget writes `extends Widget<MyWidget>`, and an anonymous class, which cannot
   name itself, goes through a named abstract class. The verbs and `Flex`'s missing getters were the
   other option and stay as they are.
+- **API-11, the UI-thread rule (decision 139).** A test now reads the sources and fails for any
+  public mutator of the widgets, the layouts and the scene that neither checks the UI thread nor
+  hands straight to a method that does; the two exceptions it allows are getters whose names start
+  with a verb. Its first run found 73 such methods, not the six the review named, in 25 classes
+  (the dialog's 17, the date picker's 9, the scene's 7, the media controls' 8 among them), and each
+  now checks first. `Clipboard` states the rule: UI thread only.
