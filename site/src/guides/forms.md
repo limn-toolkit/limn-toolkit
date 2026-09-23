@@ -161,25 +161,12 @@ A caption bound to a picker names the **field**, not the group around it, becaus
 where the keyboard lands; a range picker keeps the caption on the group and names its two fields
 "Start date" and "End date".
 
-All of that has now been heard. The calendar, the date field and both presentations of the picker
-were driven a keystroke at a time under NVDA on Windows, VoiceOver on macOS and Orca on Fedora and
-Ubuntu, and every step spoke. A day is read as its whole date, carrying whatever `setDayMarks`
-added to it — "21 de setembro de 2026, feriado" — and a refused day stops the cursor and is said to
-be out of reach in each reader's own words: NVDA "indisponível", VoiceOver "nenhuma ação
-disponível", Orca "acinzentado". Do not write one of those phrasings into your own interface
-expecting to match it; what the toolkit guarantees is the stop and the withheld verb, and the
-reader supplies the sentence. A segment nobody has filled says "vazio" to all three rather than
-reading out its minimum, and Up fills it from today rather than from that minimum. Climbing to the
-month chooser says the month on show, "Set., em exibição", and the paging buttons are named for
-the view they page.
-
-The day's position is published on every platform, and who says it varies: NVDA speaks it
-unprompted — "20 de 30" — Orca speaks it only where its own `speak-position-in-set` option has been
-turned on, and VoiceOver does not speak it at all. [Accessibility](/docs/accessibility/) has the
-rest of what the three readers do and do not say.
-
-One segment has been read by a client and by nobody's ears: the era of a Japanese-calendar
-year, "令和8", which no `--reader` script puts in front of a reader yet.
+A day's name also carries whatever `setDayMarks` added to it. A refused day stops the cursor and
+withholds the verb; each reader says it is out of reach in words of its own, so do not write one
+reader's phrasing into your interface expecting it to match. Up on an empty segment fills it from
+today, not from the segment's minimum. The month chooser names the month on show, and the paging
+buttons are named for the view they page. Not every reader speaks a day's position; see
+[What readers say](/docs/accessibility/#what-readers-say).
 
 Reading right to left, the grid mirrors and the field does not. A grid is columns in reading order,
 so the first day of the week moves to the edge reading starts from and Left and Right swap with it.

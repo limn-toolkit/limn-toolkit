@@ -18,37 +18,9 @@ blocks. Focus moves are published as they happen, and inside a list, a table, a 
 date field the *cursor* is published too, so a reader follows the arrow keys and not only the Tab
 key.
 
-What each reader makes of that is its own, and it has been listened to rather than assumed: the
-gallery's screens were driven a keystroke at a time under NVDA 2024.4.2 on Windows 11, VoiceOver
-on macOS 26, and Orca 50.2 and 46.1 on Fedora 44 and Ubuntu 24.04. The quotations here are what
-each reader said, with the application's language pinned to Portuguese for the run.
-
-A cursor move is spoken by all three, and each of them describes a row in its own shape. NVDA
-gives the level, the name, the state and the position — "nível 1", "Documents 2", "expandido",
-"1 de 5" — and in a grid it adds the column, "coluna 4". Orca gives the name and the level,
-"nível de árvore 1", and reads a table row out as its cells in order. VoiceOver gives the row, its
-state and what is inside it, "Documents 2, expandido. 2 itens contidos., item de árvore", and in a
-table it speaks the cell alone, "Caucasus, célula". A value change is spoken as the new value by
-itself: arrowing a date field's year says "2027", and clearing a segment says "vazio", where
-moving *onto* that segment says its name, its role and its value — "Dia", "botão de rotação",
-"09".
-
-Two things the readers do not agree about, and no toolkit can make them. **A selection change**:
-VoiceOver announces one — "Nenhuma linha selecionada" when a row leaves the selection, "5 linhas
-selecionadas" on select-all — where NVDA and Orca said nothing at either. **A position**: a node's
-position, its level and the size of its set are published on all three platforms, and NVDA speaks
-the position without being asked. Orca speaks it only where the user has turned on its own
-`speak-position-in-set` option, which ships off in Orca 50.2 — turned on for one run, the same
-screens said "1 de 5" and "15 de 30" — and the Ubuntu guest's Orca 46.1 never said it. VoiceOver
-speaks neither a position nor a cell's column, and for a branch says how many rows it holds
-instead. The toolkit publishes all three everywhere; a screen that only works if the position is
-spoken works for one reader's users, so where a row's place in its set carries meaning, put it in
-what the row draws as well.
-
-One thing has been driven under no reader yet: a text field. The scripts above move through
-lists, tables, trees, a calendar, two date presentations and an announcement, so what a reader says
-about a caret move, or when reading a field character by character, is what the platform mappings
-promise and not yet what anyone heard.
+What each reader makes of that is its own. The three describe the same row in different
+shapes and disagree about what to say unprompted; [What readers say](#what-readers-say) lists the
+differences worth designing around.
 
 The names are the same `I18nString`s the interface draws, so a screen reader speaks your
 application in the language it is displayed in. The word for each *role* — "button", "check
@@ -130,22 +102,12 @@ scene where it does not. A window of its own is not a tree of its own as far as 
 concerned: the control that opened it points at it, and the cursor crosses into the popup's
 items, so arrowing through a combo's list is read item by item without leaving the field.
 
-That crossing was the part of this page most obviously owed a reader, and it now has one. On
-Fedora and Ubuntu the demo's date picker publishes a single application with two frames — the
-field's panel pointing at the calendar in the popup, the calendar pointing back at the field — and
-Orca follows the cursor across and speaks the day standing under it, "9 de setembro de 2026,
-hoje." VoiceOver does the same on macOS, speaking "popup, janela, 9 de setembro de 2026, hoje,
-célula" for a window that is not the active one and then reading the arrow keys through the grid.
-On Windows the field keeps the keyboard and the focused element is the popup's day, exactly as
-described: NVDA announces the popup as "popup, janela" and then the calendar and the day the cursor
-stands on, "17 de outubro de 2026, item de dados, selecionado", follows the arrow keys through the
-grid and the month chooser, and on the way out says the field's group and its day segment again.
-(Until 2026-09-22 closing that popup with NVDA attached crashed the demo, a defect of the Windows
-bridge's teardown and not of the picker; it is fixed, and that run is the one quoted here.)
+A date picker's calendar crosses the same way. The field and the calendar in its popup point at
+each other, so a reader announces the popup, follows the cursor through the grid and the month
+chooser, and is back on the field's day segment when it closes. The keyboard stays with the
+field throughout. Where the platform has no second window, as in a Wayland session, the picker
+draws in the scene instead, and there is nothing to cross.
 
-Where the platform has no second window the picker draws in the scene instead, and there the
-question does not arise: a Wayland session gets the in-scene presentation, and the same run forced
-through XWayland gets the real popup window and the crossing above.
 A list publishes its true row count and the rows it has realized, which is what makes a
 million-row list cost what twenty do under a screen reader as well as on screen. The row the
 keyboard is in stays realized even when a scroll takes it off screen, so a reader standing on it
@@ -162,29 +124,47 @@ yes and hearing nothing happen.
 
 ## Check a screen before anyone hears it
 
-The demo module carries a gallery of every component labelled the way this page describes,
-and a test that holds every entry to four rules in both palettes: no node with an unknown role,
-no focusable node without a name, no two nodes with one identity, and no node showing outside
-what should clip it. The gallery is also a window you can open and read with a screen reader:
+Four rules hold for any published tree, whatever is in it: no node has an unknown role, no
+focusable node is without a name, no two nodes share one identity, and no node shows outside
+what should clip it. `limn-test` has them as `AccessibleInvariants.violations(…)`, the same check
+the toolkit holds every one of its own components to in both palettes, and the
+[Testing guide](/docs/testing/#accessibility) shows the harness that hands a widget's tree to it.
 
-```
-./gradlew :limn-demo:accessibilityGallery
-```
+Rules find what can be named. Reading the tree aloud finds the rest: a field named after its own
+value, a caption that captions nothing. `AccessibleTrees.describe(…)` writes a tree as text, one
+line per node with its role, name and states, which is short enough to read aloud, like the
+transcript above.
 
-The gallery also drives itself. `--reader <entry>` opens one entry alone in a window named for
-the run and sends that entry's declared steps a few seconds apart, with the clock and the locale
-pinned, so the same keystrokes reach the same screen on every machine and a recording of a screen
-reader can be read against the step lines it prints:
+## What readers say
 
-```
-./gradlew :limn-demo:accessibilityGallery --args="--reader tree-loading"
-```
+NVDA on Windows, VoiceOver on macOS and Orca on Linux have each been driven over every
+component on this site, a keystroke at a time. They agree on the essentials: a cursor move is
+spoken, a value change is spoken as the new value alone, and moving onto a control says its name,
+its role and its value. The differences below are the reader's and not the toolkit's. The toolkit
+publishes the same facts on all three platforms, so a screen should not depend on any one of them.
 
-The transcript above is the other tool. It is what the demo's `Transcript` writes for a published
-tree — one line per node, no rectangles — and the demo keeps four of them as golden files, so a
-change that renames a control or drops a state fails a test before it reaches a reader. A
-transcript is short enough to read aloud, and reading it aloud is the review that finds what no
-rule names: a field named after its own value, a caption that captions nothing.
+- **A row.** NVDA speaks the level, the name, the state and the position, and in a grid the
+  column. Orca speaks the name and the level, and reads a table row out as its cells in order.
+  VoiceOver speaks the row, its state and how many rows it holds, and in a table the cell alone,
+  with no column.
+- **A position in a set.** Published everywhere. NVDA speaks it unasked. Orca speaks it only
+  when the user has turned on its own position option, which is off by default. VoiceOver never
+  speaks it. Where a row's place carries meaning, draw it as well.
+- **A selection change.** VoiceOver announces one: the row that left, the count after select-all.
+  Orca speaks the row it lands on, not how many were taken. NVDA says nothing. Where the change is
+  the point of the screen, say it in the interface.
+- **A sort.** NVDA and Orca speak the direction when a header sorts; VoiceOver is given it and
+  does not read it out.
+- **A busy state.** Published, and spoken by none of them, which is why a tree announces its
+  loads in words ([Lists and scrolling](/docs/lists-and-scrolling/) has the three sentences).
+- **Something out of reach.** A refused day or an unavailable action is said in each reader's
+  own words. What the toolkit guarantees is the stop and the withheld verb; do not copy one
+  reader's phrasing into your interface expecting it to match.
+
+Three things follow the platform mappings but have not yet been checked with a reader: moving
+the caret in a text field or reading it by character, a Japanese-calendar era segment, and a
+reader's own verbs on a tree row (expanding, collapsing or selecting one through the
+accessibility action rather than the keyboard).
 
 ## The edges
 

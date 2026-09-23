@@ -467,6 +467,15 @@ found by a person listening to one. `scripts/a11y/` holds what makes that repeat
 probe per platform with a shared scene, an out-of-process client that walks the tree the way the
 platform's own clients do, and the constants dumps.
 
+**The gallery is the screen a round reads.** `./gradlew :limn-demo:accessibilityGallery` opens
+every component, labelled the way the Accessibility guide says, in a window a reader can be
+pointed at. `--args="--reader <entry>"` opens one entry alone, in a window named for the run, and
+sends that entry's declared steps a few seconds apart with the clock and the locale pinned, so the
+same keystrokes reach the same screen on every machine and a recording can be read against the
+step lines it prints. What each reader said, run by run, is recorded in the ADR that owns the
+component, not here and not in the user guides: a guide says what a developer should design
+around, and a quotation of one reader's words on one date is a record.
+
 **Use the platform's own client library, not a hand-rolled one.** The Linux walker goes through
 `libatspi`'s typelib precisely so that a tree it can walk is a tree Orca can walk; a bespoke D-Bus
 client would have agreed with our bridge about a shape neither of them shares with the reader.
