@@ -15,7 +15,11 @@
   the macOS row is described as built (§7); semantics 2 and 3 read the same on all three bridges.
   **No screen reader has yet spoken a table** (B9): the live run over the gallery's table entry is
   phase 5's, and until it happens §7 is what the code does and not what a reader was heard to say.
+  *(Heard 2026-09-16: phase 5 ran NVDA, Orca and VoiceOver over the gallery's table on all four
+  guests; §7.1's amendment of that date records what each said and the row name it led to.)*
 - **Date:** 2026-09-08
+- **Readings:** a path under `readings/` names a raw transcript from the verification lab. Those
+  files are kept outside this repository; each finding cited to one is stated here in full.
 - **Scope:** the toolkit's first table widget: what its data model is, how it virtualizes on two
   axes, how rows are selected and columns sorted and resized, what a cell is, how it is read by a
   screen reader on three platforms, and what it does not do yet. Trees and tree-tables are not
@@ -877,7 +881,8 @@ amendment first said it had been done; it had not, and the sentence was correcte
 Still owed: a live screen-reader run over the table on each guest (B9, phase 5) — the 2026-09-09
 runs were client walks through the probe scripts, and no reader has yet spoken a Limn table;
 its recipe should include Shift+Tab into the header, Right, Space, Right into the switch column,
-and a wheel away from the cursor row.
+and a wheel away from the cursor row. *(Run 2026-09-16 in phase 5, on all four guests; see §7.1's
+amendment of that date.)*
 
 **Amended 2026-09-15 (fix round; decision 36's damage rows).** `DamageContractTest`'s Table row
 now also drives the header's stop: Shift+Tab into the header, Right and Left on it (each the header

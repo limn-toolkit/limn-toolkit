@@ -9,8 +9,13 @@
   (§5); and most of §8, where the empty segment's word, the day's "15 of 30", the chooser's "on
   show", the picker's label target and the expand verbs all moved. **No screen reader has yet spoken
   a date widget** (DT8): the three reader entries exist and the runs are phase 5's, so §8 is what
-  the code publishes and not what a reader was heard to say.
+  the code publishes and not what a reader was heard to say. *(Heard 2026-09-16: phase 5 ran NVDA,
+  VoiceOver and Orca over the calendar, the field and both picker presentations on all four
+  guests; the amendments of 2026-09-16 and 2026-09-22 record what they found. Still open: the
+  year chooser, below.)*
 - **Date:** 2026-09-09
+- **Readings:** a path under `readings/` names a raw transcript from the verification lab. Those
+  files are kept outside this repository; each finding cited to one is stated here in full.
 - **Scope:** the toolkit's first date widgets: what value they exchange with the application, which
   calendar system they draw, how a date is typed, how a month grid is laid out, selected, bounded,
   filtered and marked, how all three are read by a screen reader, and which of the four shapes a
@@ -874,7 +879,8 @@ pressed no key, is `theCursorStopsOnARefusedDayAndEnterIsRefusedThere`.
 **Still owed, and named so it is not forgotten:** a live reader run on each of the three guests over
 the demo's date scene — the same discipline ADR 039 and ADR 041 were held to, which is what found
 four defects on Windows and two on Linux that no headless test could have. Until that run happens,
-what §8 claims is what the headless tree says and not what a reader speaks.
+what §8 claims is what the headless tree says and not what a reader speaks. *(Run 2026-09-16 in
+phase 5, on all four guests; see the amendments of 2026-09-16 and 2026-09-22.)*
 
 **Amendment, 2026-09-14 (LAB-NEW-13, settled reader-scene-clock): what the run is pointed at
 speaks the same day everywhere.** The run goes over limn-demo's `AccessibilityGallery` date

@@ -16,8 +16,13 @@
   disclosure, and could not be driven past row index 2 by a defect this pass introduced and fixed
   the same day. **Orca 46.1 on Ubuntu 24.04** was not driven over the tree. The busy state reaches
   no reader on any platform, which is what decision 73's announcement answers (§2). Acceptance does
-  not close the macOS re-run or §9's later phases; both are named where they stand.
+  not close the macOS re-run or §9's later phases; both are named where they stand. *(The macOS
+  re-run was made 2026-09-22 against the fixed bridge: VoiceOver read every row of the
+  `tree-loading` script in order, and the 13 stale selection writes a run makes were refused;
+  ADR 039 §2.2's amendment of 2026-09-22 records it. §9's later phases stay open.)*
 - **Date:** 2026-09-12
+- **Readings:** a path under `readings/` names a raw transcript from the verification lab. Those
+  files are kept outside this repository; each finding cited to one is stated here in full.
 - **Scope:** the toolkit's first tree: what its model is, how a row is expanded and how children
   that are not there yet arrive, how it virtualizes, what the keyboard does, how a screen reader
   reads it on three platforms, and what it does not do. Columns are not here — a `TreeTable` is
@@ -538,7 +543,7 @@ and `Documents 2` ended the run collapsed, a state no step asks for. It is a reg
 measured rather than inferred (stop VoiceOver and all 21 steps walk, twice), and it was fixed the
 same day by refusing that setter on a row (ADR 039 §2.2's amendment of 2026-09-16). **The macOS half
 of the lazy-load and busy items therefore waits on a re-run against the fixed bridge**, and nothing
-here claims it. Ubuntu's Orca 46.1 was driven over the table, the dates and the announcement and not
+here claims it. *(Re-run 2026-09-22: every row read in order, see the status block above.)* Ubuntu's Orca 46.1 was driven over the table, the dates and the announcement and not
 over the tree, so it votes on none of the above. Three findings of the runs are the model's or other
 lanes' and are not this record's: a table row's empty name (ADR 041 §7), `SELECTABLE` published by
 nothing (ADR 039 §1.2) and a calendar cell keyed by its grid slot (ADR 042 §8) — all three measured

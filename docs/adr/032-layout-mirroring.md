@@ -659,6 +659,9 @@ direction; the design notes. The site is untouched (§4).
 
 ## 7. Open questions
 
+*Written before the work. [§9](#9-what-the-implementation-settled) records how the implementation
+answered each of these; the questions stay as they were asked.*
+
 - **Should `Flex` mirror, or should `Row` mirror?** §1 mirrors `Flex` when `!vertical`, so a
   `Column` is untouched. The alternative is to mirror only the `Row` subclass, which reads more
   honestly but leaves a raw `Flex` constructed horizontally unmirrored. Decided as `Flex` on the

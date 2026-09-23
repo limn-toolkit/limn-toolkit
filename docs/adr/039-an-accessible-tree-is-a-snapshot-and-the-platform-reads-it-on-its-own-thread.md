@@ -12,12 +12,9 @@
   nothing but `org.lwjgl.system`, which the backend already carries for all six targets, and the
   third is pure Java over unix sockets. Thirty-four classes with no binaries are not an artifact's
   worth of weight, and the split cost a build exception and a seam an application could forget to
-  connect —, and a short list of corrections to seams that were never observed before and turn out not to fire
-  (§8). §11 is what the first cut deliberately does not do; §14 is the order the work lands in. It
-  lands as
-  `docs/adr/039-an-accessible-tree-is-a-snapshot-and-the-platform-reads-it-on-its-own-thread.md`,
-  with its `docs/adr/README.md` row landing beside it, and every section below is written to be read
-  from there rather than from a draft.
+  connect — and a short list of corrections to seams that were never observed before and turn out
+  not to fire (§8). §11 is what the first cut deliberately does not do; §14 is the order the work
+  lands in.
 - **What implementing phases 1 to 3 found, and where this record is wrong about the code.** Every
   one of these was settled the way the record asks for: the code won, and the sentence it
   contradicts is named rather than quietly edited around. Nothing here changes a decision.
@@ -39,6 +36,8 @@
   an iterator per widget per frame, which is the cost `Scene#paintFramePass`'s own overlay loop
   already carries a comment about avoiding. It is indexed now, and the promise is measured.
 - **Date:** 2026-09-04
+- **Readings:** a path under `readings/` names a raw transcript from the verification lab. Those
+  files are kept outside this repository; each finding cited to one is stated here in full.
 - **Companion, and it lands in this commit.** ADR 040, *A handler answers the user, and a watcher
   hears everything*, is in `docs/adr/` as Proposed, 2026-09-03, with its own row in the index, and it
   names this record throughout. It was still being drafted when §9 was first written, so §9 is now a
@@ -1450,7 +1449,9 @@ application speaking, so a live run has to make it speak. Nothing in the toolkit
 `announce`, so the three bridges' announcement paths — a UIA notification, an AT-SPI
 `Announcement`, an `NSAccessibility` announcement posted on the window (§2.1–2.3) — had no scene to
 be heard on, and phase 5's "VoiceOver hearing an announcement posted on the window" had nothing to
-press. The accessibility gallery gains an `Announcements` entry: two buttons whose handlers call
+press. *(Heard 2026-09-16 on macOS 26.6.2: pressing this entry's two buttons, VoiceOver spoke 'Salvo'
+and 'Interrompido, nada foi salvo' from the announcement posted on the window, the same two strings
+NVDA and Orca 50.2 spoke that day; closed.)* The accessibility gallery gains an `Announcements` entry: two buttons whose handlers call
 `announce`, one `POLITE` and one `ASSERTIVE`, with the reader script `announcement` pressing both.
 Both levels, because the three platforms map them to different values and a run that heard one would
 leave the other unread. `ReaderStepsTest` holds it twice over: the script's two presses change
@@ -1893,7 +1894,14 @@ relation names — so the identifier `activeDescendant()` answers may belong to 
 `holds(long)` says which. The popup's walk tells its host to walk again whenever the cursor it
 publishes moves, and only then, so the host's tree follows the popup's arrow keys without a host
 walk per popup publish. The three reader behaviours this depends on are the live assumptions
-decision 5 names and phase 5 measures.
+decision 5 names and phase 5 measures. *(Heard, all three: on 2026-09-16 VoiceOver on macOS 26.6.2
+spoke 'popup, janela, 9 de setembro de 2026, hoje' as the native popup opened and then each day the
+cursor reached, and Orca 50.2 on Fedora 44 followed the active-descendant reference into the popup's
+frame and spoke '9 de setembro de 2026, hoje.'; on 2026-09-22 NVDA 2024.4.2 on Windows 11 spoke the
+same day with the popup open and followed the cursor through the grid. On Windows it waited until
+2026-09-22 because closing the native popup with NVDA attached hung the demo until the teardown fix
+of that date (§2.1). Orca 46.1 on Ubuntu 24.04 was not run over a picker. Closed for the three
+readers named.)*
 
 #### Amendment 2026-09-14 — a selection change is the container's, and carries the members
 
@@ -2158,7 +2166,10 @@ The cross-window half is pinned by
 `UiaProviderTest.aRelationTargetAnotherWindowHoldsIsHandedBackAsThatWindowsElement`, which restates
 `aRelationTargetAnotherWindowHoldsIsLeftOutRatherThanHandedOverAsNull` (2026-09-14), the case that
 pinned the compaction. The live half — a client reading `ControllerFor` on the opener and reaching
-the popup's element — is phase 5's.
+the popup's element — is phase 5's. *(Not measured, 2026-09-16: the Windows client read
+`ControllerFor` through the raw `UiaCoreApi` path and got `NotSupported`, but it got the same for
+`LabeledBy` on an element whose managed identifier answered, so the reading says nothing about the
+bridge. No later run read it. Still open.)*
 
 **Amendment, 2026-09-15 (CRIT-2, the macOS half): the bridge answers a foreign target, and what it
 answers for an elided root is the window.** Phase 3 built the model half above and the Linux half,
@@ -2398,7 +2409,11 @@ answers the node of its tree that another open window's effective focus names
 (`UiaBridgeTest.aCursorInAnotherWindowsTreeIsRaisedAndAnsweredThroughThatWindowsProvider`). Whether
 UI Automation and NVDA accept either answer — a focus element in another window's fragment tree, or
 the focus on a window that is not the active one — is decision 5's live assumption, measured first in
-phase 5.
+phase 5. *(Heard 2026-09-22 on Windows 11 with NVDA 2024.4.2: with the native popup open, NVDA said
+'popup', 'janela' and then the focused day, '9 de setembro de 2026, hoje', and followed the cursor
+through the grid; closed. On 2026-09-16 only the provider half could be measured — the keyboard
+stayed in the field and the focused element was the popup's day — because closing the popup with
+NVDA attached hung the demo, which the teardown amendment of 2026-09-22 below removed.)*
 
 **Amended 2026-09-15 (phase 3, Windows; decisions 9, 10; semantics 1 and 5; W1's Selection half,
 WINDOWS-NEW-9, WINDOWS-NEW-11): `ISelectionProvider` is served, and the `SelectionItem` verbs are
@@ -2438,7 +2453,11 @@ were claimed and a client's `GetPatternProvider` got a null for each. As built:
   0..100 or not a number, then `0x80131509` for an axis with no bar or a bar that does not publish the
   verb or take the value. Both axes pass every check before either is posted. The scroll bar's own
   step is one viewport (`ScrollBar`), so a client's small step moves a page; that is decision 39 as
-  written, recorded for phase 5's client runs.
+  written, recorded for phase 5's client runs. *(Measured 2026-09-16 on Windows 11 with a UI
+  Automation client over the gallery's table, and worse than a page: the first `SmallIncrement` moved
+  the view from 0 % to 95.65 % and the second to 100 %; from there every `SmallDecrement` and every
+  vertical `SetScrollPercent` was accepted and moved nothing, and `LargeIncrement` was refused. A
+  defect, not a confirmation of decision 39; no later record says it was fixed. Still open.)*
 - **`ScrollItem`** is vended only on a node publishing `SCROLL_INTO_VIEW`, and `ScrollIntoView` posts
   it through the same candidate gate (semantics 5); it had been vended on any node with a scrollable
   ancestor and posted whatever the node published.
@@ -2559,7 +2578,9 @@ preferred to a wrong parent: the first is heard only for rows whose branch is sc
 second put rows under another branch at a plausible level. What would close it is the widget keeping
 the ancestor rows of its first mounted row realized, as it keeps the cursor row; that is the `Tree`'s
 to decide (ADR 044 §4), and phase 5 hears the degradation on `--scene tree-reader` scrolled into a
-branch.
+branch. *(Not reached by phase 5, 2026-09-16: NVDA 2024.4.2 spoke 'nível 1' to 'nível 3' by nesting
+over the gallery's tree, including after a collapse hid rows, but no reader script scrolls a tree,
+so a branch scrolled above the viewport was never put to it. Still open.)*
 
 **Amended 2026-09-15 (phase 3, Windows; decision 8, semantics 2 and 3; WINDOWS-NEW-8, TABLE-NEW-11):
 cells and headers are found by `CellFacet`.** The Grid/Table rows above say `GetItem` answers "a
@@ -2611,7 +2632,9 @@ alone.** `ItemStatus` is one string and two facts want it; nothing on the guest 
 (Explorer's header was not busy), and joining two translated fragments with punctuation chosen on a
 thread with no locale open would invent a sentence in twenty-one languages. Busy is the transient state
 the property exists for, and the direction is not lost while it holds, because `HelpText` still carries
-it. A live Narrator or Inspect run over a header that is both would settle it; phase 5. Pinned by
+it. A live Narrator or Inspect run over a header that is both would settle it; phase 5. *(Not
+reached by phase 5, 2026-09-16 to 2026-09-22: no run made a header busy and sorted at once, and no
+Narrator or Inspect run was made over one. Still open.)* Pinned by
 `UiaPropertiesTest.aSortedHeaderSaysItsDirectionInItsStatusAndInItsHelpTextAndBusyWinsOverBoth`.
 
 *What raises it.* This record said for a day that nothing did — "a sort arrives as a publish and not as
@@ -2651,7 +2674,10 @@ unsorted column's header too, and by
 back, and red with the description arm removed).
 
 *What phase 5 still hears* is the composition choice — a header that is both busy and sorted — and not
-whether the direction is announced at all.
+whether the direction is announced at all. *(Still unheard: no phase-5 run, 2026-09-16 to
+2026-09-22, made a header busy and sorted at once, so the composition choice is open. The direction
+alone was heard on 2026-09-16: NVDA 2024.4.2, Orca 50.2 and Orca 46.1 each said 'Ordenado em ordem
+crescente' on the sort.)*
 
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-1, WINDOWS-NEW-3): `UiaRaiseNotificationEvent` and
 `UiaRaiseStructureChangedEvent` are bound and raised.** The event-flush row lists both; neither was
@@ -2756,7 +2782,9 @@ day (the macos-B review):* the native outline also answered
 does not: a Limn row holds no cell element, its children being the application's own widgets, so the
 answer would repeat the rows under a cell's attribute or name an arbitrary widget, and the native
 outline told its selection only as `AXSelectedRowsChanged`. Whether VoiceOver reads a native outline's
-selected cells at all is phase 5's to hear. *Disclosure* (M1): an outline row answers `isAccessibilityDisclosed` from its
+selected cells at all is phase 5's to hear. *(Not heard in phase 5, 2026-09-16: the macOS run
+measured that Limn's own outline neither lists nor answers `AXSelectedCells` (`kAXErrorNoValue`),
+and put no native outline under VoiceOver. Still open.)* *Disclosure* (M1): an outline row answers `isAccessibilityDisclosed` from its
 expand facet, `accessibilityDisclosureLevel` as the hierarchy facet's level less one, and
 `accessibilityDisclosedByRow` / `accessibilityDisclosedRows` by walking the outline's realized rows
 while their flat row numbers run without a gap — a gap answers nothing rather than a grandparent —
@@ -3570,7 +3598,11 @@ written, because `CellFacet.Sort` has no fourth value to write it from. The desc
 it was, so a reader that ignores the attribute hears what it heard before. Pinned by
 `AtspiTreeTest.theSortedColumnsHeaderSaysItsDirectionAndNoOtherCellSaysAnything`, which gives the
 data cell and the footer cell a direction their facet has no business carrying. What a live Orca
-does with the attribute is phase 5's.
+does with the attribute is phase 5's. *(Not settled by phase 5, 2026-09-16. On Fedora 44 Orca 50.2
+received the sorted header with `sort:ascending` among its attributes and, on the sort, spoke
+'Ordenado em ordem crescente', which is the header's description in Limn's own pt-BR catalog; Orca
+46.1 on Ubuntu 24.04 spoke the same phrase. Nothing in either run is Orca speaking from the
+attribute itself, so what it does with the attribute alone is still open.)*
 
 #### Amendment 2026-09-16 — a menu title will not publish the expand axis here, and that is a
 declared exception
@@ -3718,7 +3750,11 @@ raised (`UiaBridgeTest.theFocusAlreadyAnnouncedIsNotRaisedAgainButIsReannouncedA
 `aFocusRaisedInAnotherWindowMakesTheReturnHeard`). A raise from another window holds that window's
 guard across the platform call, so a client whose focus handler synchronously asked the host's
 `GetFocus` would wait for it; NVDA 2024.4.2's handler asks no such thing (reading §1), and phase 5
-watches for it.
+watches for it. *(No phase-5 record names this wait, 2026-09-16 to 2026-09-22. The one stall seen
+with NVDA attached, closing the native date picker on 2026-09-16, was traced on 2026-09-22 to the
+popup's teardown freeing objects the platform still held (§2.1's amendment of that date), not to a
+guard held across a raise; after that fix the native picker ran its eleven steps under NVDA with
+focus raised into the popup and back. Still open as a named check.)*
 
 **Amended 2026-09-15 (phase-3 fix round; semantics 4 settled to one shape): the re-announcement is
 raised at the tail's place, after the tail's structure events.** The amendment above left it raised
@@ -3782,7 +3818,9 @@ one after it, and then shows the re-announcement raised at the second frame's en
 `endFrame` returning early while collapsed: "and the frame that collapsed marks its own end behind
 it ==> expected: <2> but was: <1>"); `UiaEventsTest.aFullQueueCollapsesRatherThanDropTheFramesEnd`
 asserts the same arithmetic on the queue alone. **Phase 5 no longer listens for an early focus**;
-what it still hears is the order itself.
+what it still hears is the order itself. *(Not reached, 2026-09-16: no reader script collapses the
+queue — on Fedora the largest publish any script made was 23 signals against a budget of 256, and
+no Windows script produced a collapse tail under NVDA — so the order is still unheard. Still open.)*
 
 **Amended 2026-09-15 (phase 3, Windows; WINDOWS-NEW-6's remainder): `CARET_MOVED` and
 `BOUNDS_CHANGED` as built.** `CARET_MOVED` is `Text_TextSelectionChanged`, as its row says, handled
@@ -3791,7 +3829,10 @@ emits the two for one field one after the other, and a `TEXT_SELECTION_CHANGED` 
 `CARET_MOVED` on the same node is not raised again. Both are raised only for a held element, and no
 element serves `TextPattern` yet (§2.1, §11), so what a client can do with the event is re-read the
 value; NVDA 2024.4.2 maps it to its `caret` event on the focus only (reading §3); phase 5 hears
-whether that says anything over a `ValuePattern` field. **`BOUNDS_CHANGED` keeps no mapping, per node
+whether that says anything over a `ValuePattern` field. *(Not exercised, 2026-09-16: over the
+date field on Windows no `Text_TextSelectionChanged` was raised at all, the segments vending `Value`
+and `RangeValue` and no `Text`, so NVDA was never given one to say. Still open.)*
+**`BOUNDS_CHANGED` keeps no mapping, per node
 and in bulk**, where the row says a `BoundingRectangle` change or one `LayoutInvalidated`: NVDA
 2024.4.2 subscribes to no `BoundingRectangle` change (reading §3) and handles `LayoutInvalidated` only
 for Windows search suggestions (§6), while each raise waits for the reader's handler (§13.28), which
@@ -3823,7 +3864,10 @@ subscribes to no structure change** (readings/nvda-2024.4.2-uia.md §5): the eve
 that do (Narrator, Inspect, a .NET client), and phase 5 counts it with one
 (`UiaBridgeTest.anAnnouncementIsRaisedOnTheRootEvenBeforeAnyClientHeldIt`,
 `aStructureChangeIsRaisedAsThePlatformsOwnPeerRaisesIt`,
-`aStructureChangeIsRaisedWhenTheParentIsHeldAndMintsTheChildItAdds`).
+`aStructureChangeIsRaisedWhenTheParentIsHeldAndMintsTheChildItAdds`). *(Counted 2026-09-16 on
+Windows 11 with a UI Automation client subscribed over the gallery's tree: two `ChildRemoved` at a collapse
+and two `ChildAdded` at the re-expand; closed for those two. `ChildrenReordered` on a sort was not
+covered and is still open.)*
 
 **Amended 2026-09-15 (review of the Windows phase-3 work): where the two structure-change choices
 come from.** The Windows brief asked for `ChildrenBulkAdded`/`ChildrenBulkRemoved` for the model's
@@ -3853,7 +3897,10 @@ amendment one property was raised, `RangeValue.Value` for any node with a number
 "07:30" and a segment's "empty" were never raised as strings, though NVDA 2024.4.2 reads a control
 that vends both from `Value` (measured on the guest 2026-09-07, §13.19) and maps both properties
 to its `valueChange` (readings/nvda-2024.4.2-uia.md §3); whether it then speaks a change raised as
-both once or twice is phase 5's to hear. An event that moved nothing a vended pattern carries raises nothing and pays nothing an ask
+both once or twice is phase 5's to hear. *(Heard 2026-09-16 on Windows 11, NVDA 2024.4.2: stepping
+the date field's year segment up raised `RangeValue.Value` and then `Value.Value` for the one change,
+and NVDA said '2027' once; the clock's minute and an empty segment filled from today were each
+spoken once too. Closed.)* An event that moved nothing a vended pattern carries raises nothing and pays nothing an ask
 is owed (`UiaBridgeTest.aValueChangeRaisesThePropertyOfEachVendedPatternItMovedOn`,
 `aValueChangeIsRaisedOnTheHeldElementAsEachPropertyThatMoved`). **`STATE_CHANGED` for `BUSY`** stays
 an `ItemStatus` (30026) property change carrying the localized busy phrase and then an empty string,
@@ -4116,7 +4163,9 @@ the root's children are one `LayoutChanged` on the window per frame. The window,
 26.6.2 guest (2026-09-15, `scripts/a11y/macos/announcement-probe.swift`) a notification posted on the
 window reached both an observer registered on the window and one registered on the application, one
 posted on `NSApp` only the application's, and one posted on the content view nobody's. Whether VoiceOver
-speaks an announcement posted there is phase 5's to hear. `NODE_DESTROYED` releases the element at the
+speaks an announcement posted there is phase 5's to hear. *(Heard 2026-09-16 on macOS 26.6.2:
+`AnnouncementRequested` arrived on the window with priorities 10 and 90, and VoiceOver spoke 'Salvo'
+and 'Interrompido, nada foi salvo'; closed.)* `NODE_DESTROYED` releases the element at the
 frame's end and still posts nothing (§2.2's note of the same date).
 
 **The macOS column as built (dated 2026-09-15; MACOS-NEW-7).** The table above is kept as written; this
@@ -5276,7 +5325,9 @@ a focus move posted after the frame emitted it, an announcement on a still windo
 frame, and a reentrant publish's event posted by a frame that walked nothing), each red on the
 earlier code, and `AxBridgeTest.aFrameEndWithNothingToSayAllocatesNothing`. The live check — an
 `AXObserver` timestamping deliveries against a reader scene's step lines on the macOS guest — is
-phase 5's.
+phase 5's. *(Measured 2026-09-16 on macOS 26.6.2: over 18 of the 21 steps, the first notification
+arrived a median 3 ms and at most 76 ms after its step line, and none arrived a change late;
+closed.)*
 
 ### 5.4 Popups and dialogs, per platform
 
@@ -6342,7 +6393,10 @@ and its version, never a runner: the rule is enforced by
 it over — detail1, detail2, source and `any_data` — and a source's cached children after a
 `children-changed`; `EventShapesProbe` (backend test sources) drives each shape through a real
 difference with no window. Run on Fedora KDE 44 and Ubuntu 24.04 the same day, identical on both, no
-signal refused. What it does not replace is a talking Orca, which is phase 5's.)*
+signal refused. What it does not replace is a talking Orca, which is phase 5's.)* *(Heard
+2026-09-16: Orca 50.2 on Fedora 44 spoke all six reader scripts, with no Orca traceback in eight
+runs against six at the 2026-09-14 baseline, and Orca 46.1 on Ubuntu 24.04 read five runs the same
+day without one; closed.)*
 
 *(Amended 2026-09-15, LINUX-NEW-6: the Ubuntu row's "`-Dlimn.a11y.linux.trace=true` logs every inbound
 call" was half of what a silent reader needs. The same flag now also names every signal the application
@@ -6371,7 +6425,9 @@ day, each segment's number and text, an increment read back, and the field's exp
 live reading of the `Selection`, `Value`, `Text` and attribute amendments of §2.3. The same run saw a
 `SelectChild` on the gallery's picker answer false while an in-scene date picker held the input layer,
 which is semantics 5 as the walk publishes it. What it does not replace is Orca speaking them, which is
-phase 5's.)*
+phase 5's.)* *(Heard 2026-09-16: Orca 50.2 on Fedora 44 spoke the calendar, date-field and
+date-picker scripts end to end, the picker's day included ('9 de setembro de 2026, hoje.'). Orca
+46.1 on Ubuntu 24.04 spoke the calendar the same day. Closed.)*
 
 *(Amended 2026-09-15, the after-lane checks on at-spi2-core 2.52: the Ubuntu row's assertions were run
 against the finished bridge, and the readings are in `readings/ubuntu-2.52-after-lane.txt`. Ubuntu
@@ -6394,7 +6450,10 @@ cross-window relations, which only Linux had implemented by the end of phase 3, 
 2.52 as well as 2.60. `press-the-probe.py` gained the two arguments that made the combo box reachable
 (a role substring and a verb name, defaulting to a button's first action, which is what it did
 before). What this does not settle is what Orca 46.1 SAYS about any of it: that is phase 5's, and the
-reader was deliberately left unstarted.)*
+reader was deliberately left unstarted.)* *(Not heard on this guest, 2026-09-16: phase 5's Ubuntu
+run repeated the two-frame client walk and drove Orca 46.1 over the calendar, the table and the
+announcement scenes, not over a picker or a combo box. Orca 50.2 on Fedora 44 followed the cursor
+into the picker's popup and spoke the day the same day. The Orca 46.1 half is still open.)*
 
 **One of these can plausibly move into CI, and it is worth trying.** The Linux bridge is pure Java and
 pure D-Bus, and the Ubuntu runner can install `at-spi2-core` and run the whole probe under
@@ -6505,7 +6564,9 @@ at-spi2-atk 2.60.6 answers `UnknownMethod` on `/org/a11y/atspi/accessible/root` 
 by answering that interface's `version` property `1` on the same root. This bridge answers the first
 frame's box, because of the two halves it is the one that cannot cost a client anything; whether any
 client is misled by a root that answers `Component` is a phase-5 reading and the condition for
-reversing it. It was argued in `AtspiTree.applicationComponent`'s javadoc and added to the test's
+reversing it. *(Not examined by any phase-5 run, 2026-09-16 to 2026-09-22: the application listed
+`Component` on Ubuntu 24.04 and neither Orca raised an error over it, which does not answer the
+question. Still open.)* It was argued in `AtspiTree.applicationComponent`'s javadoc and added to the test's
 list. **And the test asserts more of the rule than the word.** Its first cut required only a file
 under `readings/` and the word "choice", both of which one site already carried before its argument
 was written — so that entry could not have gone red for the defect it guards. A choice site must now

@@ -8,6 +8,8 @@
   stands beside the floor in §0. Decisions 89 to 97 (batch 25) and 98 to 107 (batch 26) of the
   2026-09-13 pass are what this record writes down.
 - **Date:** 2026-09-21
+- **Readings:** a path under `readings/` names a raw transcript from the verification lab. Those
+  files are kept outside this repository; each finding cited to one is stated here in full.
 - **Scope:** the cost of adding a widget to the accessibility pipeline ADR 039 built, and the
   one change that lowers it: naming, in the model, the small number of *shapes* a published node
   can have, and writing each shape once on the widget's side, once per bridge, and once as a
@@ -360,7 +362,7 @@ lines answer to a `Source`, every answer is pinned by tests that run where AppKi
 classes would be a rewrite of code the plan said to move and not rewrite, for a name; the record
 names it instead. The synthetic per-shape test for macOS is owed (§8): it needs an `AxGrid` over
 a source double, which the existing tests build through a bridge double this record did not
-want to copy.
+want to copy. *(Written in phase 10 as `AxShapesTest`, decision 101; §8 records it closed.)*
 
 The role tables stay closed and per platform, and no constant entered without a reading.
 

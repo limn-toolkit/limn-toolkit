@@ -3,6 +3,10 @@
 - **Status:** Accepted, 2026-08-04. Implemented as phase 8a of the video player: the configure line
   in `scripts/build-ffmpeg.sh`, `FfmpegMedia.components()`, `FfmpegVideoDecoder.supports` and
   `CodecBreadthTest`.
+  *Since [037](037-the-native-payload-is-an-artifact-and-versions-with-ffmpeg.md), the script and
+  its configure line live in the
+  [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) repository as
+  `scripts/build-ffmpeg.sh`; this repository no longer carries a copy.*
 - **Date:** 2026-08-04
 - **Scope:** which decoders and demuxers the shipped library holds, what each one costs, and what a
   test can honestly say about a codec that has no encoder here.

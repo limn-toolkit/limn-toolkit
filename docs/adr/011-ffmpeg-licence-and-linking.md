@@ -2,6 +2,10 @@
 
 - **Status:** Accepted, 2026-08-04. Implemented as phase 6a of the video player: the configure line
   in `scripts/build-ffmpeg.sh`, the shared libraries it produces, and `LicenceTest`.
+  *Since [037](037-the-native-payload-is-an-artifact-and-versions-with-ffmpeg.md), the script and
+  its configure line live in the
+  [`limn-ffmpeg-natives`](https://github.com/limn-toolkit/limn-ffmpeg-natives) repository as
+  `scripts/build-ffmpeg.sh`; this repository no longer carries a copy.*
 - **Date:** 2026-08-04
 - **Scope:** which FFmpeg this project builds, how the shim links to it, what that obliges Limn and
   anything commercial downstream of it, and where the patent position leaves the operating systems'

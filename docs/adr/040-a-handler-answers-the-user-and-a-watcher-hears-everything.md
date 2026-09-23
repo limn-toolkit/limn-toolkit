@@ -1,6 +1,6 @@
 # ADR 040. A handler answers the user, and a watcher hears everything
 
-- **Status:** Accepted, 2026-09-03; **implemented 2026-09-09**, on `claude/adr-040`, in the order
+- **Status:** Accepted, 2026-09-03; **implemented 2026-09-09**, on a branch since merged into `main`, in the order
   §3 sets out: the types and the one fan-out, the base class, the components family by family,
   the applications, the tests, this record. §0 is what a three-part sweep of every registration,
   every fan-out and every prospective consumer in the repository established, together with a
