@@ -331,9 +331,12 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode node = field();
         assertTrue(node.expand().expanded());
-        assertFalse(node.has(Accessible.State.ENABLED),
-                "the modal rule applied to a control shadowed by its own dropdown: it stays in "
-                        + "the tree and stays showing, and it is not operable" + describe(tree()));
+        assertTrue(node.has(Accessible.State.ENABLED),
+                "a control shadowed by its own dropdown stays in the tree, showing and enabled, "
+                        + "because a popup does not disable its opener as a dialog does its owner "
+                        + "(2026-09-23: NVDA said \"unavailable\" on every opening)" + describe(tree()));
+        assertFalse(node.accepts(Accessible.Action.SET_VALUE),
+                "and it is not operable: no setter either" + describe(tree()));
         assertFalse(node.has(Accessible.State.FOCUSABLE),
                 "the set published focusable is the set the keyboard reaches, and while the list "
                         + "is down the keyboard reaches the layer above" + describe(tree()));

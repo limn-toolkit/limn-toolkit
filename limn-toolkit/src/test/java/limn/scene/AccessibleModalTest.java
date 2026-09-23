@@ -61,6 +61,52 @@ class AccessibleModalTest extends AccessibleTestBase {
     }
 
     /**
+     * ADR 039 §1.13, amended 2026-09-23: beneath a popup (a combo's list, a menu, a calendar) the
+     * page keeps ENABLED and loses its verbs, its setters and the keyboard, because a native
+     * drop-down leaves the field it opened from enabled while a native modal disables the window
+     * behind it; NVDA said "unavailable" of the combo on every opening. A popup opened over a
+     * dialog changes nothing beneath the dialog: only what lies beneath popups alone is enabled.
+     */
+    @Test
+    void beneathAPopupAloneTheNodeStaysEnabledAndIsNotOperable() {
+        Group root = new Group();
+        Probe slider = stop("level");
+        slider.value = 40.0;
+        slider.actions = new Accessible.Action[] {Accessible.Action.INCREMENT};
+        root.add(slider);
+        bind(root);
+        frame();
+
+        Group popup = new Group();
+        popup.add(stop("option"));
+        scene.pushPopup(popup);
+        frame();
+        AccessibleNode level = node("level");
+        assertTrue(level.has(Accessible.State.ENABLED),
+                "a popup shadows the page, it does not disable it: " + describe(tree()));
+        assertFalse(level.has(Accessible.State.FOCUSABLE), "the keyboard reaches the popup alone");
+        assertNull(level.actions(), "no verb beneath the layer that owns input");
+        assertFalse(level.accepts(Accessible.Action.SET_VALUE), "and no setter");
+        scene.removeOverlay(popup);
+        frame();
+        assertTrue(node("level").accepts(Accessible.Action.SET_VALUE), "all of it back once it closes");
+
+        Group dialog = new Group();
+        dialog.add(stop("confirm"));
+        scene.pushOverlay(dialog);
+        Group popupOverTheDialog = new Group();
+        popupOverTheDialog.add(stop("choice"));
+        scene.pushPopup(popupOverTheDialog);
+        frame();
+        assertFalse(node("level").has(Accessible.State.ENABLED),
+                "beneath a dialog the page is disabled, whatever opens above the dialog: "
+                        + describe(tree()));
+        assertTrue(node("confirm").has(Accessible.State.ENABLED),
+                "and the dialog, beneath a popup alone, is enabled: " + describe(tree()));
+        assertNull(node("confirm").actions(), "and not operable while the popup owns input");
+    }
+
+    /**
      * The same rule for what a node offers to do (ADR 039 §1.13, amended 2026-09-15; semantics 5):
      * the scene refuses every verb outside the layer that owns input, and a platform is answered
      * from the snapshot, so a node there publishes no verb and accepts none of the setters its

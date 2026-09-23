@@ -186,6 +186,10 @@ public final class Accessibility {
         int hierarchyRow;
         int hierarchyRowCount;
         int verbs;                      // bit per Accessible.Action ordinal
+        // Whether the scene will operate the node at all: cleared by inoperableAt, and read by the
+        // node's accepts() for the setters its facets imply, which the verbs above do not carry.
+        // A node beneath a popup is ENABLED and still inert (§1.13, amended 2026-09-23).
+        boolean inert;
         // The subset of verbs a container claimed on this widget child (ADR 039 §1.5, amended
         // 2026-09-14): published on the child like the rest, performed by the container. Not
         // compared by differs(): who performs a verb is the walk's routing table, not a fact a
@@ -283,6 +287,7 @@ public final class Accessibility {
             hierarchyRow = 0;
             hierarchyRowCount = 0;
             verbs = 0;
+            inert = false;
             delegated = 0;
             keyBinding = null;
             relationCount = 0;
@@ -1750,6 +1755,7 @@ public final class Accessibility {
         Objects.checkIndex(index, count);
         Slot s = slots[index];
         s.verbs = 0;
+        s.inert = true;
         s.delegated = 0;
         s.keyBinding = null; // the action facet's, and there is none
     }
@@ -2146,7 +2152,7 @@ public final class Accessibility {
                         : null,
                 s.verbs == 0 ? null : new ActionFacet(verbsOf(s.verbs), s.keyBinding),
                 s.parent, firstChild, lastChild, nextSibling, previousSibling,
-                s.selectionContainer);
+                s.selectionContainer, s.inert);
     }
 
     /**

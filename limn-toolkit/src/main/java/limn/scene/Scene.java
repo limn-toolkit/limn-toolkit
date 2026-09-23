@@ -182,6 +182,10 @@ public final class Scene {
     private Widget<?> focused;
 
     private final List<Widget<?>> overlays = new ArrayList<>();
+
+    /** The overlays pushed as popups rather than as modal layers of their own, by identity. */
+    private final java.util.Set<Widget<?>> popupOverlays =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     // Widget that held focus when each overlay was pushed, restored on removal
     // (parallel to overlays), so closing a modal returns focus to its trigger.
     private final List<Widget<?>> overlayFocusReturn = new ArrayList<>();
@@ -622,6 +626,51 @@ public final class Scene {
         requestRender();
     }
 
+    /**
+     * Pushes {@code popup} as {@link #pushOverlay} does — it captures all input and confines
+     * focus — for a surface that opens from a control and belongs to it: a combo's list, a menu,
+     * a date picker's calendar. What differs is what an assistive technology is told about the
+     * page beneath: under a modal overlay it is published not enabled, because a dialog blocks
+     * its owner as a native modal disables the window behind it; under a popup it stays enabled
+     * and merely offers no verb, because a native drop-down list does not disable the field it
+     * opened from. Closed with {@link #removeOverlay}.
+     *
+     * @param popup the popup's root widget
+     */
+    public void pushPopup(Widget<?> popup) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(popup, "popup");
+        pushOverlay(popup);
+        popupOverlays.add(popup);
+    }
+
+    /**
+     * @param overlay an overlay of this scene
+     * @return whether it was pushed with {@link #pushPopup}
+     */
+    boolean isPopup(Widget<?> overlay) {
+        return popupOverlays.contains(overlay);
+    }
+
+    /**
+     * Whether every overlay above the one at {@code index} was pushed as a popup, so what lies
+     * at {@code index} is beneath popups alone and is published enabled.
+     *
+     * @param index an overlay's position in the stack, or {@code -1} for the root
+     * @return true when at least one overlay lies above and every one of them is a popup
+     */
+    boolean onlyPopupsAbove(int index) {
+        if (index + 1 >= overlays.size()) {
+            return false;
+        }
+        for (int i = index + 1; i < overlays.size(); i++) {
+            if (!popupOverlays.contains(overlays.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** Removes a modal overlay and restores focus to whatever it took it from. */
     public void removeOverlay(Widget<?> overlay) {
         Ui.checkUiThread();
@@ -629,6 +678,7 @@ public final class Scene {
         if (index < 0) {
             return;
         }
+        popupOverlays.remove(overlay);
         boolean wasTop = index == overlays.size() - 1;
         overlays.remove(index);
         Widget<?> restore = overlayFocusReturn.remove(index);

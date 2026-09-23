@@ -957,7 +957,7 @@ public final class DatePicker extends Widget<DatePicker> {
         // it does not treat the loss of focus as somebody moving on (a half-typed year is not
         // resolved by the popup opening).
         filling().setKeyboardActive(true);
-        owner.pushOverlay(scenePopup);
+        owner.pushPopup(scenePopup);
         if (animate) {
             ScenePopup fading = scenePopup;
             owner.addRealTimeTicker(dt -> {

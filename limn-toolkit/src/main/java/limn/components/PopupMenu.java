@@ -501,7 +501,7 @@ public final class PopupMenu {
         // frame pump to advance the ticker, so they snap straight to fully shown.
         boolean animate = owner.window() != null;
         sceneFade = animate ? 0f : 1f;
-        owner.pushOverlay(surface);          // captures input + focuses the surface
+        owner.pushPopup(surface);          // captures input + focuses the surface
         if (animate) {
             owner.addRealTimeTicker(dt -> { // wall time, like its fade-out twin
                 if (!open) {

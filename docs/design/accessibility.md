@@ -512,6 +512,6 @@ without the other would be a distinction the widget does not have. Activation st
 container in all three: `PRESS` is published where there is a cursor and acts on the cursor row, so
 a reader opens the row it is standing on and not an arbitrary one. No data table behind a chart; no
 occlusion model, so a scrim hand-rolled
-inside a `Stack` is not modal to a reader where `pushOverlay` and `Dialog` are; no MSAA; and the
+inside a `Stack` is not modal to a reader where `pushOverlay`, `pushPopup` and `Dialog` are; no MSAA; and the
 system accessibility *settings* — high contrast, reduced motion, a system text scale — which are a
 different decision with a different shape and would tangle a tree with a theme.

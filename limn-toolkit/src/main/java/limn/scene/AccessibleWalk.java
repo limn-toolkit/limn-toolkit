@@ -248,6 +248,7 @@ final class AccessibleWalk {
             builder.foreignActiveDescendant(0);
             return;
         }
+        beneathOnlyPopups = layer != null && layer != root && scene.onlyPopupsAbove(-1);
         walkWidget(scene, root, null, 0, -1, 0, 0, true, true, layer == root);
         List<Widget<?>> overlays = scene.overlays();
         for (int i = 0; i < overlays.size(); i++) {
@@ -263,6 +264,7 @@ final class AccessibleWalk {
             // popup that must go inert with its opener says so itself (a combo narrows its
             // options while it is disabled) or closes; the inheritance host stays what it is for
             // the other axes, and the relation.
+            beneathOnlyPopups = layer != null && overlay != layer && scene.onlyPopupsAbove(i);
             walkWidget(scene, overlay, null, 0, -1, 0, 0, true, true, overlay == layer);
         }
         builder.end();
@@ -460,7 +462,14 @@ final class AccessibleWalk {
         if (widget.isAccessibleIgnored()) {
             return;
         }
-        boolean ownEnabled = enabled && widget.isEnabled() && reachable;
+        // §1.13, amended 2026-09-23: outside the layer that owns input nothing is operable, and
+        // it is published not ENABLED only when a modal layer is what shadows it. Beneath popups
+        // alone -- a combo's list, a menu, a calendar opened from a field -- it keeps its ENABLED
+        // bit and loses its verbs, as a native drop-down list leaves its field enabled while a
+        // native modal disables the window behind it. Published not enabled, the field under its
+        // own list was announced "unavailable" by NVDA on every opening.
+        boolean ownEnabled = enabled && widget.isEnabled() && (reachable || beneathOnlyPopups);
+        boolean operable = ownEnabled && reachable;
         boolean ownVisible = visible && widget.isVisible();
 
         // Identity first, before either describe hook runs (ADR 039 §1.3, rule 1, amended
@@ -549,6 +558,15 @@ final class AccessibleWalk {
         } else {
             label = redirectedLabelFor(widget);
         }
+        if (label == null && widget.parent() == null && widget.inheritanceHost() != null
+                && scene.isPopup(widget)) {
+            // A popup is named by the caption that names the field it opened from (2026-09-23): a
+            // reader entering a combo's list heard "Options, group", where Windows' own drop-down
+            // list says "Cordilheiras, list". The relation it gets is the truth too: the caption
+            // labels this layer as much as the field. A popup whose field has no caption keeps
+            // the name its own hook gave it.
+            label = widget.inheritanceHost().accessibleLabelledBy();
+        }
         // Under the widget's own language, as the two hooks above were: the node records that
         // language and the model re-resolves a name when it moves, so a string the walk hands
         // over on the widget's behalf -- the application's override, a bound label's caption,
@@ -578,7 +596,9 @@ final class AccessibleWalk {
             }
             return;              // ignored: no node, and no children either
         }
-        boolean focusable = widget.isFocusable() && ownEnabled && ownVisible;
+        // Operable and not merely enabled: what is published focusable is what the keyboard can
+        // reach, and beneath a popup it reaches nothing.
+        boolean focusable = widget.isFocusable() && operable && ownVisible;
         if (builder.declaresNothing() && !focusable && !builder.hasChildren()) {
             warnIfItPaints(widget);
             builder.drop();
@@ -601,7 +621,7 @@ final class AccessibleWalk {
         keys[slot] = childKey;
         delegated[slot] = builder.delegatedVerbsAt(slot);
         delegates[slot] = delegated[slot] == 0 ? null : parent;
-        if (!ownEnabled || !ownVisible) {
+        if (!operable || !ownVisible) {
             // A node that is not ENABLED is one the scene refuses every verb on (§1.9), so nothing
             // there is published operable (semantics 5; §1.5 and §1.13, amended 2026-09-15): no
             // verb the widget or its container declared. Its setters need no withdrawal and get
@@ -641,7 +661,7 @@ final class AccessibleWalk {
             if (clipped) {
                 builder.clipShowingAt(i, clip[0], clip[1], clip[2], clip[3]);
             }
-            if (!builder.isEnabledAt(i) || !ownVisible) {
+            if (!builder.isEnabledAt(i) || !ownVisible || !reachable) {
                 // The same rule, read off the bit just published: a synthetic child is refused
                 // with its owner, and so is one its owner narrowed (a refused day, decision 30)
                 // or one under such a child. Visibility is read from the owner rather than from
@@ -728,6 +748,12 @@ final class AccessibleWalk {
         }
         return null;
     }
+
+    /**
+     * Whether the subtree being walked lies beneath popups alone (§1.13, amended 2026-09-23): set
+     * before each root of the walk, the tree and every overlay, and read by every widget under it.
+     */
+    private boolean beneathOnlyPopups;
 
     private void walkChildren(Scene scene, Widget<?> widget, int into, int ownSlot, long ownId,
                               long scope, boolean enabled, boolean visible, boolean reachable) {

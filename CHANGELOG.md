@@ -41,6 +41,10 @@ held by a test to what its gestures repaint.
   host, a describe call and a contract test, and no bridge code.
 - On macOS a list, a `ListView` or a combo box's open list, is published as a table, as AppKit's
   own lists are. VoiceOver says "table" for it and now speaks its selection.
+- A popup that belongs to a control (your own, like a combo's list, a menu or a calendar) opens with
+  `Scene.pushPopup` instead of `pushOverlay`: the page beneath it then stays enabled for a screen
+  reader, as a native drop-down leaves its field, where a dialog disables what is behind it. An
+  open combo list's selection is its highlight, and its layer is named by the field's caption.
 
 **Languages.**
 - `PluralString` and `PluralRules` write a counted sentence with one key per grammatical form.

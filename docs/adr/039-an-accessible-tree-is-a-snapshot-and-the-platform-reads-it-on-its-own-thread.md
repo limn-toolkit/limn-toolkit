@@ -2388,6 +2388,21 @@ verbs from a node published without `VISIBLE` through the same `Accessibility#in
 revealed by the gate before it is performed. Ratcheted over the gallery by
 `VerbPolicyRatchetTest.everyPublishedVerbMovesSomething`.
 
+**Amended 2026-09-23: a popup shadows, a dialog disables.** "Every `Scene` overlay is modal by
+construction" stays true of input and stops being the whole of what is published. A combo's list, a
+menu and a date picker's calendar are pushed with `Scene#pushPopup`, and beneath popups alone a node
+keeps `ENABLED` while it loses `FOCUSABLE`, every verb and every setter its facets imply
+(`AccessibleNode#accepts` reads an inert bit `inoperableAt` sets, which is no published state). Beneath
+a dialog, or beneath a popup opened over a dialog, nothing changes. The two are what the platforms do:
+a native modal disables the window behind it, and a native drop-down list leaves the field it opened
+from enabled. Published not enabled, the combo under its own in-scene list was announced
+"indisponível" by NVDA on every opening, which a WinForms drop-down list under the same reader never
+is (`.claude/pending/2026-09-23/readings/combo-windows`). The same round names a popup's layer by the
+caption that names its field, when there is one, instead of the toolkit's "Options": the reader
+entering the list heard "Opções, grupo" where Windows' own says "Cordilheiras, lista". Pinned by
+`AccessibleModalTest.beneathAPopupAloneTheNodeStaysEnabledAndIsNotOperable` and
+`ComboBoxScenePopupAccessibilityTest.theLayerIsNamedByTheFieldsCaptionWhenItHasOne`.
+
 ---
 
 ## 2. The three platforms, interface by interface

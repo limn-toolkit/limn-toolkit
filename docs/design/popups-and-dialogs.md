@@ -131,8 +131,10 @@ looked at.
 Three things the OS provides for free that the overlay has to arrange for itself, each of
 which breaks the control in a way that reads as "the click did nothing":
 
-- **The keyboard.** `pushOverlay` confines focus to the overlay, so the field underneath
-  can no longer receive a key. The overlay is focusable and hands what it receives back to
+- **The keyboard.** `pushPopup` confines focus to the overlay, as `pushOverlay` does, so the
+  field underneath can no longer receive a key. It is `pushPopup` and not `pushOverlay` because
+  of what a screen reader is told about the page beneath: under a popup it stays enabled and
+  merely offers nothing to operate, as under a native drop-down; under a dialog it is disabled. The overlay is focusable and hands what it receives back to
   the combo, where the key and type-ahead behaviour lives.
 - **Focus loss is not dismissal.** `ComboBox.onFocusLost` closes the popup, which is right
   when a popup *window* never takes focus and wrong the moment the overlay takes it: the

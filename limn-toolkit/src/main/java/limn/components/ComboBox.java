@@ -524,7 +524,7 @@ public final class ComboBox extends Widget<ComboBox> {
         // and the second one must not close the popup it is opening.
         boolean animate = owner.window() != null;
         sceneFade = animate ? 0f : 1f;
-        owner.pushOverlay(scenePopup);
+        owner.pushPopup(scenePopup);
         if (animate) {
             ScenePopup fading = scenePopup;
             owner.addRealTimeTicker(dt -> {
