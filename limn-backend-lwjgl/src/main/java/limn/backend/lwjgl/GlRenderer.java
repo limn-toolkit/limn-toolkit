@@ -182,6 +182,11 @@ final class GlRenderer implements GpuRenderer {
         pendingCapture = java.util.Objects.requireNonNull(sink, "sink");
     }
 
+    /** @return whether a capture waits for the next frame, which must then be drawn */
+    boolean capturePending() {
+        return pendingCapture != null;
+    }
+
     /**
      * The back buffer as an {@link Image}: display-referred already (the composite ran into it),
      * so no colour transform is applied here, only the two conversions {@code Image}'s contract

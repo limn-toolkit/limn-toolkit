@@ -694,9 +694,13 @@ final class LwjglWindow implements NativeWindow {
      * <p>Only for a window that GLFW calls visible and that has presented at least once: a hidden
      * window renders on purpose (the gallery captures from hidden windows), and a window just
      * shown may not have its visible bit yet, and must draw its first frame regardless.
+     *
+     * <p>Nor for a window owed a capture: someone asked for its pixels, and a covered window that
+     * skipped its frames would never hand them over. The first cut of the pacer did exactly that,
+     * and a program that captured a window behind another one waited forever with no error.
      */
     boolean isCovered() {
-        if (!MACOS || destroyed || !presentedOnce
+        if (!MACOS || destroyed || !presentedOnce || renderer.capturePending()
                 || org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(handle, org.lwjgl.glfw.GLFW.GLFW_VISIBLE) == 0) {
             return false;
         }
