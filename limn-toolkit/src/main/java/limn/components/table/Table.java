@@ -1700,7 +1700,14 @@ public final class Table<T> extends Widget implements Scrollable {
             float offset = estimatedOffset(t);
             float max = Math.max(0, estimatedContentHeight(t) - rowsViewportHeight());
             float applied = Math.min(Math.max(0, offset + dy), max) - offset;
-            if (applied != 0) {
+            if (Math.abs(applied) > JUMP_VIEWPORTS * rowsViewportHeight()) {
+                // Far: land by estimate, as a drag of the bar does. Moving the anchor this far
+                // made the next layout walk and measure every row on the way, 1.35-1.95 s for
+                // 100,000 rows; near, the walk is a few rows and the landing stays exact.
+                placeAt(offset + applied, t);
+                vBar.onScrolled();
+                moved = true;
+            } else if (applied != 0) {
                 anchorTop -= applied;
                 for (int i = 0; i < mountedCount; i++) {
                     Slot slot = mountedSlots[i];
@@ -1791,15 +1798,26 @@ public final class Table<T> extends Widget implements Scrollable {
         return Math.max(0, Math.min(anchorIndex * avg - anchorTop, max));
     }
 
-    /** The vertical bar's model writing the offset: the user dragging or paging the bar. */
-    private void scrollToOffset(float offset, SizeTokens t) {
+    /**
+     * How far a {@link #scrollBy} goes, in viewport heights, before it lands by estimate instead
+     * of walking the rows between.
+     */
+    private static final float JUMP_VIEWPORTS = 2;
+
+    /** Puts the anchor at an offset by the mean row height, the estimate the bar is drawn from. */
+    private void placeAt(float offset, SizeTokens t) {
         float clamped = Math.max(0, offset);
         float avg = avgRowHeight(t);
-        int wasAnchor = anchorIndex;
-        float wasTop = anchorTop;
         anchorIndex = avg > 0 ? (int) (clamped / avg) : 0;
         anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, rows.size() - 1)));
         anchorTop = anchorIndex * avg - clamped;
+    }
+
+    /** The vertical bar's model writing the offset: the user dragging or paging the bar. */
+    private void scrollToOffset(float offset, SizeTokens t) {
+        int wasAnchor = anchorIndex;
+        float wasTop = anchorTop;
+        placeAt(offset, t);
         markNeedsContainedLayout(); // a drag of the bar is a scroll; see the wheel and ensureVisible
         invalidate();
         vBar.onScrolled();

@@ -471,6 +471,13 @@ public final class ListView extends Widget implements Scrollable {
         if (applied == 0) {
             return;
         }
+        if (Math.abs(applied) > JUMP_VIEWPORTS * height()) {
+            // Far: land by estimate, as a drag of the bar does. Moving the anchor this far made
+            // the next layout walk and measure every row on the way, 1.35-1.95 s for 100,000
+            // rows; near, the walk is a few rows and the landing stays exact.
+            scrollToOffset(offset + applied, t);
+            return;
+        }
         anchorTop -= applied;
         // Move the mounted rows NOW: revealInView re-reads coordinates between
         // nested scrollables in one pass (the Scrollable contract); the next
@@ -536,6 +543,12 @@ public final class ListView extends Widget implements Scrollable {
         float max = Math.max(0, estimatedContentHeight(t) - height());
         return Math.max(0, Math.min(anchorIndex * avg - anchorTop, max));
     }
+
+    /**
+     * How far a {@link #scrollBy} goes, in viewport heights, before it lands by estimate instead
+     * of walking the rows between.
+     */
+    private static final float JUMP_VIEWPORTS = 2;
 
     private void scrollToOffset(float offset, SizeTokens t) {
         float clamped = Math.max(0, offset);
