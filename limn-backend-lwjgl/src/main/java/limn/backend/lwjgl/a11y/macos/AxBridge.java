@@ -391,33 +391,60 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     }
 
     /**
-     * Whether a client's {@code SELECT} on {@code nodeId} is VoiceOver writing its own stale cursor
-     * back as a selection: the node is a member of the same selection container as
-     * the row the user is in, it is not that row, and the application changed its tree — the cursor,
-     * the focus, a state, the structure — less than {@link #STALE_SELECT_NANOS} ago.
+     * Why a client's {@code SELECT} on {@code nodeId} is VoiceOver writing its own cursor sync back as
+     * a selection, or {@code null} when it is not: the application changed its tree — the cursor,
+     * the focus, a state, the structure — less than {@link #STALE_SELECT_NANOS} ago, and the node is
+     * a member of the same selection container as the row the user is in, and either
+     * <ul>
+     * <li>it is another row than the user's, or</li>
+     * <li>it is the user's own row, already selected with others.</li>
+     * </ul>
      *
      * <p>Why here and not in the model. The write is VoiceOver's cursor sync, which mirrors a
-     * cursor that did not follow ours into the selection through {@code setAccessibilitySelected:}
-     * on a row — "Himalayas" on a table whose cursor was on Caucasus, "Documents 2" eight times on a
-     * tree whose cursor had moved on — and neither NVDA nor Orca writes anything of the kind, so a
+     * cursor that did not follow ours into the selection — "Himalayas" on a table whose cursor was on
+     * Caucasus, "Documents 2" eight times on a tree whose cursor had moved on. It arrives as
+     * {@code setAccessibilitySelectedRows:} with one row on a table or an outline, and as
+     * {@code setAccessibilitySelected:} on a row where the container was published as a list
+     * (the write trace names the selector, 2026-09-23); both post {@code SELECT}, which is why the
+     * refusal is here. Neither NVDA nor Orca writes anything of the kind, so a
      * rule in the model would refuse a fast client on two platforms to cure a reader on the third.
      * Once a client's {@code SELECT} stopped moving the cursor, such a write still selected a row
      * nobody chose: the highlight jumped, and the next SPACE left two rows selected.
+     *
+     * <p><b>The user's own row, when a range is selected.</b> The same sync writes {@code AXSelected}
+     * YES on the row the keyboard has just landed on, 5 ms after VoiceOver asks for the focused
+     * element and is told that row. A select replaces the selection — so does a native row's
+     * {@code AXSelected} YES ({@code readings/macos-selection-writes-probe.txt}, step 1) — and on a
+     * list in {@code MULTI} every Shift+arrow range collapsed to the row it reached
+     * ({@code readings/list-multi-macos}, 2026-09-23). A native multi-select table under the same
+     * steps and the same VoiceOver receives no such write at all, and keeps its range
+     * ({@code scripts/a11y/macos/multi-list-probe.swift}, 2026-09-23), so refusing it is what AppKit's
+     * user already gets. A lone selected row is not refused: there the select changes nothing, and
+     * the cursor's row in {@code SINGLE} stays a select a reader can always make.
      */
-    private boolean refusesAStaleSelect(long nodeId) {
-        if (clock.getAsLong() - cursorMovedNanos >= STALE_SELECT_NANOS) return false;
+    private String staleSelect(long nodeId) {
+        if (clock.getAsLong() - cursorMovedNanos >= STALE_SELECT_NANOS) return null;
         AccessibleTree tree = tree();
         int at = tree.indexOf(nodeId);
         int focus = tree.indexOf(tree.effectiveFocus());
-        if (at < 0 || focus < 0) return false;
+        if (at < 0 || focus < 0) return null;
         AccessibleNode row = tree.node(at);
-        if (row.selectionItem() == null) return false;
+        if (row.selectionItem() == null) return null;
         // The member the user is in: the effective focus itself, or the nearest ancestor of it that
         // is a member — a widget cell's row.
         int member = focus;
         while (member >= 0 && tree.node(member).selectionItem() == null) member = tree.node(member).parent();
-        if (member < 0 || member == at) return false;
-        return tree.node(member).selectionContainer() == row.selectionContainer();
+        if (member < 0 || tree.node(member).selectionContainer() != row.selectionContainer()) return null;
+        if (member != at) return "another row of the container the user is in";
+        if (!row.has(Accessible.State.SELECTED)) return null;
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            AccessibleNode other = tree.node(i);
+            if (i != at && other.selectionItem() != null && other.has(Accessible.State.SELECTED)
+                    && other.selectionContainer() == row.selectionContainer()) {
+                return "the user's own row, already selected with others: a select would collapse the range";
+            }
+        }
+        return null;
     }
 
     @Override
@@ -470,6 +497,23 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         listening = true;
     }
 
+    /**
+     * <p>One trace line per write, naming the selector and whether the node was selected and was the
+     * user's own row when it arrived: what a reader writes is read off these, and a write that
+     * restates the selection is a different finding from one that changes it.
+     */
+    @Override
+    public void wrote(String selector, long nodeId, String written) {
+        Consumer<String> to = trace;
+        if (to == null) return;
+        AccessibleTree tree = tree();
+        AccessibleNode node = tree.find(nodeId);
+        to.accept("client wrote " + selector + " " + written + " on " + nodeId
+                + (node == null ? "" : "=" + node.role() + (node.name() == null ? "" : " '" + node.name() + "'")
+                        + (node.has(Accessible.State.SELECTED) ? " selected" : " unselected"))
+                + (nodeId == tree.effectiveFocus() ? " (the effective focus)" : ""));
+    }
+
     @Override
     public boolean perform(long nodeId, Accessible.Action action) {
         return perform(nodeId, action, Accessible.Argument.NONE);
@@ -478,10 +522,11 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     @Override
     public boolean perform(long nodeId, Accessible.Action action, Accessible.Argument argument) {
         Host current = host();
-        if (action == Accessible.Action.SELECT && refusesAStaleSelect(nodeId)) {
+        String stale = action == Accessible.Action.SELECT ? staleSelect(nodeId) : null;
+        if (stale != null) {
             Consumer<String> to = trace;
             if (to != null) {
-                to.accept("refused SELECT on " + nodeId + ": another row of the container the user is in, "
+                to.accept("refused SELECT on " + nodeId + ": " + stale + ", "
                         + "within " + STALE_SELECT_NANOS / 1_000_000 + " ms of the application's own change");
             }
             return false;

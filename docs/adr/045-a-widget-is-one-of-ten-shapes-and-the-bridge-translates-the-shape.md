@@ -453,6 +453,36 @@ Explained, and decided on 2026-09-22 (decisions 110 and 112):
   §4.2's Exception 3. Heard: step 9 no longer adds a row, and the tree-loading drag-back below is
   gone (`readings/d112-macos/summary.txt`).
 
+Found and fixed on 2026-09-23, by the first reader round over a `ListView` in `MULTI` (the gallery's
+"List view, several selected", `--reader list-multi`):
+
+- **On macOS a list is a table.** VoiceOver spoke each row of the list and never its selection, and
+  about 55 ms after every move it wrote `AXSelected` YES on the row it had been told was focused —
+  which a select turns into the whole selection, so every Shift+arrow range collapsed to its last
+  row. A native multi-select `NSTableView` under the same steps receives no write and keeps its
+  range, and VoiceOver says "adicionado à seleção, 2 linhas selecionadas" at each step; the same
+  native table answering the role `AXList` went silent. The bridge had taken a native list's
+  notification (`AXSelectedRowsChanged`, read on 2026-09-15) and not its role, a mix no native view
+  has. `LIST` is now `AXTable` and `LIST_ITEM` `AXRow` with the table-row subrole, as AppKit's lists
+  are; VoiceOver then writes nothing and speaks the selection. The combo box's open list is a `LIST`
+  too and changed with it; no reader has heard that one yet.
+- **A select on the user's own row, already selected with others**, within a second of the
+  application's own change, is refused like decision 112's select on another row: it is the same
+  cursor sync, and on a tree or a table in `MULTI` it would still collapse a range.
+- **On Windows the bind let the reader's asks in** before the window's node existed, through the
+  provider withdrawal the P5W-3 teardown added: NVDA then read the window through MSAA and never
+  subscribed to focus, three runs in three. ADR 039 §3.1 has the amendment.
+- **Decision 112's route, corrected.** The paragraph above says the stale write is
+  `setAccessibilitySelected:` on a row and not the container's setter. That was read off a trace that
+  named the verb and not the selector; the write trace names the selector since this round, and on
+  the tree script all thirteen stale writes, and on the table script the one, were
+  `setAccessibilitySelectedRows:` with a single row, on the container. On the list published as
+  `AXList` it was the row's `setAccessibilitySelected:`. Both post the same `SELECT`, which is where
+  the refusal stands, so the rule and what was heard stand; the route in the record did not.
+
+Evidence: `.claude/pending/2026-09-23/readings/` (`summary.txt`, and the `list-multi-*` directories,
+with the native probe `scripts/a11y/macos/multi-list-probe.swift`).
+
 Still open:
 
 - The gallery publishes no `CHECK_MENU_ITEM`, `RADIO_MENU_ITEM`, `TOGGLE_BUTTON` or `ALERT`
