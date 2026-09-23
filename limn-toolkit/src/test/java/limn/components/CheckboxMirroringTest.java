@@ -75,7 +75,9 @@ class CheckboxMirroringTest extends ComponentTestBase {
 
     @Test
     void theBoxAndItsLabelAreUnchangedReadingLeftToRight() {
-        build(Checkbox.Variant.BOX, LayoutDirection.LTR, false);
+        // Checked, so the box has a fill to compare its border with: an unchecked box fills
+        // nothing, since a fill at alpha 0 drew nothing and only cost its colour.
+        build(Checkbox.Variant.BOX, LayoutDirection.LTR, true);
         assertEquals(0, canvas.firstFill().x(), EPS, "the box is flush with the left edge");
         assertEquals(Strokes.HALF_PIXEL_INSET, canvas.firstStroke().x(), EPS,
                 "and its border takes the same origin, half a pixel in");
@@ -85,7 +87,7 @@ class CheckboxMirroringTest extends ComponentTestBase {
 
     @Test
     void theBoxSitsOnTheFarEdgeAndTheLabelRunsBackFromItReadingRightToLeft() {
-        build(Checkbox.Variant.BOX, LayoutDirection.RTL, false);
+        build(Checkbox.Variant.BOX, LayoutDirection.RTL, true); // checked: see the test above
         float left = WIDTH - t.indicator();
         assertEquals(left, canvas.firstFill().x(), EPS, "the box is flush with the right edge");
         assertEquals(left + Strokes.HALF_PIXEL_INSET, canvas.firstStroke().x(), EPS,

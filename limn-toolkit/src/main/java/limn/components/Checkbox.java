@@ -331,8 +331,10 @@ public final class Checkbox extends Widget {
                 : p > 0 ? theme.primary()
                 : theme.outline().lerp(theme.primaryHover(), hover.value());
         // Fill fades in with the animation.
-        Color fill = (isEnabled() ? theme.primary() : theme.disabledFill()).withAlpha(p);
-        canvas.fillRoundRect(left, top, box, box, t.indicatorRadius(), fill);
+        if (p > 0) { // a fill at alpha 0 draws nothing, and building its colour allocated
+            Color fill = (isEnabled() ? theme.primary() : theme.disabledFill()).withAlpha(p);
+            canvas.fillRoundRect(left, top, box, box, t.indicatorRadius(), fill);
+        }
         canvas.drawRoundRect(left + Strokes.HALF_PIXEL_INSET, top + Strokes.HALF_PIXEL_INSET,
                 box - Strokes.BORDER, box - Strokes.BORDER,
                 t.indicatorRadius(), Strokes.INDICATOR_BORDER, border);

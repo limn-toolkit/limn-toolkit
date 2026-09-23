@@ -36,12 +36,17 @@ public record Color(float r, float g, float b, float a) implements Paint {
 
     /** @return this color with its alpha replaced by {@code alpha} */
     public Color withAlpha(float alpha) {
-        return new Color(r, g, b, alpha);
+        // The same colour when nothing changes, which is what a widget painting at rest asks for
+        // every frame (an opaque tone at full alpha): no allocation, and the value is identical.
+        return alpha == a ? this : new Color(r, g, b, alpha);
     }
 
     /** Linear interpolation between this color and {@code other} at {@code t} in [0..1]. */
     public Color lerp(Color other, float t) {
         float k = Scalars.clamp01(t);
+        if (k == 0) {
+            return this; // exactly the arithmetic below at k = 0, without the allocation
+        }
         return new Color(
                 r + (other.r - r) * k,
                 g + (other.g - g) * k,

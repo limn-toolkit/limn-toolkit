@@ -82,8 +82,43 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
      * and must re-shape nothing — and a quantized device size in this key would miss the memo for
      * every string in the process at exactly that moment.
      */
-    private record Key(String text, Font font, ShapedText.Direction base) {
+    private static final class Key {
+        private String text;
+        private Font font;
+        private ShapedText.Direction base;
+        private int hash;
+
+        Key set(String newText, Font newFont, ShapedText.Direction newBase) {
+            text = newText;
+            font = newFont;
+            base = newBase;
+            hash = (newText.hashCode() * 31 + newFont.hashCode()) * 31 + newBase.hashCode();
+            return this;
+        }
+
+        /** A key of its own for the memo, since {@link #probe} is overwritten by the next lookup. */
+        Key copy() {
+            return new Key().set(text, font, base);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Key key && key.hash == hash && key.base == base
+                    && key.text.equals(text) && key.font.equals(font);
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
     }
+
+    /**
+     * The key every lookup is asked with, refilled per call: a new key per lookup was an
+     * allocation for every string drawn in every frame (PF-6). UI-thread confined like the memo,
+     * and never stored; a miss stores a {@linkplain Key#copy copy}.
+     */
+    private final Key probe = new Key();
 
     // Access-ordered, so the eldest ENTRY is the least recently used one rather than the oldest
     // inserted: an axis label redrawn every frame must not age out behind a label drawn once.
@@ -226,11 +261,11 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
             memo.clear();
             memoEpoch = now;
         }
-        Key key = new Key(value, font, base);
-        ShapedText hit = memo.get(key);
+        ShapedText hit = memo.get(probe.set(value, font, base));
         if (hit != null) {
             return hit;
         }
+        Key key = probe.copy();
         ShapedText line = shapeUncached(value, font, base, now);
         memo.put(key, line);
         return line;

@@ -480,6 +480,39 @@ final class GlCanvas implements Canvas {
         emitRoundRect(x, y, width, height, 0, 0, 0, 0, strokeWidth, paint);
     }
 
+    /**
+     * The one radius a uniform rounded rectangle draws with: {@link RoundRect#normalized()}'s
+     * reduction, with the same float operations, so these scalar forms draw exactly what building a
+     * {@code RoundRect} drew, without building one per border per frame (PF-6).
+     */
+    private static float uniformRadius(float width, float height, float radius) {
+        float r = Math.max(0, radius);
+        float sum = r + r;
+        float f = 1f;
+        f = Math.min(f, sum <= width || sum == 0 ? 1f : width / sum);
+        f = Math.min(f, sum <= height || sum == 0 ? 1f : height / sum);
+        return f >= 1f ? r : r * f;
+    }
+
+    @Override
+    public void fillRoundRect(float x, float y, float width, float height, float radius, Paint paint) {
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+        float r = uniformRadius(width, height, radius);
+        emitRoundRect(x, y, width, height, r, r, r, r, -1, paint);
+    }
+
+    @Override
+    public void drawRoundRect(float x, float y, float width, float height, float radius,
+                              float strokeWidth, Paint paint) {
+        if (width <= 0 || height <= 0 || strokeWidth <= 0) {
+            return;
+        }
+        float r = uniformRadius(width, height, radius);
+        emitRoundRect(x, y, width, height, r, r, r, r, strokeWidth, paint);
+    }
+
     @Override
     public void fillRoundRect(RoundRect roundRect, Paint paint) {
         RoundRect rr = roundRect.normalized();
