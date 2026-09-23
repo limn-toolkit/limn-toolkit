@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.i18n.I18nString;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -17,24 +19,32 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * {@link ListView} under the rows contract (ADR 045 §4): the variant where the cursor is the
- * selection, with one selectable row, no multiple selection, and rows it scrolls itself. Ten
- * rows of ten points in a box of forty-five, so that the fifth row is half out and the rest
+ * {@link ListView} under the rows contract (ADR 045 §4): from {@code SINGLE}, where the cursor is
+ * the selection, entering {@code MULTI} when the contract asks for it. The contract assumes a
+ * list starts in single selection, so the cursor apart from the selection in {@code MULTI} is
+ * held by {@code ListViewSelectionTest} instead. Rows it scrolls itself:
+ * ten rows of ten points in a box of forty-five, so that the fifth row is half out and the rest
  * are not realized at all.
  */
 class ListViewRowsContractTest extends ComponentTestBase {
 
     @TestFactory
     Stream<DynamicTest> theRowsContract() {
-        return ContractTests.of(RowsContract.cases(new Subject(), runtime));
+        return ContractTests.of(RowsContract.cases(new Subject(false), runtime));
     }
 
     private static final class Subject implements RowsSubject {
+        private final boolean multiple;
+
+        Subject(boolean multiple) {
+            this.multiple = multiple;
+        }
+
         private static final int ROWS = 10;
         private static final float ROW_H = 10;
         private static final List<String> NAMES = names();
 
-        private ListView list;
+        private ListView<Integer> list;
         private int activated = -1;
 
         private static List<String> names() {
@@ -47,8 +57,11 @@ class ListViewRowsContractTest extends ComponentTestBase {
 
         @Override
         public Widget build() {
-            list = new ListView(new Rows());
+            list = IndexedRows.list(new Rows());
             list.setAccessibleName("Rows");
+            if (multiple) {
+                list.setSelectionMode(SelectionMode.MULTI);
+            }
             activated = -1;
             list.onActivate(index -> activated = index);
             Column root = new Column();
@@ -68,7 +81,7 @@ class ListViewRowsContractTest extends ComponentTestBase {
 
         @Override
         public boolean cursorIsTheSelection() {
-            return true;
+            return list.selectionMode() == SelectionMode.SINGLE;
         }
 
         @Override
@@ -83,7 +96,8 @@ class ListViewRowsContractTest extends ComponentTestBase {
 
         @Override
         public boolean enterMultipleSelection() {
-            return false;
+            list.setSelectionMode(SelectionMode.MULTI);
+            return true;
         }
 
         @Override
@@ -93,12 +107,12 @@ class ListViewRowsContractTest extends ComponentTestBase {
 
         @Override
         public List<Integer> selectedRows() {
-            return list.selectedIndex() < 0 ? List.of() : List.of(list.selectedIndex());
+            return java.util.Arrays.stream(list.selectedIndices()).boxed().toList();
         }
 
         @Override
         public int cursorRow() {
-            return list.selectedIndex();
+            return list.cursorIndex();
         }
 
         @Override
@@ -114,7 +128,7 @@ class ListViewRowsContractTest extends ComponentTestBase {
             }
         }
 
-        private static final class Rows implements ListView.Adapter {
+        private static final class Rows implements IndexedRows {
             private final Deque<Widget> pool = new ArrayDeque<>();
 
             @Override

@@ -2678,7 +2678,7 @@ class TreeTest extends ComponentTestBase {
 
     /**
      * Decision 115 (PF-3): the vertical bar jumps to the row its offset estimates, as Table and
-     * ListView do, instead of scrolling by the difference, which walked and measured — built a
+     * ListView<Integer> do, instead of scrolling by the difference, which walked and measured — built a
      * cell for — every row it passed: a thumb dragged to the end of 100,000 rows took 1.4–2.3 s.
      */
     @Test

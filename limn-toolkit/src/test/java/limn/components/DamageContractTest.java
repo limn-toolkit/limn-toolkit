@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.components.chart.BarChart;
 import limn.components.chart.Chart;
 import limn.components.chart.ChartSeries;
@@ -200,8 +202,8 @@ class DamageContractTest extends ComponentTestBase {
         }
     }
 
-    private static ListView.Adapter rows(int count) {
-        return new ListView.Adapter() {
+    private static IndexedRows rows(int count) {
+        return new IndexedRows() {
             @Override public int rowCount() {
                 return count;
             }
@@ -249,7 +251,7 @@ class DamageContractTest extends ComponentTestBase {
             inert("ImageView", () -> new ImageView(new Image(8, 8, new byte[8 * 8 * 4])),
                     "a picture: nothing about it answers to a pointer or a key"),
             inert("Label", () -> new Label("Hello"), "text: nothing to press, focus or hover"),
-            boxed("ListView", () -> new ListView(rows(40)), List.of(
+            boxed("ListView", () -> IndexedRows.list(rows(40)), List.of(
                     focus().ceiling(0.2f), key("DOWN", Keys.DOWN).ceiling(0.2f),
                     click().ceiling(0.2f))),
             inert("MediaControls", () -> new MediaControls(new VideoView()),

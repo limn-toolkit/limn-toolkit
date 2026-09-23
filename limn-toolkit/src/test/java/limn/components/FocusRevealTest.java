@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.scene.Constraints;
 import limn.scene.Scene;
 import limn.scene.Size;
@@ -183,7 +185,7 @@ class FocusRevealTest extends ComponentTestBase {
 
     @Test
     void listViewRevealRectScrollsTheRowIntoView() {
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return 30;

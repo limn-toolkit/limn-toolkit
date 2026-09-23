@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.components.date.CalendarView;
 import limn.graphics.Rect;
 import limn.scene.Insets;
@@ -176,7 +178,7 @@ class FadeDamageTest extends ComponentTestBase {
     /** The ring is one row's outline; the list used to repaint every row of itself for it. */
     @Test
     void aListFocusFadeRepaintsOneRow() {
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override public int rowCount() {
                 return 500;
             }

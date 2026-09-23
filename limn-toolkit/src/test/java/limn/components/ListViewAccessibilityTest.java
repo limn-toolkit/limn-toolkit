@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
@@ -51,7 +53,7 @@ import static limn.testing.SceneDriver.drive;
  * <em>selected</em> row and a press on row seven while row three is selected would open record
  * three. So the verb is on the list, which owns it and can perform it, and it is offered only while
  * something is selected. The row is silent on where a row's name comes from, and the common case
- * has none, so {@link ListView.Adapter#rowName} — added by the record and used by nothing until now
+ * has none, so {@link IndexedRows#rowName} — added by the record and used by nothing until now
  * — answers both a realized row whose cell said nothing and the selected row that is not realized
  * at all. It says "{@code SelectionFacet}" without saying which shape, and the naive reading is
  * wrong: {@code required} is false unconditionally, because this class documents no-selection as a
@@ -131,7 +133,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
      * The adapter under test: pooled cells, and names it <b>holds</b> rather than builds, which is
      * the contract the row-name javadoc states and the allocation case below measures.
      */
-    private static final class Rows implements ListView.Adapter {
+    private static final class Rows implements IndexedRows {
         private final int count;
         private final float rowHeight;
         private final I18nString[] names;
@@ -176,17 +178,17 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         }
     }
 
-    private ListView bindList(Rows rows) {
-        ListView list = new ListView(rows);
+    private ListView<Integer> bindList(Rows rows) {
+        ListView<Integer> list = IndexedRows.list(rows);
         bind(list);
         return list;
     }
 
-    private ListView bindPlain(int count, float rowHeight) {
+    private ListView<Integer> bindPlain(int count, float rowHeight) {
         return bindList(new Rows(count, rowHeight, false, Cell::new));
     }
 
-    private ListView bindNamed(int count, float rowHeight) {
+    private ListView<Integer> bindNamed(int count, float rowHeight) {
         return bindList(new Rows(count, rowHeight, true, Cell::new));
     }
 
@@ -220,7 +222,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
      * The widget currently bound to a data row, read through the invariant this step establishes:
      * {@code children()} is the bar and then the realized cells in ascending data order.
      */
-    private static Widget cellOf(ListView list, int index) {
+    private static Widget cellOf(ListView<Integer> list, int index) {
         return list.children().get(1 + index - list.firstVisibleIndex());
     }
 
@@ -229,7 +231,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void aHugeListIsOneNodeOverTheRowsItRealizedAndNotOverItsData() {
-        ListView list = bindPlain(500, 50);
+        ListView<Integer> list = bindPlain(500, 50);
 
         AccessibleNode node = listNode();
         assertEquals(500, list.rowCount(), "the model really is that long");
@@ -261,7 +263,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void everyRowIsNumberedAgainstTheAdaptersCountAndNotThePublishedOne() {
-        ListView list = bindPlain(500, 50);
+        ListView<Integer> list = bindPlain(500, 50);
         list.scrollBy(50 * 20);
         frame();
 
@@ -281,7 +283,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void theSelectedRowIsTheOneSelectedNodeAndIsAlsoTheListsCursor() {
-        ListView list = bindPlain(500, 50);
+        ListView<Integer> list = bindPlain(500, 50);
         list.setSelectedIndex(2);
         scene.requestFocus(list);
         frame();
@@ -306,7 +308,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void clearingTheSelectionLeavesNoSelectedNodeAndNoCursor() {
-        ListView list = bindPlain(500, 50);
+        ListView<Integer> list = bindPlain(500, 50);
         list.setSelectedIndex(2);
         scene.requestFocus(list);
         frame();
@@ -324,7 +326,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void movingTheSelectionOnABoundSceneRaisesTheEventsThatNameTheRow() {
-        ListView list = bindPlain(500, 50);
+        ListView<Integer> list = bindPlain(500, 50);
         long listId = listNode().id();
         scene.requestFocus(list);
         frame();
@@ -360,7 +362,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void aSelectionMovedOntoARowThatWasNotRealizedIsASelectionChange() {
-        ListView list = bindPlain(200, 50);
+        ListView<Integer> list = bindPlain(200, 50);
         long listId = listNode().id();
         list.setSelectedIndex(0);
         scene.requestFocus(list);
@@ -398,7 +400,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void anUnfocusedListWithASelectedRowPublishesNoCursor() {
-        ListView list = bindPlain(500, 50);
+        ListView<Integer> list = bindPlain(500, 50);
         list.setSelectedIndex(2);
         frame();
 
@@ -415,7 +417,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aRecycledCellCarriesTheRowItIsBoundToAndNeverTheRowItCameFrom() {
         Rows rows = new Rows(500, 50, false, Cell::new);
-        ListView list = bindList(rows);
+        ListView<Integer> list = bindList(rows);
 
         long rowThree = rowNode(3).id();
         Widget cellOfRowThree = cellOf(list, 3);
@@ -448,7 +450,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void treeOrderIsDataOrderAfterScrollingDownAndBackUp() {
-        ListView list = bindPlain(500, 50);
+        ListView<Integer> list = bindPlain(500, 50);
 
         list.scrollBy(50 * VISIBLE);
         frame();
@@ -470,7 +472,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void theScrollFacetIsWhereTheViewportSitsAndHowMuchOfTheContentItShows() {
-        ListView list = bindPlain(500, 50);
+        ListView<Integer> list = bindPlain(500, 50);
 
         ScrollFacet atRest = listNode().scroll();
         assertNotNull(atRest, describe(tree()));
@@ -527,7 +529,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         AtomicInteger activated = new AtomicInteger(-1);
         AtomicInteger calls = new AtomicInteger();
         Rows rows = new Rows(500, 50, false, Cell::new);
-        ListView list = new ListView(rows);
+        ListView<Integer> list = IndexedRows.list(rows);
         list.onActivate(index -> {
             activated.set(index);
             calls.incrementAndGet();
@@ -550,7 +552,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aListWithNothingSelectedOffersNoPressAndDoesNothingWhenPressed() throws Exception {
         AtomicInteger calls = new AtomicInteger();
-        ListView list = new ListView(new Rows(500, 50, false, Cell::new));
+        ListView<Integer> list = IndexedRows.list(new Rows(500, 50, false, Cell::new));
         list.onActivate(index -> calls.incrementAndGet());
         bind(list);
 
@@ -564,7 +566,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aDisabledListRefusesThePress() throws Exception {
         AtomicInteger calls = new AtomicInteger();
-        ListView list = new ListView(new Rows(500, 50, false, Cell::new));
+        ListView<Integer> list = IndexedRows.list(new Rows(500, 50, false, Cell::new));
         list.onActivate(index -> calls.incrementAndGet());
         bind(list);
         list.setSelectedIndex(2);
@@ -584,7 +586,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
     // 2026-09-21.
 
     /**
-     * Decision 20's row verb set, read against this widget (ADR 039 §7's ListView row, amended
+     * Decision 20's row verb set, read against this widget (ADR 039 §7's ListView<Integer> row, amended
      * 2026-09-14): {@code SELECT} and, on a cell that cannot take the keyboard,
      * {@code SCROLL_INTO_VIEW}, both delegated; never {@code FOCUS} (decision 11: the selection
      * is the cursor), never {@code ADD_TO_SELECTION} or {@code DESELECT} (one selected row, no
@@ -594,7 +596,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aRowThatCannotTakeTheKeyboardCarriesScrollIntoViewAndTheListRevealsItInPlace()
             throws Exception {
-        ListView list = bindNamed(500, 50);
+        ListView<Integer> list = bindNamed(500, 50);
         list.requestFocus();
         list.setSelectedIndex(0);
         frame();
@@ -640,7 +642,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void theKeptCursorRowsSelectIsPerformedWhileItIsWheeledOutOfTheBox() throws Exception {
-        ListView list = bindNamed(500, 50);
+        ListView<Integer> list = bindNamed(500, 50);
         list.requestFocus();
         list.setSelectedIndex(0);
         frame();
@@ -706,7 +708,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void aSelectedRowScrolledOutOfViewIsNamedOnTheListsOwnNode() {
-        ListView list = bindNamed(500, 50);
+        ListView<Integer> list = bindNamed(500, 50);
         list.setSelectedIndex(0);
         frame();
 
@@ -737,7 +739,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void aRowsBoxIsTheCellsBoxIncludingTheOneScrolledHalfwayOffTheTop() {
-        ListView list = bindPlain(500, 50);
+        ListView<Integer> list = bindPlain(500, 50);
         list.scrollBy(20);
         frame();
 
@@ -755,7 +757,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void aFullyScrolledOutRowHasNoNodeAtAll() {
-        ListView list = bindPlain(500, 50);
+        ListView<Integer> list = bindPlain(500, 50);
         list.scrollBy(50f * 2 * VISIBLE);
         frame();
 
@@ -765,7 +767,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void mirroringMovesEveryRowsOriginAndLeavesTreeOrderAlone() {
-        ListView list = new ListView(new Rows(500, 50, false, Cell::new));
+        ListView<Integer> list = IndexedRows.list(new Rows(500, 50, false, Cell::new));
         list.setLayoutDirection(LayoutDirection.RTL);
         list.setBarLayout(ScrollGutters.Layout.RESERVED);
         bind(list);
@@ -801,7 +803,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void aFrameThatDamagesTheListAndChangesNothingPublishesNothing() {
-        ListView list = bindNamed(500, 50);
+        ListView<Integer> list = bindNamed(500, 50);
         list.setSelectedIndex(2);
         frame();
         int before = bridge.published.size();
@@ -826,7 +828,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
     void aFrameThatDamagesTheListAndChangesNothingAllocatesNothing() {
         Assumptions.assumeTrue(AllocationProbe.isSupported(),
                 "this virtual machine does not count per-thread allocation");
-        ListView list = new ListView(new Rows(500, 50, true, Cell::new));
+        ListView<Integer> list = IndexedRows.list(new Rows(500, 50, true, Cell::new));
         // The list's own paint is its drawing cost and not the hooks': left out by a parent that
         // paints no children, ListView being final (ADR 046 §2).
         limn.scene.layout.Column unpainted = new limn.scene.layout.Column() {

@@ -1,5 +1,7 @@
 package limn.backend.lwjgl.a11y.macos;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.components.SelectionMode;
 
 import limn.accessibility.Accessible;
@@ -267,7 +269,7 @@ class AxOutlineSceneTest {
     @Test
     void aListWhoseRowsGrowIsARowCountChangeAndAScrollIsNone() {
         java.util.concurrent.atomic.AtomicInteger count = new java.util.concurrent.atomic.AtomicInteger(50);
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override public int rowCount() {
                 return count.get();
             }
@@ -387,7 +389,7 @@ class AxOutlineSceneTest {
 
     @Test
     void aReadersScrollToVisibleOnAPartlyShownRowScrollsTheListToIt() {
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override public int rowCount() {
                 return 50;
             }
@@ -568,7 +570,7 @@ class AxOutlineSceneTest {
 
     @Test
     void aListsRowsAreItsRealizedRowsAndEachIndexIsItsDataPosition() {
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override public int rowCount() {
                 return 5;
             }

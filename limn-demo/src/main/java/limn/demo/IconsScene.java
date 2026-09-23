@@ -17,9 +17,7 @@ import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.SizedBox;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 
@@ -65,18 +63,17 @@ final class IconsScene {
         }
     }
 
-    /** The filtered view of the catalogue, plus a pool so scrolling stops allocating. */
-    private static final class Icons implements ListView.Adapter {
+    /** The filtered view of the catalogue. */
+    private static final class Icons {
 
         private final List<String> all = Tabler.names();
         private List<String> shown = all;
-        private final Deque<Row> pool = new ArrayDeque<>();
 
-        void filter(String query) {
+        List<String> filter(String query) {
             String needle = query.trim().toLowerCase(Locale.ROOT);
             if (needle.isEmpty()) {
                 shown = all;
-                return;
+                return shown;
             }
             List<String> matches = new ArrayList<>();
             for (String name : all) {
@@ -85,29 +82,15 @@ final class IconsScene {
                 }
             }
             shown = matches;
+            return shown;
         }
 
         String nameAt(int index) {
             return shown.get(index);
         }
 
-        @Override
-        public int rowCount() {
+        int rowCount() {
             return shown.size();
-        }
-
-        @Override
-        public Widget rowAt(int index) {
-            Row row = pool.isEmpty() ? new Row() : pool.pop();
-            row.show(shown.get(index));
-            return row;
-        }
-
-        @Override
-        public void recycle(Widget widget) {
-            if (widget instanceof Row row) {
-                pool.push(row);
-            }
         }
     }
 
@@ -135,20 +118,21 @@ final class IconsScene {
 
     static Widget content(String query) {
         Icons icons = new Icons();
-        ListView list = new ListView(icons);
+        // Pooled, so scrolling a five-thousand-row catalogue stops allocating: a row that scrolls
+        // out is bound to the next icon that scrolls in.
+        ListView<String> list = ListView.pooled(Row::new, Row::show);
+        list.setItems(icons.filter(query));
 
         Label count = new Label("").setMuted(true);
         Label detail = new Label("Click a row for its constant.").setMuted(true);
 
         SearchField search = new SearchField();
         search.onChange(typed -> {
-            icons.filter(typed);
-            list.refresh();
+            list.setItems(icons.filter(typed));
             count.setText(summary(icons));
         });
         if (!query.isEmpty()) {
             search.setText(query);
-            icons.filter(query);
         }
         count.setText(summary(icons));
 

@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.scene.Change;
 import limn.scene.ChangeObserver;
 import limn.scene.Constraints;
@@ -64,7 +66,7 @@ class SelectionContractTest extends ComponentTestBase {
     }
 
     private static Choice listView() {
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return CHOICES;
@@ -93,7 +95,7 @@ class SelectionContractTest extends ComponentTestBase {
 
             @Override
             public void onSelect(IntConsumer listener) {
-                list.onSelect(listener);
+                list.onSelect(() -> listener.accept(list.selectedIndex()));
             }
 
             @Override
@@ -420,7 +422,7 @@ class SelectionContractTest extends ComponentTestBase {
      */
     @Test
     void anEmptyWidgetHasNoIndexToSelect() {
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return 0;

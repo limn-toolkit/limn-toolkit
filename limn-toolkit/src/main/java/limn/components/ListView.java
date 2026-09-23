@@ -17,9 +17,15 @@ import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 
 /**
  * A vertically scrolling list that <b>virtualizes</b> its rows like a
@@ -34,12 +40,17 @@ import java.util.function.IntConsumer;
  * estimated from the average measured height (good enough for a scroll
  * indicator).
  *
- * <p><b>You</b> supply and cache the widgets through an {@link Adapter}: the
- * list asks {@link Adapter#rowAt} for the (already-populated) widget of a row,
- * and hands it back via {@link Adapter#recycle} when it scrolls out, so the
- * adapter can pool per row type and rebind, or just create fresh (simplest, no
- * pooling). The list owns only the tree/positioning; the caching policy is
- * yours.
+ * <p><b>The items are yours</b>: a {@code List<T>} the application owns, handed over with
+ * {@link #setItems} and re-read after a change with {@link #refresh()}, as a {@code Table}'s
+ * rows are. A row's widget comes from a cell function, made fresh for each row that comes into
+ * view ({@link #ListView(Function)}), from a pool that binds a recycled widget to its item
+ * ({@link #pooled}), or from a cell function the application pools behind itself, handed each
+ * widget back as it scrolls out ({@link #ListView(Function, Consumer)}). The list owns only the
+ * tree and the positioning.
+ *
+ * <p><b>Selection</b> is a {@link SelectionMode}: {@code SINGLE} by default, {@code NONE}, or
+ * {@code MULTI} with the gestures {@code Table} and {@code Tree} share. The keyboard cursor is
+ * not the selection in {@code NONE} and {@code MULTI}; in {@code SINGLE} they are one.
  *
  * <p>Interaction: the wheel scrolls (with the shared {@link ScrollBar}); the
  * list is focusable and, while focused, Up/Down/Home/End/PageUp/PageDown move a
@@ -55,14 +66,15 @@ import java.util.function.IntConsumer;
  * unpainted and unreachable by the pointer, and published to an assistive technology as the list
  * item it is, not showing. A screen reader whose cursor follows the focus onto a row is otherwise
  * left standing on a node a page scroll deleted. Every other row outside the viewport goes back
- * to the adapter, and so does that one the moment the focus leaves it or the data is refreshed.
+ * back to its cell source, and so does that one the moment the focus leaves it or the data is
+ * refreshed.
  * <b>And so is the selected row while the list itself holds the keyboard</b> (decision 22,
  * 2026-09-14): the selection is the reader's cursor here, and a wheel or a bar drag that scrolled
  * it away used to recycle it, leaving the reader's cursor on nothing until the next arrow key.
  * It is kept the same way — mounted, outside the viewport, published not showing and still the
  * cursor — across a refresh too, and released by the first pass after the keyboard leaves.
  *
- * <p><b>Size steps propagate rather than being imposed.</b> Rows are adapter-supplied
+ * <p><b>Size steps propagate rather than being imposed.</b> Rows are application-supplied
  * widgets in this list's subtree, so they resolve the {@link limn.scene.ControlSize}
  * themselves and {@code list.setControlSize(SMALL)} shortens them because <em>they</em>
  * re-measure. Only three metrics are the list's own: the row-height seed, used for every
@@ -79,52 +91,13 @@ import java.util.function.IntConsumer;
  * compact step it covers a larger fraction of a shorter row. An accepted cost of one
  * scrollbar geometry process-wide.
  */
-public final class ListView extends Widget implements Scrollable {
+public final class ListView<T> extends Widget implements Scrollable {
 
-    /** Supplies and (optionally) caches the row widgets of a {@link ListView}. */
-    public interface Adapter {
-        /** @return the number of rows */
-        int rowCount();
+    /** How rows become widgets: made fresh for each row, or taken from a pool and bound. */
+    private interface Cells<T> {
+        Widget cellFor(T item);
 
-        /**
-         * @return the widget for {@code index}, populated and ready to show. May
-         *         be a reused instance you kept from {@link #recycle}.
-         */
-        Widget rowAt(int index);
-
-        /** The list scrolled {@code widget} out of view; pool it for reuse if you like. */
-        default void recycle(Widget widget) {
-        }
-
-        /**
-         * What to call row {@code index} for an assistive technology.
-         *
-         * <p>A list publishes its true row count and describes only the rows it has actually
-         * realized, because handing a screen reader thousands of anonymous items would be worse
-         * for its user rather than better. This is asked for <b>two</b> of them. Once per realized
-         * row whose own cell widget said nothing about itself — which is the common case, because
-         * a cell is an application's widget and a cell that paints its own text usually declares
-         * nothing, and the {@code LIST_ITEM} role the list writes onto it suppresses the warning
-         * that would otherwise have been the application's only notice. And once more for a
-         * selected row that is <em>not</em> realized, which has no widget to carry a name and is
-         * announced from the list's own node instead.
-         *
-         * <p><b>Hand back a string this adapter holds.</b> The tree carries a name over from the
-         * previous walk when the source is the same object under the same locale and translation
-         * epoch, at no cost; a string built inside this call is never the same object, so it is
-         * allocated and resolved again — once per realized row per walk that describes this list,
-         * which is every damaged frame — and that is the zero-allocation promise this widget
-         * otherwise keeps, broken by the application. It does <em>not</em> republish the tree or
-         * raise an event: the difference compares the resolved text, and equal text is no change
-         * (corrected 2026-09-14; the earlier text of this paragraph said it republished every
-         * frame). A field, a constant, or an entry in the adapter's own data is what belongs here.
-         *
-         * @param index a row in {@code [0, rowCount)}
-         * @return the row's name, or {@code null} when the adapter has none to give
-         */
-        default I18nString rowName(int index) {
-            return null;
-        }
+        void recycle(Widget cell);
     }
 
     /**
@@ -142,7 +115,12 @@ public final class ListView extends Widget implements Scrollable {
      */
     private int visibleRows = VISIBLE_ROWS_HINT;
 
-    private final Adapter adapter;
+    private final Cells<T> cells;
+    private List<T> items = List.of();
+    /**
+     * What a row is called for an assistive technology, or {@code null}; see {@link #setItemName}.
+     */
+    private Function<? super T, ? extends I18nString> itemName;
     private final ScrollBar vBar;
     private final ScrollGutters gutters = new ScrollGutters();
 
@@ -185,8 +163,15 @@ public final class ListView extends Widget implements Scrollable {
      */
     private float measuredRowHeight;
 
-    private int selectedIndex = -1;
-    private IntConsumer onSelect;
+    private SelectionMode selectionMode = SelectionMode.SINGLE;
+    private final java.util.BitSet selected = new java.util.BitSet();
+    /** The row selected most recently that is still selected, or -1: {@link #selectedIndex()}. */
+    private int lead = -1;
+    /** The row the keyboard is on, or -1; in SINGLE, the selection itself. */
+    private int cursor = -1;
+    /** Where a Shift range starts: the row last clicked or arrowed to without Shift, or -1. */
+    private int rangeAnchor = -1;
+    private Runnable onSelect;
     private IntConsumer onActivate;
     /**
      * Fades the selected-row highlight between the resting outline and the focus ring.
@@ -199,11 +184,94 @@ public final class ListView extends Widget implements Scrollable {
                     // The fade draws one row's outline, so that is what each of its frames
                     // repaints. Without this the list repainted itself whole eleven times over
                     // for a Tab to land in it -- see Transition.damages.
-                    .damages(() -> damageRow(selectedIndex));
+                    .damages(() -> damageRow(cursor));
 
-    /** A list driven by {@code adapter}, which supplies and recycles the row widgets. */
-    public ListView(Adapter adapter) {
-        this.adapter = Objects.requireNonNull(adapter, "adapter");
+    /**
+     * A list whose rows are made by {@code cellFor}, a fresh widget each time a row comes into
+     * view; nothing is recycled. The items start empty: see {@link #setItems}.
+     *
+     * @param cellFor the widget for an item, populated and ready to show; never {@code null}
+     */
+    public ListView(Function<? super T, ? extends Widget> cellFor) {
+        this(fresh(Objects.requireNonNull(cellFor, "cellFor")));
+    }
+
+    /**
+     * A list whose rows are made by {@code cellFor} and handed back to {@code recycle} when they
+     * scroll out, so the application can keep them and hand them out again: the form for rows of
+     * several kinds, each pooled on its own, which {@link #pooled} does not cover.
+     *
+     * @param cellFor the widget for an item, populated and ready to show; never {@code null}. It
+     *                may be one {@code recycle} was given earlier.
+     * @param recycle receives a row widget that scrolled out
+     */
+    public ListView(Function<? super T, ? extends Widget> cellFor, Consumer<? super Widget> recycle) {
+        this(recycling(Objects.requireNonNull(cellFor, "cellFor"), Objects.requireNonNull(recycle, "recycle")));
+    }
+
+    private static <T> Cells<T> recycling(Function<? super T, ? extends Widget> cellFor,
+                                          Consumer<? super Widget> recycle) {
+        return new Cells<>() {
+            @Override
+            public Widget cellFor(T item) {
+                return Objects.requireNonNull(cellFor.apply(item), "cellFor returned null");
+            }
+
+            @Override
+            public void recycle(Widget cell) {
+                recycle.accept(cell);
+            }
+        };
+    }
+
+    /**
+     * A list whose row widgets are pooled: a widget that scrolls out is kept, and bound to the
+     * next item that comes into view instead of a new one being made. What a long list of the
+     * same kind of row wants.
+     *
+     * @param create makes a row widget when the pool is empty
+     * @param bind   fills a row widget with an item, a recycled one included
+     * @param <T>    the item type
+     * @param <W>    the row widget type
+     * @return the list, with no items yet
+     */
+    public static <T, W extends Widget> ListView<T> pooled(Supplier<? extends W> create,
+                                                           BiConsumer<? super W, ? super T> bind) {
+        Objects.requireNonNull(create, "create");
+        Objects.requireNonNull(bind, "bind");
+        java.util.ArrayDeque<W> pool = new java.util.ArrayDeque<>();
+        return new ListView<>(new Cells<T>() {
+            @Override
+            public Widget cellFor(T item) {
+                W cell = pool.isEmpty() ? Objects.requireNonNull(create.get(), "create returned null")
+                        : pool.pop();
+                bind.accept(cell, item);
+                return cell;
+            }
+
+            @Override
+            @SuppressWarnings("unchecked") // only widgets create made are ever handed back
+            public void recycle(Widget cell) {
+                pool.push((W) cell);
+            }
+        });
+    }
+
+    private static <T> Cells<T> fresh(Function<? super T, ? extends Widget> cellFor) {
+        return new Cells<>() {
+            @Override
+            public Widget cellFor(T item) {
+                return Objects.requireNonNull(cellFor.apply(item), "cellFor returned null");
+            }
+
+            @Override
+            public void recycle(Widget cell) {
+            }
+        };
+    }
+
+    private ListView(Cells<T> cells) {
+        this.cells = cells;
         setFocusable(true);
         vBar = new ScrollBar(ScrollBar.Orientation.VERTICAL, new ScrollBar.Model() {
             @Override
@@ -237,7 +305,7 @@ public final class ListView extends Widget implements Scrollable {
      * the bar and the row's last column are both on the left of a list that reads
      * right to left, and they move there together.
      */
-    public ListView setBarLayout(ScrollGutters.Layout layout) {
+    public ListView<T> setBarLayout(ScrollGutters.Layout layout) {
         Ui.checkUiThread();
         gutters.setLayout(layout);
         markNeedsLayout();
@@ -250,7 +318,7 @@ public final class ListView extends Widget implements Scrollable {
     }
 
     /** Sets when the vertical scrollbar is shown (default {@link ScrollBar.Policy#AUTO}). */
-    public ListView setScrollbarPolicy(ScrollBar.Policy policy) {
+    public ListView<T> setScrollbarPolicy(ScrollBar.Policy policy) {
         vBar.setPolicy(policy);
         return this;
     }
@@ -267,7 +335,7 @@ public final class ListView extends Widget implements Scrollable {
      * @return this list
      * @throws IllegalArgumentException if {@code rows} is below one
      */
-    public ListView setVisibleRows(int rows) {
+    public ListView<T> setVisibleRows(int rows) {
         Ui.checkUiThread();
         if (rows < 1) {
             throw new IllegalArgumentException("visible rows must be at least 1, not " + rows);
@@ -285,30 +353,33 @@ public final class ListView extends Widget implements Scrollable {
     }
 
     /**
-     * The application's response to the user moving the selection: a click or a key. Never for
-     * {@link #setSelectedIndex}, {@link #clearSelection()} or a {@link #refresh()} that
-     * collapsed the selection, which are the caller's or the list's own; to hear every move
-     * whatever caused it, {@linkplain #observeChanges watch} the list instead.
+     * The application's response to the user changing the selection: a click, a key, or an
+     * assistive technology's select. Never for {@link #setSelectedIndex}, {@link #clearSelection()},
+     * {@link #selectAll()}, {@link #setItems} or a {@link #refresh()} that collapsed the
+     * selection, which are the caller's or the list's own; to hear every change whatever caused
+     * it, {@linkplain #observeChanges watch} the list instead. The handler reads what it needs:
+     * {@link #selectedIndex()}, {@link #selectedIndices()}, {@link #selectedItem()}.
      *
      * @param handler the handler, or {@code null} to clear the slot
      * @return this list
      * @throws IllegalStateException if a handler is already registered
      */
-    public ListView onSelect(IntConsumer handler) {
+    public ListView<T> onSelect(Runnable handler) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, handler, "ListView.onSelect");
         return this;
     }
 
     /**
-     * The application's response to the user opening the selected row: Enter, or an assistive
-     * technology's press. Never for {@link #activate()}, which is a caller's verb.
+     * The application's response to the user opening the cursor row: Enter, a double click, or
+     * an assistive technology's press. Handed the row's index, as {@code Table}'s is. Never for
+     * {@link #activate()}, which is a caller's verb.
      *
      * @param handler the handler, or {@code null} to clear the slot
      * @return this list
      * @throws IllegalStateException if a handler is already registered
      */
-    public ListView onActivate(IntConsumer handler) {
+    public ListView<T> onActivate(IntConsumer handler) {
         Ui.checkUiThread();
         this.onActivate = Checks.handlerSlot(onActivate, handler, "ListView.onActivate");
         return this;
@@ -319,30 +390,174 @@ public final class ListView extends Widget implements Scrollable {
         switch (aspect) {
             case SELECTION -> {
                 if (onSelect != null) {
-                    onSelect.accept(selectedIndex);
+                    onSelect.run();
                 }
             }
             case INVOKED -> {
                 if (onActivate != null) {
-                    onActivate.accept(selectedIndex);
+                    onActivate.accept(cursor);
                 }
             }
             default -> super.handleUserChange(aspect);
         }
     }
 
+    // ---------------------------------------------------------------- items
+
     /**
-     * The selected row, or {@code -1} when nothing is selected. A list is one of the two widgets
-     * in this set that genuinely has no-selection as a state: {@link #clearSelection()} reaches
-     * it, and a fresh list is in it.
+     * Shows {@code newItems}, which the application keeps: the list reads it where it is and
+     * never copies or changes it. A new list is a new world: the selection and the cursor go
+     * (announced as {@code SELECTION}/{@code ADJUSTMENT} when there was one), the view returns to
+     * the top, and {@code CHILDREN}/{@code CODE} is announced. After changing the same list in
+     * place, call {@link #refresh()} instead. UI thread only.
+     *
+     * @param newItems the items, in the order shown
+     * @return this list
      */
-    public int selectedIndex() {
-        return selectedIndex;
+    public ListView<T> setItems(List<T> newItems) {
+        Ui.checkUiThread();
+        this.items = Objects.requireNonNull(newItems, "items");
+        boolean had = !selected.isEmpty();
+        selected.clear();
+        lead = -1;
+        cursor = -1;
+        rangeAnchor = -1;
+        anchorIndex = 0;
+        anchorTop = 0;
+        recycleExcept(0, 0, 0);
+        markNeedsLayout();
+        invalidate();
+        if (had) {
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
+        }
+        notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
+        return this;
     }
 
-    /** Row count as the adapter currently reports it. */
+    /** @return the items, as handed to {@link #setItems} */
+    public List<T> items() {
+        return items;
+    }
+
+    /**
+     * What to call a row for an assistive technology, when its own cell says nothing about
+     * itself — the common case, because a cell that paints its own text usually declares nothing,
+     * and the {@code LIST_ITEM} role the list writes onto it suppresses the warning that would
+     * have been the application's only notice. Asked for each realized row whose cell has no
+     * name, and for a selected row that is not realized, which is announced from the list's own
+     * node.
+     *
+     * <p><b>Hand back a string the item holds.</b> A name is carried over from the previous walk
+     * when it is the same object under the same locale and translation epoch, at no cost; one
+     * built inside this call is never the same object, so it is allocated and resolved again for
+     * every realized row on every damaged frame. A field of the item, or a constant, is what
+     * belongs here. UI thread only.
+     *
+     * @param name the row's name for an item, or {@code null} for none
+     * @return this list
+     */
+    public ListView<T> setItemName(Function<? super T, ? extends I18nString> name) {
+        Ui.checkUiThread();
+        this.itemName = name;
+        invalidate(); // the names are published, and a publish rides on a damaged frame
+        return this;
+    }
+
+    private I18nString nameOf(int index) {
+        Function<? super T, ? extends I18nString> name = itemName;
+        return name == null || index < 0 || index >= items.size() ? null : name.apply(items.get(index));
+    }
+
+    // ------------------------------------------------------------ selection
+
+    /**
+     * Sets how many rows the user may select (default {@link SelectionMode#SINGLE}). Narrowing
+     * keeps what the new mode can hold: {@code NONE} drops the selection and {@code SINGLE} keeps
+     * the lead, each announced as {@code SELECTION}/{@code ADJUSTMENT}. UI thread only.
+     *
+     * @param mode the mode
+     * @return this list
+     */
+    public ListView<T> setSelectionMode(SelectionMode mode) {
+        Ui.checkUiThread();
+        this.selectionMode = Objects.requireNonNull(mode, "mode");
+        // Damaged whether or not the selection moves: the mode is published (the list's
+        // multi-selectable flag, the verbs each row carries), and a publish rides on a damaged
+        // frame, as the tree found.
+        invalidate();
+        if (mode == SelectionMode.NONE && !selected.isEmpty()) {
+            selected.clear();
+            lead = -1;
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
+        } else if (mode == SelectionMode.SINGLE && selected.cardinality() > 1) {
+            int keep = lead >= 0 && selected.get(lead) ? lead : selected.nextSetBit(0);
+            selected.clear();
+            selected.set(keep);
+            lead = keep;
+            cursor = keep;
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
+        }
+        if (mode == SelectionMode.SINGLE && cursor != lead) {
+            cursor = lead; // in SINGLE the cursor is the selection
+        }
+        return this;
+    }
+
+    /** @return how many rows the user may select */
+    public SelectionMode selectionMode() {
+        return selectionMode;
+    }
+
+    /**
+     * The lead of the selection: the row selected most recently that is still selected, or
+     * {@code -1} when nothing is. In {@code SINGLE} it is the one selected row and also the
+     * cursor. A list is one of the widgets in this set that genuinely has no-selection as a
+     * state: {@link #clearSelection()} reaches it, and a fresh list is in it.
+     */
+    public int selectedIndex() {
+        return lead;
+    }
+
+    /** @return every selected row, ascending; empty when nothing is selected */
+    public int[] selectedIndices() {
+        return selected.stream().toArray();
+    }
+
+    /**
+     * @param index a row
+     * @return whether it is selected
+     */
+    public boolean isSelected(int index) {
+        return index >= 0 && selected.get(index);
+    }
+
+    /** @return the item at {@link #selectedIndex()}, or {@code null} when nothing is selected */
+    public T selectedItem() {
+        return lead >= 0 && lead < items.size() ? items.get(lead) : null;
+    }
+
+    /** @return the selected items, in the order shown; empty when nothing is selected */
+    public List<T> selectedItems() {
+        List<T> out = new ArrayList<>(selected.cardinality());
+        for (int i = selected.nextSetBit(0); i >= 0 && i < items.size(); i = selected.nextSetBit(i + 1)) {
+            out.add(items.get(i));
+        }
+        return out;
+    }
+
+    /**
+     * The row the keyboard is on, or {@code -1}: what the arrows move, what Enter opens, and what
+     * wears the focus ring while the list holds the keyboard. In {@code SINGLE} it is the
+     * selection; in {@code MULTI} a row toggled off keeps it; in {@code NONE} it moves with
+     * nothing selected.
+     */
+    public int cursorIndex() {
+        return cursor;
+    }
+
+    /** Row count: the size of the items. */
     public int rowCount() {
-        return adapter.rowCount();
+        return items.size();
     }
 
     /** @return the first fully-or-partly visible row index (tests/inspection) */
@@ -351,112 +566,301 @@ public final class ListView extends Widget implements Scrollable {
     }
 
     /**
-     * Re-reads the adapter and re-lays out (call after the data changes). Announces
-     * {@code CHILDREN}/{@code CODE} after the rows are unmounted, and, when the adapter shrank
-     * past the selected row, first moves the selection to the last row (or drops it when the
-     * list is now empty) and announces that as {@code SELECTION}/{@code ADJUSTMENT}: a watcher
-     * showing the selected record hears the list move by itself, with an origin that says so,
-     * where a handler -- the user's response -- is not run. UI thread only.
+     * Re-reads the items and re-lays out (call after changing the list in place). Announces
+     * {@code CHILDREN}/{@code CODE} after the rows are unmounted. Rows past the new end leave the
+     * selection; in {@code SINGLE} a selection past the end moves to the last row (or goes, when
+     * the list is now empty), and either is announced as {@code SELECTION}/{@code ADJUSTMENT}
+     * first: a watcher showing the selected record hears the list move by itself, with an origin
+     * that says so, where a handler -- the user's response -- is not run. A row is its index: an
+     * item that moved in the list leaves its selection where it was. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
-        int count = adapter.rowCount();
+        int count = items.size();
         anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, count - 1)));
-        // Unmount every row: a mounted cell is bound to the OLD datum at its
-        // index and layout reuses mounted cells without consulting the adapter,
-        // so without this the visible viewport is exactly what never refreshes.
-        // Every row, the one holding the keyboard focus included: it is bound to a datum
-        // that may no longer exist, and the focus falls back to the list as it always did.
+        // Unmount every row: a mounted cell is bound to the OLD item at its index and layout
+        // reuses mounted cells without asking again, so without this the visible viewport is
+        // exactly what never refreshes. Every row, the one holding the keyboard focus included:
+        // it is bound to an item that may no longer exist, and the focus falls back to the list
+        // as it always did.
         recycleExcept(0, 0, 0);
         markNeedsLayout();
         invalidate();
-        if (selectedIndex >= count) {
+        if (selectionMode == SelectionMode.SINGLE && lead >= count) {
             // Without a reveal: a watcher runs on a list whose rows are already unmounted, and
             // revealing here would jump the anchor the clamp above just settled.
-            select(count == 0 ? -1 : count - 1, false, Change.Origin.ADJUSTMENT);
+            selectOnly(count == 0 ? -1 : count - 1, false, true, Change.Origin.ADJUSTMENT);
+        } else {
+            boolean dropped = selected.length() > count;
+            if (dropped) {
+                selected.clear(count, selected.length());
+                if (lead >= count) {
+                    lead = selected.length() - 1;
+                }
+            }
+            if (cursor >= count) {
+                cursor = count - 1;
+            }
+            if (rangeAnchor >= count) {
+                rangeAnchor = -1;
+            }
+            if (dropped) {
+                notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
+            }
         }
         notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.CODE));
     }
 
     /**
-     * Selects a row and scrolls it into view: a caller's write, so it announces
-     * {@code SELECTION}/{@code CODE} and reaches no handler. Selecting the row that is already
-     * selected changes nothing, reveals nothing and announces nothing. UI thread only.
+     * Selects one row, alone, and scrolls it into view: a caller's write, so it announces
+     * {@code SELECTION}/{@code CODE} and reaches no handler. The cursor goes there too. Selecting
+     * the row that is already the whole selection changes nothing, reveals nothing and announces
+     * nothing. In {@code NONE} it moves the cursor and selects nothing. UI thread only.
      *
      * @param index a row in {@code [0, rowCount())}. {@code -1} is not an argument even though it
      *              is what {@link #selectedIndex()} reports for an empty selection:
      *              {@link #clearSelection()} is how that state is reached.
+     * @return this list
      * @throws IndexOutOfBoundsException if {@code index} is outside that range, an empty list
      *         included, where every index is. An index that came from a search which found
      *         nothing, or from state saved against longer data, is a caller's bug here, exactly as
      *         it is for {@code List.get}.
      */
-    public ListView setSelectedIndex(int index) {
+    public ListView<T> setSelectedIndex(int index) {
         Ui.checkUiThread();
-        Objects.checkIndex(index, adapter.rowCount());
-        select(index, true, Change.Origin.CODE);
+        Objects.checkIndex(index, items.size());
+        selectOnly(index, true, true, Change.Origin.CODE);
         return this;
     }
 
     /**
      * Drops the selection: {@link #selectedIndex()} becomes {@code -1}, announced as
-     * {@code SELECTION}/{@code CODE}. No-op when nothing is selected. UI thread only.
+     * {@code SELECTION}/{@code CODE}. In {@code SINGLE} the cursor goes with it; in the other
+     * modes it stays where the keyboard left it. No-op when nothing is selected. UI thread only.
+     *
+     * @return this list
      */
-    public ListView clearSelection() {
+    public ListView<T> clearSelection() {
         Ui.checkUiThread();
-        select(-1, false, Change.Origin.CODE);
+        if (selectionMode == SelectionMode.SINGLE) {
+            selectOnly(-1, false, true, Change.Origin.CODE);
+        } else if (!selected.isEmpty()) {
+            damageSelected();
+            selected.clear();
+            lead = -1;
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.CODE));
+        }
         return this;
     }
 
     /**
-     * The one place the selection moves, and the one seam it announces from: the public setter
-     * and {@code clearSelection} pass {@code CODE}, a refresh that collapsed it passes
-     * {@code ADJUSTMENT}, and every key and click passes {@code USER}. {@code index} is already
-     * valid or {@code -1}; announces only when it moved, after the reveal.
+     * Selects every row, in {@link SelectionMode#MULTI}; nothing in the other modes. Announced as
+     * {@code SELECTION}/{@code CODE} when anything changed. UI thread only.
+     *
+     * @return this list
      */
-    private void select(int index, boolean reveal, Change.Origin origin) {
-        if (index == selectedIndex) {
+    public ListView<T> selectAll() {
+        Ui.checkUiThread();
+        selectAll(Change.Origin.CODE);
+        return this;
+    }
+
+    private void selectAll(Change.Origin origin) {
+        int count = items.size();
+        if (selectionMode != SelectionMode.MULTI || count == 0 || selected.cardinality() == count) {
             return;
         }
-        int from = selectedIndex;
-        selectedIndex = index;
-        if (reveal && selectedIndex >= 0) {
-            // Damages the list itself when it scrolls, which is the right answer then: a scroll
-            // re-mounts every row, so two bands would be a lie.
-            ensureVisible(selectedIndex);
-        }
-        damageRow(from);
-        damageRow(selectedIndex);
+        selected.set(0, count);
+        lead = count - 1;
+        invalidate(); // every realized row's highlight
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
     /**
-     * What every key and click goes through. Arrowing past an end lands on the end and Page keys
-     * overshoot by design, so the public setter's out-of-range throw is deliberately not the
-     * contract of the widget's own traversal: a dead-ended arrow key is not a programming error.
+     * The one row alone, which is what a plain click and an arrow key do and what the public
+     * setter does. {@code index} is already valid or {@code -1}; announces only when the
+     * selection moved, after the reveal. The cursor lands on the row when {@code moveCursor}:
+     * every gesture's answer, and not a reader's {@code SELECT} on a list whose cursor is not
+     * its selection (decision 79 of 2026-09-17, as the tree has it).
      */
-    private void selectClamped(int index) {
-        int count = adapter.rowCount();
-        if (count == 0) {
+    private void selectOnly(int index, boolean reveal, boolean moveCursor, Change.Origin origin) {
+        int wasCursor = cursor;
+        if (moveCursor || selectionMode == SelectionMode.SINGLE) {
+            cursor = index;
+        }
+        boolean same = index < 0 ? selected.isEmpty()
+                : selected.cardinality() == 1 && selected.get(index);
+        if (same && cursor == wasCursor) {
             return;
         }
-        select(Math.min(Math.max(0, index), count - 1), true, Change.Origin.USER);
+        if (reveal && index >= 0) {
+            // Damages the list itself when it scrolls, which is the right answer then: a scroll
+            // re-mounts every row, so two bands would be a lie.
+            ensureVisible(index);
+        }
+        damageRow(wasCursor);
+        damageRow(cursor);
+        if (selectionMode == SelectionMode.NONE) {
+            announceCursor(wasCursor, origin);
+            return;
+        }
+        if (index >= 0 && moveCursor) {
+            rangeAnchor = index;
+        }
+        if (same) {
+            lead = index;
+            announceCursor(wasCursor, origin);
+            return;
+        }
+        damageSelected();
+        selected.clear();
+        if (index >= 0) {
+            selected.set(index);
+        }
+        lead = index;
+        damageRow(index);
+        if (selectionMode != SelectionMode.SINGLE) {
+            announceCursor(wasCursor, origin);
+        }
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
     /**
-     * Announces that the selected row was opened, as {@code INVOKED}/{@code CODE}: a caller's
+     * Adds or removes one row, which is what the command modifier and Space do in {@code MULTI}.
+     * The lead leaves a row toggled off and falls back to the last row still selected, so a
+     * handler reading {@link #selectedIndex()} is never handed the row just deselected.
+     *
+     * @param moveCursor whether the cursor and the range anchor land on the row, revealed: a
+     *                   gesture's answer, and not a reader's {@code ADD_TO_SELECTION} or
+     *                   {@code DESELECT}, which change the selection and leave the cursor
+     */
+    private void toggleSelection(int index, boolean moveCursor, Change.Origin origin) {
+        if (selectionMode != SelectionMode.MULTI) {
+            selectOnly(index, true, moveCursor, origin);
+            return;
+        }
+        int wasCursor = cursor;
+        if (moveCursor) {
+            cursor = index;
+            rangeAnchor = index;
+            ensureVisible(index);
+        }
+        if (!selected.get(index)) {
+            selected.set(index);
+            lead = index;
+        } else {
+            selected.clear(index);
+            if (lead == index) {
+                lead = selected.length() - 1;
+            }
+        }
+        damageRow(index);
+        if (moveCursor) {
+            damageRow(wasCursor);
+            announceCursor(wasCursor, origin);
+        }
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+    }
+
+    /**
+     * Replaces the selection with the rows between the range anchor and {@code to}, which is
+     * what Shift does in {@code MULTI}; the cursor and the lead land on {@code to}, the anchor
+     * stays. With no anchor the range is {@code to} alone.
+     */
+    private void selectRange(int to) {
+        int count = items.size();
+        if (count == 0) {
+            return;
+        }
+        to = Math.min(Math.max(0, to), count - 1);
+        int from = rangeAnchor >= 0 && rangeAnchor < count ? rangeAnchor : to;
+        int wasCursor = cursor;
+        java.util.BitSet before = (java.util.BitSet) selected.clone();
+        selected.clear();
+        selected.set(Math.min(from, to), Math.max(from, to) + 1);
+        rangeAnchor = from;
+        lead = to;
+        cursor = to;
+        ensureVisible(to);
+        invalidate(); // a range moves many highlights; the list repaints its box
+        announceCursor(wasCursor, Change.Origin.USER);
+        if (!selected.equals(before)) {
+            notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.USER));
+        }
+    }
+
+    /**
+     * The cursor alone, which is what a reader's {@code FOCUS} does on a list whose cursor is not
+     * its selection, and what the arrows do in {@code NONE}.
+     */
+    private void moveCursorTo(int index, boolean reveal, Change.Origin origin) {
+        int wasCursor = cursor;
+        if (index == wasCursor) {
+            if (reveal && index >= 0) {
+                ensureVisible(index);
+            }
+            return;
+        }
+        cursor = index;
+        if (reveal && index >= 0) {
+            ensureVisible(index);
+        }
+        damageRow(wasCursor);
+        damageRow(index);
+        announceCursor(wasCursor, origin);
+    }
+
+    /** The cursor moved on a list whose cursor is not its selection: said, as the tree says it. */
+    private void announceCursor(int wasCursor, Change.Origin origin) {
+        if (cursor != wasCursor && selectionMode != SelectionMode.SINGLE) {
+            notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
+        }
+    }
+
+    /** Every realized selected row's band, before the selection changes under it. */
+    private void damageSelected() {
+        for (int i = 0; i < mountedCount; i++) {
+            if (selected.get(mountedRows[i])) {
+                damageRow(mountedRows[i]);
+            }
+        }
+    }
+
+    /**
+     * What every key goes through. Arrowing past an end lands on the end and Page keys overshoot
+     * by design, so the public setter's out-of-range throw is deliberately not the contract of
+     * the widget's own traversal: a dead-ended arrow key is not a programming error. Shift in
+     * {@code MULTI} extends a range; {@code NONE} moves the cursor alone.
+     */
+    private void selectClamped(int index, boolean extend) {
+        int count = items.size();
+        if (count == 0) {
+            return;
+        }
+        int target = Math.min(Math.max(0, index), count - 1);
+        if (selectionMode == SelectionMode.NONE) {
+            moveCursorTo(target, true, Change.Origin.USER);
+        } else if (extend && selectionMode == SelectionMode.MULTI) {
+            selectRange(target);
+        } else {
+            selectOnly(target, true, true, Change.Origin.USER);
+        }
+    }
+
+    /**
+     * Announces that the cursor row was opened, as {@code INVOKED}/{@code CODE}: a caller's
      * verb, which reaches a watcher and <b>not</b> {@link #onActivate}, the way Enter does. An
      * application that wants its own open-the-row code run calls that code. Nothing without a
-     * selection. UI thread only.
+     * cursor. UI thread only.
      */
     public void activate() {
         Ui.checkUiThread();
         activate(Change.Origin.CODE);
     }
 
-    /** The seam Enter and an assistive technology's press enter at {@code USER}. */
+    /** The seam Enter, a double click and an assistive technology's press enter at {@code USER}. */
     private void activate(Change.Origin origin) {
-        if (selectedIndex >= 0) {
+        if (cursor >= 0) {
             notifyChange(Change.of(Change.Aspect.INVOKED, origin));
         }
     }
@@ -535,7 +939,7 @@ public final class ListView extends Widget implements Scrollable {
     }
 
     private float estimatedContentHeight(SizeTokens t) {
-        return adapter.rowCount() * avgRowHeight(t);
+        return items.size() * avgRowHeight(t);
     }
 
     private float estimatedOffset(SizeTokens t) {
@@ -554,7 +958,7 @@ public final class ListView extends Widget implements Scrollable {
         float clamped = Math.max(0, offset);
         float avg = avgRowHeight(t);
         anchorIndex = avg > 0 ? (int) (clamped / avg) : 0;
-        anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, adapter.rowCount() - 1)));
+        anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, items.size() - 1)));
         anchorTop = anchorIndex * avg - clamped;
         markNeedsContainedLayout(); // a drag of the bar is a scroll; see scrollBy and ensureVisible
         invalidate();
@@ -608,7 +1012,7 @@ public final class ListView extends Widget implements Scrollable {
         // `gutters.resolve` has settled it, so this cannot be hoisted above `w`.
         float rowX = rtl ? box - w : 0;
 
-        int count = adapter.rowCount();
+        int count = items.size();
         if (count == 0) {
             recycleExcept(0, 0, 0);
             anchorIndex = 0;
@@ -687,7 +1091,7 @@ public final class ListView extends Widget implements Scrollable {
     private float measuredHeight(int index, float w) {
         Widget cell = cellFor(index);
         if (cell == null) {
-            cell = Objects.requireNonNull(adapter.rowAt(index), "adapter.rowAt returned null");
+            cell = cells.cellFor(items.get(index));
             mount(index, cell);
             cell.setVisible(true);
         }
@@ -742,9 +1146,9 @@ public final class ListView extends Widget implements Scrollable {
      * next arrow key. A row that is the cursor is kept exactly as a row holding the focus is,
      * and released by the first pass after the keyboard leaves the list.
      *
-     * <p>{@code count} is the adapter's row count as the caller read it, and {@code 0} means
+     * <p>{@code count} is the item count as the caller read it, and {@code 0} means
      * spare nothing: {@link #refresh} unmounts every cell because each is bound to a datum the
-     * adapter may have replaced, and a row whose index the adapter no longer has is not a row.
+     * application may have replaced, and a row whose index the items no longer have is not a row.
      * The cursor row comes back on the next pass, through {@link #keepCursorRow}, bound afresh.
      *
      * @param from        the first row to keep
@@ -758,7 +1162,7 @@ public final class ListView extends Widget implements Scrollable {
             Widget cell = mountedCells[i];
             boolean inRun = row >= from && row < toExclusive;
             boolean hasFocus = !inRun && containsFocus(cell);
-            boolean cursor = !inRun && row == selectedIndex && isFocused();
+            boolean cursor = !inRun && row == this.cursor && isFocused();
             if (inRun || ((hasFocus || cursor) && row < count)) {
                 mountedRows[kept] = row;
                 mountedCells[kept] = cell;
@@ -766,13 +1170,13 @@ public final class ListView extends Widget implements Scrollable {
                 continue;
             }
             remove(cell);
-            adapter.recycle(cell);
+            cells.recycle(cell);
             if (hasFocus) {
                 requestFocus();
             }
         }
         for (int i = kept; i < mountedCount; i++) {
-            mountedCells[i] = null; // the adapter owns it now; holding a reference would pin it
+            mountedCells[i] = null; // the cell source owns it now; holding a reference would pin it
         }
         mountedCount = kept;
     }
@@ -787,15 +1191,15 @@ public final class ListView extends Widget implements Scrollable {
      * <p>Nothing is placed here: {@link #placeKeptOutside} runs next and puts every mounted row
      * outside the run where the scroll estimate says it is, this one included.
      *
-     * @param count the adapter's row count as this pass read it
+     * @param count the item count as this pass read it
      * @param w     the row width this pass resolved
      */
     private void keepCursorRow(int count, float w) {
-        if (selectedIndex < 0 || selectedIndex >= count || !isFocused()
-                || isPlaced(selectedIndex) || cellFor(selectedIndex) != null) {
+        if (cursor < 0 || cursor >= count || !isFocused()
+                || isPlaced(cursor) || cellFor(cursor) != null) {
             return;
         }
-        measuredHeight(selectedIndex, w); // mounts it, in data order
+        measuredHeight(cursor, w); // mounts it, in data order
     }
 
     /**
@@ -966,7 +1370,7 @@ public final class ListView extends Widget implements Scrollable {
     @Override
     protected void paintChildren(Canvas canvas) {
         // Rows, clipped to the viewport; the scrollbar overlays on top after.
-        // In a finally throughout: a row is built by the application's adapter, so the code
+        // In a finally throughout: a row is built by the application's cell function, so the code
         // painting inside these clips is foreign, and a throw in it unwinds through here. A clip
         // left pushed ends the frame unbalanced and the warning names nobody.
         canvas.save();
@@ -990,24 +1394,39 @@ public final class ListView extends Widget implements Scrollable {
                     canvas.restore();
                 }
             }
-            if (selectedIndex >= 0) {
-                Widget cell = cellFor(selectedIndex);
-                if (cell != null) {
-                    Theme theme = Theme.of(this);
-                    SizeTokens t = theme.tokensFor(this);
-                    float f = focusFade.value();
-                    // The textbook locked case: the ring animates 1.5 -> 2 pt as focus fades in,
-                    // so the weight is an interpolation of two locked weights and NOT a ternary
-                    // (which would delete the animation). The inset is the resting weight and the
-                    // shrink is twice it: half-stroke consequences, locked with it. Only the
-                    // corner moves.
-                    float inset = Strokes.FOCUS_RING_THIN;
-                    canvas.drawRoundRect(inset, cell.y() + inset,
-                            width() - 2 * inset, cell.height() - 2 * inset, t.radiusMedium(),
-                            Strokes.FOCUS_RING_THIN
-                                    + (Strokes.FOCUS_RING - Strokes.FOCUS_RING_THIN) * f,
-                            theme.outline().lerp(theme.focusRing(), f));
+            Theme theme = Theme.of(this);
+            SizeTokens t = theme.tokensFor(this);
+            float inset = Strokes.FOCUS_RING_THIN;
+            // Every selected row other than the cursor's wears the resting outline. In SINGLE the
+            // selection is the cursor, so this draws nothing and the list looks as it always did.
+            for (int i = 0; i < mountedCount; i++) {
+                int row = mountedRows[i];
+                if (row != cursor && selected.get(row)) {
+                    Widget cell = mountedCells[i];
+                    canvas.drawRoundRect(inset, cell.y() + inset, width() - 2 * inset,
+                            cell.height() - 2 * inset, t.radiusMedium(), Strokes.FOCUS_RING_THIN,
+                            theme.outline());
                 }
+            }
+            Widget cell = cursor >= 0 ? cellFor(cursor) : null;
+            float f = focusFade.value();
+            if (cell != null && selected.get(cursor)) {
+                // The textbook locked case: the ring animates 1.5 -> 2 pt as focus fades in,
+                // so the weight is an interpolation of two locked weights and NOT a ternary
+                // (which would delete the animation). The inset is the resting weight and the
+                // shrink is twice it: half-stroke consequences, locked with it. Only the
+                // corner moves.
+                canvas.drawRoundRect(inset, cell.y() + inset,
+                        width() - 2 * inset, cell.height() - 2 * inset, t.radiusMedium(),
+                        Strokes.FOCUS_RING_THIN
+                                + (Strokes.FOCUS_RING - Strokes.FOCUS_RING_THIN) * f,
+                        theme.outline().lerp(theme.focusRing(), f));
+            } else if (cell != null && f > 0) {
+                // A cursor on a row that is not selected (NONE, or a row toggled off in MULTI):
+                // the focus ring alone, and only while the list holds the keyboard, as the tree's.
+                canvas.drawRoundRect(inset, cell.y() + inset,
+                        width() - 2 * inset, cell.height() - 2 * inset, t.radiusMedium(),
+                        Strokes.FOCUS_RING, theme.focusRing().withAlpha(theme.focusRing().a() * f));
             }
         } finally {
             canvas.restore();
@@ -1073,7 +1492,7 @@ public final class ListView extends Widget implements Scrollable {
                 if (event.button() == Keys.MOUSE_LEFT) {
                     int index = rowAtLocalY(sceneToLocalY(event.y()));
                     if (index >= 0) {
-                        selectClamped(index);
+                        press(index, event);
                     }
                     requestFocus(Change.Origin.USER); // a click landed here
                     event.consume();
@@ -1081,6 +1500,29 @@ public final class ListView extends Widget implements Scrollable {
             }
             default -> {
             }
+        }
+    }
+
+    /**
+     * A click on a row, with the gestures {@code Table} and {@code Tree} share: in {@code MULTI}
+     * the command modifier toggles the row and Shift selects the range from the anchor; otherwise
+     * the row alone. A second click of a double click activates, like Enter, counted by the
+     * backend with the user's own interval; even counts pair up, so a triple click activates once.
+     */
+    private void press(int index, MouseEvent event) {
+        int mods = event.modifiers();
+        boolean command = (mods & Accelerator.commandModifier()) != 0;
+        boolean shift = (mods & Keys.MOD_SHIFT) != 0;
+        if (selectionMode == SelectionMode.MULTI && command) {
+            toggleSelection(index, true, Change.Origin.USER);
+        } else if (selectionMode == SelectionMode.MULTI && shift) {
+            selectRange(index);
+        } else {
+            selectClamped(index, false);
+        }
+        if (event.clickCount() > 1 && event.clickCount() % 2 == 0 && !command && !shift
+                && cursor == index) {
+            activate(Change.Origin.USER);
         }
     }
 
@@ -1099,17 +1541,32 @@ public final class ListView extends Widget implements Scrollable {
         if (!event.isPressed()) {
             return;
         }
+        int mods = event.modifiers();
+        // Shift extends a range in MULTI, from the anchor to wherever the key lands, as it does
+        // in Table and Tree.
+        boolean extend = selectionMode == SelectionMode.MULTI && (mods & Keys.MOD_SHIFT) != 0;
         switch (event.key()) {
-            case Keys.DOWN -> consumeAnd(event, () -> moveSelection(1));
-            case Keys.UP -> consumeAnd(event, () -> moveSelection(-1));
+            case Keys.DOWN -> consumeAnd(event, () -> moveSelection(1, extend));
+            case Keys.UP -> consumeAnd(event, () -> moveSelection(-1, extend));
             // The page size is resolved inside the branch that needs it: the other keys never
             // touch the token row, and one resolution per key press is one answer per press.
-            case Keys.PAGE_DOWN -> consumeAnd(event, () -> moveSelection(rowsPerPage(tokens())));
-            case Keys.PAGE_UP -> consumeAnd(event, () -> moveSelection(-rowsPerPage(tokens())));
-            case Keys.HOME -> consumeAnd(event, () -> selectClamped(0));
-            case Keys.END -> consumeAnd(event, () -> selectClamped(adapter.rowCount() - 1));
+            case Keys.PAGE_DOWN -> consumeAnd(event, () -> moveSelection(rowsPerPage(tokens()), extend));
+            case Keys.PAGE_UP -> consumeAnd(event, () -> moveSelection(-rowsPerPage(tokens()), extend));
+            case Keys.HOME -> consumeAnd(event, () -> selectClamped(0, extend));
+            case Keys.END -> consumeAnd(event, () -> selectClamped(items.size() - 1, extend));
+            case Keys.A -> {
+                if ((mods & Accelerator.commandModifier()) != 0
+                        && selectionMode == SelectionMode.MULTI) {
+                    consumeAnd(event, () -> selectAll(Change.Origin.USER));
+                }
+            }
+            case Keys.SPACE -> {
+                if (cursor >= 0 && selectionMode == SelectionMode.MULTI) {
+                    consumeAnd(event, () -> toggleSelection(cursor, true, Change.Origin.USER));
+                }
+            }
             case Keys.ENTER -> {
-                if (selectedIndex >= 0) {
+                if (cursor >= 0) {
                     consumeAnd(event, () -> activate(Change.Origin.USER));
                 }
             }
@@ -1123,15 +1580,15 @@ public final class ListView extends Widget implements Scrollable {
         action.run();
     }
 
-    private void moveSelection(int delta) {
-        int count = adapter.rowCount();
+    private void moveSelection(int delta, boolean extend) {
+        int count = items.size();
         if (count == 0) {
             return;
         }
-        if (selectedIndex < 0) {
-            selectClamped(anchorIndex);
+        if (cursor < 0) {
+            selectClamped(anchorIndex, false);
         } else {
-            selectClamped(selectedIndex + delta);
+            selectClamped(cursor + delta, extend);
         }
     }
 
@@ -1145,10 +1602,10 @@ public final class ListView extends Widget implements Scrollable {
     /**
      * The row count the rows below are numbered against, read once at the top of a publish.
      *
-     * <p>A field and not a per-row call, because {@link Adapter#rowCount()} is application code:
+     * <p>A field and not a per-row call, because the items' {@code size()} is application code:
      * one read per publish instead of one per realized row, and — since the walk always runs a
      * widget's own description before it walks that widget's children — the list's own facts and
-     * every row's size of set come out of the same read. An adapter whose count moved between two
+     * every row's size of set come out of the same read. A list whose count moved between two
      * calls would otherwise publish rows numbered against two different sets in one tree.
      */
     private int describedRowCount;
@@ -1159,7 +1616,7 @@ public final class ListView extends Widget implements Scrollable {
      *
      * <p>Three facts decide the shape. The selection is <b>not</b> required: this class documents
      * no-selection as a genuine resting state — a fresh list is in it, {@link #clearSelection()}
-     * reaches it, and {@link #refresh()} returns to it on an emptied adapter — unlike the combo,
+     * reaches it, and {@link #refresh()} returns to it on an emptied list — unlike the combo,
      * which refuses an empty item list, and unlike the tabbed pane, which is always selected while
      * it has tabs. The active descendant is not declared here and cannot be: it is resolved in the
      * copy from the first node in this subtree published {@link Accessible.State#ACTIVE}, which is
@@ -1178,14 +1635,14 @@ public final class ListView extends Widget implements Scrollable {
      * only fail is worse than an absent one.
      *
      * <p>Nothing is formatted here. The one string this hook can hand over is an
-     * {@link I18nString} the adapter holds, compared by reference, so a frame that damaged the
+     * {@link I18nString} the item holds, compared by reference, so a frame that damaged the
      * list and moved nothing costs no memory at all.
      *
      * @param a the node being described
      */
     @Override
     protected void onAccessibility(Accessibility a) {
-        describedRowCount = adapter.rowCount();
+        describedRowCount = items.size();
         // One resolution for the whole description, as every other pass in this class requires:
         // two inside one description would let the offset and the maximum disagree, and the
         // percent would then leave [0,1]. The viewport is height() and not
@@ -1208,10 +1665,9 @@ public final class ListView extends Widget implements Scrollable {
         // selected. FOCUS and SCROLL_INTO_VIEW arrive free from the walk, and the two scroll
         // verbs live on the bar's own node, which is the toolkit's settled shape for a scrolling
         // container.
-        RowsAccessibility.describeContainer(a, RowsAccessibility.Selection.SINGLE, false,
-                selectedIndex >= 0);
+        RowsAccessibility.describeContainer(a, rowsSelection(), false, cursor >= 0);
         a.scrollFrom(0, 0, 1, 0, estimatedOffset(t), max, viewport, content);
-        if (selectedIndex >= 0 && cellFor(selectedIndex) == null) {
+        if (lead >= 0 && cellFor(lead) == null) {
             // The selected row scrolled out of the viewport has no widget and therefore no
             // node, so the only place its name can be said is here. A description and not a
             // value text, which is written and then dropped without a value facet, and not a
@@ -1224,7 +1680,7 @@ public final class ListView extends Widget implements Scrollable {
             // it, so it duplicates nothing. The known cost is that while it stands, the
             // walk's tooltip-as-description default has nowhere to go on a list that has
             // both an application name and a tooltip.
-            I18nString name = adapter.rowName(selectedIndex);
+            I18nString name = nameOf(lead);
             if (name != null) {
                 a.description(name);
             }
@@ -1260,9 +1716,9 @@ public final class ListView extends Widget implements Scrollable {
      * or a padded box says nothing and takes {@code LIST_ITEM}, which is also what keeps it from
      * being deleted as scaffolding; a cell that is a button or a scroll pane keeps what it
      * declared, because eliding a scroll pane would take its scroll facet with it. The name is the
-     * widening this step made to {@link Adapter#rowName}: rows commonly paint their own text and
+     * widening this step made to {@link #setItemName}: rows commonly paint their own text and
      * declare nothing, and the role written here suppresses the paints-and-says-nothing warning
-     * that would have been the application's only notice, so without asking the adapter the
+     * that would have been the application's only notice, so without asking for a name the
      * ordinary case publishes thousands of nameless list items and nothing anywhere says so. An
      * application's own {@code setAccessibleName} still wins, because it is applied after this.
      *
@@ -1310,7 +1766,7 @@ public final class ListView extends Widget implements Scrollable {
             a.role(Accessible.Role.LIST_ITEM);
         }
         if (!a.hasName()) {
-            I18nString name = adapter.rowName(index);
+            I18nString name = nameOf(index);
             if (name != null) {
                 a.name(name, Accessible.NameFrom.CONTENT);
             }
@@ -1328,10 +1784,14 @@ public final class ListView extends Widget implements Scrollable {
         // it then would be the two-performer conflict the walk refuses loudly. Delegated rather
         // than written, so that a reader's "select this row" lands on the row it addressed and
         // the list performs it through onAccessibilityChildAction (ADR 039 §1.5).
-        RowsAccessibility.describeRow(a, RowsAccessibility.Offer.DELEGATED,
-                RowsAccessibility.Selection.SINGLE, index == selectedIndex, index + 1,
-                describedRowCount, false, false, index == selectedIndex && isFocused(),
-                false, false, !child.isFocusable());
+        // FOCUS only where the cursor is not the selection (NONE and MULTI), and there on a cell
+        // that cannot take the keyboard itself, as the tree offers it: a focusable cell keeps
+        // FOCUS and SCROLL_INTO_VIEW as the walk's free pair.
+        boolean plain = !child.isFocusable();
+        RowsAccessibility.describeRow(a, RowsAccessibility.Offer.DELEGATED, rowsSelection(),
+                selected.get(index), index + 1, describedRowCount, false, false,
+                index == cursor && isFocused(), false,
+                plain && selectionMode != SelectionMode.SINGLE, plain);
     }
 
     /**
@@ -1360,12 +1820,12 @@ public final class ListView extends Widget implements Scrollable {
     private final class RowsHost implements RowsAccessibility.Host<Integer> {
         @Override
         public RowsAccessibility.Selection selection() {
-            return RowsAccessibility.Selection.SINGLE;
+            return rowsSelection();
         }
 
         @Override
         public boolean cursorIsTheSelection() {
-            return true;
+            return selectionMode == SelectionMode.SINGLE;
         }
 
         @Override
@@ -1375,27 +1835,35 @@ public final class ListView extends Widget implements Scrollable {
 
         @Override
         public boolean isSelected(Integer row) {
-            return row == selectedIndex;
+            return selected.get(row);
         }
 
         @Override
         public boolean select(Integer row, boolean moveCursor) {
-            if (row == selectedIndex) {
+            if (selectionMode == SelectionMode.SINGLE && row == cursor) {
                 // A click on the row already selected lands on it where it is: the reveal
-                // select() skips when nothing moves, which is what a reader's SELECT on the
+                // selectOnly skips when nothing moves, which is what a reader's SELECT on the
                 // kept cursor row scrolled out of the box asks for (decision 22), as the
                 // tree's selectOnly already reveals an unchanged selection.
                 ensureVisible(row);
                 invalidate();
                 return true;
             }
-            ListView.this.select(row, true, Change.Origin.USER);
+            selectOnly(row, true, moveCursor, Change.Origin.USER);
             return true;
         }
 
         @Override
+        public void toggleSelection(Integer row, boolean moveCursor) {
+            ListView.this.toggleSelection(row, moveCursor, Change.Origin.USER);
+        }
+
+        @Override
         public void moveCursor(Integer row) {
-            throw new UnsupportedOperationException("the cursor is the selection: FOCUS is refused");
+            if (selectionMode == SelectionMode.SINGLE) {
+                throw new UnsupportedOperationException("the cursor is the selection: FOCUS is refused");
+            }
+            moveCursorTo(row, true, Change.Origin.USER);
         }
 
         @Override
@@ -1403,6 +1871,14 @@ public final class ListView extends Widget implements Scrollable {
             ensureVisible(row);
             invalidate();
         }
+    }
+
+    private RowsAccessibility.Selection rowsSelection() {
+        return switch (selectionMode) {
+            case NONE -> RowsAccessibility.Selection.NONE;
+            case SINGLE -> RowsAccessibility.Selection.SINGLE;
+            case MULTI -> RowsAccessibility.Selection.MULTI;
+        };
     }
 
     private final RowsHost rowsHost = new RowsHost();
@@ -1423,7 +1899,7 @@ public final class ListView extends Widget implements Scrollable {
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
-        if (action != Accessible.Action.PRESS || selectedIndex < 0) {
+        if (action != Accessible.Action.PRESS || cursor < 0) {
             return false;
         }
         activate(Change.Origin.USER);

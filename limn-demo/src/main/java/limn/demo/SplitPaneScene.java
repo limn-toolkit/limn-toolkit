@@ -68,17 +68,9 @@ final class SplitPaneScene {
         List<String> files = List.of(
                 "Main.java", "SplitPane.java", "SplitPaneTest.java", "Theme.java",
                 "ColorPicker.java", "Spinner.java", "ListView.java", "ToolBar.java");
-        ListView list = new ListView(new ListView.Adapter() {
-            @Override
-            public int rowCount() {
-                return files.size();
-            }
-
-            @Override
-            public Widget rowAt(int index) {
-                return new Padding(Insets.symmetric(8, 6), new Label(files.get(index)));
-            }
-        });
+        ListView<String> list = new ListView<>(
+                file -> new Padding(Insets.symmetric(8, 6), new Label(file)));
+        list.setItems(files);
         return new Panel(new Padding(Insets.all(6), list));
     }
 

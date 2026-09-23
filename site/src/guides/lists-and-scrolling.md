@@ -26,27 +26,10 @@ A `ScrollView` measures everything inside it. For a thousand rows that is a thou
 widgets, and it will show. `ListView` exists for that case: it only ever builds the rows
 that are actually visible, so a list of a million rows costs what a list of twenty does.
 
-You supply the rows through an adapter:
+The items are your own `List`, handed over with `setItems`, and a row's widget is a function of
+its item:
 
-```java
-ListView list = new ListView(new ListView.Adapter() {
-    @Override
-    public int rowCount() {
-        return people.size();
-    }
-
-    @Override
-    public Widget rowAt(int index) {
-        return new Padding(Insets.symmetric(9, 14), new Label(people.get(index).name()));
-    }
-});
-list.observeChanges((widget, change) -> {
-    if (change.aspect() == Change.Aspect.SELECTION) {
-        detail.show(list.selectedIndex() < 0 ? null : people.get(list.selectedIndex()));
-    }
-});
-list.onActivate(index -> open(people.get(index)));
-```
+{% snippet guide:list %}
 
 The detail pane *watches* the selection rather than handling it: it must follow the selection
 wherever it came from — a click, an arrow key, a `setSelectedIndex` from code, a refresh that
@@ -54,9 +37,19 @@ dropped the selected row — and `onSelect` is the application's response to the
 row, which runs for none of the others. `onActivate` is a handler and stays one: opening a record
 is something the user asks for.
 
-`rowAt` is called on demand and may be called again for the same row after it has scrolled
-out and back. Build the widget there; do not cache one per data item, or you have rebuilt
-the thing `ListView` exists to avoid.
+The cell function runs when a row comes into view, and again for the same item after it has
+scrolled out and back. For a long list of one kind of row, `ListView.pooled` keeps the widgets
+that scroll out and fills them with the next item instead of making new ones; when rows come in
+several kinds, `new ListView<>(cellFor, recycle)` hands each widget back to you to pool as you like.
+
+{% snippet guide:list-pooled %}
+
+`setSelectionMode` takes the `SelectionMode` that `Table` and `Tree` take, with the same
+gestures. `SINGLE` is the default. With `MULTI`, the command modifier (Ctrl, or Cmd on macOS)
+toggles a row, Shift selects a range, Space toggles the row under the keyboard, and Ctrl+A or
+Cmd+A takes every row. `NONE` moves the keyboard without selecting anything. `selectedIndex()`
+is the row selected last, `selectedIndices()` and `selectedItems()` are all of them, and
+`cursorIndex()` is the row the keyboard is on, which in `MULTI` need not be selected.
 
 A list inside something that gives it no height of its own — a `Column`, a `ScrollView` — has to
 choose a height, and it asks for room for six rows. `setVisibleRows(n)` says how many you want
@@ -65,15 +58,17 @@ theme's row height and not from an average of the rows built so far, so it does 
 scroll. And a wheel that reaches the end of a list's own scroll passes to the scroller around it,
 so a list inside a page does not trap the wheel where its content stops.
 
-`onSelect` runs when the *user* moves the selection, by a click or the arrow keys, and not when
-your code does. `onActivate` is the *open this* gesture, which is Enter on the selected row or
-a double click. `activate()` from code is a caller's verb: it tells whoever is watching that the
+`onSelect` runs when the *user* changes the selection, by a click or a key, and not when
+your code does; it reads what it needs from the list. `onActivate` is the *open this* gesture,
+which is Enter on the row under the keyboard or a double click, and it is handed that row's
+index. `activate()` from code is a caller's verb: it tells whoever is watching that the
 row was opened, and reaches no handler, so an application that wants its own open-the-row code
 run calls that code.
 
 :::tip[When the data changes]
-Call `refresh()` after your backing list changes. The rows are rebuilt from the adapter,
-and the scroll position and selection are kept, clamped if the list got shorter. A selection
+Call `refresh()` after changing your list in place. The rows are rebuilt from the items, and
+the scroll position and selection are kept; rows past a shorter list's end leave the selection.
+A different list is `setItems`, which starts over with nothing selected. A selection
 the refresh dropped is announced as the widget's own adjustment, so a detail pane that watches
 the selection never keeps showing a record that is gone; `onSelect`, being the user's, stays
 silent.

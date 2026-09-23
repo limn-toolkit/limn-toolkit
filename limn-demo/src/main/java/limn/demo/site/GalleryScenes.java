@@ -537,18 +537,11 @@ final class GalleryScenes {
     static Built listView() {
         // Rows are materialised on demand: the list only ever builds what the viewport
         // shows, so this adapter would cost the same with a million rows.
-        ListView list = new ListView(new ListView.Adapter() {
-            @Override
-            public int rowCount() {
-                return 1000;
-            }
-
-            @Override
-            public Widget rowAt(int index) {
-                Label row = new Label("Row " + (index + 1));
-                return new Padding(limn.scene.Insets.symmetric(8, 12), row);
-            }
-        });
+        List<String> rows = java.util.stream.IntStream.rangeClosed(1, 1000)
+                .mapToObj(i -> "Row " + i).toList();
+        ListView<String> list = new ListView<>(
+                text -> new Padding(limn.scene.Insets.symmetric(8, 12), new Label(text)));
+        list.setItems(rows);
         return scene(new SizedBox(320, 130, list));
     }
     // #endregion

@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.graphics.Canvas;
 import limn.scene.Constraints;
 import limn.scene.Scene;
@@ -110,7 +112,7 @@ class PaintUnwindTest extends ComponentTestBase {
      */
     @Test
     void aListViewLeavesTheCanvasBalancedWhenACellThrows() {
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return 3;

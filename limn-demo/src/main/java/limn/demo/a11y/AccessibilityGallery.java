@@ -70,6 +70,7 @@ import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 import static limn.testing.SceneDriver.drive;
@@ -900,9 +901,9 @@ public final class AccessibilityGallery {
 
     private static Built listView() {
         Column page = page();
-        ListView list = new ListView(new Rows(
+        ListView<Item> list = rows(
                 "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas", "Pyrenees",
-                "Rockies", "Urals", "Zagros"));
+                "Rockies", "Urals", "Zagros");
         list.setSelectedIndex(2);
         page.add(Labelled.above("Mountain ranges", list, new SizedBox(SizedBox.UNSET, 160, list)));
         return new Built(page);
@@ -1426,41 +1427,24 @@ public final class AccessibilityGallery {
         return button;
     }
 
+    /** One row of {@link #rows}: the text a cell paints, and the name the list gives it. */
+    private record Item(String text, I18nString name) {
+    }
+
     /**
      * Rows that paint their own text and declare nothing, which is the flagship list case: the
-     * name a reader hears comes from {@link ListView.Adapter#rowName}, handed back by reference.
+     * name a reader hears comes from {@link ListView#setItemName}, handed back by reference from
+     * the item, which holds it.
      */
-    private static final class Rows implements ListView.Adapter {
-        private final String[] texts;
-        private final I18nString[] names;
-        private final Cell[] cells;
-
-        Rows(String... texts) {
-            this.texts = texts;
-            this.names = new I18nString[texts.length];
-            for (int i = 0; i < texts.length; i++) {
-                this.names[i] = I18nString.literal(texts[i]);
-            }
-            this.cells = new Cell[texts.length];
+    private static ListView<Item> rows(String... texts) {
+        List<Item> items = new ArrayList<>(texts.length);
+        for (String text : texts) {
+            items.add(new Item(text, I18nString.literal(text)));
         }
-
-        @Override
-        public int rowCount() {
-            return names.length;
-        }
-
-        @Override
-        public Widget rowAt(int index) {
-            if (cells[index] == null) {
-                cells[index] = new Cell(texts[index]);
-            }
-            return cells[index];
-        }
-
-        @Override
-        public I18nString rowName(int index) {
-            return names[index];
-        }
+        ListView<Item> list = new ListView<>(item -> new Cell(item.text()));
+        list.setItems(items);
+        list.setItemName(Item::name);
+        return list;
     }
 
     /** A row that paints a string and says nothing about itself; the list names it. */
@@ -1511,8 +1495,8 @@ public final class AccessibilityGallery {
             // Shown, not identified: an entry a reader run drives is listed in the run's language
             // (decision 68), so a reader pointed at this window reads the list in the language it
             // will hear the entry in; every other entry is listed by its own English name.
-            ListView picker = new ListView(new Rows(
-                    entries.stream().map(entry -> entry.label().get()).toArray(String[]::new)));
+            ListView<Item> picker = rows(
+                    entries.stream().map(entry -> entry.label().get()).toArray(String[]::new));
             picker.setAccessibleName("Entries");
             Row root = new Row();
             root.crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -1520,7 +1504,7 @@ public final class AccessibilityGallery {
             root.add(Expanded.of(new ScrollView(pad(holder)), 1));
 
             Scene scene = new Scene(root);
-            picker.onSelect(index -> show(holder, entries.get(index)));
+            picker.onSelect(() -> show(holder, entries.get(picker.selectedIndex())));
             picker.setSelectedIndex(initial);
             scene.bind(window);
             window.show();

@@ -94,7 +94,7 @@ chapters.setAccessibleName(new I18nString("library.chapters", "Chapters"));
 
 An icon-only button that has a tooltip is already named by it. A search field is named by its
 placeholder. A dialog is named by its title, a tab by its label, a list row by what the row
-draws or, for rows the adapter has not built, by what `Adapter#rowName` answers.
+draws or, for rows the list has not built, by what `setItemName` answers for the item.
 
 Some things have a name and want a description as well, which a reader speaks after the name
 when asked for more: a picture, a 3D viewport, a control whose purpose the name alone does not

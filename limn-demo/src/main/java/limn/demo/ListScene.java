@@ -60,7 +60,7 @@ final class ListScene {
         Label status = new Label("Wheel scrolls · click selects · ↑↓/PgUp/PgDn/Home/End navigate · "
                 + "Tab focuses buttons/switch · Enter activates. Headers and cards have different heights.")
                 .setMuted(true);
-        ListView list = buildList(status::setText);
+        ListView<Integer> list = buildList(status::setText);
 
         Label heading = new Label("Virtualized list: headers + cards (variable heights)")
                 .setFont(Theme.current().title());
@@ -78,7 +78,7 @@ final class ListScene {
     }
 
     /** Builds the list widget, routing every interaction to {@code status}. Shared with the kitchen tab. */
-    static ListView buildList(Consumer<String> status) {
+    static ListView<Integer> buildList(Consumer<String> status) {
         Image[] images = {
                 Images.fromResource("/limn/demo/images/icon-star.png"),
                 Images.fromResource("/limn/demo/images/icon-heart.png"),
@@ -110,37 +110,29 @@ final class ListScene {
         Deque<HeaderCell> headerPool = new ArrayDeque<>();
         Deque<CardCell> cardPool = new ArrayDeque<>();
 
-        ListView list = new ListView(new ListView.Adapter() {
-            @Override
-            public int rowCount() {
-                return rows.size();
-            }
-
-            @Override
-            public Widget rowAt(int index) {
-                RowItem row = rows.get(index);
-                if (row instanceof Header header) {
-                    HeaderCell cell = headerPool.isEmpty() ? new HeaderCell() : headerPool.pop();
-                    cell.bind(header.title());
-                    return cell;
-                }
-                CardData card = (CardData) row;
-                CardCell cell = cardPool.isEmpty() ? new CardCell(placeholder, onOpen, onFavorite) : cardPool.pop();
-                cell.bind(card, index, favorites[index]);
+        // Items are the row numbers: a card binds to its number, which is what its favourite
+        // flag and the status line are keyed by. Two kinds of row, each pooled on its own.
+        ListView<Integer> list = new ListView<>(index -> {
+            RowItem row = rows.get(index);
+            if (row instanceof Header header) {
+                HeaderCell cell = headerPool.isEmpty() ? new HeaderCell() : headerPool.pop();
+                cell.bind(header.title());
                 return cell;
             }
-
-            @Override
-            public void recycle(Widget widget) {
-                if (widget instanceof HeaderCell header) {
-                    headerPool.push(header);
-                } else if (widget instanceof CardCell card) {
-                    cardPool.push(card);
-                }
+            CardData card = (CardData) row;
+            CardCell cell = cardPool.isEmpty() ? new CardCell(placeholder, onOpen, onFavorite) : cardPool.pop();
+            cell.bind(card, index, favorites[index]);
+            return cell;
+        }, widget -> {
+            if (widget instanceof HeaderCell header) {
+                headerPool.push(header);
+            } else if (widget instanceof CardCell card) {
+                cardPool.push(card);
             }
         });
+        list.setItems(java.util.stream.IntStream.range(0, rows.size()).boxed().toList());
         list.setScrollbarPolicy(ScrollBar.Policy.AUTO);
-        list.onSelect(i -> status.accept("Selected: row #" + i));
+        list.onSelect(() -> status.accept("Selected: row #" + list.selectedIndex()));
         list.onActivate(i -> status.accept("Activated (Enter): row #" + i));
         return list;
     }

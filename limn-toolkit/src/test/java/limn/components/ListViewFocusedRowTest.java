@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.graphics.Canvas;
@@ -94,7 +96,7 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
     }
 
     /** Pooled button rows, with names the adapter holds, and a record of every cell returned. */
-    static final class Rows implements ListView.Adapter {
+    static final class Rows implements IndexedRows {
         private final I18nString[] names = new I18nString[ROWS];
         private final Deque<ButtonRow> pool = new ArrayDeque<>();
 
@@ -133,12 +135,12 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
 
     private Rows rows;
 
-    private ListView list;
+    private ListView<Integer> list;
 
     /** Binds a list of {@link #ROWS} button rows, with row one's button holding the focus. */
     private void bindWithFocusInRowOne() {
         rows = new Rows();
-        list = new ListView(rows);
+        list = IndexedRows.list(rows);
         bind(list);
         list.setSelectedIndex(1);
         frame();
@@ -349,7 +351,7 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
     /** Binds a list of {@link #ROWS} button rows with the list itself holding the keyboard. */
     private void bindWithFocusOnTheList() {
         rows = new Rows();
-        list = new ListView(rows);
+        list = IndexedRows.list(rows);
         bind(list);
         list.requestFocus();
         list.setSelectedIndex(1);
@@ -411,7 +413,7 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
     @Test
     void takingTheKeyboardRealizesASelectionAlreadyScrolledAway() {
         rows = new Rows();
-        list = new ListView(rows);
+        list = IndexedRows.list(rows);
         bind(list);
         list.setSelectedIndex(1);
         frame();

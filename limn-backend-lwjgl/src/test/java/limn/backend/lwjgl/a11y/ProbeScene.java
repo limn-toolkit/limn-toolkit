@@ -58,7 +58,7 @@ public final class ProbeScene {
     private final Column root;
     private final Checkbox wrap;
     private final Slider volume;
-    private final ListView rows;
+    private final ListView<I18nString> rows;
     private int step;
 
     /** How many rows the list carries: enough that a page scroll realizes a new set every tick. */
@@ -124,27 +124,14 @@ public final class ProbeScene {
         for (int i = 0; i < ROWS; i++) {
             names[i] = I18nString.literal("Linha " + (i + 1));
         }
-        rows = new ListView(new ListView.Adapter() {
-            @Override
-            public int rowCount() {
-                return ROWS;
-            }
-
-            @Override
-            public Widget rowAt(int index) {
-                // A fixed-height box around the label, and not the label alone: with no font
-                // installed a label measures to nothing, and a list whose every row is zero
-                // points tall walks its anchor to the last row before the first frame — so the
-                // headless test that checks this cycle would read a list already scrolled to
-                // its end. The reader still hears the label; the box is what the row is tall by.
-                return new SizedBox(ROW_WIDTH, ROW_HEIGHT, new Label(names[index]));
-            }
-
-            @Override
-            public I18nString rowName(int index) {
-                return names[index];
-            }
-        });
+        // A fixed-height box around the label, and not the label alone: with no font installed a
+        // label measures to nothing, and a list whose every row is zero points tall walks its
+        // anchor to the last row before the first frame — so the headless test that checks this
+        // cycle would read a list already scrolled to its end. The reader still hears the label;
+        // the box is what the row is tall by.
+        rows = new ListView<>(text -> new SizedBox(ROW_WIDTH, ROW_HEIGHT, new Label(text)));
+        rows.setItems(List.of(names));
+        rows.setItemName(text -> text);
         root.add(new SizedBox(ROW_WIDTH, LIST_HEIGHT, rows));
 
         focusable = List.of(save, wrap, dark, name, secret, search, volume, format, daily, weekly);
@@ -176,7 +163,7 @@ public final class ProbeScene {
     }
 
     /** @return the list the scroll cycle pages, for a probe that wants to focus it first. */
-    public ListView rows() {
+    public ListView<I18nString> rows() {
         return rows;
     }
 

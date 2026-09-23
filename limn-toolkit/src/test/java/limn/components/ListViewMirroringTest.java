@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.graphics.Paint;
 import limn.graphics.RoundRect;
 import limn.input.Keys;
@@ -49,11 +51,11 @@ class ListViewMirroringTest extends ComponentTestBase {
         }
     }
 
-    private ListView list;
+    private ListView<Integer> list;
     private Scene scene;
 
     private void build(LayoutDirection direction, ScrollGutters.Layout barLayout) {
-        list = new ListView(new ListView.Adapter() {
+        list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return ROWS;

@@ -223,3 +223,21 @@ the date widgets' `onSelect`, the fluent-versus-void setters, the unchecked thre
 
 ADR 040 (the two channels, untouched); ADR 043 (partial rendering, which §5's `bufferAge` corrects);
 ADR 002, 032, 035 (the inherited axes §7's resolver joins).
+
+## 11. The review's medium API items, decided after this record was accepted
+
+The owner then asked for every open item of the 2026-09-22 review, one at a time (batch 30). The
+ones that change API are recorded here as they land.
+
+- **API-8, the three list-shaped widgets (decision 136).** One `limn.components.SelectionMode`
+  (`NONE`, `SINGLE`, `MULTI`) for `Table`, `Tree` and `ListView`; `CalendarView` keeps its own,
+  which chooses days and has `RANGE`. `Tree.scrollBy(dx, dy)` replaces `scrollBy(dy)` and
+  `scrollHorizontallyBy(dx)`. `ListView` is `ListView<T>` over a `List<T>` the application owns
+  (`setItems`, `refresh()`), with three ways to make a row: a function of the item, a pool that
+  binds a recycled widget (`ListView.pooled`), or a function plus a recycle callback for rows of
+  several kinds. The untyped `Adapter` is gone. It gains the three selection modes with the
+  gestures the table and the tree share, the cursor apart from the selection outside `SINGLE`,
+  `onSelect(Runnable)` as they have it, and a double click that activates. Activation stays an
+  index, as the table's does: equal items are two rows. `SINGLE` behaves and looks exactly as
+  before, which the unchanged test suite and accessibility transcripts hold; the rows contract now
+  runs with `MULTI` entered. A live reader run over a multiple-selection list is owed.

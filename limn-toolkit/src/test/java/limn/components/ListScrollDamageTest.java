@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.graphics.Rect;
 import limn.scene.Constraints;
 import limn.scene.Insets;
@@ -39,12 +41,12 @@ class ListScrollDamageTest extends ComponentTestBase {
         }
     }
 
-    private ListView list;
+    private ListView<Integer> list;
     private Scene scene;
     private AtomicLong nanos;
 
     private RecordingTestCanvas settled() {
-        list = new ListView(new ListView.Adapter() {
+        list = IndexedRows.list(new IndexedRows() {
             private final Deque<Cell> pool = new ArrayDeque<>();
 
             @Override

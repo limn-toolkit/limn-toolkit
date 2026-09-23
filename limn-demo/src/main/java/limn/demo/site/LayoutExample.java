@@ -165,17 +165,9 @@ public final class LayoutExample {
 
     /** The sidebar: a list whose rows are ordinary widgets, supplied on demand. */
     private static Widget collections() {
-        ListView list = new ListView(new ListView.Adapter() {
-            @Override
-            public int rowCount() {
-                return COLLECTIONS.size();
-            }
-
-            @Override
-            public Widget rowAt(int index) {
-                return new Padding(Insets.symmetric(9, 14), new Label(COLLECTIONS.get(index)));
-            }
-        });
+        ListView<String> list = new ListView<>(
+                name -> new Padding(Insets.symmetric(9, 14), new Label(name)));
+        list.setItems(COLLECTIONS);
         list.setSelectedIndex(1);
         // A list with no caption takes its name directly; a reader says "Collections, list".
         list.setAccessibleName("Collections");

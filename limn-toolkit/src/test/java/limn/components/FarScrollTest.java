@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.components.table.Column;
 import limn.components.table.Table;
 import limn.scene.Scene;
@@ -52,7 +54,7 @@ class FarScrollTest extends ComponentTestBase {
     @Test
     void aListScrolledToItsEndBuildsOnlyTheRowsItShows() {
         Set<Integer> asked = new TreeSet<>();
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return ROWS;

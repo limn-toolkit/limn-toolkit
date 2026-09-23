@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.scene.Change;
 import limn.graphics.Paint;
 import limn.graphics.RoundRect;
@@ -55,8 +57,8 @@ class ListViewTest extends ComponentTestBase {
     private final AtomicInteger created = new AtomicInteger();
 
     /** Adapter over {@code count} rows whose height comes from {@code heightOf(index)}, pooled. */
-    private ListView list(int count, java.util.function.IntToDoubleFunction heightOf) {
-        return new ListView(new ListView.Adapter() {
+    private ListView<Integer> list(int count, java.util.function.IntToDoubleFunction heightOf) {
+        return IndexedRows.list(new IndexedRows() {
             private final Deque<Cell> pool = new ArrayDeque<>();
 
             @Override
@@ -83,7 +85,7 @@ class ListViewTest extends ComponentTestBase {
         });
     }
 
-    private Scene scene(ListView list, FakeCanvas canvas) {
+    private Scene scene(ListView<Integer> list, FakeCanvas canvas) {
         Scene scene = new Scene(list);
         scene.setTextRuler(RULER);
         scene.renderFrame(canvas);
@@ -107,7 +109,7 @@ class ListViewTest extends ComponentTestBase {
     @Test
     void refreshRebindsMountedRows() {
         java.util.List<String> data = new java.util.ArrayList<>(java.util.List.of("A", "B", "C"));
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return data.size();
@@ -131,7 +133,7 @@ class ListViewTest extends ComponentTestBase {
         assertTrue(values.containsAll(java.util.List.of("B", "C")), "remaining data rebind: " + values);
     }
 
-    private static java.util.List<String> mountedValues(ListView list) {
+    private static java.util.List<String> mountedValues(ListView<Integer> list) {
         java.util.List<String> values = new java.util.ArrayList<>();
         for (Widget child : list.children()) {
             if (child instanceof BoundRow row) {
@@ -146,7 +148,7 @@ class ListViewTest extends ComponentTestBase {
         // The ComboBox-popup pattern: the selection is set while the list has
         // no size yet; the first layout must still bring it into view instead
         // of opening scrolled to the top.
-        ListView list = list(200, i -> 40);
+        ListView<Integer> list = list(200, i -> 40);
         list.setSelectedIndex(150);
         FakeCanvas canvas = new FakeCanvas(300, 200);
         Scene scene = scene(list, canvas); // first frame (layout may take two passes)
@@ -161,7 +163,7 @@ class ListViewTest extends ComponentTestBase {
         // The Scrollable contract: nested reveals re-read child coordinates in
         // the same pass, so a scroll may not defer the position update to the
         // next layout (an outer scroller would see a phantom rect).
-        ListView list = list(1000, i -> 40);
+        ListView<Integer> list = list(1000, i -> 40);
         FakeCanvas canvas = new FakeCanvas(300, 200);
         scene(list, canvas);
         Widget firstRow = list.children().stream()
@@ -178,7 +180,7 @@ class ListViewTest extends ComponentTestBase {
         // drag frame), and the layout pass the scroll schedules runs it again regardless. Counted
         // rather than argued, because the difference does not show on screen: nothing here is
         // about what is painted, only about how much work paints it.
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return 1000;
@@ -231,7 +233,7 @@ class ListViewTest extends ComponentTestBase {
 
     @Test
     void onlyMaterializesVisibleRowsOfAHugeList() {
-        ListView list = list(1_000_000, i -> 40);
+        ListView<Integer> list = list(1_000_000, i -> 40);
         FakeCanvas canvas = new FakeCanvas(300, 200); // ~5 rows visible
         scene(list, canvas);
 
@@ -243,7 +245,7 @@ class ListViewTest extends ComponentTestBase {
 
     @Test
     void poolStaysBoundedWhileScrolling() {
-        ListView list = list(1_000_000, i -> 40);
+        ListView<Integer> list = list(1_000_000, i -> 40);
         FakeCanvas canvas = new FakeCanvas(300, 200);
         Scene scene = scene(list, canvas);
 
@@ -258,7 +260,7 @@ class ListViewTest extends ComponentTestBase {
     @Test
     void anchorAdvancesAcrossVariableHeights() {
         // Alternating small headers (30) and tall cards (90).
-        ListView list = list(1000, i -> i % 2 == 0 ? 30 : 90);
+        ListView<Integer> list = list(1000, i -> i % 2 == 0 ? 30 : 90);
         FakeCanvas canvas = new FakeCanvas(300, 200);
         Scene scene = scene(list, canvas);
         assertEquals(0, list.firstVisibleIndex());
@@ -274,7 +276,7 @@ class ListViewTest extends ComponentTestBase {
 
     @Test
     void endHomeAndArrowsSelect() {
-        ListView list = list(100, i -> 40);
+        ListView<Integer> list = list(100, i -> 40);
         FakeCanvas canvas = new FakeCanvas(300, 200);
         Scene scene = scene(list, canvas);
         list.requestFocus();
@@ -297,7 +299,7 @@ class ListViewTest extends ComponentTestBase {
 
     @Test
     void clickSelectsTheRowUnderThePointer() {
-        ListView list = list(100, i -> 40);
+        ListView<Integer> list = list(100, i -> 40);
         FakeCanvas canvas = new FakeCanvas(300, 200);
         Scene scene = scene(list, canvas);
 
@@ -336,7 +338,7 @@ class ListViewTest extends ComponentTestBase {
      */
     @Test
     void childrenStayInDataOrderAfterScrollingDownAndBackUp() {
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return 100;
@@ -376,7 +378,7 @@ class ListViewTest extends ComponentTestBase {
     void unboundedMeasureFallsBackToTheStepsWidthAndRowSeed() {
         for (ControlSize step : ControlSize.values()) {
             SizeTokens t = SizeTokens.of(step);
-            ListView list = list(100, i -> 40);
+            ListView<Integer> list = list(100, i -> 40);
             list.setControlSize(step);
 
             Size size = list.measure(unbounded());
@@ -399,7 +401,7 @@ class ListViewTest extends ComponentTestBase {
     void theUnboundedHeightIsTheSeedsAndDoesNotMoveOnceRowsAreMeasured() {
         for (ControlSize step : ControlSize.values()) {
             SizeTokens t = SizeTokens.of(step);
-            ListView list = list(100, i -> i % 2 == 0 ? 40 : 90);
+            ListView<Integer> list = list(100, i -> i % 2 == 0 ? 40 : 90);
             list.setControlSize(step);
             FakeCanvas canvas = new FakeCanvas(300, 200);
             Scene scene = scene(list, canvas);
@@ -417,7 +419,7 @@ class ListViewTest extends ComponentTestBase {
 
     @Test
     void setVisibleRowsChangesTheUnboundedHeightAndRefusesLessThanOne() {
-        ListView list = list(100, i -> 40);
+        ListView<Integer> list = list(100, i -> 40);
         SizeTokens t = SizeTokens.of(ControlSize.MEDIUM);
         assertEquals(6, list.visibleRows(), "the default");
 
@@ -441,7 +443,7 @@ class ListViewTest extends ComponentTestBase {
      */
     @Test
     void aWheelAtEitherEndOfTheListPassesToTheScrollerThatHoldsIt() {
-        ListView list = list(20, i -> 40);
+        ListView<Integer> list = list(20, i -> 40);
         limn.scene.layout.Column column = new limn.scene.layout.Column();
         column.add(list);
         column.add(new Widget() {
@@ -497,7 +499,7 @@ class ListViewTest extends ComponentTestBase {
         // A detent is a device unit (Strokes.WHEEL_STEP): the same flick must move the same
         // physical distance in a dense list and a roomy one.
         for (ControlSize step : ControlSize.values()) {
-            ListView list = list(1000, i -> 40);
+            ListView<Integer> list = list(1000, i -> 40);
             list.setControlSize(step);
             FakeCanvas canvas = new FakeCanvas(300, 200);
             Scene scene = scene(list, canvas);
@@ -527,7 +529,7 @@ class ListViewTest extends ComponentTestBase {
         // subtree, added before they are measured, so the resolution walk reaches them. The list
         // imposes no row height of its own.
         for (ControlSize step : ControlSize.values()) {
-            ListView list = new ListView(new ListView.Adapter() {
+            ListView<Integer> list = IndexedRows.list(new IndexedRows() {
                 @Override
                 public int rowCount() {
                     return 50;
@@ -569,7 +571,7 @@ class ListViewTest extends ComponentTestBase {
     void theSelectionRingKeepsLockedWeightsAndTakesOnlyItsRadiusFromTheStep() {
         for (ControlSize step : ControlSize.values()) {
             SizeTokens t = SizeTokens.of(step);
-            ListView list = list(100, i -> 40);
+            ListView<Integer> list = list(100, i -> 40);
             list.setControlSize(step);
             RingCanvas canvas = new RingCanvas(300, 200);
             Scene scene = scene(list, canvas);
@@ -592,7 +594,7 @@ class ListViewTest extends ComponentTestBase {
 
     @Test
     void activateFiresForTheSelection() {
-        ListView list = list(100, i -> 40);
+        ListView<Integer> list = list(100, i -> 40);
         AtomicInteger activated = new AtomicInteger(-1);
         list.onActivate(activated::set);
         FakeCanvas canvas = new FakeCanvas(300, 200);
@@ -610,7 +612,7 @@ class ListViewTest extends ComponentTestBase {
         // A list of records puts a count, a date or a status at the right edge of a
         // row; a thumb over it is the defect this mode exists to prevent.
         List<Widget> rows = new ArrayList<>();
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return 40;
@@ -638,7 +640,7 @@ class ListViewTest extends ComponentTestBase {
     @Test
     void anOverlaidBarLeavesTheRowsFullWidth() {
         List<Widget> rows = new ArrayList<>();
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return 40;
@@ -667,15 +669,15 @@ class ListViewTest extends ComponentTestBase {
      */
     @Test
     void theSelectionSetterChainsAndNullClearsAHandlerSlot() {
-        ListView list = list(3, index -> 20);
+        ListView<Integer> list = list(3, index -> 20);
 
         assertSame(list, list.setSelectedIndex(1), "the setter chains, as setScrollbarPolicy does");
         assertEquals(1, list.selectedIndex());
-        list.onSelect(index -> { });
-        assertThrows(IllegalStateException.class, () -> list.onSelect(index -> { }),
+        list.onSelect(() -> { });
+        assertThrows(IllegalStateException.class, () -> list.onSelect(() -> { }),
                 "a second handler over an occupied slot is refused rather than silently replacing");
         assertSame(list, list.onSelect(null), "null clears the slot");
-        list.onSelect(index -> { });
+        list.onSelect(() -> { });
         assertSame(list, list.onActivate(null));
     }
 
@@ -688,9 +690,9 @@ class ListViewTest extends ComponentTestBase {
      */
     @Test
     void minusOneIsRefusedRatherThanTakenAsRowZero() {
-        ListView list = list(10, index -> 20);
+        ListView<Integer> list = list(10, index -> 20);
         AtomicInteger heard = new AtomicInteger(-2);
-        list.onSelect(heard::set);
+        list.onSelect(() -> heard.set(list.selectedIndex()));
 
         assertThrows(IndexOutOfBoundsException.class, () -> list.setSelectedIndex(-1));
 
@@ -700,7 +702,7 @@ class ListViewTest extends ComponentTestBase {
 
     @Test
     void clearSelectionIsTheWayToNoSelectionAndSaysSo() {
-        ListView list = list(10, index -> 20);
+        ListView<Integer> list = list(10, index -> 20);
         list.setSelectedIndex(3);
         AtomicInteger heard = new AtomicInteger(-2);
         AtomicInteger handled = new AtomicInteger(-2);
@@ -709,7 +711,7 @@ class ListViewTest extends ComponentTestBase {
                 heard.set(list.selectedIndex());
             }
         });
-        list.onSelect(handled::set);
+        list.onSelect(() -> handled.set(list.selectedIndex()));
 
         assertSame(list, list.clearSelection(), "the clear chains, as the setter does");
         assertEquals(-1, list.selectedIndex());
@@ -728,7 +730,7 @@ class ListViewTest extends ComponentTestBase {
      */
     @Test
     void keysAtTheEndsStopThereInsteadOfThrowing() {
-        ListView list = list(3, index -> 40);
+        ListView<Integer> list = list(3, index -> 40);
         FakeCanvas canvas = new FakeCanvas(300, 200);
         Scene scene = scene(list, canvas);
         list.requestFocus();
@@ -746,7 +748,7 @@ class ListViewTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
         assertEquals(0, list.selectedIndex(), "Up and Page Up past the first row stay on it");
 
-        ListView empty = list(0, index -> 40);
+        ListView<Integer> empty = list(0, index -> 40);
         Scene emptyScene = scene(empty, canvas);
         empty.requestFocus();
         for (int key : new int[] {Keys.HOME, Keys.END, Keys.DOWN, Keys.UP,
@@ -765,7 +767,7 @@ class ListViewTest extends ComponentTestBase {
     @Test
     void refreshTellsTheWatchersWhenShrinkingDataMovedTheSelection() {
         int[] count = {10};
-        ListView list = new ListView(new ListView.Adapter() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
                 return count[0];
@@ -786,7 +788,7 @@ class ListViewTest extends ComponentTestBase {
                 origins.add(change.origin());
             }
         });
-        list.onSelect(handled::set);
+        list.onSelect(() -> handled.set(list.selectedIndex()));
 
         count[0] = 4;
         list.refresh();

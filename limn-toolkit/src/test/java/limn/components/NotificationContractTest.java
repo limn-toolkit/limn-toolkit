@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.IndexedRows;
+
 import limn.backend.CrashHandler;
 import limn.backend.CrashPhase;
 import limn.backend.Crashes;
@@ -143,10 +145,10 @@ class NotificationContractTest extends ComponentTestBase {
                     () -> new Label("Hello"),
                     w -> ((Label) w).setText("Goodbye"), Change.Aspect.NAME, null),
             new Row("limn.components.ListView",
-                    () -> new ListView(rows(4)),
-                    w -> ((ListView) w).setSelectedIndex(1), Change.Aspect.SELECTION,
+                    () -> IndexedRows.list(rows(4)),
+                    w -> ((ListView<?>) w).setSelectedIndex(1), Change.Aspect.SELECTION,
                     new Gesture(Change.Aspect.SELECTION,
-                            (w, ran) -> ((ListView) w).onSelect(i -> ran.run()),
+                            (w, ran) -> ((ListView<?>) w).onSelect(ran::run),
                             (scene, w) -> {
                                 scene.requestFocus(w);
                                 key(scene, Keys.DOWN);
@@ -422,8 +424,8 @@ class NotificationContractTest extends ComponentTestBase {
         }
     }
 
-    private static ListView.Adapter rows(int count) {
-        return new ListView.Adapter() {
+    private static IndexedRows rows(int count) {
+        return new IndexedRows() {
             @Override
             public int rowCount() {
                 return count;
