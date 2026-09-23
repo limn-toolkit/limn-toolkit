@@ -28,6 +28,7 @@ import java.util.function.Consumer;
  *
  * <pre>
  * limn-demo --reader &lt;id&gt; [--exit-after ms] [--presentation in-scene|native] [--locale tag]
+ *           [--real-keys]
  * </pre>
  *
  * <p>What it pins, so every guest on every day hears the same run: the documentation day
@@ -42,6 +43,12 @@ import java.util.function.Consumer;
  * first frame, the one that lays the entry out; and
  * {@code --- step N KEYS - label focus=<widget>} after each step is sent. A recipe waits for the
  * {@code --- step N } prefix, which is what {@code --scene tree-reader} printed.
+ *
+ * <p>{@code --real-keys} sends nothing: at each step's time it prints {@code --- press N KEYS} for
+ * something outside the process to press on the real keyboard, and the step line
+ * {@value #REAL_KEY_MILLIS} ms later. A step sent through the scene reaches the widget and never the
+ * reader, and a reader that decides by the last key it saw — Orca after a Space — can only be
+ * measured with a key it saw.
  *
  * <p>What it does not do: walk the tree it publishes. A client pass is a separate run with a
  * restarted demo, so nothing in this process asks the platform what it was told.
@@ -64,6 +71,9 @@ public final class ReaderDriver {
     /** How long the window stays after the last step when {@code --exit-after} is not given. */
     public static final long TAIL_MILLIS = 5000;
 
+    /** Under {@code --real-keys}, how long after asking for a key the step line is printed. */
+    public static final long REAL_KEY_MILLIS = 900;
+
     /** The window's title, which a client matches and a reader speaks. */
     public static final String WINDOW_TITLE = "Limn accessibility gallery";
 
@@ -80,8 +90,10 @@ public final class ReaderDriver {
      * @param exitAfterMillis when to close, or {@code 0} for the last step plus {@link #TAIL_MILLIS}
      * @param presentation    where floating surfaces open, or {@code null} for the entry's own
      * @param locale          the language the entry is built in
+     * @param realKeys        whether the keys are pressed from outside rather than sent here
      */
-    public record Options(String id, long exitAfterMillis, DisplayMode presentation, Locale locale) {
+    public record Options(String id, long exitAfterMillis, DisplayMode presentation, Locale locale,
+                          boolean realKeys) {
 
         /**
          * @param args the command line, {@code --reader <id>} somewhere in it
@@ -93,6 +105,7 @@ public final class ReaderDriver {
             long exitAfter = 0;
             DisplayMode presentation = null;
             Locale locale = READER_LOCALE;
+            boolean realKeys = false;
             for (int i = 0; i < args.length; i++) {
                 switch (args[i]) {
                     case "--reader" -> id = valueAt(args, ++i);
@@ -104,6 +117,7 @@ public final class ReaderDriver {
                                 "--presentation takes in-scene or native, not " + args[i]);
                     };
                     case "--locale" -> locale = Locale.forLanguageTag(valueAt(args, ++i));
+                    case "--real-keys" -> realKeys = true;
                     default -> throw new IllegalArgumentException("unknown option for a reader "
                             + "run: " + args[i] + "\n" + usage());
                 }
@@ -116,7 +130,7 @@ public final class ReaderDriver {
             } catch (IllegalArgumentException unknown) {
                 throw new IllegalArgumentException(unknown.getMessage() + "\n" + usage(), unknown);
             }
-            return new Options(id, exitAfter, presentation, locale);
+            return new Options(id, exitAfter, presentation, locale, realKeys);
         }
 
         private static String valueAt(String[] args, int i) {
@@ -134,7 +148,7 @@ public final class ReaderDriver {
             ids.add(entry.reader().id());
         }
         return "usage: --reader <" + String.join("|", ids) + "> [--exit-after ms] "
-                + "[--presentation in-scene|native] [--locale tag]";
+                + "[--presentation in-scene|native] [--locale tag] [--real-keys]";
     }
 
     /**
@@ -222,6 +236,12 @@ public final class ReaderDriver {
                 int number = i + 1;
                 Ui.postDelayed(() -> {
                     window.focus();
+                    if (options.realKeys()) {
+                        System.out.println("--- press " + number + " " + step.keys());
+                        Ui.postDelayed(() -> System.out.println(
+                                stepLine(number, step, scene.focusedWidget())), REAL_KEY_MILLIS);
+                        return;
+                    }
                     step.sendTo(scene);
                     System.out.println(stepLine(number, step, scene.focusedWidget()));
                 }, FIRST_STEP_MILLIS + i * STEP_MILLIS);

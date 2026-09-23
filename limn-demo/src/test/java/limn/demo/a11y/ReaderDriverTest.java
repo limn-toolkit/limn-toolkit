@@ -9,6 +9,7 @@ import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,6 +29,15 @@ class ReaderDriverTest {
         assertEquals(0, options.exitAfterMillis());
         assertEquals(Locale.forLanguageTag("en"), ReaderDriver.Options.parse(
                 new String[]{"--reader", "table", "--locale", "en"}).locale());
+    }
+
+    @Test
+    void theKeysAreSentHereUnlessTheRunPressesThemForReal() {
+        assertFalse(ReaderDriver.Options.parse(new String[]{"--reader", "list-multi"}).realKeys(),
+                "a step goes through the scene's key path by default");
+        assertTrue(ReaderDriver.Options.parse(
+                new String[]{"--real-keys", "--reader", "list-multi"}).realKeys(),
+                "and is left to the keyboard when a reader must see the key itself");
     }
 
     @Test
