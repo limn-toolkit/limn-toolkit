@@ -545,7 +545,7 @@ class DamageContractTest extends ComponentTestBase {
                         return new Label(node.name());
                     }
                 });
-        tree.setSelectionMode(limn.components.tree.Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         for (TreeNode node = deep; node != null;
                 node = node.kids().isEmpty() ? null : node.kids().get(0)) {
             tree.expand(node);

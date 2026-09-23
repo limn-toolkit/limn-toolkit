@@ -1,5 +1,7 @@
 package limn.backend.lwjgl.a11y.macos;
 
+import limn.components.SelectionMode;
+
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
@@ -91,7 +93,7 @@ class AxOutlineSceneTest {
                 return I18nString.literal(node.name());
             }
         });
-        tree.setSelectionMode(Tree.SelectionMode.SINGLE);
+        tree.setSelectionMode(SelectionMode.SINGLE);
         tree.expand(documents);
         tree.expand(reports);
         bind(tree);
@@ -357,7 +359,7 @@ class AxOutlineSceneTest {
     @Test
     void aReaderSelectsRowsOfARealMultiSelectTreeByWritingAXSelectedRows() {
         Tree<Node> tree = bindTree();
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         frame();
         AxGrid grid = new AxGrid(bridge);
         AccessibleNode outline = only(Accessible.Role.TREE);

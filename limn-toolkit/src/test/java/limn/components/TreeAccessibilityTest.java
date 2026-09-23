@@ -247,7 +247,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertFalse(atRest.horizontallyScrollable(),
                 "a maximum of zero is nowhere to go, and the facet says so: " + describe(tree()));
 
-        tree.scrollHorizontallyBy(100);
+        tree.scrollBy(100, 0);
         frame();
 
         ScrollFacet pushed = treeNode().scroll();
@@ -270,7 +270,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                 "the fraction of the content's width the box shows");
 
         double max = content - BOX_W;
-        tree.scrollHorizontallyBy((float) (max / 2));
+        tree.scrollBy((float) (max / 2), 0);
         frame();
 
         assertEquals(0.5, treeNode().scroll().horizontalPercent(), 1e-4,
@@ -278,7 +278,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(content - max / 2, commonRowEnd(), 1e-3,
                 "and the rows moved by exactly that offset");
 
-        tree.scrollHorizontallyBy((float) content);
+        tree.scrollBy((float) content, 0);
         frame();
 
         ScrollFacet atEnd = treeNode().scroll();
@@ -288,7 +288,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(BOX_W, commonRowEnd(), 1e-3,
                 "which is where the content's far edge meets the box's: " + describe(tree()));
 
-        tree.scrollHorizontallyBy(40);
+        tree.scrollBy(40, 0);
         frame();
 
         assertEquals(1, treeNode().scroll().horizontalPercent(), EPS, "and one more push stays there");
@@ -320,14 +320,14 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                 "how much of the width is on screen does not depend on the direction");
 
         double max = content - BOX_W;
-        tree.scrollHorizontallyBy((float) (max / 2));
+        tree.scrollBy((float) (max / 2), 0);
         frame();
 
         assertEquals(0.5, treeNode().scroll().horizontalPercent(), 1e-4, describe(tree()));
         assertEquals(BOX_W - content + max / 2, commonRowStart(), 1e-3,
                 "right to left, the rows move right by the offset: " + describe(tree()));
 
-        tree.scrollHorizontallyBy((float) content);
+        tree.scrollBy((float) content, 0);
         frame();
 
         assertEquals(1, treeNode().scroll().horizontalPercent(), EPS,
@@ -343,7 +343,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         List<AccessibleNode> before = rowNodes();
         assertEquals(DEEP, before.size(), describe(tree()));
 
-        tree.scrollHorizontallyBy(30);
+        tree.scrollBy(30, 0);
         frame();
 
         List<AccessibleNode> after = rowNodes();
@@ -382,12 +382,12 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
                 "a long list of leaves has depth zero and nothing to scroll sideways");
         assertEquals(1, atRest.horizontalViewSize(), EPS);
 
-        tree.scrollBy((float) ((content - BOX_H) / 2));
+        tree.scrollBy(0, (float) ((content - BOX_H) / 2));
         frame();
 
         assertEquals(0.5, treeNode().scroll().verticalPercent(), 1e-4, describe(tree()));
 
-        tree.scrollBy((float) content);
+        tree.scrollBy(0, (float) content);
         frame();
 
         ScrollFacet atEnd = treeNode().scroll();
@@ -421,7 +421,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(atRest.verticallyScrollable(), describe(tree()));
         assertEquals(BOX_H / contentH, atRest.verticalViewSize(), 1e-4);
 
-        tree.scrollHorizontallyBy(10_000);
+        tree.scrollBy(10_000, 0);
         frame();
 
         ScrollFacet sideways = treeNode().scroll();
@@ -429,7 +429,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(0, sideways.verticalPercent(), EPS, "a sideways scroll is not a downward one");
         assertEquals(BOX_H / contentH, sideways.verticalViewSize(), 1e-4);
 
-        tree.scrollBy((float) ((contentH - BOX_H) / 2));
+        tree.scrollBy(0, (float) ((contentH - BOX_H) / 2));
         frame();
 
         ScrollFacet down = treeNode().scroll();
@@ -482,7 +482,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(limn.scene.Change.Origin.USER, changes.get(0).origin(),
                 "and from the user, which is who a reader is");
 
-        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        tree.setSelectionMode(SelectionMode.NONE);
         frame();
         for (AccessibleNode row : rowNodes()) {
             assertFalse(row.actions().has(Accessible.Action.SELECT),
@@ -636,7 +636,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         Node branch = Node.of("row 2", Node.leaf("row 2.1"));
         roots.set(1, branch);
         bindTree(ROW_H, roots);
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         scene.requestFocus(tree);
         tree.setSelected(branch);
         frame();
@@ -689,7 +689,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
     void aRevealOfTheKeptCursorRowBringsItBackIntoTheBox() throws Exception {
         Node second = Node.leaf("row 2");
         bindTree(ROW_H, leaves(40));
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         scene.requestFocus(tree);
         tree.setSelected(second);
         frame();
@@ -1015,7 +1015,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void scrollIntoViewOnARowRevealsIt() throws Exception {
         bindTree(ROW_H, leaves(40));
-        tree.scrollBy(ROW_H / 2);
+        tree.scrollBy(0, ROW_H / 2);
         frame();
         AccessibleNode first = node("row 1");
         assertEquals(-ROW_H / 2, first.y() - tree.localToSceneY(), 1e-3,
@@ -1040,7 +1040,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         Node one = Node.leaf("one");
         Node two = Node.leaf("two");
         bindTree(ROW_H, List.of(one, two, Node.leaf("three")));
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         tree.setSelected(one);
         frame();
         assertTrue(treeNode().selection().multiSelectable(), describe(tree()));
@@ -1070,7 +1070,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(two, tree.leadNode(), "the lead was already elsewhere");
         assertEquals(one, tree.cursorNode(), "and the cursor, never moved, is still on it");
 
-        tree.setSelectionMode(Tree.SelectionMode.SINGLE);
+        tree.setSelectionMode(SelectionMode.SINGLE);
         frame();
         for (AccessibleNode row : rowNodes()) {
             assertFalse(row.actions().has(Accessible.Action.ADD_TO_SELECTION),
@@ -1094,7 +1094,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         Node two = Node.leaf("two");
         Node three = Node.leaf("three");
         bindTree(ROW_H, List.of(one, two, three, Node.leaf("four")));
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         scene.requestFocus(tree);
         tree.setSelected(one);
         frame();
@@ -1917,7 +1917,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aFrameThatDamagesADeepTreeScrolledSidewaysPublishesNothing() {
         bindOpenChain(DEEP, ROW_H);
-        tree.scrollHorizontallyBy(30);
+        tree.scrollBy(30, 0);
         frame();
         int before = bridge.published.size();
 

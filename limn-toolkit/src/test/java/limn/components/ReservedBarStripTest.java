@@ -232,7 +232,7 @@ class ReservedBarStripTest extends ComponentTestBase {
         assertEquals(HEIGHT - STRIP, verticalBar(tree).height(), EPS,
                 "and the vertical bar stops where the horizontal strip begins");
 
-        tree.scrollBy(10_000);
+        tree.scrollBy(0, 10_000);
         scene.layoutPass(BOX, HEIGHT);
 
         Widget last = cells.get("level-14");
@@ -316,7 +316,7 @@ class ReservedBarStripTest extends ComponentTestBase {
                     ScrollGutters.Layout.RESERVED, ScrollBar.Policy.ALWAYS);
             Node third = top.children().get(0).children().get(0);
             tree.setSelected(third); // revealed: its foot on the strip's edge
-            tree.scrollBy(-20); // and back up, so it straddles the strip
+            tree.scrollBy(0, -20); // and back up, so it straddles the strip
             scene.layoutPass(BOX, HEIGHT);
             RecordingTestCanvas settled = new RecordingTestCanvas(BOX, HEIGHT);
             for (int frame = 0; frame < 60; frame++) {

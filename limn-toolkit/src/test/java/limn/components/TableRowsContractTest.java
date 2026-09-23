@@ -106,7 +106,7 @@ class TableRowsContractTest extends ComponentTestBase {
 
         @Override
         public boolean enterMultipleSelection() {
-            table.setSelectionMode(Table.SelectionMode.MULTI);
+            table.setSelectionMode(SelectionMode.MULTI);
             return true;
         }
 

@@ -138,7 +138,7 @@ class TableTest extends ComponentTestBase {
         Table<Person> table = new Table<>(List.of(name, ageColumn()));
         table.setRows(List.of(new Person("Carol", 3), new Person("Alice", 1),
                 new Person("Bob", 2)));
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         FakeCanvas canvas = new FakeCanvas(300, 200);
         Scene scene = scene(table, canvas);
         scene.requestFocus(table);
@@ -232,7 +232,7 @@ class TableTest extends ComponentTestBase {
     void theKeyboardMovesTheFocusCellAndTheSelectionWithIt() {
         Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));
         table.setRows(people(50));
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         AtomicInteger selects = new AtomicInteger();
         table.onSelect(selects::incrementAndGet);
         FakeCanvas canvas = new FakeCanvas(300, 200);
@@ -270,7 +270,7 @@ class TableTest extends ComponentTestBase {
     void multiSelectionFollowsThePlatformsGrammar() {
         Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));
         table.setRows(people(20));
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         FakeCanvas canvas = new FakeCanvas(300, 300);
         Scene scene = scene(table, canvas);
         click(scene, 30, rowCenterY(table, 1), 0);
@@ -287,12 +287,12 @@ class TableTest extends ComponentTestBase {
         assertEquals(2, table.focusRow(), "toggling off moves it too");
         click(scene, 30, rowCenterY(table, 0), 0);
         assertArrayEquals(new int[] {0}, table.selectedRows(), "a plain click selects one alone");
-        table.setSelectionMode(Table.SelectionMode.NONE);
+        table.setSelectionMode(SelectionMode.NONE);
         assertEquals(-1, table.selectedRow());
         click(scene, 30, rowCenterY(table, 2), 0);
         assertEquals(0, table.selectedRows().length, "nothing selects in NONE");
         assertEquals(2, table.focusRow(), "but the focus cell still moves");
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         table.setSelectedRows(7, 2, 9);
         assertArrayEquals(new int[] {2, 7, 9}, table.selectedRows(), "code names the set");
         assertEquals(9, table.selectedRow(), "and the last named is the lead");
@@ -327,7 +327,7 @@ class TableTest extends ComponentTestBase {
         click(scene, 30, y, 0);
         assertEquals(1, activated.get(), "two presses on one row are a double click");
 
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         table.setSelectedRows(1, 3); // the lead and the cursor on row 3
         click(scene, 30, rowCenterY(table, 3), Accelerator.commandModifier()); // toggled off
         assertEquals(1, table.selectedRow(), "the lead fell back to row 1");
@@ -336,7 +336,7 @@ class TableTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
         assertEquals(3, activated.get(), "Enter opens the cursor row, not the lead");
 
-        table.setSelectionMode(Table.SelectionMode.NONE);
+        table.setSelectionMode(SelectionMode.NONE);
         click(scene, 30, rowCenterY(table, 2), 0);
         assertEquals(-1, table.selectedRow());
         drive(scene).keyEvent(Keys.ENTER, true, false, 0);
@@ -684,7 +684,7 @@ class TableTest extends ComponentTestBase {
         List<Person> rows = new ArrayList<>(people(6));
         Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));
         table.setRows(rows);
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         AtomicInteger handled = new AtomicInteger();
         table.onSelect(handled::incrementAndGet);
         List<String> heard = new ArrayList<>();

@@ -1,5 +1,7 @@
 package limn.demo.site;
 
+import limn.components.SelectionMode;
+
 import limn.components.Label;
 import limn.components.Theme;
 import limn.components.table.Column;
@@ -70,7 +72,7 @@ public final class TableExample {
         table.setAccessibleName(new I18nString("guide.table.releases", "Releases"));
         table.setRows(releases());
         table.setSort(downloads, SortOrder.DESCENDING);
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         table.observeChanges((source, change) -> {
             if (change.aspect() == Change.Aspect.SELECTION) {
                 status.setText(table.selectedRows().length + " selected");

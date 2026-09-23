@@ -284,7 +284,7 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                 Column.numeric("Age", Person::age).width(60)));
         List<Person> rows = new ArrayList<>(people(200));
         table.setRows(rows);
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         bind(table);
         AccessibleNode three = rowNamed("Person 3");
         long threeId = three.id();
@@ -400,7 +400,7 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                 Column.numeric("Age", Person::age).width(60)));
         List<Person> rows = new ArrayList<>(people(200));
         table.setRows(rows);
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         bind(table);
         long threeId = rowNamed("Person 3").id();
         long fiveId = rowNamed("Person 5").id();
@@ -614,7 +614,7 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aRowOffersTheVerbsItsStateAllowsAndTheTablePerformsThem() throws InterruptedException {
         Table<Person> table = bindTable(20);
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         List<String> selects = new ArrayList<>();
         table.onSelect(() -> selects.add(java.util.Arrays.toString(table.selectedRows())));
         table.setSelectedRow(2);
@@ -655,7 +655,7 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of("[2, 4]", "[2, 4, 6]", "[2, 6]", "[2, 3]", "[7]"), selects,
                 "each reached the handler as a user");
 
-        table.setSelectionMode(Table.SelectionMode.SINGLE);
+        table.setSelectionMode(SelectionMode.SINGLE);
         frame();
         for (AccessibleNode row : rowNodes()) {
             java.util.Set<Accessible.Action> verbs = row.actions().actions();
@@ -664,7 +664,7 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
                     "one row at a time: nothing to add to or take from: " + verbs);
             assertTrue(verbs.contains(Accessible.Action.SELECT));
         }
-        table.setSelectionMode(Table.SelectionMode.NONE);
+        table.setSelectionMode(SelectionMode.NONE);
         frame();
         // Nothing to select in NONE, so no selection verb; what stays is what does not depend on
         // a selection — the cursor move, the reveal (decision 81) and the row's own press
@@ -738,7 +738,7 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aPressOnTheTableOpensTheCursorRow() throws InterruptedException {
         Table<Person> table = bindTable(20);
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         List<Integer> opened = new ArrayList<>();
         table.onActivate(opened::add);
         table.setSelectedRows(1, 3);
@@ -749,7 +749,7 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(perform(tableNode().id(), Accessible.Action.PRESS, null));
         assertEquals(List.of(1), opened, "what opened is the cursor row");
 
-        table.setSelectionMode(Table.SelectionMode.NONE);
+        table.setSelectionMode(SelectionMode.NONE);
         frame();
         assertTrue(perform(rowNodes().get(6).id(), Accessible.Action.FOCUS, null));
         frame();
@@ -1155,10 +1155,10 @@ class TableAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aMultiSelectTableSaysSo() {
         Table<Person> table = bindTable(5);
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         frame();
         assertTrue(tableNode().selection().multiSelectable());
-        table.setSelectionMode(Table.SelectionMode.NONE);
+        table.setSelectionMode(SelectionMode.NONE);
         frame();
         assertTrue(rowNodes().get(0).actions() == null
                 || !rowNodes().get(0).actions().actions().contains(Accessible.Action.SELECT),

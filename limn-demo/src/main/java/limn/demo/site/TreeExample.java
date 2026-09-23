@@ -1,5 +1,7 @@
 package limn.demo.site;
 
+import limn.components.SelectionMode;
+
 import limn.components.Label;
 import limn.components.tree.Tree;
 import limn.concurrent.Ui;
@@ -115,7 +117,7 @@ public final class TreeExample {
                 return new Padding(Insets.symmetric(6, 4), new Label(entry.name()));
             }
         });
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         // The selection is a set, read back from the tree: the handler is told that it moved,
         // not which row, because in MULTI "which row" is not one answer.
         tree.onSelect(() -> {

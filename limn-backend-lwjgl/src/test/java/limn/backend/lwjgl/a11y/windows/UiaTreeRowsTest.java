@@ -199,7 +199,7 @@ class UiaTreeRowsTest {
             tree.expand(kids[i]);
         }
         frames();
-        tree.scrollBy(1000);
+        tree.scrollBy(0, 1000);
         AccessibleTree published = frames();
 
         java.util.Map<String, String> parents = parentsOf(roots);
@@ -257,7 +257,7 @@ class UiaTreeRowsTest {
         scene.requestFocus(tree);
         tree.setSelected(r);
         frames();
-        tree.scrollBy(1000);
+        tree.scrollBy(0, 1000);
         AccessibleTree published = frames();
 
         AccessibleNode kept = limn.testing.AccessibleTrees.named(published, "R");

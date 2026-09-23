@@ -1,5 +1,7 @@
 package limn.demo;
 
+import limn.components.SelectionMode;
+
 import limn.components.Button;
 import limn.components.Checkbox;
 import limn.components.Label;
@@ -69,7 +71,7 @@ final class TableScene {
 
         Table<Order> table = new Table<>(List.of(id, customer, state, total, flagged));
         table.setRows(rows);
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         table.setSort(total, SortOrder.DESCENDING);
         // The status line mirrors the selection, so it watches: it hears the starting selection
         // below and a refresh that drops a row, as well as every click.

@@ -1,5 +1,7 @@
 package limn.demo;
 
+import limn.components.SelectionMode;
+
 import limn.components.Label;
 import limn.components.Theme;
 import limn.components.tree.Tree;
@@ -104,7 +106,7 @@ final class TreeScene {
             case "none" -> new Built(parts.scene(), () -> {
                 // NONE: nothing is ever selected, and the cursor walks: three Downs from nowhere
                 // land on "Q3 regional revenue…".
-                tree.setSelectionMode(Tree.SelectionMode.NONE);
+                tree.setSelectionMode(SelectionMode.NONE);
                 tree.requestFocus();
                 for (int i = 0; i < 3; i++) {
                     drive(parts.scene()).keyEvent(limn.input.Keys.DOWN, true, false, 0);
@@ -112,7 +114,7 @@ final class TreeScene {
                     drive(parts.scene()).inputBatchEnded();
                 }
             });
-            default -> new Built(parts.scene(), () -> tree.scrollBy(120));
+            default -> new Built(parts.scene(), () -> tree.scrollBy(0, 120));
         };
     }
 
@@ -162,7 +164,7 @@ final class TreeScene {
                 }
             });
         }
-        return new Built(parts.scene(), () -> parts.tree().scrollHorizontallyBy(140));
+        return new Built(parts.scene(), () -> parts.tree().scrollBy(140, 0));
     }
 
     /**
@@ -289,7 +291,7 @@ final class TreeScene {
                 return row;
             }
         });
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         tree.expand(docs);
         // Reports too: its children are the long names carrying a button, and a collapsed
         // branch hides exactly the row this scene exists to show.

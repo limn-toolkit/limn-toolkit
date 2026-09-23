@@ -1,5 +1,7 @@
 package limn.components.table;
 
+import limn.components.SelectionMode;
+
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.CellFacet;
@@ -90,16 +92,6 @@ import java.util.function.IntConsumer;
  * @param <T> the row type
  */
 public final class Table<T> extends Widget implements Scrollable {
-
-    /** How many rows may be selected at once. */
-    public enum SelectionMode {
-        /** None: the focus cell still moves, and nothing is ever selected. */
-        NONE,
-        /** One row. */
-        SINGLE,
-        /** Any number of rows: Shift for a range, the command modifier to toggle one. */
-        MULTI
-    }
 
     /**
      * Rows of intrinsic height when the height axis is unbounded, until {@link #setVisibleRows}

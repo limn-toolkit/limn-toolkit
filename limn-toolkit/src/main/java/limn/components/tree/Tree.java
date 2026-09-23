@@ -1,5 +1,7 @@
 package limn.components.tree;
 
+import limn.components.SelectionMode;
+
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.components.internal.a11y.RowsAccessibility;
@@ -90,22 +92,6 @@ import java.util.function.Consumer;
  * VoiceOver reads an outline row by.
  */
 public final class Tree<T> extends Widget implements Scrollable {
-
-    /** How many rows may be selected at once. */
-    public enum SelectionMode {
-        /**
-         * None: the cursor still moves, Enter still activates the row it is on, and nothing is
-         * ever selected.
-         */
-        NONE,
-        /** One row. */
-        SINGLE,
-        /**
-         * Any number of rows: the command modifier toggles one, Shift extends a range over the
-         * visible rows, and Ctrl+A or Cmd+A takes every open row.
-         */
-        MULTI
-    }
 
     /**
      * What the tree asks the application about its own data.
@@ -512,7 +498,7 @@ public final class Tree<T> extends Widget implements Scrollable {
 
             @Override
             public void setOffset(float value) {
-                scrollHorizontallyBy(value - offsetX);
+                scrollHorizontally(value - offsetX);
             }
         });
         add(hBar);
@@ -2206,9 +2192,25 @@ public final class Tree<T> extends Widget implements Scrollable {
 
     // --------------------------------------------------------------------------- scroll
 
-    /** Scrolls by a delta in logical points (positive = toward the end). UI thread only. */
-    public void scrollBy(float dy) {
+    /**
+     * Scrolls by a delta in logical points: positive {@code dy} toward the last row, positive
+     * {@code dx} toward the trailing edge. A tree whose content fits its box has nothing to do
+     * sideways. UI thread only.
+     *
+     * @param dx how far sideways
+     * @param dy how far along the rows
+     */
+    public void scrollBy(float dx, float dy) {
         Ui.checkUiThread();
+        if (dx != 0) {
+            scrollHorizontally(dx);
+        }
+        if (dy != 0) {
+            scrollVertically(dy);
+        }
+    }
+
+    private void scrollVertically(float dy) {
         revealPending = null; // a scroll after a reveal the pass has not settled moves from here
         SizeTokens t = tokens();
         float offset = estimatedOffset(t);
@@ -2264,12 +2266,7 @@ public final class Tree<T> extends Widget implements Scrollable {
         return dx < 0 ? offsetX > 0 : offsetX < max;
     }
 
-    /**
-     * Scrolls sideways by a delta in logical points, positive toward the trailing edge. A tree
-     * whose content fits its box has nothing to do here. UI thread only.
-     */
-    public void scrollHorizontallyBy(float dx) {
-        Ui.checkUiThread();
+    private void scrollHorizontally(float dx) {
         float max = Math.max(0, contentWidth - gutters.viewportWidth(width()));
         float next = Math.min(Math.max(0, offsetX + dx), max);
         if (next == offsetX) {
@@ -2297,9 +2294,9 @@ public final class Tree<T> extends Widget implements Scrollable {
     private void revealVertically(float y, float rectHeight) {
         float viewH = viewportHeight();
         if (y < 0) {
-            scrollBy(y);
+            scrollVertically(y);
         } else if (y + rectHeight > viewH) {
-            scrollBy(Math.min(y, y + rectHeight - viewH));
+            scrollVertically(Math.min(y, y + rectHeight - viewH));
         }
     }
 
@@ -2319,7 +2316,7 @@ public final class Tree<T> extends Widget implements Scrollable {
             dx = Math.min(x - left, x + rectWidth - (left + viewW));
         }
         if (dx != 0) {
-            scrollHorizontallyBy(isRightToLeft() ? -dx : dx);
+            scrollHorizontally(isRightToLeft() ? -dx : dx);
         }
     }
 
@@ -2604,11 +2601,11 @@ public final class Tree<T> extends Widget implements Scrollable {
                 float dy = swap ? 0 : -event.scrollY() * Strokes.WHEEL_STEP;
                 boolean moved = false;
                 if (dy != 0 && canScrollBy(dy)) {
-                    scrollBy(dy);
+                    scrollVertically(dy);
                     moved = true;
                 }
                 if (dx != 0 && canScrollHorizontallyBy(dx)) {
-                    scrollHorizontallyBy(dx);
+                    scrollHorizontally(dx);
                     moved = true;
                 }
                 if (moved) {

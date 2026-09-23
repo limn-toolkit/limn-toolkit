@@ -339,7 +339,7 @@ class TreeTest extends ComponentTestBase {
         CountingModel model = new CountingModel(List.of(root));
         Tree<Node> tree = mount(model);
         List<Node> activated = new ArrayList<>();
-        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        tree.setSelectionMode(SelectionMode.NONE);
         tree.onActivate(activated::add);
         scene.requestFocus(tree);
 
@@ -382,7 +382,7 @@ class TreeTest extends ComponentTestBase {
         assertEquals(limn.scene.Change.Origin.USER, changes.get(1).origin());
 
         changes.clear();
-        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        tree.setSelectionMode(SelectionMode.NONE);
         changes.clear();
         press(Keys.DOWN);
         assertEquals(List.of(limn.scene.Change.Aspect.ACTIVE),
@@ -405,7 +405,7 @@ class TreeTest extends ComponentTestBase {
         Node root = forest();
         CountingModel model = new CountingModel(List.of(root, Node.leaf("two")));
         Tree<Node> tree = mount(model);
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         List<Node> activated = new ArrayList<>();
         List<List<Node>> selections = new ArrayList<>();
         tree.onActivate(activated::add);
@@ -449,7 +449,7 @@ class TreeTest extends ComponentTestBase {
         List<limn.scene.Change> changes = new ArrayList<>();
 
         tree.setSelected(drop);
-        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        tree.setSelectionMode(SelectionMode.NONE);
         assertEquals(drop, tree.cursorNode(), "NONE keeps the cursor where it was");
         assertTrue(tree.selectedNodes().isEmpty());
         scene.observeChanges((source, change) -> changes.add(change));
@@ -497,7 +497,7 @@ class TreeTest extends ComponentTestBase {
     /** The open forest as rows: root, docs, a.md, b.md, readme. */
     private Tree<Node> openForest(Node root) {
         Tree<Node> tree = mount(new CountingModel(List.of(root, Node.leaf("two"))));
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         tree.expand(root);
         tree.expand(root.children().get(0));
         scene.layoutPass(220, 200);
@@ -612,7 +612,7 @@ class TreeTest extends ComponentTestBase {
         assertEquals(limn.scene.Change.Origin.CODE, changes.get(0).origin(),
                 "the caller's write announces as the caller's: " + changes);
 
-        tree.setSelectionMode(Tree.SelectionMode.SINGLE);
+        tree.setSelectionMode(SelectionMode.SINGLE);
         tree.setSelected(docs);
         press(Keys.A, Accelerator.commandModifier());
         assertEquals(List.of(docs), tree.selectedNodes(), "SINGLE has no select-all");
@@ -655,12 +655,12 @@ class TreeTest extends ComponentTestBase {
                 changes.stream().map(limn.scene.Change::aspect).toList(), changes.toString());
         assertEquals(0, userHeard[0], "none of it was the user's");
 
-        tree.setSelectionMode(Tree.SelectionMode.SINGLE);
+        tree.setSelectionMode(SelectionMode.SINGLE);
         assertThrows(IllegalStateException.class,
                 () -> tree.setSelectedNodes(List.of(readme, docs)), "SINGLE holds one");
         tree.setSelectedNodes(List.of(readme));
         assertEquals(List.of(readme), tree.selectedNodes());
-        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        tree.setSelectionMode(SelectionMode.NONE);
         assertThrows(IllegalStateException.class, () -> tree.setSelectedNodes(List.of(readme)),
                 "NONE holds nothing");
     }
@@ -699,7 +699,7 @@ class TreeTest extends ComponentTestBase {
         click(tree, "two", 0);
         assertEquals(List.of(root), activated, "half a second apart is two clicks");
 
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         now[0] += 1_000_000_000L;
         click(tree, "two", Accelerator.commandModifier());
         now[0] += 100_000_000L;
@@ -784,7 +784,7 @@ class TreeTest extends ComponentTestBase {
         press(Keys.DOWN);
         assertEquals(two, tree.cursorNode(), "and the arrows walk on from the row it landed on");
 
-        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        tree.setSelectionMode(SelectionMode.NONE);
         tree.expand(root);
         scene.layoutPass(220, 200);
         press(Keys.UP); // from "two" back onto readme, under the re-opened root
@@ -819,7 +819,7 @@ class TreeTest extends ComponentTestBase {
         assertEquals(root, tree.cursorNode(), "the cursor stays on a row the user can see");
         assertFalse(tree.isExpanded(docs), "and nothing opened to reveal it");
 
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         tree.setSelectedNodes(List.of(root, aMd));
         assertEquals(root, tree.cursorNode(), "the same for the programmatic set");
 
@@ -870,7 +870,7 @@ class TreeTest extends ComponentTestBase {
         assertEquals(many.get(1), tree.cursorNode());
         int builtBefore = java.util.Collections.frequency(model.cellsBuilt, "row 2");
 
-        tree.scrollBy(10_000);
+        tree.scrollBy(0, 10_000);
         scene.layoutPass(220, 200);
         assertTrue(hasCell(tree, "row 40"), "the wheel reached the end: " + drawn(tree));
         assertTrue(hasCell(tree, "row 2"), "and the cursor row was spared, outside the box");
@@ -2519,7 +2519,7 @@ class TreeTest extends ComponentTestBase {
         Node root = forest();
         Tree<Node> tree = mount(new CountingModel(List.of(root)));
         tree.expand(root);
-        tree.setSelectionMode(Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         assertTrue(focusRings().isEmpty(), "no ring before the keyboard is in the tree");
 
         scene.requestFocus(tree);
@@ -2542,7 +2542,7 @@ class TreeTest extends ComponentTestBase {
         assertEquals(1, rings.size(), "a cursor outside the selection still wears it: " + rings);
         assertEquals(rootCell.y() + inset, rings.get(0).rect().y(), 0.01f);
 
-        tree.setSelectionMode(Tree.SelectionMode.NONE);
+        tree.setSelectionMode(SelectionMode.NONE);
         press(Keys.DOWN); // onto docs
         Widget docsCell = cellOf(tree, "docs");
         rings = focusRings();

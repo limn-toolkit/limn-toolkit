@@ -1,5 +1,7 @@
 package limn.demo.a11y;
 
+import limn.components.SelectionMode;
+
 import limn.backend.Backend;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
@@ -1022,7 +1024,7 @@ public final class AccessibilityGallery {
                         return row;
                     }
                 });
-        tree.setSelectionMode(limn.components.tree.Tree.SelectionMode.MULTI);
+        tree.setSelectionMode(SelectionMode.MULTI);
         tree.expand(documents);
         tree.expand(documents.kids().get(0));
         page.add(Labelled.above(GalleryStrings.FILES, tree,
@@ -1062,7 +1064,7 @@ public final class AccessibilityGallery {
                 new Range("Rockies", "North America", 4401, false),
                 new Range("Urals", "Europe", 1895, false),
                 new Range("Zagros", "Asia", 4409, false)));
-        table.setSelectionMode(Table.SelectionMode.MULTI);
+        table.setSelectionMode(SelectionMode.MULTI);
         table.setSelectedRows(0, 2, 3); // the lead in view, so nothing scrolls before it is read
         page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, table,
                 new SizedBox(SizedBox.UNSET, 240, table)));
