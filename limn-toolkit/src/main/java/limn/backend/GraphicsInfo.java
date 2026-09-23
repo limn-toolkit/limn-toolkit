@@ -13,6 +13,11 @@ import java.util.List;
  * application meets vendor drivers, translation layers over Direct3D, and pure
  * software rasterizers, and nothing but the strings below tells them apart.
  *
+ * <p>The fields speak the backend's own graphics API, which for the LWJGL backend is OpenGL:
+ * {@code shadingLanguage} is a GLSL version, {@code extensions} are GL extension names and
+ * {@code contextApi} says how the GL context was made. A backend over another API reports that
+ * API's equivalents in them, and a field it has no equivalent for is empty.
+ *
  * <p>When {@link #failure()} is non-null no context was obtained: only
  * {@link #windowPlatform()} and {@link #windowLibrary()} carry an answer, and
  * every other field is empty, zero or false.

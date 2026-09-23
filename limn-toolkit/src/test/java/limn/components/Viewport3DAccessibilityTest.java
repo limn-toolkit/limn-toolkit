@@ -402,10 +402,6 @@ class Viewport3DAccessibilityTest extends AccessibleComponentTestBase {
         @Override
         public void render(RenderTarget target, Camera camera, Consumer<RenderPass> body) {
         }
-
-        @Override
-        public void renderDemoScene(RenderTarget target, double timeSeconds) {
-        }
     }
 
     /** A render target that remembers its size and does nothing else. */

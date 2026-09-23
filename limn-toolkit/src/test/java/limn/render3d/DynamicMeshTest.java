@@ -192,11 +192,6 @@ class DynamicMeshTest {
                            java.util.function.Consumer<RenderPass> body) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public void renderDemoScene(RenderTarget target, double timeSeconds) {
-            throw new UnsupportedOperationException();
-        }
     }
 
     private static void assertVec(Vec3 expected, Vec3 actual) {

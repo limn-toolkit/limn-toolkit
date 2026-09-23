@@ -25,7 +25,7 @@ class ShaderColorSpaceTest {
         // Unlit and simple-lit take authored-sRGB uniforms; writing them raw into
         // a linear target is the finding-2 defect (an Unlit red and a PBR surface
         // lit to the same color landing on different pixel values).
-        for (String name : new String[]{"mesh_unlit.frag", "mesh_lit.frag", "cube.frag"}) {
+        for (String name : new String[]{"mesh_unlit.frag", "mesh_lit.frag"}) {
             String source = shader(name);
             assertTrue(source.contains("srgbToLinear("), name + " must decode sRGB to linear");
         }
@@ -62,7 +62,7 @@ class ShaderColorSpaceTest {
         // transform would then run twice (once more in the composite). The skybox
         // is one of the two programs ADR 004 §3.2 deleted the tonemap from (the
         // other, PBR, is pinned by GlslCodegenTest and the golden).
-        for (String name : new String[]{"mesh_unlit.frag", "mesh_lit.frag", "cube.frag"}) {
+        for (String name : new String[]{"mesh_unlit.frag", "mesh_lit.frag"}) {
             String source = shader(name);
             assertFalse(source.contains("linearToSrgb"), name + " must write linear, not encode");
             assertFalse(source.contains("tonemapACES"), name + " must not tonemap");

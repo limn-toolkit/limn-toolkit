@@ -88,6 +88,7 @@ One breaking round, taken before 1.0.
 | `datePicker.onSelect(date -> …)`, `calendar.onSelectRange(range -> …)`, `dateField.onTimeChange(time -> …)` | `onSelect(() -> …)` or `onChange(() -> …)`, reading `date()`, `range()` or `dateTime()` |
 | `scene.keyEvent(…)`, `scene.mouseButton(…)`, `scene.inputBatchEnded()` … in a test | `SceneDriver.drive(scene).press(Keys.ENTER)`, `.click(widget)`, `.type("…")`, or the raw calls on the driver (`limn-test`) |
 | `limn.lang.Checks`, `limn.concurrent.Listeners` … | moved to packages named `internal`, which no module exports; not API |
+| a `Graphics3D.Provider` implementing `renderDemoScene`, or `Graphics3D.renderDemoScene(…)` | gone: a `Viewport3D` with no renderer draws its cube through the public renderer, so a provider owes targets, meshes, textures and passes only |
 | a backend filling the toolkit's static slots | `new BackendServices(…).install()`; `Canvas.drawSurface`, the close-request handler, the IME calls and `supportsAbsolutePositioning` must be implemented |
 | `WindowInput.mouseButton(…)` with no count | a click count; `MouseEvent.clickCount()`; the platform's own double-click interval |
 | `FrameInfo` without a buffer age | `bufferAge`, 0 when unknown |

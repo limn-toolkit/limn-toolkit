@@ -89,6 +89,8 @@ public class Viewport3D extends Widget<Viewport3D> {
     private Runnable[] disposeObservers; // renderer-owned GPU cleanup, run context-current on detach
     private static final Runnable[] NO_OBSERVERS = new Runnable[0];
     private Camera camera = new Camera();
+    /** What this viewport draws while it has no renderer; built on its first such paint. */
+    private DemoCube demoCube;
     private CameraController controller; // null → no camera interaction
     private Consumer<Ray> onClick;       // fired with the world ray on a (non-drag) click
     private Consumer<Image> pendingCapture; // one-shot readback, taken in the next paint
@@ -450,7 +452,11 @@ public class Viewport3D extends Widget<Viewport3D> {
         if (renderer != null) {
             Graphics3D.render(surface, camera, pass -> renderer.render(pass, time));
         } else {
-            Graphics3D.renderDemoScene(surface, time); // built-in demo cube
+            if (demoCube == null) {
+                demoCube = new DemoCube();
+            }
+            DemoCube cube = demoCube;
+            Graphics3D.render(surface, cube.camera(), pass -> cube.render(pass, time));
         }
         canvas.drawSurface(surface, 0, 0, width(), height()); // resolved texture → this 2D layer
         if (pendingCapture != null) {
@@ -521,6 +527,9 @@ public class Viewport3D extends Widget<Viewport3D> {
             if (surface != null) {
                 leaving.disposeLater(surface);
             }
+            if (demoCube != null) {
+                leaving.disposeLater(demoCube::dispose);
+            }
             Runnable[] cleanups = disposeObservers;
             if (cleanups != null) {
                 leaving.disposeLater(() -> {
@@ -535,6 +544,7 @@ public class Viewport3D extends Widget<Viewport3D> {
             }
         }
         surface = null;
+        demoCube = null;
         ticking = false;
         tickGeneration++; // the old registration dies on its next call
     }

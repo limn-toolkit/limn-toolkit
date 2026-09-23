@@ -3,7 +3,6 @@ package limn.backend.lwjgl;
 import limn.backend.RenderStats;
 import limn.graphics.BlendMode;
 import limn.math.Mat4;
-import limn.math.Quat;
 import limn.math.Vec3;
 import limn.math.Vec4;
 import limn.render3d.Camera;
@@ -178,12 +177,6 @@ final class Gl3DContext {
     private int uCombineIntensity;
     private int bloomVao;
 
-    // Demo cube program + geometry (lazy; needs the context current on first render).
-    private ShaderProgram cubeProgram;
-    private int cubeVao;
-    private int cubeVbo;
-    private int uMvp;
-    private int uModel;
 
     private record RawProgram(ShaderProgram program, int mvp, int model, int normalMatrix) {
     }
@@ -1228,9 +1221,6 @@ final class Gl3DContext {
         if (shadowMap != null) {
             total = total.plus(shadowMap.stats());
         }
-        if (cubeProgram != null) {
-            total = total.plus(new RenderStats(0, 36L * 9 * Float.BYTES)); // demo VBO
-        }
         return total;
     }
 
@@ -1322,12 +1312,6 @@ final class Gl3DContext {
             bloomCombineProgram.close();
             bloomCombineProgram = null;
             GL33C.glDeleteVertexArrays(bloomVao);
-        }
-        if (cubeProgram != null) {
-            GL33C.glDeleteVertexArrays(cubeVao);
-            GL33C.glDeleteBuffers(cubeVbo);
-            cubeProgram.close();
-            cubeProgram = null;
         }
         if (lineProgram != null) {
             GL33C.glDeleteVertexArrays(lineVao);
@@ -1434,125 +1418,5 @@ final class Gl3DContext {
         GL33C.glEnableVertexAttribArray(3); // color
         GL33C.glVertexAttribPointer(3, 4, GL33C.GL_FLOAT, false, stride, 3L * Float.BYTES);
         GL33C.glBindVertexArray(0);
-    }
-
-    // ------------------------------------------------------------- demo cube
-
-    void renderDemoScene(RenderTarget targetHandle, double timeSeconds) {
-        if (!(targetHandle instanceof GlRenderTarget target)) {
-            return;
-        }
-        ensureCubeGl();
-
-        int prevFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
-        int[] prevViewport = new int[4];
-        GL33C.glGetIntegerv(GL33C.GL_VIEWPORT, prevViewport);
-
-        try {
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, target.renderFramebuffer());
-            GL33C.glViewport(0, 0, target.widthPx(), target.heightPx());
-            GL33C.glEnable(GL33C.GL_DEPTH_TEST);
-            GL33C.glDepthFunc(GL33C.GL_LESS);
-            GL33C.glDisable(GL33C.GL_BLEND);
-            GL33C.glDisable(GL33C.GL_CULL_FACE);
-            GL33C.glDisable(GL33C.GL_SCISSOR_TEST); // 2D damage scissor must not clip this pass
-            // Authored sRGB, decoded on write: the target is linear (ADR 004).
-            GlColors.clearLinearPremultiplied(0.13f, 0.15f, 0.20f, 1.0f);
-            GL33C.glClear(GL33C.GL_COLOR_BUFFER_BIT | GL33C.GL_DEPTH_BUFFER_BIT);
-
-            float aspect = (float) target.widthPx() / target.heightPx();
-            Mat4 proj = Mat4.perspective((float) Math.toRadians(42), aspect, 0.1f, 20f);
-            Mat4 view = Mat4.translation(new Vec3(0, 0, -3.6f));
-            float t = (float) timeSeconds;
-            Mat4 model = Mat4.rotation(Quat.fromAxisAngle(Vec3.UNIT_Y, t * 0.9f))
-                    .multiply(Mat4.rotation(Quat.fromAxisAngle(Vec3.UNIT_X, t * 0.55f)));
-            Mat4 mvp = proj.multiply(view).multiply(model);
-
-            cubeProgram.use();
-            GL33C.glUniformMatrix4fv(uMvp, false, mvp.toArray());
-            GL33C.glUniformMatrix4fv(uModel, false, model.toArray());
-            GL33C.glBindVertexArray(cubeVao);
-            GL33C.glDrawArrays(GL33C.GL_TRIANGLES, 0, 36);
-            GL33C.glBindVertexArray(0);
-            lastDrawCalls = 1;
-            lastTriangles = 12; // 36 vertices / 3
-
-            target.setExposure(1f); // no pass ran; the composite must not reuse a stale exposure
-            target.resolve(); // MSAA → single-sample color texture
-        } finally {
-            // Restore only what the 2D flush won't (framebuffer, viewport, depth
-            // test); in a finally, like render(), so a throw cannot leave the
-            // offscreen FBO bound for the 2D pass.
-            GL33C.glDisable(GL33C.GL_DEPTH_TEST);
-            GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, prevFbo);
-            GL33C.glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
-        }
-    }
-
-    private void ensureCubeGl() {
-        if (cubeProgram != null) {
-            return;
-        }
-        cubeProgram = ShaderProgram.fromResources(
-                "/limn/backend/lwjgl/shaders/cube.vert",
-                "/limn/backend/lwjgl/shaders/cube.frag");
-        uMvp = cubeProgram.uniformLocation("u_mvp");
-        uModel = cubeProgram.uniformLocation("u_model");
-
-        float[] vertices = cubeVertices();
-        cubeVao = GL33C.glGenVertexArrays();
-        cubeVbo = GL33C.glGenBuffers();
-        GL33C.glBindVertexArray(cubeVao);
-        GL33C.glBindBuffer(GL33C.GL_ARRAY_BUFFER, cubeVbo);
-        GL33C.glBufferData(GL33C.GL_ARRAY_BUFFER, vertices, GL33C.GL_STATIC_DRAW);
-        int stride = 9 * Float.BYTES;
-        GL33C.glVertexAttribPointer(0, 3, GL33C.GL_FLOAT, false, stride, 0);
-        GL33C.glEnableVertexAttribArray(0);
-        GL33C.glVertexAttribPointer(1, 3, GL33C.GL_FLOAT, false, stride, 3L * Float.BYTES);
-        GL33C.glEnableVertexAttribArray(1);
-        GL33C.glVertexAttribPointer(2, 3, GL33C.GL_FLOAT, false, stride, 6L * Float.BYTES);
-        GL33C.glEnableVertexAttribArray(2);
-        GL33C.glBindVertexArray(0);
-        GL33C.glBindBuffer(GL33C.GL_ARRAY_BUFFER, 0);
-    }
-
-    private static float[] cubeVertices() {
-        float h = 0.8f;
-        float[] v = new float[36 * 9];
-        int[] w = {0};
-        face(v, w, 1, 0, 0, 0.90f, 0.32f, 0.38f,
-                h, -h, h, h, -h, -h, h, h, -h, h, h, h);
-        face(v, w, -1, 0, 0, 0.36f, 0.80f, 0.48f,
-                -h, -h, -h, -h, -h, h, -h, h, h, -h, h, -h);
-        face(v, w, 0, 1, 0, 0.32f, 0.58f, 0.96f,
-                -h, h, h, h, h, h, h, h, -h, -h, h, -h);
-        face(v, w, 0, -1, 0, 0.96f, 0.78f, 0.32f,
-                -h, -h, -h, h, -h, -h, h, -h, h, -h, -h, h);
-        face(v, w, 0, 0, 1, 0.66f, 0.46f, 0.96f,
-                -h, -h, h, h, -h, h, h, h, h, -h, h, h);
-        face(v, w, 0, 0, -1, 0.30f, 0.82f, 0.86f,
-                h, -h, -h, -h, -h, -h, -h, h, -h, h, h, -h);
-        return v;
-    }
-
-    private static void face(float[] v, int[] w, float nx, float ny, float nz,
-                             float r, float g, float b,
-                             float x0, float y0, float z0, float x1, float y1, float z1,
-                             float x2, float y2, float z2, float x3, float y3, float z3) {
-        vertex(v, w, x0, y0, z0, nx, ny, nz, r, g, b);
-        vertex(v, w, x1, y1, z1, nx, ny, nz, r, g, b);
-        vertex(v, w, x2, y2, z2, nx, ny, nz, r, g, b);
-        vertex(v, w, x0, y0, z0, nx, ny, nz, r, g, b);
-        vertex(v, w, x2, y2, z2, nx, ny, nz, r, g, b);
-        vertex(v, w, x3, y3, z3, nx, ny, nz, r, g, b);
-    }
-
-    private static void vertex(float[] v, int[] w, float x, float y, float z,
-                               float nx, float ny, float nz, float r, float g, float b) {
-        int i = w[0];
-        v[i] = x; v[i + 1] = y; v[i + 2] = z;
-        v[i + 3] = nx; v[i + 4] = ny; v[i + 5] = nz;
-        v[i + 6] = r; v[i + 7] = g; v[i + 8] = b;
-        w[0] = i + 9;
     }
 }

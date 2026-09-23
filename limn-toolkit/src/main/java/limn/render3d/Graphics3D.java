@@ -17,9 +17,8 @@ import limn.backend.Installed;
  * where an application should put a background job. By the time a call reaches this class, the
  * remaining cost is the driver's.
  *
- * <p>For this milestone the provider also ships one built-in demo scene (a
- * spinning, depth-tested cube) via {@link #renderDemoScene}. Later phases add the
- * real mesh/material/pass API on top of the same {@link RenderTarget} seam.
+ * <p>A provider owes targets, meshes, textures and passes, and nothing else: what a viewport
+ * draws before an application gives it a scene is drawn through the same calls.
  */
 public final class Graphics3D {
 
@@ -41,8 +40,6 @@ public final class Graphics3D {
         GpuTexture uploadTexture(TextureData texture, Sampler sampler);
 
         void render(RenderTarget target, Camera camera, Consumer<RenderPass> body);
-
-        void renderDemoScene(RenderTarget target, double timeSeconds);
     }
 
     private static final Installed<Provider> PROVIDER = new Installed<>(
@@ -96,11 +93,6 @@ public final class Graphics3D {
      */
     public static void render(RenderTarget target, Camera camera, Consumer<RenderPass> body) {
         active().render(target, camera, body);
-    }
-
-    /** Draws a built-in scene, so a backend can be verified without any application content. */
-    public static void renderDemoScene(RenderTarget target, double timeSeconds) {
-        active().renderDemoScene(target, timeSeconds);
     }
 
     private static Provider active() {

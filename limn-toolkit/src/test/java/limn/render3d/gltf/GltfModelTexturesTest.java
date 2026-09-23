@@ -108,11 +108,6 @@ class GltfModelTexturesTest {
         public void render(RenderTarget target, Camera camera, Consumer<RenderPass> body) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public void renderDemoScene(RenderTarget target, double timeSeconds) {
-            throw new UnsupportedOperationException();
-        }
     }
 
     /**

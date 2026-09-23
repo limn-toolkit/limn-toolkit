@@ -49,11 +49,6 @@ final class LwjglGraphics3D implements Graphics3D.Provider {
         canvas.gl3d().render(target, camera, body, canvas.contentScale());
     }
 
-    @Override
-    public void renderDemoScene(RenderTarget target, double timeSeconds) {
-        context().renderDemoScene(target, timeSeconds);
-    }
-
     private static Gl3DContext context() {
         return currentCanvas().gl3d();
     }
