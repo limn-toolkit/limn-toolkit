@@ -100,7 +100,7 @@ import java.util.function.Predicate;
  * {@code Spinner} documents for its clock. What mirrors is which side of the box the run sits
  * against.
  */
-public final class DateField extends Widget {
+public final class DateField extends Widget<DateField> {
 
     /**
      * How fine a field goes: which segment is its last. A field that starts at the year edits

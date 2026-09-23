@@ -92,7 +92,7 @@ final class ControlSizeAuditScene {
      * One row per step, all of it at {@code step}. Button and ComboBox pass at every step;
      * Checkbox and RadioButton fail until XLARGE: the ramp of the gap, in one picture.
      */
-    private static Widget rampRow(ControlSize step) {
+    private static Widget<?> rampRow(ControlSize step) {
         Row row = new Row();
         row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(new Label(step.name()).setMuted(true));
@@ -106,7 +106,7 @@ final class ControlSizeAuditScene {
     }
 
     /** Text-cluster and composite targets at the default step. The switch is 22pt here. */
-    private static Widget fieldRow() {
+    private static Widget<?> fieldRow() {
         Row row = new Row();
         row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(new TextField().setPlaceholder("Text"));
@@ -121,7 +121,7 @@ final class ControlSizeAuditScene {
      * overlay cannot see them; the segment's own floor is enforced inside
      * {@code SegmentedControl}'s measure, the second of the three {@code MIN_HIT_TARGET} sites.
      */
-    private static Widget trackRow() {
+    private static Widget<?> trackRow() {
         Row row = new Row();
         row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(new Slider(0, 100).setValue(40));
@@ -145,7 +145,7 @@ final class ControlSizeAuditScene {
      * one. A marker that scaled with the thing it measures would make the five rows
      * incomparable, which is the one job this scene has.
      */
-    private static final class TargetOverlay extends Widget {
+    private static final class TargetOverlay extends Widget<TargetOverlay> {
 
         /** Half the floor: the radius of the circle a conforming target must contain. */
         private static final float TARGET_RADIUS = Strokes.MIN_HIT_TARGET / 2;
@@ -153,9 +153,9 @@ final class ControlSizeAuditScene {
         /** Where the slash crosses the ring, as a fraction of the radius. */
         private static final float SLASH_REACH = 0.72f;
 
-        private final Widget content;
+        private final Widget<?> content;
 
-        TargetOverlay(Widget content) {
+        TargetOverlay(Widget<?> content) {
             this.content = content;
             add(content);
         }
@@ -211,7 +211,7 @@ final class ControlSizeAuditScene {
             // Each direct child of the audited column is one group. A group with no targets in
             // it (the headings) simply gets no verdict; no structural knowledge needed beyond
             // "the page is a column of rows", which is this scene's own shape.
-            for (Widget group : content.children()) {
+            for (Widget<?> group : content.children()) {
                 Tally row = new Tally();
                 markTargets(canvas, theme, group,
                         content.x() + group.x(), content.y() + group.y(), row);
@@ -235,7 +235,7 @@ final class ControlSizeAuditScene {
          * tab header focusable, so a tab strip would report one target rather than n; no tab
          * strip is in this scene for that reason.
          */
-        private void markTargets(Canvas canvas, Theme theme, Widget w, float x, float y,
+        private void markTargets(Canvas canvas, Theme theme, Widget<?> w, float x, float y,
                                  Tally tally) {
             if (!w.isVisible()) {
                 return;
@@ -243,13 +243,13 @@ final class ControlSizeAuditScene {
             if (w.isFocusable() && w.isEnabled() && w.width() > 0 && w.height() > 0) {
                 mark(canvas, theme, w, x, y, tally);
             }
-            for (Widget child : w.children()) {
+            for (Widget<?> child : w.children()) {
                 markTargets(canvas, theme, child, x + child.x(), y + child.y(), tally);
             }
         }
 
         /** Outlines one target's painted box and draws the floor circle over its centre. */
-        private void mark(Canvas canvas, Theme theme, Widget w, float x, float y, Tally tally) {
+        private void mark(Canvas canvas, Theme theme, Widget<?> w, float x, float y, Tally tally) {
             float shorter = Math.min(w.width(), w.height());
             boolean meets = shorter >= Strokes.MIN_HIT_TARGET;
             tally.record(w.getClass().getSimpleName(), shorter, meets);

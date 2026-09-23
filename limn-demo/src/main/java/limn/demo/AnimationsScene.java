@@ -50,7 +50,7 @@ final class AnimationsScene {
     }
 
     /** The subtree, reusable as a kitchen-sink tab. */
-    static Widget content() {
+    static Widget<?> content() {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
 
@@ -145,7 +145,7 @@ final class AnimationsScene {
     }
 
     /** Opens a plain native window centered over the host that fades in, and fades out on close. */
-    private static void openFloatingWindow(Widget anchor) {
+    private static void openFloatingWindow(Widget<?> anchor) {
         Scene host = anchor.scene();
         if (host == null || host.window() == null) {
             return; // headless / not shown
@@ -200,7 +200,7 @@ final class AnimationsScene {
     // ------------------------------------------------------------- widgets
 
     /** A dot the user animates across a track with a chosen easing/timing. */
-    private static final class EasingTrack extends Widget {
+    private static final class EasingTrack extends Widget<EasingTrack> {
         private final Transition pos =
                 new Transition(this).duration(0.8).easing(Easing.EASE_OUT).sceneTime(true);
 
@@ -239,7 +239,7 @@ final class AnimationsScene {
     }
 
     /** A ball dropping and returning forever, shaped by one easing curve. */
-    private static final class BallDrop extends Widget {
+    private static final class BallDrop extends Widget<BallDrop> {
         private final Transition y;
         private final Color color;
         private boolean started;
@@ -271,7 +271,7 @@ final class AnimationsScene {
     }
 
     /** The classic bouncing logo: recolors on every wall hit, flashes on a corner. */
-    private static final class DvdLogo extends Widget {
+    private static final class DvdLogo extends Widget<DvdLogo> {
         private static final float LOGO_W = 66;
         private static final float LOGO_H = 34;
         private static final Color[] PALETTE = {
@@ -356,7 +356,7 @@ final class AnimationsScene {
     }
 
     /** A swatch cycling through colors with {@link ColorTransition}. */
-    private static final class ColorSwatch extends Widget {
+    private static final class ColorSwatch extends Widget<ColorSwatch> {
         private static final Color[] PALETTE = {
                 Color.rgb(0x4C8DFF), Color.rgb(0x1D9E75), Color.rgb(0xEF9F27), Color.rgb(0xD4537E),
         };
@@ -395,10 +395,10 @@ final class AnimationsScene {
     }
 
     /** Rounded translucent card that hosts the floating window's content. */
-    private static final class FloatingPanel extends Widget {
-        private final Widget child;
+    private static final class FloatingPanel extends Widget<FloatingPanel> {
+        private final Widget<?> child;
 
-        FloatingPanel(Widget child) {
+        FloatingPanel(Widget<?> child) {
             this.child = child;
             add(child);
         }

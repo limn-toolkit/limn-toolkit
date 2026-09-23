@@ -613,18 +613,18 @@ class AccessibleActionTest extends AccessibleTestBase {
         }
 
         @Override
-        protected void onAccessibilityChildIdentity(Widget child,
+        protected void onAccessibilityChildIdentity(Widget<?> child,
                                                     limn.accessibility.Accessibility a) {
             a.key(children().indexOf(child));
         }
 
         @Override
-        protected void onAccessibilityChild(Widget child, limn.accessibility.Accessibility a) {
+        protected void onAccessibilityChild(Widget<?> child, limn.accessibility.Accessibility a) {
             a.delegate(Accessible.Action.SELECT);
         }
 
         @Override
-        protected boolean onAccessibilityChildAction(Widget child, long key,
+        protected boolean onAccessibilityChildAction(Widget<?> child, long key,
                                                      Accessible.Action action,
                                                      Accessible.Argument arg) {
             performed.add("row " + key + ": " + action);

@@ -48,7 +48,7 @@ class TreeRowsContractTest extends ComponentTestBase {
         private int activated = -1;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             Node a = Node.of("A", Node.leaf("A1"), Node.leaf("A2"));
             List<Node> roots = List.of(a, Node.leaf("B"), Node.leaf("C"), Node.leaf("D"),
                     Node.leaf("E"));
@@ -70,7 +70,7 @@ class TreeRowsContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return tree;
         }
 
@@ -127,7 +127,7 @@ class TreeRowsContractTest extends ComponentTestBase {
         }
 
         /** A plain cell of a fixed height that cannot take the keyboard. */
-        private static final class Cell extends Widget {
+        private static final class Cell extends Widget<Cell> {
             @Override
             protected Size onMeasure(Constraints constraints) {
                 return constraints.constrain(constraints.maxWidth(), ROW_H);
@@ -152,7 +152,7 @@ class TreeRowsContractTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Cell();
             }
 

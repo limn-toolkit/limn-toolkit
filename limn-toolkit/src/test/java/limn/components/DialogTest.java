@@ -188,7 +188,7 @@ class DialogTest extends ComponentTestBase {
     }
 
     /** Content taller than any card, so the dialog is capped and its body overflows. */
-    private static final class TallBox extends Widget {
+    private static final class TallBox extends Widget<TallBox> {
         private final float tall;
 
         TallBox(float tall) {
@@ -201,11 +201,11 @@ class DialogTest extends ComponentTestBase {
         }
     }
 
-    private static ScrollView firstScrollView(Widget root) {
+    private static ScrollView firstScrollView(Widget<?> root) {
         if (root instanceof ScrollView found) {
             return found;
         }
-        for (Widget child : root.children()) {
+        for (Widget<?> child : root.children()) {
             ScrollView found = firstScrollView(child);
             if (found != null) {
                 return found;
@@ -235,7 +235,7 @@ class DialogTest extends ComponentTestBase {
     void firstButtonReceivesInitialFocus() {
         build();
         scene.focusTraverse(false);
-        Widget focused = scene.focusedWidget();
+        Widget<?> focused = scene.focusedWidget();
         assertTrue(focused instanceof Button, "a dialog button should hold focus");
     }
 
@@ -478,7 +478,7 @@ class DialogTest extends ComponentTestBase {
     }
 
     /** A box whose natural height is settable: content that changes size after it is shown. */
-    private static final class GrowingBox extends limn.scene.Widget {
+    private static final class GrowingBox extends limn.scene.Widget<GrowingBox> {
         private float preferred;
 
         GrowingBox(float preferred) {
@@ -654,7 +654,7 @@ class DialogTest extends ComponentTestBase {
         inScene.show(host);
         pump(clock, host, canvas); // settle fade-in + layout
 
-        Widget card = inScene.contentRoot();
+        Widget<?> card = inScene.contentRoot();
         float x0 = card.x();
         float y0 = card.y();
         // Grab half the page padding in from the card's top-left: bare card at every step,
@@ -931,11 +931,11 @@ class DialogTest extends ComponentTestBase {
     }
 
     /** First widget of {@code type} in document order, or null. */
-    private static <T extends Widget> T find(Widget root, Class<T> type) {
+    private static <T extends Widget<?>> T find(Widget<?> root, Class<T> type) {
         if (type.isInstance(root)) {
             return type.cast(root);
         }
-        for (Widget child : root.children()) {
+        for (Widget<?> child : root.children()) {
             T found = find(child, type);
             if (found != null) {
                 return found;
@@ -945,17 +945,17 @@ class DialogTest extends ComponentTestBase {
     }
 
     /** Every widget of {@code type}, in document order. */
-    private static <T extends Widget> List<T> collect(Widget root, Class<T> type) {
+    private static <T extends Widget<?>> List<T> collect(Widget<?> root, Class<T> type) {
         List<T> out = new ArrayList<>();
         collectInto(root, type, out);
         return out;
     }
 
-    private static <T extends Widget> void collectInto(Widget root, Class<T> type, List<T> out) {
+    private static <T extends Widget<?>> void collectInto(Widget<?> root, Class<T> type, List<T> out) {
         if (type.isInstance(root)) {
             out.add(type.cast(root));
         }
-        for (Widget child : root.children()) {
+        for (Widget<?> child : root.children()) {
             collectInto(child, type, out);
         }
     }

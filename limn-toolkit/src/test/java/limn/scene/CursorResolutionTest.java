@@ -14,7 +14,7 @@ import static limn.testing.SceneDriver.drive;
 class CursorResolutionTest extends SceneTestBase {
 
     /** Fixed-size leaf that requests a cursor (null = inherit). */
-    static final class CursorBox extends Widget {
+    static final class CursorBox extends Widget<CursorBox> {
         CursorBox(Cursor cursor) {
             setCursor(cursor);
         }
@@ -26,12 +26,12 @@ class CursorResolutionTest extends SceneTestBase {
     }
 
     /** Container that stacks its children vertically at their measured sizes. */
-    static final class VStack extends Widget {
+    static final class VStack extends Widget<VStack> {
         @Override
         protected Size onMeasure(Constraints c) {
             float h = 0;
             float w = 0;
-            for (Widget child : children()) {
+            for (Widget<?> child : children()) {
                 Size s = child.measure(Constraints.loose(c.maxWidth(), c.maxHeight()));
                 h += s.height();
                 w = Math.max(w, s.width());
@@ -42,7 +42,7 @@ class CursorResolutionTest extends SceneTestBase {
         @Override
         protected void onLayout() {
             float y = 0;
-            for (Widget child : children()) {
+            for (Widget<?> child : children()) {
                 Size s = child.measure(Constraints.loose(width(), height()));
                 child.layoutBox(0, y, s.width(), s.height());
                 y += s.height();
@@ -74,10 +74,10 @@ class CursorResolutionTest extends SceneTestBase {
         scene.layoutPass(200, 400);
     }
 
-    private void moveTo(Widget target) {
+    private void moveTo(Widget<?> target) {
         float x = 0;
         float y = 0;
-        for (Widget w = target; w != null; w = w.parent()) {
+        for (Widget<?> w = target; w != null; w = w.parent()) {
             x += w.x();
             y += w.y();
         }

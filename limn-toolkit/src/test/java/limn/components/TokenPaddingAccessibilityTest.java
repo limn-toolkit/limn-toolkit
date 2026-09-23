@@ -66,7 +66,7 @@ class TokenPaddingAccessibilityTest extends AccessibleComponentTestBase {
      * padding that survives the predicate, so the offset the padding leaves behind has a node to be
      * read from.
      */
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         Box() {
             setAccessibleName("content");
         }

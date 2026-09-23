@@ -58,7 +58,7 @@ class SelectionContractTest extends ComponentTestBase {
     }
 
     /** A row/panel with a size and nothing else: these tests never lay anything out. */
-    private static final class Plain extends Widget {
+    private static final class Plain extends Widget<Plain> {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(20, 20);
@@ -73,7 +73,7 @@ class SelectionContractTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return new Plain();
             }
         });
@@ -429,7 +429,7 @@ class SelectionContractTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 throw new AssertionError("an empty adapter must never be asked for a row");
             }
         });

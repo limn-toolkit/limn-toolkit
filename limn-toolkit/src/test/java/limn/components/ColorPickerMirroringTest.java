@@ -59,7 +59,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     void aChannelAtItsMinimumRestsOnTheLeadingEdgeReadingRightToLeft() {
         build(LayoutDirection.RTL);
         picker.setInitialColor(Color.BLACK); // every RGB channel at zero
-        Widget red = picker.rail(0);
+        Widget<?> red = picker.rail(0);
         float thumb = Theme.current().tokensFor(red).colorThumbW();
 
         assertEquals(red.localToSceneX() + red.width() - thumb / 2,
@@ -71,7 +71,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     void aChannelAtItsMinimumIsUnchangedReadingLeftToRight() {
         build(LayoutDirection.LTR);
         picker.setInitialColor(Color.BLACK);
-        Widget red = picker.rail(0);
+        Widget<?> red = picker.rail(0);
         float thumb = Theme.current().tokensFor(red).colorThumbW();
 
         assertEquals(red.localToSceneX() + thumb / 2, thumbCentre(paint(), red), EPS);
@@ -81,7 +81,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     void aHalfWayThumbIsTheSameDistanceFromTheOppositeEdge() {
         build(LayoutDirection.RTL);
         picker.setInitialColor(Color.rgb(0x804020));
-        Widget red = picker.rail(0);
+        Widget<?> red = picker.rail(0);
         float thumb = Theme.current().tokensFor(red).colorThumbW();
         float fraction = (float) (picker.channel(0).value() / 255.0);
 
@@ -99,7 +99,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         // compose the same coordinate, so pressing exactly where the thumb is drawn is a no-op.
         build(LayoutDirection.RTL);
         picker.setInitialColor(Color.rgb(0x804020));
-        Widget red = picker.rail(0);
+        Widget<?> red = picker.rail(0);
 
         pressRailAt(red, thumbCentre(paint(), red));
 
@@ -111,7 +111,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     void aPressAQuarterAlongTheBoxIsThreeQuartersAlongTheRangeReadingRightToLeft() {
         build(LayoutDirection.RTL);
         picker.setInitialColor(Color.rgb(0x804020));
-        Widget green = picker.rail(1);
+        Widget<?> green = picker.rail(1);
 
         pressRailAt(green, travelX(green, 0.25f));
 
@@ -123,7 +123,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     void aPressAQuarterAlongTheBoxIsAQuarterAlongTheRangeReadingLeftToRight() {
         build(LayoutDirection.LTR);
         picker.setInitialColor(Color.rgb(0x804020));
-        Widget green = picker.rail(1);
+        Widget<?> green = picker.rail(1);
 
         pressRailAt(green, travelX(green, 0.25f));
 
@@ -136,7 +136,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     void theChannelSweepTurnsRoundWithTheThumb() {
         build(LayoutDirection.RTL);
         picker.setInitialColor(Color.BLACK);
-        Widget red = picker.rail(0);
+        Widget<?> red = picker.rail(0);
 
         LinearGradient sweep = horizontalSweepIn(paint(), red);
         assertEquals(0, sweep.x0(), EPS, "the sweep still spans the whole band");
@@ -167,7 +167,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         picker.setFormat(ColorPicker.Format.HSV);
         scene.layoutPass(WIDTH, HEIGHT);
         picker.setInitialColor(Color.hsv(0, 1, 1, 1));
-        Widget hueRail = picker.rail(0);
+        Widget<?> hueRail = picker.rail(0);
         float band = hueRail.width() / BANDS;
 
         List<Fill> bands = horizontalSweepsIn(paint(), hueRail);
@@ -191,7 +191,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         picker.setFormat(ColorPicker.Format.HSV);
         scene.layoutPass(WIDTH, HEIGHT);
         picker.setInitialColor(Color.hsv(0, 1, 1, 1));
-        Widget hueRail = picker.rail(0);
+        Widget<?> hueRail = picker.rail(0);
         float band = hueRail.width() / BANDS;
 
         List<Fill> bands = horizontalSweepsIn(paint(), hueRail);
@@ -288,7 +288,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     void theSaturationValueFieldDoesNotMirrorItsGradient() {
         build(LayoutDirection.RTL);
         picker.setInitialColor(Color.hsv(200, 0.25f, 1f, 1f));
-        Widget plane = picker.saturationValueField();
+        Widget<?> plane = picker.saturationValueField();
 
         LinearGradient across = horizontalSweepIn(paint(), plane);
         assertEquals(Color.WHITE, across.start(),
@@ -300,7 +300,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     void theSaturationValueFieldsCursorDoesNotMirrorEither() {
         build(LayoutDirection.RTL);
         picker.setInitialColor(Color.hsv(200, 0.25f, 1f, 1f));
-        Widget plane = picker.saturationValueField();
+        Widget<?> plane = picker.saturationValueField();
 
         assertEquals(plane.localToSceneX() + 0.25f * plane.width(), cursorX(paint(), plane), 0.05f,
                 "the cursor rides saturation from the left, like the gradient under it");
@@ -310,7 +310,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     void theSaturationValueFieldsPressDoesNotMirrorEither() {
         build(LayoutDirection.RTL);
         picker.setInitialColor(Color.hsv(200, 0.8f, 0.8f, 1f));
-        Widget plane = picker.saturationValueField();
+        Widget<?> plane = picker.saturationValueField();
 
         float x = plane.localToSceneX() + 0.25f * plane.width();
         float y = plane.localToSceneY() + plane.height() / 2;
@@ -340,7 +340,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     void theHueRampPaintsTheSameEitherWay() {
         build(LayoutDirection.RTL);
         picker.setInitialColor(Color.hsv(120, 1f, 1f, 1f));
-        Widget ramp = picker.hueRamp();
+        Widget<?> ramp = picker.hueRamp();
         Frame frame = paint();
 
         List<Fill> bands = gradientsIn(frame, ramp);
@@ -370,7 +370,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         Color now = picker.color();
         assertNotEquals(opened, now, "the two halves have to be distinguishable");
 
-        Widget swatch = picker.preview();
+        Widget<?> swatch = picker.preview();
         Frame frame = paint();
         assertEquals(swatch.localToSceneX() + swatch.width() / 2, halfX(frame, swatch, opened), EPS,
                 "before and after are an ordered pair, so the before is on the leading half");
@@ -385,7 +385,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         picker.setColor(Color.rgb(0x0000FF));
         Color now = picker.color();
 
-        Widget swatch = picker.preview();
+        Widget<?> swatch = picker.preview();
         Frame frame = paint();
         assertEquals(swatch.localToSceneX(), halfX(frame, swatch, opened), EPS);
         assertEquals(swatch.localToSceneX() + swatch.width() / 2, halfX(frame, swatch, now), EPS);
@@ -404,7 +404,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
     }
 
-    private void pressRailAt(Widget rail, float sceneX) {
+    private void pressRailAt(Widget<?> rail, float sceneX) {
         float y = rail.localToSceneY() + rail.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, sceneX, y);
         drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, sceneX, y);
@@ -416,7 +416,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
      * <b>physical left</b> edge, thumb inset included. Physical on purpose: what the direction
      * decides is which value that coordinate names, so the coordinate itself must not know one.
      */
-    private float travelX(Widget rail, float fraction) {
+    private float travelX(Widget<?> rail, float fraction) {
         float thumb = Theme.current().tokensFor(rail).colorThumbW();
         return rail.localToSceneX() + thumb / 2 + fraction * (rail.width() - thumb);
     }
@@ -456,7 +456,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
      * extents and on the rail's vertical centre, so the rails stacked above and below it (each
      * drawing the same capsule) cannot answer for it.
      */
-    private float thumbCentre(Frame frame, Widget rail) {
+    private float thumbCentre(Frame frame, Widget<?> rail) {
         SizeTokens t = Theme.current().tokensFor(rail);
         float top = rail.localToSceneY() + rail.height() / 2 - t.colorThumbH() / 2;
         for (Fill fill : frame.roundRects()) {
@@ -470,7 +470,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     }
 
     /** The full-width bar {@code ramp} drew for its hue marker. */
-    private Fill markerIn(Frame frame, Widget ramp) {
+    private Fill markerIn(Frame frame, Widget<?> ramp) {
         for (Fill fill : frame.roundRects()) {
             if (Math.abs(fill.w() - ramp.width()) < EPS && covers(ramp, fill)) {
                 return fill;
@@ -480,7 +480,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     }
 
     /** The half of {@code swatch} filled with {@code colour}, as a scene x of its left edge. */
-    private float halfX(Frame frame, Widget swatch, Color colour) {
+    private float halfX(Frame frame, Widget<?> swatch, Color colour) {
         for (Fill fill : frame.rects()) {
             if (colour.equals(fill.paint()) && Math.abs(fill.w() - swatch.width() / 2) < EPS
                     && covers(swatch, fill)) {
@@ -491,7 +491,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     }
 
     /** The x the saturation/value cursor was rung around. */
-    private float cursorX(Frame frame, Widget plane) {
+    private float cursorX(Frame frame, Widget<?> plane) {
         for (Ring ring : frame.circles()) {
             if (ring.cx() >= plane.localToSceneX() - EPS
                     && ring.cx() <= plane.localToSceneX() + plane.width() + EPS
@@ -503,7 +503,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         throw new AssertionError("the field painted no cursor");
     }
 
-    private LinearGradient horizontalSweepIn(Frame frame, Widget widget) {
+    private LinearGradient horizontalSweepIn(Frame frame, Widget<?> widget) {
         List<Fill> found = horizontalSweepsIn(frame, widget);
         if (found.isEmpty()) {
             throw new AssertionError("nothing swept across " + widget);
@@ -512,7 +512,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
     }
 
     /** Every gradient fill in {@code widget} that runs across it, in the order it was painted. */
-    private List<Fill> horizontalSweepsIn(Frame frame, Widget widget) {
+    private List<Fill> horizontalSweepsIn(Frame frame, Widget<?> widget) {
         List<Fill> found = new ArrayList<>();
         for (Fill fill : gradientsIn(frame, widget)) {
             LinearGradient g = (LinearGradient) fill.paint();
@@ -523,7 +523,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         return found;
     }
 
-    private List<Fill> gradientsIn(Frame frame, Widget widget) {
+    private List<Fill> gradientsIn(Frame frame, Widget<?> widget) {
         List<Fill> found = new ArrayList<>();
         for (Fill fill : frame.rects()) {
             if (fill.paint() instanceof LinearGradient && covers(widget, fill)) {
@@ -539,7 +539,7 @@ class ColorPickerMirroringTest extends ComponentTestBase {
      * past the rail's own edge and a containment test would drop exactly the band whose position
      * the reflection is about.
      */
-    private boolean covers(Widget widget, Fill fill) {
+    private boolean covers(Widget<?> widget, Fill fill) {
         return fill.centreX() >= widget.localToSceneX()
                 && fill.centreX() <= widget.localToSceneX() + widget.width()
                 && fill.centreY() >= widget.localToSceneY()

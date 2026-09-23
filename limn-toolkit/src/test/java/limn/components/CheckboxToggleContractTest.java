@@ -33,7 +33,7 @@ class CheckboxToggleContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             box = new Checkbox(variant, "Send me a copy");
             changes = 0;
             box.onChange(on -> changes++);
@@ -43,7 +43,7 @@ class CheckboxToggleContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return box;
         }
 

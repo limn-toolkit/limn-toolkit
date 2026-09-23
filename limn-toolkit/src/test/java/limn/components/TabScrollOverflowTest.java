@@ -34,17 +34,17 @@ class TabScrollOverflowTest extends ComponentTestBase {
     private static final float FOOTER_H = 150;
 
     /** Sum of a widget's origin up the parent chain → its scene-space y. */
-    private static float sceneY(Widget w) {
+    private static float sceneY(Widget<?> w) {
         float y = 0;
-        for (Widget c = w; c != null; c = c.parent()) {
+        for (Widget<?> c = w; c != null; c = c.parent()) {
             y += c.y();
         }
         return y;
     }
 
-    private static float sceneX(Widget w) {
+    private static float sceneX(Widget<?> w) {
         float x = 0;
-        for (Widget c = w; c != null; c = c.parent()) {
+        for (Widget<?> c = w; c != null; c = c.parent()) {
             x += c.x();
         }
         return x;
@@ -64,7 +64,7 @@ class TabScrollOverflowTest extends ComponentTestBase {
         scene.layoutPass(240, 150);
 
         assertTrue(pane.height() > 300, "strip + content, got " + pane.height());
-        Widget content = pane.children().stream()
+        Widget<?> content = pane.children().stream()
                 .filter(c -> c instanceof SizedBox && c.isVisible()).findFirst().orElseThrow();
         assertEquals(300, content.height(), 0.5f, "selected content keeps its natural height");
     }
@@ -100,10 +100,10 @@ class TabScrollOverflowTest extends ComponentTestBase {
         float paneWidth = 160; // well under 3 * stripHeight, where the old policy collapsed
         scene.layoutPass(paneWidth, 200);
 
-        Widget viewport = pane.children().get(0);
-        Widget prev = pane.children().get(1);
-        Widget next = pane.children().get(2);
-        Widget list = pane.children().get(3);
+        Widget<?> viewport = pane.children().get(0);
+        Widget<?> prev = pane.children().get(1);
+        Widget<?> next = pane.children().get(2);
+        Widget<?> list = pane.children().get(3);
 
         assertTrue(viewport.width() >= paneWidth / 2,
                 "the viewport keeps at least half the pane: " + viewport.width());
@@ -138,7 +138,7 @@ class TabScrollOverflowTest extends ComponentTestBase {
             }
             Scene scene = new Scene(pane);
             scene.setTextRuler(RULER);
-            Widget viewport = pane.children().get(0);
+            Widget<?> viewport = pane.children().get(0);
 
             float previous = -1;
             for (float w = 60; w <= 400; w += 1) {
@@ -164,7 +164,7 @@ class TabScrollOverflowTest extends ComponentTestBase {
     }
 
     /** Builds {@code Column[ Expanded(tabs[content]), footer ]} laid out short. */
-    private Scene shortSceneWith(Widget tabContent, Button button, TabbedPane[] outTabs) {
+    private Scene shortSceneWith(Widget<?> tabContent, Button button, TabbedPane[] outTabs) {
         TabbedPane tabs = new TabbedPane();
         tabs.addTab("Actions", tabContent);
         outTabs[0] = tabs;

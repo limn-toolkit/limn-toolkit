@@ -1,5 +1,7 @@
 package limn.scene;
 
+import limn.testfixtures.PlainWidget;
+
 import limn.graphics.Rect;
 import limn.scene.event.PreeditEvent;
 import org.junit.jupiter.api.Test;
@@ -18,7 +20,7 @@ import static limn.testing.SceneDriver.drive;
 class ScenePreeditTest extends SceneTestBase {
 
     /** Focusable text input that records the last preedit it received. */
-    static final class TextInput extends Widget {
+    static final class TextInput extends Widget<TextInput> {
         PreeditEvent lastPreedit;
 
         TextInput() {
@@ -48,7 +50,7 @@ class ScenePreeditTest extends SceneTestBase {
     }
 
     /** Focusable non-text widget (IME must be off while it holds focus). */
-    static final class Button extends Widget {
+    static final class Button extends Widget<Button> {
         Button() {
             setFocusable(true);
         }
@@ -65,7 +67,7 @@ class ScenePreeditTest extends SceneTestBase {
     private Button button;
 
     private void build() {
-        Widget root = new Widget() {
+        Widget<?> root = new PlainWidget() {
             @Override
             protected Size onMeasure(Constraints c) {
                 return c.constrain(100, 40);
@@ -73,7 +75,7 @@ class ScenePreeditTest extends SceneTestBase {
 
             @Override
             protected void onLayout() {
-                for (Widget child : children()) {
+                for (Widget<?> child : children()) {
                     child.layoutBox(0, child == button ? 20 : 0, 100, 20);
                 }
             }

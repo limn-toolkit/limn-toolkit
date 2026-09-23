@@ -23,7 +23,7 @@ class SliderValueContractTest extends ComponentTestBase {
         private int changes;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             slider = new Slider(0, 100).setStep(5).setValue(40);
             slider.setAccessibleName("Volume");
             changes = 0;
@@ -34,7 +34,7 @@ class SliderValueContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return slider;
         }
 

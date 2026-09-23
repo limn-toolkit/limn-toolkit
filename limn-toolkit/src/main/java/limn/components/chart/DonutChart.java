@@ -44,7 +44,7 @@ import java.util.List;
  * chart.setCenter(new Label("100%").setRole(Label.Role.TITLE));
  * }</pre>
  */
-public final class DonutChart extends Chart {
+public final class DonutChart extends Chart<DonutChart> {
 
     /** The ring's share of the box, leaving room for the marks not to touch the edges. */
     private static final float RADIUS_INSET = 4;
@@ -57,7 +57,7 @@ public final class DonutChart extends Chart {
     private float startAngle = -90;
     private float sliceGap = 2;
     private Color[] sliceColors;
-    private Widget center;
+    private Widget<?> center;
 
     private final BitSet hiddenSlices = new BitSet();
     /** One weight per slice, animating 1 → 0 as it is hidden, so the ring closes over it. */
@@ -144,7 +144,7 @@ public final class DonutChart extends Chart {
     }
 
     /** The widget in the hole, or {@code null}. */
-    public Widget center() {
+    public Widget<?> center() {
         return center;
     }
 
@@ -154,7 +154,7 @@ public final class DonutChart extends Chart {
      * a button, and it is measured against that square rather than against the chart.
      * {@code null} empties the hole.
      */
-    public DonutChart setCenter(Widget widget) {
+    public DonutChart setCenter(Widget<?> widget) {
         Ui.checkUiThread();
         if (center == widget) {
             return this;

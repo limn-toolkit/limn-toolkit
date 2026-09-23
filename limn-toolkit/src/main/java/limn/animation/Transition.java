@@ -33,7 +33,7 @@ import java.util.Objects;
  */
 public final class Transition {
 
-    private final Widget owner;
+    private final Widget<?> owner;
 
     private double duration = 0.2;
     private Easing easing = Easing.EASE_OUT;
@@ -50,12 +50,12 @@ public final class Transition {
     private boolean ticking;
 
     /** A transition starting (and resting) at {@code 0}. */
-    public Transition(Widget owner) {
+    public Transition(Widget<?> owner) {
         this(owner, 0f);
     }
 
     /** A transition starting at {@code initial}, repainting {@code owner} as it runs. */
-    public Transition(Widget owner, float initial) {
+    public Transition(Widget<?> owner, float initial) {
         this.owner = Objects.requireNonNull(owner, "owner");
         this.current = this.from = this.to = initial;
     }

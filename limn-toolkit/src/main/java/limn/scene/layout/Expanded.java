@@ -24,13 +24,13 @@ import limn.scene.Widget;
  * ellipsis is for) and a stepper with a fixed chrome width does not, and the same
  * widget can be either one depending on the row it is in.
  */
-public final class Expanded extends Widget {
+public final class Expanded extends Widget<Expanded> {
 
     private final int flex;
-    private final Widget child;
+    private final Widget<?> child;
     private float minMain;
 
-    private Expanded(Widget child, int flex) {
+    private Expanded(Widget<?> child, int flex) {
         Checks.atLeast(flex, 1, "flex");
         this.flex = flex;
         this.child = child;
@@ -40,12 +40,12 @@ public final class Expanded extends Widget {
     }
 
     /** Gives {@code child} a share of the leftover space proportional to {@code flex}. */
-    public static Expanded of(Widget child, int flex) {
+    public static Expanded of(Widget<?> child, int flex) {
         return new Expanded(child, flex);
     }
 
     /** An equal share of the leftover space: {@code flex} of 1. */
-    public static Expanded of(Widget child) {
+    public static Expanded of(Widget<?> child) {
         return new Expanded(child, 1);
     }
 

@@ -30,12 +30,12 @@ import limn.scene.event.MouseEvent;
  * tree wants its last column readable at all times, and a bar sitting on it is a
  * defect however briefly it shows.
  */
-public final class ScrollView extends Widget implements Scrollable {
+public final class ScrollView extends Widget<ScrollView> implements Scrollable {
 
     /** Logical points scrolled per wheel notch. */
     private static final float WHEEL_STEP = 48;
 
-    private final Widget child;
+    private final Widget<?> child;
     private final boolean horizontal;
     private final boolean vertical;
     private final ScrollBar vBar;
@@ -45,12 +45,12 @@ public final class ScrollView extends Widget implements Scrollable {
     private final ScrollGutters gutters = new ScrollGutters();
 
     /** Wraps {@code child}, scrolling on both axes as its content overflows. */
-    public ScrollView(Widget child) {
+    public ScrollView(Widget<?> child) {
         this(child, false, true);
     }
 
     /** Wraps {@code child}, scrolling only on the axes enabled here. */
-    public ScrollView(Widget child, boolean horizontal, boolean vertical) {
+    public ScrollView(Widget<?> child, boolean horizontal, boolean vertical) {
         this.child = child;
         this.horizontal = horizontal;
         this.vertical = vertical;
@@ -408,17 +408,17 @@ public final class ScrollView extends Widget implements Scrollable {
     // the two rectangles differ by the gutter, and a descendant whose whole box lies in that strip
     // is never painted; answering the box for it published it on screen under its own bar.
     @Override
-    protected float clipX(Widget forChild) {
+    protected float clipX(Widget<?> forChild) {
         return forChild == child ? viewportLeft() : 0;
     }
 
     @Override
-    protected float clipWidth(Widget forChild) {
+    protected float clipWidth(Widget<?> forChild) {
         return forChild == child ? viewportWidth() : width();
     }
 
     @Override
-    protected float clipHeight(Widget forChild) {
+    protected float clipHeight(Widget<?> forChild) {
         return forChild == child ? viewportHeight() : height();
     }
 
@@ -452,7 +452,7 @@ public final class ScrollView extends Widget implements Scrollable {
         }
     }
 
-    private static void paintOne(Canvas canvas, Widget target) {
+    private static void paintOne(Canvas canvas, Widget<?> target) {
         canvas.save();
         try {
             canvas.translate(target.x(), target.y());

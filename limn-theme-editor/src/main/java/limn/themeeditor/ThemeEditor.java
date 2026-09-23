@@ -75,7 +75,7 @@ import java.util.function.Consumer;
  *
  * <p>UI thread only, like every widget here.
  */
-public final class ThemeEditor extends Widget {
+public final class ThemeEditor extends Widget<ThemeEditor> {
 
     /** The three groups the builder can work out for itself. */
     private enum Derivation { ACCENT, DISABLED, SEMANTIC }
@@ -592,7 +592,7 @@ public final class ThemeEditor extends Widget {
 
     // --- the tree ------------------------------------------------------------
 
-    private Widget header() {
+    private Widget<?> header() {
         TokenRow row = new TokenRow(Tokens.Role.MEDIUM);
         row.crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(new Label(ThemeEditorStrings.NAME));
@@ -603,7 +603,7 @@ public final class ThemeEditor extends Widget {
         return row;
     }
 
-    private Widget body() {
+    private Widget<?> body() {
         TokenRow row = new TokenRow(Tokens.Role.LARGE);
         row.crossAlignment(Flex.CrossAlignment.STRETCH);
         // Vertical only, both here and in the report. A ScrollView that also scrolls
@@ -625,7 +625,7 @@ public final class ThemeEditor extends Widget {
         return row;
     }
 
-    private Widget tokenColumn() {
+    private Widget<?> tokenColumn() {
         TokenColumn column = new TokenColumn(Tokens.Role.MEDIUM);
         column.crossAlignment(Flex.CrossAlignment.STRETCH);
         column.add(new Label(ThemeEditorStrings.SECTION_SHAPE)
@@ -651,7 +651,7 @@ public final class ThemeEditor extends Widget {
      * step: the fifteen radii in the table are one ramp, and what a palette author is
      * choosing is where on it to sit: square, the shipped ramp, or something softer.
      */
-    private Widget shapeRow() {
+    private Widget<?> shapeRow() {
         cornerSlider.onChange(value -> {
             builder.cornerScale(value);
             syncCornerControl();
@@ -673,7 +673,7 @@ public final class ThemeEditor extends Widget {
      * beside it says so when the palette carries a family this machine does not have, which is
      * the normal state of a palette authored somewhere else.
      */
-    private Widget typeRow() {
+    private Widget<?> typeRow() {
         fontRow.crossAlignment(Flex.CrossAlignment.CENTER);
         return fontRow;
     }
@@ -701,7 +701,7 @@ public final class ThemeEditor extends Widget {
 
         ComboBox replacement = ComboBox.localized(items);
         replacement.onSelect(this::pickFont);
-        for (Widget child : List.copyOf(fontRow.children())) {
+        for (Widget<?> child : List.copyOf(fontRow.children())) {
             fontRow.remove(child);
         }
         fontChoice = replacement;
@@ -760,7 +760,7 @@ public final class ThemeEditor extends Widget {
                 String.format(java.util.Locale.ROOT, "%.1f", radius)));
     }
 
-    private Widget tokenRow(Theme.Token token) {
+    private Widget<?> tokenRow(Theme.Token token) {
         ColorPickerButton well = new ColorPickerButton(token.read(original));
         well.setDialogTitle(ThemeEditorStrings.of(token));
         // Alpha off for every tone but one. The rest are surfaces, or ink drawn on one: a
@@ -795,7 +795,7 @@ public final class ThemeEditor extends Widget {
             case SEMANTIC -> ThemeEditorStrings.DERIVE_SEMANTIC;
         };
         Button button = new Button(caption).setSecondary(true);
-        button.withControlSize(ControlSize.SMALL);
+        button.setControlSize(ControlSize.SMALL);
         button.onAction(() -> {
             derive(derivation);
             syncFromBuilder();
@@ -812,7 +812,7 @@ public final class ThemeEditor extends Widget {
         }
     }
 
-    private Widget sidePanel() {
+    private Widget<?> sidePanel() {
         TokenColumn column = new TokenColumn(Tokens.Role.MEDIUM);
         column.crossAlignment(Flex.CrossAlignment.STRETCH);
         column.add(new Label(ThemeEditorStrings.PREVIEW).setRole(Label.Role.LABEL).setStrong(true));
@@ -828,7 +828,7 @@ public final class ThemeEditor extends Widget {
         return column;
     }
 
-    private Widget footer() {
+    private Widget<?> footer() {
         TokenRow row = new TokenRow(Tokens.Role.MEDIUM);
         row.crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(liveToggle);
@@ -852,7 +852,7 @@ public final class ThemeEditor extends Widget {
         if (sameVerdict && !report.children().isEmpty()) {
             return;
         }
-        for (Widget child : new ArrayList<>(report.children())) {
+        for (Widget<?> child : new ArrayList<>(report.children())) {
             report.remove(child);
         }
         if (findings.isEmpty()) {

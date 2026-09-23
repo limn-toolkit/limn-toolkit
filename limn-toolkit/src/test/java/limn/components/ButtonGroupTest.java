@@ -266,7 +266,7 @@ class ButtonGroupTest extends ComponentTestBase {
         scene.requestFocus(null);
         for (int i = 0; i < 32; i++) {
             scene.focusTraverse(false);
-            limn.scene.Widget focused = scene.focusedWidget();
+            limn.scene.Widget<?> focused = scene.focusedWidget();
             if (focused == null) {
                 break;
             }

@@ -44,7 +44,7 @@ final class ChartsScene {
     }
 
     /** The subtree, reusable as a kitchen-sink tab. */
-    static Widget content() {
+    static Widget<?> content() {
         Label status = new Label("Hover a mark for its value; click one to select it.")
                 .setMuted(true);
 
@@ -70,7 +70,7 @@ final class ChartsScene {
         return column;
     }
 
-    private static Widget row(Widget left, Widget right) {
+    private static Widget<?> row(Widget<?> left, Widget<?> right) {
         Row row = new Row();
         row.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
         row.add(Expanded.of(left, 3));
@@ -133,17 +133,17 @@ final class ChartsScene {
     }
 
     /** The hole's content: a headline, a caption and a button, laid out inside the ring. */
-    private static Widget donutCentre(Runnable shuffle) {
+    private static Widget<?> donutCentre(Runnable shuffle) {
         Column centre = new Column();
         centre.gap(2).crossAlignment(Flex.CrossAlignment.CENTER);
         centre.add(new Label("100").setRole(Label.Role.TITLE).setStrong(true));
         centre.add(new Label("sessions").setRole(Label.Role.LABEL).setMuted(true));
-        centre.add(new Button("Shuffle").onAction(shuffle).withControlSize(ControlSize.XSMALL));
+        centre.add(new Button("Shuffle").onAction(shuffle).setControlSize(ControlSize.XSMALL));
         return centre;
     }
 
     /** Both callbacks, on every chart: hovering narrates, clicking selects. */
-    private static void report(Chart chart, Label status) {
+    private static void report(Chart<?> chart, Label status) {
         chart.onPointHover(point -> {
             if (point != null) {
                 status.setText(point.label() + " · " + point.series().name() + " · "

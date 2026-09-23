@@ -80,7 +80,7 @@ import java.util.function.Function;
  * subclasses purely to narrow its return type, buys one expression shape at the price of
  * forty methods whose documentation could only repeat their signatures.
  */
-public abstract class Chart extends Widget {
+public abstract class Chart<W extends Chart<W>> extends Widget<W> {
 
     /** Where the legend sits relative to the plot. */
     public enum LegendPosition {
@@ -250,7 +250,7 @@ public abstract class Chart extends Widget {
     }
 
     /** Sets the category labels: the x axis of a bar or line chart, the slices of a donut. */
-    public Chart setLabels(String... values) {
+    public W setLabels(String... values) {
         return setLabels(List.of(values));
     }
 
@@ -259,16 +259,16 @@ public abstract class Chart extends Widget {
      * ({@code List<String>} and {@code List<I18nString>} erase to the same signature), so hand
      * a list over as {@code list.toArray(new I18nString[0])}.
      */
-    public Chart setLabels(I18nString... values) {
+    public W setLabels(I18nString... values) {
         Ui.checkUiThread();
         beginDataChange();
         this.labels = List.of(values);
         endDataChange();
-        return this;
+        return self();
     }
 
     /** {@link #setLabels(String...)} from a list; the list is copied. */
-    public Chart setLabels(List<String> values) {
+    public W setLabels(List<String> values) {
         Ui.checkUiThread();
         beginDataChange();
         List<I18nString> wrapped = new ArrayList<>(values.size());
@@ -277,7 +277,7 @@ public abstract class Chart extends Widget {
         }
         this.labels = List.copyOf(wrapped);
         endDataChange();
-        return this;
+        return self();
     }
 
     /** The series, in the order they were added (paint and palette order). */
@@ -290,7 +290,7 @@ public abstract class Chart extends Widget {
      *
      * @throws IllegalStateException if the series already belongs to a chart
      */
-    public Chart addSeries(ChartSeries newSeries) {
+    public W addSeries(ChartSeries newSeries) {
         Ui.checkUiThread();
         Objects.requireNonNull(newSeries, "series");
         if (newSeries.owner != null) {
@@ -303,7 +303,7 @@ public abstract class Chart extends Widget {
         series.add(newSeries);
         onSeriesAdded(newSeries);
         endDataChange();
-        return this;
+        return self();
     }
 
     /**
@@ -315,17 +315,17 @@ public abstract class Chart extends Widget {
     }
 
     /** Replaces every series at once. */
-    public Chart setSeries(ChartSeries... newSeries) {
+    public W setSeries(ChartSeries... newSeries) {
         Ui.checkUiThread();
         clearSeries();
         for (ChartSeries s : newSeries) {
             addSeries(s);
         }
-        return this;
+        return self();
     }
 
     /** Removes a series; a no-op when it is not in this chart. */
-    public Chart removeSeries(ChartSeries victim) {
+    public W removeSeries(ChartSeries victim) {
         Ui.checkUiThread();
         if (series.contains(victim)) {
             beginDataChange();
@@ -333,14 +333,14 @@ public abstract class Chart extends Widget {
             detach(victim);
             endDataChange();
         }
-        return this;
+        return self();
     }
 
     /** Removes every series. */
-    public Chart clearSeries() {
+    public W clearSeries() {
         Ui.checkUiThread();
         if (series.isEmpty()) {
-            return this;
+            return self();
         }
         beginDataChange();
         for (ChartSeries s : series) {
@@ -348,7 +348,7 @@ public abstract class Chart extends Widget {
         }
         series.clear();
         endDataChange();
-        return this;
+        return self();
     }
 
     private static void detach(ChartSeries s) {
@@ -419,12 +419,12 @@ public abstract class Chart extends Widget {
      * Pins the palette; {@code null} hands it back to {@link ChartPalette#defaultFor},
      * which follows the active theme's light/dark mode.
      */
-    public Chart setPalette(ChartPalette value) {
+    public W setPalette(ChartPalette value) {
         Ui.checkUiThread();
         this.palette = value;
         legendCache = null;
         invalidate();
-        return this;
+        return self();
     }
 
     /** The color of series {@code index}: its own, or its palette slot. */
@@ -444,16 +444,16 @@ public abstract class Chart extends Widget {
     }
 
     /** Sets a title drawn above the plot ({@code null} for none). */
-    public Chart setTitle(String value) {
+    public W setTitle(String value) {
         return setTitle(value == null ? null : I18nString.literal(value));
     }
 
     /** Sets a title that follows the UI language ({@code null} for none). */
-    public Chart setTitle(I18nString value) {
+    public W setTitle(I18nString value) {
         Ui.checkUiThread();
         this.title = value;
         markNeedsLayout();
-        return this;
+        return self();
     }
 
     /** The panel color behind the chart, or {@code null} when it paints on what is below. */
@@ -466,11 +466,11 @@ public abstract class Chart extends Widget {
      * {@code null} (the default) paints nothing, letting the chart sit on the surface it
      * was placed on.
      */
-    public Chart setBackground(Color color) {
+    public W setBackground(Color color) {
         Ui.checkUiThread();
         this.background = color;
         invalidate();
-        return this;
+        return self();
     }
 
     /** Where the legend sits. */
@@ -479,12 +479,12 @@ public abstract class Chart extends Widget {
     }
 
     /** Moves the legend, or takes it away with {@link LegendPosition#NONE}. */
-    public Chart setLegendPosition(LegendPosition position) {
+    public W setLegendPosition(LegendPosition position) {
         Ui.checkUiThread();
         this.legendPosition = Objects.requireNonNull(position, "position");
         legendCache = null; // NONE caches an empty list; the entries have to come back
         markNeedsLayout();
-        return this;
+        return self();
     }
 
     /** Whether clicking a legend entry hides and shows its data. */
@@ -493,13 +493,13 @@ public abstract class Chart extends Widget {
     }
 
     /** Enables or disables hide/show on legend clicks (on by default). */
-    public Chart setLegendInteractive(boolean value) {
+    public W setLegendInteractive(boolean value) {
         Ui.checkUiThread();
         this.legendInteractive = value;
         // Paints nothing: the legend looks the same either way and only the cursor differs. The
         // verb a reader is offered on each entry follows this flag, so the tree is told directly.
         invalidateAccessible();
-        return this;
+        return self();
     }
 
     /**
@@ -508,12 +508,12 @@ public abstract class Chart extends Widget {
      * stretched {@code Column} takes the space it is given regardless; this is the
      * fallback for an unconstrained parent.
      */
-    public Chart setPreferredSize(float width, float height) {
+    public W setPreferredSize(float width, float height) {
         Ui.checkUiThread();
         this.preferredWidth = width;
         this.preferredHeight = height;
         markNeedsLayout();
-        return this;
+        return self();
     }
 
     // -------------------------------------------------------------- formatting
@@ -524,11 +524,11 @@ public abstract class Chart extends Widget {
     }
 
     /** Sets the tooltip value format; see {@link NumberFormats} for ready-made ones. */
-    public Chart setValueFormat(DoubleFunction<String> format) {
+    public W setValueFormat(DoubleFunction<String> format) {
         Ui.checkUiThread();
         this.valueFormat = Objects.requireNonNull(format, "format");
         invalidate();
-        return this;
+        return self();
     }
 
     /** Whether hovering shows a tooltip. */
@@ -537,14 +537,14 @@ public abstract class Chart extends Widget {
     }
 
     /** Turns the hover tooltip on or off (on by default). */
-    public Chart setTooltipEnabled(boolean value) {
+    public W setTooltipEnabled(boolean value) {
         Ui.checkUiThread();
         this.tooltipEnabled = value;
         if (!value) {
             tooltipFade.snap(0);
         }
         invalidate();
-        return this;
+        return self();
     }
 
     /** How much of the data a hover reports. */
@@ -553,11 +553,11 @@ public abstract class Chart extends Widget {
     }
 
     /** Sets whether a hover reports the whole category or only the mark under the pointer. */
-    public Chart setTooltipMode(TooltipMode mode) {
+    public W setTooltipMode(TooltipMode mode) {
         Ui.checkUiThread();
         this.tooltipMode = Objects.requireNonNull(mode, "mode");
         invalidate();
-        return this;
+        return self();
     }
 
     /**
@@ -567,11 +567,11 @@ public abstract class Chart extends Widget {
      * scannable; a formatter set here produces the whole row as one string instead.
      * {@code null} restores the default.
      */
-    public Chart setTooltipFormat(Function<ChartPoint, String> format) {
+    public W setTooltipFormat(Function<ChartPoint, String> format) {
         Ui.checkUiThread();
         this.tooltipFormat = format;
         invalidate();
-        return this;
+        return self();
     }
 
     // --------------------------------------------------------------- animation
@@ -582,30 +582,30 @@ public abstract class Chart extends Widget {
     }
 
     /** Sets the animation length in seconds; {@code 0} draws every change immediately. */
-    public Chart setAnimationDuration(double seconds) {
+    public W setAnimationDuration(double seconds) {
         Ui.checkUiThread();
         this.animationSeconds = Math.max(0, seconds);
         if (animationSeconds == 0) {
             anim.snap(1);
         }
-        return this;
+        return self();
     }
 
     /** Sets the animation curve (default {@link Easing#EASE_OUT}). */
-    public Chart setAnimationEasing(Easing easing) {
+    public W setAnimationEasing(Easing easing) {
         Ui.checkUiThread();
         this.animationEasing = Objects.requireNonNull(easing, "easing");
-        return this;
+        return self();
     }
 
     /** Replays the entry animation from the axis baseline. */
-    public Chart replayAnimation() {
+    public W replayAnimation() {
         Ui.checkUiThread();
         for (ChartSeries s : series) {
             s.from = null;
         }
         restartAnimation();
-        return this;
+        return self();
     }
 
     // ------------------------------------------------------------------ events
@@ -615,20 +615,20 @@ public abstract class Chart extends Widget {
      * {@link TooltipMode#INDEX} a click anywhere in a category reports that category's
      * nearest mark, so a thin line is as clickable as a fat bar.
      */
-    public Chart onPointClick(Consumer<ChartPoint> listener) {
+    public W onPointClick(Consumer<ChartPoint> listener) {
         Ui.checkUiThread();
         this.onPointClick = Checks.handlerSlot(onPointClick, listener, "Chart.onPointClick");
-        return this;
+        return self();
     }
 
     /**
      * Called whenever the hovered datum changes, with {@code null} when the pointer leaves
      * the marks. Fires on changes only, not on every pointer move.
      */
-    public Chart onPointHover(Consumer<ChartPoint> listener) {
+    public W onPointHover(Consumer<ChartPoint> listener) {
         Ui.checkUiThread();
         this.onPointHover = Checks.handlerSlot(onPointHover, listener, "Chart.onPointHover");
-        return this;
+        return self();
     }
 
     /**
@@ -655,12 +655,6 @@ public abstract class Chart extends Widget {
     /** The datum under the pointer, or {@code null}. */
     public ChartPoint hoveredPoint() {
         return hovered;
-    }
-
-    /** Chaining form of {@link #setControlSize}; {@code setControlSize} is {@code void}. */
-    public Chart withControlSize(ControlSize size) {
-        setControlSize(size);
-        return this;
     }
 
     // ------------------------------------------------------- subclass contract

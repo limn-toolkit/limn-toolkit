@@ -40,7 +40,7 @@ class ChartHoverDamageTest extends ComponentTestBase {
     private Scene scene;
     private AtomicLong nanos;
     private RecordingTestCanvas canvas;
-    private Widget subject;
+    private Widget<?> subject;
     /**
      * The union of every repaint pass a gesture caused. Accumulated during the gesture rather
      * than read after it: the loop below runs until the animation settles, so the canvas then
@@ -48,7 +48,7 @@ class ChartHoverDamageTest extends ComponentTestBase {
      */
     private Rect gestureDamage;
 
-    private void mount(Widget widget) {
+    private void mount(Widget<?> widget) {
         subject = widget;
         nanos = new AtomicLong();
         scene = new Scene(new Padding(Insets.all(INSET), widget), nanos::get);
@@ -109,7 +109,7 @@ class ChartHoverDamageTest extends ComponentTestBase {
      * @param nudge   a second point over the SAME mark, so only the panel moves
      * @param ceiling the most of the chart any frame may repaint
      */
-    private void hoverArriveMoveLeave(Chart chart, float onMark, float onMarkY,
+    private void hoverArriveMoveLeave(Chart<?> chart, float onMark, float onMarkY,
                                       float nudge, float nudgeY, float ceiling, String name) {
         mount(chart);
         assertUnder(worstShareOf(onMark, onMarkY, name + ": arriving"), ceiling,

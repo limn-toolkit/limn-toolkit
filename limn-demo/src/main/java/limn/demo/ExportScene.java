@@ -42,7 +42,7 @@ final class ExportScene {
     }
 
     /** The subtree, reusable as a kitchen-sink tab. */
-    static Widget content() {
+    static Widget<?> content() {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
 

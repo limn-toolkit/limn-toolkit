@@ -47,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AccessiblePaintWarningTest extends AccessibleTestBase {
 
     /** A widget that draws its own content and says nothing about itself: the warning's own case. */
-    private static final class Gauge extends Widget {
+    private static final class Gauge extends Widget<Gauge> {
         @Override
         protected Size onMeasure(Constraints constraints) {
             return constraints.constrain(40, 20);
@@ -60,8 +60,8 @@ class AccessiblePaintWarningTest extends AccessibleTestBase {
     }
 
     /** The other case: a panel whose drawing is background over content it does not own. */
-    private static final class Glass extends Widget {
-        Glass(Widget child) {
+    private static final class Glass extends Widget<Glass> {
+        Glass(Widget<?> child) {
             add(child);
         }
 

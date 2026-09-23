@@ -59,7 +59,7 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
      * ordinary control in a pane amounts to for this test: a widget that survives the predicate and
      * so has a node whose box and states can be read.
      */
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         private final float prefWidth;
         private final float prefHeight;
 
@@ -79,8 +79,8 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
      * A container that lays one child inside its own box and one far outside it: the case the pane
      * exists for, since without the clip the second child would paint into the other pane.
      */
-    private static final class Overflow extends Widget {
-        Overflow(Widget inside, Widget outside) {
+    private static final class Overflow extends Widget<Overflow> {
+        Overflow(Widget<?> inside, Widget<?> outside) {
             add(inside);
             add(outside);
         }
@@ -96,7 +96,7 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
             place(children().get(1), 10_000);
         }
 
-        private static void place(Widget child, float x) {
+        private static void place(Widget<?> child, float x) {
             child.measure(Constraints.tight(10, 10));
             child.layoutBox(x, 0, 10, 10);
         }
@@ -106,8 +106,8 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
      * A wrapper that fills what it is given and hands all of it to its child: an ancestor to
      * disable, and one that is itself scaffolding, so the tree below it is the same tree.
      */
-    private static final class Frame extends Widget {
-        Frame(Widget child) {
+    private static final class Frame extends Widget<Frame> {
+        Frame(Widget<?> child) {
             add(child);
         }
 
@@ -217,7 +217,7 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
         // middle either way, and a test that took the default would pass without mirroring.
         split.setRatio(0.25f);
         frame();
-        Widget divider = split.divider();
+        Widget<?> divider = split.divider();
 
         assertEquals(divider.localToSceneX(), splitter().x(), 0.01f, describe(tree()));
         assertEquals(divider.localToSceneY(), splitter().y(), 0.01f);
@@ -298,7 +298,7 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
         Assumptions.assumeTrue(AllocationProbe.isSupported(),
                 "this virtual machine does not count per-thread allocation");
         bindSplit();
-        Widget divider = split.divider();
+        Widget<?> divider = split.divider();
         drive(scene).mouseMoved(divider.localToSceneX() + divider.width() / 2,
                 divider.localToSceneY() + divider.height() / 2);
         drive(scene).inputBatchEnded();

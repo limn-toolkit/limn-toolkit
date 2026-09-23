@@ -72,7 +72,7 @@ class CalendarViewRowsContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             calendar = new CalendarView();
             calendar.setFirstDayOfWeek(DayOfWeek.SUNDAY);
             calendar.setVisibleMonth(LocalDate.of(2024, 9, 1));
@@ -90,7 +90,7 @@ class CalendarViewRowsContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return calendar;
         }
 

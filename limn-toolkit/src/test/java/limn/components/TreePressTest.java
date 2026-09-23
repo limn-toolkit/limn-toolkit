@@ -39,7 +39,7 @@ class TreePressTest extends ComponentTestBase {
     }
 
     /** A row of fixed height that paints nothing, so a row's index is arithmetic on its y. */
-    private static final class Cell extends Widget {
+    private static final class Cell extends Widget<Cell> {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(c.maxWidth(), ROW_HEIGHT);
@@ -61,7 +61,7 @@ class TreePressTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Cell();
             }
         });
@@ -100,8 +100,8 @@ class TreePressTest extends ComponentTestBase {
     void aPressOnATriangleOpensItsRowWhereverTheTreeSits() {
         Node folder = new Node("folder", List.of(Node.leaf("inside")));
         Tree<Node> tree = inset(List.of(folder, Node.leaf("after"), Node.leaf("last")));
-        Widget cell = null;
-        for (Widget child : tree.children()) {
+        Widget<?> cell = null;
+        for (Widget<?> child : tree.children()) {
             if (child instanceof Cell found) {
                 cell = found;
                 break;

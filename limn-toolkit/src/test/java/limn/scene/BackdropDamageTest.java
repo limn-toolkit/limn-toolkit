@@ -59,7 +59,7 @@ class BackdropDamageTest {
             return clips.isEmpty();
         }
 
-        boolean covers(Widget widget) {
+        boolean covers(Widget<?> widget) {
             float wx = widget.localToSceneX();
             float wy = widget.localToSceneY();
             for (String clip : clips) {
@@ -78,7 +78,7 @@ class BackdropDamageTest {
     }
 
     /** A widget with a size, which paints and can be told it lives off its backdrop. */
-    private static class Box extends Widget {
+    private static class Box extends Widget<Box> {
         private final boolean backdrop;
 
         Box(boolean backdrop) {
@@ -111,7 +111,7 @@ class BackdropDamageTest {
         ui.close();
     }
 
-    private Scene sceneOf(Widget root) {
+    private Scene sceneOf(Widget<?> root) {
         Scene scene = new Scene(root);
         scene.setPartialRendering(true);
         scene.layoutPass(400, 300);

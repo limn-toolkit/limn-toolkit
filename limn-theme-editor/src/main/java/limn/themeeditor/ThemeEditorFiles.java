@@ -45,7 +45,7 @@ public final class ThemeEditorFiles {
     }
 
     /** A row of the two buttons, for an application that wants them in its own toolbar. */
-    public static Widget buttons(ThemeEditor editor) {
+    public static Widget<?> buttons(ThemeEditor editor) {
         Objects.requireNonNull(editor, "editor");
         TokenRow row = new TokenRow(Tokens.Role.SMALL);
         row.crossAlignment(Flex.CrossAlignment.CENTER);

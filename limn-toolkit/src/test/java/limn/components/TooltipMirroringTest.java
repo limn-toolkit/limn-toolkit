@@ -54,7 +54,7 @@ class TooltipMirroringTest extends ComponentTestBase {
     private static final String TIP = "abcd";
     private static final float TIP_WIDTH = 40;
 
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         @Override
         protected Size onMeasure(Constraints constraints) {
             return constraints.constrain(SCENE_W, SCENE_H);

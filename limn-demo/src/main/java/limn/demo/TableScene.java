@@ -100,7 +100,7 @@ final class TableScene {
         page.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
         page.add(Expanded.of(table));
         page.add(actions);
-        Widget root = new Padding(Insets.all(16), page);
+        Widget<?> root = new Padding(Insets.all(16), page);
         Scene scene = new Scene(root);
         scene.setBackground(Theme.current().background());
         stateFor(scene, table, customer);

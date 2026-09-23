@@ -91,7 +91,7 @@ class PointerInputTest extends SceneTestBase {
     @Test
     void deltasWithNothingFocusedBubbleFromTheRoot() {
         List<MouseEvent> rootMotions = new ArrayList<>();
-        Widget root = new FixedBox(200, 200) {
+        Widget<?> root = new FixedBox(200, 200) {
             @Override
             protected void onMouseEvent(MouseEvent event) {
                 if (event.type() == MouseEvent.Type.MOTION) {
@@ -187,12 +187,12 @@ class PointerInputTest extends SceneTestBase {
     }
 
     /** Trivial vertical stack for the tests above. */
-    static final class Column extends Widget {
+    static final class Column extends Widget<Column> {
         @Override
         protected Size onMeasure(Constraints c) {
             float h = 0;
             float w = 0;
-            for (Widget child : children()) {
+            for (Widget<?> child : children()) {
                 Size s = child.measure(Constraints.loose(c.maxWidth(), c.maxHeight()));
                 h += s.height();
                 w = Math.max(w, s.width());
@@ -203,7 +203,7 @@ class PointerInputTest extends SceneTestBase {
         @Override
         protected void onLayout() {
             float y = 0;
-            for (Widget child : children()) {
+            for (Widget<?> child : children()) {
                 Size s = child.measure(Constraints.loose(width(), height()));
                 child.layoutBox(0, y, s.width(), s.height());
                 y += s.height();

@@ -49,7 +49,7 @@ final class AudioScene {
     }
 
     /** The subtree, reusable as a kitchen-sink tab. */
-    static Widget content() {
+    static Widget<?> content() {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
 
@@ -136,7 +136,7 @@ final class AudioScene {
     // ------------------------------------------------------- streamed music
 
     /** Play/pause/stop for the generated, streamed, looping track. */
-    private static final class MusicPanel extends Widget {
+    private static final class MusicPanel extends Widget<MusicPanel> {
         private final Button play = new Button("Play music");
         private final Button pause = new Button("Pause").setSecondary(true);
         private final Button stop = new Button("Stop").setSecondary(true);
@@ -289,7 +289,7 @@ final class AudioScene {
     // -------------------------------------------------------- positional pad
 
     /** Click-to-place looping emitter around a fixed centered listener. */
-    private static final class PositionalPad extends Widget {
+    private static final class PositionalPad extends Widget<PositionalPad> {
         private static final float WORLD = 6f; // half-extent in audio units
         private final AudioClip ping = AudioClip.tone(660f, 0.35f, 0.5f);
         private Playback emitter = Playback.NONE;

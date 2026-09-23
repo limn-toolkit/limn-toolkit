@@ -27,7 +27,7 @@ public final class Labelled {
      * @param control what it names
      * @return the column holding both
      */
-    public static Widget above(String caption, Widget control) {
+    public static Widget<?> above(String caption, Widget<?> control) {
         return above(I18nString.literal(caption), control, control);
     }
 
@@ -40,7 +40,7 @@ public final class Labelled {
      * @param placed  what is laid out under the caption; holds {@code control}
      * @return the column holding both
      */
-    public static Widget above(String caption, Widget control, Widget placed) {
+    public static Widget<?> above(String caption, Widget<?> control, Widget<?> placed) {
         return above(I18nString.literal(caption), control, placed);
     }
 
@@ -52,7 +52,7 @@ public final class Labelled {
      * @param control what it names, and what is placed
      * @return the column holding both
      */
-    public static Widget above(I18nString caption, Widget control) {
+    public static Widget<?> above(I18nString caption, Widget<?> control) {
         return above(caption, control, control);
     }
 
@@ -65,7 +65,7 @@ public final class Labelled {
      * @return the column holding both
      */
     // #region guide:a11y-labelled
-    public static Widget above(I18nString caption, Widget control, Widget placed) {
+    public static Widget<?> above(I18nString caption, Widget<?> control, Widget<?> placed) {
         Column column = new Column();
         column.gap(4).crossAlignment(Flex.CrossAlignment.STRETCH);
         column.add(new Label(caption).setLabelFor(control));
@@ -83,7 +83,7 @@ public final class Labelled {
      * @param alignment how the two sit across the column
      * @return the column holding both
      */
-    public static Widget below(String caption, Widget control, Flex.CrossAlignment alignment) {
+    public static Widget<?> below(String caption, Widget<?> control, Flex.CrossAlignment alignment) {
         Column column = new Column();
         column.gap(6).crossAlignment(alignment);
         column.add(control);
@@ -92,7 +92,7 @@ public final class Labelled {
     }
 
     /** {@link #below(String, Widget, Flex.CrossAlignment)} with the pair aligned to the start. */
-    public static Widget below(String caption, Widget control) {
+    public static Widget<?> below(String caption, Widget<?> control) {
         return below(caption, control, Flex.CrossAlignment.START);
     }
 }

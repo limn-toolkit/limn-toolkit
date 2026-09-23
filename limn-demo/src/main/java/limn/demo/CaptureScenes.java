@@ -257,7 +257,7 @@ final class CaptureScenes {
         return new Built(scene(col), () -> tabs.setSelectedIndex(11));
     }
 
-    private static Widget alignedTabs(String label, TabbedPane.TabAlignment alignment) {
+    private static Widget<?> alignedTabs(String label, TabbedPane.TabAlignment alignment) {
         TabbedPane tabs = new TabbedPane().setAlignment(alignment);
         tabs.addTab("One", body(label + ": tab One"));
         tabs.addTab("Two", body("tab Two"));
@@ -265,7 +265,7 @@ final class CaptureScenes {
         return new SizedBox(SizedBox.UNSET, 96, tabs);
     }
 
-    private static Widget body(String text) {
+    private static Widget<?> body(String text) {
         return new Padding(Insets.all(12), new Label(text).setMuted(true));
     }
 
@@ -275,7 +275,7 @@ final class CaptureScenes {
         return col;
     }
 
-    private static Scene scene(Widget content) {
+    private static Scene scene(Widget<?> content) {
         Scene scene = new Scene(new Padding(Insets.all(22), content));
         scene.setBackground(Theme.current().background());
         return scene;

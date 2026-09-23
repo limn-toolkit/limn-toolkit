@@ -51,7 +51,7 @@ public final class DatesExample {
      * a calendar behind a button; either of them carries a clock as well.
      */
     // #region guide:date-shapes
-    static Widget shapes() {
+    static Widget<?> shapes() {
         Column column = new Column();
         column.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
 
@@ -81,7 +81,7 @@ public final class DatesExample {
      * being opened, and the grid writes back into whichever end is being filled.
      */
     // #region guide:date-range
-    static Widget period() {
+    static Widget<?> period() {
         DatePicker period = DatePicker.ofRange();
         period.setRange(new DateRange(LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 25)));
         period.onSelect(() -> System.out.println("period now " + period.range()));
@@ -118,7 +118,7 @@ public final class DatesExample {
      * that is not layout, and the reason a screen reader says "Delivery, group" rather than
      * "group".
      */
-    private static Widget field(String caption, Widget control) {
+    private static Widget<?> field(String caption, Widget<?> control) {
         Column column = new Column();
         column.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
         Label label = new Label(caption);

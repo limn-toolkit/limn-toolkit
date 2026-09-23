@@ -57,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ImageViewAccessibilityTest extends AccessibleComponentTestBase {
 
     /** A leaf with a fixed preferred size and an application-supplied name: the picture's neighbours. */
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         Box(String name) {
             setAccessibleName(name);
         }
@@ -78,7 +78,7 @@ class ImageViewAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     private ImageView view;
-    private Widget container;
+    private Widget<?> container;
 
     /** Every record the walk logged while a test was running; see the class comment. */
     private final List<LogRecord> logged = new ArrayList<>();

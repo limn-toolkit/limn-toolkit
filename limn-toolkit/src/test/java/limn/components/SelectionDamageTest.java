@@ -50,7 +50,7 @@ class SelectionDamageTest extends ComponentTestBase {
 
     // ------------------------------------------------------------------ the list
 
-    private static final class Cell extends Widget {
+    private static final class Cell extends Widget<Cell> {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(c.maxWidth(), 24);
@@ -69,12 +69,12 @@ class SelectionDamageTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return pool.isEmpty() ? new Cell() : pool.pop();
             }
 
             @Override
-            public void recycle(Widget widget) {
+            public void recycle(Widget<?> widget) {
                 pool.push((Cell) widget);
             }
         });
@@ -112,7 +112,7 @@ class SelectionDamageTest extends ComponentTestBase {
      * time rather than real time, because a loop of real frames never reaches the end of a
      * second-long hold.
      */
-    private RecordingTestCanvas settle(Widget widget) {
+    private RecordingTestCanvas settle(Widget<?> widget) {
         nanos = new AtomicLong();
         scene = new Scene(new Padding(Insets.all(INSET), widget), nanos::get);
         scene.setTextRuler(RULER);
@@ -147,7 +147,7 @@ class SelectionDamageTest extends ComponentTestBase {
      * their full width, so a row band is as wide as the widget and always will be. What must not
      * happen is a band as tall as the widget.
      */
-    private void assertDamagedRowsOnly(RecordingTestCanvas canvas, Widget widget,
+    private void assertDamagedRowsOnly(RecordingTestCanvas canvas, Widget<?> widget,
                                        float rowHeight, int maxRows, String what) {
         assertFalse(canvas.cleared, what + " cleared the frame, so it repainted the window");
         Rect clip = canvas.firstClip;

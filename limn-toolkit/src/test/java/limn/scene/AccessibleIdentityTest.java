@@ -245,7 +245,7 @@ class AccessibleIdentityTest extends AccessibleTestBase {
     }
 
     /** A list that mounts two cells and rebinds them to whatever rows are in view. */
-    private static final class Pool extends Widget {
+    private static final class Pool extends Widget<Pool> {
         int firstRow;
         private final Probe[] cells = {new Probe(), new Probe()};
 
@@ -276,7 +276,7 @@ class AccessibleIdentityTest extends AccessibleTestBase {
         }
 
         @Override
-        protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+        protected void onAccessibilityChildIdentity(Widget<?> child, Accessibility a) {
             for (int i = 0; i < cells.length; i++) {
                 if (cells[i] == child) {
                     a.key(firstRow + i);        // the data index, which is what identity is here
@@ -285,7 +285,7 @@ class AccessibleIdentityTest extends AccessibleTestBase {
         }
 
         @Override
-        protected void onAccessibilityChild(Widget child, Accessibility a) {
+        protected void onAccessibilityChild(Widget<?> child, Accessibility a) {
             for (int i = 0; i < cells.length; i++) {
                 if (cells[i] == child) {
                     a.selectionItem(false, firstRow + i + 1, 100);
@@ -317,7 +317,7 @@ class AccessibleIdentityTest extends AccessibleTestBase {
     }
 
     /** The same list, mounting composite cells. */
-    private static final class CompositePool extends Widget {
+    private static final class CompositePool extends Widget<CompositePool> {
         int firstRow;
         private final CompositeCell[] cells = {new CompositeCell(), new CompositeCell()};
 
@@ -349,7 +349,7 @@ class AccessibleIdentityTest extends AccessibleTestBase {
         }
 
         @Override
-        protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+        protected void onAccessibilityChildIdentity(Widget<?> child, Accessibility a) {
             for (int i = 0; i < cells.length; i++) {
                 if (cells[i] == child) {
                     a.key(firstRow + i);

@@ -107,17 +107,17 @@ class MediaControlsMuteButtonAccessibilityTest extends AccessibleComponentTestBa
      * @return the mute button itself, reached through the public child lists: the bar's only
      *         child is the row and the row's second child is the mute button
      */
-    private Widget muteWidget() {
+    private Widget<?> muteWidget() {
         return controls.children().get(0).children().get(1);
     }
 
     /** @return the play button itself, the row's first child */
-    private Widget playWidget() {
+    private Widget<?> playWidget() {
         return controls.children().get(0).children().get(0);
     }
 
     /** @return the volume slider, inside the sized box that is the row's third child */
-    private Widget volumeSlider() {
+    private Widget<?> volumeSlider() {
         return controls.children().get(0).children().get(2).children().get(0);
     }
 
@@ -439,7 +439,7 @@ class MediaControlsMuteButtonAccessibilityTest extends AccessibleComponentTestBa
         bindOffered();
 
         AccessibleNode node = mute();
-        Widget button = muteWidget();
+        Widget<?> button = muteWidget();
         assertEquals(button.localToSceneX(), node.x(), describe(tree()));
         assertEquals(button.localToSceneY(), node.y(), describe(tree()));
         assertEquals(button.width(), node.width(), describe(tree()));

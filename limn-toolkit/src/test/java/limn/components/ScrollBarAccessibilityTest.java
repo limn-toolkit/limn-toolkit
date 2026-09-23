@@ -157,7 +157,7 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
      */
     private void bindBarOnClock(ScrollBar.Orientation orientation, ScrollBar.Policy policy,
                                 LongSupplier clock) {
-        Widget under = fixture(orientation, policy, clock);
+        Widget<?> under = fixture(orientation, policy, clock);
         bridge = RecordingAccessibilityBridge.listening();
         window = new StubWindow();
         window.accessibility = bridge;
@@ -168,7 +168,7 @@ class ScrollBarAccessibilityTest extends AccessibleComponentTestBase {
         bridge.events.clear();
     }
 
-    private Widget fixture(ScrollBar.Orientation orientation, ScrollBar.Policy policy,
+    private Widget<?> fixture(ScrollBar.Orientation orientation, ScrollBar.Policy policy,
                            LongSupplier clock) {
         model = new Model();
         bar = new ScrollBar(orientation, model);

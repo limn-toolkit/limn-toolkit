@@ -22,7 +22,7 @@ class ProgressBarValueContractTest extends ComponentTestBase {
         private ProgressBar bar;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             bar = new ProgressBar().setProgress(0.4f);
             bar.setAccessibleName("Upload");
             Column root = new Column();
@@ -31,7 +31,7 @@ class ProgressBarValueContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return bar;
         }
 

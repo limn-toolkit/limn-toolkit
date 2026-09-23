@@ -54,7 +54,7 @@ class FadeDamageTest extends ComponentTestBase {
      */
     private List<Rect> lastPasses = List.of();
 
-    private void mount(Widget root, Insets insets) {
+    private void mount(Widget<?> root, Insets insets) {
         nanos = new AtomicLong();
         scene = new Scene(new Padding(insets, root), nanos::get);
         scene.setTextRuler(RULER);
@@ -72,7 +72,7 @@ class FadeDamageTest extends ComponentTestBase {
                 + "settling rather than the gesture");
     }
 
-    private void mount(Widget root) {
+    private void mount(Widget<?> root) {
         mount(root, Insets.all(INSET));
     }
 
@@ -82,7 +82,7 @@ class FadeDamageTest extends ComponentTestBase {
      *
      * @return how many frames painted, so a caller can prove the animation actually ran
      */
-    private int assertFadeStaysUnder(Widget widget, int skip, float maxShare, String what) {
+    private int assertFadeStaysUnder(Widget<?> widget, int skip, float maxShare, String what) {
         float box = Math.max(1, widget.width() * widget.height());
         int painted = 0;
         float worst = 0;
@@ -183,11 +183,11 @@ class FadeDamageTest extends ComponentTestBase {
                 return 500;
             }
 
-            @Override public Widget rowAt(int index) {
+            @Override public Widget<?> rowAt(int index) {
                 return new limn.scene.layout.SizedBox(10, 24);
             }
 
-            @Override public void recycle(Widget widget) {
+            @Override public void recycle(Widget<?> widget) {
             }
         });
         mount(list);

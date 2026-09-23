@@ -31,7 +31,7 @@ class TabbedPaneRowsContractTest extends ComponentTestBase {
         private int activated = -1;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             pane = new TabbedPane();
             for (String name : NAMES) {
                 pane.addTab(name, new SizedBox(60, 60));
@@ -45,7 +45,7 @@ class TabbedPaneRowsContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return pane;
         }
 

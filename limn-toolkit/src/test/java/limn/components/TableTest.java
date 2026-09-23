@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.PlainWidget;
+
 import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
@@ -823,10 +825,10 @@ class TableTest extends ComponentTestBase {
         table.setRows(people(100));
         FakeCanvas canvas = new FakeCanvas(300, 200);
         Scene scene = scene(table, canvas);
-        List<Widget> first = new ArrayList<>(table.children());
+        List<Widget<?>> first = new ArrayList<>(table.children());
         table.scrollBy(0, 5000);
         scene.renderFrame(canvas);
-        for (Widget w : table.children()) {
+        for (Widget<?> w : table.children()) {
             if (w instanceof Button) {
                 assertTrue(!first.contains(w), "a scrolled-away row released its widget");
             }
@@ -891,8 +893,8 @@ class TableTest extends ComponentTestBase {
      */
     @Test
     void aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre() {
-        List<Widget> opens = new ArrayList<>();
-        List<Widget> mores = new ArrayList<>();
+        List<Widget<?>> opens = new ArrayList<>();
+        List<Widget<?>> mores = new ArrayList<>();
         Column<Person> age = ageColumn();
         Column<Person> open = Column.<Person>widget("Open", p -> {
             Button b = new Button("Open");
@@ -910,7 +912,7 @@ class TableTest extends ComponentTestBase {
         Scene scene = scene(table, canvas);
         int built = opens.size();
         assertTrue(built >= 3, "the viewport's worth of Open buttons: " + built);
-        Widget target = opens.get(1);
+        Widget<?> target = opens.get(1);
         scene.requestFocus(target);
         scene.renderFrame(canvas);
         assertSame(target, scene.focusedWidget());
@@ -928,7 +930,7 @@ class TableTest extends ComponentTestBase {
         assertEquals(built, opens.size(), "showing a widget column rebuilds no other column's widget");
         assertEquals(built, mores.size(), "and builds its own for each realized row");
         assertSame(target, scene.focusedWidget());
-        List<Widget> children = table.children();
+        List<Widget<?>> children = table.children();
         assertEquals(2 + 2 * built, children.size(), "the bars, then two cells per realized row");
         for (int i = 0; i < built; i++) {
             assertSame(opens.get(i), children.get(2 + 2 * i), "row " + i + "'s Open in data order");
@@ -960,7 +962,7 @@ class TableTest extends ComponentTestBase {
      */
     @Test
     void aRefreshOrASortKeepsTheWidgetCellThatHoldsTheKeyboardWhileItsRecordStays() {
-        List<Widget> opens = new ArrayList<>();
+        List<Widget<?>> opens = new ArrayList<>();
         Column<Person> open = Column.<Person>widget("Open", p -> {
             Button b = new Button("Open " + p.name());
             opens.add(b);
@@ -971,7 +973,7 @@ class TableTest extends ComponentTestBase {
         table.setRows(rows);
         FakeCanvas canvas = new FakeCanvas(400, 200);
         Scene scene = scene(table, canvas);
-        Widget target = opens.get(2); // Person 2's
+        Widget<?> target = opens.get(2); // Person 2's
         scene.requestFocus(target);
         scene.renderFrame(canvas);
         float wasY = target.y();
@@ -1071,7 +1073,7 @@ class TableTest extends ComponentTestBase {
 
     /** The x of any widget cell of the one widget column: every row's sits at the same x. */
     private static float widgetX(Table<?> table) {
-        for (Widget child : table.children()) {
+        for (Widget<?> child : table.children()) {
             if (!(child instanceof ScrollBar)) {
                 return child.x();
             }
@@ -1145,7 +1147,7 @@ class TableTest extends ComponentTestBase {
         table.setRows(people(20));
         limn.scene.layout.Column column = new limn.scene.layout.Column();
         column.add(table);
-        column.add(new Widget() {
+        column.add(new PlainWidget() {
             @Override
             protected limn.scene.Size onMeasure(Constraints c) {
                 return c.constrain(c.maxWidth(), 400);
@@ -1218,7 +1220,7 @@ class TableTest extends ComponentTestBase {
         FakeCanvas canvas = new FakeCanvas(300, 200);
         Scene scene = scene(table, canvas);
         List<Float> tops = new ArrayList<>();
-        for (Widget child : table.children()) {
+        for (Widget<?> child : table.children()) {
             if (child instanceof SizedBox) {
                 tops.add(child.y());
             }

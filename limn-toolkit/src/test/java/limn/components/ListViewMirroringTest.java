@@ -44,7 +44,7 @@ class ListViewMirroringTest extends ComponentTestBase {
     private static final float VIEWPORT = BOX - STRIP;
 
     /** A row of fixed height that paints nothing: only its box is ever asserted. */
-    private static final class Cell extends Widget {
+    private static final class Cell extends Widget<Cell> {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(c.maxWidth(), ROW_HEIGHT);
@@ -62,7 +62,7 @@ class ListViewMirroringTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return new Cell();
             }
         }).setBarLayout(barLayout).setScrollbarPolicy(ScrollBar.Policy.ALWAYS);
@@ -76,7 +76,7 @@ class ListViewMirroringTest extends ComponentTestBase {
 
     /** The list's own vertical bar, found through the tree rather than through new API. */
     private ScrollBar bar() {
-        for (Widget child : list.children()) {
+        for (Widget<?> child : list.children()) {
             if (child instanceof ScrollBar found) {
                 return found;
             }
@@ -85,9 +85,9 @@ class ListViewMirroringTest extends ComponentTestBase {
     }
 
     /** Every mounted row, in no particular order; the bar is not one. */
-    private List<Widget> rows() {
-        List<Widget> rows = new ArrayList<>();
-        for (Widget child : list.children()) {
+    private List<Widget<?>> rows() {
+        List<Widget<?>> rows = new ArrayList<>();
+        for (Widget<?> child : list.children()) {
             if (!(child instanceof ScrollBar)) {
                 rows.add(child);
             }
@@ -116,7 +116,7 @@ class ListViewMirroringTest extends ComponentTestBase {
     @Test
     void everyRowStartsBeyondTheStripReadingRightToLeft() {
         build(LayoutDirection.RTL, ScrollGutters.Layout.RESERVED);
-        for (Widget row : rows()) {
+        for (Widget<?> row : rows()) {
             assertEquals(STRIP, row.x(), EPS, "a row still started at the box's left edge");
             assertEquals(VIEWPORT, row.width(), EPS);
             assertEquals(BOX, row.x() + row.width(), EPS,
@@ -131,7 +131,7 @@ class ListViewMirroringTest extends ComponentTestBase {
             build(direction, ScrollGutters.Layout.RESERVED);
             float barLeft = bar().x();
             float barRight = barLeft + bar().width();
-            for (Widget row : rows()) {
+            for (Widget<?> row : rows()) {
                 float rowLeft = row.x();
                 float rowRight = rowLeft + row.width();
                 assertTrue(rowRight <= barLeft + EPS || rowLeft >= barRight - EPS,
@@ -145,7 +145,7 @@ class ListViewMirroringTest extends ComponentTestBase {
     @Test
     void everyRowStartsAtTheOriginReadingLeftToRight() {
         build(LayoutDirection.LTR, ScrollGutters.Layout.RESERVED);
-        for (Widget row : rows()) {
+        for (Widget<?> row : rows()) {
             assertEquals(0, row.x(), EPS, "the default must not have moved");
             assertEquals(VIEWPORT, row.width(), EPS);
         }
@@ -157,7 +157,7 @@ class ListViewMirroringTest extends ComponentTestBase {
         // keep the whole box in both directions and only the bar changes sides.
         build(LayoutDirection.RTL, ScrollGutters.Layout.OVERLAY);
         assertEquals(0, bar().x(), EPS);
-        for (Widget row : rows()) {
+        for (Widget<?> row : rows()) {
             assertEquals(0, row.x(), EPS);
             assertEquals(BOX, row.width(), EPS);
         }
@@ -171,7 +171,7 @@ class ListViewMirroringTest extends ComponentTestBase {
         list.scrollBy(3 * ROW_HEIGHT + 7);
         scene.renderFrame(new FakeCanvas(BOX, HEIGHT));
         assertTrue(list.firstVisibleIndex() > 0, "the list did not actually scroll");
-        for (Widget row : rows()) {
+        for (Widget<?> row : rows()) {
             assertEquals(STRIP, row.x(), EPS, "a row lost its origin across a scroll");
         }
     }
@@ -181,14 +181,14 @@ class ListViewMirroringTest extends ComponentTestBase {
         // hitTest is expressed against the placed x, so this is the placement asserted a second
         // way: through the path a click actually takes.
         build(LayoutDirection.RTL, ScrollGutters.Layout.RESERVED);
-        List<Widget> rtlRows = rows();
+        List<Widget<?>> rtlRows = rows();
         assertTrue(rtlRows.contains(list.hitTest(BOX - 5, ROW_HEIGHT / 2)),
                 "the far right of a right-to-left list is a row");
         assertFalse(rtlRows.contains(list.hitTest(STRIP / 2, ROW_HEIGHT / 2)),
                 "and the strip belongs to the bar, not to a row");
 
         build(LayoutDirection.LTR, ScrollGutters.Layout.RESERVED);
-        List<Widget> ltrRows = rows();
+        List<Widget<?>> ltrRows = rows();
         assertTrue(ltrRows.contains(list.hitTest(5, ROW_HEIGHT / 2)),
                 "the default must not have moved");
         assertFalse(ltrRows.contains(list.hitTest(BOX - STRIP / 2, ROW_HEIGHT / 2)));

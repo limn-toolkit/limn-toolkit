@@ -113,11 +113,11 @@ class CaretDamageTest {
     }
 
     /** Viewport-like container clipping one child placed at a fixed offset. */
-    static final class ClippingViewport extends limn.scene.Widget {
-        private final limn.scene.Widget child;
+    static final class ClippingViewport extends limn.scene.Widget<ClippingViewport> {
+        private final limn.scene.Widget<?> child;
         private final float childY;
 
-        ClippingViewport(limn.scene.Widget child, float childY) {
+        ClippingViewport(limn.scene.Widget<?> child, float childY) {
             this.child = child;
             this.childY = childY;
             add(child);

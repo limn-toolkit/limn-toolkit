@@ -94,7 +94,7 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
      * the strip overflows is the test's decision and not the ruler's.
      */
     private void bindTabs(float width, String... captions) {
-        Widget[] panels = new Widget[captions.length];
+        Widget<?>[] panels = new Widget<?>[captions.length];
         for (int i = 0; i < panels.length; i++) {
             panels[i] = new SizedBox(60, 60);
         }
@@ -102,7 +102,7 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /** The same, with the panels the caller wants behind the tabs. */
-    private void bindPanels(float width, String[] captions, Widget[] panels) {
+    private void bindPanels(float width, String[] captions, Widget<?>[] panels) {
         pane = new TabbedPane();
         for (int i = 0; i < captions.length; i++) {
             pane.addTab(captions[i], panels[i]);
@@ -127,7 +127,7 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
      * construction, and a header is reached the way an application would reach one, through the
      * public tree; nothing here is a way in that a reader does not have.
      */
-    private List<Widget> headers() {
+    private List<Widget<?>> headers() {
         return pane.children().get(0).children();
     }
 
@@ -165,7 +165,7 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /** Moves the pointer to the centre of a widget's box, as a hover does. */
-    private void hover(Widget widget) {
+    private void hover(Widget<?> widget) {
         drive(scene).mouseMoved(widget.localToSceneX() + widget.width() / 2,
                 widget.localToSceneY() + widget.height() / 2);
         drive(scene).inputBatchEnded();
@@ -234,7 +234,7 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
     void theBoxIsTheHeadersOwnRectangle() {
         bindTabs(360, "Alpha", "Beta");
 
-        Widget header = headers().get(1);
+        Widget<?> header = headers().get(1);
         AccessibleNode beta = node("Beta");
         assertEquals(header.localToSceneX(), beta.x(), describe(tree()));
         assertEquals(header.localToSceneY(), beta.y(), describe(tree()));
@@ -432,7 +432,7 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
         Button inside = new Button("Inside");
         panel.add(inside);
         bindPanels(360, new String[] {"Alpha", "Beta"},
-                new Widget[] {new SizedBox(60, 60), panel});
+                new Widget<?>[] {new SizedBox(60, 60), panel});
         scene.requestFocus(elsewhere);
         frame();
         bridge.events.clear();
@@ -529,12 +529,12 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void anOverflowingStripRevealsAndSelectsTheTabItHasScrolledAway() throws Exception {
         bindTabs(200, "Tab A", "Tab B", "Tab C", "Tab D", "Tab E", "Tab F", "Tab G", "Tab H");
-        Widget strip = pane.children().get(0);
+        Widget<?> strip = pane.children().get(0);
 
         assertTrue(node("Tab A").has(Accessible.State.SHOWING),
                 "the first tab is inside the viewport" + describe(tree()));
         AccessibleNode away = node("Tab G");
-        Widget header = headers().get(6);
+        Widget<?> header = headers().get(6);
         assertEquals(header.localToSceneX(), away.x(),
                 "the real rectangle, not a clamped or a zeroed one: the strip lays its headers "
                         + "out with the scroll offset folded in and moves them the moment it "
@@ -601,7 +601,7 @@ class TabbedPaneTabHeaderAccessibilityTest extends AccessibleComponentTestBase {
         Assumptions.assumeTrue(AllocationProbe.isSupported(),
                 "this virtual machine does not count per-thread allocation");
         bindTabs(360, "Alpha", "Beta", "Gamma");
-        Widget header = headers().get(0);
+        Widget<?> header = headers().get(0);
         scene.requestFocus(header);
         frame();
         hover(header);

@@ -45,7 +45,7 @@ import java.util.Objects;
  * drawn inside that square turns around as well is the caller's to say &mdash; see
  * {@link Icon.Mirroring}.
  */
-public final class Button extends Widget {
+public final class Button extends Widget<Button> {
 
     private I18nString text;
     private Icon icon;
@@ -123,12 +123,6 @@ public final class Button extends Widget {
         Ui.checkUiThread();
         this.secondary = value;
         invalidate();
-        return this;
-    }
-
-    /** Chaining form of {@link #setControlSize}; {@code setControlSize} is {@code void}. */
-    public Button withControlSize(ControlSize size) {
-        setControlSize(size);
         return this;
     }
 

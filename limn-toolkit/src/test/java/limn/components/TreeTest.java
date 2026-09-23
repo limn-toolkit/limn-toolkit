@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.PlainWidget;
+
 import limn.components.tree.Tree;
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
@@ -92,17 +94,17 @@ class TreeTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget cellFor(Node node) {
+        public Widget<?> cellFor(Node node) {
             cellsBuilt.add(node.name());
             Label cell = new Label(node.name());
             return cell;
         }
 
         /** Every cell handed back, so a case can check the model only ever gets its own. */
-        final List<Widget> recycled = new ArrayList<>();
+        final List<Widget<?>> recycled = new ArrayList<>();
 
         @Override
-        public void recycle(Widget cell) {
+        public void recycle(Widget<?> cell) {
             recycled.add(cell);
         }
     }
@@ -126,15 +128,15 @@ class TreeTest extends ComponentTestBase {
      * row is exactly what a model-side count cannot see.
      */
     private static List<String> drawn(Tree<Node> tree) {
-        List<Widget> cells = new ArrayList<>();
-        for (Widget child : tree.children()) {
+        List<Widget<?>> cells = new ArrayList<>();
+        for (Widget<?> child : tree.children()) {
             if (child instanceof Label && child.y() + child.height() > 0 && child.y() < tree.height()) {
                 cells.add(child);
             }
         }
         cells.sort(java.util.Comparator.comparingDouble(Widget::y));
         List<String> names = new ArrayList<>();
-        for (Widget cell : cells) {
+        for (Widget<?> cell : cells) {
             names.add(((Label) cell).text());
         }
         return names;
@@ -467,8 +469,8 @@ class TreeTest extends ComponentTestBase {
     // ------------------------------------------------------------------------- MULTI
 
     /** The cell drawing {@code name}, found among the tree's children. */
-    private static Widget cellOf(Tree<Node> tree, String name) {
-        for (Widget child : tree.children()) {
+    private static Widget<?> cellOf(Tree<Node> tree, String name) {
+        for (Widget<?> child : tree.children()) {
             if (child instanceof Label label && label.text().equals(name)) {
                 return child;
             }
@@ -478,7 +480,7 @@ class TreeTest extends ComponentTestBase {
 
     /** A press and release at the middle of {@code name}'s cell, with {@code modifiers} held. */
     private void click(Tree<Node> tree, String name, int modifiers) {
-        Widget cell = cellOf(tree, name);
+        Widget<?> cell = cellOf(tree, name);
         float x = cell.localToSceneX() + cell.width() / 2;
         float y = cell.localToSceneY() + cell.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, modifiers, x, y);
@@ -737,7 +739,7 @@ class TreeTest extends ComponentTestBase {
 
     /** A press on {@code name}'s triangle: the band before the cell, at the row's middle. */
     private void pressTriangle(Tree<Node> tree, String name) {
-        Widget cell = cellOf(tree, name);
+        Widget<?> cell = cellOf(tree, name);
         // The band sits immediately before the cell; half a band back from the cell's edge is
         // inside it at every depth, and the other test of this widget aims the same way.
         float x = cell.localToSceneX() - 8;
@@ -833,7 +835,7 @@ class TreeTest extends ComponentTestBase {
 
     /** Whether some cell is drawing {@code name}, mounted anywhere. */
     private static boolean hasCell(Tree<Node> tree, String name) {
-        for (Widget child : tree.children()) {
+        for (Widget<?> child : tree.children()) {
             if (child instanceof Label label && label.text().equals(name)) {
                 return true;
             }
@@ -842,8 +844,8 @@ class TreeTest extends ComponentTestBase {
     }
 
     /** The cell drawing {@code name}, mounted anywhere; fails when none does. */
-    private static Widget cell(Tree<Node> tree, String name) {
-        for (Widget child : tree.children()) {
+    private static Widget<?> cell(Tree<Node> tree, String name) {
+        for (Widget<?> child : tree.children()) {
             if (child instanceof Label label && label.text().equals(name)) {
                 return label;
             }
@@ -885,7 +887,7 @@ class TreeTest extends ComponentTestBase {
         assertTrue(hasCell(tree, "row 2"), "a refresh releases every cell and mounts it back");
         assertEquals(builtBefore + 1, java.util.Collections.frequency(model.cellsBuilt, "row 2"),
                 "fresh from the model, since the refresh may have changed what it draws");
-        Widget back = cell(tree, "row 2");
+        Widget<?> back = cell(tree, "row 2");
         assertEquals(rowHeight, back.height(),
                 "laid out at the height it measures, like a placed row: a fresh cell has no "
                         + "height of its own, and a zero here reached the average row height "
@@ -944,7 +946,7 @@ class TreeTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Label(node.name());
             }
         };
@@ -1148,7 +1150,7 @@ class TreeTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Label(node.name());
             }
         };
@@ -1340,7 +1342,7 @@ class TreeTest extends ComponentTestBase {
         scene.layoutPass(220, 200);
         assertEquals(List.of("remote", "one", "two", "b"), drawn(tree),
                 "and when the children land they take its place");
-        for (Widget cell : model.recycled) {
+        for (Widget<?> cell : model.recycled) {
             assertFalse(cell instanceof Label label && label.text().equals("Loading…"),
                     "the line is the tree's, so the model is never handed it to pool");
         }
@@ -1382,8 +1384,8 @@ class TreeTest extends ComponentTestBase {
         assertEquals(below, tree.cursorNode());
 
         tree.setSelected(below);
-        Widget line = null;
-        for (Widget child : tree.children()) {
+        Widget<?> line = null;
+        for (Widget<?> child : tree.children()) {
             if (child instanceof Label label && !label.text().equals("remote")
                     && !label.text().equals("b")) {
                 line = child;
@@ -1437,7 +1439,7 @@ class TreeTest extends ComponentTestBase {
         assertEquals(List.of("trash", "Empty", "b"), drawn(tree),
                 "and reopened it says so at once, from what the load already found");
         assertEquals(1, model.loadCalls, "without asking the model to load it again");
-        for (Widget cell : model.recycled) {
+        for (Widget<?> cell : model.recycled) {
             assertFalse(cell instanceof Label label
                             && (label.text().equals("Empty") || label.text().equals("Loading…")),
                     "neither line is the model's to pool");
@@ -1474,7 +1476,7 @@ class TreeTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Label(node.name());
             }
         });
@@ -1615,7 +1617,7 @@ class TreeTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 Label text = new Label(node.name());
                 text.setIcon(null); // an icon would rasterize, and this harness has no rasterizer
                 Label badge = new Label("3");
@@ -1667,7 +1669,7 @@ class TreeTest extends ComponentTestBase {
         for (int i = 1; i <= 40; i++) {
             many.add(Node.leaf("row " + i));
         }
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree.Model<Node> model = new Tree.Model<>() {
             @Override
             public List<Node> roots() {
@@ -1680,7 +1682,7 @@ class TreeTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 Label cell = new Label(node.name());
                 cells.put(node.name(), cell);
                 return cell;
@@ -1697,7 +1699,7 @@ class TreeTest extends ComponentTestBase {
         float before = cells.get("row 1").y();
         wheel(tree, -3);
         scene.layoutPass(220, 120);
-        Widget first = cells.get("row 1");
+        Widget<?> first = cells.get("row 1");
         assertTrue(first.y() < before,
                 "the wheel has to move the rows: row 1 sat at " + before + " and is at "
                         + first.y());
@@ -1716,7 +1718,7 @@ class TreeTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Label(node.name());
             }
         });
@@ -1739,7 +1741,7 @@ class TreeTest extends ComponentTestBase {
     }
 
     /** The chain, open to the bottom, in a scene 220 wide; the cells are collected by name. */
-    private Tree<Node> openedChain(int levels, Map<String, Widget> cells) {
+    private Tree<Node> openedChain(int levels, Map<String, Widget<?>> cells) {
         return openedChain(levels, cells, 0, limn.scene.LayoutDirection.LTR);
     }
 
@@ -1747,7 +1749,7 @@ class TreeTest extends ComponentTestBase {
      * {@link #openedChain(int, Map)} over a model declaring {@code maxCellWidth} (zero: none),
      * read in {@code direction}.
      */
-    private Tree<Node> openedChain(int levels, Map<String, Widget> cells, float maxCellWidth,
+    private Tree<Node> openedChain(int levels, Map<String, Widget<?>> cells, float maxCellWidth,
             limn.scene.LayoutDirection direction) {
         Node top = chain(levels);
         Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
@@ -1762,7 +1764,7 @@ class TreeTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 Label cell = new Label(node.name());
                 cells.put(node.name(), cell);
                 return cell;
@@ -1793,10 +1795,10 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void aDeepBranchOutgrowsTheBoxSidewaysAndTheWheelWalksIt() {
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = openedChain(14, cells);
 
-        Widget deepest = cells.get("level-14");
+        Widget<?> deepest = cells.get("level-14");
         float before = deepest.x();
         wheelSideways(tree, -1);
         scene.layoutPass(220, 200);
@@ -1823,10 +1825,10 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void aShallowTreeIsExactlyItsBoxSoNothingMovesSideways() {
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = openedChain(2, cells);
 
-        Widget cell = cells.get("level-1");
+        Widget<?> cell = cells.get("level-1");
         float before = cell.x();
         float width = cell.width();
         wheelSideways(tree, -3);
@@ -1845,14 +1847,14 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void theDeepestCellIsAsWideAsTheModelDeclares() {
-        Map<String, Widget> guessed = new java.util.HashMap<>();
+        Map<String, Widget<?>> guessed = new java.util.HashMap<>();
         openedChain(14, guessed);
         float indent = guessed.get("level-2").x() - guessed.get("level-1").x();
         float guess = guessed.get("level-14").width();
         assertEquals(Theme.current().tokensFor(guessed.get("level-14")).menuMinWidth(), guess, 0.01f,
                 "undeclared, the deepest cell is the menu's minimum width, as it always was");
 
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = openedChain(14, cells, 190, limn.scene.LayoutDirection.LTR);
         assertEquals(190, mounted(cells, "level-14").width(), 0.01f,
                 "the deepest cell is as wide as the model declares, wider than the guess");
@@ -1863,11 +1865,11 @@ class TreeTest extends ComponentTestBase {
             wheelSideways(tree, -1);
         }
         scene.layoutPass(220, 200);
-        Widget deepest = mounted(cells, "level-14");
+        Widget<?> deepest = mounted(cells, "level-14");
         assertEquals(220, deepest.x() + deepest.width(), 0.01f,
                 "scrolled to the end, the declared width ends exactly at the box's edge");
 
-        Map<String, Widget> shallow = new java.util.HashMap<>();
+        Map<String, Widget<?>> shallow = new java.util.HashMap<>();
         Tree<Node> shallowTree = openedChain(2, shallow, 100, limn.scene.LayoutDirection.LTR);
         float before = shallow.get("level-1").x();
         wheelSideways(shallowTree, -3);
@@ -1888,9 +1890,9 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void aDeclaredWidthWiderThanTheBoxNeverScrollsAFlatTreeSideways() {
-        Map<String, Widget> flat = new java.util.HashMap<>();
+        Map<String, Widget<?>> flat = new java.util.HashMap<>();
         Tree<Node> flatTree = openedChain(1, flat, 300, limn.scene.LayoutDirection.LTR);
-        Widget only = mounted(flat, "level-1");
+        Widget<?> only = mounted(flat, "level-1");
         float band = only.x();
         wheelSideways(flatTree, -1);
         scene.layoutPass(220, 200);
@@ -1899,7 +1901,7 @@ class TreeTest extends ComponentTestBase {
                 "a one-row flat tree does not move sideways; width " + only.width());
         assertEquals(220 - band, only.width(), 0.01f, "and its cell is what the box leaves it");
 
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         openedChain(14, cells, 300, limn.scene.LayoutDirection.LTR);
         assertEquals(220 - band, mounted(cells, "level-14").width(), 0.01f,
                 "a deep row's cell is capped at the root row's, not stretched to the declared 300");
@@ -1915,12 +1917,12 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void theKeyboardBringsADeepRowsNameIntoView() {
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = openedChain(14, cells);
         scene.requestFocus(tree);
 
         press(Keys.END);
-        Widget deepest = mounted(cells, "level-14");
+        Widget<?> deepest = mounted(cells, "level-14");
         assertEquals("level-14", tree.cursorNode().name());
         assertTrue(deepest.x() >= 0 && deepest.x() + 40 <= tree.width(),
                 "the deepest row's name is in the box: its cell starts at " + deepest.x());
@@ -1931,7 +1933,7 @@ class TreeTest extends ComponentTestBase {
         scene.layoutPass(220, 200);
         assertTrue(mounted(cells, "level-1").x() < 0, "the wheel took the root's start out of view");
         press(Keys.HOME);
-        Widget top = mounted(cells, "level-1");
+        Widget<?> top = mounted(cells, "level-1");
         assertEquals("level-1", tree.cursorNode().name());
         assertTrue(top.x() > 0 && top.x() < 40,
                 "Home brings the root's triangle and name back into view: " + top.x());
@@ -1954,24 +1956,24 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void rightToLeftTheKeyboardBringsADeepRowsNameIntoViewPastAReservedStrip() {
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = openedChain(14, cells, 0, limn.scene.LayoutDirection.RTL);
         scene.requestFocus(tree);
 
         press(Keys.END);
-        Widget deepest = mounted(cells, "level-14");
+        Widget<?> deepest = mounted(cells, "level-14");
         float end = deepest.x() + deepest.width();
         assertTrue(end <= tree.width() && end - 40 >= 0,
                 "the deepest row's name is in the box reading right to left: its cell ends at "
                         + end);
 
         press(Keys.HOME);
-        Widget top = mounted(cells, "level-1");
+        Widget<?> top = mounted(cells, "level-1");
         float topEnd = top.x() + top.width();
         assertTrue(topEnd < tree.width() && topEnd > tree.width() - 40,
                 "and Home brings the root's back: " + topEnd);
 
-        Map<String, Widget> reserved = new java.util.HashMap<>();
+        Map<String, Widget<?>> reserved = new java.util.HashMap<>();
         List<Node> roots = new ArrayList<>();
         Node chainTop = chain(14);
         roots.add(chainTop);
@@ -1990,7 +1992,7 @@ class TreeTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 Label cell = new Label(node.name());
                 reserved.put(node.name(), cell);
                 return cell;
@@ -2012,7 +2014,7 @@ class TreeTest extends ComponentTestBase {
         for (int i = 0; i < 13; i++) {
             press(Keys.DOWN);
         }
-        Widget leaf = mounted(reserved, "level-14");
+        Widget<?> leaf = mounted(reserved, "level-14");
         assertEquals("level-14", strips.cursorNode().name());
         float promised = Theme.current().tokensFor(strips).menuMinWidth();
         assertTrue(leaf.x() + leaf.width() - promised >= strip - 0.01f,
@@ -2028,13 +2030,13 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void aPressOnADeepRowDoesNotMoveTheOutlineSideways() {
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = openedChain(14, cells);
         for (int i = 0; i < 80; i++) {
             wheelSideways(tree, -1);
         }
         scene.layoutPass(220, 200);
-        Widget top = mounted(cells, "level-1");
+        Widget<?> top = mounted(cells, "level-1");
         float before = top.x();
         assertTrue(before < 0, "the root's start is out of view: " + before);
 
@@ -2118,7 +2120,7 @@ class TreeTest extends ComponentTestBase {
      * The pane's content is the tree at its unbounded preference over a tall filler, so a detent
      * the tree lets through has somewhere visible to go.
      */
-    private Tree<Node> chainInAPane(Map<String, Widget> cells) {
+    private Tree<Node> chainInAPane(Map<String, Widget<?>> cells) {
         Node top = chain(14);
         List<Node> roots = new ArrayList<>();
         roots.add(top);
@@ -2137,7 +2139,7 @@ class TreeTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 Label cell = new Label(node.name());
                 cells.put(node.name(), cell);
                 return cell;
@@ -2149,7 +2151,7 @@ class TreeTest extends ComponentTestBase {
         }
         limn.scene.layout.Column column = new limn.scene.layout.Column();
         column.add(tree);
-        column.add(new Widget() {
+        column.add(new PlainWidget() {
             @Override
             protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
                 return c.constrain(c.maxWidth(), 400);
@@ -2168,8 +2170,8 @@ class TreeTest extends ComponentTestBase {
      * and a row that scrolled out and back comes back as a new cell, so a case reads it after
      * every step rather than holding one.
      */
-    private static Widget mounted(Map<String, Widget> cells, String name) {
-        Widget cell = cells.get(name);
+    private static Widget<?> mounted(Map<String, Widget<?>> cells, String name) {
+        Widget<?> cell = cells.get(name);
         assertTrue(cell != null && cell.parent() != null, name + " has to be a mounted row");
         return cell;
     }
@@ -2184,9 +2186,9 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void aWheelCarryingBothAxesScrollsBoth() {
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = chainInAPane(cells);
-        Widget deepest = mounted(cells, "level-14");
+        Widget<?> deepest = mounted(cells, "level-14");
         float xBefore = deepest.x();
         float yBefore = deepest.y();
 
@@ -2225,10 +2227,10 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void aSidewaysFlickWithShiftHeldStillScrollsSideways() {
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = chainInAPane(cells);
         ScrollView pane = (ScrollView) scene.root();
-        Widget deepest = mounted(cells, "level-14");
+        Widget<?> deepest = mounted(cells, "level-14");
         float xBefore = deepest.x();
         float yBefore = deepest.y();
 
@@ -2255,7 +2257,7 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void aWheelAtEitherEndOfTheTreePassesToTheScrollerThatHoldsIt() {
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = chainInAPane(cells);
         ScrollView pane = (ScrollView) scene.root();
         float x = tree.localToSceneX() + 20;
@@ -2281,7 +2283,7 @@ class TreeTest extends ComponentTestBase {
         assertTrue(notches > 1 && notches < 100,
                 "the tree scrolled itself first and then let a detent through: " + notches);
         assertEquals(Strokes.WHEEL_STEP, pane.offsetY(), 0.01f, "one notch of the pane");
-        Widget last = mounted(cells, "row 40");
+        Widget<?> last = mounted(cells, "row 40");
         assertTrue(last.y() + last.height() <= tree.height() + 0.01f,
                 "the tree is at its end when the pane starts moving");
 
@@ -2342,7 +2344,7 @@ class TreeTest extends ComponentTestBase {
         for (int i = 0; i < 40; i++) {
             roots.add(Node.leaf("row " + i));
         }
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
             @Override
             public List<Node> roots() {
@@ -2355,9 +2357,9 @@ class TreeTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 float h = node.name().equals("row 0") ? first : rest;
-                Widget cell = new Widget() {
+                Widget<?> cell = new PlainWidget() {
                     @Override
                     protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
                         return c.constrain(c.maxWidth(), h);
@@ -2370,7 +2372,7 @@ class TreeTest extends ComponentTestBase {
         tree.setVisibleRows(6);
         limn.scene.layout.Column column = new limn.scene.layout.Column();
         column.add(tree);
-        column.add(new Widget() {
+        column.add(new PlainWidget() {
             @Override
             protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
                 return c.constrain(c.maxWidth(), 400);
@@ -2398,10 +2400,10 @@ class TreeTest extends ComponentTestBase {
         assertTrue(pane.offsetY() > 0,
                 what + ": a detent past the tree's end reached the pane; after " + notches
                         + " notches it had not");
-        Widget last = mounted(cells, "row 39");
+        Widget<?> last = mounted(cells, "row 39");
         assertEquals(tree.height(), last.y() + last.height(), 0.01f,
                 what + ": the tree was at its real end when the pane took the detent");
-        Widget kept = cells.get("row 0");
+        Widget<?> kept = cells.get("row 0");
         assertTrue(kept.parent() != null && kept.y() + kept.height() <= 0,
                 what + ": the cursor row was kept, out of view, the whole way down");
 
@@ -2412,7 +2414,7 @@ class TreeTest extends ComponentTestBase {
             drive(scene).inputBatchEnded();
             scene.layoutPass(220, 200);
             notches++;
-            Widget top = cells.get("row 0");
+            Widget<?> top = cells.get("row 0");
             if (pane.offsetY() == 0 && top.parent() != null && top.y() == 0) {
                 break;
             }
@@ -2524,7 +2526,7 @@ class TreeTest extends ComponentTestBase {
 
         scene.requestFocus(tree);
         press(Keys.DOWN); // onto the root, selecting it
-        Widget rootCell = cellOf(tree, "root");
+        Widget<?> rootCell = cellOf(tree, "root");
         List<RingCanvas.Ring> rings = focusRings();
         assertEquals(1, rings.size(), "one ring, on the cursor row: " + rings);
         limn.graphics.RoundRect ring = rings.get(0).rect();
@@ -2544,7 +2546,7 @@ class TreeTest extends ComponentTestBase {
 
         tree.setSelectionMode(SelectionMode.NONE);
         press(Keys.DOWN); // onto docs
-        Widget docsCell = cellOf(tree, "docs");
+        Widget<?> docsCell = cellOf(tree, "docs");
         rings = focusRings();
         assertEquals(1, rings.size(), "in NONE the ring is the only mark the cursor has: " + rings);
         assertEquals(docsCell.x() + inset, rings.get(0).rect().x(), 0.01f,
@@ -2561,14 +2563,14 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void aRingOnARowScrolledSidewaysClosesInsideTheViewport() {
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = openedChain(14, cells);
         scene.requestFocus(tree);
         press(Keys.DOWN); // onto level-1
         for (int i = 0; i < 80; i++) {
             wheelSideways(tree, -1);
         }
-        Widget top = mounted(cells, "level-1");
+        Widget<?> top = mounted(cells, "level-1");
         List<RingCanvas.Ring> rings = focusRings();
         assertTrue(top.x() < 0, "the root's cell starts left of the box: " + top.x());
         assertEquals(1, rings.size(), rings.toString());
@@ -2586,10 +2588,10 @@ class TreeTest extends ComponentTestBase {
      */
     @Test
     void theTriangleIsPaintedWhereThePressIsLookedForAfterAScrollSideways() {
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = openedChain(14, cells);
 
-        Widget cell = cells.get("level-5");
+        Widget<?> cell = cells.get("level-5");
         wheelSideways(tree, -1);
         scene.layoutPass(220, 200);
 
@@ -2690,7 +2692,7 @@ class TreeTest extends ComponentTestBase {
         CountingModel model = new CountingModel(roots);
         Tree<Node> tree = mount(model);
         ScrollBar vertical = null;
-        for (Widget child : tree.children()) {
+        for (Widget<?> child : tree.children()) {
             if (child instanceof ScrollBar bar && bar.height() > bar.width()) {
                 vertical = bar;
             }

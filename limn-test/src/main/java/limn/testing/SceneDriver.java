@@ -76,7 +76,7 @@ public final class SceneDriver implements WindowInput {
      * @return this driver
      * @throws IllegalArgumentException when the widget is not in this scene
      */
-    public SceneDriver click(Widget widget) {
+    public SceneDriver click(Widget<?> widget) {
         if (widget.scene() != scene) {
             throw new IllegalArgumentException(widget + " is not in the scene this driver drives");
         }

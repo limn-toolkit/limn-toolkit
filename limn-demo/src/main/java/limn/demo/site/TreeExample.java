@@ -113,7 +113,7 @@ public final class TreeExample {
             }
 
             @Override
-            public Widget cellFor(Entry entry) {
+            public Widget<?> cellFor(Entry entry) {
                 return new Padding(Insets.symmetric(6, 4), new Label(entry.name()));
             }
         });

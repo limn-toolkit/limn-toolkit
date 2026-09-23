@@ -190,11 +190,11 @@ class ThemeEditorTest extends EditorTestBase {
         drive(scene).inputBatchEnded();
     }
 
-    private static limn.components.Button findButton(limn.scene.Widget root, String caption) {
+    private static limn.components.Button findButton(limn.scene.Widget<?> root, String caption) {
         if (root instanceof limn.components.Button button && button.text().equals(caption)) {
             return button;
         }
-        for (limn.scene.Widget child : root.children()) {
+        for (limn.scene.Widget<?> child : root.children()) {
             limn.components.Button found = findButton(child, caption);
             if (found != null) {
                 return found;
@@ -468,11 +468,11 @@ class ThemeEditorTest extends EditorTestBase {
         return texts;
     }
 
-    private static void collectLabels(limn.scene.Widget root, List<String> into) {
+    private static void collectLabels(limn.scene.Widget<?> root, List<String> into) {
         if (root instanceof limn.components.Label label) {
             into.add(label.text());
         }
-        for (limn.scene.Widget child : root.children()) {
+        for (limn.scene.Widget<?> child : root.children()) {
             collectLabels(child, into);
         }
     }

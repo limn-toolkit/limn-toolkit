@@ -73,7 +73,7 @@ import java.util.Objects;
  * follows {@code muted}, which the setters and the volume slider all write, so each of those
  * writes the tooltip as it goes.
  */
-public final class MediaControls extends Widget {
+public final class MediaControls extends Widget<MediaControls> {
 
     /**
      * The least a drag lets pass between two keyframe seeks: a slider fires per pixel, and a drag
@@ -115,13 +115,13 @@ public final class MediaControls extends Widget {
     private final PlayPause playPause = new PlayPause();
     private final MuteButton mute = new MuteButton();
     private final Slider volume = new Slider(0, 100);
-    private final Widget volumeBox = new SizedBox(72, SizedBox.UNSET, volume);
+    private final Widget<?> volumeBox = new SizedBox(72, SizedBox.UNSET, volume);
     private final Slider bar = new Slider(0, 1000);
-    private final Widget scrub = Expanded.of(bar);
+    private final Widget<?> scrub = Expanded.of(bar);
     private final Label position = new Label("").setMuted(true);
     private final Row row = new Row();
-    private final List<Widget> leading = new ArrayList<>();
-    private final List<Widget> trailing = new ArrayList<>();
+    private final List<Widget<?>> leading = new ArrayList<>();
+    private final List<Widget<?>> trailing = new ArrayList<>();
 
     private Runnable[] refreshObservers;
     private static final Runnable[] NO_OBSERVERS = new Runnable[0];
@@ -190,14 +190,14 @@ public final class MediaControls extends Widget {
      * Adds a widget between the play button and the scrub bar — where players put their volume.
      * Order of calls is the order on screen.
      */
-    public MediaControls addLeading(Widget widget) {
+    public MediaControls addLeading(Widget<?> widget) {
         leading.add(Objects.requireNonNull(widget, "widget"));
         rebuild();
         return this;
     }
 
     /** Adds a widget between the scrub bar and the position clock. */
-    public MediaControls addTrailing(Widget widget) {
+    public MediaControls addTrailing(Widget<?> widget) {
         trailing.add(Objects.requireNonNull(widget, "widget"));
         rebuild();
         return this;
@@ -367,7 +367,7 @@ public final class MediaControls extends Widget {
     }
 
     private void rebuild() {
-        for (Widget child : List.copyOf(row.children())) {
+        for (Widget<?> child : List.copyOf(row.children())) {
             row.remove(child);
         }
         row.add(playPause);
@@ -377,11 +377,11 @@ public final class MediaControls extends Widget {
         // whether the pair is offered.
         row.add(mute);
         row.add(volumeBox);
-        for (Widget widget : leading) {
+        for (Widget<?> widget : leading) {
             row.add(widget);
         }
         row.add(scrub);
-        for (Widget widget : trailing) {
+        for (Widget<?> widget : trailing) {
             row.add(widget);
         }
         if (showPosition) {
@@ -570,7 +570,7 @@ public final class MediaControls extends Widget {
      * focus ring, and press/Space/Enter arming. Subclasses draw their mark and say what firing
      * does.
      */
-    private abstract class IconButton extends Widget {
+    private abstract class IconButton extends Widget<IconButton> {
 
         final Path2D glyph = new Path2D();
         private boolean armed;

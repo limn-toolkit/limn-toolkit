@@ -51,7 +51,7 @@ final class MenuScene {
                 .addMenu("Edit", 'E', editMenu(say))
                 .addMenu("View", 'V', viewMenu(say));
 
-        Widget area = ContextMenus.attach(new ContextArea(), () -> contextMenu(say));
+        Widget<?> area = ContextMenus.attach(new ContextArea(), () -> contextMenu(say));
 
         Column page = new Column();
         page.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -155,7 +155,7 @@ final class MenuScene {
      * {@code ContextMenus.attach} carries the gesture, which is what makes the keyboard route
      * work here without this widget knowing about it.
      */
-    private static final class ContextArea extends Widget {
+    private static final class ContextArea extends Widget<ContextArea> {
 
         @Override
         protected Size onMeasure(Constraints constraints) {

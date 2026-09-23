@@ -90,7 +90,7 @@ class TableFocusedRowTest extends AccessibleComponentTestBase {
     }
 
     private static Button buttonOf(Table<Person> table, String name) {
-        for (Widget child : table.children()) {
+        for (Widget<?> child : table.children()) {
             if (child instanceof Button button && name.equals(button.text())) {
                 return button;
             }

@@ -298,7 +298,7 @@ final class VideoScene {
      * put one over, which is every headless and screenshot run, where a dialog that blocked the UI
      * thread waiting for a click nobody can make would hang the capture.
      */
-    private static java.util.Optional<Path> pick(Widget host, Label caption) {
+    private static java.util.Optional<Path> pick(Widget<?> host, Label caption) {
         Scene scene = host.scene();
         if (scene == null || scene.window() == null) {
             caption.setText("No native window: the platform's file chooser is unavailable here.");
@@ -826,12 +826,12 @@ final class VideoScene {
      * and it pauses again when it leaves. The view's own decoding already stops on its own; only the
      * player needs telling.
      */
-    private static final class VideoPane extends Widget {
+    private static final class VideoPane extends Widget<VideoPane> {
 
         private final VideoView view;
         private final Playing open;
         /** The transport, over the bottom of the picture, or null in a frozen capture. */
-        private final Widget transport;
+        private final Widget<?> transport;
         private String notice;
         /** What is being opened right now, or null when nothing is. */
         private String opening;
@@ -863,7 +863,7 @@ final class VideoScene {
         private limn.video.ffmpeg.FfmpegMedia cueSource;
         private java.util.function.LongSupplier cueTime;
 
-        VideoPane(VideoView view, Playing open, Widget transport) {
+        VideoPane(VideoView view, Playing open, Widget<?> transport) {
             this.view = view;
             this.open = open;
             this.transport = transport;
@@ -1322,7 +1322,7 @@ final class VideoScene {
             }
         }
 
-        private static void paintChild(limn.graphics.Canvas canvas, limn.scene.Widget child,
+        private static void paintChild(limn.graphics.Canvas canvas, limn.scene.Widget<?> child,
                                        float offsetY) {
             canvas.save();
             try {
@@ -1496,7 +1496,7 @@ final class VideoScene {
      * sizes from the {@link SizeTokens} row the widget resolves. A control that is legible but
      * unreachable from the keyboard would be a worse bar than the one this replaces.
      */
-    private static final class GlassButton extends Widget {
+    private static final class GlassButton extends Widget<GlassButton> {
 
         /** How far the glass lightens under the pointer, and under a press. */
         private static final float HOVER_ALPHA = 0.14f;
@@ -1679,7 +1679,7 @@ final class VideoScene {
         }
     }
 
-    private static final class Transport extends Widget {
+    private static final class Transport extends Widget<Transport> {
 
         private final Playing open;
         private final SoundLevel sound;
@@ -1864,7 +1864,7 @@ final class VideoScene {
      * <p>It is present only when this run may have sound at all, for the same reason the soundtrack
      * switch is: a screenshot starts no audio device, so there is no player to change the track of.
      */
-    private static final class AudioTracks extends Widget {
+    private static final class AudioTracks extends Widget<AudioTracks> {
 
         private final Playing open;
         private final VideoView view;
@@ -2006,7 +2006,7 @@ final class VideoScene {
      * by. A click is heard as the counter reaches a multiple of thirty; this says the same thing in
      * numbers, and says which clock produced them when they stop agreeing.
      */
-    private static final class PlayerStatus extends Widget {
+    private static final class PlayerStatus extends Widget<PlayerStatus> {
 
         private final Label label = new Label("").setMuted(true).setWrap(true);
         private final Playing open;
@@ -2106,7 +2106,7 @@ final class VideoScene {
     private static final List<String> TAB_SOURCES = List.of("Bars", "MP4");
 
     /** The Kitchen Sink's Video tab. */
-    static Widget tabContent() {
+    static Widget<?> tabContent() {
         return tabContent(TAB_PICTURE_WIDTH, TAB_PICTURE_HEIGHT, sourcesNamed(TAB_SOURCES));
     }
 
@@ -2127,7 +2127,7 @@ final class VideoScene {
     }
 
     /** The tab's content: a source picker, the picture, and what the stream says about itself. */
-    private static Widget tabContent(float pictureWidth, float pictureHeight, List<Source> sources) {
+    private static Widget<?> tabContent(float pictureWidth, float pictureHeight, List<Source> sources) {
         Theme theme = Theme.current();
         int initial = Math.max(0, Math.min(initialSource, sources.size() - 1));
         Label caption = new Label(sources.get(initial).caption()).setMuted(true).setWrap(true);
@@ -2314,7 +2314,7 @@ final class VideoScene {
     }
 
     /** The standalone scene, for {@code --scene video}: every source, at twice the picture. */
-    static Widget content() {
+    static Widget<?> content() {
         return new ScrollView(tabContent(SCENE_PICTURE_WIDTH, SCENE_PICTURE_HEIGHT, SOURCES));
     }
 

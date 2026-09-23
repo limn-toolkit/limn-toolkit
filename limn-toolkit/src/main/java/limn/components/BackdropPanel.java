@@ -51,11 +51,11 @@ public final class BackdropPanel extends Padding {
     private float cornerRadius = RADIUS_FROM_TOKENS;
 
     /** A panel with 12pt of padding around {@code child}. */
-    public BackdropPanel(BackdropEffect effect, Widget child) {
+    public BackdropPanel(BackdropEffect effect, Widget<?> child) {
         this(effect, Insets.all(12), child);
     }
 
-    public BackdropPanel(BackdropEffect effect, Insets insets, Widget child) {
+    public BackdropPanel(BackdropEffect effect, Insets insets, Widget<?> child) {
         super(insets, child);
         this.effects = java.util.List.of(Objects.requireNonNull(effect, "effect"));
     }

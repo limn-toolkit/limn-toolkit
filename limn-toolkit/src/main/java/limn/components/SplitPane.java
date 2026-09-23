@@ -60,7 +60,7 @@ import java.util.Objects;
  *
  * <p>Three panes are two splitters: nest one in the other.
  */
-public final class SplitPane extends Widget {
+public final class SplitPane extends Widget<SplitPane> {
 
     /** Which axis the two panes are arranged along. */
     public enum Orientation {
@@ -109,7 +109,7 @@ public final class SplitPane extends Widget {
     private float secondMin = Strokes.MIN_HIT_TARGET;
     private FloatConsumer onRatioChange;
 
-    private SplitPane(Orientation orientation, Widget first, Widget second) {
+    private SplitPane(Orientation orientation, Widget<?> first, Widget<?> second) {
         this.orientation = orientation;
         this.firstPane = new Pane(Objects.requireNonNull(first, "first"));
         this.secondPane = new Pane(Objects.requireNonNull(second, "second"));
@@ -126,12 +126,12 @@ public final class SplitPane extends Widget {
      * edge, so the parameter names describe the default reading direction and not the
      * screen: in a right-to-left layout {@code left} is the pane on the right.
      */
-    public static SplitPane horizontal(Widget left, Widget right) {
+    public static SplitPane horizontal(Widget<?> left, Widget<?> right) {
         return new SplitPane(Orientation.HORIZONTAL, left, right);
     }
 
     /** Two panes stacked, divided by a horizontal line. */
-    public static SplitPane vertical(Widget top, Widget bottom) {
+    public static SplitPane vertical(Widget<?> top, Widget<?> bottom) {
         return new SplitPane(Orientation.VERTICAL, top, bottom);
     }
 
@@ -235,7 +235,7 @@ public final class SplitPane extends Widget {
      * turn every assertion about dragging into an assertion about arithmetic the
      * widget itself owns.
      */
-    Widget divider() {
+    Widget<?> divider() {
         return divider;
     }
 
@@ -385,7 +385,7 @@ public final class SplitPane extends Widget {
         }
     }
 
-    private static void place(Widget widget, float x, float y, float w, float h) {
+    private static void place(Widget<?> widget, float x, float y, float w, float h) {
         widget.measure(Constraints.tight(w, h));
         widget.layoutBox(x, y, w, h);
     }
@@ -412,13 +412,13 @@ public final class SplitPane extends Widget {
      * overflows its region has to stop at the gutter rather than paint into the
      * other pane, which is what "two panes" means to whoever is looking at it.
      */
-    private static final class Pane extends Widget {
+    private static final class Pane extends Widget<Pane> {
 
-        Pane(Widget content) {
+        Pane(Widget<?> content) {
             add(content);
         }
 
-        private Widget content() {
+        private Widget<?> content() {
             return children().get(0);
         }
 
@@ -456,7 +456,7 @@ public final class SplitPane extends Widget {
      * The band between the panes: a hairline at rest, the theme's accent when it is
      * focused, pointed at or being dragged, and the whole band grabbable.
      */
-    private final class Divider extends Widget {
+    private final class Divider extends Widget<Divider> {
 
         private final Transition hover =
                 new Transition(this).duration(Theme.of(this).animHover)

@@ -27,7 +27,7 @@ class SplitPaneValueContractTest extends ComponentTestBase {
         private int changes;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             split = SplitPane.horizontal(new SizedBox(80, 40), new SizedBox(80, 40));
             split.setDividerFocusable(true);
             changes = 0;
@@ -38,7 +38,7 @@ class SplitPaneValueContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return split;
         }
 

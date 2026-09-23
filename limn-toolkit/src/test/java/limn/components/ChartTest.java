@@ -91,7 +91,7 @@ class ChartTest extends ComponentTestBase {
         }
     }
 
-    private Scene sceneOf(Chart chart, RecordingCanvas canvas) {
+    private Scene sceneOf(Chart<?> chart, RecordingCanvas canvas) {
         Scene scene = new Scene(chart, clock::get);
         scene.setTextRuler(RULER);
         scene.renderFrame(canvas);

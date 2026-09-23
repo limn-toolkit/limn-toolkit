@@ -59,7 +59,7 @@ public final class AccessibleHarness {
      * @param runtime the installed runtime, whose queue a performed verb is drained through
      * @param root    what to bind; a widget, or a box around one
      */
-    public AccessibleHarness(UiRuntime runtime, Widget root) {
+    public AccessibleHarness(UiRuntime runtime, Widget<?> root) {
         this(runtime, root, new StubWindow());
     }
 
@@ -71,7 +71,7 @@ public final class AccessibleHarness {
      * @param root    what to bind
      * @param window  the window to bind in; its accessibility bridge is replaced by this harness's
      */
-    public AccessibleHarness(UiRuntime runtime, Widget root, StubWindow window) {
+    public AccessibleHarness(UiRuntime runtime, Widget<?> root, StubWindow window) {
         this.runtime = Objects.requireNonNull(runtime, "runtime");
         Objects.requireNonNull(root, "root");
         this.window = Objects.requireNonNull(window, "window");
@@ -95,7 +95,7 @@ public final class AccessibleHarness {
      * @param millis how far to move
      * @param damage the widget to invalidate each frame, or null
      */
-    public void advanceTime(long millis, Widget damage) {
+    public void advanceTime(long millis, Widget<?> damage) {
         long step = (long) (Scene.MAX_TICK_SECONDS * 1000);
         for (long left = millis; left > 0; left -= step) {
             nanos[0] += TimeUnit.MILLISECONDS.toNanos(Math.min(step, left));
@@ -118,7 +118,7 @@ public final class AccessibleHarness {
     }
 
     /** Gives {@code widget} the keyboard and renders a frame, so the cursor is published. */
-    public void focus(Widget widget) {
+    public void focus(Widget<?> widget) {
         scene.requestFocus(widget);
         frame();
     }

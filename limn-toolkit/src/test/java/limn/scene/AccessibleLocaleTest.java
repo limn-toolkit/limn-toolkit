@@ -173,7 +173,7 @@ class AccessibleLocaleTest extends AccessibleTestBase {
     /** A container that names its one child, which is what TabbedPane does for a tab's page. */
     private static final class Namer extends Group {
         @Override
-        protected void onAccessibilityChild(Widget child, Accessibility a) {
+        protected void onAccessibilityChild(Widget<?> child, Accessibility a) {
             a.name(GREETING, Accessible.NameFrom.LABEL);
         }
     }

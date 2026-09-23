@@ -48,7 +48,7 @@ import java.util.Objects;
  * and one delayed task armed for the moment it expires, so a bar that is showing and still
  * asks for no frame at all.
  */
-public final class ScrollBar extends Widget {
+public final class ScrollBar extends Widget<ScrollBar> {
 
     /** Which axis the bar controls. */
     public enum Orientation { VERTICAL, HORIZONTAL }
@@ -383,7 +383,7 @@ public final class ScrollBar extends Widget {
 
     /** Transparent to events while effectively invisible, so it never blocks the content. */
     @Override
-    public Widget hitTest(float localX, float localY) {
+    public Widget<?> hitTest(float localX, float localY) {
         if (effectiveOpacity() < 0.05f) {
             return null;
         }

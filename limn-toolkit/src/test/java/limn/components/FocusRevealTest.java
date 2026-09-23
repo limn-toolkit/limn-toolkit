@@ -176,7 +176,7 @@ class FocusRevealTest extends ComponentTestBase {
     // ------------------------------------------------------------- ListView SPI
 
     /** A fixed-height spacer row. */
-    private static final class Row extends Widget {
+    private static final class Row extends Widget<Row> {
         @Override
         protected Size onMeasure(Constraints constraints) {
             return constraints.constrain(constraints.maxWidth(), 40);
@@ -192,7 +192,7 @@ class FocusRevealTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return new Row();
             }
         });

@@ -27,7 +27,7 @@ import static limn.testing.SceneDriver.drive;
 class AccessibleGeometryTest extends AccessibleTestBase {
 
     /** A container that lays its children out left to right, mirrored under a right-to-left tree. */
-    private static final class Strip extends Widget {
+    private static final class Strip extends Widget<Strip> {
         @Override
         protected Size onMeasure(Constraints constraints) {
             return constraints.constrain(200, 20);
@@ -38,7 +38,7 @@ class AccessibleGeometryTest extends AccessibleTestBase {
             boolean rtl = layoutDirection() == LayoutDirection.RTL;
             float cursor = 0;
             for (int i = 0; i < children().size(); i++) {
-                Widget child = children().get(i);
+                Widget<?> child = children().get(i);
                 float childWidth = child.measure(Constraints.loose(width(), height())).width();
                 // ADR 032: mirroring is a placement decision, so the box that comes out is
                 // physical and left-origin in both directions.

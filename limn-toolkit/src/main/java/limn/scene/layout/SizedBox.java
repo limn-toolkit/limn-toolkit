@@ -8,17 +8,17 @@ import limn.scene.Widget;
  * Forces a fixed width and/or height (unset dimensions pass through to the
  * child, or collapse to zero without one). Also handy as a rigid spacer.
  */
-public final class SizedBox extends Widget {
+public final class SizedBox extends Widget<SizedBox> {
 
     /** Marks a dimension as "not fixed". */
     public static final float UNSET = -1;
 
     private final float fixedWidth;
     private final float fixedHeight;
-    private final Widget child;
+    private final Widget<?> child;
 
     /** Forces {@code child} to an exact size; {@link #UNSET} on an axis leaves it free. */
-    public SizedBox(float width, float height, Widget child) {
+    public SizedBox(float width, float height, Widget<?> child) {
         this.fixedWidth = width;
         this.fixedHeight = height;
         this.child = child;

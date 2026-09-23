@@ -330,7 +330,7 @@ class NeutralBaseShapingTest extends ComponentTestBase {
     private static final float CHART_H = 300;
 
     /** A chart with no marks of its own, so a frame holds only {@link Chart}'s own lines. */
-    private static final class BareChart extends Chart {
+    private static final class BareChart extends Chart<BareChart> {
         @Override
         protected void paintContent(Canvas canvas, float x, float y, float w, float h) {
         }
@@ -577,7 +577,7 @@ class NeutralBaseShapingTest extends ComponentTestBase {
      * &mdash; the blessed way to a line, so that a widget which never heard of Decision 7 still
      * shapes its captions the way it reads.
      */
-    private static final class Probe extends Widget {
+    private static final class Probe extends Widget<Probe> {
         ShapedText line(String text) {
             return shapeText(text, Font.of(13));
         }

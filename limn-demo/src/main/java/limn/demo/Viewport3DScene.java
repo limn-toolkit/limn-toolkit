@@ -86,7 +86,7 @@ final class Viewport3DScene {
     }
 
     /** Standalone scene: the retained PBR row plus the layering proof (button + ScrollView clip). */
-    static Widget content() {
+    static Widget<?> content() {
         Theme theme = Theme.current();
         Label status = new Label(HINT).setMuted(true);
         Viewport3D viewport = buildViewport(600, 460, status);
@@ -131,18 +131,18 @@ final class Viewport3DScene {
      * {@link SegmentedControl} between them; only the visible viewport renders (the
      * other pauses). See {@link #SHOWCASE} for why it is these two.
      */
-    static Widget tabContent() {
+    static Widget<?> tabContent() {
         Theme theme = Theme.current();
         Label caption = new Label(SHOWCASE[0]).setMuted(true).setWrap(true);
         Viewport3D pbr = buildViewport(560, 320, caption);
-        Widget shadows = shadowViewport(560, 320);
-        Widget[] demos = {pbr, shadows};
+        Widget<?> shadows = shadowViewport(560, 320);
+        Widget<?>[] demos = {pbr, shadows};
         for (int i = 1; i < demos.length; i++) {
             demos[i].setVisible(false);
         }
 
         Stack viewers = new Stack();
-        for (Widget demo : demos) {
+        for (Widget<?> demo : demos) {
             viewers.add(demo);
         }
 
@@ -390,7 +390,7 @@ final class Viewport3DScene {
      * the cross-fade weight, so the wipe travels across the surface rather than
      * happening to all of it at once.
      */
-    static Widget customSurfaceViewport(float width, float height) {
+    static Widget<?> customSurfaceViewport(float width, float height) {
         int cells = 24;
         int side = cells + 1;
         float[] positions = new float[side * side * 3];
@@ -796,7 +796,7 @@ final class Viewport3DScene {
      *                   for the scrollable standalone scene: an {@code Expanded}
      *                   measured with unbounded height collapses to zero there.
      */
-    static Widget debugViewport(float width, float height, boolean startOn, boolean fillHeight) {
+    static Widget<?> debugViewport(float width, float height, boolean startOn, boolean fillHeight) {
         MeshData sphereData = Primitives.sphere(0.85f, 40, 60);
         MeshData cubeData = Primitives.cube(1.4f);
         MeshData groundData = Primitives.plane(8, 8);
@@ -1092,7 +1092,7 @@ final class Viewport3DScene {
      *                   viewport to the height-bounded kitchen tab, {@code false}
      *                   keeps its preferred size in a scrollable scene.
      */
-    static Widget bloomDemo(float width, float height, boolean fillHeight) {
+    static Widget<?> bloomDemo(float width, float height, boolean fillHeight) {
         float[] params = {1f, 0.6f, 6f};
         Viewport3D viewport = bloomViewport(width, height, params);
 
@@ -1134,7 +1134,7 @@ final class Viewport3DScene {
         return value;
     }
 
-    private static Widget bloomSliderRow(String caption, Slider slider, Label value) {
+    private static Widget<?> bloomSliderRow(String caption, Slider slider, Label value) {
         Row row = new Row();
         row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(new SizedBox(280, SizedBox.UNSET, new Label(caption).setMuted(true)));

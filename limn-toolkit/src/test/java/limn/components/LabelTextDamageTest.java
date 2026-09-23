@@ -40,7 +40,7 @@ class LabelTextDamageTest extends ComponentTestBase {
     private final List<Rect> passes = new ArrayList<>();
     private boolean anyFullFrame;
 
-    private Scene mount(Widget root, RecordingTestCanvas into) {
+    private Scene mount(Widget<?> root, RecordingTestCanvas into) {
         nanos = new AtomicLong();
         Scene mounted = new Scene(new Padding(Insets.all(40), root), nanos::get);
         mounted.setTextRuler(RULER);
@@ -78,7 +78,7 @@ class LabelTextDamageTest extends ComponentTestBase {
         throw new AssertionError("the gesture never settled");
     }
 
-    private static Rect sceneBox(Widget w) {
+    private static Rect sceneBox(Widget<?> w) {
         return new Rect(w.localToSceneX(), w.localToSceneY(), w.width(), w.height());
     }
 
@@ -159,7 +159,7 @@ class LabelTextDamageTest extends ComponentTestBase {
      */
     @Test
     void everyBoxLandsWhereAFullLayoutPutsIt() {
-        List<Function<Label, Widget>> hosts = List.of(
+        List<Function<Label, Widget<?>>> hosts = List.of(
                 label -> { Row r = new Row(); r.add(label); r.add(new Button("B")); return r; },
                 label -> { Row r = new Row(); r.add(Expanded.of(label)); r.add(new Button("B")); return r; },
                 label -> { Column c = new Column(); c.crossAlignment(Flex.CrossAlignment.STRETCH); c.add(label); c.add(new TextField()); return c; },
@@ -190,16 +190,16 @@ class LabelTextDamageTest extends ComponentTestBase {
         }
     }
 
-    private static List<String> boxes(Widget root) {
+    private static List<String> boxes(Widget<?> root) {
         List<String> out = new ArrayList<>();
         collect(root, out);
         return out;
     }
 
-    private static void collect(Widget w, List<String> out) {
+    private static void collect(Widget<?> w, List<String> out) {
         out.add(w.getClass().getSimpleName() + "@" + w.localToSceneX() + "," + w.localToSceneY()
                 + " " + w.width() + "x" + w.height());
-        for (Widget child : w.children()) {
+        for (Widget<?> child : w.children()) {
             collect(child, out);
         }
     }

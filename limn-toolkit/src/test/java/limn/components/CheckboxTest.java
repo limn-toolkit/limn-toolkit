@@ -280,9 +280,9 @@ class CheckboxTest extends ComponentTestBase {
     }
 
     /** Reads the protected hook the way Flex does. */
-    private static float baselineOf(limn.scene.Widget w) {
+    private static float baselineOf(limn.scene.Widget<?> w) {
         return new limn.scene.layout.Row() {
-            float read(limn.scene.Widget child) {
+            float read(limn.scene.Widget<?> child) {
                 return baselineOffsetOf(child);
             }
         }.read(w);

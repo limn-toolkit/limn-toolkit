@@ -129,7 +129,7 @@ import java.util.Objects;
  *
  * <p>UI thread throughout, like every widget.
  */
-public final class VideoView extends Widget {
+public final class VideoView extends Widget<VideoView> {
 
     /** How a picture whose aspect ratio differs from the box's is mapped into it. */
     public enum Fit {

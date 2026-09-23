@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
 abstract class AccessibleTestBase {
 
     /** A widget that says whatever the test told it to, through the hooks a component uses. */
-    static class Probe extends Widget {
+    static class Probe extends Widget<Probe> {
         Accessible.Role role;
         I18nString name;
         I18nString description;
@@ -122,7 +122,7 @@ abstract class AccessibleTestBase {
     }
 
     /** A container that is scaffolding unless a test gives it something to say. */
-    static class Group extends Widget {
+    static class Group extends Widget<Group> {
         @Override
         protected Size onMeasure(Constraints constraints) {
             float width = 0;
@@ -139,7 +139,7 @@ abstract class AccessibleTestBase {
         protected void onLayout() {
             float y = 0;
             for (int i = 0; i < children().size(); i++) {
-                Widget child = children().get(i);
+                Widget<?> child = children().get(i);
                 Size size = child.measure(Constraints.loose(width(), height()));
                 child.layoutBox(0, y, size.width(), size.height());
                 y += size.height();
@@ -168,7 +168,7 @@ abstract class AccessibleTestBase {
     }
 
     /** Binds {@code root} to a window whose bridge is listening, and settles the first frame. */
-    protected void bind(Widget root) {
+    protected void bind(Widget<?> root) {
         bind(root, true);
     }
 
@@ -178,7 +178,7 @@ abstract class AccessibleTestBase {
      * @param root      the scene's root widget
      * @param listening whether the double claims an assistive technology is reading
      */
-    protected void bind(Widget root, boolean listening) {
+    protected void bind(Widget<?> root, boolean listening) {
         bridge = new RecordingAccessibilityBridge();
         bridge.listening = listening;
         window = new RecordingWindow();

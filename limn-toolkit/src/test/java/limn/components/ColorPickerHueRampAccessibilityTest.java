@@ -379,7 +379,7 @@ class ColorPickerHueRampAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         AccessibleNode node = ramp();
-        Widget widget = picker.hueRamp();
+        Widget<?> widget = picker.hueRamp();
         assertEquals(widget.localToSceneX(), node.x(), describe(tree()));
         assertEquals(widget.localToSceneY(), node.y(), describe(tree()));
         assertEquals(widget.width(), node.width(),

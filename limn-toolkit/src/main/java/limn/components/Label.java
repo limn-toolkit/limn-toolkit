@@ -64,7 +64,7 @@ import java.util.Objects;
  * the right edge in the other, and the glyph inside it turns around only when the call that
  * placed it said it should &mdash; see {@link limn.graphics.Icon.Mirroring}.
  */
-public final class Label extends Widget {
+public final class Label extends Widget<Label> {
 
     public enum Overflow { CLIP, ELLIPSIS }
 
@@ -151,7 +151,7 @@ public final class Label extends Widget {
     }
 
     /** The widget this label names, or {@code null}; see {@link #setLabelFor(Widget)}. */
-    private Widget labelFor;
+    private Widget<?> labelFor;
 
     /** A label whose text follows the UI language; see {@link I18nString}. */
     public Label(I18nString text) {
@@ -184,7 +184,7 @@ public final class Label extends Widget {
      * @param target the widget this label names, or {@code null} to remove the link
      * @return this label, for chaining
      */
-    public Label setLabelFor(Widget target) {
+    public Label setLabelFor(Widget<?> target) {
         Ui.checkUiThread();
         if (labelFor == target) {
             return this;
@@ -200,12 +200,12 @@ public final class Label extends Widget {
     }
 
     /** The widget this label names, or {@code null}; see {@link #setLabelFor(Widget)}. */
-    public Widget labelFor() {
+    public Widget<?> labelFor() {
         return labelFor;
     }
 
     /** The widget this label describes, or {@code null}; see {@link #setDescriptionFor(Widget)}. */
-    private Widget descriptionFor;
+    private Widget<?> descriptionFor;
 
     /**
      * Makes this label the accessible description of another widget, the way the message beneath
@@ -224,7 +224,7 @@ public final class Label extends Widget {
      * @param target the widget this label describes, or {@code null} to remove the link
      * @return this label, for chaining
      */
-    public Label setDescriptionFor(Widget target) {
+    public Label setDescriptionFor(Widget<?> target) {
         Ui.checkUiThread();
         if (descriptionFor == target) {
             return this;
@@ -240,7 +240,7 @@ public final class Label extends Widget {
     }
 
     /** The widget this label describes, or {@code null}; see {@link #setDescriptionFor(Widget)}. */
-    public Widget descriptionFor() {
+    public Widget<?> descriptionFor() {
         return descriptionFor;
     }
 

@@ -11,7 +11,7 @@ import limn.scene.Widget;
  * distribution of leftovers ({@link MainAlignment}) and cross-axis placement
  * ({@link CrossAlignment}, including STRETCH).
  */
-public abstract class Flex extends Container {
+public abstract class Flex<W extends Flex<W>> extends Container<W> {
 
     /**
      * How leftover space along the layout axis is distributed, on two vocabularies that coexist
@@ -69,9 +69,9 @@ public abstract class Flex extends Container {
     }
 
     /** Space between children, in logical points. Not applied before the first or after the last. */
-    public Flex gap(float newGap) {
+    public W gap(float newGap) {
         setGap(Math.max(0, newGap));
-        return this;
+        return self();
     }
 
     /**
@@ -100,19 +100,19 @@ public abstract class Flex extends Container {
     }
 
     /** How leftover space along the layout axis is distributed. */
-    public Flex mainAlignment(MainAlignment alignment) {
+    public W mainAlignment(MainAlignment alignment) {
         // Validate BEFORE mutating: a stored null only explodes at the next
         // layout pass, killing the event loop far from the offending call.
         this.mainAlignment = java.util.Objects.requireNonNull(alignment, "alignment");
         markNeedsLayout();
-        return this;
+        return self();
     }
 
     /** How children are placed across the layout axis; {@code BASELINE} is the one for a row that mixes size steps and carries text. */
-    public Flex crossAlignment(CrossAlignment alignment) {
+    public W crossAlignment(CrossAlignment alignment) {
         this.crossAlignment = java.util.Objects.requireNonNull(alignment, "alignment");
         markNeedsLayout();
-        return this;
+        return self();
     }
 
     private float mainOf(Size size) {
@@ -125,7 +125,7 @@ public abstract class Flex extends Container {
 
     private int visibleCount() {
         int count = 0;
-        for (Widget child : children()) {
+        for (Widget<?> child : children()) {
             if (child.isVisible()) {
                 count++;
             }
@@ -133,11 +133,11 @@ public abstract class Flex extends Container {
         return count;
     }
 
-    private static int flexOf(Widget child) {
+    private static int flexOf(Widget<?> child) {
         return child instanceof Expanded expanded ? expanded.flex() : 0;
     }
 
-    private static float minMainOf(Widget child) {
+    private static float minMainOf(Widget<?> child) {
         return child instanceof Expanded expanded ? expanded.minMain() : 0;
     }
 
@@ -177,7 +177,7 @@ public abstract class Flex extends Container {
         }
         int weightLeft = 0;
         for (int i = 0; i < childCount; i++) {
-            Widget child = children().get(i);
+            Widget<?> child = children().get(i);
             flexShares[i] = 0;
             flexFrozen[i] = false;
             if (child.isVisible()) {
@@ -190,7 +190,7 @@ public abstract class Flex extends Container {
             float frozenMain = 0;
             int frozenWeight = 0;
             for (int i = 0; i < childCount; i++) {
-                Widget child = children().get(i);
+                Widget<?> child = children().get(i);
                 int flex = flexOf(child);
                 if (!child.isVisible() || flex == 0 || flexFrozen[i]) {
                     continue;
@@ -213,7 +213,7 @@ public abstract class Flex extends Container {
         float pool = Math.max(0, remaining);
         int assigned = weightLeft;
         for (int i = 0; i < childCount; i++) {
-            Widget child = children().get(i);
+            Widget<?> child = children().get(i);
             int flex = flexOf(child);
             if (!child.isVisible() || flex == 0 || flexFrozen[i]) {
                 continue;
@@ -246,7 +246,7 @@ public abstract class Flex extends Container {
         float fixedMain = 0;
         float maxCross = 0;
         int totalFlex = 0;
-        for (Widget child : children()) {
+        for (Widget<?> child : children()) {
             if (!child.isVisible()) {
                 continue;
             }
@@ -264,7 +264,7 @@ public abstract class Flex extends Container {
             resolveFlexShares(Math.max(0, mainMax - fixedMain - gapsTotal));
             int childCount = children().size();
             for (int i = 0; i < childCount; i++) {
-                Widget child = children().get(i);
+                Widget<?> child = children().get(i);
                 if (!child.isVisible() || flexOf(child) == 0) {
                     continue;
                 }
@@ -330,7 +330,7 @@ public abstract class Flex extends Container {
         float fixedMain = 0;
         int totalFlex = 0;
         for (int i = 0; i < childCount; i++) {
-            Widget child = children().get(i);
+            Widget<?> child = children().get(i);
             if (!child.isVisible()) {
                 continue;
             }
@@ -349,7 +349,7 @@ public abstract class Flex extends Container {
         resolveFlexShares(Math.max(0, mainSize - fixedMain - gapsTotal));
         float contentMain = fixedMain + gapsTotal;
         for (int i = 0; i < childCount; i++) {
-            Widget child = children().get(i);
+            Widget<?> child = children().get(i);
             if (!child.isVisible() || flexOf(child) == 0) {
                 continue;
             }
@@ -388,7 +388,7 @@ public abstract class Flex extends Container {
                 ? free / (visible - 1)
                 : 0;
         for (int i = 0; i < childCount; i++) {
-            Widget child = children().get(i);
+            Widget<?> child = children().get(i);
             if (!child.isVisible()) {
                 continue;
             }
@@ -442,13 +442,13 @@ public abstract class Flex extends Container {
     private void alignBaselines(int childCount, float crossSize) {
         float deepest = 0;
         for (int i = 0; i < childCount; i++) {
-            Widget child = children().get(i);
+            Widget<?> child = children().get(i);
             if (child.isVisible()) {
                 deepest = Math.max(deepest, baselineOffsetOf(child));
             }
         }
         for (int i = 0; i < childCount; i++) {
-            Widget child = children().get(i);
+            Widget<?> child = children().get(i);
             if (!child.isVisible()) {
                 continue;
             }

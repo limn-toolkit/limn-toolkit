@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class AccessibleIdleCostTest {
 
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         @Override
         protected Size onMeasure(Constraints constraints) {
             return constraints.constrain(100, 40);
@@ -161,7 +161,7 @@ class AccessibleIdleCostTest {
     // ------------------------------------------------------------- §6, measured
 
     /** A widget that counts how often it is asked to describe itself, and never says anything. */
-    private static final class Counted extends Widget {
+    private static final class Counted extends Widget<Counted> {
         int describes;
 
         @Override
@@ -199,7 +199,7 @@ class AccessibleIdleCostTest {
     }
 
     /** Where the probes park what they built, so the compiler cannot elide the allocation. */
-    private Widget keep;
+    private Widget<?> keep;
 
     /**
      * The per-widget cost: one nullable reference, and an object only on the first declaration.

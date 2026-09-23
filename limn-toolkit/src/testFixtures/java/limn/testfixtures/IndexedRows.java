@@ -22,14 +22,14 @@ public interface IndexedRows {
      * @param index a row
      * @return its widget, populated
      */
-    Widget rowAt(int index);
+    Widget<?> rowAt(int index);
 
     /**
      * A row widget that scrolled out.
      *
      * @param widget the widget
      */
-    default void recycle(Widget widget) {
+    default void recycle(Widget<?> widget) {
     }
 
     /**

@@ -75,7 +75,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /** A cell of a fixed height that says nothing about itself, so the tree's hook is all there is. */
-    private static final class Cell extends Widget {
+    private static final class Cell extends Widget<Cell> {
         private final float rowHeight;
 
         Cell(float rowHeight) {
@@ -113,7 +113,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
         }
 
         @Override
-        public Widget cellFor(Node node) {
+        public Widget<?> cellFor(Node node) {
             return new Cell((float) rowHeight.applyAsDouble(node));
         }
 
@@ -936,7 +936,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 if (node.children().isEmpty()) {
                     return new Label(node.name().english()); // names itself
                 }
@@ -990,7 +990,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 limn.scene.layout.Row row = new limn.scene.layout.Row();
                 row.add(new Label(node.name().english()));
                 row.add(new Label("1"));
@@ -1154,7 +1154,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 limn.scene.layout.Row row = new limn.scene.layout.Row();
                 row.add(limn.scene.layout.Expanded.of(new Label(node.name().english())));
                 Button open = new Button("Open " + node.name().english());
@@ -1367,7 +1367,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Label(node.name().english());
             }
         });
@@ -1437,7 +1437,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Cell(ROW_H);
             }
 
@@ -1516,7 +1516,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Cell(ROW_H);
             }
 
@@ -1599,7 +1599,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Cell(ROW_H);
             }
 
@@ -1676,7 +1676,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Cell(ROW_H);
             }
 
@@ -1733,7 +1733,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Label(node.name().english());
             }
         });
@@ -1788,7 +1788,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Label(node.name().english());
             }
         });
@@ -1882,7 +1882,7 @@ class TreeAccessibilityTest extends AccessibleComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 return new Cell(ROW_H);
             }
 

@@ -53,7 +53,7 @@ class TableGridContractTest extends ComponentTestBase {
         private Table<Person> table;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             List<Person> people = new ArrayList<>();
             String[] cities = {"Lima", "Quito", "Bogotá", "Sucre", "Caracas"};
             for (int i = 0; i < 10; i++) {
@@ -72,7 +72,7 @@ class TableGridContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return table;
         }
 

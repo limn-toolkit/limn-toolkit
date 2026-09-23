@@ -77,7 +77,7 @@ class DialogCardColumnAccessibilityTest extends AccessibleComponentTestBase {
      * A leaf with a fixed preferred size and an application-supplied name: content that survives
      * the predicate, so the clip edge the column leaves behind has a node to be read from.
      */
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         private final float wide;
         private final float tall;
 
@@ -102,7 +102,7 @@ class DialogCardColumnAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /** @return the card's box, which is the panel's: the column's own is not published */
-    private Widget card() {
+    private Widget<?> card() {
         return dialog.contentRoot();
     }
 
@@ -119,11 +119,11 @@ class DialogCardColumnAccessibilityTest extends AccessibleComponentTestBase {
         return scroll.localToSceneY() + scroll.height();
     }
 
-    private static <T extends Widget> T find(Widget at, Class<T> type) {
+    private static <T extends Widget<?>> T find(Widget<?> at, Class<T> type) {
         if (type.isInstance(at)) {
             return type.cast(at);
         }
-        for (Widget child : at.children()) {
+        for (Widget<?> child : at.children()) {
             T found = find(child, type);
             if (found != null) {
                 return found;
@@ -149,7 +149,7 @@ class DialogCardColumnAccessibilityTest extends AccessibleComponentTestBase {
         return tree().indexOf(node(name).id());
     }
 
-    private static void assertInside(AccessibleNode node, Widget box) {
+    private static void assertInside(AccessibleNode node, Widget<?> box) {
         assertTrue(node.x() >= box.localToSceneX(), node.name() + " starts inside the card");
         assertTrue(node.y() >= box.localToSceneY(), node.name() + " starts inside the card");
         assertTrue(node.x() + node.width() <= box.localToSceneX() + box.width(),

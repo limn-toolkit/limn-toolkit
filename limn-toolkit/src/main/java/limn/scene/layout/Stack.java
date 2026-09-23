@@ -16,7 +16,7 @@ import limn.scene.Widget;
  * or is mounted in the scene by {@code Dialog}, both of which confine input and publish the fact to
  * a screen reader.
  */
-public class Stack extends Container {
+public class Stack extends Container<Stack> {
 
     /**
      * Where a child sits in the stack's box, on two vocabularies that coexist on purpose.
@@ -68,7 +68,7 @@ public class Stack extends Container {
         Constraints loose = constraints.loosened();
         float maxWidth = 0;
         float maxHeight = 0;
-        for (Widget child : children()) {
+        for (Widget<?> child : children()) {
             if (!child.isVisible()) {
                 continue;
             }
@@ -85,7 +85,7 @@ public class Stack extends Container {
         // Resolved once for the whole pass, and only the horizontal switch consults it: the
         // vertical one has no reading order to follow.
         boolean rtl = isRightToLeft();
-        for (Widget child : children()) {
+        for (Widget<?> child : children()) {
             if (!child.isVisible()) {
                 continue;
             }

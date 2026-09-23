@@ -82,7 +82,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
     // ------------------------------------------------------------------------------ the fixture
 
     /** A cell of a fixed height that says nothing at all about itself. */
-    private static class Cell extends Widget {
+    private static class Cell extends Widget<Cell> {
         private final float rowHeight;
 
         Cell(float rowHeight) {
@@ -126,7 +126,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
 
     /** How a row's widget is made, so one adapter covers every cell shape a test needs. */
     private interface CellFactory {
-        Widget make(float rowHeight);
+        Widget<?> make(float rowHeight);
     }
 
     /**
@@ -138,7 +138,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         private final float rowHeight;
         private final I18nString[] names;
         private final CellFactory factory;
-        private final Deque<Widget> pool = new ArrayDeque<>();
+        private final Deque<Widget<?>> pool = new ArrayDeque<>();
         private int created;
 
         Rows(int count, float rowHeight, boolean named, CellFactory factory) {
@@ -159,7 +159,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         }
 
         @Override
-        public Widget rowAt(int index) {
+        public Widget<?> rowAt(int index) {
             if (pool.isEmpty()) {
                 created++;
                 return factory.make(rowHeight);
@@ -168,7 +168,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         }
 
         @Override
-        public void recycle(Widget widget) {
+        public void recycle(Widget<?> widget) {
             pool.push(widget);
         }
 
@@ -222,7 +222,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
      * The widget currently bound to a data row, read through the invariant this step establishes:
      * {@code children()} is the bar and then the realized cells in ascending data order.
      */
-    private static Widget cellOf(ListView<Integer> list, int index) {
+    private static Widget<?> cellOf(ListView<Integer> list, int index) {
         return list.children().get(1 + index - list.firstVisibleIndex());
     }
 
@@ -420,7 +420,7 @@ class ListViewAccessibilityTest extends AccessibleComponentTestBase {
         ListView<Integer> list = bindList(rows);
 
         long rowThree = rowNode(3).id();
-        Widget cellOfRowThree = cellOf(list, 3);
+        Widget<?> cellOfRowThree = cellOf(list, 3);
 
         list.scrollBy(50 * VISIBLE);
         frame();

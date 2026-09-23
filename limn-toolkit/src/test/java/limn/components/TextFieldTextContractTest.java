@@ -27,7 +27,7 @@ class TextFieldTextContractTest extends ComponentTestBase {
         private TextField field;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             field = new TextField();
             field.setText("invoices");
             field.setAccessibleName("Search");
@@ -37,7 +37,7 @@ class TextFieldTextContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return field;
         }
 
@@ -56,7 +56,7 @@ class TextFieldTextContractTest extends ComponentTestBase {
         private TextArea area;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             area = new TextArea();
             area.setText("notes here");
             area.setAccessibleName("Notes");
@@ -66,7 +66,7 @@ class TextFieldTextContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return area;
         }
 

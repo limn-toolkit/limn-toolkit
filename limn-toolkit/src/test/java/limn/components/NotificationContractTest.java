@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.PlainWidget;
+
 import limn.testfixtures.IndexedRows;
 
 import limn.backend.CrashHandler;
@@ -85,8 +87,8 @@ class NotificationContractTest extends ComponentTestBase {
     /** What one widget does with a caller's write and, where it has one, with the user's gesture. */
     private record Row(
             String name,
-            Supplier<Widget> build,
-            Consumer<Widget> write,
+            Supplier<Widget<?>> build,
+            Consumer<Widget<?>> write,
             Change.Aspect written,
             Gesture gesture) {
     }
@@ -97,8 +99,8 @@ class NotificationContractTest extends ComponentTestBase {
      */
     private record Gesture(
             Change.Aspect aspect,
-            BiConsumer<Widget, Runnable> arm,
-            BiConsumer<Scene, Widget> perform) {
+            BiConsumer<Widget<?>, Runnable> arm,
+            BiConsumer<Scene, Widget<?>> perform) {
     }
 
     // ------------------------------------------------------------------------------ the rows
@@ -385,16 +387,16 @@ class NotificationContractTest extends ComponentTestBase {
             new TreeNode("three", List.of()));
 
     @SuppressWarnings("unchecked")
-    private static limn.components.tree.Tree<TreeNode> asTree(Widget w) {
+    private static limn.components.tree.Tree<TreeNode> asTree(Widget<?> w) {
         return (limn.components.tree.Tree<TreeNode>) w;
     }
 
     /** A caller's write: the second root, which is not what any gesture below selects. */
-    private static void selectSecondRow(Widget w) {
+    private static void selectSecondRow(Widget<?> w) {
         asTree(w).setSelected(TREE_ROOTS.get(1));
     }
 
-    private static Widget treeFixture() {
+    private static Widget<?> treeFixture() {
         return new limn.components.tree.Tree<TreeNode>(
                 new limn.components.tree.Tree.Model<TreeNode>() {
                     @Override
@@ -408,7 +410,7 @@ class NotificationContractTest extends ComponentTestBase {
                     }
 
                     @Override
-                    public Widget cellFor(TreeNode node) {
+                    public Widget<?> cellFor(TreeNode node) {
                         return new Label(node.name());
                     }
                 });
@@ -417,7 +419,7 @@ class NotificationContractTest extends ComponentTestBase {
     // -------------------------------------------------------------------------- helpers
 
     /** A widget with a size and nothing else. */
-    private static final class Plain extends Widget {
+    private static final class Plain extends Widget<Plain> {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(40, 20);
@@ -432,13 +434,13 @@ class NotificationContractTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return new Plain();
             }
         };
     }
 
-    private static <C extends limn.components.chart.CartesianChart> C chart(C chart) {
+    private static <C extends limn.components.chart.CartesianChart<?>> C chart(C chart) {
         chart.setAnimationDuration(0);
         chart.setLabels("a", "b", "c");
         chart.addSeries(ChartSeries.of("v", 3, 17, 37));
@@ -451,7 +453,7 @@ class NotificationContractTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
     }
 
-    private static void click(Scene scene, Widget w) {
+    private static void click(Scene scene, Widget<?> w) {
         float x = w.localToSceneX() + w.width() / 2;
         float y = w.localToSceneY() + w.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
@@ -460,7 +462,7 @@ class NotificationContractTest extends ComponentTestBase {
     }
 
     /** A scene laid out around the widget, big enough for any row here. */
-    private Scene sceneOf(Widget widget) {
+    private Scene sceneOf(Widget<?> widget) {
         Scene scene = new Scene(widget);
         scene.setTextRuler(RULER);
         scene.layoutPass(300, 200);
@@ -468,7 +470,7 @@ class NotificationContractTest extends ComponentTestBase {
     }
 
     /** What one watcher heard about one widget, narrowed to one aspect. */
-    private static List<Change.Origin> heard(Widget widget, Change.Aspect aspect) {
+    private static List<Change.Origin> heard(Widget<?> widget, Change.Aspect aspect) {
         List<Change.Origin> origins = new ArrayList<>();
         widget.observeChanges((source, change) -> {
             if (change.aspect() == aspect) {
@@ -506,7 +508,7 @@ class NotificationContractTest extends ComponentTestBase {
     @Test
     void aCallersWriteAnnouncesOnceAsCodeAndReachesNoHandler() {
         for (Row row : ROWS) {
-            Widget widget = row.build().get();
+            Widget<?> widget = row.build().get();
             sceneOf(widget);
             AtomicInteger handled = new AtomicInteger();
             if (row.gesture() != null) {
@@ -525,7 +527,7 @@ class NotificationContractTest extends ComponentTestBase {
     @Test
     void theStateAlreadyHeldAnnouncesNothing() {
         for (Row row : ROWS) {
-            Widget widget = row.build().get();
+            Widget<?> widget = row.build().get();
             sceneOf(widget);
             row.write().accept(widget);
             List<Change.Origin> heard = heard(widget, row.written());
@@ -543,7 +545,7 @@ class NotificationContractTest extends ComponentTestBase {
             if (row.gesture() == null) {
                 continue;
             }
-            Widget widget = row.build().get();
+            Widget<?> widget = row.build().get();
             Scene scene = sceneOf(widget);
             List<String> order = new ArrayList<>();
             widget.observeChanges((source, change) -> {
@@ -572,7 +574,7 @@ class NotificationContractTest extends ComponentTestBase {
             if (row.gesture() == null) {
                 continue;
             }
-            Widget widget = row.build().get();
+            Widget<?> widget = row.build().get();
             Scene scene = sceneOf(widget);
             AtomicInteger first = new AtomicInteger();
             AtomicInteger second = new AtomicInteger();
@@ -611,7 +613,7 @@ class NotificationContractTest extends ComponentTestBase {
     @Test
     void nothingAnnouncesFromAPaint() {
         for (Row row : ROWS) {
-            Widget widget = row.build().get();
+            Widget<?> widget = row.build().get();
             Scene scene = sceneOf(widget);
             List<Change> heard = new ArrayList<>();
             widget.observeChanges((source, change) -> heard.add(change));
@@ -645,7 +647,7 @@ class NotificationContractTest extends ComponentTestBase {
      */
     @Test
     void anAnnouncementFromInsideAPaintThrowsWhetherOrNotAnyoneIsWatching() {
-        Widget offender = new Widget() {
+        Widget<?> offender = new PlainWidget() {
             private boolean flag;
 
             @Override

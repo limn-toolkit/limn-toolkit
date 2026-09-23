@@ -398,7 +398,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertTrue(fieldNode().accepts(Accessible.Action.SET_TEXT), describe(tree()));
 
-        limn.scene.Widget layer = new Column();
+        limn.scene.Widget<?> layer = new Column();
         scene.pushOverlay(layer);
         frame();
 

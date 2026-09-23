@@ -63,7 +63,7 @@ final class ControlSizesScene {
     }
 
     /** One labelled row of the standard form cluster, all of it at {@code step}. */
-    private static Widget stepRow(ControlSize step) {
+    private static Widget<?> stepRow(ControlSize step) {
         Row row = new Row();
         row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(new Label(step.name()).setMuted(true));
@@ -81,7 +81,7 @@ final class ControlSizesScene {
      * {@code body * 0.341796875}, a function of the type ramp alone, so no choice of control
      * heights can align these boxes' text; only a baseline can.
      */
-    private static Widget mixedRow() {
+    private static Widget<?> mixedRow() {
         Row row = new Row();
         row.gap(12).crossAlignment(Flex.CrossAlignment.BASELINE);
 

@@ -79,7 +79,7 @@ class SplitPaneTest extends ComponentTestBase {
     void aDragOffTheLineDoesNotJumpTheDivider() {
         // The band is wider than the line so it can be grabbed; pressing near the
         // edge of it must not snap the split to the pointer.
-        Widget divider = split.divider();
+        Widget<?> divider = split.divider();
         float before = left.width();
         float x = divider.localToSceneX() + 1;
         float y = divider.localToSceneY() + divider.height() / 2;
@@ -178,7 +178,7 @@ class SplitPaneTest extends ComponentTestBase {
 
     /** Presses on the divider, moves the pointer by {@code delta} points, releases. */
     private void dragDivider(float delta) {
-        Widget divider = split.divider();
+        Widget<?> divider = split.divider();
         float x = divider.localToSceneX() + divider.width() / 2;
         float y = divider.localToSceneY() + divider.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
@@ -259,7 +259,7 @@ class SplitPaneTest extends ComponentTestBase {
         Scene host = new Scene(pane, clock::get);
         host.setTextRuler(RULER);
         host.layoutPass(400, 200);
-        Widget divider = pane.divider();
+        Widget<?> divider = pane.divider();
         float x = divider.localToSceneX() + divider.width() / 2;
         float y = divider.localToSceneY() + divider.height() / 2;
 

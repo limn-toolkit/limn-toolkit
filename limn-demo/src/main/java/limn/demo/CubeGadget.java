@@ -60,7 +60,7 @@ final class CubeGadget {
     }
 
     /** Fills the shot window with its single verification viewport. */
-    private static final class ShotRoot extends Widget {
+    private static final class ShotRoot extends Widget<ShotRoot> {
         private final Viewport3D viewport;
 
         ShotRoot(Viewport3D viewport) {
@@ -324,7 +324,7 @@ final class CubeGadget {
      * kept {@code enabled=false} so it never consumes the press itself; input
      * bubbles up to this root, which does its own cube hit-testing.
      */
-    private static final class Overlay extends Widget {
+    private static final class Overlay extends Widget<Overlay> {
         private static final float EYE_Z = 12f;         // camera distance
         private static final float HALF_DIAG = 1.08f;   // cube bounding radius (world units)
         private static final float WORLD_SPEED = 2.6f;  // world units/s

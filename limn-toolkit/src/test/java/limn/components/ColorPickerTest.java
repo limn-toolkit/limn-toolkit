@@ -385,7 +385,7 @@ class ColorPickerTest extends ComponentTestBase {
         changes.clear();
         // Three moves that all round to the same value: the rail is ~220pt over
         // 255 steps, so a point of travel is under a step.
-        Widget rail = picker.rail(2);
+        Widget<?> rail = picker.rail(2);
         float y = rail.localToSceneY() + rail.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, railX(rail, 0.5f), y);
         drive(scene).mouseMoved(railX(rail, 0.5f) + 0.2f, y);
@@ -517,7 +517,7 @@ class ColorPickerTest extends ComponentTestBase {
         dragRail(picker.rail(index), from, to);
     }
 
-    private void dragRail(Widget rail, float from, float to) {
+    private void dragRail(Widget<?> rail, float from, float to) {
         float y = rail.localToSceneY() + rail.height() / 2;
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, railX(rail, from), y);
         drive(scene).mouseMoved(railX(rail, to), y);
@@ -530,7 +530,7 @@ class ColorPickerTest extends ComponentTestBase {
      * thumb is a tabled extent, so the inset is read from the step the scene runs
      * at rather than from a number copied out of the widget.
      */
-    private float railX(Widget rail, float fraction) {
+    private float railX(Widget<?> rail, float fraction) {
         float thumb = SizeTokens.of(rail.controlSize()).colorThumbW();
         return rail.localToSceneX() + thumb / 2 + fraction * (rail.width() - thumb);
     }

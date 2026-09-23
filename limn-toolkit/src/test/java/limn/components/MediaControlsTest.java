@@ -48,20 +48,20 @@ class MediaControlsTest extends ComponentTestBase {
     }
 
     /** The row's children in visual order is what the assertions below reason about. */
-    private List<Widget> rowChildren() {
+    private List<Widget<?>> rowChildren() {
         return controls.children().get(0).children();
     }
 
-    private float sceneX(Widget widget) {
+    private float sceneX(Widget<?> widget) {
         return widget.localToSceneX();
     }
 
     @Test
     void theBarReadsLeftToRightInsideARightToLeftTree() {
         build(LayoutDirection.RTL);
-        List<Widget> kids = rowChildren();
-        Widget play = kids.get(0);
-        Widget clock = kids.get(kids.size() - 1);
+        List<Widget<?>> kids = rowChildren();
+        Widget<?> play = kids.get(0);
+        Widget<?> clock = kids.get(kids.size() - 1);
         assertTrue(sceneX(play) < sceneX(clock),
                 "the play button leads from the left whatever the tree reads: media transports "
                         + "are the standing exception to mirroring");
@@ -73,7 +73,7 @@ class MediaControlsTest extends ComponentTestBase {
         build(LayoutDirection.RTL);
         controls.setLayoutDirection(null); // follow the tree: the Apple-style choice
         scene.layoutPass(BAR_W, BAR_H);
-        List<Widget> kids = rowChildren();
+        List<Widget<?>> kids = rowChildren();
         assertTrue(sceneX(kids.get(0)) > sceneX(kids.get(kids.size() - 1)),
                 "cleared to inherit, the bar mirrors like any row: the pin is a default, not a law");
     }
@@ -81,7 +81,7 @@ class MediaControlsTest extends ComponentTestBase {
     @Test
     void leftToRightIsUnchanged() {
         build(LayoutDirection.LTR);
-        List<Widget> kids = rowChildren();
+        List<Widget<?>> kids = rowChildren();
         assertTrue(sceneX(kids.get(0)) < sceneX(kids.get(kids.size() - 1)));
         assertEquals(LayoutDirection.LTR, controls.layoutDirection());
     }
@@ -89,15 +89,15 @@ class MediaControlsTest extends ComponentTestBase {
     @Test
     void slotsLandWherePlayersPutThem() {
         build(LayoutDirection.LTR);
-        Widget volume = new FixedProbe();
-        Widget subtitles = new FixedProbe();
+        Widget<?> volume = new FixedProbe();
+        Widget<?> subtitles = new FixedProbe();
         controls.addLeading(volume);
         controls.addTrailing(subtitles);
         scene.layoutPass(BAR_W, BAR_H);
 
-        List<Widget> kids = rowChildren();
-        Widget play = kids.get(0);
-        Widget clock = kids.get(kids.size() - 1);
+        List<Widget<?>> kids = rowChildren();
+        Widget<?> play = kids.get(0);
+        Widget<?> clock = kids.get(kids.size() - 1);
         assertTrue(sceneX(play) < sceneX(volume),
                 "a leading widget sits after the play button, where players put their volume");
         assertTrue(sceneX(volume) < sceneX(subtitles),
@@ -129,15 +129,15 @@ class MediaControlsTest extends ComponentTestBase {
     // ------------------------------------------------------------------- sound
 
     /** The mute button and the volume box sit at fixed positions after the play button. */
-    private Widget muteButton() {
+    private Widget<?> muteButton() {
         return rowChildren().get(1);
     }
 
-    private Widget volumeSlider() {
+    private Widget<?> volumeSlider() {
         return rowChildren().get(2);
     }
 
-    private Widget playButton() {
+    private Widget<?> playButton() {
         return rowChildren().get(0);
     }
 
@@ -230,11 +230,11 @@ class MediaControlsTest extends ComponentTestBase {
     }
 
     /** @return the transport's scrub bar, the one slider over a thousand steps, or null */
-    private static Slider scrubBar(Widget root) {
+    private static Slider scrubBar(Widget<?> root) {
         if (root instanceof Slider slider && slider.max() == 1000) {
             return slider;
         }
-        for (Widget child : root.children()) {
+        for (Widget<?> child : root.children()) {
             Slider found = scrubBar(child);
             if (found != null) {
                 return found;
@@ -272,7 +272,7 @@ class MediaControlsTest extends ComponentTestBase {
     }
 
     /** A fixed-size stand-in so slot assertions are about the bar, not about a Slider. */
-    private static final class FixedProbe extends Widget {
+    private static final class FixedProbe extends Widget<FixedProbe> {
         @Override
         protected Size onMeasure(Constraints constraints) {
             return constraints.constrain(24, 12);

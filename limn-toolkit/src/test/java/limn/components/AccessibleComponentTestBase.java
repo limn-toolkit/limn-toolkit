@@ -73,7 +73,7 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
      *
      * @param root the widget under test
      */
-    protected void bind(Widget root) {
+    protected void bind(Widget<?> root) {
         bind(root, new StubWindow());
     }
 
@@ -90,7 +90,7 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
      * @param root the widget under test
      * @param over the window to bind it to; its bridge is replaced with the recording one
      */
-    protected void bind(Widget root, StubWindow over) {
+    protected void bind(Widget<?> root, StubWindow over) {
         bridge = RecordingAccessibilityBridge.listening();
         window = over;
         window.accessibility = bridge;
@@ -112,7 +112,7 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
      * @param damage the widget to invalidate before each frame, so the frames are real ones, or
      *               {@code null} to let the scene decide what to redraw
      */
-    protected void advanceTime(long millis, Widget damage) {
+    protected void advanceTime(long millis, Widget<?> damage) {
         long step = (long) (Scene.MAX_TICK_SECONDS * 1000);
         for (long left = millis; left > 0; left -= step) {
             nanos[0] += TimeUnit.MILLISECONDS.toNanos(Math.min(step, left));
@@ -134,7 +134,7 @@ abstract class AccessibleComponentTestBase extends ComponentTestBase {
      *
      * @param damage the widget to invalidate before each frame
      */
-    protected void settleAnimations(Widget damage) {
+    protected void settleAnimations(Widget<?> damage) {
         advanceTime(3000, damage);
     }
 

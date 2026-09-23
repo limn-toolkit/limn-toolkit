@@ -41,7 +41,7 @@ import java.util.Objects;
  * request. An {@code Extent} that ignores its argument is a constant, and a tight parent
  * discards the number either way.
  */
-public final class TokenBox extends Widget {
+public final class TokenBox extends Widget<TokenBox> {
 
     /** One extent, read off a size step. */
     @FunctionalInterface
@@ -52,14 +52,14 @@ public final class TokenBox extends Widget {
 
     private final Extent fixedWidth;
     private final Extent fixedHeight;
-    private final Widget child;
+    private final Widget<?> child;
 
     /**
      * @param fixedWidth  the width to impose, or {@code null} to take the child's
      * @param fixedHeight the height to impose, or {@code null} to take the child's
      * @param child       the widget to size; never {@code null}
      */
-    public TokenBox(Extent fixedWidth, Extent fixedHeight, Widget child) {
+    public TokenBox(Extent fixedWidth, Extent fixedHeight, Widget<?> child) {
         this.fixedWidth = fixedWidth;
         this.fixedHeight = fixedHeight;
         this.child = Objects.requireNonNull(child, "child");

@@ -90,7 +90,7 @@ class UiaTreeRowsTest {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 // A composite cell of a fixed height (a headless canvas measures text as nothing),
                 // so a row has content of its own under it as well as child rows.
                 return new SizedBox(200, 20, new Label(node.name()));

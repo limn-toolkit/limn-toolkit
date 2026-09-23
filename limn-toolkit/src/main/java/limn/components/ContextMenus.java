@@ -61,7 +61,7 @@ public final class ContextMenus {
      * @param source  consulted per gesture, on the UI thread, and may answer {@code null}
      * @return the widget to put in the tree in {@code content}'s place
      */
-    public static Widget attach(Widget content, Supplier<Menu> source) {
+    public static Widget<?> attach(Widget<?> content, Supplier<Menu> source) {
         return new ContextRegion(Objects.requireNonNull(content, "content"),
                 Objects.requireNonNull(source, "source"));
     }
@@ -111,7 +111,7 @@ public final class ContextMenus {
      * column meets that point is {@link PopupMenu}'s decision and is already taken there.
      * Reflecting the point as well would move the menu away from the spot the user aimed at.
      */
-    public static void showAt(Widget anchor, Menu menu, float localX, float localY) {
+    public static void showAt(Widget<?> anchor, Menu menu, float localX, float localY) {
         Objects.requireNonNull(anchor, "anchor");
         if (menu == null || menu.items().isEmpty()) {
             return;
@@ -138,12 +138,12 @@ public final class ContextMenus {
      * popup is anchored on the same widget the corner came from, and its growth, its step and
      * its corner are one answer.
      */
-    public static void showForFocus(Widget anchor, Menu menu) {
+    public static void showForFocus(Widget<?> anchor, Menu menu) {
         Objects.requireNonNull(anchor, "anchor");
         if (menu == null || menu.items().isEmpty()) {
             return;
         }
-        Widget from = anchor;
+        Widget<?> from = anchor;
         if (anchor.scene() != null && anchor.scene().focusedWidget() != null) {
             from = anchor.scene().focusedWidget();
         }
@@ -175,12 +175,12 @@ public final class ContextMenus {
      * this shape: the two rectangles are the same rectangle, and only one of the two nodes can
      * open the menu.
      */
-    private static final class ContextRegion extends Widget {
+    private static final class ContextRegion extends Widget<ContextRegion> {
 
-        private final Widget content;
+        private final Widget<?> content;
         private final Supplier<Menu> source;
 
-        ContextRegion(Widget content, Supplier<Menu> source) {
+        ContextRegion(Widget<?> content, Supplier<Menu> source) {
             this.content = content;
             this.source = source;
             add(content);

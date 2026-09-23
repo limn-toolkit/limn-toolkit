@@ -165,7 +165,7 @@ final class BidiScene {
      * of them and installs a selection across its direction boundary, and a tab that inherited that
      * would open with a selection nobody made.
      */
-    static Widget tabContent() {
+    static Widget<?> tabContent() {
         TextField arabic = new TextField().setPreferredWidth(PARAGRAPH_COLUMN)
                 .setText(MARHABA + " " + ISLAND + " " + AL_ARABIYYA);
         TextField hebrew = new TextField().setPreferredWidth(PARAGRAPH_COLUMN)
@@ -173,14 +173,14 @@ final class BidiScene {
         return page(arabic, hebrew);
     }
 
-    private static Widget content(TextField arabic, TextField hebrew) {
+    private static Widget<?> content(TextField arabic, TextField hebrew) {
         // The two columns are sized to fit the demo window without scrolling, but a larger
         // control-size step or a face with taller metrics grows them; scrolling is what keeps the
         // last specimen reachable rather than clipped off the bottom.
         return new ScrollView(page(arabic, hebrew));
     }
 
-    private static Widget page(TextField arabic, TextField hebrew) {
+    private static Widget<?> page(TextField arabic, TextField hebrew) {
         Column page = new Column();
         page.gap(12).crossAlignment(Flex.CrossAlignment.START);
         page.add(new Label("Bidi and complex scripts").setRole(Label.Role.TITLE));
@@ -198,7 +198,7 @@ final class BidiScene {
     }
 
     /** One word per property, each under the property it demonstrates. */
-    private static Widget specimens() {
+    private static Widget<?> specimens() {
         Column column = new Column();
         column.gap(10).crossAlignment(Flex.CrossAlignment.START);
         column.add(specimen("Arabic — 7 code points, 10 glyphs, chosen by the neighbours",
@@ -223,7 +223,7 @@ final class BidiScene {
     }
 
     /** The editable pair, then one wrapped paragraph per script. */
-    private static Widget paragraphs(TextField arabic, TextField hebrew) {
+    private static Widget<?> paragraphs(TextField arabic, TextField hebrew) {
         Column column = new Column();
         column.gap(10).crossAlignment(Flex.CrossAlignment.START);
         column.add(caption("Editable — click into it, drag a selection, walk it with the arrows"));
@@ -263,7 +263,7 @@ final class BidiScene {
      * one. Both spinners are live: type into the pinned one and the Arabic-Indic digits it
      * shows are the digits it takes.
      */
-    private static Widget pinnedLocalePair() {
+    private static Widget<?> pinnedLocalePair() {
         Row row = new Row();
         row.gap(COLUMN_GAP).crossAlignment(Flex.CrossAlignment.START);
         row.add(pinnedHalf(null));
@@ -272,7 +272,7 @@ final class BidiScene {
     }
 
     /** One half of the pair: a bundle label over a spinner, pinned when a locale is given. */
-    private static Widget pinnedHalf(Locale pin) {
+    private static Widget<?> pinnedHalf(Locale pin) {
         Column half = new Column();
         half.gap(4).crossAlignment(Flex.CrossAlignment.START);
         half.add(new Label(KitchenStrings.NOTIFICATIONS));
@@ -284,7 +284,7 @@ final class BidiScene {
     }
 
     /** A caption and the word it describes, at a size the marks are legible at. */
-    private static Widget specimen(String what, String text) {
+    private static Widget<?> specimen(String what, String text) {
         Column block = new Column();
         block.gap(2).crossAlignment(Flex.CrossAlignment.START);
         block.add(caption(what));
@@ -293,7 +293,7 @@ final class BidiScene {
     }
 
     /** A caption and a paragraph that has to break inside the column to fit it. */
-    private static Widget paragraph(String what, String text) {
+    private static Widget<?> paragraph(String what, String text) {
         Column block = new Column();
         block.gap(2).crossAlignment(Flex.CrossAlignment.START);
         block.add(caption(what));

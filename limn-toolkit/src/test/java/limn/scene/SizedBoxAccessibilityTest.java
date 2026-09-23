@@ -100,7 +100,7 @@ class SizedBoxAccessibilityTest extends AccessibleTestBase {
      * Binds {@code widget} inside a container, never as the scene root: the root is measured tight
      * to the canvas, which would clamp away every fixed size these tests are about.
      */
-    private void bindInside(Widget widget) {
+    private void bindInside(Widget<?> widget) {
         Group box = new Group();
         box.add(widget);
         bind(box);

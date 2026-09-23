@@ -64,7 +64,7 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
     private Column root;
 
     /** The panel widgets, in tab order, so a published box can be read against the widget's. */
-    private Widget[] panels;
+    private Widget<?>[] panels;
 
     /** Every record the walk logged while a test was running; see the assertion after each. */
     private final List<LogRecord> logged = new ArrayList<>();
@@ -126,7 +126,7 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Captioned tabs over empty panels, in a named container and a box of known width. */
     private void bindTabs(float width, String... captions) {
-        Widget[] empty = new Widget[captions.length];
+        Widget<?>[] empty = new Widget<?>[captions.length];
         for (int i = 0; i < empty.length; i++) {
             empty[i] = new SizedBox(60, 60);
         }
@@ -134,7 +134,7 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /** The same, with the panels the caller wants behind the tabs. */
-    private void bindPanels(float width, String[] captions, Widget[] behind) {
+    private void bindPanels(float width, String[] captions, Widget<?>[] behind) {
         panels = behind;
         pane = new TabbedPane();
         for (int i = 0; i < captions.length; i++) {
@@ -154,7 +154,7 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /** The strip's headers, in add order; the strip is the pane's first child by construction. */
-    private List<Widget> headers() {
+    private List<Widget<?>> headers() {
         return pane.children().get(0).children();
     }
 
@@ -216,7 +216,7 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /** Moves the pointer to the centre of a widget's box, as a hover does. */
-    private void hover(Widget widget) {
+    private void hover(Widget<?> widget) {
         drive(scene).mouseMoved(widget.localToSceneX() + widget.width() / 2,
                 widget.localToSceneY() + widget.height() / 2);
         drive(scene).inputBatchEnded();
@@ -331,7 +331,7 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
     void aPanelThatIsAlreadySomethingKeepsItsRoleAndItsOwnName() {
         Label caption = new Label("Read me first");
         bindPanels(400, new String[] {"Scrolled", "Written"},
-                new Widget[] {new ScrollView(new SizedBox(600, 600)), caption});
+                new Widget<?>[] {new ScrollView(new SizedBox(600, 600)), caption});
 
         AccessibleNode tab = nodeOf(Accessible.Role.TAB, "Scrolled");
         AccessibleNode viewport = targetOf(only(tab, Accessible.Relation.CONTROLLER_FOR));
@@ -455,7 +455,7 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
     void onlyTheSelectedPanelIsShowingAndTheHiddenOnesControlsAreNotTabStops() {
         Button inside = new Button("Save");
         bindPanels(400, new String[] {"Alpha", "Beta"},
-                new Widget[] {new SizedBox(60, 60), inside});
+                new Widget<?>[] {new SizedBox(60, 60), inside});
 
         AccessibleNode shown = nodeOf(Accessible.Role.TAB_PANEL, "Alpha");
         assertTrue(shown.has(Accessible.State.VISIBLE), describe(tree()));
@@ -518,7 +518,7 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aTabAddedLaterBringsItsOwnPanel() {
         bindTabs(400, "Alpha", "Beta");
-        Widget late = new SizedBox(60, 60);
+        Widget<?> late = new SizedBox(60, 60);
 
         pane.addTab("Gamma", late);
         frame();
@@ -546,7 +546,7 @@ class TabbedPaneAccessibilityTest extends AccessibleComponentTestBase {
         Assumptions.assumeTrue(AllocationProbe.isSupported(),
                 "this virtual machine does not count per-thread allocation");
         bindTabs(400, "Alpha", "Beta", "Gamma");
-        Widget header = headers().get(0);
+        Widget<?> header = headers().get(0);
         scene.requestFocus(header);
         frame();
         hover(header);

@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TabbedPaneClipTest extends ComponentTestBase {
 
     /** A panel that insists on being far taller than whatever box it is given. */
-    private static final class TallPanel extends Widget {
+    private static final class TallPanel extends Widget<TallPanel> {
 
         static final float HEIGHT = 4000;
 

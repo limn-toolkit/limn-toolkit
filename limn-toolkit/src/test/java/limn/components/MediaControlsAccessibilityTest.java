@@ -203,12 +203,12 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
      * @return the play button, reached through the public child lists: the bar's only child is
      *         the row and the row's first child is the play button, as {@code rebuild()} orders it
      */
-    private Widget playButton() {
+    private Widget<?> playButton() {
         return controls.children().get(0).children().get(0);
     }
 
     /** Delivers one click at the centre of {@code target}'s box, as a pointer does, and frames it. */
-    private void click(Widget target) {
+    private void click(Widget<?> target) {
         float x = target.localToSceneX() + target.width() / 2;
         float y = target.localToSceneY() + target.height() / 2;
         drive(scene).mouseMoved(x, y);
@@ -418,7 +418,7 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void thePlayButtonIsOnePlainButtonWithNoFacetInsideItsOwnMeasuredBox() {
         bindControls();
-        Widget widget = playButton();
+        Widget<?> widget = playButton();
         AccessibleNode play = node("Play");
 
         assertEquals(Accessible.Role.BUTTON, play.role(), describe(tree()));
@@ -468,7 +468,7 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
         bind(around);
         around.setEnabled(false);
         frame();
-        Widget widget = playButton();
+        Widget<?> widget = playButton();
         AccessibleNode play = node("Play");
 
         assertTrue(widget.isEnabled(), "the fixture has to leave the button's own flag alone");
@@ -490,7 +490,7 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void thePlayButtonIsATabStopExactlyOnceAndFocusIsReported() {
         bindControls();
-        Widget widget = playButton();
+        Widget<?> widget = playButton();
         long id = node("Play").id();
 
         List<Long> tabStops = nodesWith(Accessible.State.FOCUSABLE).stream()
@@ -527,7 +527,7 @@ class MediaControlsAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aClickFromAPointerFiresIsNotAcknowledgedAndNeverPublishesPressed() {
         bindControls();
-        Widget widget = playButton();
+        Widget<?> widget = playButton();
         long id = node("Play").id();
         assertTrue(view.isPaused());
         int beforeTheClick = bridge.published.size();

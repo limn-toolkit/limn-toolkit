@@ -520,8 +520,8 @@ class DialogSceneOverlayAccessibilityTest extends AccessibleComponentTestBase {
         Assumptions.assumeTrue(AllocationProbe.isSupported(),
                 "this virtual machine does not count per-thread allocation");
         openScene();
-        Widget buried = showInScene(cancelAndOk(FIRST)).contentRoot();
-        Widget top = showInScene(noAndYes(SECOND)).contentRoot();
+        Widget<?> buried = showInScene(cancelAndOk(FIRST)).contentRoot();
+        Widget<?> top = showInScene(noAndYes(SECOND)).contentRoot();
         int published = bridge.published.size();
         bridge.events.clear();
 

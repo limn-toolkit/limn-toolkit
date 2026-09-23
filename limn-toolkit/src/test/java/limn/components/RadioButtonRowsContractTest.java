@@ -31,7 +31,7 @@ class RadioButtonRowsContractTest extends ComponentTestBase {
         private ButtonGroup group;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             radios.clear();
             group = new ButtonGroup();
             Column root = new Column();
@@ -45,7 +45,7 @@ class RadioButtonRowsContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             int selected = group.selectedIndex();
             return radios.get(selected < 0 ? 0 : selected);
         }

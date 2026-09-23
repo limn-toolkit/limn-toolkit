@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ListScrollDamageTest extends ComponentTestBase {
 
-    private static final class Cell extends Widget {
+    private static final class Cell extends Widget<Cell> {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(c.maxWidth(), 24);
@@ -55,12 +55,12 @@ class ListScrollDamageTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return pool.isEmpty() ? new Cell() : pool.pop();
             }
 
             @Override
-            public void recycle(Widget widget) {
+            public void recycle(Widget<?> widget) {
                 pool.push((Cell) widget);
             }
         });

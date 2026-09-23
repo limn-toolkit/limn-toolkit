@@ -28,7 +28,7 @@ class ContainerMirroringTest extends ComponentTestBase {
     private static final float EPS = 1e-3f;
 
     /** Fixed-preferred-size leaf. */
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         private final float prefWidth;
 
         Box(float prefWidth) {
@@ -41,7 +41,7 @@ class ContainerMirroringTest extends ComponentTestBase {
         }
     }
 
-    private static void layout(Widget w, float width, float height) {
+    private static void layout(Widget<?> w, float width, float height) {
         w.measure(Constraints.tight(width, height));
         w.layoutBox(0, 0, width, height);
     }

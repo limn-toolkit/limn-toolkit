@@ -51,7 +51,7 @@ class ScrollViewAccessibilityTest extends AccessibleComponentTestBase {
     private static final double EPS = 1e-6;
 
     /** A leaf of a fixed preferred size that says nothing unless a test names it. */
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         private final float prefWidth;
         private final float prefHeight;
 

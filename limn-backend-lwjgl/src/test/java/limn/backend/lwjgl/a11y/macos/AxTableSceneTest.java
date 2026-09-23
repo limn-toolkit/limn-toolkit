@@ -55,7 +55,7 @@ class AxTableSceneTest {
         ui.close();
     }
 
-    private void bind(Widget widget) {
+    private void bind(Widget<?> widget) {
         scene = new Scene(new SizedBox(420, 360, widget), nanos::get);
         ProbeWindow window = new ProbeWindow();
         bridge = PlatformFreeBridges.make();

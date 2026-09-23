@@ -184,7 +184,7 @@ class ComboBoxTest extends ComponentTestBase {
         // press-observer must close it.
         limn.scene.layout.Column root = new limn.scene.layout.Column();
         combo = new ComboBox(List.of("one", "two"));
-        limn.scene.Widget filler = new limn.scene.Widget() {
+        limn.scene.Widget<?> filler = new limn.scene.Widget() {
             @Override
             protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
                 return c.constrain(200, 40);

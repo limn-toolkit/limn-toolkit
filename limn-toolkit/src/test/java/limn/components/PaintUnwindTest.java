@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PaintUnwindTest extends ComponentTestBase {
 
     /** Throws from its own paint, the way application code in a viewport or a cell does. */
-    private static final class Exploding extends Widget {
+    private static final class Exploding extends Widget<Exploding> {
 
         static final class Boom extends RuntimeException {
             private static final long serialVersionUID = 1L;
@@ -70,7 +70,7 @@ class PaintUnwindTest extends ComponentTestBase {
      * whole reason this test exists: the application survives, so nothing forces anyone to notice
      * that the canvas did not.
      */
-    private static RecordingTestCanvas paintExpectingBoom(Widget root) {
+    private static RecordingTestCanvas paintExpectingBoom(Widget<?> root) {
         Scene scene = new Scene(root);
         scene.setTextRuler(RULER);
         scene.layoutPass(400, 300);
@@ -119,7 +119,7 @@ class PaintUnwindTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return new Exploding();
             }
         });
@@ -127,7 +127,7 @@ class PaintUnwindTest extends ComponentTestBase {
     }
 
     /** Saves and never restores: a plain bug, with no exception to blame it on. */
-    private static final class Leaky extends Widget {
+    private static final class Leaky extends Widget<Leaky> {
 
         @Override
         protected Size onMeasure(Constraints constraints) {
@@ -142,7 +142,7 @@ class PaintUnwindTest extends ComponentTestBase {
     }
 
     /** Records the depth it is painted at, to prove a sibling's leak never reached it. */
-    private static final class DepthProbe extends Widget {
+    private static final class DepthProbe extends Widget<DepthProbe> {
 
         int depthSeen = -1;
 

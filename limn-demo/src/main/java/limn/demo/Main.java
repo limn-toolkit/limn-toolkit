@@ -667,7 +667,7 @@ public final class Main {
                     // written-down coordinates, which the layout could invalidate.
                     ss.focusTraverse(false);
                     ss.focusTraverse(false);
-                    limn.scene.Widget d = ss.focusedWidget();
+                    limn.scene.Widget<?> d = ss.focusedWidget();
                     inner.set(new float[] {
                             d.localToSceneX() + d.width() / 2, d.localToSceneY() + d.height() / 2});
                     ss.focusTraverse(false);

@@ -10,10 +10,10 @@ import limn.scene.Widget;
 public interface LeafActionSubject {
 
     /** Builds a fresh widget that accepts a press and returns the root to bind. */
-    Widget build();
+    Widget<?> build();
 
     /** @return the widget {@link #build()} made last: the leaf itself */
-    Widget widget();
+    Widget<?> widget();
 
     /** @return how many times the widget's own action handler fired since {@link #build()} */
     int presses();

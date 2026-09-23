@@ -78,7 +78,7 @@ class TokenColumnAccessibilityTest extends AccessibleComponentTestBase {
      * column that survives the predicate, so the gap the column leaves behind has two nodes to be
      * read between.
      */
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         Box(String name) {
             setAccessibleName(name);
         }

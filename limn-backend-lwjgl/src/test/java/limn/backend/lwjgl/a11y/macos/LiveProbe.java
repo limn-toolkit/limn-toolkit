@@ -137,7 +137,7 @@ public final class LiveProbe {
             // reach every widget: those pull opposite ways, so the interval is a knob.
             int tickMs = Integer.getInteger("probe.tickMs", 6_000);
             int steps = Integer.getInteger("probe.steps", 40);
-            Widget first = firstFocus(probe, System.getProperty("probe.focus"));
+            Widget<?> first = firstFocus(probe, System.getProperty("probe.focus"));
             if (first != null) {
                 Ui.postDelayed(() -> {
                     window.focus();
@@ -235,7 +235,7 @@ public final class LiveProbe {
      * @throws IllegalArgumentException for anything else, because a run that silently focused
      *         nothing would be read as a reader that says nothing about a value
      */
-    static Widget firstFocus(ProbeScene probe, String which) {
+    static Widget<?> firstFocus(ProbeScene probe, String which) {
         if (which == null || which.isEmpty()) return null;
         if (which.equals("list")) return probe.rows();
         try {

@@ -29,7 +29,7 @@ public interface MenuSubject {
     }
 
     /** Builds the widget in a fresh root and returns the root. */
-    Widget build();
+    Widget<?> build();
 
     /**
      * Shows the rows: a popup opens at its anchor, a bar has nothing to do. Called once per case
@@ -38,7 +38,7 @@ public interface MenuSubject {
     void open();
 
     /** The widget that holds the keyboard while the rows are shown. */
-    Widget widget();
+    Widget<?> widget();
 
     /** The rows the contract addresses, in order, by the name each publishes. */
     List<String> rowNames();

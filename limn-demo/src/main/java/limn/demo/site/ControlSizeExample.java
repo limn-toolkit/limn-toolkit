@@ -44,7 +44,7 @@ public final class ControlSizeExample {
      * hands it to every control inside it, and nothing below has to be told anything.
      */
     // #region guide:control-size
-    static Widget atSize(ControlSize step) {
+    static Widget<?> atSize(ControlSize step) {
         Row controls = new Row();
         controls.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
         controls.setControlSize(step);
@@ -67,7 +67,7 @@ public final class ControlSizeExample {
      * size the page did not choose, in a language the page cannot translate. The only words
      * a capture may carry are the ones on the controls it is showing.
      */
-    public static Widget board() {
+    public static Widget<?> board() {
         Column rows = new Column();
         rows.gap(0).crossAlignment(Flex.CrossAlignment.STRETCH);
         for (int i = 0; i < STEPS.length; i++) {
@@ -84,7 +84,7 @@ public final class ControlSizeExample {
      * what makes the comparison readable: centred rows stagger, and the eye reads the
      * stagger before it reads the size.
      */
-    private static Widget entry(ControlSize step) {
+    private static Widget<?> entry(ControlSize step) {
         Row line = new Row();
         line.gap(16)
                 .mainAlignment(Flex.MainAlignment.START)

@@ -80,7 +80,7 @@ public final class MosaicExample {
      * identically in every tile; the mosaic would spend its largest area arguing against the one
      * thing it exists to show.
      */
-    public static Widget board() {
+    public static Widget<?> board() {
         Column bands = new Column();
         bands.gap(GAP).crossAlignment(Flex.CrossAlignment.STRETCH);
         for (int i = 0; i < BANDS; i++) {
@@ -96,7 +96,7 @@ public final class MosaicExample {
      * fixed set of columns: the wide cells move along the row as the rotation advances, so no
      * vertical slice of the board is one widget repeated.
      */
-    private record Cell(boolean wide, java.util.function.Supplier<Widget> build) {
+    private record Cell(boolean wide, java.util.function.Supplier<Widget<?>> build) {
     }
 
     private static final List<Cell> CELLS = List.of(
@@ -131,25 +131,25 @@ public final class MosaicExample {
      * the columnar picture this replaced: the right-hand third was one combo box and one spinner,
      * twenty-four times, so two tiles of the mosaic came out as a column of identical widgets.
      */
-    private static Widget band(int index) {
+    private static Widget<?> band(int index) {
         Row row = new Row();
         row.gap(GAP).crossAlignment(Flex.CrossAlignment.CENTER)
                 .mainAlignment(Flex.MainAlignment.START);
         for (int i = 0; i < CELLS_PER_BAND; i++) {
             Cell cell = CELLS.get((index * 5 + i) % CELLS.size());
-            Widget widget = cell.build().get();
+            Widget<?> widget = cell.build().get();
             row.add(cell.wide() ? Expanded.of(widget) : widget);
         }
         return row;
     }
 
-    private static Widget slider() {
+    private static Widget<?> slider() {
         Slider volume = new Slider(0, 100);
         volume.setValue(64);
         return volume;
     }
 
-    private static Widget progress() {
+    private static Widget<?> progress() {
         ProgressBar bar = new ProgressBar();
         bar.setProgress(0.42f);
         return bar;
@@ -159,7 +159,7 @@ public final class MosaicExample {
      * A radio, selected. {@code select()} rather than a setter: a radio has no "unselect", so the
      * toolkit exposes only the act (see {@link RadioButton#select()}).
      */
-    private static Widget automatic() {
+    private static Widget<?> automatic() {
         RadioButton radio = new RadioButton("Automatic");
         radio.select();
         return radio;

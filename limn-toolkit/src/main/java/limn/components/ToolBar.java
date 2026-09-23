@@ -44,7 +44,7 @@ import java.util.List;
  * that wants the strip named calls {@code setAccessibleName} or gives it a tooltip, and one that
  * calls {@code setAccessibleIgnored(true)} on it takes every control inside it out of the tree.
  */
-public final class ToolBar extends Widget {
+public final class ToolBar extends Widget<ToolBar> {
 
     /**
      * The gap the app asked for, meaningful only while {@link #gapExplicit}. An explicit
@@ -62,7 +62,7 @@ public final class ToolBar extends Widget {
     private float appliedSepInset = Float.NaN;
 
     /** Adds an item to the end of the bar. */
-    public ToolBar addItem(Widget item) {
+    public ToolBar addItem(Widget<?> item) {
         Ui.checkUiThread();
         add(item);
         markNeedsLayout();
@@ -158,7 +158,7 @@ public final class ToolBar extends Widget {
         // + pad), which is the same number in either direction, and a measure that mirrored
         // would only make the two passes disagree about how wide the bar is.
         boolean rtl = isRightToLeft();
-        for (Widget item : children()) {
+        for (Widget<?> item : children()) {
             Size s = item.measure(Constraints.loose(width(), innerH));
             float cy = pad + (innerH - s.height()) / 2;
             // The cursor walk is untouched and only the placed coordinate is reflected, which is

@@ -96,7 +96,7 @@ public final class TableExample {
     }
 
     /** The example as a screen: the table filling the space, the status line under it. */
-    public static Widget screen() {
+    public static Widget<?> screen() {
         Label status = new Label("Nothing selected");
         limn.scene.layout.Column column = new limn.scene.layout.Column();
         column.gap(8).crossAlignment(Flex.CrossAlignment.STRETCH);

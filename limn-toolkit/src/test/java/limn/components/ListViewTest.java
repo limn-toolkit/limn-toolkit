@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.testfixtures.PlainWidget;
+
 import limn.testfixtures.IndexedRows;
 
 import limn.scene.Change;
@@ -41,7 +43,7 @@ class ListViewTest extends ComponentTestBase {
     private static final float EPS = 1e-3f;
 
     /** Fixed-height cell (its measured height is the row height). */
-    static final class Cell extends Widget {
+    static final class Cell extends Widget<Cell> {
         final float rowHeight;
 
         Cell(float rowHeight) {
@@ -67,14 +69,14 @@ class ListViewTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 float h = (float) heightOf.applyAsDouble(index);
                 Cell cell = pool.isEmpty() ? create(h) : pool.pop();
                 return cell;
             }
 
             @Override
-            public void recycle(Widget widget) {
+            public void recycle(Widget<?> widget) {
                 pool.push((Cell) widget);
             }
 
@@ -93,7 +95,7 @@ class ListViewTest extends ComponentTestBase {
     }
 
     /** Row bound to a datum at creation: stale if reused across a refresh. */
-    static final class BoundRow extends Widget {
+    static final class BoundRow extends Widget<BoundRow> {
         final String value;
 
         BoundRow(String value) {
@@ -116,7 +118,7 @@ class ListViewTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return new BoundRow(data.get(index));
             }
         });
@@ -135,7 +137,7 @@ class ListViewTest extends ComponentTestBase {
 
     private static java.util.List<String> mountedValues(ListView<Integer> list) {
         java.util.List<String> values = new java.util.ArrayList<>();
-        for (Widget child : list.children()) {
+        for (Widget<?> child : list.children()) {
             if (child instanceof BoundRow row) {
                 values.add(row.value);
             }
@@ -166,7 +168,7 @@ class ListViewTest extends ComponentTestBase {
         ListView<Integer> list = list(1000, i -> 40);
         FakeCanvas canvas = new FakeCanvas(300, 200);
         scene(list, canvas);
-        Widget firstRow = list.children().stream()
+        Widget<?> firstRow = list.children().stream()
                 .filter(c -> c instanceof Cell).findFirst().orElseThrow();
         float before = firstRow.y();
         list.scrollBy(120); // no frame rendered in between
@@ -187,7 +189,7 @@ class ListViewTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return new CountingCell(40);
             }
         });
@@ -212,7 +214,7 @@ class ListViewTest extends ComponentTestBase {
     }
 
     /** Cell that counts its own layouts: the scroll fast path is measured, not eyeballed. */
-    static final class CountingCell extends Widget {
+    static final class CountingCell extends Widget<CountingCell> {
         private final float rowHeight;
         int layouts;
 
@@ -311,7 +313,7 @@ class ListViewTest extends ComponentTestBase {
     }
 
     /** A cell that remembers which row it was built for; not pooled, so the row is unambiguous. */
-    static final class IndexCell extends Widget {
+    static final class IndexCell extends Widget<IndexCell> {
         final int index;
 
         IndexCell(int index) {
@@ -345,7 +347,7 @@ class ListViewTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return new IndexCell(index);
             }
         });
@@ -359,7 +361,7 @@ class ListViewTest extends ComponentTestBase {
         scene.renderFrame(canvas);
         assertEquals(0, list.firstVisibleIndex(), "and back");
 
-        List<Widget> children = list.children();
+        List<Widget<?>> children = list.children();
         assertEquals(6, children.size(), "the bar and five rows: " + children);
         assertTrue(children.get(0) instanceof ScrollBar, "the bar keeps position zero");
         for (int i = 1; i < children.size(); i++) {
@@ -446,7 +448,7 @@ class ListViewTest extends ComponentTestBase {
         ListView<Integer> list = list(20, i -> 40);
         limn.scene.layout.Column column = new limn.scene.layout.Column();
         column.add(list);
-        column.add(new Widget() {
+        column.add(new PlainWidget() {
             @Override
             protected Size onMeasure(Constraints c) {
                 return c.constrain(c.maxWidth(), 400);
@@ -503,7 +505,7 @@ class ListViewTest extends ComponentTestBase {
             list.setControlSize(step);
             FakeCanvas canvas = new FakeCanvas(300, 200);
             Scene scene = scene(list, canvas);
-            Widget firstRow = list.children().stream()
+            Widget<?> firstRow = list.children().stream()
                     .filter(c -> c instanceof Cell).findFirst().orElseThrow();
             float before = firstRow.y();
 
@@ -516,7 +518,7 @@ class ListViewTest extends ComponentTestBase {
     }
 
     /** Row that sizes itself from the step <em>it</em> resolves, never one handed down. */
-    static final class StepRow extends Widget {
+    static final class StepRow extends Widget<StepRow> {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(c.maxWidth(), Theme.current().tokensFor(this).controlHeight());
@@ -536,7 +538,7 @@ class ListViewTest extends ComponentTestBase {
                 }
 
                 @Override
-                public Widget rowAt(int index) {
+                public Widget<?> rowAt(int index) {
                     return new StepRow();
                 }
             });
@@ -544,7 +546,7 @@ class ListViewTest extends ComponentTestBase {
             FakeCanvas canvas = new FakeCanvas(300, 200);
             scene(list, canvas);
 
-            Widget row = list.children().stream()
+            Widget<?> row = list.children().stream()
                     .filter(c -> c instanceof StepRow).findFirst().orElseThrow();
             assertEquals(SizeTokens.of(step).controlHeight(), row.height(), EPS,
                     step + ": the row measured at the step it inherited from the list");
@@ -611,7 +613,7 @@ class ListViewTest extends ComponentTestBase {
     void aReservedBarNarrowsTheRowsInsteadOfCoveringThem() {
         // A list of records puts a count, a date or a status at the right edge of a
         // row; a thumb over it is the defect this mode exists to prevent.
-        List<Widget> rows = new ArrayList<>();
+        List<Widget<?>> rows = new ArrayList<>();
         ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
@@ -619,8 +621,8 @@ class ListViewTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
-                Widget row = new Label("row " + index);
+            public Widget<?> rowAt(int index) {
+                Widget<?> row = new Label("row " + index);
                 rows.add(row);
                 return row;
             }
@@ -631,7 +633,7 @@ class ListViewTest extends ComponentTestBase {
         host.layoutPass(200, 100);
 
         assertFalse(rows.isEmpty(), "no row was ever mounted");
-        for (Widget row : rows) {
+        for (Widget<?> row : rows) {
             assertEquals(200 - ScrollBar.thickness(), row.width(), 1e-3f,
                     "a mounted row still ran under the bar");
         }
@@ -639,7 +641,7 @@ class ListViewTest extends ComponentTestBase {
 
     @Test
     void anOverlaidBarLeavesTheRowsFullWidth() {
-        List<Widget> rows = new ArrayList<>();
+        List<Widget<?>> rows = new ArrayList<>();
         ListView<Integer> list = IndexedRows.list(new IndexedRows() {
             @Override
             public int rowCount() {
@@ -647,8 +649,8 @@ class ListViewTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
-                Widget row = new Label("row " + index);
+            public Widget<?> rowAt(int index) {
+                Widget<?> row = new Label("row " + index);
                 rows.add(row);
                 return row;
             }
@@ -774,7 +776,7 @@ class ListViewTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return new Cell(20);
             }
         });

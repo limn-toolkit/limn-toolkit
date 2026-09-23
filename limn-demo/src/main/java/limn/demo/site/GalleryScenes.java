@@ -121,7 +121,7 @@ final class GalleryScenes {
      *                (a split pane is two labels and a hairline) trims to its ink, and
      *                anything that then MOVES moves outside the crop.
      */
-    record Built(Scene scene, PointerLayer pointer, Widget content, FrameClock clock) {
+    record Built(Scene scene, PointerLayer pointer, Widget<?> content, FrameClock clock) {
     }
 
     /**
@@ -428,7 +428,7 @@ final class GalleryScenes {
      * and nothing the video widget itself provides. One size step down is what keeps a
      * transport reading as chrome rather than as content.
      */
-    private static Widget transport() {
+    private static Widget<?> transport() {
         Slider scrub = new Slider(0, 100);
         scrub.setValue(38);
         Slider volume = new Slider(0, 100);
@@ -572,7 +572,7 @@ final class GalleryScenes {
                     }
 
                     @Override
-                    public Widget cellFor(Node node) {
+                    public Widget<?> cellFor(Node node) {
                         // A row is whatever the application builds: the tree reserves the indent
                         // and the triangle, and hands the rest of the width to this. An icon
                         // before the text and a count against the trailing edge are composed
@@ -699,7 +699,7 @@ final class GalleryScenes {
         // that shows it. It scrolls diagonally, because a rim that bends a STILL grid is a
         // picture of distortion and a rim that bends a moving one is the effect happening.
         Theme theme = Theme.current();
-        Widget board = new Widget() {
+        Widget<?> board = new Board() {
             private float offset;
 
             @Override
@@ -956,7 +956,7 @@ final class GalleryScenes {
      * two runs of the same script produce different frames and nothing downstream can tell that
      * from a change somebody made.
      */
-    static Built filmable(Scene source, Widget content) {
+    static Built filmable(Scene source, Widget<?> content) {
         PointerLayer pointer = new PointerLayer();
         FrameClock clock = new FrameClock();
         Stack root = new Stack().alignment(Stack.Alignment.CENTER);
@@ -970,7 +970,7 @@ final class GalleryScenes {
         return new Built(scene, pointer, content, clock);
     }
 
-    private static Built scene(Widget widget) {
+    private static Built scene(Widget<?> widget) {
         Row centred = new Row();
         centred.mainAlignment(Flex.MainAlignment.CENTER)
                 .crossAlignment(Flex.CrossAlignment.CENTER);
@@ -994,5 +994,9 @@ final class GalleryScenes {
         scene.setBackground(Theme.current().background());
         pointer.attachTo(scene);
         return new Built(scene, pointer, widget, clock);
+    }
+
+    /** A widget written inline, named so that it can be its own type argument. */
+    private abstract static class Board extends Widget<Board> {
     }
 }

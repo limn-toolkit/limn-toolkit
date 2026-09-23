@@ -120,15 +120,15 @@ public final class AccessibilityGallery {
      * @param focus          the widget a reader run puts the keyboard in once the entry is laid
      *                       out, or {@code null} for an entry no run drives
      */
-    public record Built(Widget root, Runnable afterFirstFrame, Widget focus) {
+    public record Built(Widget<?> root, Runnable afterFirstFrame, Widget<?> focus) {
 
         /** A static entry: nothing to open. */
-        public Built(Widget root) {
+        public Built(Widget<?> root) {
             this(root, () -> { });
         }
 
         /** An entry that opens something and names no widget for a reader run to focus. */
-        public Built(Widget root, Runnable afterFirstFrame) {
+        public Built(Widget<?> root, Runnable afterFirstFrame) {
             this(root, afterFirstFrame, null);
         }
 
@@ -139,7 +139,7 @@ public final class AccessibilityGallery {
          * @param focus the widget the run puts the keyboard in after the first layout
          * @return the entry built
          */
-        public static Built focusing(Widget root, Widget focus) {
+        public static Built focusing(Widget<?> root, Widget<?> focus) {
             return new Built(root, () -> { }, java.util.Objects.requireNonNull(focus, "focus"));
         }
     }
@@ -692,7 +692,7 @@ public final class AccessibilityGallery {
      * @param root the entry's root
      * @param mode where those surfaces open
      */
-    public static void present(Widget root, DisplayMode mode) {
+    public static void present(Widget<?> root, DisplayMode mode) {
         if (root instanceof ComboBox combo) {
             combo.setDisplayMode(mode);
         } else if (root instanceof DatePicker picker) {
@@ -702,7 +702,7 @@ public final class AccessibilityGallery {
         } else if (root instanceof ColorPickerButton button) {
             button.setPickerDisplayMode(mode);
         }
-        for (Widget child : root.children()) {
+        for (Widget<?> child : root.children()) {
             present(child, mode);
         }
     }
@@ -935,7 +935,7 @@ public final class AccessibilityGallery {
                     }
 
                     @Override
-                    public limn.scene.Widget cellFor(Node node) {
+                    public limn.scene.Widget<?> cellFor(Node node) {
                         return new limn.components.Label(node.name());
                     }
                 });
@@ -1012,7 +1012,7 @@ public final class AccessibilityGallery {
                     }
 
                     @Override
-                    public Widget cellFor(File file) {
+                    public Widget<?> cellFor(File file) {
                         Label text = new Label(file.name()).setIcon(BLANK_ICON);
                         Row row = new Row();
                         row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
@@ -1188,7 +1188,7 @@ public final class AccessibilityGallery {
      * run drives takes its captions, labels and marks from {@link GalleryStrings}, so a pt-BR pass
      * is monolingual and an English one is unchanged.
      */
-    private static Widget pinnedForReaders(Widget root) {
+    private static Widget<?> pinnedForReaders(Widget<?> root) {
         limn.demo.DocumentationDay.pin(root);
         return root;
     }
@@ -1228,7 +1228,7 @@ public final class AccessibilityGallery {
 
     private static Built contextRegion() {
         Column page = page();
-        Widget region = ContextMenus.attach(
+        Widget<?> region = ContextMenus.attach(
                 new Label("Right-click, or press the menu key, for options").setWrap(true),
                 AccessibilityGallery::editingMenu);
         region.setAccessibleName("Draft");
@@ -1415,7 +1415,7 @@ public final class AccessibilityGallery {
         return column;
     }
 
-    private static Widget pad(Widget content) {
+    private static Widget<?> pad(Widget<?> content) {
         return new Padding(Insets.all(12), content);
     }
 
@@ -1448,7 +1448,7 @@ public final class AccessibilityGallery {
     }
 
     /** A row that paints a string and says nothing about itself; the list names it. */
-    private static final class Cell extends Widget {
+    private static final class Cell extends Widget<Cell> {
         private final String text;
 
         Cell(String text) {
@@ -1514,7 +1514,7 @@ public final class AccessibilityGallery {
 
     /** Replaces what the holder shows with a fresh build of {@code entry}, and opens it. */
     private static void show(Column holder, Entry entry) {
-        for (Widget old : List.copyOf(holder.children())) {
+        for (Widget<?> old : List.copyOf(holder.children())) {
             holder.remove(old);
         }
         Built built = entry.build();

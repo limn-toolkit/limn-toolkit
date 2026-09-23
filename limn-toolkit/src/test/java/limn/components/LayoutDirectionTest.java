@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LayoutDirectionTest extends ComponentTestBase {
 
     /** Counts measure passes so the cache key can be observed rather than assumed. */
-    private static final class Probe extends limn.scene.layout.Container {
+    private static final class Probe extends limn.scene.layout.Container<Probe> {
         int measures;
 
         @Override
@@ -47,7 +47,7 @@ class LayoutDirectionTest extends ComponentTestBase {
 
         @Override
         protected void onLayout() {
-            for (Widget child : children()) {
+            for (Widget<?> child : children()) {
                 child.measure(Constraints.loose(100, 100));
                 child.layoutBox(0, 0, 10, 10);
             }

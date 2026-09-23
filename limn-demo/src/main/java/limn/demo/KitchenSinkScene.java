@@ -399,7 +399,7 @@ final class KitchenSinkScene {
         page.add(new SizedBox(SizedBox.UNSET, 18, statusRow));
         page.add(new PerfFooter());
 
-        limn.scene.Widget root = new Padding(limn.scene.Insets.all(20), page);
+        limn.scene.Widget<?> root = new Padding(limn.scene.Insets.all(20), page);
         Scene scene = new Scene(root);
         scene.setBackground(Theme.current().background());
         barAnim.setIndeterminate(true); // now that it is in a scene
@@ -636,7 +636,7 @@ final class KitchenSinkScene {
         return column;
     }
 
-    private static Padding pad(limn.scene.Widget content) {
+    private static Padding pad(limn.scene.Widget<?> content) {
         return new Padding(limn.scene.Insets.all(16), content);
     }
 
@@ -652,7 +652,7 @@ final class KitchenSinkScene {
      * <p>Media and prose do not: see the tabs that stay on the {@link
      * ScrollGutters.Layout#OVERLAY} default below.
      */
-    private static ScrollView controlPanel(limn.scene.Widget content) {
+    private static ScrollView controlPanel(limn.scene.Widget<?> content) {
         return new ScrollView(pad(content)).setBarLayout(ScrollGutters.Layout.RESERVED);
     }
 
@@ -702,10 +702,10 @@ final class KitchenSinkScene {
      * dialog's own scene when it is a native window, and in the host's when it is an
      * overlay; passing the wrong one puts the menu in the wrong window.
      */
-    private static void openBelow(Widget anchor, Menu menu, boolean modal) {
+    private static void openBelow(Widget<?> anchor, Menu menu, boolean modal) {
         float sx = 0;
         float sy = 0;
-        for (Widget w = anchor; w != null; w = w.parent()) {
+        for (Widget<?> w = anchor; w != null; w = w.parent()) {
             sx += w.x();
             sy += w.y();
         }
@@ -721,7 +721,7 @@ final class KitchenSinkScene {
      * attach form does not hand over. The gesture is still asked about in one place, which is
      * the part that was worth sharing.
      */
-    private static final class ContextArea extends Widget {
+    private static final class ContextArea extends Widget<ContextArea> {
 
         private BiConsumer<Float, Float> onContext = (x, y) -> { };
 

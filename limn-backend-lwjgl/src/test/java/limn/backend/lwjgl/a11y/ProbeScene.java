@@ -53,7 +53,7 @@ import java.util.List;
 public final class ProbeScene {
 
     /** The widgets a focus cycle walks, in the order it walks them. */
-    public final List<Widget> focusable;
+    public final List<Widget<?>> focusable;
 
     private final Column root;
     private final Checkbox wrap;

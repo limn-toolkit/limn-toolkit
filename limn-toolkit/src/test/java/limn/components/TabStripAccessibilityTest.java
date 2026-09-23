@@ -96,7 +96,7 @@ class TabStripAccessibilityTest extends AccessibleComponentTestBase {
      * first child by construction. Used only to compare the tree against the widget's own box,
      * never as a way into a hook.
      */
-    private Widget strip() {
+    private Widget<?> strip() {
         return pane.children().get(0);
     }
 
@@ -269,7 +269,7 @@ class TabStripAccessibilityTest extends AccessibleComponentTestBase {
 
         AccessibleNode list = stripNode();
         float headersTotal = 0;
-        for (Widget header : strip().children()) {
+        for (Widget<?> header : strip().children()) {
             headersTotal += header.width();
         }
         assertEquals(list.width() / headersTotal, list.scroll().horizontalViewSize(), EPS,
@@ -383,7 +383,7 @@ class TabStripAccessibilityTest extends AccessibleComponentTestBase {
         bindTabs(359.7f, "AAAA", "BBBB", "CCCC", "DDDD", "EEEE");
 
         float headersTotal = 0;
-        for (Widget header : strip().children()) {
+        for (Widget<?> header : strip().children()) {
             headersTotal += header.width();
         }
         assertTrue(headersTotal > strip().width(),

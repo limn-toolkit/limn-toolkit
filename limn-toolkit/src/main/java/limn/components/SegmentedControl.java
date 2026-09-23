@@ -69,7 +69,7 @@ import java.util.function.IntConsumer;
  * an unknown number of pages requires. Looking alike is not the test; a row of
  * labels is what both <em>are</em>, and what they <em>do</em> is where they split.
  */
-public final class SegmentedControl extends Widget {
+public final class SegmentedControl extends Widget<SegmentedControl> {
 
     private final List<I18nString> segments;
     private int selected;

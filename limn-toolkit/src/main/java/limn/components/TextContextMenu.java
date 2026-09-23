@@ -72,7 +72,7 @@ final class TextContextMenu {
      * <p>A no-op with nothing to offer: an empty, disabled field over an empty clipboard would
      * raise four dead rows, and a menu that can do nothing is worse than no menu.
      */
-    static void showAt(Widget anchor, Host host, float localX, float localY) {
+    static void showAt(Widget<?> anchor, Host host, float localX, float localY) {
         ContextMenus.showAt(anchor, menuFor(host), localX, localY);
     }
 

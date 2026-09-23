@@ -34,7 +34,7 @@ class ProgressBarAndImageTest extends ComponentTestBase {
         // The 220 pt length is a FREE axis (ADR 002 8.3): equal at every step and equal to
         // Slider's, which is why ProgressBar is exempt from strict width monotonicity.
         for (ControlSize step : ControlSize.values()) {
-            Size size = new ProgressBar().withControlSize(step)
+            Size size = new ProgressBar().setControlSize(step)
                     .measure(Constraints.loose(500, 500));
             assertEquals(SizeTokens.of(step).progressThickness(), size.height(), 1e-6,
                     "thickness at " + step);

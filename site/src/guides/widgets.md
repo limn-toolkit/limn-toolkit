@@ -71,10 +71,11 @@ almost never set a pixel size on a component yourself; the step decides.
 
 When no combination of the existing ones will do, extend `Widget` and implement two
 methods: `onMeasure` says how big you want to be given the constraints you are handed, and
-`onPaint` draws you onto a `Canvas`.
+`onPaint` draws you onto a `Canvas`. A widget names itself as its type argument, so that the
+setters every widget has return your type: `new Dot().setTooltip("Status")` is still a `Dot`.
 
 ```java
-class Dot extends Widget {
+class Dot extends Widget<Dot> {
     @Override
     protected Size onMeasure(Constraints constraints) {
         return constraints.constrain(16, 16);
@@ -89,6 +90,10 @@ class Dot extends Widget {
 
 Input is the same shape: override `onMouseEvent` or `onKeyEvent` and call `consume()` on
 the event when you have handled it.
+
+Where a widget is only a type in your code — a field that holds any widget, a list of them —
+write `Widget<?>`. A layout of your own extends `Container`, which takes its own type the same
+way: `class Grid extends Container<Grid>`.
 
 :::caution[One rule for custom widgets]
 Do not read a size, a font or a spacing token in your constructor. A widget has no parent

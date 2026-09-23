@@ -95,7 +95,7 @@ class TableMirroringTest extends ComponentTestBase {
 
     /** The x of the first widget cell: every row's sits at the same x. */
     private float widgetX() {
-        for (Widget child : table.children()) {
+        for (Widget<?> child : table.children()) {
             if (child instanceof SizedBox) {
                 return child.x();
             }
@@ -104,7 +104,7 @@ class TableMirroringTest extends ComponentTestBase {
     }
 
     private ScrollBar bar(boolean vertical) {
-        for (Widget child : table.children()) {
+        for (Widget<?> child : table.children()) {
             if (child instanceof ScrollBar found && (found.height() > found.width()) == vertical) {
                 return found;
             }

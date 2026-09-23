@@ -10,10 +10,10 @@ import limn.scene.Widget;
 public interface PopupOwnerSubject {
 
     /** Builds a fresh widget, closed, and returns the root to bind. */
-    Widget build();
+    Widget<?> build();
 
     /** @return the widget {@link #build()} made last: the owner itself */
-    Widget widget();
+    Widget<?> widget();
 
     /** @return whether the API says the popup is open now */
     boolean isOpen();

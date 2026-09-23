@@ -73,7 +73,7 @@ import java.util.function.Predicate;
  * itself with screenshots asks for {@link DisplayMode#IN_SCENE} on purpose, because a native popup
  * is absent from a capture of the window.
  */
-public final class DatePicker extends Widget {
+public final class DatePicker extends Widget<DatePicker> {
 
     /** Breathing room kept from the work-area edge when clamping the popup. */
     private static final float EDGE_MARGIN = 8;
@@ -1282,7 +1282,7 @@ public final class DatePicker extends Widget {
      * named "Start date" and "End date" for themselves.
      */
     @Override
-    protected Widget accessibleLabelTarget() {
+    protected Widget<?> accessibleLabelTarget() {
         return endField == null ? field : this;
     }
 
@@ -1298,7 +1298,7 @@ public final class DatePicker extends Widget {
      * users cannot operate it is not finished. As a widget it takes Tab, answers Enter and Space,
      * draws its own focus ring and publishes its own node.
      */
-    private final class CalendarButton extends Widget {
+    private final class CalendarButton extends Widget<CalendarButton> {
 
         private boolean hover;
 
@@ -1466,10 +1466,10 @@ public final class DatePicker extends Widget {
      * The card the grid sits on: rounded, raised, and translucent in a window of its own, which is
      * what makes a native popup composite over the desktop like the rest of the theme.
      */
-    private final class PopupPanel extends Widget {
+    private final class PopupPanel extends Widget<PopupPanel> {
 
         /** Lets go of a child a newer card is taking; the picker owns the panel's children. */
-        void drop(Widget child) {
+        void drop(Widget<?> child) {
             remove(child);
         }
 
@@ -1576,7 +1576,7 @@ public final class DatePicker extends Widget {
      * The layer an in-scene popup is drawn on: it covers the scene, so a press that missed the card
      * is a press on it, and closing on that press is the click-outside dismissal.
      */
-    private final class ScenePopup extends Widget {
+    private final class ScenePopup extends Widget<ScenePopup> {
 
         private final PopupPanel panel;
 

@@ -90,7 +90,7 @@ class SplitPaneMirroringTest extends ComponentTestBase {
     @Test
     void theGrabBandStaysCentredOnTheLineItCatches() {
         buildHorizontal(LayoutDirection.RTL);
-        Widget divider = split.divider();
+        Widget<?> divider = split.divider();
 
         assertEquals(WIDTH - DIVIDER_START - GRAB, divider.localToSceneX(), EPS,
                 "the band is the reflection of the offset the panes were placed by");
@@ -129,7 +129,7 @@ class SplitPaneMirroringTest extends ComponentTestBase {
     @Test
     void aDragFollowsThePointerPointForPointReadingRightToLeft() {
         buildHorizontal(LayoutDirection.RTL);
-        Widget divider = split.divider();
+        Widget<?> divider = split.divider();
         float y = divider.localToSceneY() + divider.height() / 2;
         float x = divider.localToSceneX() + divider.width() / 2;
 
@@ -149,7 +149,7 @@ class SplitPaneMirroringTest extends ComponentTestBase {
         // Reflecting it a second time would put it on the wrong side of the line and snap the
         // divider to the pointer, which is exactly what the grab band exists to prevent.
         buildHorizontal(LayoutDirection.RTL);
-        Widget divider = split.divider();
+        Widget<?> divider = split.divider();
         float y = divider.localToSceneY() + divider.height() / 2;
         float edge = divider.localToSceneX() + 1;
 
@@ -162,7 +162,7 @@ class SplitPaneMirroringTest extends ComponentTestBase {
     @Test
     void aDragIsUnchangedReadingLeftToRight() {
         buildHorizontal(LayoutDirection.LTR);
-        Widget divider = split.divider();
+        Widget<?> divider = split.divider();
         float y = divider.localToSceneY() + divider.height() / 2;
 
         drag(divider.localToSceneX() + divider.width() / 2, y, 40);
@@ -223,7 +223,7 @@ class SplitPaneMirroringTest extends ComponentTestBase {
         // moved left by the Right arrow is worse than either convention alone.
         buildHorizontal(LayoutDirection.RTL);
         focusDivider();
-        Widget divider = split.divider();
+        Widget<?> divider = split.divider();
         float y = divider.localToSceneY() + divider.height() / 2;
 
         press(Keys.RIGHT, 0);

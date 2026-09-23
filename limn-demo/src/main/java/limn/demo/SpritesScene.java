@@ -40,7 +40,7 @@ final class SpritesScene {
     }
 
     /** The subtree, reusable as a kitchen-sink tab. */
-    static Widget content() {
+    static Widget<?> content() {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
 
@@ -144,7 +144,7 @@ final class SpritesScene {
     }
 
     /** Arms a scene ticker on first paint; pauses automatically when hidden. */
-    private abstract static class Animated extends Widget {
+    private abstract static class Animated extends Widget<Animated> {
         double time;
         private boolean started;
 
@@ -205,7 +205,7 @@ final class SpritesScene {
     }
 
     /** The invader at 6×, smooth on the left, pixelated on the right. */
-    private static final class FilterCompare extends Widget {
+    private static final class FilterCompare extends Widget<FilterCompare> {
         private final Image sprite = invader();
 
         @Override

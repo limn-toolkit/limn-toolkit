@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class FlexMeasureCountTest extends SceneTestBase {
 
     /** A fixed-size leaf that counts how often it is asked. */
-    private static final class CountingBox extends Widget {
+    private static final class CountingBox extends Widget<CountingBox> {
         int measures;
 
         void dirty() {

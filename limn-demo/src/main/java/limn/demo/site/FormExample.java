@@ -46,7 +46,7 @@ public final class FormExample {
      * makes the control fill the column's width instead of shrinking to its own text.
      */
     // #region guide:form-field
-    static Widget field(String caption, Widget control) {
+    static Widget<?> field(String caption, Widget<?> control) {
         return field(caption, control, control);
     }
 
@@ -54,7 +54,7 @@ public final class FormExample {
      * The same, where the control sits inside a wrapper (a field with a message beneath it):
      * the caption names the control, and the wrapper is what is placed.
      */
-    static Widget field(String caption, Widget control, Widget placed) {
+    static Widget<?> field(String caption, Widget<?> control, Widget<?> placed) {
         Column group = new Column();
         group.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
         // The caption is the control's name: a screen reader says "Email, text field" and not
@@ -74,7 +74,7 @@ public final class FormExample {
      * is written once from the field and then follows it, whoever moves it.
      */
     // #region guide:form-counter
-    static Widget counted(TextField field, int limit) {
+    static Widget<?> counted(TextField field, int limit) {
         Label counter = new Label(field.text().length() + " / " + limit).setMuted(true);
         field.observeChanges((widget, change) -> {
             if (change.aspect() == Change.Aspect.TEXT) {
@@ -111,7 +111,7 @@ public final class FormExample {
 
     /** The form itself: fields, a validated one, a choice, a toggle and the actions. */
     // #region guide:form
-    public static Widget form() {
+    public static Widget<?> form() {
         TextField name = new TextField();
         name.setText("Ada Lovelace");
 
@@ -157,7 +157,7 @@ public final class FormExample {
      * buttons to the trailing edge without anyone measuring anything.
      */
     // #region guide:form-actions
-    static Widget actions() {
+    static Widget<?> actions() {
         Row actions = new Row();
         actions.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         actions.add(Expanded.spacer(1));
@@ -186,7 +186,7 @@ public final class FormExample {
      * and keep it.
      */
     // #region guide:form-scroll
-    public static Widget scrolling(Widget form) {
+    public static Widget<?> scrolling(Widget<?> form) {
         ScrollView scroll = new ScrollView(new Padding(Insets.all(16), form), false, true);
         scroll.setBarLayout(ScrollGutters.Layout.RESERVED);
         return scroll;

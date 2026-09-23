@@ -16,20 +16,20 @@ import java.util.Objects;
  * around them at whatever literal the app typed, and the spacing ramp is the widest of the
  * three.
  */
-public class Padding extends Widget {
+public class Padding extends Widget<Padding> {
 
     private Insets insets;
-    private final Widget child;
+    private final Widget<?> child;
 
     /** Insets {@code child} on each side; the padding is inside this widget's own box. */
-    public Padding(Insets insets, Widget child) {
+    public Padding(Insets insets, Widget<?> child) {
         this.insets = Objects.requireNonNull(insets, "insets");
         this.child = child;
         add(child);
     }
 
     /** The same inset on all four sides. */
-    public static Padding all(float value, Widget child) {
+    public static Padding all(float value, Widget<?> child) {
         return new Padding(Insets.all(value), child);
     }
 

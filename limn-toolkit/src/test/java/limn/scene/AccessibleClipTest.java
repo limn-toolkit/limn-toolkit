@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AccessibleClipTest extends AccessibleTestBase {
 
     /** Five rows of twenty points, and one empty band, drawn by the widget itself. */
-    private static final class Rows extends Widget {
+    private static final class Rows extends Widget<Rows> {
         @Override
         protected Size onMeasure(Constraints constraints) {
             return constraints.constrain(200, 100);
@@ -85,7 +85,7 @@ class AccessibleClipTest extends AccessibleTestBase {
     }
 
     /** A root box stretches to the scene; under a column it keeps its size. */
-    private static Widget boxed(Widget box) {
+    private static Widget<?> boxed(Widget<?> box) {
         Column root = new Column();
         root.add(box);
         return root;

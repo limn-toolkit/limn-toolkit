@@ -43,7 +43,7 @@ class PostedTaskFrameCostTest {
      * {@code Ui.post} names) and a guarded setter shaped like the component
      * ones: unchanged value, no damage.
      */
-    private static final class Readout extends Widget {
+    private static final class Readout extends Widget<Readout> {
         String text = "";
 
         void setText(String newText) {

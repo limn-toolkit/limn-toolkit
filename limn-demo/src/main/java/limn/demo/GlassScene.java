@@ -40,7 +40,7 @@ final class GlassScene {
     }
 
     /** The subtree, reusable as a kitchen-sink tab. */
-    static Widget content() {
+    static Widget<?> content() {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
 
@@ -114,7 +114,7 @@ final class GlassScene {
     }
 
     /** One labelled sample: the plate, with a panel of {@code effect} floating over its middle. */
-    private static Widget over(Image picture, BackdropEffect effect, String title, String caption) {
+    private static Widget<?> over(Image picture, BackdropEffect effect, String title, String caption) {
         Stack stack = new Stack().alignment(Stack.Alignment.CENTER);
         stack.add(new ImageView(picture).setFit(ImageView.Fit.COVER));
         // The panel is added AFTER the picture: the effect samples what the frame has already
@@ -134,7 +134,7 @@ final class GlassScene {
      * of untouched picture is left around it on purpose: it is what shows that the difference is
      * the effect and not the plate.
      */
-    private static Widget screen(Image picture, BackdropEffect effect, String title,
+    private static Widget<?> screen(Image picture, BackdropEffect effect, String title,
             String caption) {
         Stack stack = new Stack().alignment(Stack.Alignment.CENTER);
         stack.add(new ImageView(picture).setFit(ImageView.Fit.COVER));
@@ -155,7 +155,7 @@ final class GlassScene {
     }
 
     /** A full-bleed panel wearing a whole stack of effects, drawn in order. */
-    private static Widget stack(Image picture, String title, String caption,
+    private static Widget<?> stack(Image picture, String title, String caption,
             BackdropEffect... effects) {
         Stack layers = new Stack().alignment(Stack.Alignment.CENTER);
         layers.add(new ImageView(picture).setFit(ImageView.Fit.COVER));

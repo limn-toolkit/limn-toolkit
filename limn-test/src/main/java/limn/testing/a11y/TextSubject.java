@@ -10,10 +10,10 @@ import limn.scene.Widget;
 public interface TextSubject {
 
     /** Builds a fresh widget holding {@link #initialText()} and returns the root to bind. */
-    Widget build();
+    Widget<?> build();
 
     /** @return the widget {@link #build()} made last: the text itself */
-    Widget widget();
+    Widget<?> widget();
 
     /** @return the string the widget was built with: at least four characters, one line */
     String initialText();

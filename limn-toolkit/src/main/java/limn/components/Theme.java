@@ -459,7 +459,7 @@ public final class Theme {
      * @param widget the widget about to paint
      * @return the palette it paints with
      */
-    public static Theme of(Widget widget) {
+    public static Theme of(Widget<?> widget) {
         Objects.requireNonNull(widget, "widget");
         return current;
     }
@@ -647,7 +647,7 @@ public final class Theme {
     }
 
     /** Tokens for the step resolved on {@code widget}, the one line components call. */
-    public final SizeTokens tokensFor(limn.scene.Widget widget) {
+    public final SizeTokens tokensFor(limn.scene.Widget<?> widget) {
         return tokens(widget.controlSize());
     }
 

@@ -37,7 +37,7 @@ public final class DocumentationDay {
      *
      * @param root the top of the tree to pin
      */
-    public static void pin(Widget root) {
+    public static void pin(Widget<?> root) {
         if (root instanceof CalendarView calendar) {
             calendar.setClock(CLOCK);
         } else if (root instanceof DatePicker picker) {
@@ -46,7 +46,7 @@ public final class DocumentationDay {
         } else if (root instanceof DateField field) {
             field.setClock(CLOCK);
         }
-        for (Widget child : root.children()) {
+        for (Widget<?> child : root.children()) {
             pin(child);
         }
     }

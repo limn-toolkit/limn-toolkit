@@ -91,7 +91,7 @@ final class Motion {
     interface Target {
 
         /** @return the widget, or null when the live scene has none */
-        Widget find();
+        Widget<?> find();
     }
 
     /**
@@ -176,7 +176,7 @@ final class Motion {
      * {@code frames} frames. The path is eased at both ends: a pointer that starts and stops
      * at full speed reads as a jump cut rather than as a hand.
      */
-    Motion to(Widget target, float fx, float fy, int frames) {
+    Motion to(Widget<?> target, float fx, float fy, int frames) {
         Objects.requireNonNull(target, "target");
         // A widget the script already holds is still read at the moment its step begins, not
         // here: it may have been laid out somewhere else by then, which is exactly what the
@@ -292,7 +292,7 @@ final class Motion {
         private float y;
         private boolean down;
         /** What the current step is aimed at, found on the frame it began. */
-        private Widget aimed;
+        private Widget<?> aimed;
         private float fromX;
         private float fromY;
         private float toX;
@@ -472,8 +472,8 @@ final class Motion {
          * enough: the overlay is pushed while input is dispatched and measured in the render
          * after that.
          */
-        private static Widget resolve(Aim aim) {
-            Widget widget = aim.target().find();
+        private static Widget<?> resolve(Aim aim) {
+            Widget<?> widget = aim.target().find();
             if (widget == null) {
                 throw new IllegalStateException("a film step aims at " + aim.what()
                         + ", and the live scene has none");
@@ -494,7 +494,7 @@ final class Motion {
          * the film showed the pointer travelling to a blank stretch of the window and pressing
          * there. A widget out of view is still laid out; hit-testing is the thing that knows.
          */
-        private static void requireReaches(Aim aim, Widget widget, float pointX, float pointY) {
+        private static void requireReaches(Aim aim, Widget<?> widget, float pointX, float pointY) {
             if (reaches(widget, pointX, pointY)) {
                 return;
             }
@@ -515,7 +515,7 @@ final class Motion {
          * stretched to the full width would then never test as reachable at all, and a reveal
          * would scroll it past its own viewport looking for a corner it cannot have.
          */
-        private static boolean reaches(Widget widget) {
+        private static boolean reaches(Widget<?> widget) {
             float middle = widget.localToSceneX() + widget.width() / 2;
             float top = widget.localToSceneY() + 1;
             float bottom = widget.localToSceneY() + widget.height() - 1;
@@ -524,8 +524,8 @@ final class Motion {
         }
 
         /** Whether a press at this scene point lands on {@code target} or inside it. */
-        private static boolean reaches(Widget target, float sceneX, float sceneY) {
-            for (Widget hit = hitAt(target, sceneX, sceneY); hit != null; hit = hit.parent()) {
+        private static boolean reaches(Widget<?> target, float sceneX, float sceneY) {
+            for (Widget<?> hit = hitAt(target, sceneX, sceneY); hit != null; hit = hit.parent()) {
                 if (hit == target) {
                     return true;
                 }
@@ -542,20 +542,20 @@ final class Motion {
          * walk starts from whichever ancestor has no parent. For a widget in the window that
          * is the root; for one in an open dialog it is the overlay.
          */
-        private static Widget hitAt(Widget target, float sceneX, float sceneY) {
-            Widget top = target;
+        private static Widget<?> hitAt(Widget<?> target, float sceneX, float sceneY) {
+            Widget<?> top = target;
             while (top.parent() != null) {
                 top = top.parent();
             }
             return top.hitTest(sceneX - top.x(), sceneY - top.y());
         }
 
-        private static String describe(Widget widget) {
+        private static String describe(Widget<?> widget) {
             return widget == null ? "nothing"
                     : widget.getClass().getSimpleName() + " at " + box(widget);
         }
 
-        private static String box(Widget widget) {
+        private static String box(Widget<?> widget) {
             return String.format(Locale.ROOT, "%.0f,%.0f %.0fx%.0f", widget.localToSceneX(),
                     widget.localToSceneY(), widget.width(), widget.height());
         }

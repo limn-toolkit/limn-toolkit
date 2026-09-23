@@ -64,7 +64,7 @@ import java.util.function.Consumer;
  * cursor. The chrome carve-out is the same one: the placeholder message is shaped for the
  * direction resolved on this widget, and stays centred, because a centre does not move.
  */
-public class Viewport3D extends Widget {
+public class Viewport3D extends Widget<Viewport3D> {
 
     /** Draws the 3D scene into a pass each frame; {@code timeSeconds} advances while showing. */
     @FunctionalInterface

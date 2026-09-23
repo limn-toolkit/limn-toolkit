@@ -34,7 +34,7 @@ final class ControlsScene {
     }
 
     /** Reusable subtree (kitchen-sink tab). */
-    static Widget content() {
+    static Widget<?> content() {
         Column column = new Column();
         column.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
 
@@ -88,7 +88,7 @@ final class ControlsScene {
         return value;
     }
 
-    private static Widget sliderRow(String caption, Slider slider, Label value) {
+    private static Widget<?> sliderRow(String caption, Slider slider, Label value) {
         Column column = new Column();
         column.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
         column.add(new Label(caption).setMuted(true));

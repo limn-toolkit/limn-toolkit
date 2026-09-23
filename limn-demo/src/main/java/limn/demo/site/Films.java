@@ -169,11 +169,11 @@ final class Films {
     private static Motion themeEditor(GalleryScenes.Built built) {
         // Index 0 is the corner slider: it is the only Slider the editor builds, and the preview
         // beside it carries none. A Slider added to ThemePreview would silently steal this film.
-        Widget slider = find(built, Slider.class, 0);
+        Widget<?> slider = find(built, Slider.class, 0);
         // The accent's own well. The section order is surfaces (3 wells) then accent, so PRIMARY is
         // the fourth, and it is the one worth opening, because the derive at the end reads every
         // other accent tone off it.
-        Widget accentWell = find(built, ColorPickerButton.class, 3);
+        Widget<?> accentWell = find(built, ColorPickerButton.class, 3);
 
         return Motion.script()
                 .from(OFF_X, OFF_Y)
@@ -277,14 +277,14 @@ final class Films {
      * picker is portrait: the field is landscape, and every rail, the swatch and the hex row are
      * wide and short.
      */
-    private static Widget pickerHueRamp(GalleryScenes.Built built) {
-        Widget dialog = openDialog(built);
-        List<Widget> pickers = under(dialog, ColorPicker.class);
+    private static Widget<?> pickerHueRamp(GalleryScenes.Built built) {
+        Widget<?> dialog = openDialog(built);
+        List<Widget<?>> pickers = under(dialog, ColorPicker.class);
         if (pickers.isEmpty()) {
             throw new IllegalStateException("the open dialog carries no ColorPicker; it holds "
                     + names(dialog));
         }
-        for (Widget widget : under(pickers.get(0), Widget.class)) {
+        for (Widget<?> widget : under(pickers.get(0), Widget.class)) {
             if (widget.width() > 0 && widget.height() > widget.width() * 2) {
                 return widget;
             }
@@ -293,14 +293,14 @@ final class Films {
                 + " surface, so its hue ramp cannot be told from its field and rails");
     }
 
-    private static Widget pickerField(GalleryScenes.Built built) {
-        Widget dialog = openDialog(built);
-        List<Widget> pickers = under(dialog, ColorPicker.class);
+    private static Widget<?> pickerField(GalleryScenes.Built built) {
+        Widget<?> dialog = openDialog(built);
+        List<Widget<?>> pickers = under(dialog, ColorPicker.class);
         if (pickers.isEmpty()) {
             throw new IllegalStateException("the open dialog carries no ColorPicker; it holds "
                     + names(dialog));
         }
-        for (Widget widget : under(pickers.get(0), Widget.class)) {
+        for (Widget<?> widget : under(pickers.get(0), Widget.class)) {
             if (widget.cursor() == Cursor.CROSSHAIR) {
                 return widget;
             }
@@ -310,7 +310,7 @@ final class Films {
     }
 
     /** A button of the open dialog, by the i18n key of its caption. */
-    private static Widget dialogButton(GalleryScenes.Built built, String key) {
+    private static Widget<?> dialogButton(GalleryScenes.Built built, String key) {
         return buttonUnder(openDialog(built), key, "the open dialog");
     }
 
@@ -322,8 +322,8 @@ final class Films {
      * pointer pressing a button that never hears it, and {@code Motion}'s own hit test cannot
      * see that: it asks the tree the button is in, and the overlay is in a different one.
      */
-    private static Widget deriveAccent(GalleryScenes.Built built) {
-        Widget dialog = overlay(built);
+    private static Widget<?> deriveAccent(GalleryScenes.Built built) {
+        Widget<?> dialog = overlay(built);
         if (dialog != null) {
             throw new IllegalStateException("a film step aims into the editor while a modal"
                     + " overlay is still up, which would take the press instead; the beat"
@@ -341,12 +341,12 @@ final class Films {
      * moves focus into it, so the topmost ancestor of whatever holds focus is the overlay while
      * one is up and the root the rest of the time.
      */
-    private static Widget overlay(GalleryScenes.Built built) {
-        Widget focused = built.scene().focusedWidget();
+    private static Widget<?> overlay(GalleryScenes.Built built) {
+        Widget<?> focused = built.scene().focusedWidget();
         if (focused == null) {
             return null;
         }
-        Widget top = focused;
+        Widget<?> top = focused;
         while (top.parent() != null) {
             top = top.parent();
         }
@@ -354,8 +354,8 @@ final class Films {
     }
 
     /** The same, for a step that cannot proceed without one. */
-    private static Widget openDialog(GalleryScenes.Built built) {
-        Widget dialog = overlay(built);
+    private static Widget<?> openDialog(GalleryScenes.Built built) {
+        Widget<?> dialog = overlay(built);
         if (dialog == null) {
             throw new IllegalStateException("a film step aims into a dialog and the scene has no"
                     + " overlay open; the click that raises it either missed or has not been"
@@ -369,14 +369,14 @@ final class Films {
      * buttons. Throws when nothing matches, which fails the capture rather than filming a hover
      * over whatever happened to be at that index.
      */
-    private static Widget findButton(GalleryScenes.Built built, String key) {
+    private static Widget<?> findButton(GalleryScenes.Built built, String key) {
         return buttonUnder(built.scene().root(), key, "the filmed scene");
     }
 
     /** The same search over one subtree, which is how a dialog's own buttons are found. */
-    private static Widget buttonUnder(Widget root, String key, String where) {
+    private static Widget<?> buttonUnder(Widget<?> root, String key, String where) {
         List<String> seen = new ArrayList<>();
-        for (Widget widget : under(root, Button.class)) {
+        for (Widget<?> widget : under(root, Button.class)) {
             Button button = (Button) widget;
             String candidate = button.textSource() == null ? "" : button.textSource().key();
             if (key.equals(candidate)) {
@@ -389,12 +389,12 @@ final class Films {
     }
 
     /** Everything of {@code type} in {@code root}'s tree, root included, in paint order. */
-    private static List<Widget> under(Widget root, Class<? extends Widget> type) {
-        List<Widget> queue = new ArrayList<>();
-        List<Widget> found = new ArrayList<>();
+    private static List<Widget<?>> under(Widget<?> root, Class<?> type) {
+        List<Widget<?>> queue = new ArrayList<>();
+        List<Widget<?>> found = new ArrayList<>();
         queue.add(root);
         for (int i = 0; i < queue.size(); i++) {
-            Widget widget = queue.get(i);
+            Widget<?> widget = queue.get(i);
             if (type.isInstance(widget)) {
                 found.add(widget);
             }
@@ -404,9 +404,9 @@ final class Films {
     }
 
     /** What a subtree is made of, for a failure message that has to say what it did find. */
-    private static List<String> names(Widget root) {
+    private static List<String> names(Widget<?> root) {
         List<String> found = new ArrayList<>();
-        for (Widget widget : under(root, Widget.class)) {
+        for (Widget<?> widget : under(root, Widget.class)) {
             String name = widget.getClass().getSimpleName();
             if (!found.contains(name)) {
                 found.add(name);
@@ -417,8 +417,8 @@ final class Films {
 
     /** Primary, then secondary; the disabled one is left alone, because it does nothing. */
     private static Motion button(GalleryScenes.Built built) {
-        Widget primary = find(built, Button.class, 0);
-        Widget secondary = find(built, Button.class, 1);
+        Widget<?> primary = find(built, Button.class, 0);
+        Widget<?> secondary = find(built, Button.class, 1);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
                 .to(primary, 0.5f, 0.5f, TRAVEL)
@@ -433,8 +433,8 @@ final class Films {
 
     /** Click the empty field and type into it: the caret, the text and the focus ring. */
     private static Motion textField(GalleryScenes.Built built) {
-        Widget filled = find(built, TextField.class, 0);
-        Widget empty = find(built, TextField.class, 1);
+        Widget<?> filled = find(built, TextField.class, 0);
+        Widget<?> empty = find(built, TextField.class, 1);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
                 .to(filled, 0.45f, 0.5f, TRAVEL)
@@ -451,7 +451,7 @@ final class Films {
 
     /** Typing into a password field, where what you see is the masking rather than the text. */
     private static Motion passwordField(GalleryScenes.Built built) {
-        Widget field = find(built, PasswordField.class, 0);
+        Widget<?> field = find(built, PasswordField.class, 0);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
                 .to(field, 0.5f, 0.5f, TRAVEL)
@@ -505,7 +505,7 @@ final class Films {
      * to the next one.
      */
     private static Motion dateField(GalleryScenes.Built built) {
-        Widget field = find(built, DateField.class, 0);
+        Widget<?> field = find(built, DateField.class, 0);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
                 // The language is pinned to English for the capture, so the month leads.
@@ -567,7 +567,7 @@ final class Films {
      * the month it began on.
      */
     private static Motion calendarView(GalleryScenes.Built built) {
-        Widget calendar = find(built, CalendarView.class, 0);
+        Widget<?> calendar = find(built, CalendarView.class, 0);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
                 // Tuesday 8 September: the first click is the anchor.
@@ -607,14 +607,14 @@ final class Films {
      * The calendar on the date picker's open card: the in-scene overlay's one CalendarView.
      * Throws rather than aiming at a card that is not open.
      */
-    private static Widget openCalendar(GalleryScenes.Built built) {
-        Widget layer = overlay(built);
+    private static Widget<?> openCalendar(GalleryScenes.Built built) {
+        Widget<?> layer = overlay(built);
         if (layer == null) {
             throw new IllegalStateException("a film step aims into the date picker's card and none"
                     + " is open; the click on its button either missed or has not been given"
                     + " enough frames to be dispatched and laid out");
         }
-        List<Widget> calendars = under(layer, CalendarView.class);
+        List<Widget<?>> calendars = under(layer, CalendarView.class);
         if (calendars.size() != 1) {
             throw new IllegalStateException("the overlay holding the card carries "
                     + calendars.size() + " calendars, not the one this aims at: " + names(layer));
@@ -637,8 +637,8 @@ final class Films {
      */
     private static Motion mediaControls(GalleryScenes.Built built) {
         ((VideoView) find(built, VideoView.class, 0)).setClock(new VideoClock(built.clock()));
-        Widget play = transportButton(built);
-        Widget scrub = scrubBar(built);
+        Widget<?> play = transportButton(built);
+        Widget<?> scrub = scrubBar(built);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
                 .to(play, 0.5f, 0.5f, TRAVEL)
@@ -672,7 +672,7 @@ final class Films {
      * whose whole job is being dragged through.
      */
     private static Motion colorPicker(GalleryScenes.Built built) {
-        Widget picker = find(built, ColorPicker.class, 0);
+        Widget<?> picker = find(built, ColorPicker.class, 0);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
                 .to(picker, 0.22f, 0.18f, TRAVEL)
@@ -689,7 +689,7 @@ final class Films {
 
     /** Orbiting the camera, the one gesture a 3D viewport exists to answer. */
     private static Motion viewport3d(GalleryScenes.Built built) {
-        Widget viewport = find(built, Viewport3D.class, 0);
+        Widget<?> viewport = find(built, Viewport3D.class, 0);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
                 .to(viewport, 0.5f, 0.5f, TRAVEL)
@@ -706,9 +706,9 @@ final class Films {
 
     /** Uncheck the checked box, check the empty one, then throw the switch. */
     private static Motion checkbox(GalleryScenes.Built built) {
-        Widget checked = find(built, Checkbox.class, 0);
-        Widget unchecked = find(built, Checkbox.class, 1);
-        Widget switchOff = find(built, Checkbox.class, 3);
+        Widget<?> checked = find(built, Checkbox.class, 0);
+        Widget<?> unchecked = find(built, Checkbox.class, 1);
+        Widget<?> switchOff = find(built, Checkbox.class, 3);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
                 .to(checked, 0.12f, 0.5f, TRAVEL)
@@ -727,7 +727,7 @@ final class Films {
 
     /** Grab the thumb where it sits, take it down the track and back up past it. */
     private static Motion slider(GalleryScenes.Built built) {
-        Widget slider = find(built, Slider.class, 0);
+        Widget<?> slider = find(built, Slider.class, 0);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
                 .to(slider, 0.65f, 0.5f, TRAVEL)
@@ -744,7 +744,7 @@ final class Films {
 
     /** The increment, twice, then the decrement: the field's value is the thing that moves. */
     private static Motion spinner(GalleryScenes.Built built) {
-        Widget spinner = find(built, Spinner.class, 0);
+        Widget<?> spinner = find(built, Spinner.class, 0);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
                 .to(spinner, 0.93f, 0.28f, TRAVEL)
@@ -761,7 +761,7 @@ final class Films {
 
     /** The divider, taken both ways, which is the whole of what a split pane does. */
     private static Motion splitPane(GalleryScenes.Built built) {
-        Widget split = find(built, SplitPane.class, 0);
+        Widget<?> split = find(built, SplitPane.class, 0);
         // The scene sets the ratio to 0.4, so the divider is 40% along and that is where the
         // press has to land: anywhere else is a press on a pane, which does nothing.
         return Motion.script()
@@ -782,7 +782,7 @@ final class Films {
      * Across the plot, left to right, pausing on each category: a chart's hover lifts the
      * one under the pointer, and the sweep is what shows that it does.
      */
-    private static Motion sweep(Widget chart) {
+    private static Motion sweep(Widget<?> chart) {
         Motion motion = Motion.script().from(OFF_X, OFF_Y).to(chart, 0.18f, 0.55f, TRAVEL);
         for (float fraction : new float[] {0.38f, 0.58f, 0.78f}) {
             motion.hold(SETTLE + 4).to(chart, fraction, 0.55f, 14);
@@ -792,7 +792,7 @@ final class Films {
 
     /** Around the ring rather than across it: a donut's categories are arcs. */
     private static Motion donutChart(GalleryScenes.Built built) {
-        Widget chart = find(built, DonutChart.class, 0);
+        Widget<?> chart = find(built, DonutChart.class, 0);
         Motion motion = Motion.script().from(OFF_X, OFF_Y).to(chart, 0.62f, 0.24f, TRAVEL);
         // Points on a circle around the hole, which is where the arcs are; the hole itself
         // holds a widget and hovering it means nothing.
@@ -807,8 +807,8 @@ final class Films {
      * The combo's in-scene list: the overlay's one panel. Throws rather than aiming at a list
      * that is not open, which would film a pointer gliding into the middle of the canvas.
      */
-    private static Widget openList(GalleryScenes.Built built) {
-        Widget layer = overlay(built);
+    private static Widget<?> openList(GalleryScenes.Built built) {
+        Widget<?> layer = overlay(built);
         if (layer == null) {
             throw new IllegalStateException("a film step aims into the combo's list and none is"
                     + " open; the click that drops it either missed or has not been given enough"
@@ -823,8 +823,8 @@ final class Films {
     }
 
     /** The transport's play button: the bar's only child is its row, and the row leads with it. */
-    private static Widget transportButton(GalleryScenes.Built built) {
-        Widget row = find(built, MediaControls.class, 0).children().get(0);
+    private static Widget<?> transportButton(GalleryScenes.Built built) {
+        Widget<?> row = find(built, MediaControls.class, 0).children().get(0);
         if (row.children().isEmpty()) {
             throw new IllegalStateException("the transport's row is empty; the bar holds "
                     + names(row));
@@ -837,9 +837,9 @@ final class Films {
      * a thousand steps and the volume a hundred. Counting sliders instead would follow whichever
      * one the row happened to add first.
      */
-    private static Widget scrubBar(GalleryScenes.Built built) {
+    private static Widget<?> scrubBar(GalleryScenes.Built built) {
         List<String> ranges = new ArrayList<>();
-        for (Widget widget : under(built.scene().root(), Slider.class)) {
+        for (Widget<?> widget : under(built.scene().root(), Slider.class)) {
             Slider slider = (Slider) widget;
             if (slider.max() == 1000) {
                 return slider;
@@ -858,12 +858,12 @@ final class Films {
      *                               gliding to the corner, which looks like a rendering bug
      *                               rather than a broken script
      */
-    private static Widget find(GalleryScenes.Built built, Class<? extends Widget> type, int index) {
-        List<Widget> queue = new ArrayList<>();
-        List<Widget> found = new ArrayList<>();
+    private static Widget<?> find(GalleryScenes.Built built, Class<?> type, int index) {
+        List<Widget<?>> queue = new ArrayList<>();
+        List<Widget<?>> found = new ArrayList<>();
         queue.add(built.scene().root());
         for (int i = 0; i < queue.size(); i++) {
-            Widget widget = queue.get(i);
+            Widget<?> widget = queue.get(i);
             if (type.isInstance(widget)) {
                 found.add(widget);
                 if (found.size() > index) {

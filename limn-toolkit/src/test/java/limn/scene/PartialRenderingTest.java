@@ -106,7 +106,7 @@ class PartialRenderingTest extends SceneTestBase {
     }
 
     /** The damage rect invalidate() records: widget scene bounds +1px, snapped and clamped. */
-    private Rect expectedDamage(Widget w) {
+    private Rect expectedDamage(Widget<?> w) {
         float x = Math.max(0, (float) Math.floor(w.localToSceneX() - 1));
         float y = Math.max(0, (float) Math.floor(w.localToSceneY() - 1));
         float right = Math.min(canvas.width(), (float) Math.ceil(w.localToSceneX() + w.width() + 1));
@@ -438,14 +438,14 @@ class PartialRenderingTest extends SceneTestBase {
     }
 
     /** Viewport-like container: clips children, holding one child at a fixed offset. */
-    static final class ClippingBox extends Widget {
+    static final class ClippingBox extends Widget<ClippingBox> {
         private final float boxW;
         private final float boxH;
-        private final Widget child;
+        private final Widget<?> child;
         private final float childX;
         private final float childY;
 
-        ClippingBox(float boxW, float boxH, Widget child, float childX, float childY) {
+        ClippingBox(float boxW, float boxH, Widget<?> child, float childX, float childY) {
             this.boxW = boxW;
             this.boxH = boxH;
             this.child = child;

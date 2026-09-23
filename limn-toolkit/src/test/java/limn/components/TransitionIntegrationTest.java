@@ -20,7 +20,7 @@ class TransitionIntegrationTest extends ComponentTestBase {
 
     private final AtomicLong clock = new AtomicLong();
 
-    static final class Host extends Widget {
+    static final class Host extends Widget<Host> {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(10, 10);

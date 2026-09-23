@@ -71,7 +71,7 @@ import java.util.function.IntConsumer;
  * row labels and the scrollbar all move to the other side. The chevron itself does not turn
  * over: it points up and down.
  */
-public final class ComboBox extends Widget {
+public final class ComboBox extends Widget<ComboBox> {
 
     /** Breathing room kept from the work-area edge when clamping the popup. */
     private static final float EDGE_MARGIN = 8;
@@ -1121,7 +1121,7 @@ public final class ComboBox extends Widget {
      * because nothing else can, and carries the active descendant a reader follows the arrows
      * by; the options themselves are the panel's, which is where they are drawn.
      */
-    private final class ScenePopup extends Widget {
+    private final class ScenePopup extends Widget<ScenePopup> {
 
         private final PopupPanel panel;
 
@@ -1282,7 +1282,7 @@ public final class ComboBox extends Widget {
      * XSMALL row against 50% of a 30pt MEDIUM one. Accepted cost of one scrollbar geometry
      * process-wide; it is stated here rather than absorbed silently.
      */
-    private final class PopupPanel extends Widget implements Scrollable {
+    private final class PopupPanel extends Widget<PopupPanel> implements Scrollable {
 
         private final ScrollBar vBar;
         private int hoverIndex = -1;

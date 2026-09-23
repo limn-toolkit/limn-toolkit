@@ -198,7 +198,7 @@ class TabbedPaneTest extends ComponentTestBase {
     @Test
     void contentFillsBelowTheStrip() {
         build(TabbedPane.TabAlignment.LEFT);
-        Widget content = a;
+        Widget<?> content = a;
         // strip height 30 → content laid out at y=30, height 270.
         assertEquals(30, content.y(), 1e-3);
         assertEquals(400, content.width(), 1e-3);

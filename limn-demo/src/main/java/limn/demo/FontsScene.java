@@ -26,14 +26,14 @@ import java.util.List;
 final class FontsScene {
 
     /** The built body plus handles the capture scene uses to trigger the button. */
-    record Built(Widget widget, TextField field, Runnable insert) {
+    record Built(Widget<?> widget, TextField field, Runnable insert) {
     }
 
     private FontsScene() {
     }
 
     /** The tab/scene body (kitchen tab uses this). */
-    static Widget content() {
+    static Widget<?> content() {
         return build().widget();
     }
 
@@ -93,7 +93,7 @@ final class FontsScene {
     }
 
     /** One "Name: sample text" line with a muted script label. */
-    private static Widget sample(String script, String text) {
+    private static Widget<?> sample(String script, String text) {
         return new Label(script + ":  " + text).setFont(Theme.current().body());
     }
 

@@ -45,7 +45,7 @@ class SceneObserversTest {
         ui.close();
     }
 
-    static final class Stop extends Widget {
+    static final class Stop extends Widget<Stop> {
         Stop() {
             setFocusable(true);
         }
@@ -56,7 +56,7 @@ class SceneObserversTest {
         }
     }
 
-    private static Scene sceneOf(Widget root) {
+    private static Scene sceneOf(Widget<?> root) {
         Scene scene = new Scene(root);
         scene.layoutPass(100, 100);
         return scene;
@@ -74,7 +74,7 @@ class SceneObserversTest {
     void aPressObserverHearsTheHitTargetAndItsHandleStopsIt() {
         Stop stop = new Stop();
         Scene scene = sceneOf(stop);
-        List<Widget> seen = new ArrayList<>();
+        List<Widget<?>> seen = new ArrayList<>();
         Subscription handle = scene.observePresses(seen::add);
 
         press(scene, 10, 10);

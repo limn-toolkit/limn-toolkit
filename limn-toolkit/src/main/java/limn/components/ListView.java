@@ -91,13 +91,13 @@ import java.util.function.Supplier;
  * compact step it covers a larger fraction of a shorter row. An accepted cost of one
  * scrollbar geometry process-wide.
  */
-public final class ListView<T> extends Widget implements Scrollable {
+public final class ListView<T> extends Widget<ListView<T>> implements Scrollable {
 
     /** How rows become widgets: made fresh for each row, or taken from a pool and bound. */
     private interface Cells<T> {
-        Widget cellFor(T item);
+        Widget<?> cellFor(T item);
 
-        void recycle(Widget cell);
+        void recycle(Widget<?> cell);
     }
 
     /**
@@ -140,7 +140,7 @@ public final class ListView<T> extends Widget implements Scrollable {
      * doubling and then reused.
      */
     private int[] mountedRows = new int[16];
-    private Widget[] mountedCells = new Widget[16];
+    private Widget<?>[] mountedCells = new Widget<?>[16];
     private int mountedCount;
 
     /**
@@ -192,7 +192,7 @@ public final class ListView<T> extends Widget implements Scrollable {
      *
      * @param cellFor the widget for an item, populated and ready to show; never {@code null}
      */
-    public ListView(Function<? super T, ? extends Widget> cellFor) {
+    public ListView(Function<? super T, ? extends Widget<?>> cellFor) {
         this(fresh(Objects.requireNonNull(cellFor, "cellFor")));
     }
 
@@ -205,20 +205,20 @@ public final class ListView<T> extends Widget implements Scrollable {
      *                may be one {@code recycle} was given earlier.
      * @param recycle receives a row widget that scrolled out
      */
-    public ListView(Function<? super T, ? extends Widget> cellFor, Consumer<? super Widget> recycle) {
+    public ListView(Function<? super T, ? extends Widget<?>> cellFor, Consumer<? super Widget<?>> recycle) {
         this(recycling(Objects.requireNonNull(cellFor, "cellFor"), Objects.requireNonNull(recycle, "recycle")));
     }
 
-    private static <T> Cells<T> recycling(Function<? super T, ? extends Widget> cellFor,
-                                          Consumer<? super Widget> recycle) {
+    private static <T> Cells<T> recycling(Function<? super T, ? extends Widget<?>> cellFor,
+                                          Consumer<? super Widget<?>> recycle) {
         return new Cells<>() {
             @Override
-            public Widget cellFor(T item) {
+            public Widget<?> cellFor(T item) {
                 return Objects.requireNonNull(cellFor.apply(item), "cellFor returned null");
             }
 
             @Override
-            public void recycle(Widget cell) {
+            public void recycle(Widget<?> cell) {
                 recycle.accept(cell);
             }
         };
@@ -242,7 +242,7 @@ public final class ListView<T> extends Widget implements Scrollable {
         java.util.ArrayDeque<W> pool = new java.util.ArrayDeque<>();
         return new ListView<>(new Cells<T>() {
             @Override
-            public Widget cellFor(T item) {
+            public Widget<?> cellFor(T item) {
                 W cell = pool.isEmpty() ? Objects.requireNonNull(create.get(), "create returned null")
                         : pool.pop();
                 bind.accept(cell, item);
@@ -251,21 +251,21 @@ public final class ListView<T> extends Widget implements Scrollable {
 
             @Override
             @SuppressWarnings("unchecked") // only widgets create made are ever handed back
-            public void recycle(Widget cell) {
+            public void recycle(Widget<?> cell) {
                 pool.push((W) cell);
             }
         });
     }
 
-    private static <T> Cells<T> fresh(Function<? super T, ? extends Widget> cellFor) {
+    private static <T> Cells<T> fresh(Function<? super T, ? extends Widget<?>> cellFor) {
         return new Cells<>() {
             @Override
-            public Widget cellFor(T item) {
+            public Widget<?> cellFor(T item) {
                 return Objects.requireNonNull(cellFor.apply(item), "cellFor returned null");
             }
 
             @Override
-            public void recycle(Widget cell) {
+            public void recycle(Widget<?> cell) {
             }
         };
     }
@@ -893,7 +893,7 @@ public final class ListView<T> extends Widget implements Scrollable {
         // schedules re-runs it again anyway. ScrollView's scroll path is the same
         // shape for the same reason.
         for (int i = 0; i < mountedCount; i++) {
-            Widget cell = mountedCells[i];
+            Widget<?> cell = mountedCells[i];
             moveChild(cell, cell.x(), cell.y() - applied);
         }
         // Contained, not global: a scroll changes which rows are mounted and where they sit, and
@@ -1089,7 +1089,7 @@ public final class ListView<T> extends Widget implements Scrollable {
     }
 
     private float measuredHeight(int index, float w) {
-        Widget cell = cellFor(index);
+        Widget<?> cell = cellFor(index);
         if (cell == null) {
             cell = cells.cellFor(items.get(index));
             mount(index, cell);
@@ -1105,7 +1105,7 @@ public final class ListView<T> extends Widget implements Scrollable {
      * container that appended them would leave a reader and the Tab key walking the list in the
      * order the scroll happened to realize it.
      */
-    private void mount(int index, Widget cell) {
+    private void mount(int index, Widget<?> cell) {
         int at = 0;
         while (at < mountedCount && mountedRows[at] < index) {
             at++;
@@ -1159,7 +1159,7 @@ public final class ListView<T> extends Widget implements Scrollable {
         int kept = 0;
         for (int i = 0; i < mountedCount; i++) {
             int row = mountedRows[i];
-            Widget cell = mountedCells[i];
+            Widget<?> cell = mountedCells[i];
             boolean inRun = row >= from && row < toExclusive;
             boolean hasFocus = !inRun && containsFocus(cell);
             boolean cursor = !inRun && row == this.cursor && isFocused();
@@ -1246,7 +1246,7 @@ public final class ListView<T> extends Widget implements Scrollable {
     }
 
     /** The cell currently bound to a row, or {@code null} when that row is not realized. */
-    private Widget cellFor(int index) {
+    private Widget<?> cellFor(int index) {
         for (int i = 0; i < mountedCount; i++) {
             if (mountedRows[i] == index) {
                 return mountedCells[i];
@@ -1256,7 +1256,7 @@ public final class ListView<T> extends Widget implements Scrollable {
     }
 
     /** The row a cell is currently bound to, or {@code -1} when it is not one of this list's. */
-    private int indexOfCell(Widget cell) {
+    private int indexOfCell(Widget<?> cell) {
         for (int i = 0; i < mountedCount; i++) {
             if (mountedCells[i] == cell) {
                 return mountedRows[i];
@@ -1293,7 +1293,7 @@ public final class ListView<T> extends Widget implements Scrollable {
         // A spared focused row outside the run is mounted at an estimated box, and a scroll by
         // that estimate can stop short of it under uneven heights; it takes the far jump below,
         // which is exact, and the layout that follows finds its cell already mounted.
-        Widget cell = isPlaced(index) ? cellFor(index) : null;
+        Widget<?> cell = isPlaced(index) ? cellFor(index) : null;
         if (cell != null) {
             float top = cell.y();
             float bottom = top + cell.height();
@@ -1335,7 +1335,7 @@ public final class ListView<T> extends Widget implements Scrollable {
         if (index < 0) {
             return;
         }
-        Widget cell = cellFor(index);
+        Widget<?> cell = cellFor(index);
         if (cell == null) {
             return;
         }
@@ -1350,9 +1350,9 @@ public final class ListView<T> extends Widget implements Scrollable {
         }
     }
 
-    private boolean containsFocus(Widget cell) {
-        Widget focused = scene() != null ? scene().focusedWidget() : null;
-        for (Widget w = focused; w != null; w = w.parent()) {
+    private boolean containsFocus(Widget<?> cell) {
+        Widget<?> focused = scene() != null ? scene().focusedWidget() : null;
+        for (Widget<?> w = focused; w != null; w = w.parent()) {
             if (w == cell) {
                 return true;
             }
@@ -1376,7 +1376,7 @@ public final class ListView<T> extends Widget implements Scrollable {
         canvas.save();
         try {
             canvas.clipRect(0, 0, width(), height());
-            for (Widget child : children()) {
+            for (Widget<?> child : children()) {
                 if (child == vBar) {
                     continue;
                 }
@@ -1402,13 +1402,13 @@ public final class ListView<T> extends Widget implements Scrollable {
             for (int i = 0; i < mountedCount; i++) {
                 int row = mountedRows[i];
                 if (row != cursor && selected.get(row)) {
-                    Widget cell = mountedCells[i];
+                    Widget<?> cell = mountedCells[i];
                     canvas.drawRoundRect(inset, cell.y() + inset, width() - 2 * inset,
                             cell.height() - 2 * inset, t.radiusMedium(), Strokes.FOCUS_RING_THIN,
                             theme.outline());
                 }
             }
-            Widget cell = cursor >= 0 ? cellFor(cursor) : null;
+            Widget<?> cell = cursor >= 0 ? cellFor(cursor) : null;
             float f = focusFade.value();
             if (cell != null && selected.get(cursor)) {
                 // The textbook locked case: the ring animates 1.5 -> 2 pt as focus fades in,
@@ -1442,21 +1442,21 @@ public final class ListView<T> extends Widget implements Scrollable {
     }
 
     @Override
-    public Widget hitTest(float localX, float localY) {
+    public Widget<?> hitTest(float localX, float localY) {
         if (!isVisible() || !isEnabled()
                 || localX < 0 || localY < 0 || localX >= width() || localY >= height()) {
             return null;
         }
         // The scrollbar overlays on top, so it wins the hit when shown.
-        Widget barHit = vBar.hitTest(localX - vBar.x(), localY - vBar.y());
+        Widget<?> barHit = vBar.hitTest(localX - vBar.x(), localY - vBar.y());
         if (barHit != null) {
             return barHit;
         }
-        for (Widget child : children()) {
+        for (Widget<?> child : children()) {
             if (child == vBar) {
                 continue;
             }
-            Widget hit = child.hitTest(localX - child.x(), localY - child.y());
+            Widget<?> hit = child.hitTest(localX - child.x(), localY - child.y());
             if (hit != null) {
                 return hit;
             }
@@ -1528,7 +1528,7 @@ public final class ListView<T> extends Widget implements Scrollable {
 
     private int rowAtLocalY(float localY) {
         for (int i = 0; i < mountedCount; i++) {
-            Widget cell = mountedCells[i];
+            Widget<?> cell = mountedCells[i];
             if (localY >= cell.y() && localY < cell.y() + cell.height()) {
                 return mountedRows[i];
             }
@@ -1693,7 +1693,7 @@ public final class ListView<T> extends Widget implements Scrollable {
      * cell holds inside it follows the row when the cell is recycled.
      */
     @Override
-    protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+    protected void onAccessibilityChildIdentity(Widget<?> child, Accessibility a) {
         int index = child == vBar ? -1 : indexOfCell(child);
         if (index >= 0) {
             a.key(index);
@@ -1754,7 +1754,7 @@ public final class ListView<T> extends Widget implements Scrollable {
      * @param a     the child's node
      */
     @Override
-    protected void onAccessibilityChild(Widget child, Accessibility a) {
+    protected void onAccessibilityChild(Widget<?> child, Accessibility a) {
         if (child == vBar) {
             return; // the bar describes itself, and ignores itself when the content fits
         }
@@ -1803,7 +1803,7 @@ public final class ListView<T> extends Widget implements Scrollable {
      * (decision 20).
      */
     @Override
-    protected boolean onAccessibilityChildAction(Widget child, long key, Accessible.Action action,
+    protected boolean onAccessibilityChildAction(Widget<?> child, long key, Accessible.Action action,
                                                  Accessible.Argument arg) {
         int index = indexOfCell(child);
         if (index < 0) {

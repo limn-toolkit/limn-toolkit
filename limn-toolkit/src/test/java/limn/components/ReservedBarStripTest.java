@@ -45,7 +45,7 @@ class ReservedBarStripTest extends ComponentTestBase {
     }
 
     /** A row of fixed height that paints nothing: only its box is ever asserted. */
-    private static final class Cell extends Widget {
+    private static final class Cell extends Widget<Cell> {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(c.maxWidth(), ROW_HEIGHT);
@@ -74,7 +74,7 @@ class ReservedBarStripTest extends ComponentTestBase {
         return node;
     }
 
-    private Tree<Node> tree(List<Node> roots, Map<String, Widget> cells, LayoutDirection direction,
+    private Tree<Node> tree(List<Node> roots, Map<String, Widget<?>> cells, LayoutDirection direction,
                             ScrollGutters.Layout layout, ScrollBar.Policy policy) {
         Tree<Node> tree = new Tree<>(new Tree.Model<Node>() {
             @Override
@@ -88,7 +88,7 @@ class ReservedBarStripTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 Cell cell = new Cell();
                 cells.put(node.name(), cell);
                 return cell;
@@ -96,7 +96,7 @@ class ReservedBarStripTest extends ComponentTestBase {
         });
         // The hold's clock before the policy: setting a policy refreshes the bar, and a first
         // overflow stamped on the wall clock would hold the bar up for hours of this one.
-        for (Widget child : tree.children()) {
+        for (Widget<?> child : tree.children()) {
             if (child instanceof ScrollBar bar) {
                 bar.clock(() -> now[0]);
             }
@@ -119,10 +119,10 @@ class ReservedBarStripTest extends ComponentTestBase {
      * the scene's clock. A faded bar answers no hit test, which is the case a reserved strip has to
      * survive: the pointer is over the strip and nothing drawn there claims it.
      */
-    private void letTheBarsFade(Widget host) {
+    private void letTheBarsFade(Widget<?> host) {
         scene.renderFrame(new FakeCanvas(BOX, HEIGHT));
         now[0] += 5_000_000_000L;
-        for (Widget child : host.children()) {
+        for (Widget<?> child : host.children()) {
             if (child instanceof ScrollBar bar) {
                 bar.onHoldElapsed();
             }
@@ -137,17 +137,17 @@ class ReservedBarStripTest extends ComponentTestBase {
     }
 
     /** The vertical bar: a scroll bar one strip wide and taller than one. */
-    private static ScrollBar verticalBar(Widget host) {
+    private static ScrollBar verticalBar(Widget<?> host) {
         return bar(host, true);
     }
 
     /** The horizontal bar: a scroll bar one strip tall and wider than one. */
-    private static ScrollBar horizontalBar(Widget host) {
+    private static ScrollBar horizontalBar(Widget<?> host) {
         return bar(host, false);
     }
 
-    private static ScrollBar bar(Widget host, boolean vertical) {
-        for (Widget child : host.children()) {
+    private static ScrollBar bar(Widget<?> host, boolean vertical) {
+        for (Widget<?> child : host.children()) {
             if (child instanceof ScrollBar found
                     && (vertical ? found.height() > found.width() : found.width() > found.height())) {
                 return found;
@@ -156,9 +156,9 @@ class ReservedBarStripTest extends ComponentTestBase {
         throw new AssertionError("no " + (vertical ? "vertical" : "horizontal") + " bar mounted");
     }
 
-    private static List<Widget> cellsOf(Widget host) {
-        List<Widget> cells = new ArrayList<>();
-        for (Widget child : host.children()) {
+    private static List<Widget<?>> cellsOf(Widget<?> host) {
+        List<Widget<?>> cells = new ArrayList<>();
+        for (Widget<?> child : host.children()) {
             if (child instanceof Cell) {
                 cells.add(child);
             }
@@ -184,7 +184,7 @@ class ReservedBarStripTest extends ComponentTestBase {
                 }
 
                 @Override
-                public Widget cellFor(Node node) {
+                public Widget<?> cellFor(Node node) {
                     return new Cell();
                 }
             });
@@ -193,7 +193,7 @@ class ReservedBarStripTest extends ComponentTestBase {
             scene = new Scene(tree);
             scene.setTextRuler(RULER);
             scene.layoutPass(BOX, HEIGHT);
-            for (Widget cell : cellsOf(tree)) {
+            for (Widget<?> cell : cellsOf(tree)) {
                 float far = direction == LayoutDirection.RTL ? cell.x() : cell.x() + cell.width();
                 assertEquals(direction == LayoutDirection.RTL ? 0 : BOX, far, EPS,
                         "an overlaid bar takes nothing from a row reading " + direction);
@@ -211,7 +211,7 @@ class ReservedBarStripTest extends ComponentTestBase {
 
             ScrollBar bar = verticalBar(tree);
             assertEquals(rtl ? 0 : BOX - STRIP, bar.x(), EPS, "the bar is on the trailing side");
-            for (Widget cell : cellsOf(tree)) {
+            for (Widget<?> cell : cellsOf(tree)) {
                 // The row ends where the viewport does, which is the strip's edge.
                 float far = rtl ? cell.x() : cell.x() + cell.width();
                 assertEquals(rtl ? STRIP : BOX - STRIP, far, EPS,
@@ -224,7 +224,7 @@ class ReservedBarStripTest extends ComponentTestBase {
     void aReservedHorizontalStripIsWhereScrollingToTheEndStopsTheLastRow() {
         // The tree's vertical clamp, its page and its reveal all measured against the box. Under
         // RESERVED that leaves the last row one strip too low: scrolled to the end, under the bar.
-        Map<String, Widget> cells = new java.util.HashMap<>();
+        Map<String, Widget<?>> cells = new java.util.HashMap<>();
         Tree<Node> tree = tree(List.of(chain()), cells, LayoutDirection.LTR,
                 ScrollGutters.Layout.RESERVED, ScrollBar.Policy.ALWAYS);
         assertEquals(HEIGHT - STRIP, horizontalBar(tree).y(), EPS,
@@ -235,7 +235,7 @@ class ReservedBarStripTest extends ComponentTestBase {
         tree.scrollBy(0, 10_000);
         scene.layoutPass(BOX, HEIGHT);
 
-        Widget last = cells.get("level-14");
+        Widget<?> last = cells.get("level-14");
         assertNotNull(last, "scrolled to the end, the last row is mounted");
         assertEquals(HEIGHT - STRIP, last.y() + last.height(), EPS,
                 "the end of the rows is the top of the strip, not the bottom of the box");
@@ -328,7 +328,7 @@ class ReservedBarStripTest extends ComponentTestBase {
                 }
             }
             assertTrue(settled.nothingPainted(), "the fixture has to be at rest first");
-            Widget cell = cellsOf(tree).stream()
+            Widget<?> cell = cellsOf(tree).stream()
                     .filter(c -> c.y() < HEIGHT - STRIP && c.y() + c.height() > HEIGHT - STRIP)
                     .findFirst().orElseThrow(() -> new AssertionError(
                             "the fixture has to put a row across the horizontal strip"));

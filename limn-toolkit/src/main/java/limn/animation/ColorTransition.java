@@ -32,7 +32,7 @@ public final class ColorTransition {
     private Color to;
 
     /** Rests at {@code initial}. */
-    public ColorTransition(Widget owner, Color initial) {
+    public ColorTransition(Widget<?> owner, Color initial) {
         this.progress = new Transition(owner, 1f);
         this.from = this.to = Objects.requireNonNull(initial, "initial");
     }

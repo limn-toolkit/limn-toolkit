@@ -59,9 +59,9 @@ class SceneShortcutTest extends SceneTestBase {
         }
     }
 
-    private static Scene sceneWith(Widget... children) {
+    private static Scene sceneWith(Widget<?>... children) {
         Column root = new Column();
-        for (Widget child : children) {
+        for (Widget<?> child : children) {
             root.add(child);
         }
         Scene scene = new Scene(root);

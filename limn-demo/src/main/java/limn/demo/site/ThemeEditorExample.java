@@ -43,7 +43,7 @@ public final class ThemeEditorExample {
      * so this screen shows the shipped light theme being edited in the light pass and the dark
      * one in the dark pass, which is what a reader would see on their own machine.
      */
-    public static Widget content() {
+    public static Widget<?> content() {
         ThemeEditor editor = new ThemeEditor(Theme.current());
         // The pickers open inside the window, which is the only way a capture of this screen can
         // contain one. It is also the honest presentation for a colour picker over a theme editor:

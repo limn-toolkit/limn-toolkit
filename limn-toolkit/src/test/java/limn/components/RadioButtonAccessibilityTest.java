@@ -140,7 +140,7 @@ class RadioButtonAccessibilityTest extends AccessibleComponentTestBase {
         scene.requestFocus(null);
         for (int i = 0; i < 32; i++) {
             scene.focusTraverse(false);
-            Widget focused = scene.focusedWidget();
+            Widget<?> focused = scene.focusedWidget();
             if (focused == null) {
                 break;
             }

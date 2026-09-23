@@ -133,7 +133,7 @@ class FrameMetricsTest extends SceneTestBase {
         // The claim the demo's footer makes out loud: with partial rendering on, an
         // invalidation repaints the widgets under the damage instead of the tree.
         Column column = new Column();
-        Widget top = new FixedBox(50, 20);
+        Widget<?> top = new FixedBox(50, 20);
         column.add(top);
         for (int i = 0; i < 8; i++) {
             column.add(new FixedBox(50, 20));

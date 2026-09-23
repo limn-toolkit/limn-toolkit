@@ -58,11 +58,11 @@ class ColorPickerButtonTest extends ComponentTestBase {
         return picker;
     }
 
-    private static ColorPicker findPicker(Widget root) {
+    private static ColorPicker findPicker(Widget<?> root) {
         if (root instanceof ColorPicker picker) {
             return picker;
         }
-        for (Widget child : root.children()) {
+        for (Widget<?> child : root.children()) {
             ColorPicker found = findPicker(child);
             if (found != null) {
                 return found;
@@ -230,7 +230,7 @@ class ColorPickerButtonTest extends ComponentTestBase {
     @Test
     void theBoxFollowsTheSizeStep() {
         float medium = button.measure(Constraints.loose(400, 300)).height();
-        button.withControlSize(ControlSize.LARGE);
+        button.setControlSize(ControlSize.LARGE);
         float large = button.measure(Constraints.loose(400, 300)).height();
         assertTrue(large > medium, "a control that ignores the step is one frozen at MEDIUM");
     }

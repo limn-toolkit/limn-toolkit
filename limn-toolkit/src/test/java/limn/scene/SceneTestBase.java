@@ -27,7 +27,7 @@ abstract class SceneTestBase {
     }
 
     /** Fixed-preferred-size leaf widget. */
-    static class FixedBox extends Widget {
+    static class FixedBox extends Widget<FixedBox> {
         private final float prefWidth;
         private final float prefHeight;
 

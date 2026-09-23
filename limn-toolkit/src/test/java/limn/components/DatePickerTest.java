@@ -279,13 +279,13 @@ class DatePickerTest extends ComponentTestBase {
         picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
         picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
         picker.open();
-        limn.scene.Widget card = picker.calendar().parent();
+        limn.scene.Widget<?> card = picker.calendar().parent();
         assertEquals(2, card.children().size(), "the grid and the time row");
-        limn.scene.Widget row = card.children().get(1);
+        limn.scene.Widget<?> row = card.children().get(1);
 
         picker.setGranularity(DateField.Granularity.DAY);
         assertTrue(picker.isOpen(), "still open");
-        limn.scene.Widget rebuilt = picker.calendar().parent();
+        limn.scene.Widget<?> rebuilt = picker.calendar().parent();
         assertNotSame(card, rebuilt, "a card built for the new level");
         assertEquals(List.of(picker.calendar()), rebuilt.children(), "the grid alone on it");
         assertNotSame(rebuilt, row.parent(), "and the old row is not on the card that is showing");
@@ -475,7 +475,7 @@ class DatePickerTest extends ComponentTestBase {
         scene.bind(new StubWindow());
         scene.layoutPass(400, 320);
         scene.renderFrame(new FakeCanvas(400, 320));
-        limn.scene.Widget affordance = picker.children().stream()
+        limn.scene.Widget<?> affordance = picker.children().stream()
                 .filter(child -> child != picker.field() && child.isFocusable())
                 .findFirst().orElseThrow();
         scene.requestFocus(affordance);
@@ -510,7 +510,7 @@ class DatePickerTest extends ComponentTestBase {
     @Test
     void theCalendarButtonTakesFocusAndAnswersTheKeyboard() {
         build(new DatePicker());
-        limn.scene.Widget affordance = picker.children().stream()
+        limn.scene.Widget<?> affordance = picker.children().stream()
                 .filter(child -> child != picker.field() && child.isFocusable())
                 .findFirst().orElseThrow(() -> new AssertionError(
                         "the trailing affordance is not a focusable child"));
@@ -605,7 +605,7 @@ class DatePickerTest extends ComponentTestBase {
     @Test
     void theFieldComesFirstAndTheButtonSecond() {
         build(new DatePicker());
-        List<limn.scene.Widget> stops = picker.children().stream()
+        List<limn.scene.Widget<?>> stops = picker.children().stream()
                 .filter(limn.scene.Widget::isFocusable)
                 .toList();
         assertEquals(picker.field(), stops.get(0), "the text is what a person types into first");

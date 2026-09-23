@@ -67,7 +67,7 @@ class SceneCrashContainmentTest extends SceneTestBase {
         Crashes.uninstall(handler);
     }
 
-    private static Scene boundScene(Widget root, RecordingWindow window) {
+    private static Scene boundScene(Widget<?> root, RecordingWindow window) {
         Scene scene = new Scene(root);
         scene.bind(window);
         return scene;

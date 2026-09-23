@@ -79,7 +79,7 @@ class ChartMirroringTest extends ComponentTestBase {
      * A chart with no marks of its own: everything asserted here belongs to {@link Chart}, and a
      * subclass that painted would put its own geometry in the recording.
      */
-    private static final class TestChart extends Chart {
+    private static final class TestChart extends Chart<TestChart> {
         @Override
         protected void paintContent(Canvas canvas, float x, float y, float w, float h) {
         }

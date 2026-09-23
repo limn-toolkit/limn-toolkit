@@ -119,7 +119,7 @@ public final class Scene {
     private record RawResize(float width, float height) implements Raw {
     }
 
-    private final Widget root;
+    private final Widget<?> root;
     private final LongSupplier clock;
     private final List<Raw> queue = new ArrayList<>();
     // GPU surfaces to release; disposal needs the owning GL context, so it is
@@ -173,18 +173,18 @@ public final class Scene {
     // the only way to release them when focus is stolen (see cancelKeyState).
     private final java.util.BitSet keysDown = new java.util.BitSet();
 
-    private Widget hovered;
-    private Widget pressed;
+    private Widget<?> hovered;
+    private Widget<?> pressed;
     private boolean pointerInside; // last CursorEnter/move state, for hover resync
     private int pressedButton = -1;
     private float mouseX;
     private float mouseY;
-    private Widget focused;
+    private Widget<?> focused;
 
-    private final List<Widget> overlays = new ArrayList<>();
+    private final List<Widget<?>> overlays = new ArrayList<>();
     // Widget that held focus when each overlay was pushed, restored on removal
     // (parallel to overlays), so closing a modal returns focus to its trigger.
-    private final List<Widget> overlayFocusReturn = new ArrayList<>();
+    private final List<Widget<?>> overlayFocusReturn = new ArrayList<>();
 
     /** @see #setFrontPainter */
     private java.util.function.Consumer<Canvas> frontPainter;
@@ -206,7 +206,7 @@ public final class Scene {
     }
 
     /** A scene over {@code root}. Subscribes to font, size-step and language changes. */
-    public Scene(Widget root) {
+    public Scene(Widget<?> root) {
         this(root, System::nanoTime);
     }
 
@@ -241,7 +241,7 @@ public final class Scene {
      * Injectable clock (slow-handler instrumentation and animation ticks),
      * public so component tests can drive animations deterministically.
      */
-    public Scene(Widget root, LongSupplier clock) {
+    public Scene(Widget<?> root, LongSupplier clock) {
         this.root = Objects.requireNonNull(root, "root");
         this.clock = clock;
         root.setSceneRecursively(this);
@@ -448,7 +448,7 @@ public final class Scene {
     }
 
     /** The root widget of this scene's tree. */
-    public Widget root() {
+    public Widget<?> root() {
         return root;
     }
 
@@ -556,7 +556,7 @@ public final class Scene {
      * dialogs work: an in-scene overlay, no nested event loop. Focus moves to
      * the overlay's first focusable widget.
      */
-    public void pushOverlay(Widget overlay) {
+    public void pushOverlay(Widget<?> overlay) {
         Ui.checkUiThread();
         Objects.requireNonNull(overlay, "overlay");
         // A drag captured before this modal opened must not keep feeding the
@@ -573,7 +573,7 @@ public final class Scene {
     }
 
     /** Removes a modal overlay and restores focus to whatever it took it from. */
-    public void removeOverlay(Widget overlay) {
+    public void removeOverlay(Widget<?> overlay) {
         Ui.checkUiThread();
         int index = overlays.indexOf(overlay);
         if (index < 0) {
@@ -581,7 +581,7 @@ public final class Scene {
         }
         boolean wasTop = index == overlays.size() - 1;
         overlays.remove(index);
-        Widget restore = overlayFocusReturn.remove(index);
+        Widget<?> restore = overlayFocusReturn.remove(index);
         onWidgetDetached(overlay);
         overlay.setSceneRecursively(null);
         layoutDirty = true;
@@ -605,13 +605,13 @@ public final class Scene {
     }
 
     /** @return the topmost modal overlay, or {@code null} when none is open */
-    Widget topOverlay() {
+    Widget<?> topOverlay() {
         return overlays.isEmpty() ? null : overlays.get(overlays.size() - 1);
     }
 
     /** @return the widget subtree that currently owns input (top overlay or root) */
-    private Widget inputRoot() {
-        Widget top = topOverlay();
+    private Widget<?> inputRoot() {
+        Widget<?> top = topOverlay();
         return top != null ? top : root;
     }
 
@@ -628,7 +628,7 @@ public final class Scene {
      * @return the top overlay, the root when no overlay is open, or {@code null} while a native
      *         modal blocks the window
      */
-    Widget accessibleInputLayer() {
+    Widget<?> accessibleInputLayer() {
         if (window != null && window.isModalBlocked()) {
             return null;
         }
@@ -686,7 +686,7 @@ public final class Scene {
      * or two, and it is zero in almost every application. Maintained on the one funnel a subtree
      * joins and leaves a scene through, so it cannot drift from the tree.
      */
-    private final List<Widget> backdropDependants = new ArrayList<>();
+    private final List<Widget<?>> backdropDependants = new ArrayList<>();
     // The frame's damage, as fixed-capacity float lists rather than lists of Rect: every
     // invalidate() lands in pendingDamage, and with partial rendering on by default an object per
     // call there was the toolkit's busiest allocation. See DamageRects. A list that starts whole
@@ -943,7 +943,7 @@ public final class Scene {
      * @return the identifier of its node in this scene's last walk, or {@code 0} when that walk
      *         published none for it or no walk has run
      */
-    long accessibleIdOf(Widget widget) {
+    long accessibleIdOf(Widget<?> widget) {
         return accessibleWalk == null ? 0 : accessibleWalk.idOfWidget(widget);
     }
 
@@ -1028,7 +1028,7 @@ public final class Scene {
         if (accessibleWalk == null) {
             return;
         }
-        Widget owner = accessibleWalk.ownerOf(nodeId);
+        Widget<?> owner = accessibleWalk.ownerOf(nodeId);
         if (owner == null || owner.scene() != this) {
             return;
         }
@@ -1039,7 +1039,7 @@ public final class Scene {
         // is re-checked as the child's parent: a cell re-mounted elsewhere since the walk would
         // hand the container a child it no longer holds.
         boolean delegated = !synthetic && accessibleWalk.isDelegated(nodeId, action);
-        Widget container = delegated ? accessibleWalk.delegateOf(nodeId) : null;
+        Widget<?> container = delegated ? accessibleWalk.delegateOf(nodeId) : null;
         if (delegated && owner.parent() != container) {
             return;
         }
@@ -1076,7 +1076,7 @@ public final class Scene {
         // the snapshot carries as a missing ENABLED, which is all a bridge reads to refuse a
         // setter synchronously (AccessibleNode#accepts; semantics 5, amended 2026-09-15 in fix
         // round 2e): the node keeps its true writability, and this gate is its refusal.
-        for (Widget at = owner; at != null; at = at.parent()) {
+        for (Widget<?> at = owner; at != null; at = at.parent()) {
             if (!at.isEnabled()) {
                 return; // a control inside a disabled container is one the keyboard refuses too
             }
@@ -1090,7 +1090,7 @@ public final class Scene {
         // construction, so gating on it alone would invoke a button underneath an open dialog;
         // and a snapshot can predate the modal, so the layer that owns input has to be re-checked
         // here whatever the tree said.
-        Widget layer = accessibleInputLayer();
+        Widget<?> layer = accessibleInputLayer();
         if (layer == null || !isInSubtree(owner, layer)) {
             return;
         }
@@ -1113,7 +1113,7 @@ public final class Scene {
         // is decision 22 as the tree lane settled it: the kept cursor row is expanded, selected
         // and deselected where it stands, and SCROLL_INTO_VIEW is the one verb that moves the
         // view, through the container's own hook, which knows where a recycled row really is.
-        Widget reveal = delegated ? container : owner;
+        Widget<?> reveal = delegated ? container : owner;
         if (!free && !reveal.isShowing()) {
             limn.accessibility.AccessibleNode node = publishedTree.find(nodeId);
             if (node != null && node.accepts(action)) {
@@ -1141,8 +1141,8 @@ public final class Scene {
      * @return whether it is visible by its own flag and every ancestor's, whether or not it is
      *         clipped out of a scroll viewport
      */
-    private static boolean isVisibleThroughAncestry(Widget widget) {
-        for (Widget at = widget; at != null; at = at.parent()) {
+    private static boolean isVisibleThroughAncestry(Widget<?> widget) {
+        for (Widget<?> at = widget; at != null; at = at.parent()) {
             if (!at.isVisible()) {
                 return false;
             }
@@ -1183,7 +1183,7 @@ public final class Scene {
      * @param action {@code FOCUS} or {@code SCROLL_INTO_VIEW}
      * @return whether this performed it
      */
-    private boolean performFreeVerb(Widget owner,
+    private boolean performFreeVerb(Widget<?> owner,
                                     limn.accessibility.Accessible.Action action) {
         switch (action) {
             case FOCUS -> {
@@ -1201,12 +1201,12 @@ public final class Scene {
     }
 
     /** The overlay stack, for the walk: overlays are a second root set and not part of the tree. */
-    List<Widget> overlays() {
+    List<Widget<?>> overlays() {
         return overlays;
     }
 
     /** Whether {@code widget} is the layer that currently owns input. */
-    boolean isTopOverlay(Widget widget) {
+    boolean isTopOverlay(Widget<?> widget) {
         return topOverlay() == widget;
     }
 
@@ -1425,7 +1425,7 @@ public final class Scene {
     }
 
     /** Widget.invalidate(x,y,w,h): damages a region given in the widget's local coordinates. */
-    void damageWidgetRegion(Widget widget, float x, float y, float w, float h) {
+    void damageWidgetRegion(Widget<?> widget, float x, float y, float w, float h) {
         if (partialRendering || damageDebug) {
             addClippedDamage(widget, x - 1, y - 1, w + 2, h + 2);
         }
@@ -1434,7 +1434,7 @@ public final class Scene {
     }
 
     /** Widget.invalidate(): damages the widget's bounds (in scene coordinates). */
-    void damageWidget(Widget widget) {
+    void damageWidget(Widget<?> widget) {
         if (partialRendering || damageDebug) {
             // +1px on every side: analytic AA lets a shape hugging the widget
             // edge feather just outside its bounds. paintOutset() widens it for
@@ -1454,7 +1454,7 @@ public final class Scene {
      * slice, and one fully out of view (or inside a hidden branch) damages
      * nothing at all.
      */
-    private void addClippedDamage(Widget widget, float x, float y, float w, float h) {
+    private void addClippedDamage(Widget<?> widget, float x, float y, float w, float h) {
         if (clippedSceneRect(widget, x, y, w, h, clipScratch)) {
             addDamage(clipScratch[0], clipScratch[1], clipScratch[2], clipScratch[3]);
         }
@@ -1468,14 +1468,14 @@ public final class Scene {
      * scrolled out of a viewport must add nothing, by exactly the rule that stops a scrolled-away
      * widget damaging the viewport it is no longer inside.
      */
-    private boolean clippedSceneRect(Widget widget, float x, float y, float w, float h,
+    private boolean clippedSceneRect(Widget<?> widget, float x, float y, float w, float h,
                                      float[] out) {
         float x0 = x;
         float y0 = y;
         float x1 = x + w;
         float y1 = y + h;
-        Widget below = null;
-        for (Widget node = widget; node != null; below = node, node = node.parent()) {
+        Widget<?> below = null;
+        for (Widget<?> node = widget; node != null; below = node, node = node.parent()) {
             if (!node.isVisible()) {
                 return false; // hidden branch: it paints nothing, so no pixel changed
             }
@@ -1537,7 +1537,7 @@ public final class Scene {
                 if (backdropTaken[i]) {
                     continue;
                 }
-                Widget widget = backdropDependants.get(i);
+                Widget<?> widget = backdropDependants.get(i);
                 float outset = 1 + widget.paintOutset();
                 if (!clippedSceneRect(widget, -outset, -outset,
                         widget.width() + 2 * outset, widget.height() + 2 * outset,
@@ -1562,10 +1562,10 @@ public final class Scene {
     }
 
     @SuppressWarnings("unchecked")
-    private static final java.util.function.Consumer<Widget>[] NO_PRESS_OBSERVERS =
-            (java.util.function.Consumer<Widget>[]) new java.util.function.Consumer<?>[0];
+    private static final java.util.function.Consumer<Widget<?>>[] NO_PRESS_OBSERVERS =
+            (java.util.function.Consumer<Widget<?>>[]) new java.util.function.Consumer<?>[0];
 
-    private java.util.function.Consumer<Widget>[] pressObservers;
+    private java.util.function.Consumer<Widget<?>>[] pressObservers;
 
     /**
      * Observes every mouse press with its hit-tested target (after normal
@@ -1575,19 +1575,19 @@ public final class Scene {
      * @param observer told about every press; never null
      * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
      */
-    public Subscription observePresses(java.util.function.Consumer<Widget> observer) {
+    public Subscription observePresses(java.util.function.Consumer<Widget<?>> observer) {
         Ui.checkUiThread();
         Objects.requireNonNull(observer, "observer");
         pressObservers = Listeners.added(pressObservers, observer, NO_PRESS_OBSERVERS);
         return once(() -> pressObservers = Listeners.removed(pressObservers, observer));
     }
 
-    private void notifyPressObservers(Widget target) {
-        java.util.function.Consumer<Widget>[] snapshot = pressObservers;
+    private void notifyPressObservers(Widget<?> target) {
+        java.util.function.Consumer<Widget<?>>[] snapshot = pressObservers;
         if (snapshot == null) {
             return;
         }
-        for (java.util.function.Consumer<Widget> observer : snapshot) {
+        for (java.util.function.Consumer<Widget<?>> observer : snapshot) {
             try {
                 observer.accept(target);
             } catch (Throwable error) {
@@ -1644,19 +1644,19 @@ public final class Scene {
      * pass in progress is already doing, rather than escalating it into the very full frame the
      * contained pass was there to avoid.
      */
-    private Widget containedTarget;
+    private Widget<?> containedTarget;
 
     /** Widgets that asked for a contained layout, in request order. */
-    private final List<Widget> containedLayouts = new ArrayList<>();
+    private final List<Widget<?>> containedLayouts = new ArrayList<>();
     /** Widgets shown or hidden since the last frame, in request order; see runVisibilityLayouts. */
-    private final List<Widget> visibilityChanges = new ArrayList<>();
+    private final List<Widget<?>> visibilityChanges = new ArrayList<>();
     /**
      * The widgets this frame's contained pass laid out and kept contained. A visibility change
      * inside one of them is already laid out and damaged, and laying it out a second time is not
      * merely waste: a layout that is not idempotent -- a tab indicator that snaps when the tab it
      * points at has not changed -- reads the second pass as nothing having happened.
      */
-    private final List<Widget> containedThisFrame = new ArrayList<>();
+    private final List<Widget<?>> containedThisFrame = new ArrayList<>();
     /**
      * Set when a layout or visibility request arrives from inside a narrow pass and is absorbed by
      * it. A contained pass damages its whole widget, so for it that is the end of the matter; a
@@ -1665,7 +1665,7 @@ public final class Scene {
      */
     private boolean absorbedInsidePass;
 
-    void markLayoutDirty(Widget origin) {
+    void markLayoutDirty(Widget<?> origin) {
         if (containedTarget != null && origin != null && isInSubtree(origin, containedTarget)) {
             absorbedInsidePass = true;
             return; // the pass already running over this subtree covers it
@@ -1683,7 +1683,7 @@ public final class Scene {
      * hidden, or one whose size may have changed, laid out and damaged at the next frame by
      * {@link #runVisibilityLayouts} rather than by a full pass.
      */
-    void markVisibilityChanged(Widget widget) {
+    void markVisibilityChanged(Widget<?> widget) {
         if (containedTarget != null && isInSubtree(widget, containedTarget)) {
             absorbedInsidePass = true;
             return; // the pass already running over this subtree lays it out
@@ -1695,7 +1695,7 @@ public final class Scene {
         scheduleFrame();
     }
 
-    void markContainedLayout(Widget widget) {
+    void markContainedLayout(Widget<?> widget) {
         if (!containedLayouts.contains(widget)) {
             containedLayouts.add(widget);
         }
@@ -1719,12 +1719,12 @@ public final class Scene {
         if (containedLayouts.isEmpty()) {
             return;
         }
-        List<Widget> pending = List.copyOf(containedLayouts);
+        List<Widget<?>> pending = List.copyOf(containedLayouts);
         containedLayouts.clear();
         if (layoutDirty) {
             return; // a full pass is already scheduled and covers all of them
         }
-        for (Widget widget : pending) {
+        for (Widget<?> widget : pending) {
             if (widget.scene() != this || !widget.clipsChildren()) {
                 layoutDirty = true;
                 continue;
@@ -1777,24 +1777,24 @@ public final class Scene {
         if (visibilityChanges.isEmpty()) {
             return;
         }
-        List<Widget> pending = List.copyOf(visibilityChanges);
+        List<Widget<?>> pending = List.copyOf(visibilityChanges);
         visibilityChanges.clear();
         if (layoutDirty) {
             return; // a full pass is already scheduled and covers all of them
         }
-        for (Widget widget : pending) {
+        for (Widget<?> widget : pending) {
             if (insideContainedThisFrame(widget)) {
                 // Laid out and damaged already, by a pass over a box that clips its children and
                 // kept its size -- re-measured with this change in it, since setVisible marked the
                 // measures stale on the way up. So nothing it moved can be outside that box.
                 continue;
             }
-            Widget parent = widget.parent();
+            Widget<?> parent = widget.parent();
             if (widget.scene() != this || parent == null) {
                 layoutDirty = true;
                 continue;
             }
-            Widget anchor = parent;
+            Widget<?> anchor = parent;
             boolean absorbed = false;
             while (anchor != null) {
                 Constraints constraints = anchor.lastConstraints();
@@ -1818,11 +1818,11 @@ public final class Scene {
             float wy = widget.y();
             float ww = widget.width();
             float wh = widget.height();
-            List<Widget> children = List.copyOf(anchor.children());
+            List<Widget<?>> children = List.copyOf(anchor.children());
             float[] was = new float[children.size() * 4];
             boolean[] wasVisible = new boolean[children.size()];
             for (int i = 0; i < children.size(); i++) {
-                Widget child = children.get(i);
+                Widget<?> child = children.get(i);
                 was[i * 4] = child.x();
                 was[i * 4 + 1] = child.y();
                 was[i * 4 + 2] = child.width();
@@ -1847,7 +1847,7 @@ public final class Scene {
                 continue;
             }
             for (int i = 0; i < children.size(); i++) {
-                Widget child = children.get(i);
+                Widget<?> child = children.get(i);
                 boolean moved = was[i * 4] != child.x() || was[i * 4 + 1] != child.y()
                         || was[i * 4 + 2] != child.width() || was[i * 4 + 3] != child.height();
                 if (!moved && wasVisible[i] == child.isVisible()) {
@@ -1873,9 +1873,9 @@ public final class Scene {
         }
     }
 
-    private boolean insideContainedThisFrame(Widget widget) {
+    private boolean insideContainedThisFrame(Widget<?> widget) {
         for (int i = 0; i < containedThisFrame.size(); i++) {
-            Widget target = containedThisFrame.get(i);
+            Widget<?> target = containedThisFrame.get(i);
             if (widget != target && isInSubtree(widget, target)) {
                 return true;
             }
@@ -1889,7 +1889,7 @@ public final class Scene {
      * any damage is. For a region that belongs to a child which may no longer be drawn -- a hidden
      * widget's old box -- and so cannot be damaged through the child itself.
      */
-    private void damageInParent(Widget parent, Widget child, float x, float y, float w, float h) {
+    private void damageInParent(Widget<?> parent, Widget<?> child, float x, float y, float w, float h) {
         if (!partialRendering && !damageDebug) {
             return;
         }
@@ -1912,14 +1912,14 @@ public final class Scene {
     }
 
     /** See {@link Widget#paintsFromBackdrop()}. Called as the widget joins this scene. */
-    void addBackdropDependant(Widget widget) {
+    void addBackdropDependant(Widget<?> widget) {
         if (!backdropDependants.contains(widget)) {
             backdropDependants.add(widget);
         }
     }
 
     /** See {@link Widget#paintsFromBackdrop()}. Called as the widget leaves this scene. */
-    void removeBackdropDependant(Widget widget) {
+    void removeBackdropDependant(Widget<?> widget) {
         backdropDependants.remove(widget);
     }
 
@@ -1928,13 +1928,13 @@ public final class Scene {
         return backdropDependants.size();
     }
 
-    void onWidgetDetached(Widget widget) {
+    void onWidgetDetached(Widget<?> widget) {
         // Never leave dangling references to removed/disabled/hidden subtrees,
         // and never leave the widget itself with stuck hover/pressed state:
         // synthesize the EXIT/RELEASE it will otherwise never receive.
         // (State is cleared BEFORE dispatching, the reentrancy-safe order.)
         if (isInSubtree(hovered, widget)) {
-            Widget oldHover = hovered;
+            Widget<?> oldHover = hovered;
             hovered = null;
             timedDispatch(oldHover, new MouseEvent(MouseEvent.Type.EXIT, mouseX, mouseY, -1, 0, 0, 0));
             applyCursor(); // hovered widget gone: fall back to the arrow
@@ -1944,7 +1944,7 @@ public final class Scene {
             hideTooltip();
         }
         if (isInSubtree(pressed, widget)) {
-            Widget oldPressed = pressed;
+            Widget<?> oldPressed = pressed;
             int oldButton = pressedButton;
             pressed = null;
             pressedButton = -1;
@@ -2012,7 +2012,7 @@ public final class Scene {
         if (keysDown.isEmpty()) {
             return;
         }
-        Widget keyTarget = focused != null ? focused : inputRoot();
+        Widget<?> keyTarget = focused != null ? focused : inputRoot();
         java.util.BitSet held = (java.util.BitSet) keysDown.clone();
         // Cleared BEFORE dispatch: a handler that throws must not leave the scene believing keys
         // are down, and a re-entrant press during the batch must land on empty state.
@@ -2029,7 +2029,7 @@ public final class Scene {
         // still down forever after the user comes back.
         modifiers = 0;
         if (pressed != null) {
-            Widget oldPressed = pressed;
+            Widget<?> oldPressed = pressed;
             int oldButton = pressedButton;
             pressed = null;
             pressedButton = -1;
@@ -2039,8 +2039,8 @@ public final class Scene {
         updateHover(null);
     }
 
-    private static boolean isInSubtree(Widget candidate, Widget subtreeRoot) {
-        for (Widget w = candidate; w != null; w = w.parent()) {
+    private static boolean isInSubtree(Widget<?> candidate, Widget<?> subtreeRoot) {
+        for (Widget<?> w = candidate; w != null; w = w.parent()) {
             if (w == subtreeRoot) {
                 return true;
             }
@@ -2085,7 +2085,7 @@ public final class Scene {
     }
 
     /** A widget in this tree announcing, after its own watchers have run. */
-    void announceChange(Widget source, Change change) {
+    void announceChange(Widget<?> source, Change change) {
         ChangeObserver[] snapshot = changeWatchers;
         if (snapshot == null) {
             return;
@@ -2124,7 +2124,7 @@ public final class Scene {
     // ----------------------------------------------------------------- focus
 
     /** The widget holding keyboard focus, or {@code null} when nothing does. */
-    public Widget focusedWidget() {
+    public Widget<?> focusedWidget() {
         return focused;
     }
 
@@ -2140,12 +2140,12 @@ public final class Scene {
      * through {@link Widget#requestFocus(Change.Origin)}. Reading the method rather than the
      * entry point would report every keyboard-driven focus move in the toolkit as made by code.
      */
-    public void requestFocus(Widget widget) {
+    public void requestFocus(Widget<?> widget) {
         requestFocus(widget, Change.Origin.CODE);
     }
 
     /** The funnel the origin travels through; see {@link #requestFocus(Widget)}. */
-    void requestFocus(Widget widget, Change.Origin origin) {
+    void requestFocus(Widget<?> widget, Change.Origin origin) {
         Ui.checkUiThread();
         if (widget != null && (!widget.isFocusable() || !widget.isVisible() || !widget.isEnabled())) {
             return;
@@ -2166,11 +2166,11 @@ public final class Scene {
      * entered here. Each announcement follows that widget's own focus-lost or focus-gained hook,
      * so a watcher reads a widget that has already settled.
      */
-    private void setFocus(Widget widget, Change.Origin origin) {
+    private void setFocus(Widget<?> widget, Change.Origin origin) {
         if (focused == widget) {
             return;
         }
-        Widget old = focused;
+        Widget<?> old = focused;
         focused = widget;
         if (old != null) {
             if (window != null && old.acceptsTextInputInternal()) {
@@ -2215,7 +2215,7 @@ public final class Scene {
     }
 
     /** Focused widget awaiting post-layout reveal (see {@link #setFocus}). */
-    private Widget pendingReveal;
+    private Widget<?> pendingReveal;
 
     // ------------------------------------------------------------- IME/preedit
 
@@ -2261,7 +2261,7 @@ public final class Scene {
     /** The traversal with the origin of whatever asked for it. */
     private void focusTraverse(boolean backward, Change.Origin origin) {
         Ui.checkUiThread();
-        List<Widget> order = new ArrayList<>();
+        List<Widget<?>> order = new ArrayList<>();
         collectFocusable(inputRoot(), order); // modal overlay confines traversal
         if (order.isEmpty()) {
             setFocus(null, origin);
@@ -2299,14 +2299,14 @@ public final class Scene {
         return focusByTraversal && focusTraversalBackward;
     }
 
-    private static void collectFocusable(Widget widget, List<Widget> out) {
+    private static void collectFocusable(Widget<?> widget, List<Widget<?>> out) {
         if (!widget.isVisible() || !widget.isEnabled()) {
             return;
         }
         if (widget.isFocusable()) {
             out.add(widget);
         }
-        for (Widget child : widget.children()) {
+        for (Widget<?> child : widget.children()) {
             collectFocusable(child, out);
         }
     }
@@ -2799,7 +2799,7 @@ public final class Scene {
             dispatchBubbling(pressed, drag);
             changed = drag.isConsumed();
         } else {
-            Widget hit = hitAt(x, y);
+            Widget<?> hit = hitAt(x, y);
             changed = updateHover(hit);
             MouseEvent move = new MouseEvent(MouseEvent.Type.MOVE, x, y, -1, 0, 0, modifiers);
             dispatchBubbling(hit, move);
@@ -2817,13 +2817,13 @@ public final class Scene {
         modifiers = button.mods; // presses carry the authoritative native mask
         if (button.pressed) {
             hideTooltip(); // any click dismisses a showing/pending tooltip
-            Widget hit = hitAt(button.x, button.y);
+            Widget<?> hit = hitAt(button.x, button.y);
             // Capture BEFORE dispatching: a PRESS/focus handler may detach the
             // widget, and onWidgetDetached must find (and clear) this state.
             pressed = hit;
             pressedButton = button.button;
             // Click-to-focus: nearest focusable ancestor of the press target.
-            Widget focusTarget = hit;
+            Widget<?> focusTarget = hit;
             while (focusTarget != null && !focusTarget.isFocusable()) {
                 focusTarget = focusTarget.parent();
             }
@@ -2835,11 +2835,11 @@ public final class Scene {
                     countClick(button)));
             notifyPressObservers(hit);
         } else {
-            Widget target = pressed != null ? pressed : hitAt(button.x, button.y);
+            Widget<?> target = pressed != null ? pressed : hitAt(button.x, button.y);
             dispatchBubbling(target, new MouseEvent(
                     MouseEvent.Type.RELEASE, button.x, button.y, button.button, 0, 0, button.mods,
                     lastClickCount));
-            Widget releaseHit = hitAt(button.x, button.y);
+            Widget<?> releaseHit = hitAt(button.x, button.y);
             if (pressed != null && isInSubtree(releaseHit, pressed)) {
                 dispatchBubbling(pressed, new MouseEvent(
                         MouseEvent.Type.CLICK, button.x, button.y, button.button, 0, 0, button.mods,
@@ -2865,7 +2865,7 @@ public final class Scene {
         KeyEvent event = new KeyEvent(key.key, key.pressed, key.repeat, key.mods);
         // Keys go to the focused widget, else the topmost modal layer (so a
         // dialog can handle ESC even with nothing focused).
-        Widget keyTarget = focused != null ? focused : inputRoot();
+        Widget<?> keyTarget = focused != null ? focused : inputRoot();
         dispatchBubbling(keyTarget, event);
         // Between the focused widget and the Tab fallback: what nobody focused wanted may still
         // be a shortcut, and what nobody wants at all must still traverse.
@@ -2945,11 +2945,11 @@ public final class Scene {
         }
     }
 
-    private Widget hitAt(float sceneX, float sceneY) {
+    private Widget<?> hitAt(float sceneX, float sceneY) {
         // A modal overlay owns all input; hit-testing never reaches the content,
         // unless the overlay yields this point (e.g. the menu bar strip behind a
         // fullscreen in-scene menu), which then hit-tests the content below.
-        Widget top = topOverlay();
+        Widget<?> top = topOverlay();
         if (top != null && !top.overlayPassesPointer(sceneX, sceneY)) {
             return top.hitTest(sceneX - top.x(), sceneY - top.y());
         }
@@ -2957,7 +2957,7 @@ public final class Scene {
     }
 
     /** @return whether the hover leaf changed (ENTER/EXIT dispatched, no bubbling) */
-    private boolean updateHover(Widget newHover) {
+    private boolean updateHover(Widget<?> newHover) {
         if (hovered == newHover) {
             return false;
         }
@@ -2990,7 +2990,7 @@ public final class Scene {
         // override, so the shape is still recorded for when it clears.
         Cursor shape = Cursor.DEFAULT;
         limn.backend.ImageCursor image = null;
-        for (Widget w = hovered; w != null; w = w.parent()) {
+        for (Widget<?> w = hovered; w != null; w = w.parent()) {
             limn.backend.ImageCursor ic = w.imageCursor();
             Cursor c = w.cursor();
             if (ic != null) {
@@ -3011,20 +3011,20 @@ public final class Scene {
      * the pointer is over it now, so re-resolve immediately. Called by
      * {@link Widget#setCursor}.
      */
-    void cursorChanged(Widget widget) {
+    void cursorChanged(Widget<?> widget) {
         if (isInSubtree(hovered, widget)) {
             applyCursor();
         }
     }
 
     /** Bubbles from {@code target} to the root until consumed, timing each handler. */
-    private void dispatchBubbling(Widget target, InputEvent event) {
-        for (Widget w = target; w != null && !event.isConsumed(); w = w.parent()) {
+    private void dispatchBubbling(Widget<?> target, InputEvent event) {
+        for (Widget<?> w = target; w != null && !event.isConsumed(); w = w.parent()) {
             timedDispatch(w, event);
         }
     }
 
-    private void timedDispatch(Widget widget, InputEvent event) {
+    private void timedDispatch(Widget<?> widget, InputEvent event) {
         long start = clock.getAsLong();
         if (event instanceof MouseEvent mouse) {
             widget.dispatchMouse(mouse);
@@ -3406,7 +3406,7 @@ public final class Scene {
     }
 
     /** Whether the active repaint pass can skip {@code widget}'s whole subtree. */
-    boolean culledFromPaint(Widget widget) {
+    boolean culledFromPaint(Widget<?> widget) {
         if (!cullActive) {
             return false;
         }
@@ -3498,7 +3498,7 @@ public final class Scene {
      * {@link TooltipStyle}), which is why the two pinned pad constants are gone.
      */
     private ControlSize tooltipStep() {
-        Widget target = tooltipTarget;
+        Widget<?> target = tooltipTarget;
         return target != null ? target.controlSize() : ControlSize.processDefault();
     }
 
@@ -3509,7 +3509,7 @@ public final class Scene {
      * one place the inherited axes have to be read here rather than inside an {@code onPaint}.
      */
     private LayoutDirection tooltipDirection() {
-        Widget target = tooltipTarget;
+        Widget<?> target = tooltipTarget;
         return target != null ? target.layoutDirection() : LayoutDirection.processDefault();
     }
 
@@ -3532,7 +3532,7 @@ public final class Scene {
     // Themed appearance is supplied by the components layer (the toolkit has no
     // Theme of its own); null → tooltips are not painted.
     private static volatile java.util.function.Function<ControlSize, TooltipStyle> tooltipStyle;
-    private Widget tooltipTarget; // owner whose tooltip is scheduled or showing
+    private Widget<?> tooltipTarget; // owner whose tooltip is scheduled or showing
     private String tooltipText;
     private boolean tooltipShowing;
     private float tooltipAlpha;
@@ -3547,8 +3547,8 @@ public final class Scene {
     }
 
     /** Nearest ancestor of {@code from} (inclusive) that declares a tooltip, else null. */
-    Widget tooltipOwner(Widget from) {
-        for (Widget w = from; w != null; w = w.parent()) {
+    Widget<?> tooltipOwner(Widget<?> from) {
+        for (Widget<?> w = from; w != null; w = w.parent()) {
             String text = w.tooltip();
             if (text != null && !text.isEmpty()) {
                 return w;
@@ -3561,7 +3561,7 @@ public final class Scene {
         if (window == null) {
             return; // headless: no display to place a tooltip on
         }
-        Widget owner = tooltipOwner(hovered);
+        Widget<?> owner = tooltipOwner(hovered);
         if (owner == tooltipTarget) {
             return; // still over the same owner (or still over nothing)
         }
@@ -3936,7 +3936,7 @@ public final class Scene {
         height = newHeight;
         root.measure(Constraints.tight(newWidth, newHeight));
         root.layoutBox(0, 0, newWidth, newHeight);
-        for (Widget overlay : overlays) {
+        for (Widget<?> overlay : overlays) {
             overlay.measure(Constraints.tight(newWidth, newHeight));
             overlay.layoutBox(0, 0, newWidth, newHeight);
         }
@@ -3950,7 +3950,7 @@ public final class Scene {
         // one change that would put this channel on the hot path and make it scale with the tree.
         root.notifyChange(Change.of(Change.Aspect.LAYOUT, Change.Origin.ADJUSTMENT));
         if (pendingReveal != null) {
-            Widget reveal = pendingReveal;
+            Widget<?> reveal = pendingReveal;
             pendingReveal = null;
             // Only if it is still the focus and still in this tree: focus may
             // have moved (or the widget detached) between defer and layout.

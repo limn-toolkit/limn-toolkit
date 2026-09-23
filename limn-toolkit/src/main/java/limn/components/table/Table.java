@@ -91,7 +91,7 @@ import java.util.function.IntConsumer;
  *
  * @param <T> the row type
  */
-public final class Table<T> extends Widget implements Scrollable {
+public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * Rows of intrinsic height when the height axis is unbounded, until {@link #setVisibleRows}
@@ -288,7 +288,7 @@ public final class Table<T> extends Widget implements Scrollable {
         final ShapedText[] shaped;
         final ShapedText[] fitted;
         final float[] fittedWidth;
-        final Widget[] widgets;
+        final Widget<?>[] widgets;
         int widgetCount;
         /** The row's accessible identity: the synthetic key its {@code ROW} is published under. */
         long id;
@@ -312,7 +312,7 @@ public final class Table<T> extends Widget implements Scrollable {
             shaped = new ShapedText[columns];
             fitted = new ShapedText[columns];
             fittedWidth = new float[columns];
-            widgets = new Widget[columns];
+            widgets = new Widget<?>[columns];
         }
     }
 
@@ -1703,7 +1703,7 @@ public final class Table<T> extends Widget implements Scrollable {
                 anchorTop -= applied;
                 for (int i = 0; i < mountedCount; i++) {
                     Slot slot = mountedSlots[i];
-                    for (Widget w : slot.widgets) {
+                    for (Widget<?> w : slot.widgets) {
                         if (w != null) {
                             moveChild(w, w.x(), w.y() - applied);
                         }
@@ -1722,7 +1722,7 @@ public final class Table<T> extends Widget implements Scrollable {
                 float sign = isRightToLeft() ? 1 : -1;
                 for (int i = 0; i < mountedCount; i++) {
                     Slot slot = mountedSlots[i];
-                    for (Widget w : slot.widgets) {
+                    for (Widget<?> w : slot.widgets) {
                         if (w != null) {
                             moveChild(w, w.x() + sign * applied, w.y());
                         }
@@ -2040,7 +2040,7 @@ public final class Table<T> extends Widget implements Scrollable {
             Slot slot = mountedSlots[i];
             for (int c = 0; c < columns.size(); c++) {
                 Column<T> column = columns.get(c);
-                Widget widget = slot.widgets[c];
+                Widget<?> widget = slot.widgets[c];
                 if (!column.isWidgetColumn()) {
                     continue;
                 }
@@ -2209,7 +2209,7 @@ public final class Table<T> extends Widget implements Scrollable {
         slot.top = rowY;
         for (int s = 0; s < shownCount; s++) {
             int c = shownIndex[s];
-            Widget widget = slot.widgets[c];
+            Widget<?> widget = slot.widgets[c];
             if (widget == null) {
                 continue;
             }
@@ -2232,7 +2232,7 @@ public final class Table<T> extends Widget implements Scrollable {
         float lineBox = textRuler().measure("Hg", t.body()).height();
         float h = Math.max(t.controlHeight(), lineBox + 2 * t.padV());
         for (int s = 0; s < shownCount; s++) {
-            Widget widget = slot.widgets[shownIndex[s]];
+            Widget<?> widget = slot.widgets[shownIndex[s]];
             if (widget != null) {
                 float inner = Math.max(0, colW[s] - 2 * t.padH());
                 Size size = widget.measure(
@@ -2256,9 +2256,9 @@ public final class Table<T> extends Widget implements Scrollable {
     }
 
     /** Where {@code widget} sits: the mounted position of its row, or {@code -1}. */
-    private int mountedPositionOf(Widget widget) {
+    private int mountedPositionOf(Widget<?> widget) {
         for (int i = 0; i < mountedCount; i++) {
-            for (Widget w : mountedSlots[i].widgets) {
+            for (Widget<?> w : mountedSlots[i].widgets) {
                 if (w == widget) {
                     return i;
                 }
@@ -2300,7 +2300,7 @@ public final class Table<T> extends Widget implements Scrollable {
                 // laid out, but it was a child, and so a Tab stop and a published node. The
                 // next layout to show the column re-mounts the rows and builds it then.
                 if (column.isVisible()) {
-                    Widget widget = column.widgetFor(row);
+                    Widget<?> widget = column.widgetFor(row);
                     slot.widgets[c] = widget;
                     add(insertAt + slot.widgetCount, widget);
                     slot.widgetCount++;
@@ -2483,8 +2483,8 @@ public final class Table<T> extends Widget implements Scrollable {
     }
 
     private boolean containsFocus(Slot slot) {
-        Widget focused = scene() != null ? scene().focusedWidget() : null;
-        for (Widget w = focused; w != null; w = w.parent()) {
+        Widget<?> focused = scene() != null ? scene().focusedWidget() : null;
+        for (Widget<?> w = focused; w != null; w = w.parent()) {
             for (int c = 0; c < columns.size(); c++) {
                 if (slot.widgets[c] == w) {
                     return true;
@@ -2495,9 +2495,9 @@ public final class Table<T> extends Widget implements Scrollable {
     }
 
     /** @return whether the keyboard focus is on {@code cell} or inside it */
-    private boolean holdsFocus(Widget cell) {
-        Widget focused = scene() != null ? scene().focusedWidget() : null;
-        for (Widget w = focused; w != null; w = w.parent()) {
+    private boolean holdsFocus(Widget<?> cell) {
+        Widget<?> focused = scene() != null ? scene().focusedWidget() : null;
+        for (Widget<?> w = focused; w != null; w = w.parent()) {
             if (w == cell) {
                 return true;
             }
@@ -3009,7 +3009,7 @@ public final class Table<T> extends Widget implements Scrollable {
                         continue; // out of the horizontal viewport
                     }
                     int c = shownIndex[s];
-                    Widget widget = slot.widgets[c];
+                    Widget<?> widget = slot.widgets[c];
                     if (widget != null) {
                         canvas.save();
                         try {
@@ -3153,12 +3153,12 @@ public final class Table<T> extends Widget implements Scrollable {
     }
 
     @Override
-    public Widget hitTest(float localX, float localY) {
+    public Widget<?> hitTest(float localX, float localY) {
         if (!isVisible() || !isEnabled()
                 || localX < 0 || localY < 0 || localX >= width() || localY >= height()) {
             return null;
         }
-        Widget hit = vBar.hitTest(localX - vBar.x(), localY - vBar.y());
+        Widget<?> hit = vBar.hitTest(localX - vBar.x(), localY - vBar.y());
         if (hit != null) {
             return hit;
         }
@@ -3167,7 +3167,7 @@ public final class Table<T> extends Widget implements Scrollable {
             return hit;
         }
         if (localY >= rowsTop() && localY < rowsTop() + rowsViewportHeight()) {
-            for (Widget child : children()) {
+            for (Widget<?> child : children()) {
                 if (child == vBar || child == hBar) {
                     continue;
                 }
@@ -3175,7 +3175,7 @@ public final class Table<T> extends Widget implements Scrollable {
                         || child.y() >= rowsTop() + rowsViewportHeight()) {
                     continue;
                 }
-                Widget inner = child.hitTest(localX - child.x(), localY - child.y());
+                Widget<?> inner = child.hitTest(localX - child.x(), localY - child.y());
                 if (inner != null) {
                     return inner;
                 }
@@ -3554,22 +3554,22 @@ public final class Table<T> extends Widget implements Scrollable {
     // The four run for every node of every accessible walk and allocate nothing.
 
     @Override
-    protected float clipX(Widget child) {
+    protected float clipX(Widget<?> child) {
         return child == vBar || child == hBar ? 0 : rowsLeft();
     }
 
     @Override
-    protected float clipY(Widget child) {
+    protected float clipY(Widget<?> child) {
         return child == vBar || child == hBar ? 0 : rowsTop();
     }
 
     @Override
-    protected float clipWidth(Widget child) {
+    protected float clipWidth(Widget<?> child) {
         return child == vBar || child == hBar ? width() : gutters.viewportWidth(width());
     }
 
     @Override
-    protected float clipHeight(Widget child) {
+    protected float clipHeight(Widget<?> child) {
         return child == vBar || child == hBar ? height() : rowsViewportHeight();
     }
 
@@ -3801,7 +3801,7 @@ public final class Table<T> extends Widget implements Scrollable {
         nameBuilder.append(text);
     }
 
-    private void appendLabelText(Widget widget) {
+    private void appendLabelText(Widget<?> widget) {
         if (!widget.isVisible()) {
             return;
         }
@@ -3809,7 +3809,7 @@ public final class Table<T> extends Widget implements Scrollable {
             appendText(label.text());
             return;
         }
-        List<Widget> children = widget.children();
+        List<Widget<?>> children = widget.children();
         for (int i = 0; i < children.size(); i++) { // indexed: an iterator is an allocation
             appendLabelText(children.get(i));
         }
@@ -3824,7 +3824,7 @@ public final class Table<T> extends Widget implements Scrollable {
      * node scopes it; no packing of row and column into one number.
      */
     @Override
-    protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+    protected void onAccessibilityChildIdentity(Widget<?> child, Accessibility a) {
         if (child == vBar || child == hBar) {
             return;
         }
@@ -3842,7 +3842,7 @@ public final class Table<T> extends Widget implements Scrollable {
     }
 
     @Override
-    protected void onAccessibilityChild(Widget child, Accessibility a) {
+    protected void onAccessibilityChild(Widget<?> child, Accessibility a) {
         if (child == vBar || child == hBar) {
             return;
         }

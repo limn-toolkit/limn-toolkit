@@ -37,7 +37,7 @@ final class AccessibleWalk {
      * assistive technology costs nothing and one that is detached and re-attached keeps the
      * identifier a client is holding, because it is the same object.
      */
-    private final WeakHashMap<Widget, Long> serials = new WeakHashMap<>();
+    private final WeakHashMap<Widget<?>, Long> serials = new WeakHashMap<>();
 
     private final Accessibility builder = new Accessibility();
 
@@ -53,12 +53,12 @@ final class AccessibleWalk {
      * carries it (decision 55), pushed when the composite is walked and popped when its subtree
      * ends, so the descendant finds its caption when the walk reaches it. Grown once, reused.
      */
-    private Widget[] redirectTargets = new Widget[4];
-    private Widget[] redirectLabels = new Widget[4];
+    private Widget<?>[] redirectTargets = new Widget<?>[4];
+    private Widget<?>[] redirectLabels = new Widget<?>[4];
     private int redirectCount;
 
     /** Per published node: the widget that owns it. Grown once, reused. */
-    private Widget[] owners = new Widget[64];
+    private Widget<?>[] owners = new Widget<?>[64];
     private long[] ids = new long[64];
     /**
      * The key a synthetic node's owner gave it, or the identity key a container gave a widget
@@ -74,7 +74,7 @@ final class AccessibleWalk {
      * §1.5, amended 2026-09-14). Zero and {@code null} on every other node.
      */
     private int[] delegated = new int[64];
-    private Widget[] delegates = new Widget[64];
+    private Widget<?>[] delegates = new Widget<?>[64];
     private int count;
 
     /**
@@ -109,7 +109,7 @@ final class AccessibleWalk {
 
     /** Pairs of (popup node index, opener widget), for the mirror half of a popup relation. */
     private int[] popupNodes = new int[8];
-    private Widget[] popupOpeners = new Widget[8];
+    private Widget<?>[] popupOpeners = new Widget<?>[8];
     private int popupCount;
 
     /** The scene this walk describes, held for the length of a walk so relations can cross it. */
@@ -122,8 +122,8 @@ final class AccessibleWalk {
      * there, the scene the root lives in). Grown once, reused; a few entries at most, because a
      * window has one native popup open at a time and the entry leaves with the popup.
      */
-    private Widget[] foreignOpeners = new Widget[4];
-    private Widget[] foreignRoots = new Widget[4];
+    private Widget<?>[] foreignOpeners = new Widget<?>[4];
+    private Widget<?>[] foreignRoots = new Widget<?>[4];
     private Scene[] foreignScenes = new Scene[4];
     private int foreignCount;
 
@@ -191,7 +191,7 @@ final class AccessibleWalk {
         focusedId = 0;
         redirectCount = 0;
 
-        Widget root = scene.root();
+        Widget<?> root = scene.root();
         if (windowNodeId == 0) {
             windowNodeId = builder.mint();
         }
@@ -230,7 +230,7 @@ final class AccessibleWalk {
         // The layer is the scene's answer and the action gate asks the same method (§1.9 and
         // §1.13, amended 2026-09-15), so what is published operable and what is performed cannot
         // be two readings of the overlay stack.
-        Widget layer = scene.accessibleInputLayer();
+        Widget<?> layer = scene.accessibleInputLayer();
         // VISIBLE and SHOWING are unconditional for a walk of the contents, because a frame is what
         // triggers one and a window that is drawing a frame is on screen. A window-only walk runs
         // at the bind instead, and every popup, menu and dialog is created hidden and bound before
@@ -249,9 +249,9 @@ final class AccessibleWalk {
             return;
         }
         walkWidget(scene, root, null, 0, -1, 0, 0, true, true, layer == root);
-        List<Widget> overlays = scene.overlays();
+        List<Widget<?>> overlays = scene.overlays();
         for (int i = 0; i < overlays.size(); i++) {
-            Widget overlay = overlays.get(i);
+            Widget<?> overlay = overlays.get(i);
             // An overlay's enabled axis is its own subtree's, exactly as the input path reads it:
             // the keyboard's traversal and the pointer start at the layer that owns input and read
             // each widget's own flag from there down, and never climb an overlay's inheritance
@@ -364,7 +364,7 @@ final class AccessibleWalk {
      *         scene; {@code false} when the same mirror was already expected, which is the
      *         answer on every walk of the popup after its first
      */
-    boolean expectMirror(Widget opener, Widget root, Scene home) {
+    boolean expectMirror(Widget<?> opener, Widget<?> root, Scene home) {
         for (int i = 0; i < foreignCount; i++) {
             if (foreignOpeners[i] == opener && foreignRoots[i] == root) {
                 if (foreignScenes[i] == home) {
@@ -433,7 +433,7 @@ final class AccessibleWalk {
      * @param widget a widget of this scene
      * @return its node's identifier, or {@code 0} when the last walk published no node for it
      */
-    long idOfWidget(Widget widget) {
+    long idOfWidget(Widget<?> widget) {
         int index = indexOfWidget(widget);
         return index < 0 ? 0 : ids[index];
     }
@@ -454,7 +454,7 @@ final class AccessibleWalk {
      * @param visible    whether every ancestor is visible
      * @param reachable  whether this subtree is inside the layer that currently owns input
      */
-    private void walkWidget(Scene scene, Widget widget, Widget parent, int into, int parentSlot,
+    private void walkWidget(Scene scene, Widget<?> widget, Widget<?> parent, int into, int parentSlot,
                             long parentId, long scope,
                             boolean enabled, boolean visible, boolean reachable) {
         if (widget.isAccessibleIgnored()) {
@@ -537,10 +537,10 @@ final class AccessibleWalk {
         // caption is sent down the walk and found when that descendant is reached; a widget with
         // a binding of its own keeps its own over one an ancestor sent. Pushed before the
         // subtree is walked and popped at every exit below.
-        Widget label = widget.accessibleLabelledBy();
+        Widget<?> label = widget.accessibleLabelledBy();
         boolean redirected = false;
         if (label != null) {
-            Widget carrier = labelTargetOf(widget);
+            Widget<?> carrier = labelTargetOf(widget);
             if (carrier != widget) {
                 pushRedirect(carrier, label);
                 redirected = true;
@@ -680,10 +680,10 @@ final class AccessibleWalk {
      * confidently wrong name the record refuses to infer, and a walk that throws keeps the
      * previous tree published (the scene dispatches it as an accessibility crash).
      */
-    private static Widget labelTargetOf(Widget widget) {
-        Widget at = widget;
+    private static Widget<?> labelTargetOf(Widget<?> widget) {
+        Widget<?> at = widget;
         for (int hops = 0; hops < 64; hops++) {
-            Widget next = at.accessibleLabelTarget();
+            Widget<?> next = at.accessibleLabelTarget();
             if (next == null || next == at) {
                 return at;
             }
@@ -699,8 +699,8 @@ final class AccessibleWalk {
                 + " redirects its label through a chain that never ends");
     }
 
-    private static boolean isStrictlyBelow(Widget widget, Widget ancestor) {
-        for (Widget at = widget.parent(); at != null; at = at.parent()) {
+    private static boolean isStrictlyBelow(Widget<?> widget, Widget<?> ancestor) {
+        for (Widget<?> at = widget.parent(); at != null; at = at.parent()) {
             if (at == ancestor) {
                 return true;
             }
@@ -708,7 +708,7 @@ final class AccessibleWalk {
         return false;
     }
 
-    private void pushRedirect(Widget carrier, Widget label) {
+    private void pushRedirect(Widget<?> carrier, Widget<?> label) {
         if (redirectCount == redirectTargets.length) {
             int grown = redirectTargets.length * 2;
             redirectTargets = java.util.Arrays.copyOf(redirectTargets, grown);
@@ -720,7 +720,7 @@ final class AccessibleWalk {
     }
 
     /** The caption an ancestor sent down to {@code widget}, or {@code null}; nearest sender wins. */
-    private Widget redirectedLabelFor(Widget widget) {
+    private Widget<?> redirectedLabelFor(Widget<?> widget) {
         for (int i = redirectCount - 1; i >= 0; i--) {
             if (redirectTargets[i] == widget) {
                 return redirectLabels[i];
@@ -729,9 +729,9 @@ final class AccessibleWalk {
         return null;
     }
 
-    private void walkChildren(Scene scene, Widget widget, int into, int ownSlot, long ownId,
+    private void walkChildren(Scene scene, Widget<?> widget, int into, int ownSlot, long ownId,
                               long scope, boolean enabled, boolean visible, boolean reachable) {
-        List<Widget> children = widget.children();
+        List<Widget<?>> children = widget.children();
         for (int i = 0; i < children.size(); i++) {
             walkWidget(scene, children.get(i), widget, into, ownSlot, ownId, scope,
                     enabled, visible, reachable);
@@ -743,7 +743,7 @@ final class AccessibleWalk {
      * @param label  the caption that names it, or {@code null}: its own binding, or one a
      *               composite above it redirected here, decided by the caller
      */
-    private void applyOverrides(Widget widget, Widget label) {
+    private void applyOverrides(Widget<?> widget, Widget<?> label) {
         limn.accessibility.Accessible.Role role = widget.accessibleRole();
         if (role != null) {
             builder.role(role);
@@ -765,7 +765,7 @@ final class AccessibleWalk {
         // The same shape for the description: a bound message's text, read at publish, then the
         // explicit description below if the application wrote one, and the tooltip default after
         // this method only when neither said anything.
-        Widget describer = widget.accessibleDescribedBy();
+        Widget<?> describer = widget.accessibleDescribedBy();
         if (describer != null) {
             limn.i18n.I18nString message = describer.accessibleLabelText();
             if (message != null) {
@@ -795,7 +795,7 @@ final class AccessibleWalk {
      * before the set is touched, so a decorative class never takes a slot in it and the warning it
      * is exempt from stays available to the class that needs it.
      */
-    private static void warnIfItPaints(Widget widget) {
+    private static void warnIfItPaints(Widget<?> widget) {
         if (!widget.paintsItself() || widget.paintsDecoration()) {
             return;
         }
@@ -810,7 +810,7 @@ final class AccessibleWalk {
                 widget.getClass().getName());
     }
 
-    private void warnIfUnnamedRole(Widget widget, boolean focusable) {
+    private void warnIfUnnamedRole(Widget<?> widget, boolean focusable) {
         if (!focusable || builder.hasRole()) {
             return;
         }
@@ -824,7 +824,7 @@ final class AccessibleWalk {
         }
     }
 
-    private void addPopup(int slot, Widget opener) {
+    private void addPopup(int slot, Widget<?> opener) {
         if (popupCount == popupNodes.length) {
             popupNodes = java.util.Arrays.copyOf(popupNodes, popupCount * 2);
             popupOpeners = java.util.Arrays.copyOf(popupOpeners, popupCount * 2);
@@ -835,7 +835,7 @@ final class AccessibleWalk {
     }
 
     /** The serial a widget keeps for as long as it exists. */
-    private long identify(Widget widget) {
+    private long identify(Widget<?> widget) {
         Long known = serials.get(widget);
         if (known != null) {
             return known;
@@ -845,7 +845,7 @@ final class AccessibleWalk {
         return minted;
     }
 
-    private void record(Widget owner, long id, int slot, boolean isSynthetic) {
+    private void record(Widget<?> owner, long id, int slot, boolean isSynthetic) {
         if (slot >= owners.length) {
             int grown = Math.max(slot + 1, owners.length * 2);
             owners = java.util.Arrays.copyOf(owners, grown);
@@ -866,7 +866,7 @@ final class AccessibleWalk {
         }
     }
 
-    private int indexOfWidget(Widget widget) {
+    private int indexOfWidget(Widget<?> widget) {
         for (int i = 0; i < count; i++) {
             if (owners[i] == widget && !synthetic[i]) {
                 return i;
@@ -916,7 +916,7 @@ final class AccessibleWalk {
      * so the relation would say what the tree's own shape says, and it is dropped.
      */
     private long resolve(Accessible.Relation kind, Object target) {
-        if (!(target instanceof Widget widget)) {
+        if (!(target instanceof Widget<?> widget)) {
             return 0;
         }
         if (kind == Accessible.Relation.LABEL_FOR) {
@@ -924,7 +924,7 @@ final class AccessibleWalk {
             // the composite says carries it, so the label's own link lands where the name did.
             widget = labelTargetOf(widget);
         }
-        for (Widget at = widget; at != null;
+        for (Widget<?> at = widget; at != null;
                 at = at.parent() != null ? at.parent() : at.inheritanceHost()) {
             // A step of the climb that lands in another window's scene -- a native popup's root
             // climbing through its inheritance host into the window that opened it, or the
@@ -953,7 +953,7 @@ final class AccessibleWalk {
      * @param nodeId the node's identifier
      * @return its owner, or {@code null} when the identifier names nothing this walk published
      */
-    Widget ownerOf(long nodeId) {
+    Widget<?> ownerOf(long nodeId) {
         int index = indexOfNode(nodeId);
         return index < 0 ? null : owners[index];
     }
@@ -1001,7 +1001,7 @@ final class AccessibleWalk {
      * @param nodeId the node's identifier
      * @return the container, or {@code null} when nothing was delegated on that node
      */
-    Widget delegateOf(long nodeId) {
+    Widget<?> delegateOf(long nodeId) {
         int index = indexOfNode(nodeId);
         return index < 0 ? null : delegates[index];
     }

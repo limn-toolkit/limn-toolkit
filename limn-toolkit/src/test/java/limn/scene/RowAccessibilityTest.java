@@ -136,7 +136,7 @@ class RowAccessibilityTest extends AccessibleTestBase {
      */
     @Test
     void scaffoldingDepthDoesNotReachTheTree() {
-        Widget inner = probe("ok", 40);
+        Widget<?> inner = probe("ok", 40);
         for (int i = 0; i < 9; i++) {
             Row wrapper = new Row();
             wrapper.add(inner);

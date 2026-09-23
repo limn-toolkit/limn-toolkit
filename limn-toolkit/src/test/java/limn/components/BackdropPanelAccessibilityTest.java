@@ -78,7 +78,7 @@ class BackdropPanelAccessibilityTest extends AccessibleComponentTestBase {
      * A leaf with a fixed preferred size and an application-supplied name: a control inside the
      * glass, which is what the panel's deletion has to leave standing.
      */
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         Box(String name) {
             setAccessibleName(name);
         }
@@ -95,9 +95,9 @@ class BackdropPanelAccessibilityTest extends AccessibleComponentTestBase {
      * window node for the hoist to land, so that a test cannot pass by everything collapsing to
      * the root.
      */
-    private static final class Stage extends Widget {
-        Stage(Widget... children) {
-            for (Widget child : children) {
+    private static final class Stage extends Widget<Stage> {
+        Stage(Widget<?>... children) {
+            for (Widget<?> child : children) {
                 add(child);
             }
             setAccessibleName("Stage");

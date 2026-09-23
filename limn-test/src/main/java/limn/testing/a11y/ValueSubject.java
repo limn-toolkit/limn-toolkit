@@ -13,10 +13,10 @@ import limn.scene.Widget;
 public interface ValueSubject {
 
     /** Builds a fresh widget at a value away from both bounds and returns the root to bind. */
-    Widget build();
+    Widget<?> build();
 
     /** @return the widget {@link #build()} made last, whose node or descendant carries the value */
-    Widget widget();
+    Widget<?> widget();
 
     /** @return the number the widget's API says it holds now */
     double value();

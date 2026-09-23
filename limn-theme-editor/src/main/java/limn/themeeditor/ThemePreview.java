@@ -33,7 +33,7 @@ import java.util.Objects;
  * a swatch board with the shapes of a window, held deliberately simple so that a change to
  * a component's paint cannot silently make the preview a lie.
  */
-public final class ThemePreview extends Widget {
+public final class ThemePreview extends Widget<ThemePreview> {
 
     private Theme theme;
 

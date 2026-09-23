@@ -62,7 +62,7 @@ class TableRowsContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             List<Person> people = new ArrayList<>();
             for (int i = 0; i < ROWS; i++) {
                 people.add(new Person("Person " + i, 20 + i));
@@ -80,7 +80,7 @@ class TableRowsContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return table;
         }
 

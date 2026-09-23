@@ -88,7 +88,7 @@ class DamageContractTest extends ComponentTestBase {
      * @param ceiling    the most of the widget any other frame may repaint
      * @param fullFrame  why this gesture legitimately repaints the window, or {@code null}
      */
-    private record Gesture(String name, BiConsumer<Scene, Widget> perform, int skip, float ceiling,
+    private record Gesture(String name, BiConsumer<Scene, Widget<?>> perform, int skip, float ceiling,
                            String fullFrame) {
         Gesture ceiling(float share) {
             return new Gesture(name, perform, skip, share, fullFrame);
@@ -109,7 +109,7 @@ class DamageContractTest extends ComponentTestBase {
      * @param gestures what it answers to; empty only with a reason
      * @param inert    why it has no gesture of its own, or {@code null}
      */
-    private record Row(String name, Supplier<Widget> build, float width, float height,
+    private record Row(String name, Supplier<Widget<?>> build, float width, float height,
                        List<Gesture> gestures, String inert) {
     }
 
@@ -184,18 +184,18 @@ class DamageContractTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
     }
 
-    private static float centreX(Widget w) {
+    private static float centreX(Widget<?> w) {
         return w.localToSceneX() + w.width() / 2;
     }
 
-    private static float centreY(Widget w) {
+    private static float centreY(Widget<?> w) {
         return w.localToSceneY() + w.height() / 2;
     }
 
     // ------------------------------------------------------------------------------ fixtures
 
     /** A widget with a size and nothing else. */
-    private static final class Plain extends Widget {
+    private static final class Plain extends Widget<Plain> {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(40, 20);
@@ -208,29 +208,29 @@ class DamageContractTest extends ComponentTestBase {
                 return count;
             }
 
-            @Override public Widget rowAt(int index) {
+            @Override public Widget<?> rowAt(int index) {
                 return new Label("row " + index);
             }
 
-            @Override public void recycle(Widget widget) {
+            @Override public void recycle(Widget<?> widget) {
             }
         };
     }
 
-    private static <C extends Chart> C chart(C chart) {
+    private static <C extends Chart<?>> C chart(C chart) {
         chart.addSeries(ChartSeries.of("v", 3, 17, 37, 12, 25));
         return chart;
     }
 
-    private static Row natural(String name, Supplier<Widget> build, List<Gesture> gestures) {
+    private static Row natural(String name, Supplier<Widget<?>> build, List<Gesture> gestures) {
         return new Row("limn.components." + name, build, 0, 0, gestures, null);
     }
 
-    private static Row boxed(String name, Supplier<Widget> build, List<Gesture> gestures) {
+    private static Row boxed(String name, Supplier<Widget<?>> build, List<Gesture> gestures) {
         return new Row("limn.components." + name, build, 360, 240, gestures, null);
     }
 
-    private static Row inert(String name, Supplier<Widget> build, String why) {
+    private static Row inert(String name, Supplier<Widget<?>> build, String why) {
         return new Row("limn.components." + name, build, 0, 0, List.of(), why);
     }
 
@@ -328,7 +328,13 @@ class DamageContractTest extends ComponentTestBase {
             new Row("limn.components.chart.LineChart", () -> chart(new LineChart()), 360, 240,
                     List.of(hover().ceiling(0.45f), unhover().ceiling(0.45f)), null),
             new Row("limn.components.date.CalendarView",
-                    () -> new CalendarView().setVisibleMonth(java.time.LocalDate.of(2026, 9, 9)),
+                    // A fixed today: the cursor starts on today when the month shows it, and from
+                    // the 23rd on, RIGHT then DOWN crossed into the next month, whose new page is a
+                    // whole repaint. The test failed by the calendar date, not by the code.
+                    () -> new CalendarView()
+                            .setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-09-09T12:00:00Z"),
+                                    java.time.ZoneOffset.UTC))
+                            .setVisibleMonth(java.time.LocalDate.of(2026, 9, 9)),
                     0, 0, List.of(hover().ceiling(0.1f), focus().ceiling(0.1f),
                             key("RIGHT", Keys.RIGHT).ceiling(0.1f),
                             key("DOWN", Keys.DOWN).ceiling(0.1f), click().ceiling(0.1f)), null),
@@ -465,7 +471,7 @@ class DamageContractTest extends ComponentTestBase {
     }
 
     /** Three 150-point columns over twenty rows: wider and taller than the 360 by 240 box. */
-    private static Widget tableFixture() {
+    private static Widget<?> tableFixture() {
         List<String> rows = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             rows.add("row " + i);
@@ -509,7 +515,7 @@ class DamageContractTest extends ComponentTestBase {
      * notch has somewhere to go. The chain sits below the viewport, so the gestures above the
      * fold see the same rows they always did; MULTI, so the command modifier toggles.
      */
-    private static Widget treeFixture() {
+    private static Widget<?> treeFixture() {
         // Enough rows to fill the 240-point box, so the click at its centre lands on one: a
         // gesture that reaches nothing repaints nothing, and a ceiling over it asserts nothing.
         List<TreeNode> roots = new ArrayList<>();
@@ -543,7 +549,7 @@ class DamageContractTest extends ComponentTestBase {
                     }
 
                     @Override
-                    public Widget cellFor(TreeNode node) {
+                    public Widget<?> cellFor(TreeNode node) {
                         return new Label(node.name());
                     }
                 });
@@ -581,9 +587,9 @@ class DamageContractTest extends ComponentTestBase {
     private AtomicLong nanos;
     private RecordingTestCanvas canvas;
 
-    private Widget mount(Row row) {
-        Widget widget = row.build().get();
-        Widget placed = row.width() > 0 ? new SizedBox(row.width(), row.height(), widget) : widget;
+    private Widget<?> mount(Row row) {
+        Widget<?> widget = row.build().get();
+        Widget<?> placed = row.width() > 0 ? new SizedBox(row.width(), row.height(), widget) : widget;
         // A column, because it places a child at its natural size; a Padding alone would stretch
         // it to the inner box, and a stretched button measures the harness and not the button.
         limn.scene.layout.Column column = new limn.scene.layout.Column();
@@ -624,7 +630,7 @@ class DamageContractTest extends ComponentTestBase {
      * a violation that gesture never committed. Found by backing out a fix and watching an
      * innocent click fail beside the arrow key that had.
      */
-    private void check(Row row, Widget widget, Gesture gesture, List<String> offenders) {
+    private void check(Row row, Widget<?> widget, Gesture gesture, List<String> offenders) {
         gesture.perform().accept(scene, widget);
         float bx = widget.localToSceneX();
         float by = widget.localToSceneY();
@@ -685,9 +691,9 @@ class DamageContractTest extends ComponentTestBase {
     void aMountedWidgetsBarsHaveFadedBeforeTheFirstGesture() {
         Row table = ROWS.stream().filter(r -> r.name().equals("limn.components.table.Table"))
                 .findFirst().orElseThrow();
-        Widget widget = mount(table);
+        Widget<?> widget = mount(table);
         int bars = 0;
-        for (Widget child : widget.children()) {
+        for (Widget<?> child : widget.children()) {
             if (child instanceof ScrollBar bar) {
                 bars++;
                 assertEquals(0f, bar.shownOpacity(), "bar " + bars
@@ -737,7 +743,7 @@ class DamageContractTest extends ComponentTestBase {
             }
             // One mount per row and the gestures in the order written, because the sequence is
             // part of what is tested: the arrows come after the focus they need.
-            Widget widget = mount(row);
+            Widget<?> widget = mount(row);
             for (Gesture gesture : row.gestures()) {
                 check(row, widget, gesture, offenders);
             }

@@ -34,7 +34,7 @@ class ListViewSelectionTest extends ComponentTestBase {
             "fig", "grape", "honeydew");
 
     /** A row a fixed height tall that paints nothing and cannot take the keyboard. */
-    private static final class Cell extends Widget {
+    private static final class Cell extends Widget<Cell> {
         String text;
 
         Cell(String text) {

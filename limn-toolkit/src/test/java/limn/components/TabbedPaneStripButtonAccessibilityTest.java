@@ -117,19 +117,19 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
      * the pane's first four children, in the order its constructor adds them. Used only to compare
      * the tree against a widget's own box, never as a way into a hook.
      */
-    private Widget strip() {
+    private Widget<?> strip() {
         return pane.children().get(0);
     }
 
-    private Widget previous() {
+    private Widget<?> previous() {
         return pane.children().get(1);
     }
 
-    private Widget next() {
+    private Widget<?> next() {
         return pane.children().get(2);
     }
 
-    private Widget all() {
+    private Widget<?> all() {
         return pane.children().get(3);
     }
 
@@ -178,7 +178,7 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
     }
 
     /** Moves the pointer to the centre of a widget's box, as a hover does. */
-    private void hover(Widget widget) {
+    private void hover(Widget<?> widget) {
         drive(scene).mouseMoved(widget.localToSceneX() + widget.width() / 2,
                 widget.localToSceneY() + widget.height() / 2);
         drive(scene).inputBatchEnded();
@@ -279,7 +279,7 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
     void theBoxIsTheSquareThePaneLaidOutAndNotTheSquareTheButtonMeasured() {
         bindTabs(150, SIX);
 
-        for (Widget widget : List.of(previous(), next(), all())) {
+        for (Widget<?> widget : List.of(previous(), next(), all())) {
             AccessibleNode node = node(widget.tooltipSource().get());
             assertEquals(widget.localToSceneX(), node.x(), describe(tree()));
             assertEquals(widget.localToSceneY(), node.y(), describe(tree()));
@@ -550,7 +550,7 @@ class TabbedPaneStripButtonAccessibilityTest extends AccessibleComponentTestBase
         Assumptions.assumeTrue(AllocationProbe.isSupported(),
                 "this virtual machine does not count per-thread allocation");
         bindTabs(SCENE_WIDTH, SIX);
-        Widget chevron = next();
+        Widget<?> chevron = next();
         hover(chevron);
         frame();
 

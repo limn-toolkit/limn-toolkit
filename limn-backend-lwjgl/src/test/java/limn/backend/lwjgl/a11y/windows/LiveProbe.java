@@ -184,7 +184,7 @@ public final class LiveProbe {
                 return true;
             }
             case "drag" -> {
-                for (Widget widget : probe.focusable) {
+                for (Widget<?> widget : probe.focusable) {
                     if (widget instanceof Slider slider) {
                         scene.requestFocus(slider);
                         say("focused the slider");

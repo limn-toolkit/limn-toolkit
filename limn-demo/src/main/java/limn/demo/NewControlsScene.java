@@ -48,7 +48,7 @@ final class NewControlsScene {
     }
 
     /** Reusable subtree (kitchen-sink tab). */
-    static Widget content() {
+    static Widget<?> content() {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -164,7 +164,7 @@ final class NewControlsScene {
         return button;
     }
 
-    private static Widget validated(String label, String value, TextField.Validation state,
+    private static Widget<?> validated(String label, String value, TextField.Validation state,
                                     String iconName, Color color, String message) {
         Column column = new Column();
         column.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);

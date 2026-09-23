@@ -48,7 +48,7 @@ class WidgetChangeChannelTest {
     }
 
     /** A widget with one aspect of its own, announced from one seam, so the channel can be driven. */
-    static final class Probe extends Widget {
+    static final class Probe extends Widget<Probe> {
         private int value;
         private final List<Change.Aspect> handled = new ArrayList<>();
 
@@ -285,7 +285,7 @@ class WidgetChangeChannelTest {
     void aSceneWatcherHearsAnUnboundSceneAndAnOverlay() {
         Probe probe = new Probe();
         Scene scene = new Scene(probe); // never bound to a window: every component test's shape
-        List<Widget> sources = new ArrayList<>();
+        List<Widget<?>> sources = new ArrayList<>();
         scene.observeChanges((source, change) -> {
             if (change.aspect() == Change.Aspect.VALUE) {
                 sources.add(source);
@@ -341,7 +341,7 @@ class WidgetChangeChannelTest {
     void aLayoutPassAnnouncesOneLayoutAtTheRootAndOnlyWhenItRan() {
         Probe root = new Probe();
         Scene scene = new Scene(root);
-        List<Widget> layouts = new ArrayList<>();
+        List<Widget<?>> layouts = new ArrayList<>();
         scene.observeChanges((source, change) -> {
             if (change.aspect() == Change.Aspect.LAYOUT) {
                 assertEquals(Change.Origin.ADJUSTMENT, change.origin());

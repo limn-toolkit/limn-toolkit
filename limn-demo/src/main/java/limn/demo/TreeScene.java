@@ -261,7 +261,7 @@ final class TreeScene {
             }
 
             @Override
-            public Widget cellFor(Node node) {
+            public Widget<?> cellFor(Node node) {
                 // The cell is the application's, and it is an ordinary Row: the tree reserves
                 // the indent and the triangle and hands the rest of the width to this, so an
                 // Expanded in the middle puts the count against the trailing edge.
@@ -310,7 +310,7 @@ final class TreeScene {
         limn.scene.layout.Row treeRow = new limn.scene.layout.Row();
         treeRow.add(new SizedBox(360, 320, tree));
         page.add(treeRow);
-        Widget root = new Padding(Insets.all(24), page);
+        Widget<?> root = new Padding(Insets.all(24), page);
         Scene scene = new Scene(root);
         scene.setBackground(Theme.current().background());
         return new Parts(scene, tree, deep, remote, trash, emptyFolder, docs,

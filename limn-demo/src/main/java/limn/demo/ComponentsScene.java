@@ -87,7 +87,7 @@ final class ComponentsScene {
         Button themeToggle = new Button(lightTheme ? "Switch to dark theme" : "Switch to light theme");
         content.add(themeToggle);
 
-        Widget root = Padding.all(20, content);
+        Widget<?> root = Padding.all(20, content);
         Scene scene = new Scene(root);
         scene.setBackground(Theme.current().background());
         themeToggle.onAction(() -> {

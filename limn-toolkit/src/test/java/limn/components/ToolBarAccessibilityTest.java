@@ -63,7 +63,7 @@ class ToolBarAccessibilityTest extends AccessibleComponentTestBase {
      * A leaf of a fixed size carrying an application-supplied name: an item that is neither a tab
      * stop nor a painter, so that what a case asserts is the bar's and not a button's.
      */
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         private final float w;
         private final float h;
 
@@ -133,9 +133,9 @@ class ToolBarAccessibilityTest extends AccessibleComponentTestBase {
      *
      * @param items what to add, in order
      */
-    private void bindBar(Widget... items) {
+    private void bindBar(Widget<?>... items) {
         bar = new ToolBar();
-        for (Widget item : items) {
+        for (Widget<?> item : items) {
             bar.addItem(item);
         }
         Column root = new Column();
@@ -304,13 +304,13 @@ class ToolBarAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(items.get(0).x() > items.get(2).x(),
                 "and the boxes really did mirror" + describe(tree()));
 
-        Widget[] widgets = {first, second, third};
+        Widget<?>[] widgets = {first, second, third};
         for (int i = 0; i < widgets.length; i++) {
             assertEquals(widgets[i].localToSceneX(), items.get(i).x(), EPS, describe(tree()));
             assertEquals(widgets[i].width(), items.get(i).width(), EPS, describe(tree()));
         }
 
-        for (Widget expected : widgets) {
+        for (Widget<?> expected : widgets) {
             scene.focusTraverse(false);
             assertSame(expected, scene.focusedWidget(),
                     "Tab visits the items in tree order right to left as well");

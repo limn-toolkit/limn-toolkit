@@ -39,7 +39,7 @@ final class SplitPaneScene {
     }
 
     /** Reusable subtree (kitchen-sink tab). */
-    static Widget content() {
+    static Widget<?> content() {
         Column col = new Column();
         col.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
         col.add(new Label("Split pane").setRole(Label.Role.TITLE).setStrong(true));
@@ -64,7 +64,7 @@ final class SplitPaneScene {
         return col;
     }
 
-    private static Widget sidebar() {
+    private static Widget<?> sidebar() {
         List<String> files = List.of(
                 "Main.java", "SplitPane.java", "SplitPaneTest.java", "Theme.java",
                 "ColorPicker.java", "Spinner.java", "ListView.java", "ToolBar.java");
@@ -74,7 +74,7 @@ final class SplitPaneScene {
         return new Panel(new Padding(Insets.all(6), list));
     }
 
-    private static Widget panel(String title, String body) {
+    private static Widget<?> panel(String title, String body) {
         Column col = new Column();
         col.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
         col.add(new Label(title).setStrong(true));
@@ -83,11 +83,11 @@ final class SplitPaneScene {
     }
 
     /** A surface, so each pane reads as a pane rather than as more background. */
-    private static final class Panel extends Widget {
+    private static final class Panel extends Widget<Panel> {
 
-        private final Widget child;
+        private final Widget<?> child;
 
-        Panel(Widget child) {
+        Panel(Widget<?> child) {
             this.child = child;
             add(child);
         }

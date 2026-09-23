@@ -52,7 +52,7 @@ public final class Tokens {
     }
 
     /** @return the spacing for {@code role} at the step resolved on {@code widget} */
-    public static float spacingFor(Widget widget, Role role) {
+    public static float spacingFor(Widget<?> widget, Role role) {
         return spacing(Theme.current().tokensFor(widget), role);
     }
 
@@ -60,7 +60,7 @@ public final class Tokens {
      * Sets {@code flex}'s gap from the step resolved on it. Idempotent ({@code Flex.gap}
      * carries an equality guard), so calling this from a measure path does not loop.
      */
-    public static void applyGap(Flex flex, Role role) {
+    public static void applyGap(Flex<?> flex, Role role) {
         flex.gap(spacingFor(flex, role));
     }
 
@@ -80,7 +80,7 @@ public final class Tokens {
      * 21/22pt pitch at the dense steps, the same sub-24 admission the toggles themselves
      * carry at MEDIUM today.
      */
-    public static float toggleColumnGap(Widget widget) {
+    public static float toggleColumnGap(Widget<?> widget) {
         return Theme.current().tokensFor(widget).toggleColumnGap();
     }
 }

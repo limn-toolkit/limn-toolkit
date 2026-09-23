@@ -71,7 +71,7 @@ import java.util.function.IntConsumer;
  * left and to the right, so the keyboard and the pointer agree; Home and End name the ends of the
  * tab <em>order</em> and stay first and last in both directions.
  */
-public final class TabbedPane extends Widget {
+public final class TabbedPane extends Widget<TabbedPane> {
 
     /**
      * Where the strip sits when the headers are narrower than the pane, named for where it lands
@@ -92,7 +92,7 @@ public final class TabbedPane extends Widget {
     private enum Focus { NONE, HEADER, CONTENT }
 
     private final List<TabHeader> headers = new ArrayList<>();
-    private final List<Widget> contents = new ArrayList<>();
+    private final List<Widget<?>> contents = new ArrayList<>();
     private final TabStrip strip = new TabStrip();
     private final StripButton prevButton = new StripButton(StripButton.Kind.PREV);
     private final StripButton nextButton = new StripButton(StripButton.Kind.NEXT);
@@ -148,12 +148,12 @@ public final class TabbedPane extends Widget {
     }
 
     /** Appends a tab. The first one added is selected. UI thread only. */
-    public TabbedPane addTab(String title, Widget content) {
+    public TabbedPane addTab(String title, Widget<?> content) {
         return addTab(title, null, content);
     }
 
     /** A tab whose caption follows the UI language; see {@link I18nString}. */
-    public TabbedPane addTab(I18nString title, Widget content) {
+    public TabbedPane addTab(I18nString title, Widget<?> content) {
         return addTab(title, null, content);
     }
 
@@ -162,12 +162,12 @@ public final class TabbedPane extends Widget {
      * whichever way the pane reads. <em>Leading</em> is the side reading starts on: the left of
      * the caption left to right, its right in a right-to-left pane.
      */
-    public TabbedPane addTab(String title, Icon icon, Widget content) {
+    public TabbedPane addTab(String title, Icon icon, Widget<?> content) {
         return addTab(title, icon, Icon.Mirroring.NEVER, content);
     }
 
     /** Appends a tab with an icon and a caption that follows the UI language. */
-    public TabbedPane addTab(I18nString title, Icon icon, Widget content) {
+    public TabbedPane addTab(I18nString title, Icon icon, Widget<?> content) {
         return addTab(title, icon, Icon.Mirroring.NEVER, content);
     }
 
@@ -181,14 +181,14 @@ public final class TabbedPane extends Widget {
      *                  {@code NEVER} is one arrow pointing the wrong way, and a wrong
      *                  {@code IN_RTL} is a flipped brand mark
      */
-    public TabbedPane addTab(String title, Icon icon, Icon.Mirroring mirroring, Widget content) {
+    public TabbedPane addTab(String title, Icon icon, Icon.Mirroring mirroring, Widget<?> content) {
         return addTab(I18nString.literal(Objects.requireNonNull(title, "title")),
                 icon, mirroring, content);
     }
 
     /** The icon-mirroring form for a caption that follows the UI language. */
     public TabbedPane addTab(I18nString title, Icon icon, Icon.Mirroring mirroring,
-            Widget content) {
+            Widget<?> content) {
         Ui.checkUiThread();
         Objects.requireNonNull(title, "title");
         Objects.requireNonNull(mirroring, "mirroring");
@@ -426,7 +426,7 @@ public final class TabbedPane extends Widget {
                 // Land in the panel: focus its first focusable descendant, or fall
                 // back to the header so keyboard tab-navigation still works for
                 // panels that have nothing focusable (labels, images).
-                Widget target = firstFocusable(contents.get(index));
+                Widget<?> target = firstFocusable(contents.get(index));
                 if (target != null) {
                     // A descendant the pane does not own: the public, CODE-labelled move is
                     // the only one reachable, and it is the honest label for a focus the pane
@@ -443,15 +443,15 @@ public final class TabbedPane extends Widget {
     }
 
     /** Depth-first search for the first focusable, visible, enabled widget in a subtree. */
-    private static Widget firstFocusable(Widget widget) {
+    private static Widget<?> firstFocusable(Widget<?> widget) {
         if (!widget.isVisible() || !widget.isEnabled()) {
             return null;
         }
         if (widget.isFocusable()) {
             return widget;
         }
-        for (Widget child : widget.children()) {
-            Widget found = firstFocusable(child);
+        for (Widget<?> child : widget.children()) {
+            Widget<?> found = firstFocusable(child);
             if (found != null) {
                 return found;
             }
@@ -794,7 +794,7 @@ public final class TabbedPane extends Widget {
      * @param a     the node being described, which is the child's and never this pane's
      */
     @Override
-    protected void onAccessibilityChild(Widget child, Accessibility a) {
+    protected void onAccessibilityChild(Widget<?> child, Accessibility a) {
         // By identity and not by List#indexOf, which asks equals(): a panel is an application's
         // widget, and two that answered equal to each other would name one of them after the
         // other one's tab.
@@ -845,10 +845,10 @@ public final class TabbedPane extends Widget {
      * paint AND the hit-testing (its own bounds) is what keeps half-visible
      * headers tidy and unreachable outside the viewport.
      */
-    private final class TabStrip extends Widget implements Scrollable {
+    private final class TabStrip extends Widget<TabStrip> implements Scrollable {
 
         /** A header joins the strip; the pane owns the strip's children (ADR 046 §3). */
-        void addHeader(Widget header) {
+        void addHeader(Widget<?> header) {
             add(header);
         }
 
@@ -1049,7 +1049,7 @@ public final class TabbedPane extends Widget {
     }
 
     /** A square strip control: scroll chevron (‹ ›) or the all-tabs list (⌄). */
-    private final class StripButton extends Widget {
+    private final class StripButton extends Widget<StripButton> {
 
         enum Kind { PREV, NEXT, LIST }
 
@@ -1253,7 +1253,7 @@ public final class TabbedPane extends Widget {
     }
 
     /** One clickable/focusable tab in the strip. */
-    private final class TabHeader extends Widget {
+    private final class TabHeader extends Widget<TabHeader> {
         private final I18nString title;
         private final Icon icon;
         private final Icon.Mirroring iconMirroring;

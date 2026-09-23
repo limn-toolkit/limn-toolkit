@@ -30,7 +30,7 @@ import limn.scene.Widget;
  * the step and survives every later step change, and a negative value ({@link #UNSET}) hands
  * the dimension back to the step.
  */
-public final class ProgressBar extends Widget {
+public final class ProgressBar extends Widget<ProgressBar> {
 
     /**
      * Marks a dimension as "follow the step", the {@code SizedBox.UNSET} idiom. Both
@@ -128,12 +128,6 @@ public final class ProgressBar extends Widget {
         Ui.checkUiThread();
         this.thickness = value;
         markNeedsLayout();
-        return this;
-    }
-
-    /** Chaining form of {@link #setControlSize}; {@code setControlSize} is {@code void}. */
-    public ProgressBar withControlSize(ControlSize size) {
-        setControlSize(size);
         return this;
     }
 

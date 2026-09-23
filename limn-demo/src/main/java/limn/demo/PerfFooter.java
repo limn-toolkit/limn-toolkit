@@ -48,7 +48,7 @@ import java.util.Locale;
  * not a reading order — the reason a scrub bar and a clock do not mirror
  * (docs/design/direction-axis.md).
  */
-public final class PerfFooter extends Widget {
+public final class PerfFooter extends Widget<PerfFooter> {
 
     private static final float HEIGHT = 104;
     // Bar-chart window: the last 30 ticks (one per second). The ring holds

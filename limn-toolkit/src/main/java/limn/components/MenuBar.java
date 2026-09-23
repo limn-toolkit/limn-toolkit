@@ -60,7 +60,7 @@ import java.util.Objects;
  * {@link Strokes}, including the bottom rule, the most visible hairline in the toolkit,
  * which stays 1&nbsp;pt at XSMALL and at XLARGE.
  */
-public final class MenuBar extends Widget {
+public final class MenuBar extends Widget<MenuBar> {
 
     /**
      * @param mnemonic the uppercased access letter, or {@code 0} for a title without one
@@ -699,7 +699,7 @@ public final class MenuBar extends Widget {
     private boolean pointOverStrip(float sceneX, float sceneY) {
         float bx = 0;
         float by = 0;
-        for (Widget w = this; w != null; w = w.parent()) {
+        for (Widget<?> w = this; w != null; w = w.parent()) {
             bx += w.x();
             by += w.y();
         }

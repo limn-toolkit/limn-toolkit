@@ -27,7 +27,7 @@ class ScrollOriginTest extends ComponentTestBase {
     private static final float EPS = 1e-3f;
 
     /** Fixed-preferred-size leaf. */
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         private final float prefWidth;
         private final float prefHeight;
 
@@ -187,9 +187,9 @@ class ScrollOriginTest extends ComponentTestBase {
     }
 
     /** The horizontal bar: the one child of the scroller that is not the content or the v-bar. */
-    private static Widget horizontalBarOf(ScrollView scroll) {
-        Widget found = null;
-        for (Widget child : scroll.children()) {
+    private static Widget<?> horizontalBarOf(ScrollView scroll) {
+        Widget<?> found = null;
+        for (Widget<?> child : scroll.children()) {
             if (child instanceof ScrollBar bar && bar != scroll.verticalBar()) {
                 found = bar;
             }

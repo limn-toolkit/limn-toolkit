@@ -53,7 +53,7 @@ class ScrollBarValueContractTest extends ComponentTestBase {
         private Model model;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             model = new Model();
             bar = new ScrollBar(ScrollBar.Orientation.VERTICAL, model);
             Column root = new Column();
@@ -62,7 +62,7 @@ class ScrollBarValueContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return bar;
         }
 

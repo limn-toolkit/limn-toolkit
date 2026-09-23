@@ -28,7 +28,7 @@ class SegmentedControlRowsContractTest extends ComponentTestBase {
         private SegmentedControl control;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             control = new SegmentedControl(NAMES);
             control.setAccessibleName("Period");
             Column root = new Column();
@@ -38,7 +38,7 @@ class SegmentedControlRowsContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return control;
         }
 

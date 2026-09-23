@@ -89,7 +89,7 @@ import java.util.function.Consumer;
  * accepted cost: at XSMALL, prefer a trailing right margin in the surrounding layout if the
  * last column matters.
  */
-public final class TextArea extends Widget {
+public final class TextArea extends Widget<TextArea> {
 
     private static final double BLINK_SECONDS = 0.5;
     /**

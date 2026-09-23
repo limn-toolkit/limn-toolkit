@@ -33,7 +33,7 @@ class ThemeShapeTest extends ComponentTestBase {
     private static final Theme ROUND = Theme.dark().toBuilder().cornerScale(3).build();
 
     /** One of most things the toolkit draws, so the sweep is not one widget's opinion. */
-    private static Widget sampleTree() {
+    private static Widget<?> sampleTree() {
         Column column = new Column();
         column.gap(8).crossAlignment(Flex.CrossAlignment.START);
         column.add(new Button("Action"));
@@ -71,7 +71,7 @@ class ThemeShapeTest extends ComponentTestBase {
     private List<String> boxesUnder(Theme theme, ControlSize step) {
         Theme.setCurrent(theme);
         ControlSize.setProcessDefault(step);
-        Widget root = sampleTree();
+        Widget<?> root = sampleTree();
         Scene scene = new Scene(root);
         scene.setTextRuler(SCALED_RULER);
         scene.layoutPass(600, 4000);
@@ -84,10 +84,10 @@ class ThemeShapeTest extends ComponentTestBase {
         return boxes;
     }
 
-    private static void collect(Widget widget, List<String> into) {
+    private static void collect(Widget<?> widget, List<String> into) {
         into.add(widget.getClass().getSimpleName() + '@' + widget.x() + ',' + widget.y()
                 + ' ' + widget.width() + 'x' + widget.height());
-        for (Widget child : widget.children()) {
+        for (Widget<?> child : widget.children()) {
             collect(child, into);
         }
     }

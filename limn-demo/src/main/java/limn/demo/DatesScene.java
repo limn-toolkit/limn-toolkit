@@ -174,11 +174,11 @@ final class DatesScene {
     }
 
     /** Reusable subtree, so the kitchen sink and the site gallery show the same thing. */
-    static Widget content() {
+    static Widget<?> content() {
         return content(calendarPicker(), grid());
     }
 
-    private static Widget content(DatePicker picker, CalendarView grid) {
+    private static Widget<?> content(DatePicker picker, CalendarView grid) {
         Row row = new Row();
         row.gap(24).crossAlignment(Flex.CrossAlignment.START);
         row.add(fields(picker));
@@ -201,7 +201,7 @@ final class DatesScene {
     }
 
     /** The four shapes, plus the period: what a form actually puts on a screen. */
-    private static Widget fields(DatePicker picker) {
+    private static Widget<?> fields(DatePicker picker) {
         Column column = new Column();
         column.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
         column.add(new Label("Fields and pickers").setRole(Label.Role.TITLE).setStrong(true));
@@ -241,7 +241,7 @@ final class DatesScene {
         return column;
     }
 
-    private static Widget gridColumn(CalendarView calendar) {
+    private static Widget<?> gridColumn(CalendarView calendar) {
         Column column = new Column();
         column.gap(14).crossAlignment(Flex.CrossAlignment.START);
         column.add(new Label("The grid on its own").setRole(Label.Role.TITLE).setStrong(true));

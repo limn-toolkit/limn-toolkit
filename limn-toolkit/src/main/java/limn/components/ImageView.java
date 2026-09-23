@@ -18,7 +18,7 @@ import java.util.Objects;
  * recolored by the tint, so an icon follows the theme). {@link Fit} controls
  * how the image maps into the widget bounds.
  */
-public final class ImageView extends Widget {
+public final class ImageView extends Widget<ImageView> {
 
     public enum Fit {
         /** Scale to fill the box, preserving aspect ratio; may crop. */

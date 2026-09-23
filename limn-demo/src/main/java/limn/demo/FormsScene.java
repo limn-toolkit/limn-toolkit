@@ -75,7 +75,7 @@ final class FormsScene {
      * across the cross axis and would hand either slot the column's full width whatever
      * it measured.
      */
-    private static Widget floorComparison() {
+    private static Widget<?> floorComparison() {
         Row slots = new Row();
         slots.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
         slots.add(new SizedBox(SLOT_WIDTH, SizedBox.UNSET,

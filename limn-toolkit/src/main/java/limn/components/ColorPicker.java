@@ -65,7 +65,7 @@ import java.util.function.Consumer;
  * parts wired to one model, and a subclass would be overriding paint and layout it does
  * not own. Compose one instead.
  */
-public final class ColorPicker extends Widget {
+public final class ColorPicker extends Widget<ColorPicker> {
 
     /**
      * Which numeric model the channel row is showing.
@@ -518,12 +518,12 @@ public final class ColorPicker extends Widget {
      * real geometry: for a control whose whole contract is "the pointer lands on
      * the value it points at", the geometry <em>is</em> the thing under test.
      */
-    Widget rail(int index) {
+    Widget<?> rail(int index) {
         return groups.get(format.ordinal()).tracks.get(index);
     }
 
     /** The alpha rail, for the same reason {@link #rail} is package-private. */
-    Widget alphaRail() {
+    Widget<?> alphaRail() {
         return alphaRail;
     }
 
@@ -532,17 +532,17 @@ public final class ColorPicker extends Widget {
      * to reach to prove the plane did <em>not</em> turn round, and deriving its box from
      * the column's arithmetic would make that assertion one about the column.
      */
-    Widget saturationValueField() {
+    Widget<?> saturationValueField() {
         return field;
     }
 
     /** The hue ramp, for {@link #saturationValueField}'s reason. */
-    Widget hueRamp() {
+    Widget<?> hueRamp() {
         return hueRamp;
     }
 
     /** The before/after swatch, for {@link #saturationValueField}'s reason. */
-    Widget preview() {
+    Widget<?> preview() {
         return preview;
     }
 
@@ -1092,7 +1092,7 @@ public final class ColorPicker extends Widget {
      * thing to miss. Height is what a pointer has least of here: every rail has
      * another one a few points above and below it.
      */
-    private abstract class Rail extends Widget {
+    private abstract class Rail extends Widget<Rail> {
 
         private boolean dragging;
         private final Transition focusFade =
@@ -1557,7 +1557,7 @@ public final class ColorPicker extends Widget {
      * {@link Rail}'s loop, and the pair reads better side by side than one of them
      * would inlined.
      */
-    private boolean trackVertical(Widget ramp, MouseEvent event, boolean dragging,
+    private boolean trackVertical(Widget<?> ramp, MouseEvent event, boolean dragging,
                                   Consumer<Float> apply) {
         switch (event.type()) {
             case PRESS, DRAG -> {
@@ -1583,7 +1583,7 @@ public final class ColorPicker extends Widget {
     }
 
     /** Fills whatever the layout gives it; the fallbacks only matter unbounded. */
-    private abstract static class Painted extends Widget {
+    private abstract static class Painted extends Widget<Painted> {
         @Override
         protected Size onMeasure(Constraints constraints) {
             SizeTokens t = Theme.of(this).tokensFor(this);

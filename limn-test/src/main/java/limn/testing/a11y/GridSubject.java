@@ -14,10 +14,10 @@ import java.util.List;
 public interface GridSubject {
 
     /** Builds the widget in a fresh root and returns the root. */
-    Widget build();
+    Widget<?> build();
 
     /** The widget itself, which holds the keyboard when focused. */
-    Widget widget();
+    Widget<?> widget();
 
     /** The header cells' names, in column order. */
     List<String> columnNames();

@@ -46,7 +46,7 @@ class VisibilityDamageTest extends ComponentTestBase {
     private final List<Rect> passes = new ArrayList<>();
     private boolean anyFullFrame;
 
-    private void mount(Widget root) {
+    private void mount(Widget<?> root) {
         nanos = new AtomicLong();
         scene = new Scene(new Padding(Insets.all(40), root), nanos::get);
         scene.setTextRuler(RULER);
@@ -85,7 +85,7 @@ class VisibilityDamageTest extends ComponentTestBase {
         throw new AssertionError("the gesture never settled");
     }
 
-    private static Rect sceneBox(Widget w) {
+    private static Rect sceneBox(Widget<?> w) {
         return new Rect(w.localToSceneX(), w.localToSceneY(), w.width(), w.height());
     }
 
@@ -129,7 +129,7 @@ class VisibilityDamageTest extends ComponentTestBase {
         Button save = new Button("Save");
         Column form = new Column();
         form.gap(8).crossAlignment(Flex.CrossAlignment.STRETCH);
-        for (Widget w : List.of(nameCaption, name, emailCaption, email, advanced, notesCaption,
+        for (Widget<?> w : List.of(nameCaption, name, emailCaption, email, advanced, notesCaption,
                 notes, save)) {
             form.add(w);
         }

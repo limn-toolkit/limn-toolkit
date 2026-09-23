@@ -39,7 +39,7 @@ final class ColorPickerScene {
         return scene;
     }
 
-    static Widget content() {
+    static Widget<?> content() {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
@@ -73,7 +73,7 @@ final class ColorPickerScene {
     }
 
     /** The well, and a label that follows whatever it answers. */
-    private static Widget swatchRow() {
+    private static Widget<?> swatchRow() {
         Label chosen = new Label("");
         ColorPickerButton well = new ColorPickerButton(Color.rgb(0xF59E0B));
         well.setAlphaEnabled(false);

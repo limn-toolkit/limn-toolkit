@@ -128,7 +128,7 @@ public final class Dialog {
     private final TokenColumn body;
     private final ScrollView bodyScroll;
     private final ActionRow buttonRow;
-    private Widget custom;
+    private Widget<?> custom;
     private final CompletableFuture<String> result = new CompletableFuture<>();
 
     private DisplayMode displayMode = DisplayMode.NATIVE_WINDOW;
@@ -158,7 +158,7 @@ public final class Dialog {
     // Where the card's step is inherited from, when the tree cannot say: the widget passed
     // to a show(Widget) overload, else the owner scene's root. Installed as a host link on
     // the parentless root of the card's subtree at presentation time.
-    private Widget inheritanceHost;
+    private Widget<?> inheritanceHost;
 
     // In-scene presentation state (null when native-window / headless).
     private Scene hostScene;
@@ -224,7 +224,7 @@ public final class Dialog {
      * <p>The widget inherits the card's {@link ControlSize} like everything else in
      * it. Passing {@code null} removes the current one. UI thread only.
      */
-    public Dialog setContent(Widget widget) {
+    public Dialog setContent(Widget<?> widget) {
         Ui.checkUiThread();
         if (custom != null) {
             body.remove(custom);
@@ -412,7 +412,7 @@ public final class Dialog {
     }
 
     /** The panel widget tree; headless tests drive it directly (buttons/ESC/resolve). */
-    Widget contentRoot() {
+    Widget<?> contentRoot() {
         return panel;
     }
 
@@ -469,7 +469,7 @@ public final class Dialog {
      *
      * @throws IllegalStateException if {@code owner} is not in a scene, or the dialog was already shown
      */
-    public CompletionStage<String> show(Widget owner) {
+    public CompletionStage<String> show(Widget<?> owner) {
         Scene scene = adoptSizeHost(owner);
         return displayMode == DisplayMode.IN_SCENE
                 ? presentInScene(scene, false)
@@ -477,7 +477,7 @@ public final class Dialog {
     }
 
     /** {@link #showToolkitModal(Scene)}, inheriting the size step from {@code owner}. */
-    public CompletionStage<String> showToolkitModal(Widget owner) {
+    public CompletionStage<String> showToolkitModal(Widget<?> owner) {
         Scene scene = adoptSizeHost(owner);
         return displayMode == DisplayMode.IN_SCENE
                 ? presentInScene(scene, true)
@@ -485,7 +485,7 @@ public final class Dialog {
     }
 
     /** {@link #showNonModal(Scene)}, inheriting the size step from {@code owner}. */
-    public CompletionStage<String> showNonModal(Widget owner) {
+    public CompletionStage<String> showNonModal(Widget<?> owner) {
         Scene scene = adoptSizeHost(owner);
         if (displayMode == DisplayMode.IN_SCENE) {
             throw new IllegalStateException(
@@ -496,7 +496,7 @@ public final class Dialog {
     }
 
     /** Records {@code owner} as the size-inheritance host and returns the scene to present in. */
-    private Scene adoptSizeHost(Widget owner) {
+    private Scene adoptSizeHost(Widget<?> owner) {
         Objects.requireNonNull(owner, "owner");
         Scene scene = owner.scene();
         if (scene == null) {
@@ -511,7 +511,7 @@ public final class Dialog {
      * The widget the card's inherited axes resolve through when its own root is parentless:
      * whatever a {@code show(Widget)} overload recorded, else the owner scene's root.
      */
-    private Widget inheritanceHostFor(Scene owner) {
+    private Widget<?> inheritanceHostFor(Scene owner) {
         return inheritanceHost != null ? inheritanceHost : owner.root();
     }
 
@@ -890,7 +890,7 @@ public final class Dialog {
          * @param a     that button's node
          */
         @Override
-        protected void onAccessibilityChild(Widget child, Accessibility a) {
+        protected void onAccessibilityChild(Widget<?> child, Accessibility a) {
             if (child == defaultButton) {
                 a.state(Accessible.State.DEFAULT);
             }
@@ -924,12 +924,12 @@ public final class Dialog {
      * <p>The gutter is {@code spacingMedium}, the same token the body's own column carries, so
      * title → message → content → buttons reads as one rhythm however the card is split.
      */
-    private final class CardColumn extends Widget {
+    private final class CardColumn extends Widget<CardColumn> {
 
         private final ScrollView scroll;
-        private final Widget footer;
+        private final Widget<?> footer;
 
-        CardColumn(ScrollView scroll, Widget footer) {
+        CardColumn(ScrollView scroll, Widget<?> footer) {
             this.scroll = scroll;
             this.footer = footer;
             add(scroll);
@@ -987,13 +987,13 @@ public final class Dialog {
      * {@code Token*} containers below it, each resolving its own step inside its own measure,
      * so the push stays correct at any depth and however the tree is rebuilt.
      */
-    private final class DialogPanel extends Widget {
-        private final Widget child;
+    private final class DialogPanel extends Widget<DialogPanel> {
+        private final Widget<?> child;
         private boolean dragging;
         private float grabX;
         private float grabY;
 
-        DialogPanel(Widget child) {
+        DialogPanel(Widget<?> child) {
             this.child = child;
             add(child);
         }
@@ -1242,10 +1242,10 @@ public final class Dialog {
      * A press on the scrim (outside the card) dismisses when
      * {@linkplain #setDismissOnScrim enabled}.
      */
-    private final class SceneOverlay extends Widget {
-        private final Widget card;
+    private final class SceneOverlay extends Widget<SceneOverlay> {
+        private final Widget<?> card;
 
-        SceneOverlay(Widget card) {
+        SceneOverlay(Widget<?> card) {
             this.card = card;
             add(card);
         }

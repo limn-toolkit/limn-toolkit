@@ -174,7 +174,7 @@ public final class ReaderDriver {
      * @param focused the widget holding the keyboard afterwards, or {@code null}
      * @return {@code --- step N KEYS - label focus=Widget}
      */
-    public static String stepLine(int number, Step step, Widget focused) {
+    public static String stepLine(int number, Step step, Widget<?> focused) {
         return "--- step " + number + " " + step.keys() + " - " + step.label() + " focus="
                 + (focused == null ? "none" : focused.getClass().getSimpleName());
     }
@@ -266,7 +266,7 @@ public final class ReaderDriver {
         });
     }
 
-    private static String describe(Widget widget) {
+    private static String describe(Widget<?> widget) {
         return widget == null ? "none" : widget.getClass().getSimpleName();
     }
 }

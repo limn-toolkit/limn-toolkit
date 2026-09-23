@@ -25,7 +25,7 @@ import java.util.function.DoubleFunction;
 public final class ChartAxis {
 
     /** Set by the chart that owns this axis, so a setter can repaint it. */
-    Chart owner;
+    Chart<?> owner;
 
     private Double min;
     private Double max;

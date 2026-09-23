@@ -58,7 +58,7 @@ class SeparatorAccessibilityTest extends AccessibleComponentTestBase {
      * A leaf with a fixed preferred size and an application-supplied name: the groups on either
      * side of the rule, and the neighbours whose order the separator has to sit between.
      */
-    private static final class Box extends Widget {
+    private static final class Box extends Widget<Box> {
         Box(String name) {
             setAccessibleName(name);
         }
@@ -70,7 +70,7 @@ class SeparatorAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     private Separator separator;
-    private Widget container;
+    private Widget<?> container;
 
     /** Every record the walk logged while a test was running; see the class comment. */
     private final List<LogRecord> logged = new ArrayList<>();

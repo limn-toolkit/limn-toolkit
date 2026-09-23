@@ -87,7 +87,7 @@ class TokenBoxAccessibilityTest extends AccessibleComponentTestBase {
      * something inside the box that survives the predicate, so the rectangle the box leaves behind
      * has a node to be read from, and so a fixed axis can be seen overriding a real preference.
      */
-    private static final class Box extends limn.scene.layout.Container {
+    private static final class Box extends limn.scene.layout.Container<Box> {
         Box() {
             setAccessibleName("content");
         }

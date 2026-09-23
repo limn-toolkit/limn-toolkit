@@ -37,7 +37,7 @@ class PopupMenuMenuContractTest extends ComponentTestBase {
         private PopupMenu popup;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             chosen.clear();
             toggled.clear();
             Menu menu = new Menu()
@@ -62,7 +62,7 @@ class PopupMenuMenuContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             // The capture layer, focusable from its constructor and focused for the whole life
             // of the cascade: what the scene says holds the keyboard once the popup is open.
             return anchor.scene().focusedWidget();

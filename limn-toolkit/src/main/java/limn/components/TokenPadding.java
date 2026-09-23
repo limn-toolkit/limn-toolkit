@@ -19,12 +19,12 @@ public class TokenPadding extends Padding {
     private final Tokens.Role role;
 
     /** Page padding at {@code spacingLarge}. */
-    public TokenPadding(Widget child) {
+    public TokenPadding(Widget<?> child) {
         this(Tokens.Role.LARGE, child);
     }
 
     /** Padding that follows {@code role} at the resolved size step. */
-    public TokenPadding(Tokens.Role role, Widget child) {
+    public TokenPadding(Tokens.Role role, Widget<?> child) {
         super(Insets.NONE, child);
         this.role = Objects.requireNonNull(role, "role");
     }

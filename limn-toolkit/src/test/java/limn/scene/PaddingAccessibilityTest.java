@@ -72,7 +72,7 @@ class PaddingAccessibilityTest extends AccessibleTestBase {
 
     @Test
     void scaffoldingDepthDoesNotReachTheTree() {
-        Widget root = new Probe(Accessible.Role.BUTTON, "ok");
+        Widget<?> root = new Probe(Accessible.Role.BUTTON, "ok");
         for (int i = 0; i < 10; i++) {
             root = new Padding(ASYMMETRIC, root);
         }

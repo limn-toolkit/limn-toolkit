@@ -105,7 +105,7 @@ class ComboBoxMirroringTest extends ComponentTestBase {
      * A root that gives the combo a box narrower than the scene, at a known x, so that a list
      * hung from one of the field's edges is distinguishable from a list hung from the scene's.
      */
-    private static final class Anchor extends Widget {
+    private static final class Anchor extends Widget<Anchor> {
 
         private final ComboBox child;
 

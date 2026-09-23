@@ -30,8 +30,8 @@ class TabbedPaneFocusTest extends ComponentTestBase {
     private Scene scene;
 
     /** The header of tab {@code index} (headers are the strip's children, in order). */
-    private Widget headerOf(int index) {
-        Widget strip = tabs.children().get(0);
+    private Widget<?> headerOf(int index) {
+        Widget<?> strip = tabs.children().get(0);
         return strip.children().get(index);
     }
 
@@ -88,7 +88,7 @@ class TabbedPaneFocusTest extends ComponentTestBase {
     void chevronScrollFollowsTheStepAtEveryStep() {
         for (ControlSize step : ControlSize.values()) {
             build(30, step);
-            Widget strip = tabs.children().get(0);
+            Widget<?> strip = tabs.children().get(0);
             assertTrue(strip.width() >= strip.height(),
                     step + ": the viewport never collapses under the controls");
             float before = headerOf(0).x();

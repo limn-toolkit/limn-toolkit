@@ -30,7 +30,7 @@ class ToolBarTest extends ComponentTestBase {
     private static final float GAP = MEDIUM.toolBarGap();   // 8
 
     /** A fixed-size stand-in, so the assertions are about the bar and not about a Button. */
-    private static final class Block extends Widget {
+    private static final class Block extends Widget<Block> {
         private final float w;
         private final float h;
 
@@ -62,9 +62,9 @@ class ToolBarTest extends ComponentTestBase {
     private ToolBar bar;
     private Scene scene;
 
-    private void build(Widget... items) {
+    private void build(Widget<?>... items) {
         bar = new ToolBar();
-        for (Widget item : items) {
+        for (Widget<?> item : items) {
             bar.addItem(item);
         }
         scene = new Scene(bar);

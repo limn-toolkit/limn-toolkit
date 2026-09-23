@@ -112,11 +112,11 @@ final class IconsScene {
         return scene;
     }
 
-    static Widget content() {
+    static Widget<?> content() {
         return content("");
     }
 
-    static Widget content(String query) {
+    static Widget<?> content(String query) {
         Icons icons = new Icons();
         // Pooled, so scrolling a five-thousand-row catalogue stops allocating: a row that scrolls
         // out is bound to the next icon that scrolls in.

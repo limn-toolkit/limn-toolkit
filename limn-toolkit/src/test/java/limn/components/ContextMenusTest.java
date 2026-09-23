@@ -29,7 +29,7 @@ import static limn.testing.SceneDriver.drive;
 class ContextMenusTest extends ComponentTestBase {
 
     /** Fills whatever it is given, and optionally eats the right press the way a real widget does. */
-    private static final class Region extends Widget {
+    private static final class Region extends Widget<Region> {
         final AtomicInteger presses = new AtomicInteger();
         boolean eatsRightPress;
 
@@ -86,7 +86,7 @@ class ContextMenusTest extends ComponentTestBase {
     @Test
     void theWrapperIsInvisibleToLayout() {
         Region content = new Region();
-        Widget attached = ContextMenus.attach(content, Menu::new);
+        Widget<?> attached = ContextMenus.attach(content, Menu::new);
         Scene scene = new Scene(attached);
         scene.setTextRuler(RULER);
         scene.layoutPass(300, 200);

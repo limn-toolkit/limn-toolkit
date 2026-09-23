@@ -54,7 +54,7 @@ public final class ChartSeries {
 
     // ---- animation state, owned by the chart --------------------------------
     /** The chart this series was added to; {@code null} while it is unattached. */
-    Chart owner;
+    Chart<?> owner;
     /**
      * Where the current animation started, per index; {@code null} means "start from the
      * chart's baseline", which is what makes the first appearance grow out of the axis

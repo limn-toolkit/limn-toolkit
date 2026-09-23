@@ -1,7 +1,7 @@
 package limn.scene.layout;
 
 /** Horizontal {@link Flex}: children flow left to right. */
-public class Row extends Flex {
+public class Row extends Flex<Row> {
 
     /** An empty row laying children out left to right. */
     public Row() {

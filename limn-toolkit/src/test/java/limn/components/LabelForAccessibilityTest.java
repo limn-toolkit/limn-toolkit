@@ -189,7 +189,7 @@ class LabelForAccessibilityTest extends AccessibleComponentTestBase {
     private static final class Composite extends Column {
         final TextField field = new TextField();
         final Button button = new Button("Open");
-        Widget carrier = field;
+        Widget<?> carrier = field;
 
         Composite() {
             add(field);
@@ -197,7 +197,7 @@ class LabelForAccessibilityTest extends AccessibleComponentTestBase {
         }
 
         @Override
-        protected Widget accessibleLabelTarget() {
+        protected Widget<?> accessibleLabelTarget() {
             return carrier;
         }
     }
@@ -289,7 +289,7 @@ class LabelForAccessibilityTest extends AccessibleComponentTestBase {
         Composite inner = new Composite();
         Column outer = new Column() {
             @Override
-            protected Widget accessibleLabelTarget() {
+            protected Widget<?> accessibleLabelTarget() {
                 return inner;
             }
         };

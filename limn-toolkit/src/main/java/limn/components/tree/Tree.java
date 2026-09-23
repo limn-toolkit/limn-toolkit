@@ -91,7 +91,7 @@ import java.util.function.Consumer;
  * still owes it is the three platforms carrying those numbers, and the disclosure attributes
  * VoiceOver reads an outline row by.
  */
-public final class Tree<T> extends Widget implements Scrollable {
+public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * What the tree asks the application about its own data.
@@ -152,10 +152,10 @@ public final class Tree<T> extends Widget implements Scrollable {
          * @return the widget that draws it, populated and ready. May be an instance kept from
          *         {@link #recycle}.
          */
-        Widget cellFor(T node);
+        Widget<?> cellFor(T node);
 
         /** The tree scrolled {@code cell} out of view; pool it for reuse if you like. */
-        default void recycle(Widget cell) {
+        default void recycle(Widget<?> cell) {
         }
 
         /**
@@ -258,7 +258,7 @@ public final class Tree<T> extends Widget implements Scrollable {
      * children are on their way; "Empty" under an open row that holds nothing, so an open
      * triangle over nothing does not read as a row that never loaded (decision 45).
      */
-    private static Widget lineUnderRow(boolean loading) {
+    private static Widget<?> lineUnderRow(boolean loading) {
         limn.components.Label line = new limn.components.Label(
                 loading ? TreeStrings.LOADING : TreeStrings.EMPTY);
         line.setMuted(true);
@@ -328,7 +328,7 @@ public final class Tree<T> extends Widget implements Scrollable {
      * and is why they are mounted by position rather than appended (see {@code ListView}).
      */
     private int[] mountedRows = new int[16];
-    private Widget[] mountedCells = new Widget[16];
+    private Widget<?>[] mountedCells = new Widget<?>[16];
     /**
      * The node each mounted cell draws. A row index is only an address until the rows move, and
      * opening, closing or loading a row moves every row below it; this is what lets a cell follow
@@ -352,7 +352,7 @@ public final class Tree<T> extends Widget implements Scrollable {
      * a collapse that released its cells on the spot repainted the window for one gesture on
      * one widget, which the damage ratchet's LEFT caught (2026-09-14).
      */
-    private final List<Widget> orphanCells = new ArrayList<>();
+    private final List<Widget<?>> orphanCells = new ArrayList<>();
     private final List<Object> orphanKeys = new ArrayList<>();
 
     /** The half-open run of rows the last pass laid out, which is what a recycle keeps. */
@@ -949,7 +949,7 @@ public final class Tree<T> extends Widget implements Scrollable {
         int kept = 0;
         int last = -1;
         for (int i = 0; i < mountedCount; i++) {
-            Widget cell = mountedCells[i];
+            Widget<?> cell = mountedCells[i];
             if (now[i] <= last) { // gone, or moved against the traversal
                 orphanCells.add(cell); // released by the next pass, never here (see the field)
                 orphanKeys.add(mountedNodes[i]);
@@ -1968,7 +1968,7 @@ public final class Tree<T> extends Widget implements Scrollable {
         int i = anchorIndex;
         while (i < count && y < viewport) {
             float rowH = measuredHeight(i, contentWidth);
-            Widget cell = cellFor(i);
+            Widget<?> cell = cellFor(i);
             float lead = cellLeft(t, i, contentWidth);
             float cellW = Math.max(0, contentWidth - lead);
             cell.layoutBox(cellX(rowX, viewW, lead, cellW, rtl), y, cellW, rowH);
@@ -2000,7 +2000,7 @@ public final class Tree<T> extends Widget implements Scrollable {
 
     private float measuredHeight(int index, float w) {
         SizeTokens t = tokens();
-        Widget cell = cellFor(index);
+        Widget<?> cell = cellFor(index);
         if (cell == null) {
             Row<T> row = rows.get(index);
             cell = row.placeholder ? lineUnderRow(row.loading)
@@ -2013,7 +2013,7 @@ public final class Tree<T> extends Widget implements Scrollable {
                 .height();
     }
 
-    private Widget cellFor(int index) {
+    private Widget<?> cellFor(int index) {
         for (int i = 0; i < mountedCount; i++) {
             if (mountedRows[i] == index) {
                 return mountedCells[i];
@@ -2027,7 +2027,7 @@ public final class Tree<T> extends Widget implements Scrollable {
      * and {@code children()} in traversal order — which is reading order and Tab order, and is
      * not the order an upward scroll realizes rows in.
      */
-    private void mount(int index, Widget cell) {
+    private void mount(int index, Widget<?> cell) {
         int at = 0;
         while (at < mountedCount && mountedRows[at] < index) {
             at++;
@@ -2063,7 +2063,7 @@ public final class Tree<T> extends Widget implements Scrollable {
         boolean keepCursor = cursor != null && isFocused();
         for (int i = 0; i < mountedCount; i++) {
             int row = mountedRows[i];
-            Widget cell = mountedCells[i];
+            Widget<?> cell = mountedCells[i];
             boolean inRun = row >= from && row < toExclusive;
             boolean hasFocus = !inRun && containsFocus(cell);
             boolean isCursor = !inRun && keepCursor && row < count
@@ -2089,7 +2089,7 @@ public final class Tree<T> extends Widget implements Scrollable {
     /** Releases the cells whose rows vanished since the last pass; see {@link #orphanCells}. */
     private void releaseOrphans() {
         for (int i = 0; i < orphanCells.size(); i++) {
-            Widget cell = orphanCells.get(i);
+            Widget<?> cell = orphanCells.get(i);
             unmount(cell, orphanKeys.get(i), containsFocus(cell));
         }
         orphanCells.clear();
@@ -2100,7 +2100,7 @@ public final class Tree<T> extends Widget implements Scrollable {
      * Takes a cell out of the tree and hands it back to the model, bringing the keyboard focus
      * back to the tree when it was inside, so a row that leaves does not take the focus with it.
      */
-    private void unmount(Widget cell, Object key, boolean hadFocus) {
+    private void unmount(Widget<?> cell, Object key, boolean hadFocus) {
         remove(cell);
         if (!(key instanceof LineKey)) {
             model.recycle(cell); // a line under a row is the tree's, and the model never built it
@@ -2111,9 +2111,9 @@ public final class Tree<T> extends Widget implements Scrollable {
     }
 
     /** Whether the keyboard focus is inside {@code cell}; the list's own test, for its reason. */
-    private boolean containsFocus(Widget cell) {
-        Widget focused = scene() != null ? scene().focusedWidget() : null;
-        for (Widget w = focused; w != null; w = w.parent()) {
+    private boolean containsFocus(Widget<?> cell) {
+        Widget<?> focused = scene() != null ? scene().focusedWidget() : null;
+        for (Widget<?> w = focused; w != null; w = w.parent()) {
             if (w == cell) {
                 return true;
             }
@@ -2154,7 +2154,7 @@ public final class Tree<T> extends Widget implements Scrollable {
             if (row >= placedFrom && row < placedTo) {
                 continue;
             }
-            Widget cell = mountedCells[i];
+            Widget<?> cell = mountedCells[i];
             float rowH = measuredHeight(row, contentWidth);
             float lead = cellLeft(t, row, contentWidth);
             float cellW = Math.max(0, contentWidth - lead);
@@ -2221,7 +2221,7 @@ public final class Tree<T> extends Widget implements Scrollable {
         }
         anchorTop -= applied;
         for (int i = 0; i < mountedCount; i++) {
-            Widget cell = mountedCells[i];
+            Widget<?> cell = mountedCells[i];
             moveChild(cell, cell.x(), cell.y() - applied);
         }
         markNeedsContainedLayout();
@@ -2276,7 +2276,7 @@ public final class Tree<T> extends Widget implements Scrollable {
         offsetX = next;
         float sign = isRightToLeft() ? 1 : -1;
         for (int i = 0; i < mountedCount; i++) {
-            Widget cell = mountedCells[i];
+            Widget<?> cell = mountedCells[i];
             moveChild(cell, cell.x() + sign * applied, cell.y());
         }
         markNeedsContainedLayout();
@@ -2338,7 +2338,7 @@ public final class Tree<T> extends Widget implements Scrollable {
             return;
         }
         SizeTokens t = tokens();
-        Widget cell = cellFor(index);
+        Widget<?> cell = cellFor(index);
         if (cell != null && cell.y() + cell.height() > 0 && cell.y() < viewportHeight()) {
             // Nothing moves until a pass settles a deferred reveal, so this box is where the row
             // stands; the later reveal is the one kept (End then Home in one batch ends on top).
@@ -2383,7 +2383,7 @@ public final class Tree<T> extends Widget implements Scrollable {
             return;
         }
         int index = indexOf(node);
-        Widget cell = index < 0 ? null : cellFor(index);
+        Widget<?> cell = index < 0 ? null : cellFor(index);
         if (cell == null) {
             return;
         }
@@ -2400,7 +2400,7 @@ public final class Tree<T> extends Widget implements Scrollable {
      * spinner ticks and bar fades included, and the rows can number thousands where the mounted
      * slots are a screenful.
      */
-    private Widget mountedCellOf(T node) {
+    private Widget<?> mountedCellOf(T node) {
         for (int i = 0; i < mountedCount; i++) {
             int index = mountedRows[i];
             if (index < rows.size()) {
@@ -2695,7 +2695,7 @@ public final class Tree<T> extends Widget implements Scrollable {
 
     private int rowAtLocalY(float localY) {
         for (int i = 0; i < mountedCount; i++) {
-            Widget cell = mountedCells[i];
+            Widget<?> cell = mountedCells[i];
             if (localY >= cell.y() && localY < cell.y() + cell.height()) {
                 return mountedRows[i];
             }
@@ -2704,12 +2704,12 @@ public final class Tree<T> extends Widget implements Scrollable {
     }
 
     @Override
-    public Widget hitTest(float localX, float localY) {
+    public Widget<?> hitTest(float localX, float localY) {
         if (!isVisible() || !isEnabled()
                 || localX < 0 || localY < 0 || localX >= width() || localY >= height()) {
             return null;
         }
-        Widget barHit = vBar.hitTest(localX - vBar.x(), localY - vBar.y());
+        Widget<?> barHit = vBar.hitTest(localX - vBar.x(), localY - vBar.y());
         if (barHit == null) {
             barHit = hBar.hitTest(localX - hBar.x(), localY - hBar.y());
         }
@@ -2726,11 +2726,11 @@ public final class Tree<T> extends Widget implements Scrollable {
         if (index >= 0 && rows.get(index).expandable && overTwisty(localX, index)) {
             return this; // the triangle is the tree's, not the cell's
         }
-        for (Widget child : children()) {
+        for (Widget<?> child : children()) {
             if (child == vBar || child == hBar || slotOfCell(child) < 0) {
                 continue; // the bars were asked above; a cell awaiting release is nobody's row
             }
-            Widget hit = child.hitTest(localX - child.x(), localY - child.y());
+            Widget<?> hit = child.hitTest(localX - child.x(), localY - child.y());
             if (hit != null) {
                 return hit;
             }
@@ -2762,7 +2762,7 @@ public final class Tree<T> extends Widget implements Scrollable {
             canvas.clipRect(viewportLeft(), 0, gutters.viewportWidth(width()), viewH);
             for (int i = 0; i < mountedCount; i++) {
                 int index = mountedRows[i];
-                Widget cell = mountedCells[i];
+                Widget<?> cell = mountedCells[i];
                 if (cell.y() >= viewH || cell.y() + cell.height() <= 0) {
                     continue; // the focused row a scroll spared
                 }
@@ -2817,7 +2817,7 @@ public final class Tree<T> extends Widget implements Scrollable {
         if (cursor == null || !isFocused()) {
             return;
         }
-        Widget cell = mountedCellOf(cursor);
+        Widget<?> cell = mountedCellOf(cursor);
         if (cell == null || cell.y() >= viewH || cell.y() + cell.height() <= 0) {
             return; // not a row, or the cursor row the tree keeps realized outside the box
         }
@@ -2836,7 +2836,7 @@ public final class Tree<T> extends Widget implements Scrollable {
      * The disclosure triangle: the combo box's caret, turned a quarter. Half-height is half the
      * half-width at every step, so the angle is invariant and only the gutter changes size.
      */
-    private void paintTwisty(Canvas canvas, Theme theme, SizeTokens t, Row<T> row, Widget cell) {
+    private void paintTwisty(Canvas canvas, Theme theme, SizeTokens t, Row<T> row, Widget<?> cell) {
         float halfW = t.chevronHalfW();
         float halfH = halfW / 2;
         float band = twistyBand(t);
@@ -2930,7 +2930,7 @@ public final class Tree<T> extends Widget implements Scrollable {
             if (!row.loading || !row.expanded || row.placeholder) {
                 continue;
             }
-            Widget cell = mountedCells[i];
+            Widget<?> cell = mountedCells[i];
             // Clamped to the viewport and not the box: a band scrolled under a reserved bar strip
             // is clipped out of the paint, and damaging the strip would repaint the bar for it.
             float viewLeft = viewportLeft();
@@ -3021,7 +3021,7 @@ public final class Tree<T> extends Widget implements Scrollable {
     }
 
     /** The mounted slot a cell sits in, or {@code -1} for the bars. */
-    private int slotOfCell(Widget child) {
+    private int slotOfCell(Widget<?> child) {
         for (int i = 0; i < mountedCount; i++) {
             if (mountedCells[i] == child) {
                 return i;
@@ -3031,7 +3031,7 @@ public final class Tree<T> extends Widget implements Scrollable {
     }
 
     /** The row a mounted cell shows, or {@code null} for the bars and the loading line. */
-    private Row<T> rowOfCell(Widget child) {
+    private Row<T> rowOfCell(Widget<?> child) {
         return rowOfSlot(slotOfCell(child));
     }
 
@@ -3057,7 +3057,7 @@ public final class Tree<T> extends Widget implements Scrollable {
      *
      * @return the name, or {@code null} when the cell holds no label text
      */
-    private String derivedName(int slot, Widget cell) {
+    private String derivedName(int slot, Widget<?> cell) {
         nameBuilder.setLength(0);
         appendLabelText(cell);
         String kept = mountedNames[slot];
@@ -3073,7 +3073,7 @@ public final class Tree<T> extends Widget implements Scrollable {
         return fresh;
     }
 
-    private void appendLabelText(Widget widget) {
+    private void appendLabelText(Widget<?> widget) {
         if (!widget.isVisible()) {
             return;
         }
@@ -3087,7 +3087,7 @@ public final class Tree<T> extends Widget implements Scrollable {
             }
             return;
         }
-        List<Widget> children = widget.children();
+        List<Widget<?>> children = widget.children();
         for (int i = 0; i < children.size(); i++) { // indexed: an iterator is an allocation
             appendLabelText(children.get(i));
         }
@@ -3098,7 +3098,7 @@ public final class Tree<T> extends Widget implements Scrollable {
      * describes itself so that a cell recycled to another node carries nothing of the old one.
      */
     @Override
-    protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+    protected void onAccessibilityChildIdentity(Widget<?> child, Accessibility a) {
         Row<T> row = rowOfCell(child);
         if (row != null) {
             a.key(idOf(row.node));
@@ -3106,7 +3106,7 @@ public final class Tree<T> extends Widget implements Scrollable {
     }
 
     @Override
-    protected void onAccessibilityChild(Widget child, Accessibility a) {
+    protected void onAccessibilityChild(Widget<?> child, Accessibility a) {
         int slot = slotOfCell(child);
         Row<T> row = rowOfSlot(slot);
         if (row == null) {
@@ -3157,7 +3157,7 @@ public final class Tree<T> extends Widget implements Scrollable {
      * the only refusal it sees, ADR 039 §1.5).
      */
     @Override
-    protected boolean onAccessibilityChildAction(Widget child, long key, Accessible.Action action,
+    protected boolean onAccessibilityChildAction(Widget<?> child, long key, Accessible.Action action,
                                                  Accessible.Argument arg) {
         Row<T> row = rowOfCell(child);
         if (row == null) {

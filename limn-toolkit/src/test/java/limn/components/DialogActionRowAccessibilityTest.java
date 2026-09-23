@@ -83,11 +83,11 @@ class DialogActionRowAccessibilityTest extends AccessibleComponentTestBase {
         return found;
     }
 
-    private static Row firstRow(Widget at) {
+    private static Row firstRow(Widget<?> at) {
         if (at instanceof Row row) {
             return row;
         }
-        for (Widget child : at.children()) {
+        for (Widget<?> child : at.children()) {
             Row found = firstRow(child);
             if (found != null) {
                 return found;
@@ -96,11 +96,11 @@ class DialogActionRowAccessibilityTest extends AccessibleComponentTestBase {
         return null;
     }
 
-    private static Button firstButton(Widget at) {
+    private static Button firstButton(Widget<?> at) {
         if (at instanceof Button button) {
             return button;
         }
-        for (Widget child : at.children()) {
+        for (Widget<?> child : at.children()) {
             Button found = firstButton(child);
             if (found != null) {
                 return found;

@@ -88,7 +88,7 @@ class SurfaceTextMirroringTest extends ComponentTestBase {
         build(viewport);
     }
 
-    private void build(Widget root) {
+    private void build(Widget<?> root) {
         ruler = new BaseRecordingRuler();
         scene = new Scene(root);
         scene.setTextRuler(ruler);

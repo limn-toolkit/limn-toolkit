@@ -20,7 +20,7 @@ class ColorTransitionTest {
     private HeadlessUi ui;
     private UiRuntime runtime;
 
-    static final class Owner extends Widget {
+    static final class Owner extends Widget<Owner> {
         @Override
         protected Size onMeasure(Constraints c) {
             return c.constrain(10, 10);

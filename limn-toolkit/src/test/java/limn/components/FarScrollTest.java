@@ -61,13 +61,13 @@ class FarScrollTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 asked.add(index);
                 return new Label("row " + index);
             }
 
             @Override
-            public void recycle(Widget widget) {
+            public void recycle(Widget<?> widget) {
             }
         });
         Scene scene = new Scene(list);

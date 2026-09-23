@@ -85,7 +85,7 @@ class AxOutlineSceneTest {
                 return node.children();
             }
 
-            @Override public Widget cellFor(Node node) {
+            @Override public Widget<?> cellFor(Node node) {
                 // A fixed height: a label measures nothing without a text ruler, and a row of no
                 // height is a row the tree never realizes.
                 return new SizedBox(200, 24, new Label(node.name()));
@@ -102,7 +102,7 @@ class AxOutlineSceneTest {
         return tree;
     }
 
-    private void bind(Widget widget) {
+    private void bind(Widget<?> widget) {
         Column root = new Column();
         root.add(new SizedBox(300, 400, widget));
         scene = new Scene(root, nanos::get);
@@ -239,7 +239,7 @@ class AxOutlineSceneTest {
                 return limn.concurrent.Ui.work(progress -> fetched);
             }
 
-            @Override public Widget cellFor(Node node) {
+            @Override public Widget<?> cellFor(Node node) {
                 return new SizedBox(200, 24, new Label(node.name()));
             }
 
@@ -274,7 +274,7 @@ class AxOutlineSceneTest {
                 return count.get();
             }
 
-            @Override public Widget rowAt(int index) {
+            @Override public Widget<?> rowAt(int index) {
                 return new SizedBox(200, 24, new Label("Row " + index));
             }
         });
@@ -394,7 +394,7 @@ class AxOutlineSceneTest {
                 return 50;
             }
 
-            @Override public Widget rowAt(int index) {
+            @Override public Widget<?> rowAt(int index) {
                 return new SizedBox(200, 24, new Label("Row " + index));
             }
         });
@@ -575,7 +575,7 @@ class AxOutlineSceneTest {
                 return 5;
             }
 
-            @Override public Widget rowAt(int index) {
+            @Override public Widget<?> rowAt(int index) {
                 return new SizedBox(200, 24, new Label("Row " + index));
             }
         });

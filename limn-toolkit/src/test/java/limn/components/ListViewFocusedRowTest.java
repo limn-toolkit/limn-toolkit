@@ -65,7 +65,7 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
      * itself declares nothing and takes {@code LIST_ITEM} from the list, and the button inside
      * it is what the keyboard focus is in.
      */
-    static final class ButtonRow extends Widget {
+    static final class ButtonRow extends Widget<ButtonRow> {
         final Button button = new Button("Open");
 
         /** The data index this row was last bound to by the adapter. */
@@ -101,7 +101,7 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
         private final Deque<ButtonRow> pool = new ArrayDeque<>();
 
         /** Every cell handed back through {@link #recycle}, in order. */
-        final List<Widget> recycled = new ArrayList<>();
+        final List<Widget<?>> recycled = new ArrayList<>();
 
         Rows() {
             for (int i = 0; i < ROWS; i++) {
@@ -115,14 +115,14 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
         }
 
         @Override
-        public Widget rowAt(int index) {
+        public Widget<?> rowAt(int index) {
             ButtonRow row = pool.isEmpty() ? new ButtonRow() : pool.pop();
             row.index = index;
             return row;
         }
 
         @Override
-        public void recycle(Widget widget) {
+        public void recycle(Widget<?> widget) {
             recycled.add(widget);
             pool.push((ButtonRow) widget);
         }
@@ -158,7 +158,7 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
 
     /** @return the mounted cell bound to {@code index}, or {@code null} when none is */
     private ButtonRow cellOf(int index) {
-        for (Widget child : list.children()) {
+        for (Widget<?> child : list.children()) {
             if (child instanceof ButtonRow row && row.index == index) {
                 return row;
             }
@@ -169,7 +169,7 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
     /** @return the data indices of the mounted rows, in {@code children()} order */
     private List<Integer> mountedIndices() {
         List<Integer> found = new ArrayList<>();
-        for (Widget child : list.children()) {
+        for (Widget<?> child : list.children()) {
             if (child instanceof ButtonRow row) {
                 found.add(row.index);
             }
@@ -266,7 +266,7 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
 
         assertTrue(rowOne.y() + rowOne.height() <= 0,
                 "laid out wholly above the viewport: y=" + rowOne.y());
-        for (Widget child : list.children()) {
+        for (Widget<?> child : list.children()) {
             if (child instanceof ButtonRow row) {
                 row.painted = false;
             }
@@ -276,9 +276,9 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
         assertFalse(rowOne.painted, "a row outside the viewport paints nothing into it");
         assertTrue(cellOf(19).painted, "while the rows in it paint as before");
 
-        Widget hit = list.hitTest(20, ROW_HEIGHT + 5);
+        Widget<?> hit = list.hitTest(20, ROW_HEIGHT + 5);
         assertNotNull(hit);
-        Widget under = hit;
+        Widget<?> under = hit;
         while (under != null && !(under instanceof ButtonRow)) {
             under = under.parent();
         }
@@ -463,7 +463,7 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
     @Test
     void aRowThatIsNeitherTheCursorNorTheFocusIsStillRecycled() {
         bindWithFocusOnTheList();
-        List<Widget> firstPage = new ArrayList<>();
+        List<Widget<?>> firstPage = new ArrayList<>();
         for (int i = 0; i < VISIBLE; i++) {
             firstPage.add(cellOf(i));
         }

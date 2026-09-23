@@ -961,7 +961,7 @@ public final class Gallery {
                                 film = motion.film();
                                 frameIndex = 0;
                                 buttonDown = false;
-                                Widget content = built.content();
+                                Widget<?> content = built.content();
                                 if (content != null) {
                                     FILM_CONTENT.put(shot.entry().id(), String.format(
                                             java.util.Locale.ROOT,
@@ -1018,11 +1018,11 @@ public final class Gallery {
         private static final java.util.function.LongSupplier BUILDING = () -> 0L;
 
         /** Asks every performance footer under {@code root} for its reading now. */
-        private static void primeFooters(Widget root) {
+        private static void primeFooters(Widget<?> root) {
             if (root instanceof limn.demo.PerfFooter footer) {
                 footer.sampleNow();
             }
-            for (Widget child : root.children()) {
+            for (Widget<?> child : root.children()) {
                 primeFooters(child);
             }
         }

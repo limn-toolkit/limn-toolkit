@@ -30,7 +30,7 @@ import static limn.testing.SceneDriver.drive;
 class MenuAcceleratorTest extends ComponentTestBase {
 
     /** A focusable widget that can be told to claim a chord, standing in for a text field. */
-    private static final class Greedy extends Widget {
+    private static final class Greedy extends Widget<Greedy> {
         boolean claimEverything;
 
         Greedy() {

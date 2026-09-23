@@ -71,7 +71,7 @@ final class ListScene {
         page.add(Expanded.of(list, 1));
         page.add(new SizedBox(SizedBox.UNSET, 20, status));
 
-        Widget root = new Padding(Insets.all(20), page);
+        Widget<?> root = new Padding(Insets.all(20), page);
         Scene scene = new Scene(root);
         scene.setBackground(Theme.current().background());
         return scene;
@@ -138,9 +138,9 @@ final class ListScene {
     }
 
     /** Small grouping header row (~40 pt tall). */
-    private static final class HeaderCell extends Widget {
+    private static final class HeaderCell extends Widget<HeaderCell> {
         private final Label label;
-        private final Widget content;
+        private final Widget<?> content;
 
         HeaderCell() {
             label = new Label("").setFont(Theme.current().label()).setMuted(true);
@@ -171,12 +171,12 @@ final class ListScene {
     }
 
     /** Taller rich card row (~88 pt): thumbnail + title/subtitle + button + favorite switch. */
-    private static final class CardCell extends Widget {
+    private static final class CardCell extends Widget<CardCell> {
         private final ImageView image;
         private final Label title;
         private final Label subtitle;
         private final Checkbox favorite;
-        private final Widget content;
+        private final Widget<?> content;
         private int index = -1;
 
         CardCell(Image placeholder, IntConsumer onOpen, ObjIntConsumer<Boolean> onFavorite) {

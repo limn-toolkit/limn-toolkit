@@ -101,7 +101,7 @@ class ContextRegionAccessibilityTest extends AccessibleComponentTestBase {
      * @param source  the supplier to attach
      * @return the wrapper {@code attach} returned, which is the naming surface
      */
-    private Widget bindAttached(Widget content, Supplier<Menu> source) {
+    private Widget<?> bindAttached(Widget<?> content, Supplier<Menu> source) {
         return bindAttached(content, source, new StubWindow());
     }
 
@@ -113,8 +113,8 @@ class ContextRegionAccessibilityTest extends AccessibleComponentTestBase {
      * {@code showForFocus} falls back to its anchor and behaves identically to anchoring on this
      * node, so a fixture without it would pass whichever of the two the hook used.
      */
-    private Widget bindAttached(Widget content, Supplier<Menu> source, StubWindow over) {
-        Widget attached = ContextMenus.attach(content, source);
+    private Widget<?> bindAttached(Widget<?> content, Supplier<Menu> source, StubWindow over) {
+        Widget<?> attached = ContextMenus.attach(content, source);
         padding = new Padding(Insets.all(INSET), attached);
         elsewhere = new Button("Elsewhere");
         Column root = new Column();
@@ -381,7 +381,7 @@ class ContextRegionAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void namingTheRegionNamesTheGroup() {
-        Widget attached = bindAttached(new Label("Files"), new CountingSource());
+        Widget<?> attached = bindAttached(new Label("Files"), new CountingSource());
 
         attached.setAccessibleName("File list");
         frame();

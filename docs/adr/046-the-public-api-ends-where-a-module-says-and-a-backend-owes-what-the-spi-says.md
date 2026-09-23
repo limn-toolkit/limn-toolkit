@@ -248,3 +248,14 @@ ones that change API are recorded here as they land.
   `DateField.onTimeChange` are gone. The picker's handler used to be handed the start of a period
   and nothing that said the time had moved. `DatePicker.setRange` checks the UI thread and
   announces once, with the whole period, where it announced twice with a half-set period between.
+- **API-10, chaining (decision 138).** `Widget<W extends Widget<W>>`: a widget names itself
+  (`Button extends Widget<Button>`), and the seventeen setters every widget has return `W`, so
+  `new Button("OK").setEnabled(false)` is a `Button`. The abstract bases that are extended
+  (`Container`, `Flex`, `Chart`, `CartesianChart`) take the same parameter, so a `Column`'s
+  `gap(8)` is a `Column`; a concrete open class (`Column`, `Row`, `Stack`, `Padding`, `TextField`)
+  hands its own type down. A widget used only as a type is `Widget<?>`. The four `withControlSize`
+  methods, which existed only to chain a `void` setter, are gone. The owner chose this over a written
+  rule with `void` base setters, with the cost stated: every declaration in the repository moved, an
+  application's own widget writes `extends Widget<MyWidget>`, and an anonymous class, which cannot
+  name itself, goes through a named abstract class. The verbs and `Flex`'s missing getters were the
+  other option and stay as they are.

@@ -22,7 +22,7 @@ class ScrollViewTest extends ComponentTestBase {
     private static final float EPS = 1e-3f;
 
     /** Fixed-preferred-size leaf. */
-    static final class Box extends Widget {
+    static final class Box extends Widget<Box> {
         private final float prefWidth;
         private final float prefHeight;
 

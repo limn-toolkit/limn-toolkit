@@ -379,7 +379,7 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
     void everyBoxIsTheRectangleAPressInverts() {
         bindPicker();
 
-        Widget widget = picker.saturationValueField();
+        Widget<?> widget = picker.saturationValueField();
         for (AccessibleNode node : List.of(plane(), saturationAxis(), valueAxis())) {
             assertEquals(widget.localToSceneX(), node.x(), describe(tree()));
             assertEquals(widget.localToSceneY(), node.y(), describe(tree()));
@@ -413,7 +413,7 @@ class ColorPickerSaturationValueFieldAccessibilityTest extends AccessibleCompone
         root.setLayoutDirection(LayoutDirection.RTL);
         frame();
 
-        Widget widget = picker.saturationValueField();
+        Widget<?> widget = picker.saturationValueField();
         AccessibleNode mirrored = plane();
         assertEquals(leftToRight.id(), mirrored.id(), "a direction is not a rebuild");
         for (AccessibleNode node : List.of(mirrored, saturationAxis(), valueAxis())) {

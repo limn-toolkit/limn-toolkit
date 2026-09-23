@@ -33,7 +33,7 @@ public final class DataExample {
     }
 
     /** The screen: a date field and a picker across the top, the table and the tree beneath. */
-    public static Widget screen() {
+    public static Widget<?> screen() {
         Label tableStatus = new Label("Nothing selected");
         Label treeStatus = new Label("Nothing selected");
 
@@ -91,7 +91,7 @@ public final class DataExample {
     }
 
     /** A caption over a control, as a form lays one out. */
-    private static Widget field(String caption, Widget control) {
+    private static Widget<?> field(String caption, Widget<?> control) {
         Column column = new Column();
         column.gap(6).crossAlignment(Flex.CrossAlignment.STRETCH);
         Label label = new Label(caption);

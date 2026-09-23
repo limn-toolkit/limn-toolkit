@@ -25,7 +25,7 @@ class RePresentFrameTest extends SceneTestBase {
         nanos.addAndGet(millis * 1_000_000L);
     }
 
-    private Scene sceneWithClock(Widget root) {
+    private Scene sceneWithClock(Widget<?> root) {
         Scene scene = new Scene(root, nanos::get);
         scene.bind(new RecordingWindow());
         scene.layoutPass(200, 200);

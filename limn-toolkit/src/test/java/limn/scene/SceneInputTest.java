@@ -75,7 +75,7 @@ class SceneInputTest extends SceneTestBase {
 
         @Override
         protected void onLayout() {
-            for (Widget child : children()) {
+            for (Widget<?> child : children()) {
                 child.measure(Constraints.loose(width(), height()));
                 child.layoutBox(0, 0, width(), height());
             }
@@ -544,7 +544,7 @@ class SceneInputTest extends SceneTestBase {
         // Regression (code review): a child adding a sibling in onAttached blew
         // up the attach traversal's iterator.
         Column container = new Column();
-        Widget selfExpanding = new FixedBox(10, 10) {
+        Widget<?> selfExpanding = new FixedBox(10, 10) {
             @Override
             protected void onAttached() {
                 container.add(new FixedBox(10, 10));

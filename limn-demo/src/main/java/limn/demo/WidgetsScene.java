@@ -26,7 +26,7 @@ import limn.scene.layout.Stack;
 final class WidgetsScene {
 
     /** Focusable colored box: hover lightens, press darkens, focus draws a ring. */
-    static final class DemoBox extends Widget {
+    static final class DemoBox extends Widget<DemoBox> {
         private final float prefWidth;
         private final float prefHeight;
         private final Color color;

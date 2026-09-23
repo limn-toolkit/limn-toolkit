@@ -47,7 +47,7 @@ class ToolBarMirroringTest extends ComponentTestBase {
     private static final float BAR_H = 28 + 2 * PAD;
 
     /** A fixed-size stand-in, so the assertions are about the bar and not about a Button. */
-    private static final class Block extends Widget {
+    private static final class Block extends Widget<Block> {
         private final float w;
         private final float h;
 
@@ -64,9 +64,9 @@ class ToolBarMirroringTest extends ComponentTestBase {
 
     private ToolBar bar;
 
-    private void buildBar(LayoutDirection direction, Widget... items) {
+    private void buildBar(LayoutDirection direction, Widget<?>... items) {
         bar = new ToolBar();
-        for (Widget item : items) {
+        for (Widget<?> item : items) {
             bar.addItem(item);
         }
         bar.setLayoutDirection(direction);
@@ -224,7 +224,7 @@ class ToolBarMirroringTest extends ComponentTestBase {
     private static final float FIELD_Y = REGION_Y + FIELD_LOCAL_Y;
 
     /** A focusable stand-in for the row or field the keyboard route drops its menu from. */
-    private static final class Focusable extends Widget {
+    private static final class Focusable extends Widget<Focusable> {
         Focusable() {
             setFocusable(true);
         }
@@ -236,7 +236,7 @@ class ToolBarMirroringTest extends ComponentTestBase {
     }
 
     /** Puts its one child at a known physical box: the same box in either direction. */
-    private static final class Holder extends Widget {
+    private static final class Holder extends Widget<Holder> {
         private final Focusable field;
 
         Holder(Focusable field) {
@@ -257,10 +257,10 @@ class ToolBarMirroringTest extends ComponentTestBase {
     }
 
     /** Puts the attached region away from the scene origin, so the scene conversion is real. */
-    private static final class Frame extends Widget {
-        private final Widget region;
+    private static final class Frame extends Widget<Frame> {
+        private final Widget<?> region;
 
-        Frame(Widget region) {
+        Frame(Widget<?> region) {
             this.region = region;
             add(region);
         }
@@ -292,7 +292,7 @@ class ToolBarMirroringTest extends ComponentTestBase {
     }
 
     private Focusable field;
-    private Widget region;
+    private Widget<?> region;
     private Scene menuScene;
 
     /**

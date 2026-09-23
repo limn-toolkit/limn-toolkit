@@ -40,7 +40,7 @@ import java.util.List;
  * {@code bandStart}, so a subclass placing a mark or hit-testing one gets the mirror for free
  * and must not apply a second one. The vertical axis is not a reading axis and never moves.
  */
-public abstract class CartesianChart extends Chart {
+public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<W> {
 
     private final ChartAxis valueAxis;
     private final ChartAxis categoryAxis = new ChartAxis(false, false);
@@ -117,7 +117,7 @@ public abstract class CartesianChart extends Chart {
      * each other. Positive and negative values stack away from zero on their own sides, so
      * a mixed series does not cancel itself out mid-column.
      */
-    public final CartesianChart setStacked(boolean value) {
+    public final CartesianChart<?> setStacked(boolean value) {
         Ui.checkUiThread();
         if (stacked != value) {
             beginDataChange();
@@ -137,7 +137,7 @@ public abstract class CartesianChart extends Chart {
      * edge. The layout long labels want: a vertical axis gives each one a whole row
      * instead of a band the width of one bar.
      */
-    public final CartesianChart setHorizontal(boolean value) {
+    public final CartesianChart<?> setHorizontal(boolean value) {
         Ui.checkUiThread();
         if (horizontal != value) {
             horizontal = value;

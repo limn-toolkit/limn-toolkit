@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ContainedLayoutTest extends SceneTestBase {
 
     /** A box of a fixed size that clips, and records every time it lays out. */
-    private static class Box extends Widget {
+    private static class Box extends Widget<Box> {
         final List<String> layouts;
         final String name;
         float wanted;
@@ -59,10 +59,10 @@ class ContainedLayoutTest extends SceneTestBase {
      * stand in here: it hands the child TIGHT constraints, so the child's measure can never come
      * out different and the escalation this file is about would be untestable.
      */
-    private static final class Host extends Widget {
-        private final Widget child;
+    private static final class Host extends Widget<Host> {
+        private final Widget<?> child;
 
-        Host(Widget child) {
+        Host(Widget<?> child) {
             this.child = child;
             add(child);
         }
@@ -82,7 +82,7 @@ class ContainedLayoutTest extends SceneTestBase {
 
     private final List<String> layouts = new ArrayList<>();
 
-    private PartialRenderingTest.RecordingCanvas settle(Scene scene, Widget... unused) {
+    private PartialRenderingTest.RecordingCanvas settle(Scene scene, Widget<?>... unused) {
         PartialRenderingTest.RecordingCanvas canvas =
                 new PartialRenderingTest.RecordingCanvas(200, 200);
         for (int i = 0; i < 8; i++) {
@@ -200,7 +200,7 @@ class ContainedLayoutTest extends SceneTestBase {
      */
     @Test
     void mountingAndRecyclingInsideThePassDoesNotEscalate() {
-        List<Widget> pool = new ArrayList<>();
+        List<Widget<?>> pool = new ArrayList<>();
         Box box = new Box(layouts, "box", 60) {
             @Override
             protected void onLayout() {

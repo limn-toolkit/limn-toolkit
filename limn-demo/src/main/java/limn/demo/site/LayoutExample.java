@@ -69,10 +69,10 @@ public final class LayoutExample {
      * sample for a reader of the guide.
      */
     // #region guide:layout-column
-    static Column column(float gap, Widget... children) {
+    static Column column(float gap, Widget<?>... children) {
         Column column = new Column();
         column.gap(gap).crossAlignment(Flex.CrossAlignment.STRETCH);
-        for (Widget child : children) {
+        for (Widget<?> child : children) {
             column.add(child);
         }
         return column;
@@ -85,7 +85,7 @@ public final class LayoutExample {
      * trailing group is pushed to the far edge without measuring anything.
      */
     // #region guide:layout-row
-    static Row spread(Widget leading, Widget trailing) {
+    static Row spread(Widget<?> leading, Widget<?> trailing) {
         Row row = new Row();
         row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(leading);
@@ -101,7 +101,7 @@ public final class LayoutExample {
      * wrap one in a {@link Padding} to nudge it off a corner.
      */
     // #region guide:layout-stack
-    static Widget overlay(Widget content, Widget on) {
+    static Widget<?> overlay(Widget<?> content, Widget<?> on) {
         Stack stack = new Stack();
         stack.alignment(Stack.Alignment.CENTER);
         stack.add(content);
@@ -117,7 +117,7 @@ public final class LayoutExample {
      * keep the column width the full lines set instead of stretching across the pane.
      */
     // #region guide:layout-grid
-    static Column grid(int perRow, List<Widget> tiles) {
+    static Column grid(int perRow, List<Widget<?>> tiles) {
         Column rows = new Column();
         rows.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
         for (int start = 0; start < tiles.size(); start += perRow) {
@@ -141,7 +141,7 @@ public final class LayoutExample {
      * the window's spare height land there and nowhere else.
      */
     // #region guide:layout-shell
-    public static Widget shell() {
+    public static Widget<?> shell() {
         ToolBar bar = new ToolBar();
         bar.addItem(new Button("Import"));
         bar.addSeparator();
@@ -164,7 +164,7 @@ public final class LayoutExample {
     // #endregion
 
     /** The sidebar: a list whose rows are ordinary widgets, supplied on demand. */
-    private static Widget collections() {
+    private static Widget<?> collections() {
         ListView<String> list = new ListView<>(
                 name -> new Padding(Insets.symmetric(9, 14), new Label(name)));
         list.setItems(COLLECTIONS);
@@ -178,7 +178,7 @@ public final class LayoutExample {
      * The pane that grows: a header row, then the grid taking whatever height is left. The
      * grid scrolls rather than being clipped, so a narrow window loses nothing.
      */
-    private static Widget library() {
+    private static Widget<?> library() {
         SearchField search = new SearchField();
         SegmentedControl view = new SegmentedControl(List.of("Grid", "List"));
         view.setSelectedIndex(0);
@@ -189,7 +189,7 @@ public final class LayoutExample {
         tools.add(new SizedBox(190, SizedBox.UNSET, search));
         tools.add(view);
 
-        List<Widget> tiles = new ArrayList<>();
+        List<Widget<?>> tiles = new ArrayList<>();
         for (String[] asset : ASSETS) {
             tiles.add(tile(asset));
         }
@@ -200,7 +200,7 @@ public final class LayoutExample {
     }
 
     /** One tile: a swatch with its resolution over it, then the name and the size. */
-    private static Widget tile(String[] asset) {
+    private static Widget<?> tile(String[] asset) {
         Label badge = new Label(asset[1]);
         badge.setColor(Color.WHITE).setStrong(true);
         return column(6,
@@ -215,7 +215,7 @@ public final class LayoutExample {
      * an image measures to {@code min(preferred, available)}, so an oversized one fills its
      * tile instead of sitting in the middle of it, and {@code COVER} crops the overflow.
      */
-    private static Widget swatch(String from, String to) {
+    private static Widget<?> swatch(String from, String to) {
         int width = 96;
         int height = 64;
         Color a = Color.fromHex(from);

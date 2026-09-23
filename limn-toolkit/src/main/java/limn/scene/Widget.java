@@ -39,11 +39,24 @@ import java.util.Objects;
  * task, a timer, a background result) does not, and neither does anything a
  * custom {@link #onPaint} reads from outside the tree.
  */
-public abstract class Widget {
+public abstract class Widget<W extends Widget<W>> {
 
-    private Widget parent;
-    private final List<Widget> children = new ArrayList<>();
-    private final List<Widget> childrenView = Collections.unmodifiableList(children);
+    /**
+     * This widget as its own type, which is what every setter here returns so that a chain of
+     * them keeps the type it started with: {@code new Button("OK").setEnabled(false)} is a
+     * {@code Button}. The one unchecked cast in the class: a widget declares itself as its own
+     * type argument ({@code Button extends Widget<Button>}), so it is always true.
+     *
+     * @return this
+     */
+    @SuppressWarnings("unchecked")
+    protected final W self() {
+        return (W) this;
+    }
+
+    private Widget<?> parent;
+    private final List<Widget<?>> children = new ArrayList<>();
+    private final List<Widget<?>> childrenView = Collections.unmodifiableList(children);
 
     private float x;
     private float y;
@@ -93,7 +106,7 @@ public abstract class Widget {
      * fact about size or about direction, and a second link that could name a different widget
      * would be a bug with no honest resolution.
      */
-    private Widget inheritanceHost;
+    private Widget<?> inheritanceHost;
 
     /** Memo; valid iff {@code resolvedEpoch == controlSizeEpoch}. */
     private ControlSize resolvedControlSize;
@@ -201,12 +214,12 @@ public abstract class Widget {
     // ------------------------------------------------------------------ tree
 
     /** The parent this widget was added to, or {@code null} while it is unattached. */
-    public final Widget parent() {
+    public final Widget<?> parent() {
         return parent;
     }
 
     /** The children, in paint and hit-test order: an unmodifiable view of live state. */
-    public final List<Widget> children() {
+    public final List<Widget<?>> children() {
         return childrenView;
     }
 
@@ -214,7 +227,7 @@ public abstract class Widget {
      * Appends a child (UI thread only). Protected: a widget arranges children of its own, and only a
      * {@link limn.scene.layout.Container} takes them from outside (ADR 046 §3).
      */
-    protected void add(Widget child) {
+    protected void add(Widget<?> child) {
         Ui.checkUiThread();
         insert(children.size(), child);
     }
@@ -237,19 +250,19 @@ public abstract class Widget {
      * @throws IllegalStateException     if {@code child} already has a parent
      * @throws IllegalArgumentException  if {@code child} is an ancestor of this widget
      */
-    protected void add(int index, Widget child) {
+    protected void add(int index, Widget<?> child) {
         Ui.checkUiThread();
         Objects.checkIndex(index, children.size() + 1);
         insert(index, child);
     }
 
     /** The one place a child joins the tree; both {@code add} overloads end here. */
-    private void insert(int index, Widget child) {
+    private void insert(int index, Widget<?> child) {
         Objects.requireNonNull(child, "child");
         if (child.parent != null) {
             throw new IllegalStateException("widget already has a parent");
         }
-        for (Widget ancestor = this; ancestor != null; ancestor = ancestor.parent) {
+        for (Widget<?> ancestor = this; ancestor != null; ancestor = ancestor.parent) {
             if (ancestor == child) {
                 throw new IllegalArgumentException("cycle: child is an ancestor of this widget");
             }
@@ -264,7 +277,7 @@ public abstract class Widget {
     }
 
     /** Removes a child (UI thread only); protected for the reason {@link #add(Widget)} is. */
-    protected void remove(Widget child) {
+    protected void remove(Widget<?> child) {
         Ui.checkUiThread();
         if (children.remove(child)) {
             child.parent = null;
@@ -314,7 +327,7 @@ public abstract class Widget {
         // iterator would throw ConcurrentModification, and a plain i++ after a
         // removal at or before i would skip the sibling that shifted into slot i.
         for (int i = 0; i < children.size(); ) {
-            Widget child = children.get(i);
+            Widget<?> child = children.get(i);
             child.setSceneRecursivelyInternal(newScene);
             if (i < children.size() && children.get(i) == child) {
                 i++;
@@ -415,7 +428,7 @@ public abstract class Widget {
     /** Converts a scene x coordinate into this widget's local space. */
     public final float sceneToLocalX(float sceneX) {
         float local = sceneX;
-        for (Widget w = this; w != null; w = w.parent) {
+        for (Widget<?> w = this; w != null; w = w.parent) {
             local -= w.x;
         }
         return local;
@@ -424,7 +437,7 @@ public abstract class Widget {
     /** Converts a scene y coordinate into this widget's local space. */
     public final float sceneToLocalY(float sceneY) {
         float local = sceneY;
-        for (Widget w = this; w != null; w = w.parent) {
+        for (Widget<?> w = this; w != null; w = w.parent) {
             local -= w.y;
         }
         return local;
@@ -433,7 +446,7 @@ public abstract class Widget {
     /** This widget's origin x in scene coordinates (its offsets summed to the root). */
     public final float localToSceneX() {
         float sceneX = 0;
-        for (Widget w = this; w != null; w = w.parent) {
+        for (Widget<?> w = this; w != null; w = w.parent) {
             sceneX += w.x;
         }
         return sceneX;
@@ -442,7 +455,7 @@ public abstract class Widget {
     /** This widget's origin y in scene coordinates (its offsets summed to the root). */
     public final float localToSceneY() {
         float sceneY = 0;
-        for (Widget w = this; w != null; w = w.parent) {
+        for (Widget<?> w = this; w != null; w = w.parent) {
             sceneY += w.y;
         }
         return sceneY;
@@ -492,11 +505,11 @@ public abstract class Widget {
      * @param rectHeight its height
      */
     public final void revealInView(float rectX, float rectY, float rectWidth, float rectHeight) {
-        for (Widget ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
+        for (Widget<?> ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
             if (ancestor instanceof Scrollable scrollable) {
                 float left = rectX;
                 float top = rectY;
-                for (Widget w = this; w != ancestor; w = w.parent) {
+                for (Widget<?> w = this; w != ancestor; w = w.parent) {
                     left += w.x;
                     top += w.y;
                 }
@@ -525,7 +538,7 @@ public abstract class Widget {
      *         established re-arm-on-paint pattern).
      */
     public final boolean isShowing() {
-        for (Widget w = this; w != null; w = w.parent) {
+        for (Widget<?> w = this; w != null; w = w.parent) {
             if (!w.visible) {
                 return false;
             }
@@ -539,8 +552,8 @@ public abstract class Widget {
         float y0 = 0;
         float x1 = width;
         float y1 = height;
-        Widget below = null;
-        for (Widget node = this; node != null; below = node, node = node.parent) {
+        Widget<?> below = null;
+        for (Widget<?> node = this; node != null; below = node, node = node.parent) {
             if (node != this && node.clipsChildren()) {
                 float cx = node.clipX(below);
                 float cy = node.clipY(below);
@@ -585,8 +598,8 @@ public abstract class Widget {
         float y0 = Float.NEGATIVE_INFINITY;
         float x1 = Float.POSITIVE_INFINITY;
         float y1 = Float.POSITIVE_INFINITY;
-        Widget below = null;
-        for (Widget node = this; node != null; below = node, node = node.parent) {
+        Widget<?> below = null;
+        for (Widget<?> node = this; node != null; below = node, node = node.parent) {
             if (node != this && node.clipsChildren()) {
                 float cx = node.clipX(below);
                 float cy = node.clipY(below);
@@ -626,7 +639,7 @@ public abstract class Widget {
      * changed and told nobody -- and because a subclass wanting to react to its own visibility
      * has {@link #observeChanges}.
      */
-    public final void setVisible(boolean visible) {
+    public final W setVisible(boolean visible) {
         Ui.checkUiThread();
         if (this.visible != visible) {
             this.visible = visible;
@@ -636,7 +649,7 @@ public abstract class Widget {
             // Every measure on the way up is stale, exactly as for markNeedsLayout(): whichever
             // pass lays this out -- the scene's narrow one or a full one it escalates to -- has
             // to re-measure from here. What differs is only what the scene is told.
-            for (Widget w = this; w != null; w = w.parent) {
+            for (Widget<?> w = this; w != null; w = w.parent) {
                 w.needsMeasure = true;
             }
             if (scene != null && parent != null) {
@@ -649,6 +662,7 @@ public abstract class Widget {
             }
             notifyChange(Change.of(Change.Aspect.VISIBLE, Change.Origin.CODE));
         }
+        return self();
     }
 
     /** Whether this widget accepts input; a disabled widget still occupies its box. */
@@ -664,7 +678,7 @@ public abstract class Widget {
      * <p>Announces {@code ENABLED}/{@code CODE}, after the revocation's {@code FOCUS} when
      * disabling took the focus away. {@code final} for the reason {@link #setVisible} is.
      */
-    public final void setEnabled(boolean enabled) {
+    public final W setEnabled(boolean enabled) {
         Ui.checkUiThread();
         if (this.enabled != enabled) {
             this.enabled = enabled;
@@ -674,6 +688,7 @@ public abstract class Widget {
             invalidate();
             notifyChange(Change.of(Change.Aspect.ENABLED, Change.Origin.CODE));
         }
+        return self();
     }
 
     /** Whether keyboard focus can land here: false for containers and static chrome. */
@@ -697,14 +712,15 @@ public abstract class Widget {
      * The guard in front is what keeps that honest where a roving-focus reassignment writes
      * {@code false} over every non-holder in a group on every selection change.
      */
-    public final void setFocusable(boolean focusable) {
+    public final W setFocusable(boolean focusable) {
         Ui.checkUiThread();
         if (this.focusable == focusable) {
-            return;
+            return self();
         }
         this.focusable = focusable;
         invalidateAccessible();
         notifyChange(Change.of(Change.Aspect.FOCUSABLE, Change.Origin.CODE));
+        return self();
     }
 
     /**
@@ -790,8 +806,9 @@ public abstract class Widget {
     }
 
     /** Sets the hover tooltip text ({@code null} clears it). UI thread only. */
-    public final void setTooltip(String text) {
+    public final W setTooltip(String text) {
         setTooltip(text == null ? null : limn.i18n.I18nString.literal(text));
+        return self();
     }
 
     /**
@@ -809,14 +826,15 @@ public abstract class Widget {
      * and every repeated {@code setTooltip("Play")} would announce a description that did not
      * change. {@code I18nString} answers this already, over its key and its English.
      */
-    public final void setTooltip(limn.i18n.I18nString text) {
+    public final W setTooltip(limn.i18n.I18nString text) {
         Ui.checkUiThread();
         if (Objects.equals(this.tooltip, text)) {
-            return;
+            return self();
         }
         this.tooltip = text;
         invalidateAccessible();
         notifyChange(Change.of(Change.Aspect.DESCRIPTION, Change.Origin.CODE));
+        return self();
     }
 
     /** Whether this widget currently holds its scene's keyboard focus. */
@@ -937,14 +955,15 @@ public abstract class Widget {
      * Re-measures whatever actually changed and repaints; a descendant that declares its own
      * step keeps its measure cache. No-op when unchanged. UI thread only.
      */
-    public final void setControlSize(ControlSize size) {
+    public final W setControlSize(ControlSize size) {
         Ui.checkUiThread();
         if (declaredControlSize == size) {
-            return;
+            return self();
         }
         declaredControlSize = size;
         bumpControlSizeEpoch();
         markNeedsLayout();
+        return self();
     }
 
     /**
@@ -955,7 +974,7 @@ public abstract class Widget {
      *         client walking either way finds the other.
      * @see #setInheritanceHost(Widget)
      */
-    public final Widget inheritanceHost() {
+    public final Widget<?> inheritanceHost() {
         return inheritanceHost;
     }
 
@@ -989,24 +1008,25 @@ public abstract class Widget {
      * @param host the widget to resolve through, or {@code null} to unlink
      * @throws IllegalArgumentException if {@code host} resolves through this widget
      */
-    public final void setInheritanceHost(Widget host) {
+    public final W setInheritanceHost(Widget<?> host) {
         Ui.checkUiThread();
         // Walk the chain host would resolve through, exactly as resolveControlSize does.
         // Terminates: add() forbids tree cycles, and every previously installed host link
         // was validated the same way, so by induction the chain is finite.
-        for (Widget w = host; w != null; w = w.parent != null ? w.parent : w.inheritanceHost) {
+        for (Widget<?> w = host; w != null; w = w.parent != null ? w.parent : w.inheritanceHost) {
             if (w == this) {
                 throw new IllegalArgumentException("cycle: host resolves through this widget");
             }
         }
         if (this.inheritanceHost == host) {
-            return;
+            return self();
         }
         this.inheritanceHost = host;
         bumpControlSizeEpoch();
         bumpLayoutDirectionEpoch();
         bumpLocaleEpoch();
         markNeedsLayout();
+        return self();
     }
 
     // --------------------------------------------------- layout direction axis
@@ -1099,14 +1119,15 @@ public abstract class Widget {
      * inheritance. Re-measures whatever actually changed and repaints; a descendant that declares
      * its own direction keeps its measure cache. No-op when unchanged. UI thread only.
      */
-    public final void setLayoutDirection(LayoutDirection direction) {
+    public final W setLayoutDirection(LayoutDirection direction) {
         Ui.checkUiThread();
         if (declaredLayoutDirection == direction) {
-            return;
+            return self();
         }
         declaredLayoutDirection = direction;
         bumpLayoutDirectionEpoch();
         markNeedsLayout();
+        return self();
     }
 
     // ------------------------------------------------------------- locale axis
@@ -1206,10 +1227,10 @@ public abstract class Widget {
      * <p>Re-measures whatever actually changed and repaints; a descendant that declares its
      * own locale keeps its measure cache. No-op when unchanged. UI thread only.
      */
-    public final void setLocale(Locale locale) {
+    public final W setLocale(Locale locale) {
         Ui.checkUiThread();
         if (Objects.equals(declaredLocale, locale)) {
-            return;
+            return self();
         }
         Locale previous = declaredLocale;
         declaredLocale = locale;
@@ -1221,6 +1242,7 @@ public abstract class Widget {
         }
         bumpLocaleEpoch();
         markNeedsLayout();
+        return self();
     }
 
     /**
@@ -1245,7 +1267,7 @@ public abstract class Widget {
      * {@code limn.scene.layout} cannot invoke it on another instance (JLS 6.6.2.1), but a
      * {@code protected static} member carries no qualifying-type restriction.
      */
-    protected static float baselineOffsetOf(Widget child) {
+    protected static float baselineOffsetOf(Widget<?> child) {
         return child.baselineOffset();
     }
 
@@ -1334,7 +1356,7 @@ public abstract class Widget {
      * Moves a child without re-running layout: the scroll fast path (size is
      * unchanged; only the offset moves). For container authors.
      */
-    protected static void moveChild(Widget child, float x, float y) {
+    protected static void moveChild(Widget<?> child, float x, float y) {
         child.x = x;
         child.y = y;
     }
@@ -1342,7 +1364,7 @@ public abstract class Widget {
     /** Marks this widget's measure dirty and schedules a scene layout pass. */
     public final void markNeedsLayout() {
         Ui.checkUiThread();
-        for (Widget w = this; w != null; w = w.parent) {
+        for (Widget<?> w = this; w != null; w = w.parent) {
             w.needsMeasure = true;
         }
         if (scene != null) {
@@ -1365,7 +1387,7 @@ public abstract class Widget {
      */
     protected final void markNeedsLayoutInPlace() {
         Ui.checkUiThread();
-        for (Widget w = this; w != null; w = w.parent) {
+        for (Widget<?> w = this; w != null; w = w.parent) {
             w.needsMeasure = true;
         }
         if (scene != null && parent != null) {
@@ -1645,7 +1667,7 @@ public abstract class Widget {
      * @param child the direct child the clipped descendant is under
      * @return the clip rectangle's left edge
      */
-    protected float clipX(Widget child) {
+    protected float clipX(Widget<?> child) {
         return 0;
     }
 
@@ -1655,7 +1677,7 @@ public abstract class Widget {
      * @param child the direct child the clipped descendant is under
      * @return the clip rectangle's top edge
      */
-    protected float clipY(Widget child) {
+    protected float clipY(Widget<?> child) {
         return 0;
     }
 
@@ -1665,7 +1687,7 @@ public abstract class Widget {
      * @param child the direct child the clipped descendant is under
      * @return the clip rectangle's width
      */
-    protected float clipWidth(Widget child) {
+    protected float clipWidth(Widget<?> child) {
         return width;
     }
 
@@ -1675,7 +1697,7 @@ public abstract class Widget {
      * @param child the direct child the clipped descendant is under
      * @return the clip rectangle's height
      */
-    protected float clipHeight(Widget child) {
+    protected float clipHeight(Widget<?> child) {
         return height;
     }
 
@@ -1690,7 +1712,7 @@ public abstract class Widget {
      */
     protected void paintChildren(Canvas canvas) {
         for (int i = 0; i < children.size(); i++) {
-            Widget child = children.get(i);
+            Widget<?> child = children.get(i);
             canvas.save();
             try {
                 canvas.translate(child.x, child.y);
@@ -1718,14 +1740,14 @@ public abstract class Widget {
      * or this widget itself; {@code null} when outside. Later children win
      * because they paint on top.
      */
-    public Widget hitTest(float localX, float localY) {
+    public Widget<?> hitTest(float localX, float localY) {
         if (!visible || !enabled
                 || localX < 0 || localY < 0 || localX >= width || localY >= height) {
             return null;
         }
         for (int i = children.size() - 1; i >= 0; i--) {
-            Widget child = children.get(i);
-            Widget hit = child.hitTest(localX - child.x, localY - child.y);
+            Widget<?> child = children.get(i);
+            Widget<?> hit = child.hitTest(localX - child.x, localY - child.y);
             if (hit != null) {
                 return hit;
             }
@@ -2080,7 +2102,7 @@ public abstract class Widget {
      * @param child the child about to be described
      * @param a     the builder, open only for the two identity calls
      */
-    protected void onAccessibilityChildIdentity(Widget child, limn.accessibility.Accessibility a) {
+    protected void onAccessibilityChildIdentity(Widget<?> child, limn.accessibility.Accessibility a) {
     }
 
     /**
@@ -2105,7 +2127,7 @@ public abstract class Widget {
      * @param child the child being described
      * @param a     the child's node
      */
-    protected void onAccessibilityChild(Widget child, limn.accessibility.Accessibility a) {
+    protected void onAccessibilityChild(Widget<?> child, limn.accessibility.Accessibility a) {
     }
 
     /**
@@ -2163,7 +2185,7 @@ public abstract class Widget {
      * @param arg    the argument, or {@link limn.accessibility.Accessible.Argument#NONE}
      * @return whether this widget did it
      */
-    protected boolean onAccessibilityChildAction(Widget child, long key,
+    protected boolean onAccessibilityChildAction(Widget<?> child, long key,
                                                  limn.accessibility.Accessible.Action action,
                                                  limn.accessibility.Accessible.Argument arg) {
         return false;
@@ -2252,8 +2274,8 @@ public abstract class Widget {
 
     /** The application-set overrides, in one object so an unnamed widget carries one field. */
     private static final class AccessibleOverrides {
-        Widget labelledBy;
-        Widget describedBy;
+        Widget<?> labelledBy;
+        Widget<?> describedBy;
         limn.i18n.I18nString name;
         limn.i18n.I18nString description;
         limn.accessibility.Accessible.Role role;
@@ -2289,10 +2311,11 @@ public abstract class Widget {
      * @param label the widget whose text names this one, or {@code null} to remove the link
      * @see limn.components.Label#setLabelFor(Widget)
      */
-    public final void setAccessibleLabelledBy(Widget label) {
+    public final W setAccessibleLabelledBy(Widget<?> label) {
         Ui.checkUiThread();
         overrides().labelledBy = label;
         invalidateAccessible();
+        return self();
     }
 
     /**
@@ -2309,7 +2332,7 @@ public abstract class Widget {
     }
 
     /** The widget whose text names this one, or {@code null}. Read by the publish step. */
-    final Widget accessibleLabelledBy() {
+    final Widget<?> accessibleLabelledBy() {
         return accessibleOverrides == null ? null : accessibleOverrides.labelledBy;
     }
 
@@ -2337,7 +2360,7 @@ public abstract class Widget {
      * @return the widget that carries a label bound to this one; {@code this} by default
      * @see limn.components.Label#setLabelFor(Widget)
      */
-    protected Widget accessibleLabelTarget() {
+    protected Widget<?> accessibleLabelTarget() {
         return this;
     }
 
@@ -2357,14 +2380,15 @@ public abstract class Widget {
      * @param source the widget whose text describes this one, or {@code null} to remove the link
      * @see limn.components.Label#setDescriptionFor(Widget)
      */
-    public final void setAccessibleDescribedBy(Widget source) {
+    public final W setAccessibleDescribedBy(Widget<?> source) {
         Ui.checkUiThread();
         overrides().describedBy = source;
         invalidateAccessible();
+        return self();
     }
 
     /** The widget whose text describes this one, or {@code null}. Read by the publish step. */
-    final Widget accessibleDescribedBy() {
+    final Widget<?> accessibleDescribedBy() {
         return accessibleOverrides == null ? null : accessibleOverrides.describedBy;
     }
 
@@ -2377,10 +2401,11 @@ public abstract class Widget {
      *
      * @param name the name, or {@code null} to let the widget name itself again
      */
-    public final void setAccessibleName(limn.i18n.I18nString name) {
+    public final W setAccessibleName(limn.i18n.I18nString name) {
         Ui.checkUiThread();
         overrides().name = name;
         invalidateAccessible();
+        return self();
     }
 
     /**
@@ -2388,8 +2413,9 @@ public abstract class Widget {
      *
      * @param name the name, or {@code null} to let the widget name itself again
      */
-    public final void setAccessibleName(String name) {
+    public final W setAccessibleName(String name) {
         setAccessibleName(name == null ? null : limn.i18n.I18nString.literal(name));
+        return self();
     }
 
     /**
@@ -2398,10 +2424,11 @@ public abstract class Widget {
      *
      * @param text the description, or {@code null} to let the widget describe itself again
      */
-    public final void setAccessibleDescription(limn.i18n.I18nString text) {
+    public final W setAccessibleDescription(limn.i18n.I18nString text) {
         Ui.checkUiThread();
         overrides().description = text;
         invalidateAccessible();
+        return self();
     }
 
     /**
@@ -2409,8 +2436,9 @@ public abstract class Widget {
      *
      * @param text the description, or {@code null} to let the widget describe itself again
      */
-    public final void setAccessibleDescription(String text) {
+    public final W setAccessibleDescription(String text) {
         setAccessibleDescription(text == null ? null : limn.i18n.I18nString.literal(text));
+        return self();
     }
 
     /**
@@ -2422,10 +2450,11 @@ public abstract class Widget {
      *
      * @param role the role, or {@code null} to let the widget declare its own
      */
-    public final void setAccessibleRole(limn.accessibility.Accessible.Role role) {
+    public final W setAccessibleRole(limn.accessibility.Accessible.Role role) {
         Ui.checkUiThread();
         overrides().role = role;
         invalidateAccessible();
+        return self();
     }
 
     /**
@@ -2437,10 +2466,11 @@ public abstract class Widget {
      *
      * @param ignored whether to leave this widget out of the tree entirely
      */
-    public final void setAccessibleIgnored(boolean ignored) {
+    public final W setAccessibleIgnored(boolean ignored) {
         Ui.checkUiThread();
         overrides().ignored = ignored;
         invalidateAccessible();
+        return self();
     }
 
     /**
@@ -2596,13 +2626,13 @@ public abstract class Widget {
         }
     }
 
-    final void describeAccessibleChildIdentity(Widget child, limn.accessibility.Accessibility a) {
+    final void describeAccessibleChildIdentity(Widget<?> child, limn.accessibility.Accessibility a) {
         // Nothing here resolves a string, so no language is pushed: the hook answers a key and a
         // row, which are numbers, and the child's own describe pass has not begun.
         onAccessibilityChildIdentity(child, a);
     }
 
-    final void describeAccessibleChild(Widget child, limn.accessibility.Accessibility a) {
+    final void describeAccessibleChild(Widget<?> child, limn.accessibility.Accessibility a) {
         // The CHILD's language and not this widget's, because everything the hook writes lands in
         // the child's slot and the builder stamps every name it resolves with that slot's locale.
         // Pushing the parent's resolved a name in one language and published it as being in
@@ -2638,7 +2668,7 @@ public abstract class Widget {
         }
     }
 
-    final boolean performChildAction(Widget child, long key,
+    final boolean performChildAction(Widget<?> child, long key,
                                      limn.accessibility.Accessible.Action action,
                                      limn.accessibility.Accessible.Argument arg) {
         Locale enclosing = I18n.pushScope(locale());

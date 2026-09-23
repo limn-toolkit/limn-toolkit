@@ -74,7 +74,7 @@ class LayoutTest extends SceneTestBase {
      * children with a tight main axis, so this is the share as {@code onMeasure} resolved
      * it: the number {@code onLayout} has to arrive at independently.
      */
-    private static final class MeasuredBox extends Widget {
+    private static final class MeasuredBox extends Widget<MeasuredBox> {
         float lastMeasuredWidth = Float.NaN;
 
         @Override

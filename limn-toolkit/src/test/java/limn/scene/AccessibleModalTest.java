@@ -243,7 +243,7 @@ class AccessibleModalTest extends AccessibleTestBase {
         }
 
         @Override
-        protected void onAccessibilityChild(Widget child, limn.accessibility.Accessibility a) {
+        protected void onAccessibilityChild(Widget<?> child, limn.accessibility.Accessibility a) {
             a.delegate(Accessible.Action.SELECT);
         }
     }
@@ -348,7 +348,7 @@ class AccessibleModalTest extends AccessibleTestBase {
         }
 
         @Override
-        protected void onAccessibilityChildIdentity(Widget child,
+        protected void onAccessibilityChildIdentity(Widget<?> child,
                                                     limn.accessibility.Accessibility a) {
             a.under(1);
         }

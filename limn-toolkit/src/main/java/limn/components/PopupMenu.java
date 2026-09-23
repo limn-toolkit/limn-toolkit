@@ -309,7 +309,7 @@ public final class PopupMenu {
      * <p>The coordinates are the anchor's <em>scene</em> coordinates (what
      * {@link limn.scene.event.MouseEvent#x()} reports), not anchor-local ones.
      */
-    public void showAt(Widget anchor, float x, float y) {
+    public void showAt(Widget<?> anchor, float x, float y) {
         showAnchored(anchor, x, y, 0, 0);
     }
 
@@ -324,7 +324,7 @@ public final class PopupMenu {
      * dropdown) and flips above when there is no room. A no-op for a widget outside a scene.
      * UI thread only.
      */
-    public void showAnchored(Widget anchor, float ax, float ay, float aw, float ah) {
+    public void showAnchored(Widget<?> anchor, float ax, float ay, float aw, float ah) {
         Objects.requireNonNull(anchor, "anchor");
         show(anchor.scene(), anchor, ax, ay, aw, ah);
     }
@@ -343,7 +343,7 @@ public final class PopupMenu {
         show(ownerScene, ownerScene.root(), ax, ay, aw, ah);
     }
 
-    private void show(Scene ownerScene, Widget host, float ax, float ay, float aw, float ah) {
+    private void show(Scene ownerScene, Widget<?> host, float ax, float ay, float aw, float ah) {
         Ui.checkUiThread();
         NativeWindow win = ownerScene == null ? null : ownerScene.window();
         if (open || rootMenu.isEmpty() || win == null || win.display() == null) {
@@ -375,7 +375,7 @@ public final class PopupMenu {
      * host link is the only way the step <em>and the direction</em> get there, and it must be
      * installed before the geometry that sizes the native window is computed.
      */
-    private void beginOpen(limn.graphics.TextRuler ruler, Widget host) {
+    private void beginOpen(limn.graphics.TextRuler ruler, Widget<?> host) {
         surface = new MenuSurface(ruler);
         if (declaredSize != null) {
             surface.setControlSize(declaredSize);
@@ -772,7 +772,7 @@ public final class PopupMenu {
      * "first baseline" (the first row of a column that may have been flipped above the anchor
      * and scrolled) is not a meaningful alignment reference for anything.
      */
-    private final class MenuSurface extends Widget {
+    private final class MenuSurface extends Widget<MenuSurface> {
 
         private final TextRuler ruler;
         private final List<Column> cols = new ArrayList<>();

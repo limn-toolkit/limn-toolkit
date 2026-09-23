@@ -64,7 +64,7 @@ public final class Column<T> {
     private final I18nString title;
     private final Function<T, Object> value;
     private final BiFunction<Object, Locale, String> format;
-    private final Function<T, Widget> widget;
+    private final Function<T, Widget<?>> widget;
     private Comparator<T> comparator;
     private boolean sortable = true;
     private Alignment alignment = Alignment.START;
@@ -79,7 +79,7 @@ public final class Column<T> {
     private BiFunction<Object, Locale, String> footerFormat;
 
     private Column(I18nString title, Function<T, Object> value,
-                   BiFunction<Object, Locale, String> format, Function<T, Widget> widget) {
+                   BiFunction<Object, Locale, String> format, Function<T, Widget<?>> widget) {
         this.title = Objects.requireNonNull(title, "title");
         this.value = value;
         this.format = format;
@@ -250,7 +250,7 @@ public final class Column<T> {
      * @param <T>     the row type
      * @return the column
      */
-    public static <T> Column<T> widget(I18nString title, Function<T, Widget> factory) {
+    public static <T> Column<T> widget(I18nString title, Function<T, Widget<?>> factory) {
         Objects.requireNonNull(factory, "factory");
         return new Column<>(title, null, null, factory);
     }
@@ -263,7 +263,7 @@ public final class Column<T> {
      * @param <T>     the row type
      * @return the column
      */
-    public static <T> Column<T> widget(String title, Function<T, Widget> factory) {
+    public static <T> Column<T> widget(String title, Function<T, Widget<?>> factory) {
         return widget(I18nString.literal(title), factory);
     }
 
@@ -589,7 +589,7 @@ public final class Column<T> {
     }
 
     /** The widget of {@code row}'s cell, for a widget column. */
-    Widget widgetFor(T row) {
+    Widget<?> widgetFor(T row) {
         return Objects.requireNonNull(widget.apply(row), "the column's widget factory returned null");
     }
 

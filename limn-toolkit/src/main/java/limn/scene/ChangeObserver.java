@@ -31,5 +31,5 @@ public interface ChangeObserver {
      * @param source the widget that changed
      * @param change what changed on it, and what moved it
      */
-    void changed(Widget source, Change change);
+    void changed(Widget<?> source, Change change);
 }

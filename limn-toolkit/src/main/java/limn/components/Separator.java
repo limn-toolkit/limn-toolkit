@@ -26,7 +26,7 @@ import limn.scene.Widget;
  * centred inside an odd box, and the snap relies on that parity. {@link #setInset} is the one
  * dimension a caller controls.
  */
-public final class Separator extends Widget {
+public final class Separator extends Widget<Separator> {
 
     public enum Orientation { HORIZONTAL, VERTICAL }
 

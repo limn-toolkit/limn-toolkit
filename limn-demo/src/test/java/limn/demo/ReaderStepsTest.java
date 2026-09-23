@@ -316,7 +316,7 @@ class ReaderStepsTest {
             }
             harness.show(shown);
             Scene scene = harness.scenes.get(0);
-            Widget focus = harness.built.focus();
+            Widget<?> focus = harness.built.focus();
             focus.requestFocus();
             harness.settle();
             assertTrue(isWithin(scene.focusedWidget(), focus), "\"" + entry.name() + "\": the run "
@@ -529,8 +529,8 @@ class ReaderStepsTest {
         return false;
     }
 
-    private static boolean isWithin(Widget widget, Widget ancestor) {
-        for (Widget at = widget; at != null; at = at.parent()) {
+    private static boolean isWithin(Widget<?> widget, Widget<?> ancestor) {
+        for (Widget<?> at = widget; at != null; at = at.parent()) {
             if (at == ancestor) {
                 return true;
             }
@@ -538,7 +538,7 @@ class ReaderStepsTest {
         return false;
     }
 
-    private static String describe(Widget widget) {
+    private static String describe(Widget<?> widget) {
         return widget == null ? "nothing" : widget.getClass().getSimpleName();
     }
 

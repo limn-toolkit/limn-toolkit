@@ -43,7 +43,7 @@ final class GltfScene {
         return scene;
     }
 
-    static Widget content() {
+    static Widget<?> content() {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);

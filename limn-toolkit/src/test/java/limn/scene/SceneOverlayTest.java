@@ -19,7 +19,7 @@ import static limn.testing.SceneDriver.drive;
 class SceneOverlayTest extends SceneTestBase {
 
     /** Focusable leaf that records the presses it receives. */
-    static final class PressBox extends Widget {
+    static final class PressBox extends Widget<PressBox> {
         final String name;
         final List<String> log;
 
@@ -36,7 +36,7 @@ class SceneOverlayTest extends SceneTestBase {
 
         @Override
         protected void onLayout() {
-            for (Widget child : children()) {
+            for (Widget<?> child : children()) {
                 child.measure(Constraints.loose(width(), height()));
                 child.layoutBox(0, 0, width(), height());
             }
@@ -115,7 +115,7 @@ class SceneOverlayTest extends SceneTestBase {
     }
 
     /** Leaf that requests the pointer cursor and records the hovers it receives. */
-    static final class HoverBar extends Widget {
+    static final class HoverBar extends Widget<HoverBar> {
         final List<String> log;
 
         HoverBar(List<String> log) {
@@ -137,7 +137,7 @@ class SceneOverlayTest extends SceneTestBase {
     }
 
     /** Overlay that yields the top 20px strip to the content beneath it. */
-    static final class StripYieldingOverlay extends Widget {
+    static final class StripYieldingOverlay extends Widget<StripYieldingOverlay> {
         final List<String> log;
 
         StripYieldingOverlay(List<String> log) {

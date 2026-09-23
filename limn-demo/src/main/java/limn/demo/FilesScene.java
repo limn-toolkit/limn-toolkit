@@ -54,7 +54,7 @@ final class FilesScene {
     }
 
     /** The subtree, reusable as a kitchen-sink tab; wires the window extras on attach. */
-    static Widget content() {
+    static Widget<?> content() {
         // No Theme local here on purpose: the only reads it served were the four title
         // fonts, and those are now roles resolved per widget at measure time.
         Checkbox confirmClose = new Checkbox(Checkbox.Variant.SWITCH, "Confirm before closing");
@@ -232,7 +232,7 @@ final class FilesScene {
     }
 
     /** A drop target: lists the names of the last files dropped onto it. */
-    private static final class DropArea extends Widget {
+    private static final class DropArea extends Widget<DropArea> {
 
         private final List<String> dropped = new ArrayList<>();
 

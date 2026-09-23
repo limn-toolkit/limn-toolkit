@@ -186,7 +186,7 @@ class DatePickerNativePopupTest {
 
     private Scene hostScene;
 
-    private HeadlessWindow show(limn.scene.Widget content) {
+    private HeadlessWindow show(limn.scene.Widget<?> content) {
         Column root = new Column();
         root.add(content);
         HeadlessWindow window = backend.open("Limn date picker", 400, 300);

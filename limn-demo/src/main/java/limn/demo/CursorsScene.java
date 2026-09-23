@@ -51,7 +51,7 @@ final class CursorsScene {
     }
 
     /** The subtree, reusable as a kitchen-sink tab. */
-    static Widget content() {
+    static Widget<?> content() {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
 
@@ -119,10 +119,10 @@ final class CursorsScene {
 
 
     /** A row of equal-width cursor tiles. */
-    private static Row cursorRow(Widget... tiles) {
+    private static Row cursorRow(Widget<?>... tiles) {
         Row row = new Row();
         row.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-        for (Widget tile : tiles) {
+        for (Widget<?> tile : tiles) {
             row.add(Expanded.of(tile, 1));
         }
         return row;
@@ -189,7 +189,7 @@ final class CursorsScene {
     }
 
     /** A tile showing a custom image cursor while hovered. */
-    private static final class ImageCursorTile extends Widget {
+    private static final class ImageCursorTile extends Widget<ImageCursorTile> {
         private final String label;
         private final Transition hover =
                 new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);
@@ -229,7 +229,7 @@ final class CursorsScene {
     }
 
     /** Hides the OS cursor while the pointer is over this tile (HIDDEN mode). */
-    private static final class HiddenTile extends Widget {
+    private static final class HiddenTile extends Widget<HiddenTile> {
         private boolean inside;
 
         @Override
@@ -292,7 +292,7 @@ final class CursorsScene {
      * or press ESC to release; losing focus or leaving the tree also releases
      * (the capture must never outlive its owner).
      */
-    private static final class CaptureTile extends Widget {
+    private static final class CaptureTile extends Widget<CaptureTile> {
         private boolean captured;
         private float angle;          // radians, driven by deltaX
         private float totalX;
@@ -383,7 +383,7 @@ final class CursorsScene {
     }
 
     /** A hover-highlighted block that requests one specific cursor. */
-    private static final class CursorTile extends Widget {
+    private static final class CursorTile extends Widget<CursorTile> {
         private final String label;
         private final Transition hover =
                 new Transition(this).duration(Theme.current().animHover).easing(Theme.current().animEasing);

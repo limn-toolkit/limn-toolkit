@@ -79,7 +79,7 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
      * own, so the focus order can be read from the tree without depending on any toolkit widget
      * whose own pipeline step has not landed.
      */
-    private static final class Field extends Widget {
+    private static final class Field extends Widget<Field> {
         Field(String name) {
             setFocusable(true);
             setAccessibleName(name);
@@ -836,7 +836,7 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
         assertQuietFrameIsFree(dialog.contentRoot());
     }
 
-    private void assertQuietFrameIsFree(Widget card) {
+    private void assertQuietFrameIsFree(Widget<?> card) {
         int published = bridge.published.size();
         bridge.events.clear();
 

@@ -56,7 +56,7 @@ class ListViewRowsContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             list = IndexedRows.list(new Rows());
             list.setAccessibleName("Rows");
             if (multiple) {
@@ -70,7 +70,7 @@ class ListViewRowsContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return list;
         }
 
@@ -121,7 +121,7 @@ class ListViewRowsContractTest extends ComponentTestBase {
         }
 
         /** A plain cell of a fixed height that cannot take the keyboard. */
-        private static final class Cell extends Widget {
+        private static final class Cell extends Widget<Cell> {
             @Override
             protected Size onMeasure(Constraints constraints) {
                 return constraints.constrain(constraints.maxWidth(), ROW_H);
@@ -129,7 +129,7 @@ class ListViewRowsContractTest extends ComponentTestBase {
         }
 
         private static final class Rows implements IndexedRows {
-            private final Deque<Widget> pool = new ArrayDeque<>();
+            private final Deque<Widget<?>> pool = new ArrayDeque<>();
 
             @Override
             public int rowCount() {
@@ -137,12 +137,12 @@ class ListViewRowsContractTest extends ComponentTestBase {
             }
 
             @Override
-            public Widget rowAt(int index) {
+            public Widget<?> rowAt(int index) {
                 return pool.isEmpty() ? new Cell() : pool.pop();
             }
 
             @Override
-            public void recycle(Widget widget) {
+            public void recycle(Widget<?> widget) {
                 pool.push(widget);
             }
 

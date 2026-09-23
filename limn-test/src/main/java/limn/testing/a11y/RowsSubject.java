@@ -36,10 +36,10 @@ public interface RowsSubject {
      * the root to bind: the widget itself, or a box around it that makes the box smaller than the
      * rows when {@link #scrolling()} is not {@link Scrolling#NONE}. Called once per case.
      */
-    Widget build();
+    Widget<?> build();
 
     /** @return the widget {@link #build()} made last: the container whose rows these are */
-    Widget widget();
+    Widget<?> widget();
 
     /** @return the rows' names, unique, in tree order */
     List<String> rowNames();

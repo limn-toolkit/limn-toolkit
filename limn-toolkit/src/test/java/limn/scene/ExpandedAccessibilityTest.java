@@ -662,7 +662,7 @@ class ExpandedAccessibilityTest extends AccessibleTestBase {
     }
 
     /** A pooling container in {@code ListView}'s shape: it keys and annotates its own children. */
-    private static final class Keying extends Widget {
+    private static final class Keying extends Widget<Keying> {
 
         /** Every child the walk offered, by the simple name of its class, in order. */
         final List<String> asked = new ArrayList<>();
@@ -691,14 +691,14 @@ class ExpandedAccessibilityTest extends AccessibleTestBase {
         }
 
         @Override
-        protected void onAccessibilityChildIdentity(Widget child, Accessibility a) {
+        protected void onAccessibilityChildIdentity(Widget<?> child, Accessibility a) {
             if (child instanceof Cell cell) {
                 a.key(cell.key);
             }
         }
 
         @Override
-        protected void onAccessibilityChild(Widget child, Accessibility a) {
+        protected void onAccessibilityChild(Widget<?> child, Accessibility a) {
             asked.add(child instanceof Cell named ? named.label : "Expanded");
             if (child instanceof Cell cell) {
                 a.selectionItem(false, cell.key, 2);

@@ -23,7 +23,7 @@ class SpinnerValueContractTest extends ComponentTestBase {
         private int changes;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             spinner = new Spinner(0, 99, 1).setValue(10);
             spinner.setAccessibleName("Quantity");
             changes = 0;
@@ -34,7 +34,7 @@ class SpinnerValueContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return spinner;
         }
 

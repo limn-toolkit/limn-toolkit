@@ -10,10 +10,10 @@ import limn.scene.Widget;
 public interface ToggleSubject {
 
     /** Builds a fresh widget, off, and returns the root to bind. */
-    Widget build();
+    Widget<?> build();
 
     /** @return the widget {@link #build()} made last, whose node or descendant carries the toggle */
-    Widget widget();
+    Widget<?> widget();
 
     /** @return whether the API says it is on now */
     boolean isOn();

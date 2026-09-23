@@ -22,7 +22,7 @@ class ButtonLeafActionContractTest extends ComponentTestBase {
         private int presses;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             button = new Button("Save");
             presses = 0;
             button.onAction(() -> presses++);
@@ -32,7 +32,7 @@ class ButtonLeafActionContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return button;
         }
 

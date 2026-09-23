@@ -84,24 +84,24 @@ class TabbedPaneMirroringTest extends ComponentTestBase {
 
     // The pane adds the viewport and then the three controls, in this order, so these four
     // indices are the pane's own construction order and not a guess about the tree.
-    private Widget strip() {
+    private Widget<?> strip() {
         return tabs.children().get(0);
     }
 
-    private Widget prevButton() {
+    private Widget<?> prevButton() {
         return tabs.children().get(1);
     }
 
-    private Widget nextButton() {
+    private Widget<?> nextButton() {
         return tabs.children().get(2);
     }
 
-    private Widget listButton() {
+    private Widget<?> listButton() {
         return tabs.children().get(3);
     }
 
     /** Header {@code index}, in strip-local coordinates: the headers are the strip's children. */
-    private Widget header(int index) {
+    private Widget<?> header(int index) {
         return strip().children().get(index);
     }
 
@@ -113,7 +113,7 @@ class TabbedPaneMirroringTest extends ComponentTestBase {
 
     /** Selects and focuses header {@code index} through the pointer, wherever it was placed. */
     private void clickHeader(int index) {
-        Widget h = header(index);
+        Widget<?> h = header(index);
         click(strip().x() + h.x() + h.width() / 2, STRIP_H / 2);
     }
 
@@ -297,7 +297,7 @@ class TabbedPaneMirroringTest extends ComponentTestBase {
             buildOverflowing(direction);
             tabs.setSelectedIndex(7);
             scene.layoutPass(NARROW, 200);
-            Widget last = header(7);
+            Widget<?> last = header(7);
             assertTrue(last.x() >= -EPS,
                     direction + ": the last tab hangs off the left at " + last.x());
             assertTrue(last.x() + last.width() <= strip().width() + EPS,

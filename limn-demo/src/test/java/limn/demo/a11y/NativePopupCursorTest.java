@@ -118,7 +118,7 @@ class NativePopupCursorTest {
                         + popup.bridge().events);
     }
 
-    private HeadlessWindow show(limn.scene.Widget content) {
+    private HeadlessWindow show(limn.scene.Widget<?> content) {
         Column root = new Column();
         root.add(content);
         HeadlessWindow window = backend.open("Limn popups", 400, 300);

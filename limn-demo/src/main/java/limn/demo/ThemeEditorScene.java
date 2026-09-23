@@ -35,7 +35,7 @@ final class ThemeEditorScene {
         return scene;
     }
 
-    private static Widget content() {
+    private static Widget<?> content() {
         ThemeEditor editor = new ThemeEditor(Theme.current());
 
         TokenColumn column = new TokenColumn(Tokens.Role.MEDIUM);

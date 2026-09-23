@@ -29,7 +29,7 @@ class MenuBarMenuContractTest extends ComponentTestBase {
         private MenuBar bar;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             chosen.clear();
             bar = new MenuBar();
             for (String title : NAMES) {
@@ -51,7 +51,7 @@ class MenuBarMenuContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return bar;
         }
 

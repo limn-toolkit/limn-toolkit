@@ -27,7 +27,7 @@ class ComboBoxPopupOwnerContractTest extends ComponentTestBase {
         private ComboBox combo;
 
         @Override
-        public Widget build() {
+        public Widget<?> build() {
             combo = new ComboBox(List.of("English", "Portuguese", "French"));
             combo.setAccessibleName("Language");
             Column root = new Column();
@@ -37,7 +37,7 @@ class ComboBoxPopupOwnerContractTest extends ComponentTestBase {
         }
 
         @Override
-        public Widget widget() {
+        public Widget<?> widget() {
             return combo;
         }
 
