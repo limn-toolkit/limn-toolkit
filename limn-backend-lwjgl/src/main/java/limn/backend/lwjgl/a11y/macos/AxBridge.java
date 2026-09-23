@@ -1061,15 +1061,18 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                 focusOwed = true;
                 continue;
             }
-            if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED
-                    && recountedContainers.contains(event.nodeId())) {
-                // A row container told its rows changed is not told its layout changed as well: a
-                // native outline posts AXRowCountChanged on itself and AXRowExpanded on the row, and
-                // nothing else. With the layout change beside them VoiceOver re-synced its cursor,
-                // wrote a stale row back as the selection and, after an opening, scrolled to another
-                // row and read it ("Trash, reduzido" for Reports); without it, it says "linha 2
-                // expandida" as it does over an NSOutlineView (readings/list-multi-macos, ntree-1 and
-                // texp-tree-1, 2026-09-23; scripts/a11y/macos/outline-steps-probe.swift).
+            if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED && isRowContainer(event.nodeId())) {
+                // A row container is never told its layout changed: its rows are told as rows. A
+                // native outline posts AXRowCountChanged on itself and AXRowExpanded on the row when
+                // one opens, and a native table posts nothing as it scrolls rows into view. With a
+                // layout change beside them VoiceOver re-synced its cursor to the container: it wrote
+                // a stale row back as the selection, wrote AXFocused on the table and stopped
+                // following the cell, or after an opening scrolled to another row and read it
+                // ("Trash, reduzido" for Reports). Without it the tree says "linha 2 expandida" as an
+                // NSOutlineView does and the table follows the cell down its rows
+                // (readings/list-multi-macos, ntree-1, texp-tree-1, texp-tab-1, 2026-09-23;
+                // scripts/a11y/macos/outline-steps-probe.swift). A row count that changed is told at
+                // the frame's end, whichever event carried it.
                 continue;
             }
             if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED && tree().nodeCount() > 0
@@ -1166,6 +1169,12 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * closing; emptied by the drain that posts them.
      */
     private final List<Long> recountedContainers = new ArrayList<>();
+
+    /** @return whether the node is a table, an outline or a list of rows in the published tree */
+    private boolean isRowContainer(long nodeId) {
+        AccessibleNode node = tree().find(nodeId);
+        return node != null && grid.isRowContainer(node);
+    }
 
     /**
      * Queues a row-count change for every held table, outline or list whose row count differs

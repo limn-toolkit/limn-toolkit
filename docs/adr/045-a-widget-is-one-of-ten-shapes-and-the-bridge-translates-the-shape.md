@@ -483,9 +483,11 @@ Found and fixed on 2026-09-23, by the first reader round over a `ListView` in `M
 - **The macOS tree's "Trash" at step 4.** Opening a row posted a layout change on the outline beside
   the row-expanded and row-count changes; a native `NSOutlineView` posts only the latter two, and with
   the layout change VoiceOver re-synced its cursor, wrote a stale row back as the selection and scrolled
-  to another row after an opening. A row container told its rows changed is no longer also told its
-  layout changed; VoiceOver then says "linha 2 contraída" and "linha 2 expandida" as it does natively
-  (`scripts/a11y/macos/outline-steps-probe.swift`).
+  to another row after an opening. A row container is no longer told its layout changed at all (a
+  native table posts nothing as it scrolls rows into view either); VoiceOver then says "linha 2
+  contraída" and "linha 2 expandida" as it does natively (`scripts/a11y/macos/outline-steps-probe.swift`),
+  and on the table follows the cell down the rows at steps 10 and 11, where it had written AXFocused
+  on the table and gone silent. The table's steps 9, 12 and 13 stay open: they are the focus idiom's.
 
 Evidence: `.claude/pending/2026-09-23/readings/` (`summary.txt`, and the `list-multi-*` directories,
 with the native probe `scripts/a11y/macos/multi-list-probe.swift`).

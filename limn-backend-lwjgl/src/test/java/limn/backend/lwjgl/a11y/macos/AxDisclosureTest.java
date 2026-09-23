@@ -206,4 +206,21 @@ class AxDisclosureTest {
         assertEquals(List.of("NSAccessibilityRowExpandedNotification",
                 "NSAccessibilityRowCountChangedNotification"), posted, trace.toString());
     }
+
+    /**
+     * 2026-09-23: rows realized or dropped as a container scrolls change its structure and not its
+     * row count, and a native table posts nothing for that; with a layout change VoiceOver wrote
+     * AXFocused on the table and stopped following the cell.
+     */
+    @Test
+    void aRowContainerWhoseRowsOnlyScrolledIsToldNothing() {
+        Fixture f = over(anOutline(0, 1, 2, 3, 4, 5));
+        List<String> trace = new ArrayList<>();
+        f.bridge().trace(trace::add);
+        f.grid().rows(f.tree().find(1001));
+        f.bridge().emit(AccessibleEvent.of(AccessibleEvent.Type.STRUCTURE_CHANGED, 1001));
+        f.bridge().frameEnded();
+        assertEquals(List.of(), trace.stream().filter(line -> line.startsWith("posted ")).toList(),
+                trace.toString());
+    }
 }
