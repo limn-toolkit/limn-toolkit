@@ -78,6 +78,10 @@ public final class PerfFooter extends Widget<PerfFooter> {
     private final Gauge draws3d = new Gauge("Draws 3D", Color.rgb(0xFB7185));
     private final Gauge[] rowFrame = {fps, frame, gpu, painted, regions};
     private final Gauge[] rowProcess = {cpu, mem, gc, gpu3d, draws3d};
+    /** The readings that measure the machine and the moment rather than the scene. */
+    private final java.util.Map<Gauge, String> machineUnits = java.util.Map.of(
+            fps, "fps", frame, "ms", gpu, "ms", cpu, "%", mem, "MB", gc, "ms/s");
+    private boolean machineReadingsHidden;
 
     // Runtime probes (fetched once).
     private final GarbageCollectorMXBean[] gcBeans;
@@ -156,6 +160,18 @@ public final class PerfFooter extends Widget<PerfFooter> {
      * second, over however long the warm-up frames took, which is a real interval measured
      * on the real clock and not a number invented for the picture. No-op off screen.
      */
+    /**
+     * Shows a dash, and draws no chart, for every reading that measures the machine and the
+     * moment rather than the scene: FPS, frame and GPU time, CPU, memory and GC. For a picture
+     * that must come out the same on every run and every machine, which a live frame rate never
+     * does; the scene's own counts, what it repainted and what its 3D holds, stay.
+     */
+    public void hideMachineReadings() {
+        Ui.checkUiThread();
+        machineReadingsHidden = true;
+        invalidate();
+    }
+
     public void sampleNow() {
         if (scene() == null || !isShowing() || !ticking) {
             return;
@@ -294,8 +310,9 @@ public final class PerfFooter extends Widget<PerfFooter> {
         // of the exact line drawn, and the ruler memoizes so the 1 Hz strings cost
         // one lookup per frame.
         ShapedText name = shapeText(gauge.name, NAME_FONT);
-        ShapedText value = shapeText(gauge.valueText, VALUE_FONT);
-        ShapedText unit = shapeText(gauge.unitText, NAME_FONT);
+        boolean hidden = machineReadingsHidden && machineUnits.containsKey(gauge);
+        ShapedText value = shapeText(hidden ? "\u2014" : gauge.valueText, VALUE_FONT);
+        ShapedText unit = shapeText(hidden ? machineUnits.get(gauge) : gauge.unitText, NAME_FONT);
         float nameX = rtl ? x + w - pad - name.metrics().width() : x + pad;
         float valueX = rtl ? x + w - pad - value.metrics().width() : x + pad;
         float unitX = rtl ? x + w - pad - unit.metrics().width() : x + pad;
@@ -307,7 +324,9 @@ public final class PerfFooter extends Widget<PerfFooter> {
         // widest text here ("of 4096 MB", "12.3k tris") and the two share one card.
         float sx = rtl ? x + pad : x + w * 0.55f;
         float sw = w * 0.45f - pad;
-        barChart(canvas, sx, y + 8, sw, h - 14, gauge);
+        if (!hidden) {
+            barChart(canvas, sx, y + 8, sw, h - 14, gauge);
+        }
     }
 
     /**

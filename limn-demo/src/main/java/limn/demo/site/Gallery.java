@@ -89,6 +89,11 @@ public final class Gallery {
      * reports the busiest window in the process, so the kitchen sink published several
      * hundred fps under the 2.6 s wait too (762 in the capture of 2026-08-18). The pace is
      * the ceiling for a scene that has settled, not a promise about one that has not.
+     *
+     * <p>None of those machine readings reaches the published picture any more: the footer is
+     * told to show a dash for them ({@code PerfFooter.hideMachineReadings}), because a live frame
+     * rate made the kitchen sink's captures differ on every run. The wait still settles what the
+     * footer does show, the scene's own counts.
      */
     private static final long SETTLE_PACE_MS = 16;
 
@@ -1020,6 +1025,7 @@ public final class Gallery {
         /** Asks every performance footer under {@code root} for its reading now. */
         private static void primeFooters(Widget<?> root) {
             if (root instanceof limn.demo.PerfFooter footer) {
+                footer.hideMachineReadings(); // a published picture must not change run to run
                 footer.sampleNow();
             }
             for (Widget<?> child : root.children()) {
