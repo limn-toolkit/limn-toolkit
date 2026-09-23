@@ -283,3 +283,9 @@ ones that change API are recorded here as they land.
   capture does not contain; the demo's capture mode is that application. Three items the review
   grouped here are designs, not slips, and are their own questions: the OpenGL-shaped backend
   types, where `ModalStack` belongs, and the system's dark-mode and reduced-motion preferences.
+- **API-14, the gaps (decision 142).** A widget has an id for the code that looks it up:
+  `Widget.setId`, `Scene.find(id)` and its typed form, and `SceneDriver.click(id)`. An id is not
+  shown, not read by an assistive technology and not required to be unique. The fake backend the
+  review asked for already ships as `limn-test`'s `HeadlessBackend`. In-app drag and drop, a
+  clipboard beyond text, settings persistence and nullness annotations are features, not slips,
+  and wait for a record of their own after 0.8.0.

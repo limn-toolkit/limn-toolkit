@@ -454,6 +454,50 @@ public final class Scene {
         return root;
     }
 
+    /**
+     * The first widget whose {@linkplain Widget#setId id} is {@code id}, searching the root's tree
+     * in order, parents before children, then each overlay in the order it was pushed. A hidden
+     * widget is found like a shown one. UI thread only.
+     *
+     * @param id the id to look for
+     * @return the widget, or {@code null} when none has that id
+     */
+    public Widget<?> find(String id) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(id, "id");
+        Widget<?> found = root == null ? null : findIn(root, id);
+        for (int i = 0; found == null && i < overlays.size(); i++) {
+            found = findIn(overlays.get(i), id);
+        }
+        return found;
+    }
+
+    /**
+     * {@link #find(String)}, typed.
+     *
+     * @param id the id to look for
+     * @param type the class the widget is expected to be
+     * @param <T> that class
+     * @return the widget, or {@code null} when none has that id
+     * @throws ClassCastException when the widget with that id is not a {@code type}
+     */
+    public <T> T find(String id, Class<T> type) {
+        return type.cast(find(id));
+    }
+
+    private static Widget<?> findIn(Widget<?> widget, String id) {
+        if (id.equals(widget.id())) {
+            return widget;
+        }
+        for (Widget<?> child : widget.children()) {
+            Widget<?> found = findIn(child, id);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
     private ControlSize controlSize; // null = fall through to a hosted root's host link
 
     /**

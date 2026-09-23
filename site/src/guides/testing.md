@@ -41,7 +41,7 @@ and they can be chained:
 
 | Gesture | What the scene receives |
 | --- | --- |
-| `click(widget)` or `click(x, y)` | the pointer moving there, the left button down and up |
+| `click(widget)`, `click(id)` or `click(x, y)` | the pointer moving there, the left button down and up |
 | `type(text)` | each character as the platform delivers typed text |
 | `press(key)` or `press(key, modifiers)` | the key down and up, with the `Keys.MOD_*` bits held |
 | `moveTo(x, y)` | the pointer moving there, which is a hover |
@@ -54,6 +54,12 @@ queue until `inputBatchEnded()`, exactly as one frame's input does.
 
 Keys that are not text go through `press`: Enter, Tab, the arrows, Escape. Text goes through
 `type`.
+
+A test that cannot reach a widget, because the screen builds it where the test cannot see, can
+name it instead. The screen calls `button.setId("save")` and the test calls
+`drive(scene).click("save")`. To check a widget afterwards, `scene.find("save")` returns it,
+and `scene.find("save", Button.class)` returns it already typed. Nobody sees an id, and a screen
+reader does not read one; what it reads is the accessible name.
 
 ## Dialogs, menus and popups
 

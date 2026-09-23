@@ -66,6 +66,7 @@ public abstract class Widget<W extends Widget<W>> {
     private boolean enabled = true;
     private boolean focusable;
     private Cursor cursor; // null = inherit from an ancestor (arrow at the root)
+    private String id;
 
     Scene scene; // set on the root by Scene, propagated on attach
 
@@ -2391,6 +2392,26 @@ public abstract class Widget<W extends Widget<W>> {
     /** The widget whose text describes this one, or {@code null}. Read by the publish step. */
     final Widget<?> accessibleDescribedBy() {
         return accessibleOverrides == null ? null : accessibleOverrides.describedBy;
+    }
+
+    /**
+     * Names this widget for the code that looks it up: {@link Scene#find(String)}, and a test's
+     * driver clicking it by id. Nobody sees an id and no assistive technology reads one; that is
+     * {@link #setAccessibleName}. An id need not be unique: a lookup answers the first match.
+     * UI thread only.
+     *
+     * @param id the id, or {@code null} for none (the default)
+     * @return this widget
+     */
+    public final W setId(String id) {
+        Ui.checkUiThread();
+        this.id = id;
+        return self();
+    }
+
+    /** @return the id {@link #setId} gave, or {@code null} */
+    public final String id() {
+        return id;
     }
 
     /**

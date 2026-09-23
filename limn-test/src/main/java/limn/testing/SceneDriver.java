@@ -85,6 +85,21 @@ public final class SceneDriver implements WindowInput {
     }
 
     /**
+     * A left click at the centre of the widget with this {@linkplain Widget#setId id}.
+     *
+     * @param id the id, as {@link Scene#find(String)} looks it up
+     * @return this driver
+     * @throws IllegalArgumentException when no widget in the scene has that id
+     */
+    public SceneDriver click(String id) {
+        Widget<?> widget = scene.find(id);
+        if (widget == null) {
+            throw new IllegalArgumentException("no widget with id \"" + id + "\" in the scene this driver drives");
+        }
+        return click(widget);
+    }
+
+    /**
      * Moves the pointer and ends the batch: a hover.
      *
      * @param x logical x in the scene
