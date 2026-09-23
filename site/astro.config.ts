@@ -105,14 +105,17 @@ export default defineConfig({
             { slug: "docs/text-and-languages" },
             { slug: "docs/accessibility" },
             { slug: "docs/images-and-media" },
+            { slug: "docs/custom-widgets" },
           ],
         },
         {
           label: "Shipping",
           items: [
             { slug: "docs/background-work" },
+            { slug: "docs/performance" },
             { slug: "docs/testing" },
             { slug: "docs/packaging" },
+            { slug: "docs/troubleshooting" },
           ],
         },
       ],

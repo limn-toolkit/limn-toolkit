@@ -282,6 +282,8 @@ ADR, 설계 노트에 각각 무엇이 들어가는지 말하고, 노트를 하�
 저장소를 소비하는 쪽이고 빌드가 따로 있으며, [`docs/design/website.md`](docs/design/website.md)에
 적혀 있습니다.
 
+변경을 제안하는 방법과 풀 리퀘스트에 담을 내용은 [`CONTRIBUTING.md`](CONTRIBUTING.md)에 있습니다.
+
 ## 라이선스
 
 [Apache-2.0](LICENSE), 명시적 특허 허여를 포함합니다. 함께 배포되는 구성 요소와 각각의 라이선스는

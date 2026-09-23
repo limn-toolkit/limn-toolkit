@@ -125,4 +125,6 @@ When a machine you cannot reach will not start it, ask the machine: `Backend.gra
 reports the windowing platform, the driver and the graphics context the backend actually
 obtained, or the reason none was. Print it from a diagnostic flag or put it in your error
 dialog, and a bug report carries the difference between a vendor driver, a translation
-layer and no OpenGL at all, which no stack trace says.
+layer and no OpenGL at all, which no stack trace says. [Troubleshooting](/docs/troubleshooting/)
+lists the messages a machine that will not start prints, and the JVM flags JDK 24 and later
+ask for.

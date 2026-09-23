@@ -224,6 +224,8 @@ MP4 播放需要一份**不在**本仓库里的原生载荷：它是 [`limn-ffmp
 
 要改动工具包本身，从 [`docs/design/README.md`](docs/design/README.md) 开始：它说明什么该写进 Javadoc、什么该写进 ADR、什么该写进设计笔记，并按子系统给笔记编了索引。网站是本仓库的一个消费者，有自己的一套构建，写在 [`docs/design/website.md`](docs/design/website.md) 里。
 
+如何提出改动，以及一个拉取请求应当包含什么，见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+
 ## 许可
 
 [Apache-2.0](LICENSE)，含明确的专利授权。随附的组件及其各自的许可列在 [`NOTICE`](NOTICE) 中；FFmpeg 解码器采用 LGPL-2.1-或更高版本，许可证文本随它的 jar 一起提供。

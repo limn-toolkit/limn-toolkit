@@ -294,6 +294,8 @@ que pertence a um Javadoc, a um ADR e a uma nota de design, e indexa as notas po
 site é um consumidor deste repositório, com um build próprio, descrito em
 [`docs/design/website.md`](docs/design/website.md).
 
+Como propor uma mudança, e o que um pull request leva, está em [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Licença
 
 [Apache-2.0](LICENSE), com concessão explícita de patentes. Os componentes embarcados e suas

@@ -295,6 +295,8 @@ corresponde a un Javadoc, a un ADR y a una nota de diseño, e indexa las notas p
 sitio web es un consumidor de este repositorio, con una compilación propia, descrita en
 [`docs/design/website.md`](docs/design/website.md).
 
+Cómo proponer un cambio, y qué lleva un pull request, está en [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Licencia
 
 [Apache-2.0](LICENSE), con concesión explícita de patentes. Los componentes incluidos y sus propias

@@ -224,6 +224,8 @@ MP4 播放需要一份**不在**這個倉庫裡的原生負載：它是 [`limn-f
 
 要改動工具組本身，從 [`docs/design/README.md`](docs/design/README.md) 開始：它說明什麼該寫進 Javadoc、什麼該寫進 ADR、什麼該寫進設計筆記，並按子系統替筆記編了索引。網站是這個倉庫的一個消費者，有自己的一套建置，寫在 [`docs/design/website.md`](docs/design/website.md) 裡。
 
+如何提出改動，以及一個拉取請求應當包含什麼，見 [`CONTRIBUTING.md`](CONTRIBUTING.md)。
+
 ## 授權
 
 [Apache-2.0](LICENSE)，含明確的專利授權。每個隨附元件及其授權都列在 [`NOTICE`](NOTICE) 中；FFmpeg 解碼器採用 LGPL-2.1-或更高版本，並在它的 jar 裡帶著授權條款全文。

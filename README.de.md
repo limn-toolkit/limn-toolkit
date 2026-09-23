@@ -299,6 +299,8 @@ sagt, was in ein Javadoc, in ein ADR und in eine Design-Notiz gehört, und verze
 nach Subsystem. Die Website ist ein Konsument dieses Repositorys mit einem eigenen Build,
 beschrieben in [`docs/design/website.md`](docs/design/website.md).
 
+Wie man eine Änderung vorschlägt und was ein Pull Request mitbringt, steht in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Lizenz
 
 [Apache-2.0](LICENSE), mit einer ausdrücklichen Patentgewährung. Die mitgelieferten Komponenten

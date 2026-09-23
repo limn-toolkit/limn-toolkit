@@ -300,6 +300,8 @@ il dit ce qui relève d’une Javadoc, d’un ADR et d’une note de conception,
 sous-système. Le site web est un consommateur de ce dépôt, avec un build qui lui est propre, décrit
 dans [`docs/design/website.md`](docs/design/website.md).
 
+Comment proposer un changement, et ce qu'une pull request doit contenir, se trouve dans [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Licence
 
 [Apache-2.0](LICENSE), avec une concession de brevets explicite. Les composants embarqués et leurs

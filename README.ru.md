@@ -296,6 +296,8 @@ jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-e
 по подсистемам. Сайт — потребитель этого репозитория со своей собственной сборкой, описанной в
 [`docs/design/website.md`](docs/design/website.md).
 
+Как предложить изменение и что должен содержать pull request, описано в [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Лицензия
 
 [Apache-2.0](LICENSE), включая явную патентную лицензию. Встроенные компоненты перечислены со

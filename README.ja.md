@@ -224,6 +224,8 @@ MP4 の再生には、このリポジトリに**含まれていない**ネイテ
 
 ツールキットそのものに手を入れるなら、[`docs/design/README.md`](docs/design/README.md) から始めてください。Javadoc に書くこと、ADR に書くこと、設計ノートに書くことの区別と、サブシステムごとのノートの索引があります。ウェブサイトはこのリポジトリを消費する側で、独自のビルドを持ち、[`docs/design/website.md`](docs/design/website.md) に記述があります。
 
+変更の提案のしかたと、プルリクエストに含めるものは [`CONTRIBUTING.md`](CONTRIBUTING.md) にあります。
+
 ## ライセンス
 
 [Apache-2.0](LICENSE)。明示的な特許許諾を含みます。同梱コンポーネントとそれぞれのライセンスは [`NOTICE`](NOTICE) に記載しています。FFmpeg のデコーダーは LGPL-2.1-or-later で、ライセンス本文を自身の jar の中に併せて運びます。

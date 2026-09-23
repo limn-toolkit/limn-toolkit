@@ -288,6 +288,8 @@ what belongs in a Javadoc, in an ADR and in a design note, and indexes the notes
 website is a consumer of this repository with a build of its own, described in
 [`docs/design/website.md`](docs/design/website.md).
 
+How to propose a change, and what a pull request carries, is in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## License
 
 [Apache-2.0](LICENSE), with an explicit patent grant. The bundled components and their own
