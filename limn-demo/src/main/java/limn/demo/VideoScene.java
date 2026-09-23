@@ -767,7 +767,7 @@ final class VideoScene {
     }
 
     /** Everything the tab keeps between source switches, so a switch closes exactly what it opened. */
-    private static final class Playing {
+    static final class Playing {
         VideoStreamSource stream;
         limn.video.MediaPlayer player;
         /**
@@ -1864,13 +1864,14 @@ final class VideoScene {
      * <p>It is present only when this run may have sound at all, for the same reason the soundtrack
      * switch is: a screenshot starts no audio device, so there is no player to change the track of.
      */
-    private static final class AudioTracks extends Widget<AudioTracks> {
+    static final class AudioTracks extends Widget<AudioTracks> {
 
         private final Playing open;
         private final VideoView view;
         private final Button button = new Button("Audio").setSecondary(true);
         private final Row row = new Row();
         private boolean ticking;
+        private boolean refreshPosted;
         private String shown = "";
 
         AudioTracks(Playing open, VideoView view) {
@@ -1968,10 +1969,21 @@ final class VideoScene {
          * re-read something a few times a second keeps the window at its refresh rate for as long
          * as it is on screen. Nothing here moves by itself (it changes when a track is picked),
          * and {@code setText} asks for the frame that shows it.
+         *
+         * <p>A paint may not change a widget, and {@code refresh} changes the button's text and
+         * enabled state, so the re-read a paint asks for is posted to run just after the frame.
          */
         @Override
         protected void onPaint(limn.graphics.Canvas canvas) {
-            refresh();
+            if (!refreshPosted) {
+                refreshPosted = true;
+                limn.concurrent.Ui.post(() -> {
+                    refreshPosted = false;
+                    if (scene() != null) {
+                        refresh();
+                    }
+                });
+            }
             if (ticking || scene() == null || !isShowing() || open.player == null) {
                 // The player gate is at the ARMING site and not only inside the callback: what
                 // this line describes cannot change without a player, and a timer that re-reads
