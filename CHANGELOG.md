@@ -110,9 +110,11 @@ how an application module lets the toolkit read its own resources.
 
 ### Known, and left for later
 
-- NVDA says nothing at a select-all or a deselect in a table or a list; VoiceOver and Orca do.
+- NVDA says nothing at a select-all, as it says nothing at one in Windows' own lists; VoiceOver
+  and Orca do. It says nothing either when Space takes a table's row out of the selection while the
+  cursor is on one of the row's cells.
 - VoiceOver is given a sorted header's direction and does not read it out.
 - A date picker's year chooser keys its cells by position, so paging a block of years may make a
   reader speak a stale year first.
-- On Windows, rows are published as not keyboard-focusable, so a UI Automation client's
-  `SetFocus` on a row is refused; the container's is accepted.
+- On Windows, a UI Automation client's `SetFocus` on a column header, or on a row of a list or a
+  tree in `SINGLE` (where the cursor is the selection), is refused; the container's is accepted.
