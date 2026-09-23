@@ -29,6 +29,13 @@ public final class PopupOwnerContract {
     private PopupOwnerContract() {
     }
 
+    /**
+     * The cases, in the order the class description gives them.
+     *
+     * @param subject the widget under contract
+     * @param runtime the installed runtime the harness drains verbs through
+     * @return the cases; a test runs each as a dynamic test
+     */
     public static List<ContractCase> cases(PopupOwnerSubject subject, UiRuntime runtime) {
         List<ContractCase> cases = new ArrayList<>();
         cases.add(new ContractCase("closed, the owner says it has a popup and offers EXPAND alone",

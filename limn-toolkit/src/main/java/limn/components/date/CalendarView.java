@@ -88,6 +88,9 @@ import java.util.function.Predicate;
  * under a row of {@code COLUMN_HEADER}s, which are the four roles already mapped on all three
  * platforms for the {@code Table} widget. A day cell is named with the whole date and not the bare
  * number, because a cell heard on its own has to say what it is.
+ *
+ * <p>Like every widget, it is touched from the UI thread only: each method that changes it checks,
+ * and throws on any other thread.
  */
 public final class CalendarView extends Widget<CalendarView> {
 

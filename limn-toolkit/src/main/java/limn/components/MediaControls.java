@@ -140,6 +140,12 @@ public final class MediaControls extends Widget<MediaControls> {
     private long lastScrubNanos = Long.MIN_VALUE;
     private Boolean showingPaused;
 
+    /**
+     * A transport for {@code view}: play and pause, the scrub bar and the clock, and mute and
+     * volume while the media can sound.
+     *
+     * @param view the view it controls; never null
+     */
     public MediaControls(VideoView view) {
         this.view = Objects.requireNonNull(view, "view");
         // The media convention, declared rather than resolved: see the class comment. A

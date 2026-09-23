@@ -55,6 +55,13 @@ public final class BackdropPanel extends Padding {
         this(effect, Insets.all(12), child);
     }
 
+    /**
+     * A panel with {@code insets} of padding around {@code child}.
+     *
+     * @param effect what the panel does to the pixels behind it; never null
+     * @param insets the padding
+     * @param child  the content
+     */
     public BackdropPanel(BackdropEffect effect, Insets insets, Widget<?> child) {
         super(insets, child);
         this.effects = java.util.List.of(Objects.requireNonNull(effect, "effect"));

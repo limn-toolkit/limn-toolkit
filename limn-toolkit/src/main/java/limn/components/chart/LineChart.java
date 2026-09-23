@@ -67,6 +67,7 @@ public final class LineChart extends CartesianChart<LineChart> {
     private float pointsPlotWidth;
     private float pointsPlotHeight;
 
+    /** An empty line chart: add labels and series before it has anything to draw. */
     public LineChart() {
         super(false);
     }

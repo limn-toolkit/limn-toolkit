@@ -43,6 +43,7 @@ public final class BarChart extends CartesianChart<BarChart> {
     /** Scratch for {@link #markRect}: x, y, width, height. One pass, one thread, no garbage. */
     private final float[] rect = new float[4];
 
+    /** An empty bar chart: add labels and series before it has anything to draw. */
     public BarChart() {
         super(true);
     }

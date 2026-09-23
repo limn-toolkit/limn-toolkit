@@ -697,6 +697,16 @@ public final class Accessibility {
         action(Accessible.Action.INCREMENT, Accessible.Action.DECREMENT);
     }
 
+    /**
+     * {@link #value(double, double, double, double)}, for a number the user may be shown and not
+     * set: a read-only value accepts no {@code SET_VALUE} and publishes no step verbs.
+     *
+     * @param value    the current value
+     * @param min      the smallest the node accepts
+     * @param max      the largest
+     * @param step     one increment, or {@code 0} for none
+     * @param readOnly whether the number is shown and never set
+     */
     public void value(double value, double min, double max, double step, boolean readOnly) {
         Slot s = slot();
         s.hasValue = true;
@@ -924,6 +934,18 @@ public final class Accessibility {
                 maxX > 0, maxY > 0);
     }
 
+    /**
+     * Declares that this node scrolls, in the fractions a {@link ScrollFacet} carries;
+     * {@link #scrollFrom} computes them from offsets and extents.
+     *
+     * @param horizontalPercent      where the viewport sits along the content's width, in
+     *                               {@code 0..1}
+     * @param verticalPercent        where it sits along the content's height, in {@code 0..1}
+     * @param horizontalViewSize     the fraction of the content's width the viewport shows
+     * @param verticalViewSize       the fraction of its height the viewport shows
+     * @param horizontallyScrollable whether the content is wider than the viewport
+     * @param verticallyScrollable   whether it is taller
+     */
     public void scroll(double horizontalPercent, double verticalPercent,
                        double horizontalViewSize, double verticalViewSize,
                        boolean horizontallyScrollable, boolean verticallyScrollable) {

@@ -236,6 +236,9 @@ public final class PopupMenu {
      * the previous menu). That is LEFT reading left to right and RIGHT reading right to left;
      * the physical key is flipped once, inside this class, so a listener registered here means
      * "the previous menu" in either direction and must not flip again.
+     *
+     * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
+     * throws {@link IllegalStateException}.
      */
     public PopupMenu onRootLeading(Runnable listener) {
         Ui.checkUiThread();
@@ -248,6 +251,9 @@ public final class PopupMenu {
      * (MenuBar: the next menu). The trailing arrow is the one that opens a submenu where there
      * is one, which is why it is the one that walks on where there is not;
      * {@link #onRootLeading} states the direction rule both share.
+     *
+     * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
+     * throws {@link IllegalStateException}.
      */
     public PopupMenu onRootTrailing(Runnable listener) {
         Ui.checkUiThread();

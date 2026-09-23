@@ -205,7 +205,11 @@ public final class Scene {
         return metrics;
     }
 
-    /** A scene over {@code root}. Subscribes to font, size-step and language changes. */
+    /**
+     * A scene over {@code root}. Subscribes to font, size-step and language changes.
+     *
+     * @param root the widget tree to lay out, paint and dispatch to; never null
+     */
     public Scene(Widget<?> root) {
         this(root, System::nanoTime);
     }

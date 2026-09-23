@@ -7,9 +7,8 @@ package limn.math;
  * per frame, not a hot game loop); the allocation-free forms live in
  * {@code MutVec3} and the {@code *Into} methods elsewhere in this package.
  *
- * <p>The arithmetic is component-wise and unsurprising, so only the operations with
- * an edge case worth knowing carry documentation: {@link #div}, {@link #normalize},
- * {@link #lerp} and {@link #get}.
+ * <p>The arithmetic is component-wise; the operations with an edge case worth knowing are
+ * {@link #div}, {@link #normalize}, {@link #lerp} and {@link #get}.
  */
 public record Vec3(float x, float y, float z) {
 
@@ -24,14 +23,17 @@ public record Vec3(float x, float y, float z) {
         return new Vec3(s, s, s);
     }
 
+    /** @return the sum of this vector and {@code o} */
     public Vec3 add(Vec3 o) {
         return new Vec3(x + o.x, y + o.y, z + o.z);
     }
 
+    /** @return this vector minus {@code o} */
     public Vec3 sub(Vec3 o) {
         return new Vec3(x - o.x, y - o.y, z - o.z);
     }
 
+    /** @return this vector scaled by {@code s} */
     public Vec3 mul(float s) {
         return new Vec3(x * s, y * s, z * s);
     }
@@ -49,14 +51,17 @@ public record Vec3(float x, float y, float z) {
         return new Vec3(x / s, y / s, z / s);
     }
 
+    /** @return this vector pointing the other way */
     public Vec3 negate() {
         return new Vec3(-x, -y, -z);
     }
 
+    /** @return the dot product of this vector and {@code o} */
     public float dot(Vec3 o) {
         return x * o.x + y * o.y + z * o.z;
     }
 
+    /** @return the cross product, right-handed: {@code UNIT_X.cross(UNIT_Y)} is {@code UNIT_Z} */
     public Vec3 cross(Vec3 o) {
         return new Vec3(
                 y * o.z - z * o.y,
@@ -64,14 +69,17 @@ public record Vec3(float x, float y, float z) {
                 x * o.y - y * o.x);
     }
 
+    /** @return the squared length, which needs no square root */
     public float lengthSquared() {
         return x * x + y * y + z * z;
     }
 
+    /** @return the Euclidean length */
     public float length() {
         return (float) Math.sqrt(lengthSquared());
     }
 
+    /** @return the distance between this point and {@code o} */
     public float distance(Vec3 o) {
         return sub(o).length();
     }
@@ -91,10 +99,12 @@ public record Vec3(float x, float y, float z) {
         return new Vec3(x + (o.x - x) * t, y + (o.y - y) * t, z + (o.z - z) * t);
     }
 
+    /** @return the smaller of each pair of components */
     public Vec3 min(Vec3 o) {
         return new Vec3(Math.min(x, o.x), Math.min(y, o.y), Math.min(z, o.z));
     }
 
+    /** @return the larger of each pair of components */
     public Vec3 max(Vec3 o) {
         return new Vec3(Math.max(x, o.x), Math.max(y, o.y), Math.max(z, o.z));
     }

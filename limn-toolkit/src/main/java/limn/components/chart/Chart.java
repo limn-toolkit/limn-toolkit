@@ -614,6 +614,9 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
      * Called with the datum under the pointer on a left click. In
      * {@link TooltipMode#INDEX} a click anywhere in a category reports that category's
      * nearest mark, so a thin line is as clickable as a fat bar.
+     *
+     * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
+     * throws {@link IllegalStateException}.
      */
     public W onPointClick(Consumer<ChartPoint> listener) {
         Ui.checkUiThread();
@@ -624,6 +627,9 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
     /**
      * Called whenever the hovered datum changes, with {@code null} when the pointer leaves
      * the marks. Fires on changes only, not on every pointer move.
+     *
+     * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
+     * throws {@link IllegalStateException}.
      */
     public W onPointHover(Consumer<ChartPoint> listener) {
         Ui.checkUiThread();

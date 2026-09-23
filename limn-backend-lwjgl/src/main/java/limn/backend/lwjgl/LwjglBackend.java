@@ -125,6 +125,14 @@ public final class LwjglBackend implements Backend {
                 + "keep them on the module path and add: --add-modules " + natives, missing);
     }
 
+    /**
+     * Starts the backend on the calling thread, which becomes the UI thread: loads the native
+     * libraries, initializes GLFW and installs the toolkit's services. On macOS the calling thread
+     * must be the process's first, which is what {@code -XstartOnFirstThread} arranges.
+     *
+     * @throws IllegalStateException when the native libraries do not load or GLFW cannot start;
+     *                               the message says why and what to try
+     */
     public LwjglBackend() {
         boolean initialized;
         try {

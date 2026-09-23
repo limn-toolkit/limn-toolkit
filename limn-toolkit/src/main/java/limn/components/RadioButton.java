@@ -87,7 +87,13 @@ public final class RadioButton extends Widget<RadioButton> {
         setCursor(Cursor.POINTER);
     }
 
-    /** Fires with {@code true} when this radio becomes selected, {@code false} when a sibling takes over. */
+    /**
+     * Fires with {@code true} when this radio becomes selected, {@code false} when a sibling
+     * takes over.
+     *
+     * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
+     * throws {@link IllegalStateException}.
+     */
     public RadioButton onChange(Consumer<Boolean> listener) {
         Ui.checkUiThread();
         this.onChange = Checks.handlerSlot(onChange, listener, "RadioButton.onChange");

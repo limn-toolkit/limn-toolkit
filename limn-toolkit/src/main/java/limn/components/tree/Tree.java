@@ -1132,6 +1132,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return this;
     }
 
+    /** @return how many rows the user may select: none, one, or any number */
     public SelectionMode selectionMode() {
         return selectionMode;
     }
@@ -1709,14 +1710,24 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return this;
     }
 
-    /** Runs when the user opens a row. */
+    /**
+     * Runs when the user opens a row.
+     *
+     * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
+     * throws {@link IllegalStateException}.
+     */
     public Tree<T> onExpand(Consumer<T> handler) {
         Ui.checkUiThread();
         this.onExpand = Checks.handlerSlot(onExpand, handler, "Tree.onExpand");
         return this;
     }
 
-    /** Runs when the user closes a row. */
+    /**
+     * Runs when the user closes a row.
+     *
+     * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
+     * throws {@link IllegalStateException}.
+     */
     public Tree<T> onCollapse(Consumer<T> handler) {
         Ui.checkUiThread();
         this.onCollapse = Checks.handlerSlot(onCollapse, handler, "Tree.onCollapse");

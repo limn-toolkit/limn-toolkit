@@ -168,13 +168,23 @@ public final class Dialog {
     private float dragOffsetX;
     private float dragOffsetY;
 
-    /** A dialog with fixed text; see the {@link I18nString} constructor for localized text. */
+    /**
+     * A dialog with fixed text; see the {@link I18nString} constructor for localized text.
+     *
+     * @param title   the title, drawn on the card and read as the dialog's name; never null
+     * @param message the sentence under the title; empty for none, never null
+     */
     public Dialog(String title, String message) {
         this(I18nString.literal(Objects.requireNonNull(title, "title")),
                 I18nString.literal(Objects.requireNonNull(message, "message")));
     }
 
-    /** A dialog whose title and message follow the UI language; see {@link I18nString}. */
+    /**
+     * A dialog whose title and message follow the UI language; see {@link I18nString}.
+     *
+     * @param title   the title, drawn on the card and read as the dialog's name; never null
+     * @param message the sentence under the title; empty for none, never null
+     */
     public Dialog(I18nString title, I18nString message) {
         Objects.requireNonNull(title, "title");
         Objects.requireNonNull(message, "message");
@@ -223,6 +233,9 @@ public final class Dialog {
      *
      * <p>The widget inherits the card's {@link ControlSize} like everything else in
      * it. Passing {@code null} removes the current one. UI thread only.
+     *
+     * @param widget the content, or {@code null} to remove it
+     * @return this dialog
      */
     public Dialog setContent(Widget<?> widget) {
         Ui.checkUiThread();
@@ -238,32 +251,54 @@ public final class Dialog {
         return this;
     }
 
-    /** Adds a secondary (outlined) button that resolves the dialog with {@code result}. */
+    /**
+     * Adds a secondary (outlined) button that resolves the dialog with {@code resultValue}.
+     *
+     * @param text        the caption; never null
+     * @param resultValue what the dialog resolves with when this button is pressed; may be null
+     * @return this dialog
+     */
     public Dialog addButton(String text, String resultValue) {
         Ui.checkUiThread();
         return addButton(I18nString.literal(text), resultValue, false);
     }
 
-    /** A secondary button whose caption follows the UI language. */
+    /**
+     * A secondary button whose caption follows the UI language.
+     *
+     * @param text        the caption; never null
+     * @param resultValue what the dialog resolves with when this button is pressed; may be null
+     * @return this dialog
+     */
     public Dialog addButton(I18nString text, String resultValue) {
         Ui.checkUiThread();
         return addButton(text, resultValue, false);
     }
 
     /**
-     * Adds a primary (filled) button that resolves the dialog with {@code result}.
+     * Adds a primary (filled) button that resolves the dialog with {@code resultValue}.
      *
      * <p>The first one added is also the card's <b>default button</b>: Return resolves the dialog
      * with its result whenever the focused widget did not want the key itself, so Return in a
      * text field answers the dialog, while Return on a focused button presses that button and
      * Return in a {@code TextArea} still inserts a newline.
+     *
+     * @param text        the caption; never null
+     * @param resultValue what the dialog resolves with when this button is pressed; may be null
+     * @return this dialog
      */
     public Dialog addPrimaryButton(String text, String resultValue) {
         Ui.checkUiThread();
         return addButton(I18nString.literal(text), resultValue, true);
     }
 
-    /** A primary button whose caption follows the UI language. */
+    /**
+     * A primary button whose caption follows the UI language.
+     *
+     * @param text        the caption; never null
+     * @param resultValue what the dialog resolves with when this button is pressed; may be null
+     * @return this dialog
+     */
     public Dialog addPrimaryButton(I18nString text, String resultValue) {
         Ui.checkUiThread();
         return addButton(text, resultValue, true);
@@ -291,7 +326,12 @@ public final class Dialog {
         return this;
     }
 
-    /** Sets the result delivered on ESC / scrim dismiss (default {@code null}). */
+    /**
+     * Sets the result delivered on ESC / scrim dismiss (default {@code null}).
+     *
+     * @param value what Escape or a dismissing scrim click resolves with; may be null
+     * @return this dialog
+     */
     public Dialog setCancelResult(String value) {
         Ui.checkUiThread();
         this.cancelResult = value;
@@ -305,6 +345,9 @@ public final class Dialog {
      * every control inside the dialog then inherits, in both display modes.
      *
      * <p>{@code null} restores inheritance from the owner scene. UI thread only.
+     *
+     * @param size the step, or {@code null} to inherit it from the owner
+     * @return this dialog
      */
     public Dialog setControlSize(ControlSize size) {
         Ui.checkUiThread();
@@ -325,6 +368,9 @@ public final class Dialog {
      * is already open over its window is presented as a native one instead; an overlay can only
      * be brought to the front by raising its host, which would hide the dialog already there.
      * {@link #displayMode()} answers what actually happened; {@code keepInScene()} insists.
+     *
+     * @param mode the presentation asked for
+     * @return this dialog
      */
     public Dialog setDisplayMode(DisplayMode mode) {
         Ui.checkUiThread();
@@ -368,6 +414,9 @@ public final class Dialog {
     /**
      * Whether the native dialog window floats above other windows
      * (default {@code true}). Only applies to {@link DisplayMode#NATIVE_WINDOW}.
+     *
+     * @param value whether the window floats above others
+     * @return this dialog
      */
     public Dialog setAlwaysOnTop(boolean value) {
         Ui.checkUiThread();
@@ -381,6 +430,9 @@ public final class Dialog {
      * is truly modal: a scrim click is ignored and answered with the same alert
      * feedback (beep) a native modal gives; when {@code true} it closes with the
      * {@linkplain #setCancelResult cancel result} (a dismissable overlay).
+     *
+     * @param value whether a scrim click dismisses
+     * @return this dialog
      */
     public Dialog setDismissOnScrim(boolean value) {
         Ui.checkUiThread();
@@ -394,6 +446,9 @@ public final class Dialog {
      * {@code UNDECORATED_OPAQUE} is a borderless solid card; the default is a
      * borderless glassy panel with rounded, see-through corners. Ignored in
      * {@link DisplayMode#IN_SCENE} (the internal card is always the glassy panel).
+     *
+     * @param newStyle the framing
+     * @return this dialog
      */
     public Dialog setStyle(WindowStyle newStyle) {
         Ui.checkUiThread();
@@ -401,7 +456,11 @@ public final class Dialog {
         return this;
     }
 
-    /** Programmatically closes the dialog, resolving with {@code result}. UI thread only. */
+    /**
+     * Programmatically closes the dialog, resolving with {@code result}. UI thread only.
+     *
+     * @param result what the dialog resolves with; may be null
+     */
     public void dismiss(String result) {
         Ui.checkUiThread();
         resolve(result);
@@ -433,6 +492,8 @@ public final class Dialog {
      * Shows the dialog window-modal over {@code owner} (locks only its window),
      * or, in {@link DisplayMode#IN_SCENE}, a scene-modal internal overlay.
      *
+     * @param owner the scene the dialog is modal over
+     * @return a stage that completes with the result when the dialog closes
      * @throws IllegalStateException if this dialog was already shown (dialogs are single-use)
      */
     public CompletionStage<String> show(Scene owner) {
@@ -447,6 +508,8 @@ public final class Dialog {
      * {@link DisplayMode#IN_SCENE} an overlay cannot lock other native windows,
      * so it presents the same scene-modal internal overlay as {@link #show}.
      *
+     * @param owner the scene the dialog opens over
+     * @return a stage that completes with the result when the dialog closes
      * @throws IllegalStateException if this dialog was already shown (dialogs are single-use)
      */
     public CompletionStage<String> showToolkitModal(Scene owner) {
@@ -462,6 +525,8 @@ public final class Dialog {
      * interactive. Only valid in {@link DisplayMode#NATIVE_WINDOW}; an in-scene
      * overlay always captures its scene's input.
      *
+     * @param owner the scene the dialog opens over
+     * @return a stage that completes with the result when the dialog closes
      * @throws IllegalStateException if the display mode is {@link DisplayMode#IN_SCENE},
      *                               or if this dialog was already shown (dialogs are single-use)
      */
@@ -481,6 +546,8 @@ public final class Dialog {
      * for when a SMALL toolbar (or a LARGE settings pane) raises the dialog and the card
      * should match the surface it came from.
      *
+     * @param owner the widget whose scene the dialog is modal over, and whose step it takes
+     * @return a stage that completes with the result when the dialog closes
      * @throws IllegalStateException if {@code owner} is not in a scene, or the dialog was already shown
      */
     public CompletionStage<String> show(Widget<?> owner) {
@@ -491,7 +558,12 @@ public final class Dialog {
                 : presentNative(scene, true, scene.window());
     }
 
-    /** {@link #showToolkitModal(Scene)}, inheriting the size step from {@code owner}. */
+    /**
+     * {@link #showToolkitModal(Scene)}, inheriting the size step from {@code owner}.
+     *
+     * @param owner the widget whose scene the dialog opens over, and whose step it takes
+     * @return a stage that completes with the result when the dialog closes
+     */
     public CompletionStage<String> showToolkitModal(Widget<?> owner) {
         Ui.checkUiThread();
         Scene scene = adoptSizeHost(owner);
@@ -500,7 +572,12 @@ public final class Dialog {
                 : presentNative(scene, true, null);
     }
 
-    /** {@link #showNonModal(Scene)}, inheriting the size step from {@code owner}. */
+    /**
+     * {@link #showNonModal(Scene)}, inheriting the size step from {@code owner}.
+     *
+     * @param owner the widget whose scene the dialog opens over, and whose step it takes
+     * @return a stage that completes with the result when the dialog closes
+     */
     public CompletionStage<String> showNonModal(Widget<?> owner) {
         Ui.checkUiThread();
         Scene scene = adoptSizeHost(owner);

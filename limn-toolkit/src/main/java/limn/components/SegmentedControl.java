@@ -188,6 +188,9 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
     /**
      * Called with the chosen index whenever the selection changes: a click, an arrow key and a
      * {@link #setSelectedIndex} from code all arrive here.
+     *
+     * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
+     * throws {@link IllegalStateException}.
      */
     public SegmentedControl onSelect(IntConsumer listener) {
         Ui.checkUiThread();

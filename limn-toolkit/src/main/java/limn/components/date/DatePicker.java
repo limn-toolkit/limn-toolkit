@@ -71,6 +71,9 @@ import java.util.function.Predicate;
  * one, an overlay inside the owner window where it cannot &mdash; and an application that documents
  * itself with screenshots asks for {@link DisplayMode#IN_SCENE} on purpose, because a native popup
  * is absent from a capture of the window.
+ *
+ * <p>Like every widget, it is touched from the UI thread only: each method that changes it checks,
+ * and throws on any other thread.
  */
 public final class DatePicker extends Widget<DatePicker> {
 

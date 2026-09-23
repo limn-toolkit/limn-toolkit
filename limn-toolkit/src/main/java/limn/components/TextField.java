@@ -151,6 +151,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * {@code TEXT} edit as {@code CODE} when the text moved, and reaches no handler; the undo
      * history and the caret are reset even when it is handed the string it already holds, because
      * the guard is on the announcement and not on the call. UI thread only.
+     *
+     * @param text the new contents; {@code null} is the empty string
+     * @return this field
      */
     public TextField setText(String text) {
         Ui.checkUiThread();

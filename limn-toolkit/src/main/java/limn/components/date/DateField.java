@@ -99,6 +99,9 @@ import java.util.function.Predicate;
  * bidirectional algorithm's rule and not a convention of this toolkit, and it is the same reading
  * {@code Spinner} documents for its clock. What mirrors is which side of the box the run sits
  * against.
+ *
+ * <p>Like every widget, it is touched from the UI thread only: each method that changes it checks,
+ * and throws on any other thread.
  */
 public final class DateField extends Widget<DateField> {
 
