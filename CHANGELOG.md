@@ -112,7 +112,7 @@ how an application module lets the toolkit read its own resources.
 
 - NVDA says nothing at a select-all, as it says nothing at one in Windows' own lists; VoiceOver
   and Orca do. It says nothing either when Space takes a table's row out of the selection while the
-  cursor is on one of the row's cells.
+  cursor is on one of the row's cells, as it says nothing in a WPF DataGrid.
 - VoiceOver is given a sorted header's direction and does not read it out.
 - A date picker's year chooser keys its cells by position, so paging a block of years may make a
   reader speak a stale year first.
