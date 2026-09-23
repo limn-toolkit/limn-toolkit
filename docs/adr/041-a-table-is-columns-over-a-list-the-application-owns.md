@@ -29,6 +29,55 @@
 
 ---
 
+## Where this record stands (2026-09-23)
+
+*A summary for a reader arriving now. The sections below are the record as decided and as
+amended; where this summary and a section disagree, the section is right and this summary is stale.*
+
+**In force.**
+- `Table<T>` is typed columns over the application's `List<T>`, held by reference and re-read on
+  `refresh()`; a cell is shaped text unless its column names a widget factory (§1).
+- Rows virtualize by an anchor and a walk, columns as a band shaped and painted only in view; the
+  cursor row stays realized while the table is focused (§2; amended 2026-09-14).
+- Selection is `NONE`, `SINGLE` or `MULTI`, apart from a focus cell the arrows move. Selection,
+  lead, cursor and anchor follow their records across `refresh()` and a sort, by `equals` or
+  `rowKey`, and a row's node identity never names another record (§3; amended 2026-09-14 and -15).
+- The table sorts through a permutation and never reorders the list; `onSortRequest` hands the
+  sort to the application. With a sortable column the header is a focus stop of its own (§4).
+- Cells are never edited in place; a record is edited whole, in a form (§6, decided 2026-09-09).
+- A reader gets `TABLE`, `COLUMN_HEADER`, `ROW` and `CELL`; the header of column *c* is the
+  `CellFacet(-1, c)` child of a direct `GROUP`; the focus cell is `ACTIVE`; the sorted header
+  carries `CellFacet.Sort` and a description; a row is named by its cells' text (§7, §7.1).
+- A row offers `SELECT`, `FOCUS`, `PRESS` (opens that row) and `SCROLL_INTO_VIEW`, plus
+  `ADD_TO_SELECTION` or `DESELECT` in `MULTI`; only `FOCUS` moves the cursor for a reader, and the
+  table's `PRESS` opens the cursor row (§7; amended 2026-09-15 and 2026-09-17).
+- `onSelect`, `onActivate` and `onSortRequest` are ADR 040 handler slots, reached for the user
+  alone; `observeChanges` hears every change (§8; amended 2026-09-14; ADR 040 §7.2).
+
+**Changed after acceptance.**
+- Selection by model index became selection by record across a `refresh()` (decision 23, §3).
+- Enter, a double click and `PRESS` opened the lead; they open the cursor row (decision 32), and
+  since decisions 79-81 a reader's `SELECT` leaves the cursor and a row's `PRESS` opens it (§3, §7).
+- Sorting was the pointer's alone; the header became a keyboard stop (decision 36, §4). The
+  direction, first only a description, is also `CellFacet.Sort` (§7; amended 2026-09-15).
+- "A row has no name of its own" was withdrawn after three live readers (§7.1; amended 2026-09-16).
+- §9's shared row engine for a tree: superseded by ADR 044 §3, where `Tree` walks its own rows.
+- ADR 046 §11 (decision 136) moved the three modes to `limn.components.SelectionMode`, shared.
+
+**Open.**
+- macOS: VoiceOver announces the cell, so a row name is not sufficient; closing that half is
+  phase 5's (§7.1; amended 2026-09-16). What it speaks for `AXSortDirection` and for a sort change
+  is owed a look (§7; amended 2026-09-15).
+- The owner's read-aloud of the table transcript (§11; amended 2026-09-14); a live check of
+  trackpad momentum passing to the enclosing scroller (§2, decision 44).
+- A shared engine waits for a `TreeTable` (§9). Phase 2: column reordering, frozen leading columns.
+  Not decided: cell rectangles, grouping, filtering, multi-column sort, row drag, export (§10).
+
+**Where to read.** Status block; §1 and §3 with its amendments for the model; §7 and §7.1 for what a
+reader is told; §10 for what the table does not do.
+
+---
+
 ## 0. The starting point
 
 The survey of 2026-09-08 put a table first among what the toolkit still owes the market, and the

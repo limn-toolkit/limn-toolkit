@@ -75,6 +75,55 @@ on the notification rather than being decided at registration.
 
 ---
 
+## Where this record stands (2026-09-23)
+
+*A summary for a reader arriving now. The sections below are the record as decided and as
+amended; where this summary and a section disagree, the section is right and this summary is stale.*
+
+**In force.**
+- Every widget has two channels: the `onX` handler, the application's one response to the user,
+  and `observeChanges` watchers, any number, told of every change whatever moved it (§1.1, §1.2).
+- A change carries an aspect and an `Origin`: `USER` (pointer, key, IME, a reader's action),
+  `CODE` (the aspect the call's own contract names) or `ADJUSTMENT` (a consequence). Only `USER`
+  reaches the handler, and no public method lets an application claim it (§1.3, §1.5, §6.2).
+- `Change` is sealed: 51 interned `State` values and a `TextEdit` with offsets from `TextEditModel`.
+  It carries no value, and no state aspect is announced that no accessor answers (§1.4).
+- Order: the widget's watchers, the scene's, then the handler. Within one call, aspects in settling
+  order, the call's own aspect last; `ButtonGroup` announces both radios before any handler (§1.6).
+- A mutator announces only when its state moved; a throwing watcher is contained and the rest and
+  the handler still run; an announcement during a paint throws, watched or not (§1.2, §1.6, §1.7).
+- A registration returns a `limn.concurrent.Subscription`, the only way to stop. A widget's
+  subscription survives detach; a scene's hears the tree it holds; nothing is replayed (§1.7, §1.8).
+- A handler slot is cleared by `null` and a second handler throws (`Checks.handlerSlot`). Lifecycle
+  events use `observeClose`, `observeDispose`, `observeRefresh`, and the five axes (`Fonts`,
+  `ControlSize`, `LayoutDirection`, `I18n`, `Theme`) `observeChanges(Runnable)` (§1.1, §3.2, §7).
+
+**Changed after acceptance.**
+- §1.9 had `Scene` subscribe to `Theme`; to keep `limn.scene` off `limn.components`, no scene
+  subscribes and a palette switch is the caller's to invalidate (§7.1, decided with the owner).
+- §6.6 labelled `ListView`'s cell mounting `ADJUSTMENT` and §1.10 had an overlay push announce
+  `CHILDREN`: mounting is `CODE` through `Widget.add`, and an overlay push announces nothing (§7.1).
+- §6.2 expected a reader's actions to miss the handler; every one enters its seam as `USER` (§7.1).
+- The counts grew: thirty handler slots, not 27, and eight gestures reaching a public mutator, not
+  five (§7.1). `Table`'s seams, where a sort is announced as `CHILDREN`, are §7.2.
+- ADR 046 §1-§2 moved `Listeners` and `Checks` into internal packages, made concrete widgets final
+  and `TextField` sealed, and gave `TextField` the `onSubmit` handler; the channels stand (046 §9).
+
+**Open.**
+- `Menu`, `MenuItem`, `PopupMenu` and `Dialog` announce nothing on this channel (§6.1); nothing lets
+  a third party find a window's scenes or learn that one was replaced (§6.4).
+- Announcements from inside a layout pass, and per-cell `CHILDREN` churn while a list scrolls;
+  whether to hold them to the pass's end waits on a measurement (§6.5, §6.6, §4).
+- A subtree's `setLocale` or `setInheritanceHost` announces no name change (§6.16; kept, §7.3).
+- No became-shown hook (§6.13); no media-player notifications (§6.7); no commit on `Spinner` (§6.8).
+- Recorded costs: origin labels and `handleUserChange`'s `super` call are held by tests, not types
+  (§6.9, §6.11); composed text damage is unexercised (§6.12); §3.6's survey is approximate (§6.14).
+
+**Where to read.** Status block, then §1.1-§1.3 for the rule, §1.4 for the API and §2 for the
+guarantees. §6 holds what is open, and §7 overrules §1.5 and §3.1 wherever the source differed.
+
+---
+
 ## 0. What was measured before anything was decided
 
 ### 0.1 There are six notification patterns, and only one admits a second subscriber

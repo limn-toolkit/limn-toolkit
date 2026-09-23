@@ -26,6 +26,56 @@
 
 ---
 
+## Where this record stands (2026-09-23)
+
+*A summary for a reader arriving now. The sections below are the record as decided and as
+amended; where this summary and a section disagree, the section is right and this summary is stale.*
+
+**In force.**
+- The application exchanges ISO `LocalDate`, `LocalTime` and `LocalDateTime`; the calendar drawn
+  is the locale's chronology or `setChronology`'s, falling back to ISO outside its range. Today is
+  the widget's `setClock` (§1; amended 2026-09-14).
+- Three classes: `CalendarView`, `DateField`, and `DatePicker`, which holds a real `DateField` and
+  a real calendar button and opens a `CalendarView`. `setGranularity` (`YEAR` to `SECOND`) sets the
+  last segment; at `HOUR` or finer the picker's popup has a time row (§2, §11; amended 2026-09-14).
+- The field's segments follow the locale's short pattern. A typed ISO run or a paste commits
+  whole; a two-digit year resolves in a window around today, or is blanked with the guess off; an
+  era year keeps its width, the era is read-only; an incomplete field has no value (§3; amended
+  2026-09-14 and -15).
+- The grid always has six weeks. Its title climbs to the months and to 24-year blocks; the cursor
+  is not the selection; Home and End do not mirror (§4, §9; amended 2026-09-14).
+- Bounds and a filter apply to all three. The cursor stops on a refused day, published disabled
+  with no verb; a typed date out of bounds is kept and reported invalid, never snapped (§5).
+- A reader hears a `TABLE` whose days are full dates, numbered "15 of 30" and keyed by epoch day,
+  and whose weeks are named by the numbers drawn; the field is a `GROUP` of `SPIN_BUTTON`s, and it,
+  not the picker, carries `EXPANDED`, `HAS_POPUP` and one expand verb (§8; amended 2026-09-14/16).
+- `FOCUS` moves a cursor or a caret and nothing else; a reader's `SELECT` on a day leaves the
+  cursor unless the pick pages the month (§8; amended 2026-09-15 and 2026-09-17).
+- Handlers run for `USER` only; a change of view is a `VALUE`. No time zone anywhere (§9, §10).
+
+**Changed after acceptance.**
+- §2's factory table: superseded by two starts and `setGranularity` (decisions 12, 47, 48, 51).
+- §11's exclusions of the choosers and of a popup time row: both withdrawn (§4; decision 19).
+- The cursor skipped refused days; it stops on them (decision 30, §5).
+- The calendar button was synthetic and the picker carried `EXPANDED`; the button is a widget and
+  the field carries the state (decisions 18 and 55, §2 and §8).
+- Day cells were keyed by grid slot and weeks were unnamed; both changed (§8; amended 2026-09-16).
+- §10's `onSelect(Consumer<LocalDate>)` and `onSelectRange`: ADR 046 §11 (decision 137) gave each
+  widget one `Runnable` handler, and `DateField.onChange` now also runs for the time of day.
+- In the picker's popup a reader's selection only marks a day (ADR 045 §8, decision 102).
+
+**Open.**
+- The year chooser is still keyed by position; its fix waits on NVDA and Orca runs over a block
+  being paged (§8, decision 85; status block).
+- Whether `FOCUS` leaving a two-digit year may resolve it is the owner's to confirm, and whether the
+  calendar keeps its verbs during the picker's fade-out is not settled (§8; amended 2026-09-15).
+- Left out on purpose: a shortcut footer, era editing, a multi-month grid, zones, `Instant` (§11).
+
+**Where to read.** Status block; §1 and §2's amendment for the model; §3-§5 for input and bounds;
+§8 and its dated amendments for what a reader is told; §11 for what is left out.
+
+---
+
 ## 0. The starting point
 
 The market survey of 2026-09-08 ranked a table first among what the toolkit still owed a
