@@ -101,8 +101,8 @@ era is never windowed: Reiwa 8 is the whole year, and it is drawn and typed at i
 
 **The header climbs.** Clicking the month name shows the twelve months of that year; clicking again
 shows a block of twenty-four years. Each pick descends one step, and nothing is chosen until a day
-is. That is what makes a date of birth reachable, and `setView(View.YEARS)` opens a picker straight
-onto the years for exactly that case.
+is. That is what makes a date of birth reachable, and `picker.calendar().setView(CalendarView.View.YEARS)`
+opens a picker straight onto the years for exactly that case.
 
 **Typing beats clicking, and both work.** Up and Down adjust the segment the caret is in; Left and
 Right move between segments; digits fill the current segment and roll on to the next, so

@@ -31,8 +31,12 @@ as wide as the column. The default, `START`, leaves each child at its own natura
 which is what you want for a row of buttons and almost never what you want for a stack of
 text fields.
 
+`CrossAlignment.BASELINE` lines up the text instead of the boxes, for a row that mixes control
+sizes and carries text; on a `Column` it has no shared baseline to use and is ignored.
+
 For the main axis there is `MainAlignment` (`START`, `CENTER`, `END`, `SPACE_BETWEEN`),
-which decides where the children sit when there is more room than they need.
+which decides where the children sit when there is more room than they need. `START` and `END`
+follow the reading direction; `LEFT` and `RIGHT` stay put in a right-to-left subtree.
 
 ## Deciding who gets the leftover space
 

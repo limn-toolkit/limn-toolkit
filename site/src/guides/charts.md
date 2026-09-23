@@ -46,7 +46,9 @@ latency.setSmooth(true).setArea(true);
 ```
 
 `setSmooth` curves between points and `setTension` controls how much; `setArea` fills under
-the line. Both are per chart, not per series.
+the line. On the chart they apply to every series, including the ones added later; a
+`ChartSeries` takes `setSmooth` and `setFilled` of its own, for one smoothed trend line over
+raw measurements.
 
 ## Donuts
 

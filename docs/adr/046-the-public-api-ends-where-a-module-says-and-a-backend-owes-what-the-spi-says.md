@@ -258,7 +258,10 @@ ones that change API are recorded here as they land.
   rule with `void` base setters, with the cost stated: every declaration in the repository moved, an
   application's own widget writes `extends Widget<MyWidget>`, and an anonymous class, which cannot
   name itself, goes through a named abstract class. The verbs and `Flex`'s missing getters were the
-  other option and stay as they are.
+  other option and stay as they are. The rewrite missed four setters, found later by reading a
+  guide's sample against the source: `Widget.setCursor` and `setImageCursor` still returned
+  `void`, and `CartesianChart.setStacked` and `setHorizontal` returned `CartesianChart<?>`. They
+  return `W` now, and a test fails for any public setter of a self-typed base that does not.
 - **API-11, the UI-thread rule (decision 139).** A test now reads the sources and fails for any
   public mutator of the widgets, the layouts and the scene that neither checks the UI thread nor
   hands straight to a method that does; the two exceptions it allows are getters whose names start

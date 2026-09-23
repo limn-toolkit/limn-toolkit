@@ -13,7 +13,7 @@ Menu file = new Menu();
 file.addItem("New", this::newDocument);
 file.addItem("Open…", this::open);
 file.addSeparator();
-file.addCheck("Word wrap", true, editor::setWrap);
+file.addCheck("Word wrap", true, editor::setSoftWrap);
 file.addSubmenu("Recent", recentMenu);
 ```
 
@@ -121,7 +121,7 @@ outside its frame, not a window in its own right, which is why a combo box insid
 dialog still opens. Do not design a floating palette around staying usable while a modal
 is up; it will not be.
 
-By default a dialog is its own small window. `setDisplayMode(Dialog.DisplayMode.IN_SCENE)`
+By default a dialog is its own small window. `setDisplayMode(DisplayMode.IN_SCENE)`
 draws it inside the owner window instead, as a scrim and a card, which is what you want on
 a machine where an extra window would be intrusive, and what you want if you are drawing
 something that must stay inside your own frame.

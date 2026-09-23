@@ -738,8 +738,10 @@ public abstract class Widget<W extends Widget<W>> {
      * Sets the mouse cursor shown while the pointer is over this widget (and any
      * descendant that does not set its own, since cursor inherits down the tree).
      * {@code null} restores inheritance. UI thread only.
+     *
+     * @return this widget
      */
-    public void setCursor(Cursor cursor) {
+    public final W setCursor(Cursor cursor) {
         Ui.checkUiThread();
         this.cursor = cursor;
         // If we're the widget currently under the pointer (or an ancestor of it),
@@ -747,6 +749,7 @@ public abstract class Widget<W extends Widget<W>> {
         if (scene != null) {
             scene.cursorChanged(this);
         }
+        return self();
     }
 
     private limn.backend.ImageCursor imageCursor;
@@ -764,13 +767,16 @@ public abstract class Widget<W extends Widget<W>> {
      * Sets a custom {@link limn.backend.ImageCursor} shown while the pointer is
      * over this widget (inherits down the tree like {@link #setCursor}).
      * {@code null} restores inheritance/shape resolution. UI thread only.
+     *
+     * @return this widget
      */
-    public void setImageCursor(limn.backend.ImageCursor cursor) {
+    public final W setImageCursor(limn.backend.ImageCursor cursor) {
         Ui.checkUiThread();
         this.imageCursor = cursor;
         if (scene != null) {
             scene.cursorChanged(this);
         }
+        return self();
     }
 
     private limn.i18n.I18nString tooltip;

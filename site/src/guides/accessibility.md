@@ -74,7 +74,7 @@ control's name:
 {% snippet guide:a11y-labelled %}
 
 ```java
-form.add(labelled(new I18nString("account.email", "Email"), email, email));
+form.add(above(new I18nString("account.email", "Email"), email, email));
 ```
 
 That is the whole idiom, and the form above uses it for every field: a screen reader says

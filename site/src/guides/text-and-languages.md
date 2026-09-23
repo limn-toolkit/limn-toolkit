@@ -259,8 +259,6 @@ for an ellipsis.
   the whole layout system, not a direction flag.
 - **Justification and hyphenation.** Lines are broken, not fitted: a wrapped paragraph is
   ragged at the end of its lines.
-- **Plural rules.** "1 item" and "2 items" are separate keys your code chooses between;
-  there is no plural engine behind `I18nString`.
 - **Localized separators in number input.** A spinner shows and accepts the locale's
   digits, but its editable value keeps the ASCII decimal point (a comma is tolerated), not
   the locale's separator.

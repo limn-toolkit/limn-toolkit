@@ -117,14 +117,14 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
      * each other. Positive and negative values stack away from zero on their own sides, so
      * a mixed series does not cancel itself out mid-column.
      */
-    public final CartesianChart<?> setStacked(boolean value) {
+    public final W setStacked(boolean value) {
         Ui.checkUiThread();
         if (stacked != value) {
             beginDataChange();
             stacked = value;
             endDataChange();
         }
-        return this;
+        return self();
     }
 
     /** Whether the value axis runs left-to-right instead of bottom-to-top. */
@@ -137,13 +137,13 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
      * edge. The layout long labels want: a vertical axis gives each one a whole row
      * instead of a band the width of one bar.
      */
-    public final CartesianChart<?> setHorizontal(boolean value) {
+    public final W setHorizontal(boolean value) {
         Ui.checkUiThread();
         if (horizontal != value) {
             horizontal = value;
             invalidate();
         }
-        return this;
+        return self();
     }
 
     // ------------------------------------------------------------- geometry

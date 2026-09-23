@@ -348,7 +348,7 @@ all mount the same `ScrollBar`, so they behave alike without agreeing to. It rea
 thumb or paged by clicking the track, and it is thin at rest and widens as the pointer
 approaches, so it is thin to look at and thick to grab.
 
-`setPolicy` decides when it shows:
+`setScrollbarPolicy` on `ListView`, `Table`, `Tree` or `ScrollView` decides when it shows:
 
 | | |
 | --- | --- |
