@@ -61,7 +61,10 @@ their releases with this key.
 ## Releasing
 
 1. **Land everything.** The code, the ADRs, the guides that describe the version's shape — never
-   the number: the documentation carries placeholders, and the check refuses anything else.
+   the number: the documentation carries placeholders, and the check refuses anything else. That
+   includes `CHANGELOG.md`: its top section, "After" the previous release, lists what is new and
+   a row for every change a user's code must follow. It is named after the release it follows,
+   so nothing renames it at release; the first change after this release opens the next section.
 2. **Bump `versions.properties`** (say `0.6.0` → `0.7.0`), commit, and push `main`.
 3. **Watch `tag-releases`, then `publish`.** The first checks the documentation, tags `v0.7.0`
    and dispatches the second, which runs the full `check` under xvfb before anything is

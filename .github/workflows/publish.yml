@@ -316,6 +316,9 @@ jobs:
           release. For a machine with no network, the demo is also attached below as one file
           with every platform inside: \`jbang limn-demo-all.jar\`.
 
+          What changed since the previous release, and what to change in your code:
+          [CHANGELOG.md](https://github.com/$GH_REPO/blob/$TAG/CHANGELOG.md).
+
           ---
           NOTES
           )" \
