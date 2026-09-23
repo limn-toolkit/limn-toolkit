@@ -231,6 +231,11 @@ public final class ComboBox extends Widget<ComboBox> {
         selectedIndex = index;
         invalidate();
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+        if (open) {
+            // The open list's selection is its highlight, so a value set while it is down is
+            // shown there too, as a native drop-down list's selection follows its value.
+            setHighlight(index, origin);
+        }
     }
 
     /** Whether the popup is showing. */
@@ -882,10 +887,14 @@ public final class ComboBox extends Widget<ComboBox> {
 
     /** The keyboard highlight, which is the active descendant a reader follows: every caller is a key. */
     private void setHighlight(int index) {
+        setHighlight(index, Change.Origin.USER);
+    }
+
+    private void setHighlight(int index, Change.Origin origin) {
         int old = highlightedIndex;
         highlightedIndex = Math.max(0, Math.min(index, items.size() - 1));
         if (highlightedIndex != old) {
-            notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+            notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
         }
         if (popupPanel != null) {
             // Resolved once for the whole event, on the panel: damage and reveal must agree
@@ -1670,21 +1679,23 @@ public final class ComboBox extends Widget<ComboBox> {
                 // translation epoch are what the difference compares, and get() would allocate one
                 // per option per frame.
                 a.name(items.get(i), Accessible.NameFrom.CONTENT);
-                // The ROWS shape, written once (ADR 045 §3), read against this widget: the
-                // membership; the cursor, which here is not the selection — the highlight moves
-                // under the arrows and type-ahead while the selection moves only on commit, and
-                // a reader that heard only the selection could enumerate the options and never
-                // learn which one the user is on; not the hover, which is a pointer affordance
-                // and would republish the tree on every mouse move — and the three verbs, only
-                // while they are performed (semantics 5): SELECT and PRESS both, because choosing
-                // an option in a combo is one gesture, and FOCUS, which moves the highlight
-                // without choosing (decision 11, 2026-09-15). No SCROLL_INTO_VIEW: the list
-                // reveals its highlight itself. A narrowed row carries no verb, as below.
+                // The ROWS shape, written once (ADR 045 §3), read against this widget. The list's
+                // selection is the highlight, and the combo's value is not: the arrows and
+                // type-ahead move the selection of the list, and only a commit moves the value,
+                // as a native drop-down list does. Until 2026-09-23 the list's selection was the
+                // value and the highlight a cursor apart from it, so NVDA and Orca said "not
+                // selected" of every option the arrows reached, where Windows' own combo says the
+                // option alone (readings/combo-windows, native-combo-winforms). The verbs, only
+                // while they are performed (semantics 5): SELECT moves the highlight, as an arrow
+                // does, and PRESS chooses; no FOCUS, because the cursor is the selection
+                // (decision 11), and no SCROLL_INTO_VIEW: the list reveals its highlight itself.
+                // Not the hover either, which is a pointer affordance and would republish the tree
+                // on every mouse move. A narrowed row carries no verb, as below.
                 boolean verbs = !inert && operable;
                 RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
                         verbs ? RowsAccessibility.Selection.SINGLE : RowsAccessibility.Selection.NONE,
-                        i == selectedIndex, i + 1, items.size(), false, false,
-                        i == highlightedIndex, verbs, verbs, false);
+                        i == highlightedIndex, i + 1, items.size(), false, false,
+                        i == highlightedIndex, verbs, false, false);
                 // The negation of the paint loop's own skip test, so the tree and the pixels agree
                 // by construction rather than by two people remembering the same rule. Every
                 // option is still published, because the count and each option's position in it
@@ -1736,10 +1747,11 @@ public final class ComboBox extends Widget<ComboBox> {
         }
 
         /**
-         * The list's mechanisms as the rows shape drives them: {@code SELECT} and {@code PRESS}
-         * both commit the option, because choosing one in a combo is one gesture, and
-         * {@code FOCUS} moves the highlight through the arrows' path. Nothing reveals: the verb
-         * is not published on an option and the list reveals its highlight itself.
+         * The list's mechanisms as the rows shape drives them: the list's selection is the
+         * highlight, so {@code SELECT} moves it through the arrows' path and {@code PRESS} commits
+         * the option; {@code FOCUS} is refused, because the cursor is the selection. Nothing
+         * reveals: the verb is not published on an option and the list reveals its highlight
+         * itself.
          */
         private final class RowsHost implements RowsAccessibility.Host<Integer> {
             @Override
@@ -1749,7 +1761,7 @@ public final class ComboBox extends Widget<ComboBox> {
 
             @Override
             public boolean cursorIsTheSelection() {
-                return false;
+                return true;
             }
 
             @Override
@@ -1759,12 +1771,12 @@ public final class ComboBox extends Widget<ComboBox> {
 
             @Override
             public boolean isSelected(Integer index) {
-                return index == selectedIndex;
+                return index == highlightedIndex;
             }
 
             @Override
             public boolean select(Integer index, boolean moveCursor) {
-                commit(index);
+                setHighlight(index); // the arrows' path: the list's selection, not the value
                 return true;
             }
 
