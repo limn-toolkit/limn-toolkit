@@ -293,7 +293,7 @@ public final class TextArea extends Widget<TextArea> {
     }
 
     /** Whether long lines wrap at the text column's edge instead of scrolling. */
-    public boolean softWrap() {
+    public boolean isSoftWrap() {
         return softWrap;
     }
 

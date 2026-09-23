@@ -290,7 +290,7 @@ public final class Images {
      * Images.encodeAsync(shot, new ImageEncodeOptions(ImageFormat.PNG))
      *       .onSuccess(bytes -> clipboard.set(bytes))
      *       .onFailure(error -> status.setText(error.getMessage()))
-     *       .deliverIf(this::isAttached)
+     *       .deliverIf(this::isShowing)
      *       .start();
      * }</pre>
      *

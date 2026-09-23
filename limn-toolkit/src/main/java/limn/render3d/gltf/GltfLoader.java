@@ -109,7 +109,7 @@ public final class GltfLoader {
      *
      * <pre>{@code
      * loading = GltfLoader.loadAsync(file)
-     *                     .onProgress(bar::setValue)
+     *                     .onProgress(bar::setProgress)
      *                     .onSuccess(model -> show(model))
      *                     .deliverIf(view::isShowing)
      *                     .start();

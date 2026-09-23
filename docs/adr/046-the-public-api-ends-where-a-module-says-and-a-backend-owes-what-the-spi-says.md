@@ -273,3 +273,13 @@ ones that change API are recorded here as they land.
   `setAccessibleName` announces `NAME`/`CODE` when the name moves; and `TextField.setTrailingButton`
   replaces the button whole, as configuration and not a handler slot, and announces
   `CHILDREN`/`CODE`.
+- **API-13, the small inconsistencies (decision 141).** `Checkbox(String)` and
+  `Checkbox(I18nString)` make a box; `Checkbox.variant()`, `Slider.step()`, `Table.isStriped()`,
+  `isShowHeader()` and `scrollbarPolicy()` read back what their setters wrote; the two boolean
+  getters without `is` are `TextArea.isSoftWrap()` and `Spinner.isSnapToStep()`; and five Javadoc
+  samples that guarded delivery with an `isAttached` no widget has now use `isShowing`.
+  `ComboBox.popupWindow()` and `PopupMenu.popupWindow()` stay public, documented as supported,
+  because an application capturing its own windows needs the popup's, which the owner window's
+  capture does not contain; the demo's capture mode is that application. Three items the review
+  grouped here are designs, not slips, and are their own questions: the OpenGL-shaped backend
+  types, where `ModalStack` belongs, and the system's dark-mode and reduced-motion preferences.

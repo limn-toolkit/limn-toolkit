@@ -137,6 +137,11 @@ public final class Slider extends Widget<Slider> {
         return this;
     }
 
+    /** @return the grid a value is snapped onto, or {@code 0} for a continuous slider */
+    public float step() {
+        return step;
+    }
+
     /**
      * The application's response to the user moving the slider: called with the new value on a
      * drag, a key or an assistive technology's step, and never for {@link #setValue}. To hear

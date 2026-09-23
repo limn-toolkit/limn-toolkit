@@ -194,7 +194,7 @@ public final class Videos {
      * open = Videos.openAsync(file)
      *              .onSuccess(source -> player.play(source))
      *              .onFailure(error -> status.setText(error.getMessage()))
-     *              .deliverIf(this::isAttached)
+     *              .deliverIf(this::isShowing)
      *              .start();
      * }</pre>
      *

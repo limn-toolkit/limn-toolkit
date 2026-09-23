@@ -244,9 +244,13 @@ public final class ComboBox extends Widget<ComboBox> {
     }
 
     /**
-     * @return the popup's native window while open (screenshots/tests), else {@code null},
-     *         which is also the answer while an open popup is drawn
-     *         {@linkplain ComboBox in the scene}, where there is no window to return
+     * The window the open list is drawn in, for an application that captures it or a test that
+     * drives it: the list is a window of its own, so a capture of the owner window does not
+     * contain it. Supported API, not a test hook.
+     *
+     * @return the popup's native window while open, else {@code null}, which is also the answer
+     *         while an open popup is drawn {@linkplain ComboBox in the scene}, where there is no
+     *         window to return
      */
     public NativeWindow popupWindow() {
         return popupWindow;

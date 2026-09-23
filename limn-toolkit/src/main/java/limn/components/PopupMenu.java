@@ -296,7 +296,14 @@ public final class PopupMenu {
         return open;
     }
 
-    /** @return the popup's native window while open (screenshots/tests), else null. */
+    /**
+     * The window the open menu is drawn in, for an application that captures it or a test that
+     * drives it: the menu is a window of its own, so a capture of the owner window does not
+     * contain it. Supported API, not a test hook.
+     *
+     * @return this menu's native window while open, else {@code null}, which is also the
+     *         answer while the menu is drawn in the scene
+     */
     public NativeWindow popupWindow() {
         return popupWindow;
     }

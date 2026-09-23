@@ -24,7 +24,7 @@ import limn.math.Scalars;
  *
  * <pre>{@code
  * job = Ui.work(progress -> repository.load(id))
- *         .onProgress(bar::setValue)
+ *         .onProgress(bar::setProgress)
  *         .onSuccess(list::setItems)
  *         .onFailure(error -> status.setText(error.getMessage()))
  *         .deliverIf(view::isShowing)

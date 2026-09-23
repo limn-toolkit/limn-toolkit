@@ -107,7 +107,7 @@ public final class Ui {
      * <pre>{@code
      * job = Ui.work(progress -> repository.search(term))
      *         .onSuccess(results::setItems)
-     *         .deliverIf(results::isAttached)
+     *         .deliverIf(results::isShowing)
      *         .start();
      * }</pre>
      *

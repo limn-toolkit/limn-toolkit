@@ -138,7 +138,7 @@ public final class SvgIcon implements Icon {
      * <pre>{@code
      * icon.imageAsync(px)
      *     .onSuccess(bitmap -> requestRepaint())
-     *     .deliverIf(this::isAttached)
+     *     .deliverIf(this::isShowing)
      *     .start();
      * }</pre>
      *

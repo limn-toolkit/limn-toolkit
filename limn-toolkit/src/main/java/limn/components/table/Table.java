@@ -1587,6 +1587,11 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         return this;
     }
 
+    /** @return whether every second row is tinted */
+    public boolean isStriped() {
+        return striped;
+    }
+
     /**
      * Sets whether the header row is shown (default on). Without it nothing sorts or resizes
      * by pointer.
@@ -1601,6 +1606,11 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         return this;
     }
 
+    /** @return whether the header row is shown */
+    public boolean isShowHeader() {
+        return showHeader;
+    }
+
     /**
      * Sets when the scroll bars are shown (default {@link ScrollBar.Policy#AUTO}).
      *
@@ -1612,6 +1622,11 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         vBar.setPolicy(policy);
         hBar.setPolicy(policy);
         return this;
+    }
+
+    /** @return when the scroll bars are shown */
+    public ScrollBar.Policy scrollbarPolicy() {
+        return vBar.policy();
     }
 
     /**

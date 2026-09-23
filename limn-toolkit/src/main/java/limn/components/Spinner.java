@@ -240,7 +240,7 @@ public final class Spinner extends Widget<Spinner> {
     }
 
     /** Whether committed values are rounded to a multiple of the step. */
-    public boolean snapsToStep() {
+    public boolean isSnapToStep() {
         return snapToStep;
     }
 

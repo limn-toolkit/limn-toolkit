@@ -85,6 +85,16 @@ public final class Checkbox extends Widget<Checkbox> {
      */
     private final Path2D checkPath = new Path2D();
 
+    /** A check box ({@link Variant#BOX}) with a fixed label. */
+    public Checkbox(String text) {
+        this(Variant.BOX, text);
+    }
+
+    /** A check box ({@link Variant#BOX}) whose label follows the UI language. */
+    public Checkbox(I18nString text) {
+        this(Variant.BOX, text);
+    }
+
     /** A toggle with a fixed label; see the {@link I18nString} constructor for localized text. */
     public Checkbox(Variant variant, String text) {
         this(variant, I18nString.literal(Objects.requireNonNull(text, "text")));
@@ -142,6 +152,11 @@ public final class Checkbox extends Widget<Checkbox> {
      */
     public I18nString textSource() {
         return text;
+    }
+
+    /** @return how the toggle is drawn: a box with a check mark or a switch */
+    public Variant variant() {
+        return variant;
     }
 
     /** The current state. */
