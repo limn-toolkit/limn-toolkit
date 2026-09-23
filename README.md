@@ -32,7 +32,8 @@
   <a href="README.ko.md">한국어</a> ·
   <a href="README.ru.md">Русский</a> ·
   <a href="README.zh-Hans.md">简体中文</a> ·
-  <a href="README.zh-Hant.md">繁體中文</a>
+  <a href="README.zh-Hant.md">繁體中文</a> ·
+  <a href="README.ar.md">العربية</a>
 </p>
 
 <p align="center">
@@ -200,7 +201,7 @@ radius, the size step every control inherits — and one call swaps it at runtim
 </p>
 
 **Your users' languages.** Text is measured with the same advances it is drawn with, and font
-fallback runs per character, so Latin, Greek, Cyrillic and CJK mix in one string without you
+fallback picks a face for each run of one script, so Latin, Greek, Cyrillic and CJK mix in one string without you
 choosing a face — the CJK and emoji faces ride one opt-in dependency (`limn-fonts-all`), the
 rest come with the backend. Input methods compose inside the field, and editing moves by
 grapheme cluster.

@@ -32,7 +32,8 @@
   <a href="README.ko.md">한국어</a> ·
   <a href="README.ru.md">Русский</a> ·
   <a href="README.zh-Hans.md">简体中文</a> ·
-  <a href="README.zh-Hant.md">繁體中文</a>
+  <a href="README.zh-Hant.md">繁體中文</a> ·
+  <a href="README.ar.md">العربية</a>
 </p>
 
 <p align="center">
@@ -208,7 +209,7 @@ ejecución.
 </p>
 
 **Los idiomas de tus usuarios.** El texto se mide con los mismos avances con los que se dibuja, y
-el respaldo de fuentes funciona carácter a carácter, así que latino, griego, cirílico y CJK se
+el respaldo de fuentes elige una tipografía para cada tramo de una misma escritura, así que latino, griego, cirílico y CJK se
 mezclan en una misma cadena sin que elijas tipografía — las tipografías CJK y de emojis llegan en
 una única dependencia opcional (`limn-fonts-all`), el resto viene con el backend. Los métodos de
 entrada componen dentro del campo y la edición avanza por grupos de grafemas.

@@ -32,7 +32,8 @@
   <a href="README.ko.md">한국어</a> ·
   <a href="README.ru.md">Русский</a> ·
   <a href="README.zh-Hans.md">简体中文</a> ·
-  <a href="README.zh-Hant.md">繁體中文</a>
+  <a href="README.zh-Hant.md">繁體中文</a> ·
+  <a href="README.ar.md">العربية</a>
 </p>
 
 <p align="center">
@@ -206,7 +207,7 @@ o passo de tamanho que todo controle herda — e uma chamada troca tudo em tempo
 </p>
 
 **Os idiomas dos seus usuários.** O texto é medido com os mesmos avanços com que é desenhado, e o
-fallback de fonte roda caractere a caractere, então latino, grego, cirílico e CJK se misturam em uma
+fallback de fonte escolhe uma tipografia para cada trecho de uma mesma escrita, então latino, grego, cirílico e CJK se misturam em uma
 mesma string sem você escolher tipografia — as tipografias CJK e de emoji chegam em uma única
 dependência opcional (`limn-fonts-all`), o resto vem com o backend. Os métodos de entrada compõem
 dentro do campo, e a edição anda por cluster de grafema.

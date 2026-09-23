@@ -32,7 +32,8 @@
   <a href="README.ko.md">한국어</a> ·
   <a href="README.ru.md">Русский</a> ·
   <b>简体中文</b> ·
-  <a href="README.zh-Hant.md">繁體中文</a>
+  <a href="README.zh-Hant.md">繁體中文</a> ·
+  <a href="README.ar.md">العربية</a>
 </p>
 
 <p align="center">
@@ -166,7 +167,7 @@ public static void main(String[] args) {
   <img src="media/readme/home-mosaic.webp" alt="同一个界面在七套主题下渲染" width="900">
 </p>
 
-**你的用户的语言。** 文本用与绘制相同的步进量来度量，字体回退逐字符进行，所以拉丁文、希腊文、西里尔文和中日韩文可以混在同一个字符串里，而你无需选择字体——中日韩与表情符号字体装在一个自行选用的依赖（`limn-fonts-all`）里，其余随后端而来。输入法在字段内完成组字，编辑按字素簇移动。
+**你的用户的语言。** 文本用与绘制相同的步进量来度量，字体回退为同一文字系统的每一段各选一次字体，所以拉丁文、希腊文、西里尔文和中日韩文可以混在同一个字符串里，而你无需选择字体——中日韩与表情符号字体装在一个自行选用的依赖（`limn-fonts-all`）里，其余随后端而来。输入法在字段内完成组字，编辑按字素簇移动。
 
 <p align="center">
   <picture>

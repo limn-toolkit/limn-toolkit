@@ -32,7 +32,8 @@
   <a href="README.ko.md">한국어</a> ·
   <a href="README.ru.md">Русский</a> ·
   <a href="README.zh-Hans.md">简体中文</a> ·
-  <a href="README.zh-Hant.md">繁體中文</a>
+  <a href="README.zh-Hant.md">繁體中文</a> ·
+  <a href="README.ar.md">العربية</a>
 </p>
 
 <p align="center">
@@ -211,7 +212,7 @@ remplace à l’exécution.
 </p>
 
 **Les langues de vos utilisateurs.** Le texte est mesuré avec les mêmes avances que celles de son
-tracé, et le repli de police se fait caractère par caractère. Latin, grec, cyrillique et CJC se
+tracé, et le repli de police choisit une fonte pour chaque segment d’une même écriture. Latin, grec, cyrillique et CJC se
 mélangent donc dans une même chaîne sans que vous choisissiez de fonte — les fontes CJC et emoji
 arrivent par une seule dépendance optionnelle (`limn-fonts-all`), le reste vient avec le backend.
 Les méthodes de saisie composent dans le champ, et l’édition avance par groupe de graphèmes.

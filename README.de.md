@@ -32,7 +32,8 @@
   <a href="README.ko.md">한국어</a> ·
   <a href="README.ru.md">Русский</a> ·
   <a href="README.zh-Hans.md">简体中文</a> ·
-  <a href="README.zh-Hant.md">繁體中文</a>
+  <a href="README.zh-Hant.md">繁體中文</a> ·
+  <a href="README.ar.md">العربية</a>
 </p>
 
 <p align="center">
@@ -209,7 +210,7 @@ Laufzeit.
 </p>
 
 **Die Sprachen Ihrer Nutzer.** Text wird mit denselben Vorschüben gemessen, mit denen er gezeichnet
-wird, und der Schrift-Fallback läuft pro Zeichen, so mischen sich Latein, Griechisch, Kyrillisch
+wird, und der Schrift-Fallback wählt eine Schrift je Abschnitt eines Schriftsystems, so mischen sich Latein, Griechisch, Kyrillisch
 und CJK in einer Zeichenkette, ohne dass Sie eine Schrift wählen — die CJK- und Emoji-Schriften
 kommen über eine einzige Opt-in-Abhängigkeit (`limn-fonts-all`), der Rest kommt mit dem Backend.
 Eingabemethoden komponieren im Feld selbst, und die Bearbeitung bewegt sich in Graphem-Clustern.

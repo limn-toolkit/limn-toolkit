@@ -32,7 +32,8 @@
   <b>한국어</b> ·
   <a href="README.ru.md">Русский</a> ·
   <a href="README.zh-Hans.md">简体中文</a> ·
-  <a href="README.zh-Hant.md">繁體中文</a>
+  <a href="README.zh-Hant.md">繁體中文</a> ·
+  <a href="README.ar.md">العربية</a>
 </p>
 
 <p align="center">
@@ -199,8 +200,8 @@ public static void main(String[] args) {
   <img src="media/readme/home-mosaic.webp" alt="같은 화면을 일곱 가지 테마로 렌더링한 모습" width="900">
 </p>
 
-**사용자의 언어.** 텍스트는 그릴 때와 같은 전진폭으로 측정되고, 글꼴 대체는 글자 단위로
-동작합니다. 그래서 라틴·그리스·키릴·CJK가 한 문자열에 섞여도 서체를 고를 필요가 없습니다 — CJK와
+**사용자의 언어.** 텍스트는 그릴 때와 같은 전진폭으로 측정되고, 글꼴 대체는 같은 문자 체계가 이어지는
+구간마다 서체를 고릅니다. 그래서 라틴·그리스·키릴·CJK가 한 문자열에 섞여도 서체를 고를 필요가 없습니다 — CJK와
 이모지 서체는 직접 골라 넣는 의존성 하나(`limn-fonts-all`)에 실려 오고, 나머지는 백엔드에 딸려
 옵니다. 입력기는 입력란 안에서 조합하고, 편집은 자소 클러스터 단위로 움직입니다.
 
