@@ -4,6 +4,7 @@ import limn.backend.Backend;
 import limn.backend.CrashPhase;
 import limn.backend.Crashes;
 import limn.backend.Cursor;
+import limn.backend.ModalStack;
 import limn.backend.NativeWindow;
 import limn.backend.Platform;
 import limn.backend.WindowConfig;

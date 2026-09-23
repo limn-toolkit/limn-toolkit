@@ -1,4 +1,4 @@
-package limn.backend.lwjgl;
+package limn.backend;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -6,10 +6,14 @@ import java.util.Objects;
 import java.util.function.BiPredicate;
 
 /**
- * Pure modality bookkeeping (no GL): a stack of active modals and the decision
- * of whether a given window's input is blocked. Windows are opaque identities;
- * the parent→owned relationship is supplied as a predicate, so this class is
- * unit-testable with plain tokens.
+ * Modality bookkeeping for a backend: a stack of active modals and the decision of whether a
+ * given window's input is blocked. Plain Java with no platform in it, so every backend that
+ * presents native modals keeps the same rules rather than rewriting them. Windows are opaque
+ * identities compared by reference, which lets an in-scene modal, which has no window, be
+ * pushed as any token; the parent-to-owned relationship is supplied as a predicate.
+ *
+ * <p>Not thread-safe: a backend keeps it on its UI thread, where modals are raised and input is
+ * dispatched.
  *
  * <p>Rules:
  * <ul>
@@ -38,7 +42,7 @@ import java.util.function.BiPredicate;
  * newer one's only surface while the newer one blocks the older window. Two open
  * dialogs, neither reachable, and the only way out is killing the process.
  */
-final class ModalStack {
+public final class ModalStack {
 
     private record Modal(Object window, Object parent, Object ownerException) {
         /**
@@ -64,8 +68,19 @@ final class ModalStack {
 
     private final List<Modal> stack = new ArrayList<>();
 
-    /** Pushes a modal locking {@code parent} (null = toolkit-modal). */
-    void push(Object window, Object parent) {
+    /** An empty stack: nothing is modal and nothing is blocked. */
+    public ModalStack() {
+    }
+
+    /**
+     * Pushes a modal locking {@code parent}.
+     *
+     * @param window the modal's own window; never null
+     * @param parent the window it locks, or {@code null} for a toolkit-modal that locks every
+     *               non-modal window
+     * @throws IllegalStateException if {@code window} is already modal
+     */
+    public void push(Object window, Object parent) {
         push(window, parent, null);
     }
 
@@ -74,8 +89,14 @@ final class ModalStack {
      * locking {@code ownerException} nor any window it owns (null = none). This is
      * the shape of an in-scene modal, whose host keeps drawing its own dropdowns
      * and menus as separate windows while the overlay is up.
+     *
+     * @param window         the modal's window, or a token standing for an in-scene modal
+     * @param parent         the window it locks, or {@code null} for a toolkit-modal
+     * @param ownerException the window it never locks, with what that window owns, or
+     *                       {@code null} for none
+     * @throws IllegalStateException if {@code window} is already modal
      */
-    void push(Object window, Object parent, Object ownerException) {
+    public void push(Object window, Object parent, Object ownerException) {
         Objects.requireNonNull(window, "window");
         // A window already on the stack is a programming error, not a re-raise. The old
         // behaviour moved it to the top AND adopted the new parent and exception, silently:
@@ -89,8 +110,12 @@ final class ModalStack {
         stack.add(new Modal(window, parent, ownerException));
     }
 
-    /** Removes {@code window} from the stack. */
-    void pop(Object window) {
+    /**
+     * Removes {@code window} from the stack; nothing happens if it is not there.
+     *
+     * @param window the modal that closed
+     */
+    public void pop(Object window) {
         stack.removeIf(m -> m.window == window);
     }
 
@@ -99,23 +124,28 @@ final class ModalStack {
      * owner-exception} is {@code owner}. It is called when that host window closes,
      * since an in-scene modal has no window of its own to close.
      *
+     * @param owner the host window that closed
      * @return whether anything was removed
      */
-    boolean removeOwnedBy(Object owner) {
+    public boolean removeOwnedBy(Object owner) {
         return owner != null && stack.removeIf(m -> m.ownerException == owner);
     }
 
-    boolean isEmpty() {
+    /** @return whether no modal is active */
+    public boolean isEmpty() {
         return stack.isEmpty();
     }
 
     /** @return the topmost (interactive) modal window, or {@code null} if none */
-    Object topModal() {
+    public Object topModal() {
         return stack.isEmpty() ? null : stack.get(stack.size() - 1).window;
     }
 
-    /** @return whether {@code window} is one of the active modals */
-    boolean isModal(Object window) {
+    /**
+     * @param window a window or token
+     * @return whether {@code window} is one of the active modals
+     */
+    public boolean isModal(Object window) {
         for (Modal m : stack) {
             if (m.window == window) {
                 return true;
@@ -142,7 +172,7 @@ final class ModalStack {
      *                      discovered by the first component that spends a window per level.
      * @return whether {@code window}'s input is currently blocked by a modal
      */
-    boolean isBlocked(Object window, BiPredicate<Object, Object> locks,
+    public boolean isBlocked(Object window, BiPredicate<Object, Object> locks,
                       BiPredicate<Object, Object> ownsTransient) {
         if (stack.isEmpty()) {
             return false;

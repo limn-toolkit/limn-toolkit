@@ -1,4 +1,4 @@
-package limn.backend.lwjgl;
+package limn.backend;
 
 import org.junit.jupiter.api.Test;
 

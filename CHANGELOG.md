@@ -53,6 +53,8 @@ toolkit's own widgets are held to. A widget can carry an id: `setId("save")`, th
 
 **Smaller.**
 - `ListView<T>` is a typed list over your items, with the three selection modes.
+- A backend of your own keeps native modals with `limn.backend.ModalStack`: which window a modal
+  blocks, and why the topmost one is always answerable.
 - Scroll bars can reserve a strip instead of overlaying.
 - A spinner can be set by text.
 - A covered window on macOS stops rendering until it is uncovered.

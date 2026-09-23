@@ -292,3 +292,9 @@ ones that change API are recorded here as they land.
   review asked for already ships as `limn-test`'s `HeadlessBackend`. In-app drag and drop, a
   clipboard beyond text, settings persistence and nullness annotations are features, not slips,
   and wait for a record of their own after 0.8.0.
+- **API-15 and API-16, what a backend owes (decisions 159 and 160).** `Graphics3D.Provider` no
+  longer carries a demo scene: a `Viewport3D` with no renderer draws its cube through the public
+  renderer, which renders the same pixels, so a provider owes targets, meshes, textures and passes
+  and nothing else. `GraphicsInfo` keeps its field names and says they are the backend API's
+  vocabulary. `ModalStack`, the modality rules the LWJGL backend kept privately, is public in
+  `limn.backend`, so a second backend inherits them instead of rewriting them.
