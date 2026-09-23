@@ -8,6 +8,7 @@ import java.util.List;
 
 import static limn.accessibility.Accessible.Role.BUTTON;
 import static limn.accessibility.Accessible.Role.CELL;
+import static limn.accessibility.Accessible.Role.COMBO_BOX;
 import static limn.accessibility.Accessible.Role.COLUMN_HEADER;
 import static limn.accessibility.Accessible.Role.GROUP;
 import static limn.accessibility.Accessible.Role.LIST_ITEM;
@@ -159,6 +160,32 @@ public final class ReaderScripts {
             Step.press(Keys.HOME, "moves to Alps, which alone is selected")
                     .expecting(cursor(LIST_ITEM, "Alps").with(SELECTED),
                             shown(LIST_ITEM, "Zagros").without(SELECTED))));
+
+    /**
+     * "Combo box, driven": the combo's list opened from the keyboard, walked, committed and opened
+     * again to be dismissed. While the list is down the keyboard stays on the field and the reader
+     * follows the highlighted option; Enter commits it and closes the list, Escape closes it and
+     * changes nothing.
+     */
+    public static final ReaderScript COMBO = new ReaderScript("combo", List.of(
+            Step.press(Keys.DOWN, "opens the list on Andes")
+                    .expecting(shown(COMBO_BOX, "Mountain ranges").with(EXPANDED),
+                            cursor(LIST_ITEM, "Andes").with(SELECTED)),
+            Step.press(Keys.DOWN, "moves to Atlas")
+                    .expecting(cursor(LIST_ITEM, "Atlas")),
+            Step.press(Keys.DOWN, "moves to Carpathians")
+                    .expecting(cursor(LIST_ITEM, "Carpathians")),
+            Step.press(Keys.UP, "moves back to Atlas")
+                    .expecting(cursor(LIST_ITEM, "Atlas")),
+            Step.press(Keys.ENTER, "picks Atlas and closes the list")
+                    .expecting(cursor(COMBO_BOX, "Mountain ranges").valued("Atlas")
+                            .without(EXPANDED)),
+            Step.press(Keys.DOWN, "opens the list again, on Atlas")
+                    .expecting(shown(COMBO_BOX, "Mountain ranges").with(EXPANDED),
+                            cursor(LIST_ITEM, "Atlas").with(SELECTED)),
+            Step.press(Keys.ESCAPE, "closes the list and keeps Atlas")
+                    .expecting(cursor(COMBO_BOX, "Mountain ranges").valued("Atlas")
+                            .without(EXPANDED))));
 
     /**
      * "Announcements": the application speaking. Nothing else in the gallery calls

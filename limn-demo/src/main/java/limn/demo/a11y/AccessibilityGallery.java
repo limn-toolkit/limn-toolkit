@@ -569,6 +569,10 @@ public final class AccessibilityGallery {
                 new Entry("Combo box, open", List.of(ComboBox.class),
                         List.of(Role.COMBO_BOX, Role.LIST, Role.LIST_ITEM),
                         () -> comboBox(true)),
+                // The combo's open list had no reader script on any platform; this is the one its
+                // runs drive (2026-09-23), in the entry's own presentation.
+                new Entry("Combo box, driven", List.of(ComboBox.class), List.of(Role.COMBO_BOX),
+                        AccessibilityGallery::comboDriven, ReaderScripts.COMBO),
                 new Entry("List view with rows", List.of(ListView.class, ScrollBar.class),
                         List.of(Role.LIST, Role.LIST_ITEM, Role.SCROLL_BAR),
                         AccessibilityGallery::listView),
@@ -901,6 +905,20 @@ public final class AccessibilityGallery {
         combo.setSelectedIndex(1);
         page.add(Labelled.above("Language", combo));
         return new Built(page, open ? combo::open : () -> { });
+    }
+
+    /**
+     * A combo a reader run opens, walks, commits and dismisses: six of the gallery's ranges, Andes
+     * selected, under the translated caption, so a pt-BR pass hears no English but the ranges'
+     * own names, which are data.
+     */
+    private static Built comboDriven() {
+        Column page = page();
+        ComboBox combo = new ComboBox(List.of(
+                "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas"));
+        combo.setSelectedIndex(1);
+        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
+        return Built.focusing(page, combo);
     }
 
     private static Built listView() {

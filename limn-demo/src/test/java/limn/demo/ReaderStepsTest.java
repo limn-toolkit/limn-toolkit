@@ -72,7 +72,9 @@ class ReaderStepsTest {
             // phase 5. The guest recipes owe a section for it.
             "announcement",
             // Added 2026-09-23: the list's MULTI mode (decision 136), owed a reader run before 0.8.0.
-            "list-multi");
+            "list-multi",
+            // Added 2026-09-23: the combo's open list, never driven by a reader before.
+            "combo");
 
     /** The widgets H2 (with DT8, B9 and T7) found no reader run could be pointed at. */
     private static final List<Class<?>> WIDGETS_A_READER_MUST_HEAR = List.of(

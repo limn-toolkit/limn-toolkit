@@ -64,6 +64,9 @@ public final class GalleryStrings {
     /** "Date picker, closed". */
     public static final I18nString ENTRY_DATE_PICKER_CLOSED =
             new I18nString("gallery.entry.datePickerClosed", "Date picker, closed");
+    /** "Combo box, driven". */
+    public static final I18nString ENTRY_COMBO =
+            new I18nString("gallery.entry.combo", "Combo box, driven");
     /** "List view, several selected". */
     public static final I18nString ENTRY_LIST_MULTI =
             new I18nString("gallery.entry.listMulti", "List view, several selected");
@@ -117,7 +120,7 @@ public final class GalleryStrings {
     /** Every constant above, for a test that holds the catalogue to both languages. */
     public static final List<I18nString> ALL = List.of(
             ENTRY_TABLE, ENTRY_TREE_LOADING, ENTRY_ANNOUNCEMENTS, ENTRY_CALENDAR, ENTRY_DATE_FIELD,
-            ENTRY_DATE_PICKER_CLOSED, ENTRY_LIST_MULTI, MOUNTAIN_RANGES, RANGE, CONTINENT, SUMMIT,
+            ENTRY_DATE_PICKER_CLOSED, ENTRY_LIST_MULTI, ENTRY_COMBO, MOUNTAIN_RANGES, RANGE, CONTINENT, SUMMIT,
             VISITED, FILES, OPEN, SAVE, SAVED, STOP, STOPPED, DELIVERY_DATE, HOLIDAY, INVOICE_DATE, APPOINTMENT,
             DUE_DATE, STAY);
 
@@ -135,7 +138,8 @@ public final class GalleryStrings {
             ENTRY_CALENDAR.english(), ENTRY_CALENDAR,
             ENTRY_DATE_FIELD.english(), ENTRY_DATE_FIELD,
             ENTRY_DATE_PICKER_CLOSED.english(), ENTRY_DATE_PICKER_CLOSED,
-            ENTRY_LIST_MULTI.english(), ENTRY_LIST_MULTI);
+            ENTRY_LIST_MULTI.english(), ENTRY_LIST_MULTI,
+            ENTRY_COMBO.english(), ENTRY_COMBO);
 
     /**
      * @param name an entry's name, the English one it is identified by
