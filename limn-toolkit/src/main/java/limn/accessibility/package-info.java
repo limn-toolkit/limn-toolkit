@@ -9,7 +9,5 @@
  * platform vocabularies disagree about where a behaviour lives &mdash; a pattern on Windows, a
  * state bit and an action row on Linux, an attribute on macOS &mdash; so behaviour is carried by
  * typed <em>facets</em> and every platform's view is derived from the same one.
- *
- * <p>See ADR 039.
  */
 package limn.accessibility;

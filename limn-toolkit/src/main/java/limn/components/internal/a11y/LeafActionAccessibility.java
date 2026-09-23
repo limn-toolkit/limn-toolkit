@@ -4,7 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible.Action;
 
 /**
- * The {@code LEAF_ACTION} shape, written once (ADR 045 §3): a leaf that can be pressed and is
+ * The {@code LEAF_ACTION} shape, written once: a leaf that can be pressed and is
  * nothing else — a button, a spinner's arrow, a media control — offers {@code PRESS} exactly
  * while a press would be accepted, and performs it through the path a click and Space take, so
  * the application is notified the same way. A press is refused while the node is disabled or

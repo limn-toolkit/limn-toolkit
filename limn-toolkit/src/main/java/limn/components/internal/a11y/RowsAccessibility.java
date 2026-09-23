@@ -5,7 +5,7 @@ import limn.accessibility.Accessible;
 import limn.accessibility.Accessible.Action;
 
 /**
- * The {@code ROWS} shape, written once (ADR 045 §3): what a container that holds a selection and
+ * The {@code ROWS} shape, written once: what a container that holds a selection and
  * the members of it publish, and what a reader's verb on a member does. A list, a tree, a table's
  * rows and a calendar's day cells all say the same things and obey the same rules; before this,
  * each said them in its own hooks, and a decision about rows (79, the batch-23 lane) had to be
@@ -42,11 +42,10 @@ import limn.accessibility.Accessible.Action;
  * {@code ACTIVE} marks the cursor row only while the widget has the keyboard, so that an
  * unfocused widget publishes no cursor.
  *
- * <p><b>Two identities, one shape (ADR 041 §3, ADR 045 §7's first risk).</b> A list's or a tree's
- * row is a widget child, whose verbs are <i>delegated</i> to the container; a table's or a
- * calendar's row is a synthetic child the container describes, whose verbs it <i>owns</i>. The
- * difference is one call on the builder, which is why {@link Offer} is a parameter and nothing
- * here knows which widget is calling.
+ * <p><b>Two identities, one shape.</b> A list's or a tree's row is a widget child, whose verbs are
+ * <i>delegated</i> to the container; a table's or a calendar's row is a synthetic child the
+ * container describes, whose verbs it <i>owns</i>. The difference is one call on the builder, which
+ * is why {@link Offer} is a parameter and nothing here knows which widget is calling.
  */
 public final class RowsAccessibility {
 
@@ -82,7 +81,7 @@ public final class RowsAccessibility {
 
         /**
          * @return true where the cursor is the selection (a list, a segmented control), so that
-         *     {@code FOCUS} is refused (decision 11); false where a row can be the cursor without
+         *     {@code FOCUS} is refused; false where a row can be the cursor without
          *     being selected (a tree, a table, a calendar)
          */
         boolean cursorIsTheSelection();
@@ -110,7 +109,7 @@ public final class RowsAccessibility {
 
         /**
          * Makes the row the whole selection, revealing it, and moves the cursor onto it only when
-         * told to, which a client's {@code SELECT} never does (decision 79).
+         * told to, which a client's {@code SELECT} never does.
          *
          * @return whether the widget accepted it; false for a row it refuses to select
          */
@@ -174,11 +173,11 @@ public final class RowsAccessibility {
      * @param expandable whether the row opens
      * @param expanded   whether it is open; ignored when it does not open
      * @param cursor     whether the row is the cursor <i>and</i> the widget has the keyboard
-     * @param press      whether the row has an activation of its own (decision 80)
-     * @param focus      whether the cursor may be moved onto this row by a verb (decision 11: false
+     * @param press whether the row has an activation of its own
+     * @param focus whether the cursor may be moved onto this row by a verb (false
      *                   where the cursor is the selection; false for a child that takes the keyboard
      *                   itself and so carries the walk's free verb; false for a refused day)
-     * @param reveal     whether the row may be scrolled into view by a verb (decision 81: false
+     * @param reveal whether the row may be scrolled into view by a verb (false
      *                   for a child that takes the keyboard itself)
      */
     public static void describeRow(Accessibility a, Offer offer, Selection selection,
@@ -213,13 +212,12 @@ public final class RowsAccessibility {
     }
 
     /**
-     * Publishes a member that has no container node of its own — a radio button, whose group is
-     * a {@code ButtonGroup} and not a widget — with its membership and its selection verbs, by
-     * the same rules as {@link #describeRow} (decision 107, 2026-09-22). The verbs are the
-     * member's own, because the node is the widget's. No cursor mark, no {@code FOCUS} and no
-     * {@code SCROLL_INTO_VIEW}: a member that is a focusable widget carries the walk's free verbs
-     * and holds the keyboard itself, and no expand and no press, because no containerless member
-     * opens or activates.
+     * Publishes a member that has no container node of its own — a radio button, whose group is a
+     * {@code ButtonGroup} and not a widget — with its membership and its selection verbs, by the
+     * same rules as {@link #describeRow}. The verbs are the member's own, because the node is the
+     * widget's. No cursor mark, no {@code FOCUS} and no {@code SCROLL_INTO_VIEW}: a member that is
+     * a focusable widget carries the walk's free verbs and holds the keyboard itself, and no expand
+     * and no press, because no containerless member opens or activates.
      *
      * @param a         the builder, positioned on the member
      * @param selection what the group's selection allows

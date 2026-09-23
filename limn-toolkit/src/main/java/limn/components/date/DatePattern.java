@@ -40,7 +40,10 @@ final class DatePattern {
      * shows and does not let anyone edit; see {@link #editable()}.
      */
     enum Field {
-        /** {@code G}: the era. Read-only, and ADR 042 §3 says why. */
+        /**
+         * {@code G}: the era. Read-only: editing it, with the year renumbering across a
+         * transition, is work no other chronology asks for.
+         */
         ERA,
         /** {@code y}/{@code u}: the year of the era, in the chronology being drawn. */
         YEAR,
@@ -152,7 +155,7 @@ final class DatePattern {
     /**
      * A pattern with one field cut out of it, together with the one literal that joined it to its
      * neighbour: the day and its separator go for a month field, the minute and its colon for an
-     * hour field (ADR 042 &sect;2, amended 2026-09-14).
+     * hour field.
      *
      * <p>Which literal goes is the rule {@code CalendarChronology.monthYearPattern} already
      * applies to the long pattern, read the other way round: the one <em>before</em> the field

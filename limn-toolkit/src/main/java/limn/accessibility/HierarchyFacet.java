@@ -10,11 +10,11 @@ package limn.accessibility;
  * index of this row among every row the outline shows open, counted down the outline, which is what
  * AppKit's {@code accessibilityIndex} and {@code accessibilityRows} address; a loading line is not a
  * row and is not counted. Where a row stands <em>among its siblings</em> — the "2 of 5" a reader
- * speaks — is {@link SelectionItemFacet}'s, not this facet's (decision 4, 2026-09-13).
+ * speaks — is {@link SelectionItemFacet}'s, not this facet's.
  *
  * <p>Levels and rows are one-based in the model, and a zero means the number is not known; a
- * bridge publishes nothing for a zero (ADR 039 §1.2, amended 2026-09-14) and converts to its
- * platform's base itself, since UIA's base and AppKit's are read off the platform, not assumed.
+ * bridge publishes nothing for a zero and converts to its platform's base itself, since UIA's
+ * base and AppKit's are read off the platform, not assumed.
  *
  * @param level    how deep the row is, from one at a root, or {@code 0} when unknown
  * @param row      which row of the outline this is, from one at the top, or {@code 0} when unknown

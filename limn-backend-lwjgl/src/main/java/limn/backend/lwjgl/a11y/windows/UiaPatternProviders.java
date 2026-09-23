@@ -15,7 +15,7 @@ import java.util.Map;
  * <p>Everything a pattern <em>reads</em> comes from the facet the walk published, and everything it
  * <em>does</em> goes back through the scene's own dispatcher to the widget's own private path — the
  * one a click takes, with the widget's own enabled guard and the widget's own notification. No
- * component gains a public {@code click()}, which is §1.5's rule and the reason an assistive
+ * component gains a public {@code click()}: that is the rule, and the reason an assistive
  * technology's toggle tells an application exactly what a user's does.
  *
  * <p><b>A verb answers as soon as it is accepted.</b> The call cannot wait for the user-interface
@@ -67,7 +67,7 @@ final class UiaPatternProviders {
             // through AccessibleNode#accepts on the snapshot of the call, because the pointer a
             // client holds outlives the snapshot that vended the pattern (a button disabled since,
             // a row under an overlay). Until 2026-09-15 each was posted whatever the node published
-            // and the client was told S_OK for a verb the widget then refused (W6, WINDOWS-NEW-10).
+            // and the client was told S_OK for a verb the widget then refused.
             // One dispatch by the pattern's shape (ADR 045 §5): the code that serves each pattern
             // lives under the shape that owns it, moved there verbatim on 2026-09-21, and the
             // patterns themselves are vended by facet in UiaPatterns.
@@ -101,16 +101,15 @@ final class UiaPatternProviders {
     }
 
     /**
-     * Posts a setter the node accepts now, and refuses it synchronously otherwise (semantics 5 as
-     * amended 2026-09-15, through {@link AccessibleNode#accepts}): a writable value facet implies
-     * {@code SET_VALUE} and a text facet on a node that is not {@code READ_ONLY} implies
-     * {@code SET_TEXT}, each only on an {@code ENABLED} node. Replaces fix round 2e's
-     * {@code refusedSetter}, which refused on the enabled bit alone and posted a setter to a
-     * read-only facet.
+     * Posts a setter the node accepts now, and refuses it synchronously otherwise (through
+     * {@link AccessibleNode#accepts}): a writable value facet implies {@code SET_VALUE} and a text
+     * facet on a node that is not {@code READ_ONLY} implies {@code SET_TEXT}, each only on an
+     * {@code ENABLED} node. Replaces the earlier {@code refusedSetter}, which refused on the
+     * enabled bit alone and posted a setter to a read-only facet.
      *
      * <p>A node that is not {@code ENABLED} is refused with {@code UIA_E_ELEMENTNOTENABLED}, before
      * anything else, as the platform's own providers do ({@link #refusal}); its
-     * {@code IsReadOnly} stays the facet's truth (ADR 039 §1.2: enabled and read-only are never
+     * {@code IsReadOnly} stays the facet's truth (enabled and read-only are never
      * conflated).
      *
      * @param context what to read and post through
@@ -141,27 +140,25 @@ final class UiaPatternProviders {
      * the managed {@code UIA_E_ELEMENTNOTENABLED} and 0x80131509 the {@code HResult} of
      * {@code System.InvalidOperationException}, each read on the Windows 11 ARM64 guest
      * (10.0.26200, UIAutomationCore.dll 7.2.26100.9278) on 2026-09-13 by
-     * {@code scripts/a11y/windows/dump-uia-hresults.ps1}
-     * (readings/windows-dump-uia-hresults.txt); {@link UiaIds#E_ELEMENT_NOT_ENABLED} and
-     * {@link UiaIds#E_INVALID_OPERATION} carry the full reading, and neither header spelling is
-     * read.
+     * {@code scripts/a11y/windows/dump-uia-hresults.ps1} (readings/windows-dump-uia-hresults.txt);
+     * {@link UiaIds#E_ELEMENT_NOT_ENABLED} and {@link UiaIds#E_INVALID_OPERATION} carry the full
+     * reading, and neither header spelling is read.
      *
      * <p>The order is the platform's own providers', read as IL on the guest 2026-09-15
-     * (readings/windows-dump-uia-provider-conventions.txt §1b): {@code ButtonAutomationPeer.Invoke},
-     * {@code ToggleButtonAutomationPeer.Toggle}, {@code ExpanderAutomationPeer} and
-     * {@code TreeViewItemAutomationPeer}'s {@code Expand}/{@code Collapse},
-     * {@code SelectorItemAutomationPeer}'s {@code Select}/{@code AddToSelection}/
-     * {@code RemoveFromSelection}, {@code TextBoxAutomationPeer.SetValue} and
-     * {@code RangeBaseAutomationPeer.SetValue} all begin {@code call AutomationPeer::IsEnabled();
-     * brtrue; newobj ElementNotEnabledException; throw}, and only then throw
-     * {@code InvalidOperationException} for what they cannot do.
+     * (readings/windows-dump-uia-provider-conventions.txt §1b):
+     * {@code ButtonAutomationPeer.Invoke}, {@code ToggleButtonAutomationPeer.Toggle},
+     * {@code ExpanderAutomationPeer} and {@code TreeViewItemAutomationPeer}'s
+     * {@code Expand}/{@code Collapse}, {@code SelectorItemAutomationPeer}'s
+     * {@code Select}/{@code AddToSelection}/{@code RemoveFromSelection},
+     * {@code TextBoxAutomationPeer.SetValue} and {@code RangeBaseAutomationPeer.SetValue} all begin
+     * {@code call AutomationPeer::IsEnabled(); brtrue; newobj ElementNotEnabledException; throw},
+     * and only then throw {@code InvalidOperationException} for what they cannot do.
      *
      * <p><b>A choice and not a reading: {@code SetFocus} and {@code ScrollIntoView}.</b> They were
-     * read separately, the same day
-     * (readings/windows-dump-uia-focus-and-scroll-item.txt, {@code
-     * scripts/a11y/windows/dump-uia-focus-and-scroll-item.ps1}), and the platform's providers do not
-     * agree on them, so no reading settles what this bridge answers and what follows is argued.
-     * The client-side proxies of the Win32 controls follow the order above:
+     * read separately, the same day (readings/windows-dump-uia-focus-and-scroll-item.txt,
+     * {@code scripts/a11y/windows/dump-uia-focus-and-scroll-item.ps1}), and the platform's
+     * providers do not agree on them, so no reading settles what this bridge answers and what
+     * follows is argued. The client-side proxies of the Win32 controls follow the order above:
      * {@code ProxySimple}'s {@code IRawElementProviderFragment.SetFocus} throws
      * {@code ElementNotEnabledException} when the window is not enabled and
      * {@code InvalidOperationException} when the element is not keyboard-focusable, and
@@ -170,16 +167,15 @@ final class UiaPatternProviders {
      * that cannot scroll. WPF checks no enabled bit for either: {@code ElementProxy.SetFocus}
      * reaches {@code UIElementAutomationPeer.SetFocusCore}, which throws
      * {@code InvalidOperationException} when {@code UIElement.Focus()} refuses, and its item peers'
-     * {@code ScrollIntoView} scroll whatever the item's state, as do the list-box and tree-view item
-     * proxies. <b>The choice: this bridge answers both the way it answers every other verb, which
-     * is the Win32 proxies' order.</b> Its reasoning is that one answer for every refusal is the
-     * only one a client can rely on — a reader that learns 0x80040200 means "disabled" from
+     * {@code ScrollIntoView} scroll whatever the item's state, as do the list-box and tree-view
+     * item proxies. <b>The choice: this bridge answers both the way it answers every other verb,
+     * which is the Win32 proxies' order.</b> Its reasoning is that one answer for every refusal is
+     * the only one a client can rely on — a reader that learns 0x80040200 means "disabled" from
      * {@code Invoke} would have to learn a second rule for {@code SetFocus} alone — and that the
      * Win32 proxies are what a reader meets on the desktop's own controls, while WPF's silence is
-     * the absence of a check rather than a decision to answer something else. It was settled again
-     * by the orchestrator after phase 3 (2026-09-15: "Windows answering 0x80040200 for a verb on a
-     * node that is not ENABLED is kept, the same reading as the setter case"), and it is Windows
-     * open question 1, which phase 5 hears NVDA's side of.
+     * the absence of a check rather than a decision to answer something else. It was confirmed
+     * again after phase 3, on 2026-09-15, as the same reading as the setter case, and NVDA's side
+     * of it is heard in the live reader runs.
      */
     static int refusal(AccessibleNode node) {
         return node.has(Accessible.State.ENABLED) ? UiaIds.E_INVALID_OPERATION
@@ -187,7 +183,7 @@ final class UiaPatternProviders {
     }
 
     /**
-     * Posts the first of an ordered candidate list the node accepts now (semantics 5, read through
+     * Posts the first of an ordered candidate list the node accepts now (read through
      * {@link AccessibleNode#accepts}), and refuses synchronously when it accepts none.
      *
      * @param context    what to read and post through
@@ -215,8 +211,8 @@ final class UiaPatternProviders {
 
     /**
      * @param wasAccepted whether the scene took the request
-     * @return {@code S_OK}, or the code §1.3 gives a client holding an element for a node that has
-     *         gone — which is what a refusal here almost always is
+     * @return {@code S_OK}, or the code a client is given when it holds an element for a node
+     *         that has gone — which is what a refusal here almost always is
      */
     static int accepted(boolean wasAccepted) {
         return wasAccepted ? UiaIds.S_OK : UiaIds.E_ELEMENT_NOT_AVAILABLE;

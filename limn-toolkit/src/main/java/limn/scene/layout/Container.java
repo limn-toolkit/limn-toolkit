@@ -6,7 +6,7 @@ import limn.scene.Widget;
 
 /**
  * A widget whose children are whatever the application puts in it: the one kind of widget that
- * adds and removes children in public (ADR 046 §3).
+ * adds and removes children in public.
  *
  * <p>Every other widget arranges children of its own — a table its rows, a tab pane its headers, a
  * button its label — and adding to one of those from outside either did nothing it would show or

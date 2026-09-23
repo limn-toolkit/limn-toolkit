@@ -8,7 +8,8 @@ import java.util.Map;
 import static limn.backend.lwjgl.a11y.windows.UiaPatternProviders.postFirstAccepted;
 
 /**
- * The {@code LEAF_ACTION} shape's half of the Windows bridge (ADR 045 §5): a pressable leaf: Invoke, posted only while the node publishes PRESS.
+ * The {@code LEAF_ACTION} shape's half of the Windows bridge: a pressable leaf: Invoke, posted only
+ * while the node publishes PRESS.
  *
  * <p>Moved here verbatim from {@code UiaPatternProviders} on 2026-09-21, under the shape's
  * name and nothing else; the patterns are vended by facet in {@link UiaPatterns} and the

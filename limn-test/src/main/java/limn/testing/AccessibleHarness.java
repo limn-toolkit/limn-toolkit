@@ -24,12 +24,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@code AccessibleComponentTestBase}, without JUnit, so that a contract in these fixtures can run
  * over a widget from any module and, one day, from an application.
  *
- * <p>Time does not pass unless {@link #advanceTime} says it does, for the reason that base gives:
- * a measurement that lands in the middle of a fade depends on the machine, not on the widget.
- * A verb is performed from a thread that is not the UI thread, which is the path a bridge takes
- * (ADR 039 §1.9), and the host must return without blocking it. The scene is 400 by 300, the
- * stub window's size; a subject that wants a smaller box wraps its widget in a
- * {@code SizedBox}.
+ * <p>Time does not pass unless {@link #advanceTime} says it does, for the reason that base gives: a
+ * measurement that lands in the middle of a fade depends on the machine, not on the widget. A verb
+ * is performed from a thread that is not the UI thread, which is the path a bridge takes, and the
+ * host must return without blocking it. The scene is 400 by 300, the stub window's size; a subject
+ * that wants a smaller box wraps its widget in a {@code SizedBox}.
  */
 public final class AccessibleHarness {
 

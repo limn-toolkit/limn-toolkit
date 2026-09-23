@@ -85,9 +85,8 @@ public final class AccessibleTree {
     }
 
     /**
-     * @return the tag every identifier minted for this window carries above its serial, which
-     *         is what makes an identifier process-wide (ADR 039 §1.3, amended 2026-09-14);
-     *         {@code 0} for the empty tree
+     * @return the tag every identifier minted for this window carries above its serial, which is
+     *         what makes an identifier process-wide; {@code 0} for the empty tree
      */
     public long sceneTag() {
         return sceneTag;
@@ -204,14 +203,13 @@ public final class AccessibleTree {
 
     /**
      * The node the keyboard cursor is on inside the focused node: the first node published
-     * {@link Accessible.State#ACTIVE} strictly below {@link #focused()} in reading order,
-     * whichever containers lie between them (ADR 039 §1.10, amended 2026-09-14; semantics 4).
-     * Never the window node's own {@code ACTIVE}, and never resolved through a
-     * {@link SelectionFacet}: a container that is not the focused node, or below it, has no
-     * cursor to publish. When the focused node's own subtree holds no {@code ACTIVE} node and it
+     * {@link Accessible.State#ACTIVE} strictly below {@link #focused()} in reading order, whichever
+     * containers lie between them. Never the window node's own {@code ACTIVE}, and never resolved
+     * through a {@link SelectionFacet}: a container that is not the focused node, or below it, has
+     * no cursor to publish. When the focused node's own subtree holds no {@code ACTIVE} node and it
      * opened a popup that is a window of its own, the cursor is read across the
-     * {@link Accessible.Relation#CONTROLLER_FOR} relation into that window's tree (decision 5),
-     * so the identifier here may belong to another window — {@link #holds(long)} says which.
+     * {@link Accessible.Relation#CONTROLLER_FOR} relation into that window's tree, so the
+     * identifier here may belong to another window — {@link #holds(long)} says which.
      *
      * @return the identifier of the active descendant, or {@code 0} when the focused node has
      *         none or nothing is focused

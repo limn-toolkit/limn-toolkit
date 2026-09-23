@@ -519,7 +519,7 @@ public final class Slider extends Widget<Slider> {
         return true;
     }
 
-    /** The slider's mechanisms as the value shape drives them (ADR 045 §3). */
+    /** The slider's mechanisms as the value shape drives them. */
     private final class ValueHost implements ValueAccessibility.Host {
         @Override
         public boolean isEnabled() {

@@ -12,7 +12,7 @@ import java.nio.ByteBuffer;
 /**
  * A {@link GpuTexture}: one RGBA8 GL texture with its {@link Sampler} state baked
  * in (no separate sampler objects yet). Stored as plain RGBA8; sRGB decode happens
- * in the fragment shader (ADR 001 bans GL sRGB formats for GLSL-ES portability), so
+ * in the fragment shader (GL sRGB formats are ruled out for GLSL-ES portability), so
  * mip generation runs in the encoded space, a known minor inaccuracy acceptable
  * for UI-scale color maps. Per-GL-context; owned by a {@link Gl3DContext}.
  */

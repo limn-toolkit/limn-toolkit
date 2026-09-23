@@ -3,7 +3,7 @@ package limn.testing.a11y;
 import limn.scene.Widget;
 
 /**
- * A widget of the {@code LEAF_ACTION} shape (ADR 045 §1) as the leaf contract sees it: a
+ * A widget of the {@code LEAF_ACTION} shape as the leaf contract sees it: a
  * pressable leaf the contract can build fresh and count the presses of through the widget's
  * own handler.
  */

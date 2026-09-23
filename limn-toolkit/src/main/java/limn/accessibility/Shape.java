@@ -5,33 +5,33 @@ import java.util.Objects;
 /**
  * What a published node <i>is</i>, read off its role and its facets and never declared: a menu
  * row, a grid cell, a row of a selection, the owner of a popup, a toggle, a value, a text, a
- * pressable leaf, a sentence, or a surface (ADR 045). A widget publishes facts through the
+ * pressable leaf, a sentence, or a surface. A widget publishes facts through the
  * builder as it always did; this is the one place that says which of the ten shapes those facts
  * add up to, and it is the name a widget-side helper, a per-shape contract and a bridge adapter
  * all refer to. A node that is none of them is {@link #UNCLASSIFIED}, which the gallery's ratchet
  * refuses, so that a new widget cannot publish a combination nothing downstream has a name for.
  *
- * <p><b>Why derived and not a field (decision 89).</b> A field on the node would be one more thing
+ * <p><b>Why derived and not a field.</b> A field on the node would be one more thing
  * for three platform tables to translate and for a reader on a guest to be shown, and it could
  * disagree with the facets beside it. A derivation costs the bridges nothing, is exact by
  * construction, and is tested in the model; what a field would have caught — a widget that
  * declares one shape and publishes another — the shape's contract catches instead.
  *
- * <p><b>The order below is the rule (decision 90, amended by what the gallery published).</b>
- * Each shape is claimed by a facet <i>or by the closed family of roles that implies that facet</i>,
- * and a node with two candidates takes the first that matches, reading the constants top to
- * bottom. The role families are there so that a shape does not change with state: a disabled
- * button loses its verbs to the walk and an indeterminate progress bar has no value, and each is
- * still what it was. Where a facet and a role disagree the earlier shape wins, which is how:
+ * <p><b>The order below is the rule.</b> Each shape is claimed by a facet <i>or by the closed
+ * family of roles that implies that facet</i>, and a node with two candidates takes the first that
+ * matches, reading the constants top to bottom. The role families are there so that a shape does
+ * not change with state: a disabled button loses its verbs to the walk and an indeterminate
+ * progress bar has no value, and each is still what it was. Where a facet and a role disagree the
+ * earlier shape wins, which is how:
  * <ol>
  *   <li>a check menu item carrying a toggle, and a menu title carrying a popup, are {@link #MENU}
- *       rows (the family comes before any facet, decision 94);</li>
+ *       rows (the family comes before any facet);</li>
  *   <li>a table's row, a selection member without a cell, is a {@link #ROWS} member under a
  *       {@link #GRID} container, and a calendar's week row, which is in no selection, is a
  *       {@code GRID} row;</li>
- *   <li>a widget hung under a synthetic row (decision 3) keeps its own shape: the
- *       {@link CellFacet} the table writes onto it is its <i>position</i>, which a grid adapter
- *       reads on any node, and not its shape — a switch in a cell is a {@link #TOGGLE};</li>
+ *   <li>a widget hung under a synthetic row keeps its own shape: the {@link CellFacet} the table
+ *       writes onto it is its <i>position</i>, which a grid adapter reads on any node, and not its
+ *       shape — a switch in a cell is a {@link #TOGGLE};</li>
  *   <li>a combo box, which carries a value (its index in its options), is the
  *       {@link #POPUP_OWNER} of its list, because the popup is decided ahead of the value;</li>
  *   <li>a search field, which offers {@code PRESS}, is a {@link #TEXT}, because the text is decided
@@ -45,8 +45,8 @@ public enum Shape {
 
     /**
      * A menu bar, a menu, or a row of one: {@code MENU_BAR}, {@code MENU}, {@code MENU_ITEM},
-     * {@code CHECK_MENU_ITEM}, {@code RADIO_MENU_ITEM}. Decided by the role family alone (decision
-     * 94), because the family never appears outside a menu and its rows carry the facets of other
+     * {@code CHECK_MENU_ITEM}, {@code RADIO_MENU_ITEM}. Decided by the role family alone,
+     * because the family never appears outside a menu and its rows carry the facets of other
      * shapes (a toggle, a popup, a selection membership) without being those shapes to a reader.
      */
     MENU,
@@ -55,8 +55,8 @@ public enum Shape {
      * A table and its grid: the {@code TABLE} (or any node carrying a {@link TableFacet}), its
      * {@code COLUMN_HEADER}s and {@code CELL}s, and a {@code ROW} that is in no selection. A grid
      * is rows whose members carry cells, so a table's selectable row is a {@link #ROWS} member
-     * under a {@code GRID} container, and the grid's rules (a cell is found by its facet,
-     * decision 8; a header sorts) are added on top of the rows' rules. A cell facet on a node of
+     * under a {@code GRID} container, and the grid's rules (a cell is found by its facet; a
+     * header sorts) are added on top of the rows' rules. A cell facet on a node of
      * another role is that node's position in the grid, not its shape.
      */
     GRID,
@@ -67,8 +67,8 @@ public enum Shape {
      * a {@code LIST_ITEM}, a {@code TREE_ITEM}, a {@code TAB}, a {@code RADIO_BUTTON}, a segment,
      * a selectable {@code ROW}; and any other node carrying a {@link SelectionFacet} or a
      * {@link SelectionItemFacet}. What the reader does to a row — select, add, deselect, focus,
-     * press, expand, collapse, scroll into view — is one set of rules (decisions 10, 11, 20, 79,
-     * 80, 81), whichever widget publishes the row.
+     * press, expand, collapse, scroll into view — is one set of rules, whichever widget publishes
+     * the row.
      */
     ROWS,
 
@@ -77,7 +77,7 @@ public enum Shape {
      * {@code COMBO_BOX} role. A combo box, a date field's or a date picker's group, a colour
      * picker button, a context region, a tab strip's overflow button, and a button that discloses
      * content in place (a calendar's month title). What it opens is described where it lives
-     * (ADR 039 §1.11) and gated by the layer it opens in (§1.13).
+     * and gated by the layer it opens in.
      */
     POPUP_OWNER,
 

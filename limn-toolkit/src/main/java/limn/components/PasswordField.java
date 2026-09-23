@@ -213,17 +213,16 @@ public final class PasswordField extends TextField {
      * the mask's own offsets.
      *
      * <p><b>The role and the {@code PASSWORD} state follow the toggle, and they move together.</b>
-     * ADR 039 §7's row states both flat and conditions only the facet on the flag, and that
-     * combination contradicts itself: {@code State.PASSWORD} says in its own words that the text
-     * is masked and must never be spoken, which is not a thing to publish beside the cleartext the
-     * same row asks for when the field is revealed. Which of the two follows the flag is then the
-     * real question, and it is the role as well, because a platform's refusal to speak is keyed on
-     * the role and not on the state — AT-SPI's password role, AppKit's secure-field class,
-     * {@code Role.PASSWORD_FIELD}'s own definition as "a text field whose content is masked". A
-     * revealed field left under that role would be the one control on screen a blind user cannot
-     * read <em>after deliberately asking to</em>, which is the whole purpose of the toggle. Moving
-     * the two together is what keeps any platform from ever seeing a password role over cleartext,
-     * or a plain field over a mask.
+     * Stating both flat and conditioning only the facet on the flag would contradict itself:
+     * {@code State.PASSWORD} says in its own words that the text is masked and must never be
+     * spoken, which is not a thing to publish beside the cleartext the facet carries when the field
+     * is revealed. Which of the two follows the flag is then the real question, and it is the role
+     * as well, because a platform's refusal to speak is keyed on the role and not on the state —
+     * AT-SPI's password role, AppKit's secure-field class, {@code Role.PASSWORD_FIELD}'s own
+     * definition as "a text field whose content is masked". A revealed field left under that role
+     * would be the one control on screen a blind user cannot read <em>after deliberately asking
+     * to</em>, which is the whole purpose of the toggle. Moving the two together is what keeps any
+     * platform from ever seeing a password role over cleartext, or a plain field over a mask.
      *
      * <p>The role is written after the super call and cannot move before it, for the reason
      * {@link SearchField} records: a role is a plain store into the node's slot, the base writes
@@ -235,8 +234,8 @@ public final class PasswordField extends TextField {
      * natural place to hang a reveal control — is the base's synthetic child with the base's box.
      * {@code READ_ONLY} is never set: a masked field is editable, and masking is not read-only.
      * There is no node for the reveal toggle itself, because the toggle is a public setter an
-     * application drives from a control of its own and this widget draws nothing for it; §7.1 asks
-     * that a synthetic child be something its owner draws.
+     * application drives from a control of its own and this widget draws nothing for it, and a
+     * synthetic child has to be something its owner draws.
      *
      * <p>The facet is republished here in <b>both</b> branches, over whatever the base wrote,
      * because the two branches have to share one witness; {@link #publishedText} carries the whole
@@ -295,14 +294,14 @@ public final class PasswordField extends TextField {
      * Translates a caret or a selection back out of the mask's offsets before the field places it,
      * and refuses one the mask has no stop for.
      *
-     * <p><b>This is the half ADR 039 §7's row is silent about, and it is where the bug is.</b> The
-     * row maps a model offset forward to a mask ordinal for the facet and stops there. The verbs
-     * come back the other way: a client holds the published string, so it asks in <em>mask</em>
-     * ordinals, and the inherited handler consumes model {@code char} offsets. Left alone, a
-     * reader asking for the caret after the second dot of a value whose first character is astral
-     * lands inside the surrogate pair, silently — the shorter buffer's own bounds check passes,
-     * which is the same shape of failure the base refuses an offset-carrying verb over during an
-     * IME composition.
+     * <p><b>This is the half the forward mapping leaves out, and it is where the bug is.</b>
+     * Publishing maps a model offset forward to a mask ordinal for the facet and stops there. The
+     * verbs come back the other way: a client holds the published string, so it asks in
+     * <em>mask</em> ordinals, and the inherited handler consumes model {@code char} offsets. Left
+     * alone, a reader asking for the caret after the second dot of a value whose first character is
+     * astral lands inside the surrogate pair, silently — the shorter buffer's own bounds check
+     * passes, which is the same shape of failure the base refuses an offset-carrying verb over
+     * during an IME composition.
      *
      * <p>An ordinal outside the mask is <b>refused and never clamped</b>, because
      * {@link ShapedText#caretIndex} clamps: without the check a client asking for dot forty of a

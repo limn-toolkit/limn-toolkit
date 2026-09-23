@@ -27,8 +27,8 @@ import limn.internal.lang.Checks;
  * Octo&nbsp;Light, High&nbsp;contrast).
  *
  * <p><b>Switching one is one call:</b> {@link #apply(Scene...) theme.apply(scene)}, which makes the palette
- * current, applies its font and repaints each scene you pass (decision 117). A widget reads the
- * palette it paints with through {@link #of(Widget)}, never through a field (ADR 046 §7).
+ * current, applies its font and repaints each scene you pass. A widget reads the
+ * palette it paints with through {@link #of(Widget)}, never through a field.
  *
  * <p><b>An application can build its own.</b> {@link #builder(String, boolean)} starts from
  * a working palette and {@link #toBuilder()} starts from this one, so a palette of your own
@@ -452,7 +452,7 @@ public final class Theme {
 
     /**
      * The palette {@code widget} paints with: the one resolver every component reads its colours
-     * through (ADR 046 §7). Today every widget answers the process-wide {@link #current()}; the
+     * through. Today every widget answers the process-wide {@link #current()}; the
      * point of asking through the widget is that a palette per subtree can be added behind this
      * call later, as the locale, the direction and the control size already resolve per subtree,
      * without any component changing. A static on this class rather than a method on
@@ -468,7 +468,7 @@ public final class Theme {
 
     /**
      * Switches to this palette and shows it: makes it current, applies its font
-     * ({@link #applyFontFamily}), and repaints every scene given (decision 117). A palette is a
+     * ({@link #applyFontFamily}), and repaints every scene given. A palette is a
      * repaint and never a re-measure; the font, when it changes, relayouts through its own axis.
      * The call a theme picker or a settings screen makes. UI thread.
      *

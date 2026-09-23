@@ -28,7 +28,7 @@ import java.util.Objects;
  * code with one.
  *
  * <p><b>To an assistive technology this widget is not there.</b> It declares no role, no
- * name, no action and no state, so ADR 039's transparency predicate deletes it and its
+ * name, no action and no state, so the walk's transparency predicate deletes it and its
  * child publishes in its place — and because {@code onLayout} hands that child the whole
  * box at the origin, the rectangle the child publishes is the one this widget would have.
  * The deletion therefore costs a reader nothing at all, which is not true of a padding or

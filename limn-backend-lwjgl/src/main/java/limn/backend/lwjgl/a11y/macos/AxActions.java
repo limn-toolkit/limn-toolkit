@@ -19,9 +19,9 @@ import java.util.Map;
  *
  * <p><b>One selector can mean several verbs, in order.</b> A press is "activate this", and what
  * activating means is the widget's: a button is pressed, a check box is toggled, a radio button is
- * selected. So the table lists candidates and the node picks — which keeps this a translation rather
- * than a second vocabulary, and keeps §1.9's rule that a widget performs its own action through its
- * own guards.
+ * selected. So the table lists candidates and the node picks — which keeps this a translation
+ * rather than a second vocabulary, and keeps the rule that a widget performs its own action through
+ * its own guards.
  *
  * <p><b>{@code accessibilityPerformPick} is deliberately absent.</b> AppKit means "choose this from
  * a list" by it, and everything that would answer it here already answers a press — a combo box's
@@ -50,7 +50,7 @@ final class AxActions {
         // thing Return does is the activation. Two selectors reaching one verb is the same shape as
         // two roles sharing one control type: the platform draws a distinction the toolkit does not.
         // Semantics 5 names the one list for both, so a confirm opens a closed combo box as a press
-        // does, on purpose (MACOS-NEW-5, correction 2).
+        // does, on purpose.
         BY_SELECTOR.put("accessibilityPerformConfirm", activate);
 
         BY_SELECTOR.put("accessibilityPerformIncrement", List.of(Accessible.Action.INCREMENT));
@@ -60,8 +60,8 @@ final class AxActions {
     }
 
     /**
-     * The AppKit global naming each selector's action, as a client lists and performs it. Resolved by
-     * {@code dlsym} at run time; the values were read on the macOS 26.6.2 guest on 2026-09-13
+     * The AppKit global naming each selector's action, as a client lists and performs it. Resolved
+     * by {@code dlsym} at run time; the values were read on the macOS 26.6.2 guest on 2026-09-13
      * (readings/macos-appkit-constants.txt, "action names").
      */
     private static final Map<String, String> ACTION_SYMBOL = new LinkedHashMap<>();

@@ -50,7 +50,7 @@ final class AccessibleWalk {
 
     /**
      * The labels in flight down the walk: a caption bound to a composite that said a descendant
-     * carries it (decision 55), pushed when the composite is walked and popped when its subtree
+     * carries it, pushed when the composite is walked and popped when its subtree
      * ends, so the descendant finds its caption when the walk reaches it. Grown once, reused.
      */
     private Widget<?>[] redirectTargets = new Widget<?>[4];
@@ -70,8 +70,8 @@ final class AccessibleWalk {
     private final float[] clip = new float[4];
     /**
      * Per widget node: the verbs its container claimed (a bit per {@code Action} ordinal) and
-     * the container that claimed them, which is where the scene routes those verbs (ADR 039
-     * §1.5, amended 2026-09-14). Zero and {@code null} on every other node.
+     * the container that claimed them, which is where the scene routes those verbs. Zero and
+     * {@code null} on every other node.
      */
     private int[] delegated = new int[64];
     private Widget<?>[] delegates = new Widget<?>[64];
@@ -325,11 +325,11 @@ final class AccessibleWalk {
     /**
      * The cursor inside a popup window the focused node opened, read off that window's own
      * published tree: what the tree's active descendant falls back to when the focused node's
-     * subtree holds no {@code ACTIVE} node (decision 5; semantics 4). The focused node, or an
-     * ancestor of it, is the controller of the popup's root, and identifiers are process-wide,
-     * so the number this answers names a node in the other window and the bridge tells the two
-     * trees apart by it. Allocates nothing: the popup's tree is the value its scene last
-     * published and the search is over its node array.
+     * subtree holds no {@code ACTIVE} node. The focused node, or an ancestor of it, is the
+     * controller of the popup's root, and identifiers are process-wide, so the number this answers
+     * names a node in the other window and the bridge tells the two trees apart by it. Allocates
+     * nothing: the popup's tree is the value its scene last published and the search is over its
+     * node array.
      *
      * @return the popup cursor's identifier, or {@code 0} when the focused node opened no popup
      *         window, or the popup has published nothing yet, or its tree has no cursor
@@ -675,9 +675,9 @@ final class AccessibleWalk {
     /**
      * The widget that carries a label bound to {@code widget}: the widget itself, or the
      * descendant its {@code accessibleLabelTarget()} names, followed through a composite inside
-     * a composite (decision 55). Refused loudly when a widget names something outside its own
+     * a composite. Refused loudly when a widget names something outside its own
      * subtree, or the chain never ends, because a caption landing on a stranger is the
-     * confidently wrong name the record refuses to infer, and a walk that throws keeps the
+     * confidently wrong name the toolkit refuses to infer, and a walk that throws keeps the
      * previous tree published (the scene dispatches it as an accessibility crash).
      */
     private static Widget<?> labelTargetOf(Widget<?> widget) {

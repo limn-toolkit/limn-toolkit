@@ -497,7 +497,7 @@ final class Films {
 
     /**
      * A date typed the way a person types one: the month clicked, two digits, and the caret
-     * rolling on by itself to the day, which takes two more (decision 58).
+     * rolling on by itself to the day, which takes two more.
      *
      * <p>No arrow key and no Tab, because a film delivers a pointer and characters and nothing
      * else; what the film claims is the segmenting, which a still of "9/9/2026" cannot carry --
@@ -523,7 +523,7 @@ final class Films {
 
     /**
      * The calendar opened from its button, a day hovered and picked, and the card gone with the
-     * field holding that day (decision 58).
+     * field holding that day.
      *
      * <p>The popup is asked for IN_SCENE here and never in the published sample, for the combo
      * box's reason: a native calendar is a second window, absent from this window's framebuffer.
@@ -558,8 +558,7 @@ final class Films {
     private static final float DAY_17_Y = 0.54f;
 
     /**
-     * A period swept with the pointer and closed, then the next month and back again
-     * (decision 58).
+     * A period swept with the pointer and closed, then the next month and back again.
      *
      * <p>The sweep is the claim a still cannot carry: between the first click and the second the
      * band follows the pointer, and the weekends the filter refuses stay out of it. Then the
@@ -632,8 +631,9 @@ final class Films {
      *
      * <p>The view is put on the film's clock before anything else. A video plays on wall time and
      * the capture advances a fixed 20 ms of scene time per frame, so left alone it would
-     * photograph whichever pictures this machine's render speed happened to reach: the defect ADR
-     * 043 &sect;9.3.2 closed for the toolkit's own timers, here for a widget's own clock.
+     * photograph whichever pictures this machine's render speed happened to reach: the defect
+     * {@code UiRuntime.setDelayClock} closed for the toolkit's own timers, here for a widget's own
+     * clock.
      */
     private static Motion mediaControls(GalleryScenes.Built built) {
         ((VideoView) find(built, VideoView.class, 0)).setClock(new VideoClock(built.clock()));

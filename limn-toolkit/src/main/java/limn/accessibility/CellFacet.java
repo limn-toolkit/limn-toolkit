@@ -16,7 +16,7 @@ import java.util.Objects;
  * cell's column index of the table node's header group, which is the table's first
  * {@link Accessible.Role#GROUP} child. Carrying its identifier would make a facet a bridge reads
  * on its own thread depend on a resolution that happens after the walk, which is what relations
- * are for and cells are too many to be; ADR 041 §7.
+ * are for and cells are too many to be.
  *
  * @param row    the cell's row as shown, from zero; {@code -1} for a header cell, {@code -2}
  *               for a footer cell
@@ -27,7 +27,7 @@ import java.util.Objects;
 public record CellFacet(int row, int column, Sort sort) {
 
     /**
-     * Which way a sorted column's rows run (decision 36, settled 2026-09-15).
+     * Which way a sorted column's rows run.
      *
      * <p>Three values and not four. Each platform has its own carrier and each carries exactly
      * these: Windows an {@code ItemStatus} phrase on the header and the same words as

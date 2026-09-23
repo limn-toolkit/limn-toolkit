@@ -44,14 +44,14 @@ import java.util.function.IntConsumer;
 /**
  * A table: {@link Column}s over a list the application owns, virtualized on both axes.
  *
- * <p>The rows are a {@code List<T>} held by reference and re-read on {@link #refresh()};
- * nothing is copied and nothing is read until it is on screen. Vertically the table keeps the
- * anchor-and-walk {@code ListView} keeps &mdash; which row sits at which y, a walk from there
- * until the viewport is full, a mean height as the scroll estimate &mdash; over <b>row slots</b>
- * rather than widgets: a value cell is its formatted text, shaped once and held (ADR 031), and
- * only a {@link Column#widget} cell is a real child, mounted and recycled with its row.
- * Horizontally the columns are a band: widths are resolved once per layout, and only the
- * columns that intersect the viewport are shaped and painted. The header is pinned.
+ * <p>The rows are a {@code List<T>} held by reference and re-read on {@link #refresh()}; nothing is
+ * copied and nothing is read until it is on screen. Vertically the table keeps the anchor-and-walk
+ * {@code ListView} keeps &mdash; which row sits at which y, a walk from there until the viewport is
+ * full, a mean height as the scroll estimate &mdash; over <b>row slots</b> rather than widgets: a
+ * value cell is its formatted text, shaped once and held, and only a {@link Column#widget} cell is
+ * a real child, mounted and recycled with its row. Horizontally the columns are a band: widths are
+ * resolved once per layout, and only the columns that intersect the viewport are shaped and
+ * painted. The header is pinned.
  *
  * <p><b>Selection</b> is by row and by <b>model</b> index, in one of three
  * {@linkplain SelectionMode modes}, and it survives a sort because a sort is a
@@ -63,14 +63,13 @@ import java.util.function.IntConsumer;
  * focus cell's row, which is the lead in {@code SINGLE} and may differ from it in {@code MULTI}.
  *
  * <p><b>Cells are not edited in place, and will not be.</b> In-place editing is a spreadsheet's
- * interaction and reads as one everywhere else: a field that appears where a value was, a save
- * on a keystroke the user did not mean as one, an error with nowhere to stand. A table is for
- * reading, comparing, sorting and choosing; editing a record wants the record whole. Open a
- * {@code Dialog} or a panel with the record as a form from {@link #onActivate}, keep a form beside
- * the table following its selection through {@link #observeChanges} for master-and-detail, put a
- * switch or a button in a {@link Column#widget} cell for the one-gesture cases, or act on the
- * whole {@linkplain SelectionMode#MULTI selection} at once; then change the list and
- * {@link #refresh()}. ADR 041 §6 is the reasoning.
+ * interaction and reads as one everywhere else: a field that appears where a value was, a save on a
+ * keystroke the user did not mean as one, an error with nowhere to stand. A table is for reading,
+ * comparing, sorting and choosing; editing a record wants the record whole. Open a {@code Dialog}
+ * or a panel with the record as a form from {@link #onActivate}, keep a form beside the table
+ * following its selection through {@link #observeChanges} for master-and-detail, put a switch or a
+ * button in a {@link Column#widget} cell for the one-gesture cases, or act on the whole
+ * {@linkplain SelectionMode#MULTI selection} at once; then change the list and {@link #refresh()}.
  *
  * <p><b>Sorting</b>: a click on a sortable header cycles ascending, descending and the model's
  * order. The table sorts by default; {@link #onSortRequest} hands the click to the application
@@ -87,8 +86,6 @@ import java.util.function.IntConsumer;
  * pane that holds it. Under an unbounded height the table prefers {@link #setVisibleRows} rows
  * of the step's seed height, plus its header and footer.
  *
- * <p>ADR 041 is the record.
- *
  * @param <T> the row type
  */
 public final class Table<T> extends Widget<Table<T>> implements Scrollable {
@@ -100,11 +97,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     private static final int VISIBLE_ROWS_HINT = 8;
 
     /**
-     * How many seed rows tall the rows' viewport prefers to be under an unbounded height
-     * (decision 44 of 2026-09-14). Multiplied by the token's seed and never by the realized
-     * average: the average moves as rows of other heights scroll in, and a preference that
-     * moved with it re-laid out the parent on every such scroll and made a table inside a
-     * scroll pane jitter.
+     * How many seed rows tall the rows' viewport prefers to be under an unbounded height.
+     * Multiplied by the token's seed and never by the realized average: the average moves as rows
+     * of other heights scroll in, and a preference that moved with it re-laid out the parent on
+     * every such scroll and made a table inside a scroll pane jitter.
      */
     private int visibleRows = VISIBLE_ROWS_HINT;
     /** How far either side of a header divider a press starts a resize, in points. */
@@ -114,13 +110,13 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     /** The synthetic key of the footer row's group node. */
     private static final long FOOTER_KEY = -2;
     /**
-     * The synthetic keys a reader's verb arrives with, told apart by a bit each: a data row is
-     * its record's <b>row identity</b> ({@link #rowIdOf}); a cell is {@code CELL_KEY | identity
-     * << COLUMN_BITS | column}, so a verb on a cell names its row as well as its column; a
-     * header cell is {@code HEADER_CELL_KEY | column}, a footer cell {@code FOOTER_CELL_KEY |
-     * column}. Until 2026-09-14 a cell and a header cell were keyed by their column alone, which
-     * a verb could not tell from a row's index: a select on cell (0, 1) selected row 1
-     * (TABLE-NEW-13). Until 2026-09-15 a row was keyed by its model index, so an insert above it
+     * The synthetic keys a reader's verb arrives with, told apart by a bit each: a data row is its
+     * record's <b>row identity</b> ({@link #rowIdOf}); a cell is
+     * {@code CELL_KEY | identity << COLUMN_BITS | column}, so a verb on a cell names its row as
+     * well as its column; a header cell is {@code HEADER_CELL_KEY | column}, a footer cell
+     * {@code FOOTER_CELL_KEY | column}. Until 2026-09-14 a cell and a header cell were keyed by
+     * their column alone, which a verb could not tell from a row's index: a select on cell (0, 1)
+     * selected row 1. Until 2026-09-15 a row was keyed by its model index, so an insert above it
      * gave its node to another record and a verb sent before the insert acted on that record.
      */
     private static final int COLUMN_BITS = 20;
@@ -184,11 +180,11 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     // published row a scroll released, or a followed row a describe left out. The next refresh
     // cannot tell where its record went, so it retires every identity it does not follow.
     private boolean publishedLeftBehind;
-    // Each row's occurrence among the equal rows before it, for a table without a rowKey, over
-    // the list as it stands since the last setRows, refresh or rowKey: rows [0, occurrencesRead)
-    // read once each and chained by the hash of their key. Until the review of the fix round
-    // (2026-09-15) every describe that realized a row read every row above it again, so a reader
-    // scrolling to the bottom of a long table cost the square of its length.
+    // Each row's occurrence among the equal rows before it, for a table without a rowKey, over the
+    // list as it stands since the last setRows, refresh or rowKey: rows [0, occurrencesRead) read
+    // once each and chained by the hash of their key. Until 2026-09-15 every describe that realized
+    // a row read every row above it again, so a reader scrolling to the bottom of a long table cost
+    // the square of its length.
     private int occurrencesRead;
     private int[] occurrence = new int[0];
     private int[] occurrenceHash = new int[0];
@@ -208,23 +204,22 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     private int focusColumn;
     // The column the focus cell is on, by identity (its index among columns(), hidden ones
     // included), or -1 before a layout resolved one: a shown index alone went stale when a
-    // column was hidden and the cursor sat on no shown column at all (TABLE-NEW-5,
-    // 2026-09-14). resolveColumns brings the two back in line.
+    // column was hidden and the cursor sat on no shown column at all. resolveColumns brings the
+    // two back in line.
     private int focusColumnOf = -1;
     // The header's own focus stop (decision 36 of 2026-09-14): while the table holds the keyboard
     // it is either in the rows or in the header, whose column cursor is a shown column. The
     // header is a stop only while it is shown and a shown column can be sorted.
     private boolean headerFocused;
     private int headerColumn;
-    // The column the header's cursor is on, by identity, as focusColumnOf is for the focus
-    // cell: a shown index alone slid onto the next column when one before it was hidden, and
-    // onto some other column, unannounced, when its own was (review of table-B, 2026-09-14).
+    // The column the header's cursor is on, by identity, as focusColumnOf is for the focus cell: a
+    // shown index alone slid onto the next column when one before it was hidden, and onto some
+    // other column, unannounced, when its own was.
     private int headerColumnOf = -1;
 
-    // Columns as shown: which, and where, resolved per layout; and the set the previous
-    // layout resolved, so a column hidden or shown between two layouts is noticed by the next
-    // one (B6, 2026-09-14): a hidden widget column's widgets are released and a shown one's
-    // built by re-mounting the rows.
+    // Columns as shown: which, and where, resolved per layout; and the set the previous layout
+    // resolved, so a column hidden or shown between two layouts is noticed by the next one: a
+    // hidden widget column's widgets are released and a shown one's built by re-mounting the rows.
     private int shownCount;
     private int[] shownIndex = new int[0];
     private int[] shownBefore = new int[0];
@@ -533,9 +528,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     /**
      * The accessible identity model row {@code model} is published under: the key of its
      * {@code ROW}, the row part of its cells' keys, and the row a widget cell hangs under. It
-     * follows the record and not the index (decision 23 of 2026-09-14): stable across a scroll
-     * away and back and across a sort, which moves no model index, and carried by
-     * {@link #refresh()} to wherever a published record went. Allocates nothing.
+     * follows the record and not the index: stable across a scroll away and back and across a sort,
+     * which moves no model index, and carried by {@link #refresh()} to wherever a published record
+     * went. Allocates nothing.
      */
     private long rowIdOf(int model) {
         int lo = 0;
@@ -963,25 +958,24 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * column's width, visibility or alignment does. The sort is re-applied and the scroll
      * position is kept, clamped.
      *
-     * <p><b>A row is its record</b> (decision 23 of 2026-09-14; ADR 041 §3 amended): the
-     * selection, the lead, the focus cell and the range anchor follow their records to wherever
-     * the list holds them now, after an insert, a remove, a reorder or the application's own
-     * sort ({@link #onSortRequest}). A record is found again by its {@linkplain #rowKey key} —
-     * the record itself, by {@code equals}, unless one is set — and records with equal keys are
-     * told apart by occurrence: the third equal record stays the third. Finding them is one
-     * read of the rows, stopping at the last one found; a table with nothing selected and no
-     * focus cell reads nothing. A selected record the list no longer holds leaves the selection,
-     * announced as {@code SELECTION}/{@code ADJUSTMENT}; a vanished lead makes the last selected
-     * row the lead; a vanished focus row or anchor keeps its position, clamped. A focus row that
-     * moved is announced as {@code ACTIVE}/{@code ADJUSTMENT}; when the refresh answers a
-     * {@linkplain #onSortRequest sort request} it is also revealed with the least scroll, as the
-     * table's own sort does, and otherwise the scroll position is kept. Then {@code CHILDREN}/
-     * {@code CODE}; nothing reaches a handler. A row's accessible node follows its record the
-     * same way: the rows the last publish described keep their nodes wherever their records went,
-     * across as many refreshes as come before the next frame, and a reader's verb sent before
-     * them acts on the record it named, or is refused when that record is gone (the node half of
-     * decision 23, 2026-09-15). A row published earlier and scrolled away since loses its node
-     * on the next refresh: the node names that record or nothing, never another. UI thread only.
+     * <p><b>A row is its record</b>: the selection, the lead, the focus cell and the range anchor
+     * follow their records to wherever the list holds them now, after an insert, a remove, a
+     * reorder or the application's own sort ({@link #onSortRequest}). A record is found again by
+     * its {@linkplain #rowKey key} — the record itself, by {@code equals}, unless one is set — and
+     * records with equal keys are told apart by occurrence: the third equal record stays the third.
+     * Finding them is one read of the rows, stopping at the last one found; a table with nothing
+     * selected and no focus cell reads nothing. A selected record the list no longer holds leaves
+     * the selection, announced as {@code SELECTION}/{@code ADJUSTMENT}; a vanished lead makes the
+     * last selected row the lead; a vanished focus row or anchor keeps its position, clamped. A
+     * focus row that moved is announced as {@code ACTIVE}/{@code ADJUSTMENT}; when the refresh
+     * answers a {@linkplain #onSortRequest sort request} it is also revealed with the least scroll,
+     * as the table's own sort does, and otherwise the scroll position is kept. Then
+     * {@code CHILDREN}/ {@code CODE}; nothing reaches a handler. A row's accessible node follows
+     * its record the same way: the rows the last publish described keep their nodes wherever their
+     * records went, across as many refreshes as come before the next frame, and a reader's verb
+     * sent before them acts on the record it named, or is refused when that record is gone. A row
+     * published earlier and scrolled away since loses its node on the next refresh: the node names
+     * that record or nothing, never another. UI thread only.
      */
     public void refresh() {
         Ui.checkUiThread();
@@ -1350,9 +1344,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * The seam Enter, a double click and an assistive technology's press enter at {@code USER}.
-     * What opens is the <b>cursor row</b> (decision 32 of 2026-09-14): the row the focus cell is
-     * in, which in {@code SINGLE} is the lead, in {@code MULTI} may differ from it after a toggle
-     * or a Shift range, and in {@code NONE} is the only row there is.
+     * What opens is the <b>cursor row</b>: the row the focus cell is in, which in {@code SINGLE} is
+     * the lead, in {@code MULTI} may differ from it after a toggle or a Shift range, and in
+     * {@code NONE} is the only row there is.
      */
     private void activate(Change.Origin origin) {
         if (hasCursorRow()) {
@@ -1362,8 +1356,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * The same seam, naming the row that was opened rather than the one the focus cell is in: a
-     * reader's {@code PRESS} arrives addressed to a row, and since decision 79 its {@code SELECT}
-     * no longer drags the focus cell there, so the two can differ (decision 80 of 2026-09-17).
+     * reader's {@code PRESS} arrives addressed to a row, and its {@code SELECT} does not drag the
+     * focus cell there, so the two can differ.
      *
      * @param model the model row opened; {@code -1} opens nothing
      */
@@ -1376,9 +1370,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * Whether there is a cursor row to open: the one bound the table's {@code PRESS} is published
-     * on, performed on, and that Enter and a double click open through (review of phase 2,
-     * 2026-09-15: the publish read the row count of the describe and the perform the list's size
-     * then, two bounds for one verb).
+     * on, performed on, and that Enter and a double click open through (until 2026-09-15 the
+     * publish read the row count of the describe and the perform the list's size then, two bounds
+     * for one verb).
      */
     private boolean hasCursorRow() {
         return focusRow >= 0 && focusRow < rows.size();
@@ -1454,13 +1448,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * {@code CHILDREN} -- the enum has no aspect for an order, and the accessible tree publishes
      * none, so what a watcher re-reads is the rows.
      *
-     * <p>The focus cell and the range anchor go with their records (decision 23 of 2026-09-14;
-     * ADR 041 §3 amended): both are view positions, and a permutation that left them where they
-     * stood put the cursor and the next Shift range on whatever record the sort moved there. The
-     * focus row is then revealed with the least scroll that shows it (decision 40), as every
-     * other write that moves the focus cell does, and its move is announced as {@code ACTIVE}/
-     * {@code ADJUSTMENT} before the rows are: a consequence of the sort, not a gesture of its
-     * own, and one the cursor's reader hears first.
+     * <p>The focus cell and the range anchor go with their records: both are view positions, and a
+     * permutation that left them where they stood put the cursor and the next Shift range on
+     * whatever record the sort moved there. The focus row is then revealed with the least scroll
+     * that shows it, as every other write that moves the focus cell does, and its move is announced
+     * as {@code ACTIVE}/ {@code ADJUSTMENT} before the rows are: a consequence of the sort, not a
+     * gesture of its own, and one the cursor's reader hears first.
      */
     private void applySort(Column<T> column, SortOrder order, Change.Origin origin) {
         if (order == SortOrder.NONE) {
@@ -1474,12 +1467,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /**
-     * Rebuilds the permutation from the sort the header shows — or drops it, while a sort
-     * request handler is set — and carries the focus cell and the range anchor to their
-     * records, reveals the focus row and announces the move and then the rows, as
-     * {@link #applySort} does. The seam a change to {@link #onSortRequest} re-runs as well
-     * (TABLE-NEW-4, 2026-09-14): setting the handler drops the table's permutation at once,
-     * clearing it re-applies the table's own sort on the column the header shows.
+     * Rebuilds the permutation from the sort the header shows — or drops it, while a sort request
+     * handler is set — and carries the focus cell and the range anchor to their records, reveals
+     * the focus row and announces the move and then the rows, as {@link #applySort} does. The seam
+     * a change to {@link #onSortRequest} re-runs as well: setting the handler drops the table's
+     * permutation at once, clearing it re-applies the table's own sort on the column the header
+     * shows.
      */
     private void permute(Change.Origin origin) {
         int count = rows.size();
@@ -1521,12 +1514,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /**
-     * Hands header clicks to the application instead of sorting: the handler is told the column
-     * and the order the click asks for, orders the list itself and calls {@link #refresh()},
-     * which carries the selection and the focus cell to where their records are now. The
-     * header shows the order the click asked for from the click itself. A handler, so it
-     * answers the user's click and never {@link #setSort}; one slot, as every {@code onX} is
-     * (ADR 040 §1): {@code null} clears it, a second handler over the first throws.
+     * Hands header clicks to the application instead of sorting: the handler is told the column and
+     * the order the click asks for, orders the list itself and calls {@link #refresh()}, which
+     * carries the selection and the focus cell to where their records are now. The header shows the
+     * order the click asked for from the click itself. A handler, so it answers the user's click
+     * and never {@link #setSort}; one slot, as every {@code onX} is: {@code null} clears it, a
+     * second handler over the first throws.
      *
      * <p>The slot changing hands re-sorts at once when the header shows an order: setting a
      * handler drops the table's permutation, so the rows show in the application's order
@@ -1649,14 +1642,13 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /**
-     * Sets how many rows tall the rows' viewport prefers to be when the parent gives the table
-     * no height — a table inside a {@link limn.components.ScrollView} or an unconstrained
-     * column — as a count of the step's seed rows (default 8); the header and the footer add
-     * their own strips. A bounded height from the parent always wins; this is the free-axis
-     * fallback only. The preference is the seed's and not the realized rows' on purpose
-     * (decision 44 of 2026-09-14): a preference that followed the measured average moved every
-     * time a row of another height scrolled in, and re-laid out the parent with it. UI thread
-     * only.
+     * Sets how many rows tall the rows' viewport prefers to be when the parent gives the table no
+     * height — a table inside a {@link limn.components.ScrollView} or an unconstrained column — as
+     * a count of the step's seed rows (default 8); the header and the footer add their own strips.
+     * A bounded height from the parent always wins; this is the free-axis fallback only. The
+     * preference is the seed's and not the realized rows' on purpose: a preference that followed
+     * the measured average moved every time a row of another height scrolled in, and re-laid out
+     * the parent with it. UI thread only.
      *
      * @param rows a row count of at least one
      * @return this table
@@ -1916,7 +1908,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * Resolves which columns are shown and how wide each is for a viewport of {@code viewW}:
-     * every column its own width, then the leftover shared by weight; ADR 041 §5.
+     * every column its own width, then the leftover shared by weight.
      */
     private void resolveColumns(float viewW) {
         lastViewportWidth = viewW;
@@ -1980,15 +1972,14 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * The shown set was just resolved: when it differs from the previous layout's, the rows are
-     * re-mounted so that a hidden widget column's widgets are released and a newly shown one's
-     * are built (B6: until 2026-09-14 a hidden widget column built a widget per row that was a
-     * Tab stop and a published node with a column past the table's), and the focus column is
-     * resolved again from the column it stands on: the same column if it is still shown, else
-     * the nearest shown one, announced as {@code ACTIVE}/{@code ADJUSTMENT} when the cell moved
-     * (TABLE-NEW-5: until this date the cursor kept a shown index no column matched, so no ring
-     * was drawn and no cell was {@code ACTIVE} until a Left or Right re-clamped it). The header's
-     * column cursor follows its column by the same rule (decision 36's cursor; review of
-     * table-B, 2026-09-14: it kept a plain index clamp, so it slid onto another column).
+     * re-mounted so that a hidden widget column's widgets are released and a newly shown one's are
+     * built (until 2026-09-14 a hidden widget column built a widget per row that was a Tab stop and
+     * a published node with a column past the table's), and the focus column is resolved again from
+     * the column it stands on: the same column if it is still shown, else the nearest shown one,
+     * announced as {@code ACTIVE}/{@code ADJUSTMENT} when the cell moved (until then the cursor
+     * kept a shown index no column matched, so no ring was drawn and no cell was {@code ACTIVE}
+     * until a Left or Right re-clamped it). The header's column cursor follows its column by the
+     * same rule (until 2026-09-14 it kept a plain index clamp, so it slid onto another column).
      *
      * @return whether a cursor a reader stands on moved to another column, for the caller to
      *         announce as {@code ACTIVE}/{@code ADJUSTMENT}
@@ -2041,12 +2032,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /**
-     * Brings the realized rows' widget cells in line with the shown set: a hidden widget
-     * column's widgets are released and a newly shown one's built, and every other widget cell
-     * stays where it is, the one holding the keyboard included (review of table-B, 2026-09-14:
-     * this re-mounted every row, so hiding a value column took the keyboard off the switch a
-     * user was on and rebuilt every widget cell). A released widget that held the keyboard hands
-     * it to the table, as a recycled row's does.
+     * Brings the realized rows' widget cells in line with the shown set: a hidden widget column's
+     * widgets are released and a newly shown one's built, and every other widget cell stays where
+     * it is, the one holding the keyboard included (until 2026-09-14 this re-mounted every row, so
+     * hiding a value column took the keyboard off the switch a user was on and rebuilt every widget
+     * cell). A released widget that held the keyboard hands it to the table, as a recycled row's
+     * does.
      */
     private void remountWidgetColumns() {
         boolean handBack = false;
@@ -2312,9 +2303,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         for (int c = 0; c < columns.size(); c++) {
             Column<T> column = columns.get(c);
             if (column.isWidgetColumn()) {
-                // A hidden widget column builds nothing (B6, 2026-09-14): its widget was never
-                // laid out, but it was a child, and so a Tab stop and a published node. The
-                // next layout to show the column re-mounts the rows and builds it then.
+                // A hidden widget column builds nothing: its widget was never laid out, but it was
+                // a child, and so a Tab stop and a published node. The next layout to show the
+                // column re-mounts the rows and builds it then.
                 if (column.isVisible()) {
                     Widget<?> widget = column.widgetFor(row);
                     slot.widgets[c] = widget;
@@ -2385,11 +2376,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     /**
      * Releases every mounted row but {@code keep}, whose widget cell holds the keyboard and whose
      * record stands at {@code model} now: it stays mounted, its widgets children and the focus
-     * where it is, re-bound to the row that shows its record (decision 22 of 2026-09-14, the
-     * widget-cell half, 2026-09-15). Until then a refresh or a sort released it and handed the
-     * keyboard to the table, which is {@code ListView}'s rule for rows bound to data the list may
-     * no longer hold; a table follows its records (decision 23), and a record found again is the
-     * one the widget was built for. With no row to keep this is {@link #unmountAll()}.
+     * where it is, re-bound to the row that shows its record. Until 2026-09-15 a refresh or a sort
+     * released it and handed the keyboard to the table, which is {@code ListView}'s rule for rows
+     * bound to data the list may no longer hold; a table follows its records, and a record found
+     * again is the one the widget was built for. With no row to keep this is {@link #unmountAll()}.
      */
     private void unmountAllKeeping(Slot keep, int model) {
         if (keep == null || model < 0 || model >= rows.size()) {
@@ -2420,10 +2410,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     /**
      * Releases every mounted row outside {@code [from, toExclusive)} except two: the one holding
      * the keyboard focus in a widget cell, which stays mounted while its index is still below
-     * {@code count} — the reason is {@code ListView}'s (ADR 039 §13.29) — and, while the table
-     * itself holds the keyboard, the focus cell's row (decision 22 of 2026-09-14): a reader's
-     * cursor stands on that cell, and a wheel that recycled it left the reader on nothing until
-     * the next arrow key. Released by the first pass after the focus leaves.
+     * {@code count} — the reason is {@code ListView}'s — and, while the table itself holds the
+     * keyboard, the focus cell's row: a reader's cursor stands on that cell, and a wheel that
+     * recycled it left the reader on nothing until the next arrow key. Released by the first pass
+     * after the focus leaves.
      */
     private void recycleExcept(int from, int toExclusive, int count) {
         int kept = 0;
@@ -2690,11 +2680,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      *
      * @param moveCursor whether the focus cell and the range anchor land on the row: a gesture's
      *                   answer is yes, because the pointer and the key are where the user is; a
-     *                   reader's {@code SELECT} is no, because a client write is not (decision 79
-     *                   of 2026-09-17, measured on macOS as P5M-1 — a selection write leaves the
-     *                   keyboard focus alone on AppKit, and VoiceOver's cursor sync dragged this
-     *                   one back with its own stale row). The reveal is not the cursor and still
-     *                   happens.
+     *                   reader's {@code SELECT} is no, because a client write is not (measured on
+     *                   macOS: a selection write leaves the keyboard focus alone on AppKit, and
+     *                   VoiceOver's cursor sync dragged this one back with its own stale row). The
+     *                   reveal is not the cursor and still happens.
      */
     private void selectOnly(int modelIndex, int viewIndex, boolean reveal, boolean moveCursor,
                             Change.Origin origin) {
@@ -2754,12 +2743,11 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /**
-     * Toggles one row's membership, in MULTI, as a user. The command-click and Space move the
-     * focus cell and the range anchor to the row ({@code moveCursor}); a reader's
-     * {@code ADD_TO_SELECTION} and {@code DESELECT} leave both where they stand and scroll
-     * nothing, because only {@code SELECT} and {@code FOCUS} move a cursor (decision 20 and
-     * semantics 5 of 2026-09-13/14): a reader that adds a row it reached by its own navigation
-     * has not asked the user's cursor to follow it.
+     * Toggles one row's membership, in MULTI, as a user. The command-click and Space move the focus
+     * cell and the range anchor to the row ({@code moveCursor}); a reader's
+     * {@code ADD_TO_SELECTION} and {@code DESELECT} leave both where they stand and scroll nothing,
+     * because only {@code SELECT} and {@code FOCUS} move a cursor: a reader that adds a row it
+     * reached by its own navigation has not asked the user's cursor to follow it.
      */
     private void toggle(int viewIndex, boolean moveCursor) {
         int wasFocusRow = focusRow;
@@ -2783,10 +2771,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * Page Down and Page Up: the cursor moves {@code delta} rows and, when it was on screen, the
-     * view moves by the same rows, so the cursor keeps its place in the view. Decision 40's
-     * least-scroll reveal alone put the first Page Down's row at the foot of the view and scrolled
-     * by one row (the critic's phase-2 finding, fixed 2026-09-15); a cursor that was off screen is
-     * revealed as any other move reveals it.
+     * view moves by the same rows, so the cursor keeps its place in the view. The least-scroll
+     * reveal alone, which is what this did until 2026-09-15, put the first Page Down's row at the
+     * foot of the view and scrolled by one row; a cursor that was off screen is revealed as any
+     * other move reveals it.
      */
     private void pageFocusRow(int delta, int modifiers) {
         int count = rows.size();
@@ -2842,10 +2830,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     /**
      * Damages one row's band, or nothing when that row is not on screen.
      *
-     * <p>ADR 043 &sect;9.2. The band is the row across the rows' viewport, and it needs no
-     * outset: the stripe and the selection tint fill exactly it, and the focus cell's ring is
-     * drawn <em>inset</em> within one column of it. A row outside the placed run has no box to
-     * damage, and whatever put it out of view damaged the table on its own.
+     * <p>The band is the row across the rows' viewport, and it needs no outset: the stripe and the
+     * selection tint fill exactly it, and the focus cell's ring is drawn <em>inset</em> within one
+     * column of it. A row outside the placed run has no box to damage, and whatever put it out of
+     * view damaged the table on its own.
      *
      * @param viewIndex a row in view order, or any negative for no row
      */
@@ -3257,14 +3245,14 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         float y = sceneToLocalY(event.y());
         switch (event.type()) {
             case WHEEL -> {
-                // A detent is a device unit: the same flick travels the same distance in a
-                // dense table and a roomy one, so the step is locked, not tabled. The two axes
-                // are taken independently, as ScrollView takes them (TABLE-NEW-12, 2026-09-14):
-                // until then any scrollX made the event sideways and dropped scrollY, so a
-                // trackpad swipe that was not perfectly vertical scrolled nothing on a table
-                // whose columns fit. Shift turns a plain vertical wheel into a horizontal one
-                // for a mouse with one wheel; taken only when the event carries no scrollX, so
-                // a tilt wheel and Shift cannot drive the same axis in one event.
+                // A detent is a device unit: the same flick travels the same distance in a dense
+                // table and a roomy one, so the step is locked, not tabled. The two axes are taken
+                // independently, as ScrollView takes them: until 2026-09-14 any scrollX made the
+                // event sideways and dropped scrollY, so a trackpad swipe that was not perfectly
+                // vertical scrolled nothing on a table whose columns fit. Shift turns a plain
+                // vertical wheel into a horizontal one for a mouse with one wheel; taken only when
+                // the event carries no scrollX, so a tilt wheel and Shift cannot drive the same
+                // axis in one event.
                 float sx = event.scrollX();
                 float sy = event.scrollY();
                 if (sx == 0 && (event.modifiers() & Keys.MOD_SHIFT) != 0) {
@@ -3504,10 +3492,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /**
-     * The keys while the header holds the keyboard (decision 36 of 2026-09-14): Left and Right
-     * move the column cursor, Space sorts the column under it, cycling ascending, descending and
-     * the model's order as a click does; Down hands the keyboard to the rows. The other row keys
-     * are consumed and do nothing, so the rows do not move under a cursor that is not in them.
+     * The keys while the header holds the keyboard: Left and Right move the column cursor, Space
+     * sorts the column under it, cycling ascending, descending and the model's order as a click
+     * does; Down hands the keyboard to the rows. The other row keys are consumed and do nothing, so
+     * the rows do not move under a cursor that is not in them.
      */
     private void onHeaderKeyEvent(KeyEvent event, int mods, boolean rtl) {
         switch (event.key()) {
@@ -3563,7 +3551,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     // The rows' viewport is what the rows and their widget cells are clipped to, and the bars
-    // are clipped to the box (TABLE-NEW-10, 2026-09-14): until this the default answered the
+    // are clipped to the box (2026-09-14): until this the default answered the
     // whole box for every child, so a switch scrolled under the header or the footer, or lying
     // in a reserved gutter, was isShowing() and published SHOWING in a rectangle this table
     // never paints it in, a reader could toggle it, and a point on the header resolved to it.
@@ -3595,10 +3583,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     private int describedRowCount;
 
     /**
-     * One table node: its shape, its selection and its scroll, then a header group with a
-     * header cell per shown column, then one row per realized data row with a cell per shown
-     * column; ADR 041 §7. Nothing is formatted here: every name is a string a slot already
-     * holds, handed over with the row's witness, or the column's own {@code I18nString}.
+     * One table node: its shape, its selection and its scroll, then a header group with a header
+     * cell per shown column, then one row per realized data row with a cell per shown column.
+     * Nothing is formatted here: every name is a string a slot already holds, handed over with the
+     * row's witness, or the column's own {@code I18nString}.
      *
      * @param a the node being described
      */
@@ -3673,9 +3661,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             boolean shown = !Float.isNaN(top);
             if (!shown) {
                 // The kept row a scroll spared: published where the layout put it, outside the
-                // rows' viewport, so the ROW and a widget cell inside it agree on a box
-                // (TABLE-NEW-9, 2026-09-14); before a layout has placed it, where the estimate
-                // would.
+                // rows' viewport, so the ROW and a widget cell inside it agree on a box; before a
+                // layout has placed it, where the estimate would.
                 top = Float.isNaN(slot.top)
                         ? (row < placedFrom ? headerH - slot.height : headerH + viewH)
                         : slot.top;
@@ -3685,9 +3672,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             a.child(slot.id);
             a.bounds(rowX, top, w, slot.height);
             a.role(Accessible.Role.ROW);
-            // A row is its record, and says so (decision 23 of 2026-09-14; P5W-1, 2026-09-16):
-            // the text of its shown cells in column order, which is the treatment a TREE_ITEM
-            // whose cell is a composite already gets (TREE-ROW-NAME).
+            // A row is its record, and says so (decision 23 of 2026-09-14): the text of its
+            // shown cells in column order, which is the treatment a TREE_ITEM whose cell is a
+            // composite already gets.
             String rowName = derivedName(slot);
             if (rowName != null) {
                 a.name(rowName, System.identityHashCode(rowName), Accessible.NameFrom.CONTENT);
@@ -3727,7 +3714,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                 a.name(slot.texts[c], textEpoch, Accessible.NameFrom.CONTENT);
                 // Off screen with its row as well as with its column: the bit is per node, and
                 // nothing is inherited from a synthetic parent, so a kept row's cells were
-                // published SHOWING over the header band (TABLE-NEW-9, 2026-09-14).
+                // published SHOWING over the header band.
                 if (rowOffScreen || left + colW[s] <= rowX || left >= rowX + w) {
                     a.offScreen();
                 }
@@ -3763,9 +3750,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * The name a {@code ROW} is published under: the text of its shown cells, in column order,
-     * separated by a space &mdash; a record read as one phrase, which is what decision 23 means
-     * by "a row is its record" and what {@code Tree} already does for a composite row
-     * (TREE-ROW-NAME).
+     * separated by a space &mdash; a record read as one phrase, which is what "a row is its
+     * record" means and what {@code Tree} already does for a composite row.
      *
      * <p><b>Why a row needs one at all.</b> A {@code ROW} published with an empty name was
      * measured on all three platforms on 2026-09-16: NVDA 2024.4.2 spoke {@code 'item de dados',
@@ -3833,11 +3819,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * A widget cell hangs under the synthetic {@code ROW} of the record it shows and is keyed by
-     * its column within that row (decision 3 of 2026-09-13; ADR 039 §1.3 and §7.1 amended
-     * 2026-09-14): a reader walking the row finds the control among its cells, in column order,
-     * and the cell's identity follows the record the row is keyed by, so a control recycled to
-     * another row carries nothing of the old one. The key is the column alone, because the row's
-     * node scopes it; no packing of row and column into one number.
+     * its column within that row: a reader walking the row finds the control among its cells, in
+     * column order, and the cell's identity follows the record the row is keyed by, so a control
+     * recycled to another row carries nothing of the old one. The key is the column alone, because
+     * the row's node scopes it; no packing of row and column into one number.
      */
     @Override
     protected void onAccessibilityChildIdentity(Widget<?> child, Accessibility a) {
@@ -3880,9 +3865,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         }
         a.cell(slot.row, s);
         if (slot.row == focusRow && s == focusColumn && isFocused() && !headerFocused) {
-            // The focus cell in a widget column is the cursor exactly as a value cell is (B1,
-            // 2026-09-14): the ring was drawn on it and the reader was told nothing, so the
-            // active descendant fell to nothing on every Right into a switch column.
+            // The focus cell in a widget column is the cursor exactly as a value cell is: until
+            // 2026-09-14 the ring was drawn on it and the reader was told nothing, so the active
+            // descendant fell to nothing on every Right into a switch column.
             a.state(Accessible.State.ACTIVE);
         }
     }
@@ -3897,18 +3882,17 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /**
-     * A reader's verb on a row or a cell, decoded from the key the node was published with:
-     * a row's key is its record's row identity, a cell's carries that and its column (TABLE-NEW-13:
-     * until 2026-09-14 a cell was keyed by its column alone and a select on it selected the
-     * row of that number). The verbs are the published ones and no other — a cell accepts
-     * {@code FOCUS} alone — and each goes through the seam the matching gesture takes at
-     * {@code USER}: {@code SELECT} is the click, {@code ADD_TO_SELECTION} and {@code DESELECT}
-     * the command-click's toggle without its cursor move (only {@code SELECT} and {@code FOCUS}
-     * move the cursor, decision 20), {@code FOCUS} a cursor move that selects nothing. A row is
-     * named by the identity of the record the snapshot published it for (decision 23, the node
-     * half, 2026-09-15): a verb sent before a {@link #refresh()} that inserted a row above acts
-     * on that same record where it stands now, and one whose record left the list is refused.
-     * Until then it acted on whatever record stood at the published model index.
+     * A reader's verb on a row or a cell, decoded from the key the node was published with: a row's
+     * key is its record's row identity, a cell's carries that and its column (until 2026-09-14 a
+     * cell was keyed by its column alone and a select on it selected the row of that number). The
+     * verbs are the published ones and no other — a cell accepts {@code FOCUS} alone — and each
+     * goes through the seam the matching gesture takes at {@code USER}: {@code SELECT} is the
+     * click, {@code ADD_TO_SELECTION} and {@code DESELECT} the command-click's toggle without its
+     * cursor move (only {@code SELECT} and {@code FOCUS} move the cursor), {@code FOCUS} a cursor
+     * move that selects nothing. A row is named by the identity of the record the snapshot
+     * published it for: a verb sent before a {@link #refresh()} that inserted a row above acts on
+     * that same record where it stands now, and one whose record left the list is refused. Until
+     * 2026-09-15 it acted on whatever record stood at the published model index.
      */
     @Override
     protected boolean onSyntheticAction(long key, Accessible.Action action,
@@ -3976,10 +3960,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * The table's mechanisms as the rows shape drives them, over a row's model index: a client's
-     * {@code SELECT} is {@link #selectOnly} without the cursor move (decision 79),
-     * {@code ADD_TO_SELECTION} and {@code DESELECT} are {@link #toggle} without it (decision 20),
-     * {@code FOCUS} moves the cursor onto the row in the cursor's column, {@code SCROLL_INTO_VIEW}
-     * reveals the row, and {@code PRESS} opens the row itself (decision 80).
+     * {@code SELECT} is {@link #selectOnly} without the cursor move, {@code ADD_TO_SELECTION} and
+     * {@code DESELECT} are {@link #toggle} without it, {@code FOCUS} moves the cursor onto the row
+     * in the cursor's column, {@code SCROLL_INTO_VIEW} reveals the row, and {@code PRESS} opens the
+     * row itself.
      */
     private final class RowsHost implements RowsAccessibility.Host<Integer> {
         @Override
@@ -4042,10 +4026,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /**
-     * Moves the focus cell without touching the selection: what a reader's {@code FOCUS} on a
-     * row or a cell asks for (decision 11 of 2026-09-14). The range anchor moves with it, as it
-     * does under a toggle, so the next Shift range extends from where the cursor is; the row is
-     * revealed and the move announced as {@code ACTIVE}.
+     * Moves the focus cell without touching the selection: what a reader's {@code FOCUS} on a row
+     * or a cell asks for. The range anchor moves with it, as it does under a toggle, so the next
+     * Shift range extends from where the cursor is; the row is revealed and the move announced as
+     * {@code ACTIVE}.
      */
     private void focusCell(int viewIndex, int shownColumn, Change.Origin origin) {
         int count = rows.size();

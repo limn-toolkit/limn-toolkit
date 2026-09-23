@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * What every widget of the {@code VALUE} shape owes a reader, as named cases over a
- * {@link ValueSubject} (ADR 045 §4): the number, its bounds and its step are the API's;
+ * {@link ValueSubject}: the number, its bounds and its step are the API's;
  * {@code INCREMENT} and {@code DECREMENT} move by the step the facet names, clamped at the
  * bounds, each heard once by the widget's own listener and announced, where announced, from the
  * user; {@code SET_VALUE} takes a finite number and moves nothing for anything else; a read-only
@@ -25,7 +25,7 @@ import java.util.List;
  *
  * <p>A refusal is read as an effect, never as the host's answer: {@code Host#perform} answers
  * from the snapshot whether the node exists and posts the verb, so the hook's own refusal is
- * invisible to the caller (ADR 039 §1.9). What a refused verb owes is that nothing moved and
+ * invisible to the caller. What a refused verb owes is that nothing moved and
  * nobody was told.
  */
 public final class ValueContract {

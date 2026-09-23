@@ -8,8 +8,8 @@ import java.util.List;
 /**
  * A frame's damage: a handful of rectangles, kept as floats and merged in place.
  *
- * <p>Every {@link Widget#invalidate()} lands in one of these, and since ADR 043 made partial
- * rendering the default that is the busiest path in the toolkit. Kept as a {@code List<Rect>} it
+ * <p>Every {@link Widget#invalidate()} lands in one of these, and with partial rendering the
+ * default that is the busiest path in the toolkit. Kept as a {@code List<Rect>} it
  * cost an object per call and a list per frame -- ninety-six kilobytes for a thousand widgets
  * damaging themselves once, in a frame the rest of the toolkit had been made to cost nothing. Kept
  * as floats it costs nothing.

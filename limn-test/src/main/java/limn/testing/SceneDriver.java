@@ -27,7 +27,7 @@ import java.util.Objects;
  * }</pre>
  *
  * <p>The scene's input is not on {@link Scene} itself, because an application never calls it: a
- * window does (ADR 046 §4). A driver is cheap, and {@code drive(scene)} may be called per event.
+ * window does. A driver is cheap, and {@code drive(scene)} may be called per event.
  */
 public final class SceneDriver implements WindowInput {
 

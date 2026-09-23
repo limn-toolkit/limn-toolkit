@@ -23,11 +23,10 @@ import static limn.demo.a11y.AccessibilityGallery.Fact.row;
 import static limn.demo.a11y.AccessibilityGallery.Fact.shown;
 
 /**
- * The steps each reader run drives on its gallery entry (decision 24; H2, DT8, B9, T7): what a
- * person at the keyboard presses, in order, what each press does to the widget, and what the
- * published trees hold once it is done. The guest recipes wait on the step lines the driver
- * prints and label their snapshots with these labels, so a step is renumbered only with the
- * recipes that name it.
+ * The steps each reader run drives on its gallery entry: what a person at the keyboard presses,
+ * in order, what each press does to the widget, and what the published trees hold once it is
+ * done. The guest recipes wait on the step lines the driver prints and label their snapshots with
+ * these labels, so a step is renumbered only with the recipes that name it.
  *
  * <p>Every step changes what the entry publishes or announces something, and every step's facts
  * are true once it is done; {@code ReaderStepsTest} runs each script headlessly and fails on a
@@ -44,7 +43,7 @@ public final class ReaderScripts {
      * "Tree with branches that load". Steps 1 to 15 are the ones {@code --scene tree-reader} drove
      * on 2026-09-13, over the same first rows, so the recipes' "after step 14 RIGHT: Remote opened
      * and loaded" still reads true; 16 to 21 add the fetch that finds nothing and the folder that
-     * was always empty (decision 45). A row whose children are known carries their count in its
+     * was always empty. A row whose children are known carries their count in its
      * name ("Reports 2"); one never fetched, or fetched and found empty, carries none.
      */
     public static final ReaderScript TREE_LOADING = new ReaderScript("tree-loading", List.of(
@@ -92,7 +91,7 @@ public final class ReaderScripts {
                     .expecting(cursor(TREE_ITEM, "Empty folder").with(EXPANDED))));
 
     /**
-     * "Table with a header and rows": ADR 041 §11's B9 recipe. The wheel away from the cursor row
+     * "Table with a header and rows": the table's reader recipe. The wheel away from the cursor row
      * the recipe ends with is a pointer gesture and not a step; a reader run does it by hand. In
      * MULTI a plain arrow selects the row it lands on, so the Space of step 9 takes the row step 1
      * selected back out of the selection.
@@ -130,8 +129,8 @@ public final class ReaderScripts {
     /**
      * "Announcements": the application speaking. Nothing else in the gallery calls
      * {@code Scene#announce}, so this is the only script that can put a bridge's announcement path
-     * in front of a reader (brief item 4 of the phase-3 fix round, 2026-09-15). Both politeness
-     * levels are pressed, because the three platforms map them to different values.
+     * in front of a reader. Both politeness levels are pressed, because the three platforms map
+     * them to different values.
      *
      * <p>Every step's fact is only where the cursor stands, and that is the point: a press that
      * announces changes nothing in any tree, so {@code ReaderStepsTest}'s "changed something"
@@ -148,9 +147,9 @@ public final class ReaderScripts {
 
     /**
      * "Calendar grid": September 2026 with the 15th selected, days before the 2nd refused, Sundays
-     * refused and the 21st marked (decision 30: the cursor stops on a refused day and says so).
+     * refused and the 21st marked (the cursor stops on a refused day and says so).
      * The climb to the months lands the cursor on the month on show, so step 12 names it like
-     * every other step (GALLERY-NEW-2, fixed 2026-09-15; it used to say only that the months were
+     * every other step (fixed 2026-09-15; it used to say only that the months were
      * shown, because no month was published as the cursor at all).
      */
     public static final ReaderScript CALENDAR = new ReaderScript("calendar", List.of(
@@ -187,9 +186,9 @@ public final class ReaderScripts {
 
     /**
      * "Date field, segmented": the date's segments, typing into one, clearing one, then the clock
-     * field and the empty field (decisions 16, 49 and 53). The English segments run month, day,
-     * year and the clock ends on its half of the day; pt-BR's run day, month, year and end on the
-     * minute, which the labels are worded to fit.
+     * field and the empty field. The English segments run month, day, year and the clock ends on
+     * its half of the day; pt-BR's run day, month, year and end on the minute, which the labels are
+     * worded to fit.
      */
     public static final ReaderScript DATE_FIELD = new ReaderScript("date-field", List.of(
             Step.press(Keys.RIGHT, "moves to the second segment")
@@ -233,7 +232,7 @@ public final class ReaderScripts {
      * in the field natively and moves into the popup in the scene, so the facts name where the
      * reader stands and whether the field says it is open, which both presentations share; step
      * 7 names the month the climb lands on, as every other step names where the cursor is
-     * (GALLERY-NEW-2, fixed 2026-09-15).
+     * (fixed 2026-09-15).
      */
     public static final ReaderScript DATE_PICKER = new ReaderScript("date-picker", List.of(
             Step.chord(Keys.DOWN, Keys.MOD_ALT, "opens the calendar")

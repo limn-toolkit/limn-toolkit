@@ -6,7 +6,7 @@ import limn.accessibility.AccessibleTree;
 
 /**
  * What NSAccessibilityTable, NSAccessibilityRow and NSAccessibilityCell ask, answered in Java
- * values from the table and cell facets and from the tree's own shape; ADR 041 §7.
+ * values from the table and cell facets and from the tree's own shape.
  *
  * <p><b>Separate from {@link AxElementClass} so that it can be tested where AppKit is not.</b> The
  * element class wraps each answer in an {@code NSArray} or an {@code NSNumber} inside a libffi
@@ -15,40 +15,40 @@ import limn.accessibility.AccessibleTree;
  * and hands back element pointers, numbers and {@code null}, so a test can pin it.
  *
  * <p>A table's rows are its {@code ROW} children, so the elements handed back are the ones AppKit
- * already holds for those nodes. <b>A cell is found by its own cell facet</b> (decision 8; semantics
- * 2): cell (r, c) of table T is the node under one of T's {@code ROW} children whose {@code CellFacet}
- * is (r, c) and whose nearest table ancestor is T — a widget cell included, since it hangs under its
- * row (decision 3) — and a row's index is its cells' row, never its selection position, so a calendar
- * week that carries no selection item is found and numbered like any table row (MACOS-NEW-4,
- * MACOS-NEW-10). <b>The header is matched by column, not by position</b> (semantics 3): the header cell
- * of column c is the child with {@code CellFacet(−1, c)} of one of T's direct group children, a footer
- * cell (row −2) never is, and a table with no such child has no header rather than its footer
- * (MACOS-NEW-9). A cell asked for by column and row is answered only for a row the walk published,
- * which is the degradation ADR 039 §4.1 accepts.
+ * already holds for those nodes. <b>A cell is found by its own cell facet</b>: cell (r, c) of table
+ * T is the node under one of T's {@code ROW} children whose {@code CellFacet} is (r, c) and whose
+ * nearest table ancestor is T — a widget cell included, since it hangs under its row — and a row's
+ * index is its cells' row, never its selection position, so a calendar week that carries no
+ * selection item is found and numbered like any table row. <b>The header is matched by column, not
+ * by position</b>: the header cell of column c is the child with {@code CellFacet(−1, c)} of one of
+ * T's direct group children, a footer cell (row −2) never is, and a table with no such child has no
+ * header rather than its footer. A cell asked for by column and row is answered only for a row the
+ * walk published, which is an accepted degradation.
  *
- * <p><b>The three splits semantics 2 and 3 closed after phase 3</b> (2026-09-15), each of which this
- * bridge had one side of: a row's index is read off a cell whose nearest table is the table the row
- * is a row of, so a nested table's cells cannot number the row that holds them; the table-level
- * header list is the union over <em>every</em> direct group child carrying a header cell, not the
- * first such group alone; and a cell's own column header is answered for a data cell and for a footer
- * cell, and never for a header cell, which would answer itself. None of the three shows a difference
- * with today's Table, which publishes one header group and no nested tables; each is a shape another
- * widget or another application's cells may take, and the three bridges now read it the same way.
+ * <p><b>The three splits the cell and header rules closed after phase 3</b> (2026-09-15), each of
+ * which this bridge had one side of: a row's index is read off a cell whose nearest table is the
+ * table the row is a row of, so a nested table's cells cannot number the row that holds them; the
+ * table-level header list is the union over <em>every</em> direct group child carrying a header
+ * cell, not the first such group alone; and a cell's own column header is answered for a data cell
+ * and for a footer cell, and never for a header cell, which would answer itself. None of the three
+ * shows a difference with today's Table, which publishes one header group and no nested tables;
+ * each is a shape another widget or another application's cells may take, and the three bridges now
+ * read it the same way.
  *
- * <p><b>An outline and a list are tables of rows too</b> (M2; semantics 1 and 2): their rows are the
- * realized members of their selection — the children whose selection container is the outline or
- * the list, whatever role an application's cell kept — and a row's index is where it stands among
- * every row the widget shows, not among the realized ones: the hierarchy facet's flat row for an
- * outline row, the position in the set for a list row, each less one. Zero-based because a native
- * NSOutlineView's rows answer AXIndex 0, 1, 2… down the visible outline (read on the macOS 26.6.2
- * guest, 2026-09-15, {@code scripts/a11y/macos/outline-probe.swift}); a row whose number is unknown
+ * <p><b>An outline and a list are tables of rows too</b>: their rows are the realized members of
+ * their selection — the children whose selection container is the outline or the list, whatever
+ * role an application's cell kept — and a row's index is where it stands among every row the widget
+ * shows, not among the realized ones: the hierarchy facet's flat row for an outline row, the
+ * position in the set for a list row, each less one. Zero-based because a native NSOutlineView's
+ * rows answer AXIndex 0, 1, 2… down the visible outline (read on the macOS 26.6.2 guest,
+ * 2026-09-15, {@code scripts/a11y/macos/outline-probe.swift}); a row whose number is unknown
  * answers {@code NSNotFound}. An outline answers no row count, as the native one answers none.
  *
  * <p>This is the 2026-09-15 extraction of those answers out of the element class, and it changed
  * none of them; the outline and list rows came after it, and the cell, row and header lookups were
- * rewritten to the settled semantics after that, the same day, and a table's columns (M4) after those.
+ * rewritten to the settled semantics after that, the same day, and a table's columns after those.
  *
- * <p><b>A table's columns are elements that stand for no node</b> (decision 34): one per shown column,
+ * <p><b>A table's columns are elements that stand for no node</b>: one per shown column,
  * as a native NSTableView vends (read on the macOS 26.6.2 guest, 2026-09-15,
  * {@code scripts/a11y/macos/table-probe.swift}), each answering its index, its header cell and its
  * cells; {@link AxColumns} keeps them.
@@ -66,7 +66,7 @@ final class AxGrid {
      * equal=true}, and an {@code NSAccessibilityElement} answering {@code NSNotFound} for its
      * {@code accessibilityIndex} — vended off a plain view's children, as this bridge vends one — was
      * read by an out-of-process client as {@code AXIndex=9223372036854775807}, {@code objCType=q}.
-     * The value was used here before that run without a reading behind it (the phase-3 critic).
+     * The value was used here before that run without a reading behind it.
      */
     static final long[] NOT_FOUND = {Long.MAX_VALUE, 0};
 
@@ -95,7 +95,7 @@ final class AxGrid {
     /**
      * @param node the node asked
      * @return whether it answers as a table of rows: a table, or an outline or a list holding a
-     *         selection, which is what makes its items rows (semantics 1)
+     *         selection, which is what makes its items rows
      */
     boolean isRowContainer(AccessibleNode node) {
         return node.table() != null || isOutlineOrList(node);
@@ -152,9 +152,9 @@ final class AxGrid {
     }
 
     /**
-     * {@code accessibilitySelectedRows}: <b>membership by the selection container rule</b>
-     * (semantics 1), narrowed to the members that are rows — not the direct {@code ROW} children
-     * that happen to carry {@code SELECTED}, which is what this answered until 2026-09-16.
+     * {@code accessibilitySelectedRows}: <b>membership by the selection container rule</b>,
+     * narrowed to the members that are rows — not the direct {@code ROW} children that happen to
+     * carry {@code SELECTED}, which is what this answered until 2026-09-16.
      *
      * <p>Two facts separate the two readings, and the rule decides both. A selected row is a
      * <em>member of this container's selection</em>, so it counts wherever it hangs below the
@@ -168,16 +168,15 @@ final class AxGrid {
      * reads it through the same walk, so the two cannot drift apart.
      *
      * <p>{@link #rows} and {@link #visibleRows} still answer a table's {@code ROW} children by
-     * structure (ADR 041 §7, semantics 2's "searched under T's {@code ROW} children") — they are
-     * asked what the grid holds, not what its selection is. The narrowing above keeps the selected
-     * rows a subset of them for every container Limn ships; <b>in the synthetic-body shape the two
-     * part</b> — {@code AXSelectedRows} names a row {@code AXRows} does not, which is incoherent for
-     * a client and is this round's one open question (fix round 3b's lane log, ADR 039 §2.2's
-     * 2026-09-16 correction). No bridge can close it: "through synthetic ancestors" is a fact the
-     * model resolves at publish and carries on a selection member and nowhere else, so closing it
-     * needs either a policy for {@code AXRows} that no decision, ADR or reading settles or a model
-     * that carries syntheticness into the snapshot. Both halves are asserted, the second
-     * deliberately, in {@code AxGridTest#aTablesSelectedRowsAreTheMembersOfItsSelectionWhereverTheyHangUnderIt}.
+     * structure — they are asked what the grid holds, not what its selection is. The narrowing
+     * above keeps the selected rows a subset of them for every container Limn ships; <b>in the
+     * synthetic-body shape the two part</b> — {@code AXSelectedRows} names a row {@code AXRows}
+     * does not, which is incoherent for a client and is an open question. No bridge can close it:
+     * "through synthetic ancestors" is a fact the model resolves at publish and carries on a
+     * selection member and nowhere else, so closing it needs either a policy for {@code AXRows}
+     * that no decision or reading settles or a model that carries syntheticness into the snapshot.
+     * Both halves are asserted, the second deliberately, in
+     * {@code AxGridTest#aTablesSelectedRowsAreTheMembersOfItsSelectionWhereverTheyHangUnderIt}.
      *
      * @param node the node asked
      * @return the elements of its selected rows, in reading order; {@code null} for a node that is
@@ -190,7 +189,7 @@ final class AxGrid {
 
     /**
      * The realized members of {@code container}'s selection that are selected and that
-     * {@code filter} keeps, wherever they hang under it (semantics 1), in reading order.
+     * {@code filter} keeps, wherever they hang under it, in reading order.
      *
      * <p>The membership test is the model's own resolution of the rule: it climbed to the nearest
      * ancestor holding a selection facet once, at publish, and left the answer on every member, so
@@ -220,11 +219,11 @@ final class AxGrid {
      * span before it.
      *
      * <p>Every such walk reads the model's already-resolved {@code selectionContainer}, so scanning
-     * this block and scanning the whole tree answer the same thing; what differs is the cost, and the
-     * gate pays it on every ask. {@code AxGate} asks {@link #aRowTakesASelectionVerb} whenever a
-     * client wants to know whether the selected rows are settable, and VoiceOver asks continuously —
-     * the cost CRIT-5 was about. A container near the top of a scene would otherwise be walked to the
-     * end of the tree each time.
+     * this block and scanning the whole tree answer the same thing; what differs is the cost, and
+     * the gate pays it on every ask. {@code AxGate} asks {@link #aRowTakesASelectionVerb} whenever
+     * a client wants to know whether the selected rows are settable, and VoiceOver asks
+     * continuously. A container near the top of a scene would otherwise be walked to the end of the
+     * tree each time.
      *
      * <p><b>What the bound does not give back.</b> It restores the cost against the tail of the tree
      * and not against what these answers cost before 2026-09-16: the gate's ask read the container's
@@ -259,7 +258,7 @@ final class AxGrid {
         return node.parent() < at;
     }
 
-    // ---- disclosure: an outline's rows open and close (M1) ----------------------------------------
+    // ---- disclosure: an outline's rows open and close -------------------------------------------
 
     /**
      * @param node the node asked
@@ -298,7 +297,7 @@ final class AxGrid {
      * {@code accessibilityDisclosedByRow}: the row that opened this one, found by walking up the
      * outline's rows from this row over realized rows whose flat row numbers run without a gap, to
      * the first one level shallower. A gap means the rows between were never realized and the parent
-     * is not in the snapshot, which answers nothing rather than a grandparent (ADR 039 §4.1).
+     * is not in the snapshot, which answers nothing rather than a grandparent.
      *
      * @param node the node asked
      * @return its element, or zero at a root, at a gap and for anything that is not an outline row
@@ -432,8 +431,8 @@ final class AxGrid {
     }
 
     /**
-     * The realized members of a container's selection that are selected, wherever they hang under it
-     * (semantics 1: a calendar's day under its week row, a tab under its strip), in reading order.
+     * The realized members of a container's selection that are selected, wherever they hang under
+     * it (a calendar's day under its week row, a tab under its strip), in reading order.
      *
      * @param node the node asked
      * @return their elements, or {@code null} for a node holding no selection
@@ -442,7 +441,7 @@ final class AxGrid {
         return node.selection() == null ? null : selectedUnder(node, member -> true);
     }
 
-    // ---- columns: elements that stand for no node (M4; decision 34) --------------------------------
+    // ---- columns: elements that stand for no node (decision 34) ---------------------------------
 
     /**
      * @param node the node asked
@@ -644,8 +643,8 @@ final class AxGrid {
      * <p>Read in passing on 2026-09-15 ({@code scripts/a11y/macos/list-probe.swift}) and left as it
      * is: a native {@code NSTableView} answers <em>no</em> {@code AXRowCount} at all
      * ({@code kAXErrorAttributeUnsupported}), so serving it is more than the platform's own tables
-     * offer rather than less. Whether to keep serving it is the owner's open pick (this lane's
-     * "AXRowCount/AXColumnCount/AXColumnHeaderUIElements"), and nothing here decides it.
+     * offer rather than less. Whether to keep serving it is the owner's open pick, and nothing here
+     * decides it.
      *
      * @param node the node asked
      * @return the table facet's count, or zero
@@ -663,11 +662,11 @@ final class AxGrid {
     }
 
     /**
-     * NSAccessibilityRow's index: the row's place among the rows, from the facet the walk numbered it
-     * with, so an unrealized row above it still counts. A table's row by its cells' row (semantics 2),
-     * never its selection position, which a calendar week does not carry; an outline's by the hierarchy
-     * facet's flat row (decision 4), never its place among its siblings; a list's by its position in the
-     * set. Zero-based, as a native outline's and a native table's rows are (AXIndex 0, 1, 2…, read on
+     * NSAccessibilityRow's index: the row's place among the rows, from the facet the walk numbered
+     * it with, so an unrealized row above it still counts. A table's row by its cells' row, never
+     * its selection position, which a calendar week does not carry; an outline's by the hierarchy
+     * facet's flat row, never its place among its siblings; a list's by its position in the set.
+     * Zero-based, as a native outline's and a native table's rows are (AXIndex 0, 1, 2…, read on
      * the macOS 26.6.2 guest, 2026-09-15).
      *
      * @param node the node asked
@@ -715,27 +714,29 @@ final class AxGrid {
 
     /**
      * @param node the node asked
-     * @return whether it is a cell of the header row, which is what answers {@code AXSortDirection}:
-     *         a native table's sort buttons list the attribute and its columns, its rows and the
-     *         table itself answer {@code AXError(-25205)} for it (read on the macOS 26.6.2 guest,
-     *         2026-09-15, {@code table-probe.swift}; readings/macos-table-probe.txt lines 221-276)
+     * @return whether it is a cell of the header row, which is what answers
+     *         {@code AXSortDirection}: a native table's sort buttons list the attribute and its
+     *         columns, its rows and the table itself answer {@code AXError(-25205)} for it (read on
+     *         the macOS 26.6.2 guest, 2026-09-15, {@code table-probe.swift};
+     *         readings/macos-table-probe.txt lines 221-276)
      */
     static boolean isHeaderCell(AccessibleNode node) {
         return node.cell() != null && node.cell().row() == HEADER_ROW;
     }
 
     /**
-     * {@code accessibilitySortDirection} (decision 36): which way the rows of the column this header
+     * {@code accessibilitySortDirection}: which way the rows of the column this header
      * cell heads are running, as the {@code NSAccessibilitySortDirection} number AppKit reads.
      *
-     * <p>A header cell that heads no sorted column answers {@code NSAccessibilitySortDirectionUnknown}
-     * rather than refusing, which is what a native sort button does: every header of the probe's
-     * table listed {@code AXSortDirection} in its {@code AXAttributeNames} and the two unsorted ones
-     * answered {@code AXUnknownSortDirection} while the sorted one answered
-     * {@code AXAscendingSortDirection} (readings/macos-table-probe.txt lines 275-291). The three
-     * numbers are literals under ADR 039 §12.3's narrow exception: the committed dump reads them
-     * off the SDK (0, 1, 2; lines 138-140) and records in the same breath that this AppKit exports
-     * no symbol for any of the three, so there is nothing for {@code dlsym} to find.
+     * <p>A header cell that heads no sorted column answers
+     * {@code NSAccessibilitySortDirectionUnknown} rather than refusing, which is what a native sort
+     * button does: every header of the probe's table listed {@code AXSortDirection} in its
+     * {@code AXAttributeNames} and the two unsorted ones answered {@code AXUnknownSortDirection}
+     * while the sorted one answered {@code AXAscendingSortDirection}
+     * (readings/macos-table-probe.txt lines 275-291). The three numbers are literals, a narrow
+     * exception to reading constants: the committed dump reads them off the SDK (0, 1, 2;
+     * lines 138-140) and records in the same breath that this AppKit exports no symbol for any of
+     * the three, so there is nothing for {@code dlsym} to find.
      *
      * @param node the node asked, gated by {@link AxGate} to a header cell
      * @return 0 unsorted, 1 ascending, 2 descending
@@ -768,8 +769,8 @@ final class AxGrid {
     }
 
     /**
-     * {@code accessibilityCellForColumn:row:} (semantics 2): the node whose cell facet is (row, column)
-     * under one of this table's {@code ROW} children, whose nearest table ancestor is this table.
+     * {@code accessibilityCellForColumn:row:}: the node whose cell facet is (row, column) under one
+     * of this table's {@code ROW} children, whose nearest table ancestor is this table.
      *
      * @param node   the node asked
      * @param column the shown column, from zero
@@ -796,7 +797,7 @@ final class AxGrid {
         return 0;
     }
 
-    /** A header cell's row in its cell facet (ADR 041 §7); a footer cell's is {@code -2}. */
+    /** A header cell's row in its cell facet; a footer cell's is {@code -2}. */
     static final int HEADER_ROW = -1;
 
     /**
@@ -819,9 +820,9 @@ final class AxGrid {
     }
 
     /**
-     * The index of a data cell's or a footer cell's header cell (semantics 3): under its nearest table
-     * ancestor, the child with {@code CellFacet(−1, c)} of one of the table's direct group children, c
-     * being the cell's column. Matched by column, never by place, so a column with no header cell has
+     * The index of a data cell's or a footer cell's header cell: under its nearest table ancestor,
+     * the child with {@code CellFacet(−1, c)} of one of the table's direct group children, c being
+     * the cell's column. Matched by column, never by place, so a column with no header cell has
      * none, and a header cell answers none rather than itself. Allocates nothing.
      *
      * @param cell the cell asked

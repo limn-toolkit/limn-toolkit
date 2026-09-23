@@ -139,13 +139,13 @@ final class TreeScene {
      *
      * <p>Its own scene rather than a deeper fixture for {@code --scene tree}, because the two
      * cannot be photographed together: widening the content moves where a cell ellipsizes, from
-     * the edge of the box to the edge of the content (ADR 044 §1, amended). The shallow scene is
+     * the edge of the box to the edge of the content. The shallow scene is
      * where a name contains itself; this one is where depth runs out of width.
      *
      * <p>With {@code LIMN_TREE_DEMO=walk} the keyboard goes into the tree instead of the scroll:
      * the cursor is put on level one and Down is pressed thirteen times, so it lands on level
      * fourteen and the outline has moved sideways, row by row, by the least that shows each row's
-     * triangle and the start of its name (TREE-NEW-5).
+     * triangle and the start of its name.
      */
     static Built deep() {
         Parts parts = parts();

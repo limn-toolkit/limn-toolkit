@@ -44,38 +44,36 @@ import java.util.function.Consumer;
  * indent, a disclosure triangle where it can open, and the application's own cell widget.
  *
  * <p><b>The application keeps its nodes.</b> A tree is handed a {@link Model}, which answers what
- * the roots are, what a node's children are, and what widget draws one. Nothing here is a node
- * type of this toolkit's: a tree over {@code Path}, over a record, or over a live domain object is
- * the same tree. Identity is the node's own {@code equals}, which gives value semantics to records
- * and reference semantics to mutable objects, and both are what the application that chose them
- * wanted. <b>A node is unique within a tree</b>: two equal nodes in two places would share one
- * selection, one expansion and one accessible identity, so the tree refuses them the moment both
- * are visible, with an {@link IllegalStateException} naming the node (decision 15 of 2026-09-14).
- * A model whose values repeat under different parents — a file named the same in two folders —
- * gives its nodes path identity, the way the guide's example does.
+ * the roots are, what a node's children are, and what widget draws one. Nothing here is a node type
+ * of this toolkit's: a tree over {@code Path}, over a record, or over a live domain object is the
+ * same tree. Identity is the node's own {@code equals}, which gives value semantics to records and
+ * reference semantics to mutable objects, and both are what the application that chose them wanted.
+ * <b>A node is unique within a tree</b>: two equal nodes in two places would share one selection,
+ * one expansion and one accessible identity, so the tree refuses them the moment both are visible,
+ * with an {@link IllegalStateException} naming the node. A model whose values repeat under
+ * different parents — a file named the same in two folders — gives its nodes path identity, the way
+ * the guide's example does.
  *
  * <p><b>A row may promise children before it can name them.</b> {@link Model#children} answers
  * {@code null} for a node whose children are not known yet, and {@link Model#load} hands back a
  * {@link Work} that fetches them: the row opens, shows that it is working, and fills in when the
  * job lands on the UI thread. Collapsing a row that is still loading cancels the job, because a
- * result nobody is looking at is a result nobody should pay for. A directory that has not been
- * read is therefore not a leaf — it has a triangle, and pressing it is what reads it — and one
- * that turns out to hold nothing stays open, with a muted "Empty" line where its children would
- * be (decision 45 of 2026-09-14).
+ * result nobody is looking at is a result nobody should pay for. A directory that has not been read
+ * is therefore not a leaf — it has a triangle, and pressing it is what reads it — and one that
+ * turns out to hold nothing stays open, with a muted "Empty" line where its children would be.
  *
  * <p><b>Rows are realized where the viewport reaches</b>, by the anchor-and-walk this toolkit's
  * list and table already use: a row's height is measured when it is first needed, the mean seeds
- * the scroll estimate (never the tree's own preferred height, which is {@link #setVisibleRows}
- * seed rows under an unbounded parent), and two rows are kept mounted even when a scroll carries
- * them outside:
- * the one holding the keyboard focus (ADR 039 §13.29), and the cursor row while the tree itself
- * holds the keyboard, so a reader's cursor survives a wheel, a refresh and a reorder (decision 22
- * of 2026-09-14). The order rows are walked in is a traversal of what is expanded, which is the
- * one thing a tree does that a list cannot.
+ * the scroll estimate (never the tree's own preferred height, which is {@link #setVisibleRows} seed
+ * rows under an unbounded parent), and two rows are kept mounted even when a scroll carries them
+ * outside: the one holding the keyboard focus, and the cursor row while the tree itself holds the
+ * keyboard, so a reader's cursor survives a wheel, a refresh and a reorder. The order rows are
+ * walked in is a traversal of what is expanded, which is the one thing a tree does that a list
+ * cannot.
  *
- * <p><b>What this is not:</b> no columns — a {@code TreeTable} is ADR 044 §9 — no in-place
- * editing, ever (ADR 041 §6), no drag to reorder, and no tri-state checkbox cascade over a data
- * model the toolkit does not own.
+ * <p><b>What this is not:</b> no columns — a {@code TreeTable} is a widget still to come — no
+ * in-place editing, ever, no drag to reorder, and no tri-state checkbox cascade over a data model
+ * the toolkit does not own.
  *
  * <p><b>The cursor is not the selection.</b> The row the keyboard is on ({@link #cursorNode()})
  * moves with the arrows in every mode and is what Enter activates; the selection
@@ -86,10 +84,9 @@ import java.util.function.Consumer;
  *
  * <p>To a screen reader this is a {@code TREE} of {@code TREE_ITEM}s, each carrying its expanded
  * state, its selection numbered among its siblings ("2 of 5"), and its depth and flat row index
- * through the hierarchy facet ("level 3"; ADR 039 §1.2, amended 2026-09-14), the cursor row
- * {@code ACTIVE} while the tree holds the keyboard. What ADR 044 §4
- * still owes it is the three platforms carrying those numbers, and the disclosure attributes
- * VoiceOver reads an outline row by.
+ * through the hierarchy facet ("level 3"), the cursor row {@code ACTIVE} while the tree holds the
+ * keyboard. All three platform bridges carry those numbers, and macOS also answers the
+ * disclosure attributes VoiceOver reads an outline row by.
  */
 public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
@@ -132,13 +129,12 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
          *
          * <p>Called at most once per node per expansion, and once more after each
          * {@link Tree#refresh} while the row is open, on the UI thread; the job it returns is
-         * cancelled if the row is collapsed, the tree refreshed, or the tree taken out of its
-         * scene before it lands — a tree merely moved between containers loads its open rows
-         * again when it arrives, which is the price of never leaving a row busy over a job that
-         * was dropped. The tree caches what arrives, so a second expansion of the same node
-         * costs nothing. A load that finds no children leaves the row an open branch with an
-         * "Empty" line under it, where the "Loading…" line stood (decision 45 of 2026-09-14);
-         * a load that fails closes the row.
+         * cancelled if the row is collapsed, the tree refreshed, or the tree taken out of its scene
+         * before it lands — a tree merely moved between containers loads its open rows again when
+         * it arrives, which is the price of never leaving a row busy over a job that was dropped.
+         * The tree caches what arrives, so a second expansion of the same node costs nothing. A
+         * load that finds no children leaves the row an open branch with an "Empty" line under it,
+         * where the "Loading…" line stood; a load that fails closes the row.
          *
          * @param node the node being opened
          * @return the job, or {@code null} when this model has nothing to load
@@ -160,9 +156,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
         /**
          * What to call {@code node} for an assistive technology. A name from here wins: it is
-         * published over whatever the cell widget says of itself, and over the name the tree
-         * would otherwise read off the cell's labels (ADR 044 §4, amended 2026-09-14). Answer
-         * {@code null} to let the cell name its row.
+         * published over whatever the cell widget says of itself, and over the name the tree would
+         * otherwise read off the cell's labels. Answer {@code null} to let the cell name its row.
          *
          * <p><b>Hand back a string this model holds.</b> The tree compares a name by reference
          * to decide whether it has to be resolved again, so a string built inside this call
@@ -181,11 +176,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
         /**
          * How wide a row's cell needs to be, in points, once the tree is deep enough to scroll
-         * sideways: the outline is made as wide as its deepest open row's indent and triangle
-         * plus this, so the cell at the deepest level gets exactly this width and every
-         * shallower cell, laid out to the same far edge, more (decision 50 of 2026-09-14; ADR
-         * 044 §1, amended). Where the box is wider than that, the outline is the box and
-         * nothing scrolls sideways.
+         * sideways: the outline is made as wide as its deepest open row's indent and triangle plus
+         * this, so the cell at the deepest level gets exactly this width and every shallower cell,
+         * laid out to the same far edge, more. Where the box is wider than that, the outline is the
+         * box and nothing scrolls sideways.
          *
          * <p>A cap, not a demand: no cell is promised more than the box gives a root row past
          * its triangle, so a width wider than the box never makes a flat tree scroll sideways,
@@ -215,18 +209,17 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         final boolean expanded;
         final boolean loading;
         /**
-         * Whether this is a line under an open row rather than a node: the "Loading…" line
-         * while the row's children are on their way ({@link #loading}), or the "Empty" line
-         * under an open row that holds nothing (decision 45 of 2026-09-14). {@link #node} is the
-         * row it belongs to, which is what makes every key and click that lands on the line
-         * land on that row instead: it is never itself selected, never the cursor, and never an
-         * item to a reader.
+         * Whether this is a line under an open row rather than a node: the "Loading…" line while
+         * the row's children are on their way ({@link #loading}), or the "Empty" line under an open
+         * row that holds nothing. {@link #node} is the row it belongs to, which is what makes every
+         * key and click that lands on the line land on that row instead: it is never itself
+         * selected, never the cursor, and never an item to a reader.
          */
         final boolean placeholder;
         /**
-         * Where this row stands among its parent's children, from one, and how many of those
-         * there are: the "2 of 5" a reader speaks, which counts siblings and not the outline
-         * (decision 4 of 2026-09-13). Zero for the line.
+         * Where this row stands among its parent's children, from one, and how many of those there
+         * are: the "2 of 5" a reader speaks, which counts siblings and not the outline. Zero for
+         * the line.
          */
         final int position;
         final int siblings;
@@ -256,7 +249,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * The cell of a line under a row: the tree's own, and mounted under a {@link LineKey}, which
      * is how a release knows not to hand it to the model to recycle. "Loading…" while the row's
      * children are on their way; "Empty" under an open row that holds nothing, so an open
-     * triangle over nothing does not read as a row that never loaded (decision 45).
+     * triangle over nothing does not read as a row that never loaded.
      */
     private static Widget<?> lineUnderRow(boolean loading) {
         limn.components.Label line = new limn.components.Label(
@@ -303,8 +296,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     /**
      * Where each node the tree keeps a fact about — selected, expanded, or the cursor — was last
      * seen as a row, from the root down, while it is not a row: what a refresh verifies instead of
-     * walking the model (decision 35 of 2026-09-14). Recorded when a collapse or a refresh takes
-     * the row away, dropped when the node is a row again or the model no longer has it.
+     * walking the model. Recorded when a collapse or a refresh takes the row away, dropped when the
+     * node is a row again or the model no longer has it.
      */
     private final Map<T, List<T>> hiddenPaths = new HashMap<>();
     /**
@@ -336,21 +329,21 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      */
     private Object[] mountedNodes = new Object[16];
     /**
-     * The name the tree derived for each mounted cell that names itself no other way — the text
-     * of its labels, in order — kept so a quiet frame compares and allocates nothing
-     * (TREE-ROW-NAME); {@code null} where the cell or the model names the row.
+     * The name the tree derived for each mounted cell that names itself no other way — the text of
+     * its labels, in order — kept so a quiet frame compares and allocates nothing; {@code null}
+     * where the cell or the model names the row.
      */
     private String[] mountedNames = new String[16];
     private int mountedCount;
     /** Reused per walk to assemble a row's derived name before comparing it with the kept one. */
     private final StringBuilder nameBuilder = new StringBuilder();
     /**
-     * Cells whose row vanished between two layout passes — a collapse, a load landing, a
-     * reorder — kept as children until the tree's next pass releases them. Taking a child out
-     * of a widget outside a layout pass declares a global layout, which is a full frame (ADR
-     * 002's invariant), and the scene absorbs the same removal inside a pass over this subtree:
-     * a collapse that released its cells on the spot repainted the window for one gesture on
-     * one widget, which the damage ratchet's LEFT caught (2026-09-14).
+     * Cells whose row vanished between two layout passes — a collapse, a load landing, a reorder —
+     * kept as children until the tree's next pass releases them. Taking a child out of a widget
+     * outside a layout pass declares a global layout, which is a full frame by the toolkit's
+     * structural invariant, and the scene absorbs the same removal inside a pass over this subtree:
+     * a collapse that released its cells on the spot repainted the window for one gesture on one
+     * widget, which the damage ratchet's LEFT caught (2026-09-14).
      */
     private final List<Widget<?>> orphanCells = new ArrayList<>();
     private final List<Object> orphanKeys = new ArrayList<>();
@@ -383,7 +376,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     /** How many of {@link #rows} are nodes, which is every row but the loading lines. */
     private int itemCount;
     /**
-     * The nodes that are rows now, kept with {@link #rows} through every splice (decision 115): the
+     * The nodes that are rows now, kept with {@link #rows} through every splice: the
      * uniqueness rule checks an inserted block against it, and a revealed path is dropped by it,
      * where both used to walk every row on every open and close.
      */
@@ -404,22 +397,21 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     /** The content width the last pass settled on, which is what the horizontal bar reports. */
     private float contentWidth;
     /**
-     * How many seed rows tall this tree prefers to be under an unbounded height (decision 44 of
-     * 2026-09-14). Multiplied by the token's seed and never by the realized average: the average
-     * moves as rows of other heights scroll in, and a preference that moved with it re-laid out
-     * the parent on every such scroll and made a tree inside a scroll pane jitter (T5).
+     * How many seed rows tall this tree prefers to be under an unbounded height. Multiplied by the
+     * token's seed and never by the realized average: the average moves as rows of other heights
+     * scroll in, and a preference that moved with it re-laid out the parent on every such scroll
+     * and made a tree inside a scroll pane jitter.
      */
     private int visibleRows = VISIBLE_ROWS_HINT;
 
     private SelectionMode selectionMode = SelectionMode.SINGLE;
     private final Set<T> selected = new LinkedHashSet<>();
     /**
-     * The row the keyboard is on: what the arrows move, what Enter and a reader's {@code PRESS}
-     * act on, and the row that is {@code ACTIVE} while the tree holds the focus. It moves in
-     * every mode, {@link SelectionMode#NONE} included, and it is not the selection: in
-     * {@code MULTI} the cursor can stand on a row that was just toggled off, and in {@code NONE}
-     * nothing is ever selected (decision 14 of 2026-09-14; {@code Table} keeps the same two
-     * fields as {@code focusRow} and {@code lead}).
+     * The row the keyboard is on: what the arrows move, what Enter and a reader's {@code PRESS} act
+     * on, and the row that is {@code ACTIVE} while the tree holds the focus. It moves in every
+     * mode, {@link SelectionMode#NONE} included, and it is not the selection: in {@code MULTI} the
+     * cursor can stand on a row that was just toggled off, and in {@code NONE} nothing is ever
+     * selected ({@code Table} keeps the same two fields as {@code focusRow} and {@code lead}).
      */
     private T cursor;
     /**
@@ -516,12 +508,12 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * <p>What the tree remembers about a node — that it is selected, that it is open, that the
      * cursor stands on it — outlives the refresh as long as the model still has the node. A node
      * that is a row afterwards is confirmed by that; one that is not (under a closed branch, or
-     * under an open row whose children are being fetched again) is verified along the path it
-     * was last seen at, and only that path: a step the model no longer has drops the node, a
-     * step whose children are still on their way keeps it until they land, when it is verified
-     * again and dropped one announcement later if gone, and a step whose children nobody has
-     * fetched keeps it, since confirming it would mean a load nobody asked for (decision 35 of
-     * 2026-09-14). The identifiers of what the model no longer has are released with it.
+     * under an open row whose children are being fetched again) is verified along the path it was
+     * last seen at, and only that path: a step the model no longer has drops the node, a step whose
+     * children are still on their way keeps it until they land, when it is verified again and
+     * dropped one announcement later if gone, and a step whose children nobody has fetched keeps
+     * it, since confirming it would mean a load nobody asked for. The identifiers of what the model
+     * no longer has are released with it.
      */
     public void refresh() {
         Ui.checkUiThread();
@@ -599,7 +591,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         }
         // Nothing is pruned here: opening or closing a row cannot remove a node from the model,
         // and the walk that used to run from every root on each press asked the model for the
-        // children of every closed branch — unbounded over a generated model (TREE-NEW-2).
+        // children of every closed branch — unbounded over a generated model.
         // Contained, not global: opening a row changes which rows are mounted and where they
         // sit, and both are inside a box this widget clips and whose own size the expansion
         // cannot move. A global layout is a full frame by ADR 002's invariant, which made every
@@ -616,8 +608,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * <p>Delivery is gated on the tree still being in a scene: a job that outlives the window it
      * was opened for must not rebuild rows nobody will paint.
      *
-     * <p><b>The start and the end are announced</b> (decision 73 of 2026-09-16), because nothing
-     * else tells a reader: {@link #announceLoad} has the measurement.
+     * <p><b>The start and the end are announced</b>, because nothing else tells a reader:
+     * {@link #announceLoad} has the measurement.
      */
     private void startLoadIfNeeded(T node) {
         if (loaded.containsKey(node) || loading.containsKey(node) || model.children(node) != null) {
@@ -654,7 +646,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                     // The row closes again rather than sitting open and empty, which would read
                     // as "this node has nothing in it" — a different statement from "this could
                     // not be read". Through the one seam that announces EXPANDED, as an
-                    // adjustment of the tree's own (TREE-NEW-9); the children never changed, so
+                    // adjustment of the tree's own; the children never changed, so
                     // CHILDREN is not announced.
                     loading.remove(node);
                     setExpanded(node, false, Change.Origin.ADJUSTMENT);
@@ -664,7 +656,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                     if (!alive) {
                         // Dropped, and forgotten with it: a delivery refused because the tree is
                         // in no scene must not leave the row busy for good. The next rebuild —
-                        // the attach, a refresh — starts the load again (TREE-NEW-3).
+                        // the attach, a refresh — starts the load again.
                         loading.remove(node);
                     }
                     return alive;
@@ -676,14 +668,13 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     /**
-     * Says "empty" for a branch that opens onto nothing without a load to wait for (decision 83 of
-     * 2026-09-17, closing the second case decision 73 left open).
+     * Says "empty" for a branch that opens onto nothing without a load to wait for.
      *
-     * <p>Two rows reach this: an <b>eager</b> branch the model calls a non-leaf over an empty
-     * list, and a branch whose load already answered nothing and is answering from the cache. Both
-     * open instantly onto the unfocusable "Empty" line of decision 45, which the cursor steps over
-     * on every platform, so before this a reader pressed Right and heard <em>nothing at all</em> —
-     * the same silence decision 73 was written to end, only without the wait that made it visible.
+     * <p>Two rows reach this: an <b>eager</b> branch the model calls a non-leaf over an empty list,
+     * and a branch whose load already answered nothing and is answering from the cache. Both open
+     * instantly onto the unfocusable "Empty" line, which the cursor steps over on every platform,
+     * so before this a reader pressed Right and heard <em>nothing at all</em> — the same silence
+     * the load announcements were written to end, only without the wait that made it visible.
      *
      * <p>A branch whose load is still out is not announced here: its start has just been announced
      * and its end will be.
@@ -699,8 +690,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     /**
-     * Says one of the load announcements, naming the branch (decision 73 of 2026-09-16, extended
-     * by decision 83 of 2026-09-17).
+     * Says one of the load announcements, naming the branch.
      *
      * <p><b>Why an announcement and not a state.</b> The row already publishes {@code BUSY} while
      * its load is out and the "Loading…" line is already drawn under it, and on 2026-09-16 both
@@ -709,8 +699,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * placeholder line is not focusable, so the cursor steps over it on every platform. The
      * announcement path is the one route all three readers were measured speaking through on that
      * same day, each saying {@code 'Salvo'} and {@code 'Interrompido, nada foi salvo'} from it. The
-     * visual line of decision 45 stays exactly as it is and stays unfocusable; this is beside it,
-     * not instead of it.
+     * placeholder line stays exactly as it is and stays unfocusable; this is beside it, not instead
+     * of it.
      *
      * <p>Polite, never assertive: a branch opening is not an interruption, and a tree whose rows
      * load one after another would otherwise cut its own reader off mid-word.
@@ -727,8 +717,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     /**
-     * The end of a load that found children, with how many (decision 83 of 2026-09-17, the count
-     * added 2026-09-18): "Documents, 12 items".
+     * The end of a load that found children, with how many: "Documents, 12 items".
      *
      * <p>The count is the whole reason this sentence is not the other two's shape. It goes
      * through {@link limn.i18n.PluralString} because a number in a sentence is not one string
@@ -801,7 +790,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * Replaces the block of rows a node heads — the node's own row and every row beneath it — with
-     * what the model and the open set say now (decision 115, PF-3). Opening, closing and a load
+     * what the model and the open set say now. Opening, closing and a load
      * landing change that block and nothing else, so nothing else is walked: the rows before and
      * after it keep their objects and their places, only shifted.
      *
@@ -1069,10 +1058,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * Sets how many seed rows tall the tree prefers to be when its parent gives it no height
-     * (default 8, the table's number): inside a column or a scroll pane, that is its height.
-     * A count of the size step's seed row, never of the rows realized, so the preference stands
-     * whatever scrolls in (decision 44 of 2026-09-14). A bounded height from the parent wins.
-     * UI thread only.
+     * (default 8, the table's number): inside a column or a scroll pane, that is its height. A
+     * count of the size step's seed row, never of the rows realized, so the preference stands
+     * whatever scrolls in. A bounded height from the parent wins. UI thread only.
      *
      * @param rows the count, at least one
      * @return this tree
@@ -1166,7 +1154,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     /**
      * @return the selection's lead — the node the user selected last that is still selected —
      *         or {@code null} when nothing is selected. Until 2026-09-14 this was also the row the
-     *         keyboard was on, which {@link #cursorNode()} answers now (decision 14): the two part
+     *         keyboard was on, which {@link #cursorNode()} answers now: the two part
      *         in {@code MULTI}, where a row toggled off keeps the cursor and loses the lead, and in
      *         {@code NONE}, where the cursor moves and this is always {@code null}.
      */
@@ -1175,11 +1163,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     /**
-     * Selects exactly {@code node}, moving the cursor onto it and revealing it when it is a
-     * visible row. A node under a closed branch is selected where it is — re-opening its parent
-     * finds it selected — and neither revealed nor made the cursor, which stays on a row the user
-     * can see (decision 21 of 2026-09-14). {@code null} clears the selection and leaves the
-     * cursor where it is.
+     * Selects exactly {@code node}, moving the cursor onto it and revealing it when it is a visible
+     * row. A node under a closed branch is selected where it is — re-opening its parent finds it
+     * selected — and neither revealed nor made the cursor, which stays on a row the user can see.
+     * {@code null} clears the selection and leaves the cursor where it is.
      */
     public Tree<T> setSelected(T node) {
         Ui.checkUiThread();
@@ -1253,11 +1240,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     /**
-     * Selects every open row, in {@link SelectionMode#MULTI}: what is visible, so a node under
-     * a closed branch is not taken (decision 31 of 2026-09-14). The lead is kept where it is in
-     * the selection, or becomes the first row; the cursor does not move. A caller's write,
-     * announced as {@code SELECTION}/{@code CODE}; Ctrl+A or Cmd+A enters the same seam as the
-     * user's. UI thread only.
+     * Selects every open row, in {@link SelectionMode#MULTI}: what is visible, so a node under a
+     * closed branch is not taken. The lead is kept where it is in the selection, or becomes the
+     * first row; the cursor does not move. A caller's write, announced as
+     * {@code SELECTION}/{@code CODE}; Ctrl+A or Cmd+A enters the same seam as the user's. UI thread
+     * only.
      *
      * @return this tree
      */
@@ -1288,11 +1275,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     /**
-     * The one place a single selection moves, and the one seam it announces from: the public
-     * setter passes {@code CODE}, and every key and click passes {@code USER}. The cursor moves
-     * first, in every mode, and is announced first as {@code ACTIVE} when it moved; the selection
-     * follows where the mode allows one, announced only when it moved — the order {@code Table}
-     * settled under ADR 040 §7.2.
+     * The one place a single selection moves, and the one seam it announces from: the public setter
+     * passes {@code CODE}, and every key and click passes {@code USER}. The cursor moves first, in
+     * every mode, and is announced first as {@code ACTIVE} when it moved; the selection follows
+     * where the mode allows one, announced only when it moved — the order {@code Table} announces
+     * them in.
      */
     private void selectOnly(T node, boolean reveal, Change.Origin origin) {
         selectOnly(node, reveal, true, origin);
@@ -1303,13 +1290,13 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      *
      * @param moveCursor whether the cursor and the range anchor land on the node: a gesture's
      *                   answer is yes, because the pointer and the key are where the user is; a
-     *                   reader's {@code SELECT} is no, because a client write is not (decision 79
-     *                   of 2026-09-17). Measured cause: on AppKit a selection write leaves the
-     *                   keyboard focus where it is, so VoiceOver's cursor sync — writing
-     *                   {@code setAccessibilitySelectedRows:} with its own one-step-stale row —
-     *                   dragged this cursor back nine times in nine (P5M-1). The reveal is not the
-     *                   cursor and still happens: bringing the selected row into view is what the
-     *                   write asks for, and what {@code ListView}'s own {@code SELECT} already did.
+     *                   reader's {@code SELECT} is no, because a client write is not. Measured
+     *                   cause: on AppKit a selection write leaves the keyboard focus where it is,
+     *                   so VoiceOver's cursor sync — writing {@code setAccessibilitySelectedRows:}
+     *                   with its own one-step-stale row — dragged this cursor back nine times in
+     *                   nine. The reveal is not the cursor and still happens: bringing the selected
+     *                   row into view is what the write asks for, and what {@code ListView}'s own
+     *                   {@code SELECT} already did.
      */
     private void selectOnly(T node, boolean reveal, boolean moveCursor, Change.Origin origin) {
         T wasCursor = cursor;
@@ -1360,11 +1347,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * the row that was just deselected.
      *
      * @param moveCursor whether the cursor and the range anchor land on the node, revealed: the
-     *                   gesture's answer (a click is where the user is), and not the reader
-     *                   verbs' — {@code ADD_TO_SELECTION} and {@code DESELECT} change the
-     *                   selection and leave the cursor and the anchor where they were (decision 20
-     *                   of 2026-09-14, semantics 5: only {@code SELECT} and {@code FOCUS} move a
-     *                   cursor)
+     *                   gesture's answer (a click is where the user is), and not the reader verbs'
+     *                   — {@code ADD_TO_SELECTION} and {@code DESELECT} change the selection and
+     *                   leave the cursor and the anchor where they were, because only
+     *                   {@code SELECT} and {@code FOCUS} move a cursor
      */
     private void toggleSelection(T node, boolean moveCursor, Change.Origin origin) {
         if (selectionMode != SelectionMode.MULTI) {
@@ -1395,11 +1381,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * Replaces the selection with the visible rows between the range anchor and the row at
-     * {@code index}, in traversal order, which is what Shift does in {@code MULTI} (decision 31
-     * of 2026-09-14: parity with {@code Table}). A selected node hidden under a closed branch is
-     * not between two visible rows and leaves, as {@code selectOnly} drops it; an anchor hidden
-     * the same way stands for nothing, and the range is the target alone. The cursor and the
-     * lead land on the target; the anchor stays.
+     * {@code index}, in traversal order, which is what Shift does in {@code MULTI}, as in
+     * {@code Table}. A selected node hidden under a closed branch is not between two visible rows
+     * and leaves, as {@code selectOnly} drops it; an anchor hidden the same way stands for nothing,
+     * and the range is the target alone. The cursor and the lead land on the target; the anchor
+     * stays.
      */
     private void selectRange(int index) {
         int to = Math.min(Math.max(0, index), rows.size() - 1);
@@ -1430,7 +1416,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     /**
      * Damages what a selection move changed: every row that entered or left the selection, and
      * the cursor's old and new bands — or the whole tree past {@link #MAX_DAMAGED_ROWS}, which
-     * is the honest answer for a select-all (the table's rule, ADR 043 §9.2).
+     * is the honest answer for a select-all (the table's rule).
      */
     private void damageSelectionChange(Set<T> before, T wasCursor) {
         int changed = 0;
@@ -1523,8 +1509,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * {@link #recordPaths} for the rows a collapse is about to hide: the node's own block, with the
-     * chain of its ancestors read backwards from its row, rather than every row of the outline
-     * (decision 115).
+     * chain of its ancestors read backwards from its row, rather than every row of the outline.
      */
     private void recordPathsUnder(T node) {
         if (selected.isEmpty() && expanded.isEmpty() && cursor == null) {
@@ -1579,7 +1564,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * each step must be among the children of the step before, read from what a load brought
      * or what the model knows. A step the model no longer has refutes the node; a step whose
      * children are not known — a load in flight, or one nobody asked for — leaves it unknown,
-     * and unknown is kept (decision 35). A refuted node leaves the selection, the expansion, the
+     * and unknown is kept. A refuted node leaves the selection, the expansion, the
      * cursor and the identifier table, announced as the tree's own adjustment.
      */
     private void verifyHidden() {
@@ -1639,7 +1624,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     /**
      * Releases the identifier of every node the tree no longer keeps anything about: not a
      * row, not selected, not open, not the cursor. An identifier only has to stay stable while
-     * its node is published, and none of these is (TREE-NEW-8: a long-lived tree over a
+     * its node is published, and none of these is (a long-lived tree over a
      * changing model retained every node it had ever shown).
      */
     private void releaseIdentifiers() {
@@ -1662,10 +1647,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * The seam Enter, a double click and a {@code PRESS} on the tree's own node enter at
-     * {@code USER}: the cursor row, in every mode (decision 32 of 2026-09-14) — in {@code NONE}
-     * the row the keyboard is on is what activates, because it is the one row the user has
-     * pointed at. A reader's {@code PRESS} on a row takes {@link #activate(Object, Change.Origin)}
-     * instead and names that row (decision 80 of 2026-09-17).
+     * {@code USER}: the cursor row, in every mode — in {@code NONE} the row the keyboard is on is
+     * what activates, because it is the one row the user has pointed at. A reader's {@code PRESS}
+     * on a row takes {@link #activate(Object, Change.Origin)} instead and names that row.
      */
     private void activate(Change.Origin origin) {
         activate(cursor, origin);
@@ -1676,9 +1660,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * The same seam, naming the row that was opened rather than the one the cursor is on: a
-     * reader's {@code PRESS} arrives addressed to a row, and since decision 79 its {@code SELECT}
-     * no longer drags the cursor there, so the two can differ (decision 80 of 2026-09-17). Enter
-     * and a double click pass the cursor row and are unchanged.
+     * reader's {@code PRESS} arrives addressed to a row, and its {@code SELECT} does not drag the
+     * cursor there, so the two can differ. Enter and a double click pass the cursor row and are
+     * unchanged.
      */
     private void activate(T node, Change.Origin origin) {
         if (node != null) {
@@ -1690,13 +1674,13 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     // ------------------------------------------------------------------------- handlers
 
     /**
-     * The application's response to the user changing the selection: a click, a key, an
-     * assistive technology's select. The selection is read back from {@link #selectedNodes()},
-     * and the lead from {@link #leadNode()}; the handler takes no node because a selection is a
-     * set, and the node a toggle removed is not one to hand anybody (decision 14 of 2026-09-14).
-     * Never for {@link #setSelected}, or a {@link #refresh()} or {@link #setSelectionMode} that
-     * moved it, which are the caller's or the tree's own; to hear every change whatever caused
-     * it, {@linkplain #observeChanges watch} the tree.
+     * The application's response to the user changing the selection: a click, a key, an assistive
+     * technology's select. The selection is read back from {@link #selectedNodes()}, and the lead
+     * from {@link #leadNode()}; the handler takes no node because a selection is a set, and the
+     * node a toggle removed is not one to hand anybody. Never for {@link #setSelected}, or a
+     * {@link #refresh()} or {@link #setSelectionMode} that moved it, which are the caller's or the
+     * tree's own; to hear every change whatever caused it, {@linkplain #observeChanges watch} the
+     * tree.
      *
      * @param handler the handler, or {@code null} to clear the slot
      * @return this tree
@@ -1712,8 +1696,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * The application's response to the user opening a row: Enter, a double click, an assistive
      * technology's press. Handed <b>the row that was opened</b> — the cursor row for Enter and a
      * double click, which in {@code NONE} is a row that was never selected, and the addressed row
-     * for a reader's {@code PRESS}, which since decision 80 of 2026-09-17 need not be the cursor's.
-     * Never for {@link #activate()}, which is a caller's verb.
+     * for a reader's {@code PRESS}, which need not be the cursor's. Never for {@link #activate()},
+     * which is a caller's verb.
      *
      * @param handler the handler, or {@code null} to clear the slot
      * @return this tree
@@ -1820,9 +1804,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * The width the deepest row's cell is promised: the model's declared width when it gave a
-     * usable one (decision 50 of 2026-09-14), capped at what the box leaves a root row past its
-     * triangle; else the menu's minimum capped by the viewport, which is what the tree guessed
-     * before a model could say, unchanged.
+     * usable one, capped at what the box leaves a root row past its triangle; else the menu's
+     * minimum capped by the viewport, which is what the tree guessed before a model could say,
+     * unchanged.
      *
      * <p>The cap is what keeps the declared width a cap. Taken whole, a width wider than the box
      * made a flat tree — one with no depth to show — scroll sideways by the difference, and the
@@ -2053,10 +2037,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     /**
      * Recycles every mounted row outside {@code [from, toExclusive)}, sparing the one holding the
      * keyboard focus while its index is still below {@code count} — a reader whose cursor follows
-     * the focus loses its place when the node it stands on leaves the tree (ADR 039 §13.29) —
-     * and, while the tree itself holds the keyboard, the cursor row: the reader's cursor is that
-     * row's {@code ACTIVE} node, and a wheel that recycled it took the cursor away (decision 22
-     * of 2026-09-14; TREE-NEW-6). Released by the first pass after the focus leaves.
+     * the focus loses its place when the node it stands on leaves the tree — and, while the tree
+     * itself holds the keyboard, the cursor row: the reader's cursor is that row's {@code ACTIVE}
+     * node, and a wheel that recycled it took the cursor away. Released by the first pass after the
+     * focus leaves.
      */
     private void recycleExcept(int from, int toExclusive, int count) {
         int kept = 0;
@@ -2123,11 +2107,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * Mounts the cursor row when the tree holds the keyboard and the pass left it unrealized: a
-     * refresh releases every cell, because each is bound to data the model may have replaced,
-     * and a reorder releases a cell that moved against the traversal; the cursor row comes back
-     * fresh from the model either way, placed outside the viewport by {@link #placeKeptOutside}
-     * (decision 22 of 2026-09-14). Nothing to do while the row is in the placed run, which is
-     * where a scroll that did not spare it would have put it.
+     * refresh releases every cell, because each is bound to data the model may have replaced, and a
+     * reorder releases a cell that moved against the traversal; the cursor row comes back fresh
+     * from the model either way, placed outside the viewport by {@link #placeKeptOutside}. Nothing
+     * to do while the row is in the placed run, which is where a scroll that did not spare it would
+     * have put it.
      */
     private void keepCursorRowRealized(int count) {
         if (cursor == null || !isFocused()) {
@@ -2232,7 +2216,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     /**
      * The vertical bar's model writing the offset: the user dragging or paging the bar. It jumps to
      * the row the estimate puts there, as Table and ListView do, rather than scrolling by the
-     * difference (decision 115): a scroll walks and measures every row it passes, which made a
+     * difference: a scroll walks and measures every row it passes, which made a
      * thumb dragged to the end of 100,000 rows take 1.4–2.3 s where the table took 7–10 ms.
      */
     private void scrollToOffset(float offset, SizeTokens t) {
@@ -2321,12 +2305,12 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     /**
-     * Scrolls the minimum so {@code node}'s row is visible, if it is one: its band vertically,
-     * and sideways the row's triangle band plus the leading part of its cell — as much of it as
-     * the deepest row is promised, never more than the viewport — so the keyboard walking onto a
-     * deep row brings its name into view (TREE-NEW-5, decision 50 of 2026-09-14). Minimal both
-     * ways: walking Up and Down through rows of mixed depth moves the outline sideways only when
-     * a row's start is outside the box, not on every arrow.
+     * Scrolls the minimum so {@code node}'s row is visible, if it is one: its band vertically, and
+     * sideways the row's triangle band plus the leading part of its cell — as much of it as the
+     * deepest row is promised, never more than the viewport — so the keyboard walking onto a deep
+     * row brings its name into view. Minimal both ways: walking Up and Down through rows of mixed
+     * depth moves the outline sideways only when a row's start is outside the box, not on every
+     * arrow.
      *
      * <p>Not sideways for a press of the pointer, which is set around a press's own selection
      * ({@link #pointerPress}): the pointer is already on a part of the row the user can see, and
@@ -2375,7 +2359,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * and not the box, as the spinner's damage is, because damage is clipped by every ancestor
      * that clips its children and a widget is not its own ancestor: under a reserved strip the
      * band is clipped out of the paint, and damaging the strip repainted the bar for it on
-     * every arrow (TREE-MISS-7). A row that is not mounted has nothing on screen to damage, and
+     * every arrow. A row that is not mounted has nothing on screen to damage, and
      * the reveal that brings it on screen damages the tree on its own.
      */
     private void damageNode(T node) {
@@ -2492,7 +2476,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                     && rows.get(index + 1).depth > row.depth && !rows.get(index + 1).placeholder) {
                 // Into the first child, and only a child: onto a line — still loading, or
                 // empty — or onto the next row of the same or a shallower depth there is
-                // nothing to step to, and the arrow stays on the row (TREE-MISS-1).
+                // nothing to step to, and the arrow stays on the row.
                 selectAt(index + 1);
             }
             return;
@@ -2584,7 +2568,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 // scrollY the same flick carries, while a mouse with one wheel says the same
                 // thing by holding Shift. Both axes of one event are applied, each where the
                 // tree can still move that way: a diagonal flick that scrolled one axis and
-                // dropped the other was the table's TABLE-NEW-12, and the same code sat here.
+                // dropped the other was a defect of the table's, and the same code sat here.
                 //
                 // Consumed only where something moved, so a detent that finds the tree at
                 // either end of its scroll — or a tree whose content fits — reaches the
@@ -2646,8 +2630,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             setExpanded(row.node, !row.expanded, Change.Origin.USER);
             return;
         }
-        // The platform's command modifier, not a fixed bit (T1): Command on macOS, Control
-        // elsewhere, which is what Table reads and what the demo's label promises.
+        // The platform's command modifier, not a fixed bit: Command on macOS, Control elsewhere,
+        // which is what Table reads and what the demo's label promises.
         int mods = event.modifiers();
         boolean command = (mods & Accelerator.commandModifier()) != 0;
         boolean shift = (mods & Keys.MOD_SHIFT) != 0;
@@ -2799,11 +2783,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     /**
-     * The focus mark: a thin ring in the focus colour around the cursor row's cell, while the
-     * tree holds the keyboard (decision 52 of 2026-09-14; TREE-MISS-5). Before, the tree drew
-     * the selection wash and nothing else, so focus arriving was invisible, and so was the
-     * cursor whenever it was not the one selected row: in {@code NONE}, after Space toggled a row
-     * off in {@code MULTI}, or on any row of a multiple selection.
+     * The focus mark: a thin ring in the focus colour around the cursor row's cell, while the tree
+     * holds the keyboard. Before, the tree drew the selection wash and nothing else, so focus
+     * arriving was invisible, and so was the cursor whenever it was not the one selected row: in
+     * {@code NONE}, after Space toggled a row off in {@code MULTI}, or on any row of a multiple
+     * selection.
      *
      * <p>Around the cell and not the row: the indent and the triangle are the outline's, and a
      * ring across the full width reads as a second selection wash on a tree whose rows are
@@ -2948,7 +2932,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     @Override
     protected void onAttached() {
         // A load dropped while the tree was in no scene left its row open with nothing under
-        // it and no job; the walk that meets every open row starts it again (TREE-NEW-3), and a
+        // it and no job; the walk that meets every open row starts it again, and a
         // pass is owed only when it did, since the loading line is a row.
         int wasLoading = loading.size();
         rebuildRows();
@@ -2980,7 +2964,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         spinning = false;
         // A result nobody will paint is a result nobody should pay for, and a row left busy over
         // a job that was never going to deliver is a row that spins for good: the loads are
-        // dropped here and started again by the attach (TREE-NEW-3).
+        // dropped here and started again by the attach.
         cancelAllLoads();
     }
 
@@ -2989,10 +2973,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     /**
      * The tree itself.
      *
-     * <p>{@code TREE}, since 2026-09-13, when the AT-SPI number ADR 044 §4 was waiting on came off
+     * <p>{@code TREE}, since 2026-09-13, when the AT-SPI number the role was waiting on came off
      * the Fedora guest. Until then it published {@code LIST}, because a role with no number
-     * announces as "invalid" on Linux and a list of items that can open was the truthful answer
-     * on all three platforms.
+     * announces as "invalid" on Linux and a list of items that can open was the truthful answer on
+     * all three platforms.
      */
     @Override
     protected void onAccessibility(Accessibility a) {
@@ -3046,10 +3030,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * The name a row gets when neither the model nor the cell gives one: the text of the cell's
-     * labels, in reading order, separated by a space — an icon, a name and a count read as the
-     * name and the count. A composite cell has no name of its own, and a screen reader that is
-     * handed a nameless tree item speaks nothing for it: Orca's name generator yields nothing
-     * for such a row and never spoke one on the Fedora guest (TREE-ROW-NAME, 2026-09-14).
+     * labels, in reading order, separated by a space — an icon, a name and a count read as the name
+     * and the count. A composite cell has no name of its own, and a screen reader that is handed a
+     * nameless tree item speaks nothing for it: Orca's name generator yields nothing for such a row
+     * and never spoke one on the Fedora guest, measured on 2026-09-14.
      *
      * <p>Assembled into one reused builder and compared with the string kept for the slot, so a
      * quiet frame allocates nothing; a new string is built only when the text moved, and the
@@ -3094,7 +3078,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     /**
-     * A row's identity is its node's stable identifier (ADR 039 §1.3), answered before the cell
+     * A row's identity is its node's stable identifier, answered before the cell
      * describes itself so that a cell recycled to another node carries nothing of the old one.
      */
     @Override
@@ -3151,10 +3135,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * A verb the tree claimed on a row's cell, performed by the rules of the ROWS shape
-     * ({@link RowsAccessibility#performOnRow}, ADR 045 §3) over {@link RowsHost}, the tree's own
+     * ({@link RowsAccessibility#performOnRow}) over {@link RowsHost}, the tree's own
      * mechanisms: each through the seam the equivalent gesture takes at {@code USER}. A verb the
      * row did not publish is refused, which the platform never learns of (the published list is
-     * the only refusal it sees, ADR 039 §1.5).
+     * the only refusal it sees).
      */
     @Override
     protected boolean onAccessibilityChildAction(Widget<?> child, long key, Accessible.Action action,
@@ -3168,10 +3152,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     /**
      * The tree's mechanisms as the rows shape drives them: a client's {@code SELECT} is
-     * {@link #selectOnly} without the cursor move (decision 79), {@code ADD_TO_SELECTION} and
-     * {@code DESELECT} are {@link #toggleSelection} without it (decision 20), {@code EXPAND} and
+     * {@link #selectOnly} without the cursor move, {@code ADD_TO_SELECTION} and
+     * {@code DESELECT} are {@link #toggleSelection} without it, {@code EXPAND} and
      * {@code COLLAPSE} are the triangle, {@code FOCUS} takes the keyboard and moves the cursor,
-     * {@code SCROLL_INTO_VIEW} reveals, and {@code PRESS} activates the row itself (decision 80).
+     * {@code SCROLL_INTO_VIEW} reveals, and {@code PRESS} activates the row itself.
      */
     private final class RowsHost implements RowsAccessibility.Host<Row<T>> {
         @Override
@@ -3248,7 +3232,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         announceCursor(wasCursor, origin);
     }
 
-    /** The tree's one verb of its own: {@code PRESS} activates the cursor row (decision 32). */
+    /** The tree's one verb of its own: {@code PRESS} activates the cursor row. */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
         if (cursor == null || action != Accessible.Action.PRESS) {

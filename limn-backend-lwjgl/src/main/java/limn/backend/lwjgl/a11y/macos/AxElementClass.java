@@ -31,14 +31,14 @@ import static org.lwjgl.system.MemoryUtil.memPutLong;
  * a COM interface pointer. That is what keeps the answers coming from the published snapshot rather
  * than from something stored on an object and left to go stale.
  *
- * <p><b>Nothing is installed on a class GLFW owns.</b> §13.16 was withdrawn by measurement: pushing
- * the root's children onto the content view is sufficient to place our elements under the window a
- * reader walks, so the three {@code class_addMethod} calls an earlier design made on GLFW's content
- * view are gone. Every implementation here is on our own class.
+ * <p><b>Nothing is installed on a class GLFW owns.</b> Measurement settled it: pushing the root's
+ * children onto the content view is sufficient to place our elements under the window a reader
+ * walks, so the three {@code class_addMethod} calls an earlier design made on GLFW's content view
+ * are gone. Every implementation here is on our own class.
  *
  * <p><b>Every encoding is read out of the running AppKit</b> and handed straight to
- * {@code class_addMethod} (§12.3). A table of encodings in a source file is a copy of an answer, and
- * a copy is what goes stale.
+ * {@code class_addMethod}. A table of encodings in a source file is a copy of an answer, and a copy
+ * is what goes stale.
  */
 final class AxElementClass {
 
@@ -74,7 +74,7 @@ final class AxElementClass {
         /**
          * @param table  a node carrying a table facet
          * @param column one of its shown columns, from zero
-         * @return the element standing for that column (M4), minting it if it does not exist yet
+         * @return the element standing for that column, minting it if it does not exist yet
          */
         long columnElementFor(AccessibleNode table, int column);
 
@@ -96,7 +96,7 @@ final class AxElementClass {
         /**
          * @return the element for where the user is — the tree's effective focus, which is the cursor
          *         item under the focused widget when there is one, and may be a node of another
-         *         window's tree (decision 5) — or zero when nothing is
+         *         window's tree — or zero when nothing is
          */
         long focusedElement();
 
@@ -112,7 +112,7 @@ final class AxElementClass {
          * <p>It resolves nothing and waits for nothing: the identifier is checked against the
          * published tree, the verb is posted, and the answer is whether it was <b>accepted</b> —
          * never whether it is done. On this platform the calling thread is the user-interface
-         * thread, so a wait here would be an instant self-deadlock (§1.9).
+         * thread, so a wait here would be an instant self-deadlock.
          *
          * @param nodeId the node the message was sent to
          * @param action the verb
@@ -135,9 +135,9 @@ final class AxElementClass {
         limn.accessibility.AccessibleTree tree();
 
         /**
-         * Called on entry to every implementation below. §6's honest gate on this platform is
-         * "someone has asked", and this is the ask: there is no {@code UiaClientsAreListening} here
-         * and no registry to consult.
+         * Called on entry to every implementation below. The honest listening gate on this platform
+         * is "someone has asked", and this is the ask: there is no {@code UiaClientsAreListening}
+         * here and no registry to consult.
          */
         void entered();
     }
@@ -145,7 +145,7 @@ final class AxElementClass {
     private final AxObjC objc;
     private final Source source;
     private final long elementClass;
-    /** The runtime subclass a table's column elements are vended as (M4). */
+    /** The runtime subclass a table's column elements are vended as. */
     private final long columnClass;
     /** {@code NSAccessibilityElement}: what a released element is pointed back at. */
     private final long superclass;
@@ -224,7 +224,7 @@ final class AxElementClass {
         return ObjC.msg(ObjC.msg(elementClass, "alloc"), "init");
     }
 
-    /** @return a new, retained column element (M4); the caller owns it until it releases it. */
+    /** @return a new, retained column element; the caller owns it until it releases it. */
     long newColumnInstance() {
         return ObjC.msg(ObjC.msg(columnClass, "alloc"), "init");
     }
@@ -286,7 +286,7 @@ final class AxElementClass {
      * run. A listed
      * selector the running AppKit declares nothing for is skipped and its closure freed, and so is
      * one installed only together with a selector that was skipped (the actions with the gate); the
-     * constructor's warning names every one (MACOS-NEW-6).
+     * constructor's warning names every one.
      *
      * @return whether it was installed
      */
@@ -396,20 +396,23 @@ final class AxElementClass {
      * What a client is told before it writes: {@code accessibilityIsAttributeSettable:}, answered from
      * the very gate that decides whether the write is delivered ({@link AxGate#settable}).
      *
-     * <p><b>Without this the telling cannot be made to match.</b> {@code AXUIElementIsAttributeSettable}
-     * asks {@code isAccessibilitySelectorAllowed:} and <b>discards a NO whenever the class itself
-     * implements the setter</b> — which is all six of ours — so every element answered settable for
-     * every one of them, a leaf row and an actionless static text included. What AppKit does after that
-     * NO is fall back to this legacy selector when the element answers it, and a client then reads its
-     * BOOL: settable unless both refuse. Read on the macOS 26.6.2 guest (25G83) 2026-09-16,
-     * {@code readings/macos-settable-mechanism-serve.txt} and {@code macos-settable-mechanism-read.txt};
-     * the element whose gate refused nothing was asked here for no setter attribute at all, and the one
-     * whose gate refused two was asked for exactly those two and answered no to both.
+     * <p><b>Without this the telling cannot be made to match.</b>
+     * {@code AXUIElementIsAttributeSettable} asks {@code isAccessibilitySelectorAllowed:} and
+     * <b>discards a NO whenever the class itself implements the setter</b> — which is all six of
+     * ours — so every element answered settable for every one of them, a leaf row and an actionless
+     * static text included. What AppKit does after that NO is fall back to this legacy selector
+     * when the element answers it, and a client then reads its BOOL: settable unless both refuse.
+     * Read on the macOS 26.6.2 guest (25G83) 2026-09-16,
+     * {@code readings/macos-settable-mechanism-serve.txt} and
+     * {@code macos-settable-mechanism-read.txt}: the element whose gate refused nothing was asked
+     * here for no setter attribute at all, and the one whose gate refused two was asked for exactly
+     * those two and answered no to both.
      *
-     * <p><b>One class still, and this is why the shapes did not have to multiply.</b> The same reading
-     * carried two instances of a single class differing only in their nodes' answers, and they reported
-     * {@code AXDisclosing} differently — no on the leaf, YES on the branch — which is what a native
-     * {@code NSOutlineView} does with one row class ({@code readings/macos-outline-probe.txt}).
+     * <p><b>One class still, and this is why the shapes did not have to multiply.</b> The same
+     * reading carried two instances of a single class differing only in their nodes' answers, and
+     * they reported {@code AXDisclosing} differently — no on the leaf, YES on the branch — which is
+     * what a native {@code NSOutlineView} does with one row class
+     * ({@code readings/macos-outline-probe.txt}).
      *
      * <p>The names are read off the running AppKit and turned into text once, here, rather than
      * per ask: the attribute arrives as an {@code NSString} and a comparison against six retained
@@ -435,7 +438,7 @@ final class AxElementClass {
 
     /**
      * {@code AXElementBusy}, the one attribute this bridge serves that AppKit's NSAccessibility
-     * protocol has no property for: a row of a tree whose children are on their way (ADR 044 §2).
+     * protocol has no property for: a row of a tree whose children are on their way.
      *
      * <p><b>So it goes through the legacy entry points</b>, {@code accessibilityAttributeValue:} and
      * {@code accessibilityAttributeNames}, which every other attribute here leaves to AppKit. Both
@@ -446,7 +449,7 @@ final class AxElementClass {
      * come back into this one. A superclass with no such method would make that forward
      * {@code _objc_msgForward}, which is a crash rather than a missing attribute, so neither is
      * installed then and the constructor warns: the busy attribute goes unserved and the rest of the
-     * element is built (MACOS-NEW-6).
+     * element is built.
      */
     private void installBusy() {
         long valueSelector = ObjC.sel("accessibilityAttributeValue:");
@@ -455,7 +458,7 @@ final class AxElementClass {
                 || ObjCRuntime.class_getInstanceMethod(superclass, namesSelector) == NULL) {
             // Refused, and not thrown: a forward to a method the superclass lacks would be
             // _objc_msgForward, a crash rather than a missing attribute, but a thrown constructor
-            // would take every other attribute of the window with it (MACOS-NEW-6).
+            // would take every other attribute of the window with it.
             skippedForBusy = true;
             return;
         }
@@ -497,7 +500,7 @@ final class AxElementClass {
         addId("accessibilityRows", get(node -> nsArray(grid.rows(node))));
         addId("accessibilityVisibleRows", get(node -> nsArray(grid.visibleRows(node))));
         addId("accessibilitySelectedRows", get(node -> nsArray(grid.selectedRows(node))));
-        // The selection of a container whose members are not rows (semantics 1; MACOS-NEW-2): its
+        // The selection of a container whose members are not rows (semantics 1): its
         // selected children, or a grid's selected cells. Each is offered only where it is the
         // container's shape (AxGate), as a native outline offers AXSelectedRows and no
         // AXSelectedChildren.
@@ -528,11 +531,11 @@ final class AxElementClass {
     }
 
     /**
-     * An outline row's disclosure (M1), answered as a native NSOutlineView's rows answer it — read on
-     * the macOS 26.6.2 guest, 2026-09-15 — and whether anything else that opens is open. Every one of
-     * these is offered only where it has an answer ({@link AxGate}): a native row answers AXDisclosing
-     * and no AXExpanded, so an outline row answers the first and never the second, and everything else
-     * with an expand facet the second.
+     * An outline row's disclosure, answered as a native NSOutlineView's rows answer it — read on
+     * the macOS 26.6.2 guest, 2026-09-15 — and whether anything else that opens is open. Every one
+     * of these is offered only where it has an answer ({@link AxGate}): a native row answers
+     * AXDisclosing and no AXExpanded, so an outline row answers the first and never the second, and
+     * everything else with an expand facet the second.
      */
     private void installDisclosure() {
         addBool("isAccessibilityDisclosed", is(grid::disclosed));
@@ -543,14 +546,14 @@ final class AxElementClass {
     }
 
     /**
-     * What a table's column element answers (M4; decision 34), installed on {@link #columnClass}: the
-     * attributes a native NSTableView's {@code AXColumn} answered on the macOS 26.6.2 guest
-     * (2026-09-15, {@code scripts/a11y/macos/table-probe.swift}) — its role, its index, its header (the
-     * header button), its cells under {@code AXRows} and the showing ones under {@code AXVisibleRows},
-     * its parent the table — and no children, as the native one answers none. The frame is pushed, as
-     * every node's is. The role description is AppKit's own for the role: no toolkit role stands for a
-     * column, so none of the toolkit's phrases names one. The gate refuses every stored setter, as the
-     * element class's does, and a header where the column has none.
+     * What a table's column element answers, installed on {@link #columnClass}: the attributes a
+     * native NSTableView's {@code AXColumn} answered on the macOS 26.6.2 guest (2026-09-15,
+     * {@code scripts/a11y/macos/table-probe.swift}) — its role, its index, its header (the header
+     * button), its cells under {@code AXRows} and the showing ones under {@code AXVisibleRows}, its
+     * parent the table — and no children, as the native one answers none. The frame is pushed, as
+     * every node's is. The role description is AppKit's own for the role: no toolkit role stands
+     * for a column, so none of the toolkit's phrases names one. The gate refuses every stored
+     * setter, as the element class's does, and a header where the column has none.
      */
     private void installColumn() {
         IdGetter columnRole = new IdGetter() {
@@ -734,7 +737,7 @@ final class AxElementClass {
     }
 
     /**
-     * The setter half (MACOS-NEW-11): a reader's write to AXFocused, AXSelected, AXDisclosing,
+     * The setter half: a reader's write to AXFocused, AXSelected, AXDisclosing,
      * AXExpanded, AXValue or AXSelectedRows, posted as the verb it means where the node accepts that verb, and
      * nothing anywhere else. Whether each is settable is the gate's answer for the setter selector,
      * which is {@link AxSetters#offers}; the write checks again, because a client need not ask first.
@@ -775,8 +778,8 @@ final class AxElementClass {
         };
         addMethod(elementClass, "setAccessibilityValue:", valueSetter);
 
-        // A table's, an outline's or a list's selection written as an array of its row elements
-        // (MACOS-NEW-11): -count Q16@0:8 and -objectAtIndex: @24@0:8Q16, read with the other
+        // A table's, an outline's or a list's selection written as an array of its row elements:
+        // -count Q16@0:8 and -objectAtIndex: @24@0:8Q16, read with the other
         // Foundation messages (isKindOf). An element that stands for no node of ours refuses the write.
         IdSetter selectedRowsSetter = new IdSetter() {
             @Override public void invoke(long self, long cmd, long written) {
@@ -812,7 +815,7 @@ final class AxElementClass {
     }
 
     /**
-     * §13.22's experiment, and the selector this design could not reason its way to.
+     * The focus experiment, and the selector this design could not reason its way to.
      *
      * <p>{@code NSAccessibilityElement} does not declare it at all — {@code NSView} does — so our
      * elements are not obviously the thing AppKit asks. The spike never moved focus, and posting
@@ -851,11 +854,12 @@ final class AxElementClass {
      * Answers {@code accessibilityFocusedUIElement} on the content view, by pointing that one
      * instance at a subclass of its own class that implements it.
      *
-     * <p><b>This is §13.16 reopened for exactly one selector, which §13.22 said it would be.</b> The
-     * measurement that reopened it: with the selector on our element class alone, AppKit entered it
-     * <b>zero</b> times, and VoiceOver landed on the first element and stayed there through every
-     * focus move — told each time that the focus had changed, and with no way to ask where it went.
-     * Our elements are not responders, so the question never reaches them; it goes to the view.
+     * <p><b>This is installing on the content view reopened for exactly one selector, as the focus
+     * experiment said it would be.</b> The measurement that reopened it: with the selector on our
+     * element class alone, AppKit entered it <b>zero</b> times, and VoiceOver landed on the first
+     * element and stayed there through every focus move — told each time that the focus had
+     * changed, and with no way to ask where it went. Our elements are not responders, so the
+     * question never reaches them; it goes to the view.
      *
      * <p><b>Nothing is added to a class GLFW owns.</b> {@code class_addMethod} on
      * {@code GLFWContentView} would change every window in the process, including windows this
@@ -896,13 +900,12 @@ final class AxElementClass {
      * <p>AppKit's own hit test resolves a point to the top level of the array pushed onto the
      * content view and stops there: three points inside three different grandchildren all came back
      * as the grandchild's grandparent, and pushing the children at every level as well changed
-     * nothing (§13.21). It then sends this selector <b>once</b>, to the element it resolved — so
-     * this implementation walks the whole subtree rather than descending one level and waiting to
-     * be asked again.
+     * nothing. It then sends this selector <b>once</b>, to the element it resolved — so this
+     * implementation walks the whole subtree rather than descending one level and waiting to be
+     * asked again.
      *
      * <p>The point arrives in screen space with a bottom-left origin, which is the space
-     * {@code accessibilityFrame} answers in, so nothing here flips anything: the flip is AppKit's
-     * (§1.8).
+     * {@code accessibilityFrame} answers in, so nothing here flips anything: the flip is AppKit's.
      */
     private void installHitTest() {
         HitTest hitTest = new HitTest() {
@@ -928,7 +931,7 @@ final class AxElementClass {
     }
 
     /**
-     * The value, and the hole §2.1 spends a paragraph on for the other platform: {@link AxValues}
+     * The value, without the hole a platform that must answer a number has here: {@link AxValues}
      * decides between a string, a number and nothing (an empty value answers its word, never its
      * minimum), and this wraps the answer for AppKit.
      */

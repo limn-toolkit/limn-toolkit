@@ -13,7 +13,8 @@ import static limn.backend.lwjgl.a11y.windows.UiaPatternProviders.refusal;
 import static limn.backend.lwjgl.a11y.windows.UiaPatternProviders.accepted;
 
 /**
- * The {@code SURFACE} shape's half of the Windows bridge (ADR 045 §5): a scrolling container: Scroll, answered from the scroll facet and performed through the node's own scroll bars' published verbs.
+ * The {@code SURFACE} shape's half of the Windows bridge: a scrolling container: Scroll, answered
+ * from the scroll facet and performed through the node's own scroll bars' published verbs.
  *
  * <p>Moved here verbatim from {@code UiaPatternProviders} on 2026-09-21, under the shape's
  * name and nothing else; the patterns are vended by facet in {@link UiaPatterns} and the
@@ -29,7 +30,7 @@ final class UiaSurfaceShape {
     static void slots(int patternId, Map<String, CallbackI> slots, long nodeId,
                       UiaProvider.Context context) {
         switch (patternId) {
-            // IScrollProvider (W1's Scroll half; decision 39). What it reads is the scroll facet;
+            // IScrollProvider (decision 39). What it reads is the scroll facet;
             // what it does is the node's own scroll bars' published verbs, because the model has no
             // verb that scrolls a container by an amount. The getters and the refusals follow the
             // platform's own ScrollViewerAutomationPeer, read as IL on the guest 2026-09-15
@@ -108,7 +109,7 @@ final class UiaSurfaceShape {
     }
 
     /**
-     * {@code IScrollProvider::Scroll} (decision 39): each axis's {@code ScrollAmount} becomes the
+     * {@code IScrollProvider::Scroll}: each axis's {@code ScrollAmount} becomes the
      * stepping verb that axis's scroll bar publishes, and the call is refused synchronously when an
      * axis asked to move has no bar or its bar publishes no such verb.
      *
@@ -184,20 +185,20 @@ final class UiaSurfaceShape {
     }
 
     /**
-     * {@code IScrollProvider::SetScrollPercent} (decision 39): each axis's percent becomes a
+     * {@code IScrollProvider::SetScrollPercent}: each axis's percent becomes a
      * {@code SET_VALUE} on that axis's scroll bar, the bar's own range scaled by the percent, where
-     * the bar accepts one now (a writable value on an enabled bar, semantics 5).
+     * the bar accepts one now (a writable value on an enabled bar).
      *
      * <p>{@code NoScroll} leaves an axis alone. The refusals come in the platform's own provider's
      * order (readings/windows-dump-uia-provider-conventions.txt §1,
      * {@code ScrollViewerAutomationPeer.SetScrollPercent}): not enabled
      * ({@code UIA_E_ELEMENTNOTENABLED}); an axis given a percent that cannot scroll
-     * ({@code InvalidOperationException}); a percent outside 0..100 ({@code
-     * ArgumentOutOfRangeException}, §2's 0x80131502; a percent that is not a number is refused the
-     * same way here, where the platform's unordered comparison lets it through to a scroll of
-     * nothing); then, this bridge's own, an axis with no bar or a bar that takes no value. Both
-     * axes pass every check before either is posted. The first two numbers are the guest's, read
-     * 2026-09-13 (readings/windows-dump-uia-hresults.txt): 0x80040200 and 0x80131509.
+     * ({@code InvalidOperationException}); a percent outside 0..100
+     * ({@code ArgumentOutOfRangeException}, §2's 0x80131502; a percent that is not a number is
+     * refused the same way here, where the platform's unordered comparison lets it through to a
+     * scroll of nothing); then, this bridge's own, an axis with no bar or a bar that takes no
+     * value. Both axes pass every check before either is posted. The first two numbers are the
+     * guest's, read 2026-09-13 (readings/windows-dump-uia-hresults.txt): 0x80040200 and 0x80131509.
      *
      * @return {@code S_OK} when every value asked for was posted and accepted
      */

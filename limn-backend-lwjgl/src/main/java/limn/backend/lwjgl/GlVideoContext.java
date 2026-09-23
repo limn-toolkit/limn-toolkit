@@ -253,8 +253,8 @@ final class GlVideoContext {
      * own.
      *
      * <p>An uploaded picture is copied into textures of this surface's, so the
-     * frame may be released the instant {@code upload} returns and ADR 007 §7's
-     * only sequencing problem is a texture being <em>deleted</em> under a queued
+     * frame may be released the instant {@code upload} returns and the only
+     * sequencing problem left is a texture being <em>deleted</em> under a queued
      * quad. A picture bound from an IOSurface is the opposite: the conversion
      * reads the decoder's own memory, {@code glDrawArrays} only <em>queues</em>
      * that read, and {@link limn.video.VideoFrame#release()} hands the buffer
@@ -268,9 +268,10 @@ final class GlVideoContext {
      * merely a slot out of a small pool, and on a discrete GPU is VRAM the
      * decoder needs back, for a pool sized on the assumption that it gets it.
      * <b>Draining</b> costs a synchronisation per picture and pins nothing. The
-     * measurement in ADR 014 §7 was taken on unified memory and is route A's
-     * best case, so the choice is deliberately made against the hardware it was
-     * <em>not</em> measured on: drain, do not extend the possession.
+     * hardware-decode measurement was taken on unified memory, the best case for
+     * copying the picture through the CPU, so the choice is deliberately made
+     * against the hardware it was <em>not</em> measured on: drain, do not extend
+     * the possession.
      *
      * <p>A fence rather than {@code glFinish}, because what has to complete is
      * the work issued up to here and not whatever a later window queues.

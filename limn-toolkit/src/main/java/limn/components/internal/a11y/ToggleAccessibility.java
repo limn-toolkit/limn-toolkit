@@ -5,7 +5,7 @@ import limn.accessibility.Accessible.Action;
 import limn.accessibility.ToggleFacet;
 
 /**
- * The {@code TOGGLE} shape, written once (ADR 045 §3): a node that is on or off — a check box, a
+ * The {@code TOGGLE} shape, written once: a node that is on or off — a check box, a
  * switch, a chart's series in its legend — publishes its state as the toggle facet, from which
  * the checked bit is derived so the two cannot disagree, and offers {@code TOGGLE} while it can
  * be flipped. The verb flips it through the path a click takes, so the application's handler

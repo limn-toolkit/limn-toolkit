@@ -11,7 +11,9 @@ import java.util.Map;
 
 
 /**
- * The {@code GRID} shape's half of the Windows bridge (ADR 045 §5): a table and its cells: Grid and Table on the container, GridItem and TableItem on a cell; a cell is found by its own facet and a column's header is the CellFacet(-1, c) child of one of the table's direct groups (ADR 041 §7).
+ * The {@code GRID} shape's half of the Windows bridge: a table and its cells: Grid and Table on the
+ * container, GridItem and TableItem on a cell; a cell is found by its own facet and a column's
+ * header is the CellFacet(-1, c) child of one of the table's direct groups.
  *
  * <p>Moved here verbatim from {@code UiaPatternProviders} on 2026-09-21, under the shape's
  * name and nothing else; the patterns are vended by facet in {@link UiaPatterns} and the
@@ -159,8 +161,7 @@ final class UiaGridShape {
 
     /**
      * The table a cell belongs to: the nearest ancestor of {@code cell} carrying a
-     * {@code TableFacet}, <b>starting at its parent</b> (semantics 2, the minor split settled
-     * 2026-09-15), and null when none.
+     * {@code TableFacet}, <b>starting at its parent</b> (settled 2026-09-15), and null when none.
      *
      * <p>Until then the climb started at the cell itself, so a node carrying both facets — a table
      * nested inside a cell of another — was its own containing grid, and the outer table's
@@ -182,11 +183,11 @@ final class UiaGridShape {
     }
 
     /**
-     * The table's column headers in reading order (semantics 3, the settled header-group rule): every
-     * node with a {@code CellFacet} of row {@code -1} among the children of the table's direct
-     * {@code GROUP} children. A footer cell (row {@code -2}) is never one, and a group that holds
-     * no header cell (a toolbar, a footer) contributes nothing. Until 2026-09-15 the children of the
-     * table's first group were answered, whatever they were.
+     * The table's column headers in reading order: every node with a {@code CellFacet} of row
+     * {@code -1} among the children of the table's direct {@code GROUP} children. A footer cell
+     * (row {@code -2}) is never one, and a group that holds no header cell (a toolbar, a footer)
+     * contributes nothing. Until 2026-09-15 the children of the table's first group were answered,
+     * whatever they were.
      */
     private static List<AccessibleNode> columnHeadersOf(AccessibleTree tree, AccessibleNode table) {
         List<AccessibleNode> headers = new java.util.ArrayList<>();
@@ -226,12 +227,12 @@ final class UiaGridShape {
     }
 
     /**
-     * The realized cell at {@code row}, {@code column} of a table (semantics 2, decision 8): the
-     * node whose {@code CellFacet} is that pair, among the children of the table's {@code ROW}
-     * children, whose nearest table is this one. A widget cell hangs under its synthetic row
-     * (decision 3) and is found there like a synthetic one; a calendar's week rows carry no
-     * position, which is why the row's {@code SelectionItemFacet} is never read. Until 2026-09-15 a
-     * row was matched by its position in set, which found no day in a calendar (WINDOWS-NEW-8).
+     * The realized cell at {@code row}, {@code column} of a table: the node whose {@code CellFacet}
+     * is that pair, among the children of the table's {@code ROW} children, whose nearest table is
+     * this one. A widget cell hangs under its synthetic row and is found there like a synthetic
+     * one; a calendar's week rows carry no position, which is why the row's
+     * {@code SelectionItemFacet} is never read. Until 2026-09-15 a row was matched by its position
+     * in set, which found no day in a calendar.
      *
      * @return the cell, or null when that row is not realized or the pair names no data cell
      */

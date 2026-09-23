@@ -452,7 +452,7 @@ public final class Checkbox extends Widget<Checkbox> {
         return ToggleAccessibility.perform(toggleHost, action);
     }
 
-    /** The box's mechanisms as the toggle shape drives them (ADR 045 §3). */
+    /** The box's mechanisms as the toggle shape drives them. */
     private final class ToggleHost implements ToggleAccessibility.Host {
         @Override
         public boolean canToggle() {

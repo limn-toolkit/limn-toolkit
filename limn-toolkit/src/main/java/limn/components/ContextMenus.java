@@ -160,20 +160,20 @@ public final class ContextMenus {
      * that may already have several, and the keyboard route works from the content's own
      * focus by bubbling.
      *
-     * <p><b>It is a node, and the child it wraps is not annotated.</b> ADR 039 §7's row asks for
-     * the opposite — the wrapper deleted as scaffolding, with the state and the verb written onto
-     * the child through {@code onAccessibilityChild} — and that is unimplementable rather than
-     * merely different. The walk records the <em>owner</em> of every node as the widget the node
-     * came from, and the scene dispatches an action strictly to that owner with no fallback to a
-     * parent, so a verb the region wrote onto its child would be dispatched to the child: an
-     * arbitrary application widget whose action hook is {@code Widget}'s and answers false. That
-     * publishes a context menu refused on all three platforms rather than one absent, which is
-     * worse than saying nothing. Nor would the row save a node: writing a state and a verb onto a
-     * {@code Column} or a {@code Padding} makes that scaffold survive §1.6's predicate, so the
-     * node appears anyway, one level deeper, carrying a verb nothing can perform. The row's own
-     * true sentence — that the region lays out to exactly its content's box — is the argument for
-     * this shape: the two rectangles are the same rectangle, and only one of the two nodes can
-     * open the menu.
+     * <p><b>It is a node, and the child it wraps is not annotated.</b> The obvious design is the
+     * opposite — the wrapper deleted as scaffolding, with the state and the verb written onto the
+     * child through {@code onAccessibilityChild} — and that is unimplementable rather than merely
+     * different. The walk records the <em>owner</em> of every node as the widget the node came
+     * from, and the scene dispatches an action strictly to that owner with no fallback to a parent,
+     * so a verb the region wrote onto its child would be dispatched to the child: an arbitrary
+     * application widget whose action hook is {@code Widget}'s and answers false. That publishes a
+     * context menu refused on all three platforms rather than one absent, which is worse than
+     * saying nothing. Nor would that design save a node: writing a state and a verb onto a
+     * {@code Column} or a {@code Padding} makes that scaffold survive the walk's transparency
+     * predicate, so the node appears anyway, one level deeper, carrying a verb nothing can perform.
+     * What that design gets right — that the region lays out to exactly its content's box — is the
+     * argument for this shape: the two rectangles are the same rectangle, and only one of the two
+     * nodes can open the menu.
      */
     private static final class ContextRegion extends Widget<ContextRegion> {
 
@@ -217,15 +217,15 @@ public final class ContextMenus {
          * offering the ask.
          *
          * <p>No role of its own: {@code GROUP} is what the builder resets to, and what keeps this
-         * node out of §1.6's deletion is the state and the verb rather than a role, so declaring
-         * one would say nothing the default does not. No name either, and that is a decision. The
-         * region holds no {@code I18nString}, derives nothing, and must not borrow the content's,
-         * which already names its own node. Three things still name it, all of them after this
-         * hook and all of them free: {@code setAccessibleName} on the widget {@link #attach}
-         * returned, a caption bound to it with {@code setAccessibleLabelledBy}, and a tooltip on
-         * that same widget, which the walk takes as a name when nothing else supplied one. The
-         * wrapper is what {@code attach} hands back, so that hatch is public and per instance, and
-         * it is the answer to a reader landing on an unnamed group.
+         * node out of the walk's deletion of scaffolding is the state and the verb rather than a
+         * role, so declaring one would say nothing the default does not. No name either, and that
+         * is a decision. The region holds no {@code I18nString}, derives nothing, and must not
+         * borrow the content's, which already names its own node. Three things still name it, all
+         * of them after this hook and all of them free: {@code setAccessibleName} on the widget
+         * {@link #attach} returned, a caption bound to it with {@code setAccessibleLabelledBy}, and
+         * a tooltip on that same widget, which the walk takes as a name when nothing else supplied
+         * one. The wrapper is what {@code attach} hands back, so that hatch is public and per
+         * instance, and it is the answer to a reader landing on an unnamed group.
          *
          * <p><b>{@link Accessible.State#HAS_POPUP} unconditionally, and never "if the supplier
          * would answer a menu".</b> The supplier is an application callback that <em>builds</em> a

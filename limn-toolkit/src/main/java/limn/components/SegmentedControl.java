@@ -749,19 +749,17 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
      * the gutter reading starts from, so the two swap ends right to left while the tree order
      * above does not move.
      *
-     * <p><b>A dead side is published disabled, with no verb</b> — the shape of a refused
-     * calendar day, which semantics 5 names for every disabled synthetic item: not
-     * {@code ENABLED} through {@link Accessibility#disabled()} (decision 30, narrowing only, so
-     * the arrow can be less enabled than the strip and never more), and no {@code PRESS}. Until
-     * 2026-09-14 the dead side dropped the verb without the state, because a widget could not say
-     * "disabled" of a synthetic child; from that day to 2026-09-15 it carried the state and kept
-     * the verb, so that a pattern set Windows froze on first read (W2) would not lose Invoke when
-     * the side came alive. Phase 3 rebuilds pattern sets on a change, and the verb goes. The
-     * arrow declares {@code PRESS} either way and the walk withdraws it from every node that is
-     * not {@code ENABLED} (ADR 039 §1.5, amended 2026-09-15), so the narrowing is the only thing
-     * written here.
-     * {@link #onSyntheticAction} still answers a press that arrives on a dead side anyway by
-     * whether the scroll moved, which on that side is not at all.
+     * <p><b>A dead side is published disabled, with no verb</b> — the shape of a refused calendar
+     * day, which is the shape of every disabled synthetic item: not {@code ENABLED} through
+     * {@link Accessibility#disabled()} (narrowing only, so the arrow can be less enabled than the
+     * strip and never more), and no {@code PRESS}. Until 2026-09-14 the dead side dropped the verb
+     * without the state, because a widget could not say "disabled" of a synthetic child; from that
+     * day to 2026-09-15 it carried the state and kept the verb, so that a pattern set Windows froze
+     * on first read would not lose Invoke when the side came alive. The Windows bridge now rebuilds
+     * pattern sets on a change, and the verb goes. The arrow declares {@code PRESS} either way and
+     * the walk withdraws it from every node that is not {@code ENABLED}, so the narrowing is the
+     * only thing written here. {@link #onSyntheticAction} still answers a press that arrives on a
+     * dead side anyway by whether the scroll moved, which on that side is not at all.
      *
      * @param a    the node being described
      * @param key  {@link #CHEVRON_BACK} or {@link #CHEVRON_FORWARD}
@@ -811,9 +809,8 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
      *
      * <p>A segment answers {@code SELECT} alone and never {@code FOCUS}: the selection is the
      * cursor here, so a focus that did not select would be a lie and one that did would be
-     * {@code SELECT} under another name (decision 11; ADR 039 §1.5's amendment of 2026-09-14).
-     * The walk grants {@code FOCUS} only to a focusable widget node, and a segment is not one,
-     * so the verb is neither published nor performed.
+     * {@code SELECT} under another name. The walk grants {@code FOCUS} only to a focusable widget
+     * node, and a segment is not one, so the verb is neither published nor performed.
      *
      * <p>No enabled guard of its own, and none is owed. The scene's dispatcher already walks this
      * widget and every ancestor for the enabled flag, refuses an owner that is not showing,

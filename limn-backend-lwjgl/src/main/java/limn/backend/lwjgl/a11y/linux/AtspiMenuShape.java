@@ -4,34 +4,33 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 
 /**
- * The {@code MENU} shape's half of the AT-SPI bridge (ADR 045 §5): the one place this bridge
- * diverges from the model on purpose, which is ADR 039 §4.2's first declared exception, kept
- * here under the shape's name rather than in the three places it was read.
+ * The {@code MENU} shape's half of the AT-SPI bridge: the one place this bridge diverges from
+ * the model on purpose, the first declared exception to that rule, kept here under the shape's
+ * name rather than in the three places it was read.
  *
- * <p>The model goes on publishing {@code EXPANDABLE} for every node that carries an expand
- * facet, because that is a fact about the widget. What this bridge does not put on the bus, for
- * a menu row alone, is that axis — {@code expandable}, {@code expanded}, and the {@code collapsed}
- * {@link AtspiStates#setOf} derives from the pair — because a native GTK 3 menu title carries
- * none of the three, open or closed, and Orca is built for what that desktop ships (decision 72
- * of 2026-09-16, built under decision 82 of 2026-09-17; read on the Fedora 44 guest,
- * {@code readings/phase5-fedora/native-gtk3-menu-states.txt}). What says a menu is open here is
- * what says it there: {@code selected} on the title, which this toolkit already publishes from
- * the same bar's selection facet. The same exception, on the action list: a native GTK 3 menu
- * node publishes {@code actions=['click']} and nothing else, so a title that offered an expand
- * verb would hand an Orca user something no menu on that desktop has. {@code EXPAND} is the one
- * that costs nothing to drop — the widget calls it a synonym of {@code SHOW_MENU} and publishes
+ * <p>The model goes on publishing {@code EXPANDABLE} for every node that carries an expand facet,
+ * because that is a fact about the widget. What this bridge does not put on the bus, for a menu row
+ * alone, is that axis — {@code expandable}, {@code expanded}, and the {@code collapsed}
+ * {@link AtspiStates#setOf} derives from the pair — because a native GTK 3 menu title carries none
+ * of the three, open or closed, and Orca is built for what that desktop ships (read on the
+ * Fedora 44 guest, {@code readings/phase5-fedora/native-gtk3-menu-states.txt}). What says a menu is
+ * open here is what says it there: {@code selected} on the title, which this toolkit already
+ * publishes from the same bar's selection facet. The same exception, on the action list: a native
+ * GTK 3 menu node publishes {@code actions=['click']} and nothing else, so a title that offered an
+ * expand verb would hand an Orca user something no menu on that desktop has. {@code EXPAND} is the
+ * one that costs nothing to drop — the widget calls it a synonym of {@code SHOW_MENU} and publishes
  * both on a closed title, so the route stays open under the name a menu really uses.
  * {@code COLLAPSE} stays, deliberately: an open title publishes it alone, so removing it would
- * leave a menu a Linux reader can open and cannot close, while a native title can always be
- * clicked shut. The remaining divergence is the verb's name, "show menu" and "collapse" against
- * the native "click", measured and left open in ADR 039 §4.2 beside the role. And an expand
- * change on such a row is not signalled: a client told "expanded 1" about an object whose state
- * set never says expandable would hold a bit it can never see cleared; what a reader hears
- * instead is the selected flip on the open title and showing on its children, which is what a
- * native GTK 3 menu sends and travels through the ordinary paths.
+ * leave a menu a Linux reader can open and cannot close, while a native title can always be clicked
+ * shut. The remaining divergence is the verb's name, "show menu" and "collapse" against the native
+ * "click", measured and left open beside the role. And an expand change on such a row is not
+ * signalled: a client told "expanded 1" about an object whose state set never says expandable would
+ * hold a bit it can never see cleared; what a reader hears instead is the selected flip on the open
+ * title and showing on its children, which is what a native GTK 3 menu sends and travels through
+ * the ordinary paths.
  *
  * <p>The row is found by the role family ({@link AtspiRoles#isMenuRow}), which is what
- * {@code Shape.MENU} is decided by too (decision 94): a combo box, a tree row and a calendar's
+ * {@code Shape.MENU} is decided by too: a combo box, a tree row and a calendar's
  * title are not menus and keep the axis. A menu bar and a menu are of the shape but are not
  * rows, and the exception does not touch them.
  */

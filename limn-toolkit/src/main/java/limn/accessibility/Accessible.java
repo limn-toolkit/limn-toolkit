@@ -113,7 +113,7 @@ public final class Accessible {
         TAB_PANEL,
         /** A colour picker. */
         COLOR_CHOOSER,
-        /** A grid of rows and columns over data; ADR 041. */
+        /** A grid of rows and columns over data. */
         TABLE,
         /** The header cell of one column of a {@link #TABLE}. */
         COLUMN_HEADER,
@@ -121,7 +121,7 @@ public final class Accessible {
         ROW,
         /** One cell of a {@link #ROW}. */
         CELL,
-        /** An outline of rows at a depth, where a row can open onto its children; ADR 044. */
+        /** An outline of rows at a depth, where a row can open onto its children. */
         TREE,
         /** One row of a {@link #TREE}. */
         TREE_ITEM,
@@ -180,7 +180,7 @@ public final class Accessible {
          * on every node that carries one (a menu title, a submenu row, a combo box, a tree row, the
          * calendar's title), so a reader on the one platform that speaks "collapsed" as a state of
          * its own can be told the difference between a row that is closed and a row that cannot
-         * open; ADR 039 §1.2, amended 2026-09-14.
+         * open.
          */
         EXPANDABLE,
         /** Operating this node opens a menu or a list. */
@@ -223,13 +223,12 @@ public final class Accessible {
      * with a {@link TextFacet} and without {@link State#READ_ONLY} is editable.
      *
      * <p><b>A node accepts exactly the parameterless verbs it publishes, plus the setters its
-     * writable facets imply</b> (ADR 039 §1.5, amended 2026-09-14): the published snapshot is the
-     * only synchronous authority a bridge has, so a verb a widget accepts but does not publish is
-     * one every platform refuses before it is posted. A widget that answers a synonym publishes
-     * the synonym. <b>A facet implies its setter only on a node that is {@link State#ENABLED}</b>
-     * (amended 2026-09-15, fix round 2e): a disabled field keeps its true writability and accepts
-     * no text, rather than being published read-only. {@link AccessibleNode#accepts} is the rule
-     * in one call.
+     * writable facets imply</b>: the published snapshot is the only synchronous authority a bridge
+     * has, so a verb a widget accepts but does not publish is one every platform refuses before it
+     * is posted. A widget that answers a synonym publishes the synonym. <b>A facet implies its
+     * setter only on a node that is {@link State#ENABLED}</b>: a disabled field keeps its true
+     * writability and accepts no text, rather than being published read-only.
+     * {@link AccessibleNode#accepts} is the rule in one call.
      *
      * <p>Every one of the seventeen is dispatched the same way, through the one inbound call a
      * bridge makes.
@@ -253,7 +252,7 @@ public final class Accessible {
          * Add this node to its container's selection, keeping what is already selected: the
          * platform's "add to selection", which is only meaningful where more than one member may
          * be selected. Published on an <em>unselected</em> member of a multi-select container, and
-         * nowhere else (decision 10, 2026-09-13).
+         * nowhere else.
          */
         ADD_TO_SELECTION,
         /**
@@ -275,7 +274,7 @@ public final class Accessible {
          * selecting</em>, so it is published only where the cursor and the selection are separate
          * things — a tree row, a table cell, a calendar day, a date segment, a menu row, a combo
          * option — and refused where they are one (a list row, a segment), because there a focus
-         * that selected would be a select by another name (decision 11, 2026-09-13).
+         * that selected would be a select by another name.
          */
         FOCUS,
         /** Dismiss this node. */

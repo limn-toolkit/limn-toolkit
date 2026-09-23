@@ -20,7 +20,7 @@ import limn.internal.lang.Checks;
  *                          previous frame, 2 for ordinary double buffering once two frames of this
  *                          size have been presented, 0 when the backend does not know (the first
  *                          frames, a resize), which repaints the whole window. Partial rendering
- *                          repaints what changed over that many frames (ADR 046 §5) instead of
+ *                          repaints what changed over that many frames instead of
  *                          assuming two buffers everywhere, as it did until 2026-09-22.
  */
 public record FrameInfo(int framebufferWidth, int framebufferHeight, float contentScale,

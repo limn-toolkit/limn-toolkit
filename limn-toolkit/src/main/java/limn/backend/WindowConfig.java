@@ -12,7 +12,7 @@ import limn.internal.lang.Checks;
  * backend.createWindow(WindowConfig.of("Tools", 300, 500).resizable(false).floating(true));
  * }</pre>
  *
- * <p>A class and not a record (ADR 046 §6): a record's canonical constructor is public, so every option
+ * <p>A class and not a record: a record's canonical constructor is public, so every option
  * added to it broke every caller that listed the options by position, and six of the eleven were
  * booleans a reader could not tell apart. A new option is a new wither here, and no caller changes.
  *

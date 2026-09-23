@@ -241,8 +241,8 @@ public final class UiRuntime implements AutoCloseable {
      * <p>For a harness that renders on a clock of its own. The site's gallery films each scene on
      * a clock that advances a fixed step per frame, and a delayed task measured on the wall -- a
      * scroll bar's hold, a caret's blink, a tooltip's dwell -- fell due on whichever frame the
-     * render speed put it on, so a warm JVM and a cold one filmed different frames (ADR 043
-     * &sect;9.3). Measured on the film's clock it falls due on the same frame on any machine.
+     * render speed put it on, so a warm JVM and a cold one filmed different frames. Measured
+     * on the film's clock it falls due on the same frame on any machine.
      *
      * <p>{@link #nanosUntilNextDeadline()} answers on that clock too, so a clock that moves only
      * when its owner moves it holds its tasks until then, however long the loop sleeps. That is

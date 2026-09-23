@@ -483,7 +483,7 @@ final class GlCanvas implements Canvas {
     /**
      * The one radius a uniform rounded rectangle draws with: {@link RoundRect#normalized()}'s
      * reduction, with the same float operations, so these scalar forms draw exactly what building a
-     * {@code RoundRect} drew, without building one per border per frame (PF-6).
+     * {@code RoundRect} drew, without building one per border per frame.
      */
     private static float uniformRadius(float width, float height, float radius) {
         float r = Math.max(0, radius);

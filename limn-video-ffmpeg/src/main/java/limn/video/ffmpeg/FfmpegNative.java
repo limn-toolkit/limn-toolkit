@@ -139,7 +139,7 @@ final class FfmpegNative {
      * The shim's JNI surface version, the first thing {@link FfmpegLibrary} asks a loaded shim.
      *
      * <p>This class and {@code limn_ffmpeg.c} are two halves of one interface that live in two
-     * repositories and release apart (ADR 037): the C in limn-ffmpeg-natives, versioned with
+     * repositories and release apart: the C in limn-ffmpeg-natives, versioned with
      * FFmpeg; this file here, versioned with the toolkit. Every other method below is bound by
      * name, so a mismatch would otherwise surface as an {@code UnsatisfiedLinkError} in the middle
      * of a decode. Bump {@link FfmpegLibrary#EXPECTED_ABI} and {@code LIMN_FFMPEG_ABI} in the shim

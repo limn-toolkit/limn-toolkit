@@ -27,7 +27,7 @@ public interface WindowInput {
 
     /**
      * Button press/release at the given cursor position, with how many presses in a row this is,
-     * counted by the backend with the platform's own double-click interval and distance (ADR 046 §5):
+     * counted by the backend with the platform's own double-click interval and distance:
      * 1 for a single press, 2 for the second of a double click. {@code 0} means the backend does not
      * count, and the receiver counts with its own clock.
      */

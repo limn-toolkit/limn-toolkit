@@ -460,7 +460,7 @@ public interface Canvas {
      * paint order, so overlays, dialogs, tooltips and clipping apply to it like
      * any other content. The surface must already have been rendered this frame.
      *
-     * <p>No default (ADR 046 §5): it was a no-op, so a backend that did not implement it drew every
+     * <p>No default: it was a no-op, so a backend that did not implement it drew every
      * 3D viewport and video blank without an error. A canvas that cannot composite a GPU surface
      * (a recording or measuring canvas) implements it as a no-op, on purpose and in writing.
      */

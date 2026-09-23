@@ -22,7 +22,7 @@ import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
- * The one reader driver (decision 24): opens a single accessibility-gallery entry in a window of
+ * The one reader driver: opens a single accessibility-gallery entry in a window of
  * its own, puts the keyboard in the widget the entry names, sends the entry's reader script
  * through the scene's key path on a timer, prints a line for every step, and exits.
  *
@@ -31,12 +31,11 @@ import java.util.function.Consumer;
  * </pre>
  *
  * <p>What it pins, so every guest on every day hears the same run: the documentation day
- * (2026-09-09, {@link DocumentationDay}; the settled reader-scene-clock) on every date widget, and
- * the language, pt-BR unless {@code --locale} names another, because that is the guests' reader
- * language (decision 65) — test goldens and site captures stay English, and are not taken here.
- * {@code --presentation} asks every surface that can float above the page to open in the scene or
- * as a window of its own; without it the entry's own presentation stands, which for the closed
- * date picker is the native window (decision 5).
+ * (2026-09-09, {@link DocumentationDay}) on every date widget, and the language, pt-BR unless
+ * {@code --locale} names another, because that is the guests' reader language — test goldens and
+ * site captures stay English, and are not taken here. {@code --presentation} asks every surface
+ * that can float above the page to open in the scene or as a window of its own; without it the
+ * entry's own presentation stands, which for the closed date picker is the native window.
  *
  * <p>What it prints: a header line naming the script, the entry, the language, the day and the
  * presentation; {@code --- focus <widget>} once the keyboard is placed, which is on the scene's
@@ -45,7 +44,7 @@ import java.util.function.Consumer;
  * {@code --- step N } prefix, which is what {@code --scene tree-reader} printed.
  *
  * <p>What it does not do: walk the tree it publishes. A client pass is a separate run with a
- * restarted demo (decision 42), so nothing in this process asks the platform what it was told.
+ * restarted demo, so nothing in this process asks the platform what it was told.
  * The first step waits {@value #FIRST_STEP_MILLIS} ms, time for a reader to settle on the new
  * window, and the others follow {@value #STEP_MILLIS} ms apart so each announcement is finished
  * before the next event; the window is brought forward before every step, because a reader speaks
@@ -53,7 +52,7 @@ import java.util.function.Consumer;
  */
 public final class ReaderDriver {
 
-    /** The language a reader run speaks unless told otherwise: the guests' (decision 65). */
+    /** The language a reader run speaks unless told otherwise: the guests'. */
     public static final Locale READER_LOCALE = Locale.forLanguageTag("pt-BR");
 
     /** When the first step is sent, after the window is shown. */
@@ -140,7 +139,7 @@ public final class ReaderDriver {
 
     /**
      * The command line of an older spelling, as a reader run's: {@code --scene tree-reader}, the
-     * scene ADR 044 §4's runs of 2026-09-13 used, is {@code --reader tree-loading} since
+     * scene the tree's reader runs of 2026-09-13 used, is {@code --reader tree-loading} since
      * 2026-09-15, with every other option kept.
      *
      * @param args a demo command line

@@ -13,9 +13,9 @@ import static org.lwjgl.opengl.GL33C.glClearColor;
  *
  * <p>It is. A 2D framebuffer is sRGB-encoded and premultiplied (the blend the canvas draws with
  * is {@code ONE, ONE_MINUS_SRC_ALPHA}), so a clear writes the authored colour, premultiplied.
- * A 3D render target is linear (ADR 004) and premultiplied, so the same authored colour is
- * decoded on the way in, exactly as every 3D program decodes it. Same alpha rule, different
- * encoding; two methods so that a caller says which target it is clearing.
+ * A 3D render target is linear and premultiplied, so the same authored colour is decoded on the
+ * way in, exactly as every 3D program decodes it. Same alpha rule, different encoding; two
+ * methods so that a caller says which target it is clearing.
  */
 final class GlColors {
 

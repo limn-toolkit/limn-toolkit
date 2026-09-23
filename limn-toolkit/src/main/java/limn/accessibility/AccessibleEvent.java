@@ -59,7 +59,7 @@ public final class AccessibleEvent {
          * What this container has selected changed: one per container per publish, carrying
          * the members that entered and left its selection ({@link #addedMembers()},
          * {@link #removedMembers()}) and whether it selects more than one at once. The
-         * container is the member's by semantics 1: the nearest ancestor with a
+         * container is the member's selection container: the nearest ancestor with a
          * {@link SelectionFacet}, climbed to from the member's published parent through
          * synthetic ancestors only. A member that arrived selected in this publish and one that
          * left the tree selected are counted too.
@@ -95,10 +95,10 @@ public final class AccessibleEvent {
          * Everything about this window may have changed. The event a bounded queue collapses to
          * when a single difference is wider than it can carry; a bridge handling it reconciles
          * whatever it holds against the tree it was last handed, rather than replaying anything.
-         * What follows it in the same publish is the reserved tail (ADR 039 §1.10, amended
-         * 2026-09-14): the structure changes per parent, the final focus change, the cursor
-         * change, the selection changes per container and the window's activation, which are
-         * kept outside the budget so that a bridge that swept still hears where the user is.
+         * What follows it in the same publish is the reserved tail: the structure changes per
+         * parent, the final focus change, the cursor change, the selection changes per container
+         * and the window's activation, which are kept outside the budget so that a bridge that
+         * swept still hears where the user is.
          */
         INVALIDATED
     }
@@ -228,9 +228,9 @@ public final class AccessibleEvent {
     }
 
     /**
-     * A container's selection moved (ADR 039 §1.10, amended 2026-09-14; decision 9).
+     * A container's selection moved.
      *
-     * @param containerId     the container the members belong to, by semantics 1
+     * @param containerId     the container the members belong to
      * @param multiSelectable whether it selects more than one member at once
      * @param added           the members that entered its selection in this publish, in reading
      *                        order; a member new in this publish included
@@ -247,7 +247,7 @@ public final class AccessibleEvent {
     }
 
     /**
-     * A parent's children moved (ADR 039 §1.10, amended 2026-09-14; MODEL-NEW-4, MODEL-NEW-8).
+     * A parent's children moved.
      *
      * @param parentId  the surviving parent whose children changed
      * @param added     the children now under it that were not, in reading order

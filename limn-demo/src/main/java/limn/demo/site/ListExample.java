@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * The worked example the lists guide shows for a {@link ListView} (API-8): the items are the
+ * The worked example the lists guide shows for a {@link ListView}: the items are the
  * application's list, a row's widget comes from a function of its item, and the detail watches
  * the selection. Compiled by {@code ./gradlew check}, so the sample a reader copies builds.
  */

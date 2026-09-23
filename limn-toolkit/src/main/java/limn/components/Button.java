@@ -409,7 +409,7 @@ public final class Button extends Widget<Button> {
         return LeafActionAccessibility.perform(leafHost, verb);
     }
 
-    /** The button's mechanisms as the leaf shape drives them (ADR 045 §3). */
+    /** The button's mechanisms as the leaf shape drives them. */
     private final class LeafHost implements LeafActionAccessibility.Host {
         @Override
         public boolean acceptsPress() {

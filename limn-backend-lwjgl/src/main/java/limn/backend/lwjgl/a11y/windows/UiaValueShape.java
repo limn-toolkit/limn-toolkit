@@ -11,7 +11,8 @@ import static limn.backend.lwjgl.a11y.windows.UiaPatternProviders.putBool;
 import static limn.backend.lwjgl.a11y.windows.UiaPatternProviders.postSetter;
 
 /**
- * The {@code VALUE} shape's half of the Windows bridge (ADR 045 §5): a number in a range: RangeValue, its setter, its bounds and its step.
+ * The {@code VALUE} shape's half of the Windows bridge: a number in a range: RangeValue, its
+ * setter, its bounds and its step.
  *
  * <p>Moved here verbatim from {@code UiaPatternProviders} on 2026-09-21, under the shape's
  * name and nothing else; the patterns are vended by facet in {@link UiaPatterns} and the

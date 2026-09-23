@@ -8,11 +8,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Every word a screen reader speaks in a gallery entry a reader run drives, in the run's language
- * (decision 68 of the 2026-09-13 pass, 2026-09-15).
+ * Every word a screen reader speaks in a gallery entry a reader run drives, in the run's language.
  *
  * <p>A reader pass is monolingual or it is not a pass: the driver pins pt-BR, the guests' reader
- * language (decision 65), and everything the toolkit says — a spin button's "Dia", a day cell's
+ * language, and everything the toolkit says — a spin button's "Dia", a day cell's
  * "21 de setembro de 2026", the tree's "Carregando…" — already follows it, because those strings
  * are the toolkit's own and ship in 21 locales. What did not follow it was the gallery's own
  * English: the caption bound to a field, the name of a switch in a table cell, the mark on a

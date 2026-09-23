@@ -3,7 +3,7 @@ package limn.testing.a11y;
 import limn.scene.Widget;
 
 /**
- * A widget of the {@code VALUE} shape (ADR 045 §1) as the value contract sees it: something that
+ * A widget of the {@code VALUE} shape as the value contract sees it: something that
  * publishes one number in a range, which the contract can build fresh, read the number of
  * through the widget's own API, and ask whether the number can be set at all.
  *

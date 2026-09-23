@@ -115,7 +115,7 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
 
     /**
      * The key every lookup is asked with, refilled per call: a new key per lookup was an
-     * allocation for every string drawn in every frame (PF-6). UI-thread confined like the memo,
+     * allocation for every string drawn in every frame. UI-thread confined like the memo,
      * and never stored; a miss stores a {@linkplain Key#copy copy}.
      */
     private final Key probe = new Key();

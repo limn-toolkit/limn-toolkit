@@ -181,24 +181,24 @@ final class AtspiEvents {
 
     /**
      * A text edit: a {@code delete} carrying the removed text, then an {@code insert} carrying the
-     * inserted text, each at its offset and length in characters (LINUX-NEW-14).
+     * inserted text, each at its offset and length in characters.
      *
      * <p>It was one {@code insert} whenever anything was inserted, with the removed length when
      * that was longer, the offset in UTF-16 units and the whole new text as the value. GTK 4.22.4
      * sends {@code insert} or {@code delete} with the start, the length and the changed text itself
      * ({@code gtk_at_spi_context_update_text_contents}), the ATK bridge the same
-     * ({@code text_insert_event_listener}, {@code text_remove_event_listener}), and Orca 50.2 speaks
-     * {@code any_data} as the inserted string ({@code inserted_text}) and drops an insertion longer
-     * than 1000 ({@code _ignore_text_events}) — so the whole field was spoken for one typed
+     * ({@code text_insert_event_listener}, {@code text_remove_event_listener}), and Orca 50.2
+     * speaks {@code any_data} as the inserted string ({@code inserted_text}) and drops an insertion
+     * longer than 1000 ({@code _ignore_text_events}) — so the whole field was spoken for one typed
      * character, and a long field's typing was not spoken at all
      * (readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-event-shapes.txt,
      * readings/fedora-orca-event-consumers.txt).
      *
-     * <p>Offsets are converted from UTF-16 to characters here and nowhere else (§2.3). The model
-     * compares the two strings unit by unit, so a replaced character outside the basic plane can
-     * leave its range starting or ending between the two halves of a surrogate pair; the range is
-     * widened to whole characters on both strings first, which keeps what is said a character and
-     * never half of one.
+     * <p>Offsets are converted from UTF-16 to characters here and nowhere else. The model compares
+     * the two strings unit by unit, so a replaced character outside the basic plane can leave its
+     * range starting or ending between the two halves of a surrogate pair; the range is widened to
+     * whole characters on both strings first, which keeps what is said a character and never half
+     * of one.
      */
     private static List<Signal> textChanged(AccessibleEvent event, Context context, String path) {
         String before = string(event.oldValue());
@@ -229,19 +229,19 @@ final class AtspiEvents {
     }
 
     /**
-     * A value moved: {@code PropertyChange accessible-value} with the new number, and — when only the
-     * display form moved and the node serves that form as its {@code Text} — the text's replacement
-     * as {@code TextChanged} {@code delete} and {@code insert} (settled linux-value-text).
+     * A value moved: {@code PropertyChange accessible-value} with the new number, and — when only
+     * the display form moved and the node serves that form as its {@code Text} — the text's
+     * replacement as {@code TextChanged} {@code delete} and {@code insert}.
      *
-     * <p>The difference raises {@code VALUE_CHANGED} when the number, the text or the emptiness moved
-     * (CRIT-4), carrying the two numbers. A date segment filled with the digit that is its minimum
+     * <p>The difference raises {@code VALUE_CHANGED} when the number, the text or the emptiness
+     * moved, carrying the two numbers. A date segment filled with the digit that is its minimum
      * moves only its text ("empty" to "1"): the number a client reads through {@code Value} did not
      * change, so the property change alone says nothing new, while the {@code Text} the node serves
      * ({@link AtspiText#of}) did. The texts are read off the node in the tree the event came with
      * and in the tree its window published before, whole string for whole string, as a replacement
-     * of a field is sent. A node with a {@code TextFacet} raises its own {@code TEXT_CHANGED} and is
-     * not doubled here, and a change that moved the number is not given a text echo on top of the
-     * property change a reader already presents.
+     * of a field is sent. A node with a {@code TextFacet} raises its own {@code TEXT_CHANGED} and
+     * is not doubled here, and a change that moved the number is not given a text echo on top of
+     * the property change a reader already presents.
      */
     private static List<Signal> valueChanged(AccessibleEvent event, Context context, String path) {
         List<Signal> out = new java.util.ArrayList<>(4);
@@ -296,15 +296,15 @@ final class AtspiEvents {
      * its window published before and this one, or {@code null}.
      *
      * <p>A client keeps a node's interfaces from its cache item ({@code GetItems} or an
-     * {@code AddAccessible}), and libatspi 2.60.6's {@code add_accessible_from_iter} overwrites them
-     * — with the name, role, description and states — from the item a later {@code AddAccessible}
-     * carries, for a node it already holds (readings/upstream-at-spi2-core-2.60.6-libatspi.txt).
-     * Two facts that move without the node leaving the tree change what it serves: a value's display
-     * form going from empty to a word and back (Text, settled linux-value-text), and the verbs and
-     * the editable bit a node gains or loses with {@code ENABLED}, {@code EDITABLE} or its expand
-     * state (Action, EditableText). Nothing said so, and a client went on without Text on a node
-     * that served it, or without Action on a button enabled again (the review of sub-lane linux-C).
-     * A publish that moves several bits of one node sends the item after each; the item is the same.
+     * {@code AddAccessible}), and libatspi 2.60.6's {@code add_accessible_from_iter} overwrites
+     * them — with the name, role, description and states — from the item a later
+     * {@code AddAccessible} carries, for a node it already holds
+     * (readings/upstream-at-spi2-core-2.60.6-libatspi.txt). Two facts that move without the node
+     * leaving the tree change what it serves: a value's display form going from empty to a word and
+     * back (Text), and the verbs and the editable bit a node gains or loses with {@code ENABLED},
+     * {@code EDITABLE} or its expand state (Action, EditableText). Nothing said so, and a client
+     * went on without Text on a node that served it, or without Action on a button enabled again. A
+     * publish that moves several bits of one node sends the item after each; the item is the same.
      */
     private static Signal interfacesSaid(AccessibleEvent event, Context context) {
         limn.accessibility.AccessibleNode now = context.tree().find(event.nodeId());
@@ -319,7 +319,7 @@ final class AtspiEvents {
     }
 
     /**
-     * A parent's children moved (LINUX-NEW-1, LAB-NEW-3): per child, {@code ChildrenChanged} from
+     * A parent's children moved: per child, {@code ChildrenChanged} from
      * the parent with the child's index in {@code detail1} and its {@code (so)} as the value, plus
      * {@code Cache.RemoveAccessible} for a child that left the tree and {@code Cache.AddAccessible}
      * for one that arrived here.
@@ -329,7 +329,7 @@ final class AtspiEvents {
      * by then. libatspi 2.60.6's {@code cache_process_children_changed} touches a client's cached
      * children only for {@code add} or {@code remove} with an accessible {@code any_data}
      * (readings/upstream-at-spi2-core-2.60.6-libatspi.txt), and Orca 50.2 crashed on the
-     * {@code int} (the 2026-09-14 baseline's LAB-NEW-3) and ignores one from a dead source.
+     * {@code int} and ignores one from a dead source.
      *
      * <p>The order is libatspi's arithmetic, not taste. {@code remove} takes the child out by
      * reference, so removals go first, the highest former index first. {@code add} removes the
@@ -384,13 +384,13 @@ final class AtspiEvents {
 
     /**
      * The caret moved: {@code TextCaretMoved} with the caret's offset in characters in
-     * {@code detail1}, read off the text the event's tree published (LINUX-NEW-14).
+     * {@code detail1}, read off the text the event's tree published.
      *
      * <p>It was always 0: the model raises the event without the offset, and the mapping read the
      * event's text offset, which a caret move never sets. Orca 50.2's {@code _on_caret_moved}
-     * compares {@code detail1} with the last cursor position it saved, so a caret said to stand at
-     * 0 every time was a caret that "did not move" (readings/fedora-orca-event-consumers.txt). GTK
-     * 4.22.4 sends the caret position there with an {@code i} 0 value.
+     * compares {@code detail1} with the last cursor position it saved, so a caret said to stand
+     * at 0 every time was a caret that "did not move" (readings/fedora-orca-event-consumers.txt).
+     * GTK 4.22.4 sends the caret position there with an {@code i} 0 value.
      */
     private static Signal caretMoved(AccessibleEvent event, Context context, String path) {
         limn.accessibility.AccessibleNode node = context.tree().find(event.nodeId());
@@ -409,7 +409,7 @@ final class AtspiEvents {
      * raises on node zero (a scroll that moved more boxes than it lists, a window stamp) — the
      * window's own node, which is its frame here.
      *
-     * <p>Node zero used to be sent from the application object (LINUX-NEW-2), an object with no
+     * <p>Node zero used to be sent from the application object, an object with no
      * geometry, no ACTIVE and no SHOWING, which no reader treats as a window.
      */
     private static long subjectOf(AccessibleEvent event, Context context) {
@@ -452,7 +452,7 @@ final class AtspiEvents {
 
     /**
      * The application said something: {@code Announcement} with the text as a string value and the
-     * politeness as {@code Atspi.Live} in {@code detail1} (LINUX-NEW-3).
+     * politeness as {@code Atspi.Live} in {@code detail1}.
      *
      * <p>The shape is the installed interface's, {@code Announcement(s, i politeness, i, v, a{sv})}
      * (readings/fedora-dbus-Event.Object.xml), filled as GTK 4.22.4's
@@ -473,16 +473,16 @@ final class AtspiEvents {
      * The focused node's cursor moved: sent from the focused node, with the new descendant's own
      * {@code (so)} as the value and its index in its parent as the first integer.
      *
-     * <p>The reference is what makes the event mean anything. It was an {@code i} 0 until
-     * 2026-09-15 (L1), which libatspi turns into no {@code any_data} at all, and Orca 50.2's
+     * <p>The reference is what makes the event mean anything. It was an {@code i} 0
+     * until 2026-09-15, which libatspi turns into no {@code any_data} at all, and Orca 50.2's
      * {@code _ignore_active_descendant_or_selection} drops an active-descendant change with none:
      * the 2026-09-14 baseline counted ten of them from the tree reader, every one ignored "No
      * any_data". The index is the ATK bridge's convention ({@code active_descendant_event_listener}
      * in at-spi2-core 2.60.6's {@code atk-adaptor/event.c}, which sends
      * {@code atk_object_get_index_in_parent (child)}; GTK 4.22.4 sends no such event), read in
      * readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-event-shapes.txt. The descendant may live in
-     * another window of this process — a native popup's option, decision 5 — which is an ordinary
-     * reference on this connection. A cursor that went away names the null object and no index.
+     * another window of this process — a native popup's option — which is an ordinary reference on
+     * this connection. A cursor that went away names the null object and no index.
      */
     private static Signal activeDescendantChanged(AccessibleEvent event, Context context,
                                                   String path) {
@@ -495,20 +495,19 @@ final class AtspiEvents {
 
     /**
      * {@code EXPANDED} or {@code EXPANDABLE} flipped: its own {@code StateChanged}, then
-     * {@code collapsed} when the bit this platform derives from the two moved with it (L3, decision
-     * 27, semantics 9).
+     * {@code collapsed} when the bit this platform derives from the two moved with it.
      *
      * <p>{@code COLLAPSED} is published in every state set as {@code EXPANDABLE} without
-     * {@code EXPANDED} ({@link AtspiStates#setOf}), and nothing raised a change for it. libatspi
-     * 2.60.6's {@code cache_process_state_changed} sets or clears only the bit an event names, so
-     * a long-lived client that cached a closed branch and then heard {@code expanded} 1 held
-     * {@code expanded} and {@code collapsed} at once. GTK 4.22.4 sends {@code expandable} and
+     * {@code EXPANDED} ({@link AtspiStates#setOf}), and nothing raised a change for it.
+     * libatspi 2.60.6's {@code cache_process_state_changed} sets or clears only the bit an event
+     * names, so a long-lived client that cached a closed branch and then heard {@code expanded} 1
+     * held {@code expanded} and {@code collapsed} at once. GTK 4.22.4 sends {@code expandable} and
      * {@code expanded} only (whether its state set carries {@code COLLAPSED} was not read)
-     * (readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-event-shapes.txt). After is read off the node
-     * as published with the event; before, off the same node in the tree published before it, and
-     * only when that tree does not hold it, off the node now with the event's own bit put back —
-     * which is wrong for a publish that flipped both bits, and why the previous tree is kept. A node
-     * the tree no longer holds says nothing more.
+     * (readings/upstream-gtk-4.22.4-atk-adaptor-2.60.6-event-shapes.txt). After is read off the
+     * node as published with the event; before, off the same node in the tree published before it,
+     * and only when that tree does not hold it, off the node now with the event's own bit put back
+     * — which is wrong for a publish that flipped both bits, and why the previous tree is kept. A
+     * node the tree no longer holds says nothing more.
      */
     private static List<Signal> expandChanged(AccessibleEvent event, Context context,
                                               String path) {

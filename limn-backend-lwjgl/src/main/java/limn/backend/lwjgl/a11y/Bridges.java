@@ -19,11 +19,11 @@ import limn.backend.Platform;
  * <p><b>Nothing here opens anything on a machine that is not listening, with one stated
  * exception.</b> Each factory reads its own gate first, before a registry, a socket or a thread
  * exists: UI Automation is asked whether it is present; AT-SPI's switch moves while an application
- * runs, so the process keeps one session-bus connection and one parked thread watching it (decision
- * 29, ADR 039 §6) and opens nothing more until it says yes, while a process with no session bus
- * gets nothing at all; and macOS —
- * the one platform with no such question (§6) — checks only that AppKit is reachable and that the
- * window has a handle, then costs one tree walk on the scene's first frame and nothing after.
+ * runs, so the process keeps one session-bus connection and one parked thread watching it and
+ * opens nothing more until it says yes, while a process with no session bus gets nothing at all;
+ * and macOS — the one platform with no such question — checks only that AppKit is reachable and
+ * that the window has a handle, then costs one tree walk on the scene's first frame and nothing
+ * after.
  *
  * <p>A platform with no bridge, or a window with no native handle, answers
  * {@link AccessibilityBridge#NONE}, whose every member is a constant.
@@ -34,9 +34,9 @@ import limn.backend.Platform;
  * decision that a blind user of this application gets nothing — no window a screen reader can
  * enter, no control it can name, no focus it can follow, no value it can read — with no symptom
  * on the machine but silence, the same silence phase 6 spent a week removing. The one honest use
- * is a measurement: ADR&nbsp;039&nbsp;§6 asks what the Windows window-procedure subclass costs a
- * process nobody is reading, and the only way to run a benchmark <em>without</em> that subclass
- * is to not open the bridge that installs it. A kiosk or an embedded surface that genuinely has
+ * is a measurement of what the Windows window-procedure subclass costs a process nobody is
+ * reading, and the only way to run that benchmark <em>without</em> the subclass is to not open the
+ * bridge that installs it. A kiosk or an embedded surface that genuinely has
  * no user should still prefer letting the platform decide, because the gate each bridge reads
  * costs it nothing until something is listening.
  */
@@ -90,7 +90,7 @@ public final class Bridges {
      *                        been taught
      * @param applicationName what the desktop should call this application, for the platforms that
      *                        publish a name: the backend's application name, by default the title
-     *                        of its first window (decision 56). On Linux every window of the process
+     *                        of its first window. On Linux every window of the process
      *                        is a frame of that one application
      * @return a bridge for this platform, or {@link AccessibilityBridge#NONE}
      */

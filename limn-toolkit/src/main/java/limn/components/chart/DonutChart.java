@@ -500,7 +500,7 @@ public final class DonutChart extends Chart<DonutChart> {
         return ToggleAccessibility.perform(toggleHost, action);
     }
 
-    /** The chart's mechanisms as the toggle shape drives them (ADR 045 §3), over one entry. */
+    /** The chart's mechanisms as the toggle shape drives them, over one entry. */
     private final class ToggleHost implements ToggleAccessibility.Host {
         int entry;
 

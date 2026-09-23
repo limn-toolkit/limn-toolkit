@@ -11,7 +11,7 @@ import java.util.Map;
  *
  * <p><b>The interesting half of this table is the events that map to nothing.</b> On the other two
  * platforms a bridge raises everything it knows; here AppKit is already speaking for the window it
- * vends, and §2.2 elides our own window root precisely so that a client is not told the same thing
+ * vends, and our own window root is elided precisely so that a client is not told the same thing
  * twice. Doubling an announcement is not a cosmetic fault: a reader that hears two window-opened
  * events for one window offers the user two windows.
  *
@@ -21,8 +21,8 @@ import java.util.Map;
  *   <li>{@code NODE_DESTROYED} posts nothing. AppKit posts {@code AXUIElementDestroyed} itself when
  *       an element goes away, exactly once however the client registered; ours arrived on top of
  *       that, once per matching registration — two notifications for a client watching the element,
- *       three for one watching both it and the application (§13.20). Every earlier draft said "post,
- *       then release", by analogy with Windows and Linux, and the analogy was the mistake.</li>
+ *       three for one watching both it and the application. Every earlier draft said "post, then
+ *       release", by analogy with Windows and Linux, and the analogy was the mistake.</li>
  *   <li>The four window events post nothing, because AppKit's own {@code AXWindowCreated},
  *       {@code AXUIElementDestroyed}, {@code AXMoved} and {@code AXResized} are already on the
  *       object it vends for the window, and ours would name a node no client can see.</li>
@@ -31,12 +31,12 @@ import java.util.Map;
  * <p><b>And two entries are posted somewhere other than their own node.</b> A focus change is
  * delivered only to an observer registered on the <em>application</em> element — measured in the
  * spike, where an observer on the element itself received nothing — so it is posted at application
- * level and never per element; and a cursor move under the focused node is a focus change here
- * (decision 1), posted the same way. That is the one place where "post the notification on its
+ * level and never per element; and a cursor move under the focused node is a focus change here,
+ * posted the same way. That is the one place where "post the notification on its
  * subject" is wrong here, and it is a fact about AppKit rather than a choice. The bridge posts at most
  * one of them per frame: a publish that moved both the focus and the cursor is one move for a reader.
  *
- * <p><b>And what is about the whole window is posted on the window</b> (MACOS-NEW-3): an announcement,
+ * <p><b>And what is about the whole window is posted on the window</b>: an announcement,
  * with its text and priority, and a layout change for the model's {@code INVALIDATED} or a change of the
  * elided root's children — at most one of those per frame. Each named node 0 or the root, which no
  * element stands for, so none of them had ever been posted.
@@ -127,15 +127,15 @@ final class AxNotifications {
         post(AccessibleEvent.Type.TEXT_SELECTION_CHANGED,
                 "NSAccessibilitySelectedTextChangedNotification");
         // An announcement has no node (its identifier is 0), so it goes on the window, with its text
-        // and priority as user info (MACOS-NEW-3): it was posted on the element of node 0, which no
+        // and priority as user info: it was posted on the element of node 0, which no
         // client holds, so no announcement ever reached AppKit.
         postToWindow(AccessibleEvent.Type.ANNOUNCEMENT,
                 "NSAccessibilityAnnouncementRequestedNotification");
         // The collapse of a queue too small for the difference it was handed. One layout-changed on
         // the window is exactly the right thing to say -- "re-read everything" -- and it is what a
         // client already does with it. The bridge's own work for this event is the reconciliation
-        // sweep over its registry, not the notification. On the window, because the event names no
-        // node (MACOS-NEW-3).
+        // sweep over its registry, not the notification. On the window, because the event names
+        // no node.
         postToWindow(AccessibleEvent.Type.INVALIDATED, "NSAccessibilityLayoutChangedNotification");
 
         // Deliberately absent, each for a stated reason. They are put in the map as nulls rather
@@ -169,16 +169,15 @@ final class AxNotifications {
      * @param type an event type
      * @return whether this table has a row for it, a row saying "nothing" included — which is what the
      *         coverage test holds every type to, since {@link #of(AccessibleEvent.Type)} answers null
-     *         both for a row of nothing and for no row at all (MACOS-NEW-13)
+     *         both for a row of nothing and for no row at all
      */
     static boolean hasDecision(AccessibleEvent.Type type) {
         return BY_TYPE.containsKey(type);
     }
 
     /**
-     * What a structure change of the window root is posted as: the root is elided (§2.2), so no
-     * element of ours stands for it, and its children's change is the window's layout changing
-     * (MACOS-NEW-3).
+     * What a structure change of the window root is posted as: the root is elided, so no element of
+     * ours stands for it, and its children's change is the window's layout changing.
      */
     static final Posting WINDOW_LAYOUT_CHANGED =
             new Posting("NSAccessibilityLayoutChangedNotification", Subject.WINDOW);
@@ -259,8 +258,8 @@ final class AxNotifications {
             new Posting("NSAccessibilitySelectedCellsChangedNotification", Subject.NODE);
 
     /**
-     * The three announcement priorities, and the one place in three platforms where §12.3's
-     * constants rule cannot be honoured.
+     * The three announcement priorities, and the one place in three platforms where the rule that a
+     * constant is read, never remembered, cannot be honoured.
      *
      * <p>{@code NSAccessibilityPriorityLow}, {@code …Medium} and {@code …High} are values of the C
      * enum {@code NSAccessibilityPriorityLevel}, not exported {@code NSString} globals like every

@@ -60,10 +60,10 @@ import java.util.function.Predicate;
  *         .onSelect(() -> booking.setStart(calendar.selectedDate()));
  * }</pre>
  *
- * <p><b>The value is ISO and the calendar drawn is the reader's</b> (ADR 042 &sect;1). Everything
- * this class hands out and takes in is a {@link LocalDate}; the month names, the year number and
- * the length of a month come from the chronology resolved for the widget's effective locale, which
- * is ISO for every language until one carries a {@code u-ca} extension or an application calls
+ * <p><b>The value is ISO and the calendar drawn is the reader's.</b> Everything this class hands
+ * out and takes in is a {@link LocalDate}; the month names, the year number and the length of a
+ * month come from the chronology resolved for the widget's effective locale, which is ISO for every
+ * language until one carries a {@code u-ca} extension or an application calls
  * {@link #setChronology}. A Thai user driving a Buddhist calendar picks a day out of a grid headed
  * with a year 543 greater, and the application stores the ISO date it asked for.
  *
@@ -78,17 +78,16 @@ import java.util.function.Predicate;
  * mirror with the layout; Up and Down move by a week and never mirror; Home and End are the first
  * and last day of the week; PageUp and PageDown page the month, and with Shift the year.
  *
- * <p><b>Bounds are enforced, not snapped</b> (ADR 042 &sect;5, amended 2026-09-14). A day outside
+ * <p><b>Bounds are enforced, not snapped.</b> A day outside
  * {@link #setMinDate}/{@link #setMaxDate}, or refused by {@link #setDateFilter}, is drawn disabled,
  * refuses a click and Enter, and is published disabled without a select verb. The cursor
- * <em>stops</em> on it rather than skipping it (decision 30): a reader arrowing across the month
- * then hears that the day is unavailable, where a skip would have left a hole nobody was told
- * about.
+ * <em>stops</em> on it rather than skipping it: a reader arrowing across the month then hears that
+ * the day is unavailable, where a skip would have left a hole nobody was told about.
  *
- * <p><b>To a screen reader this is a table</b> (ADR 042 &sect;8): {@code TABLE} over {@code ROW}s of
- * {@code CELL}s under a row of {@code COLUMN_HEADER}s, which are the four roles ADR 041 mapped on
- * all three platforms. A day cell is named with the whole date and not the bare number, because a
- * cell heard on its own has to say what it is.
+ * <p><b>To a screen reader this is a table:</b> {@code TABLE} over {@code ROW}s of {@code CELL}s
+ * under a row of {@code COLUMN_HEADER}s, which are the four roles already mapped on all three
+ * platforms for the {@code Table} widget. A day cell is named with the whole date and not the bare
+ * number, because a cell heard on its own has to say what it is.
  */
 public final class CalendarView extends Widget<CalendarView> {
 
@@ -141,7 +140,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * can ever have members. The cells are the only nodes here that carry a verb, and the key
      * is what makes {@code SELECT} land on the day it was asked for.
      *
-     * <p><b>Amended 2026-09-16 (P5W-4/P5L-5): a day is not a slot.</b> The day grid's three kinds
+     * <p><b>Amended 2026-09-16: a day is not a slot.</b> The day grid's three kinds
      * of node &mdash; the week rows, the week-number cells and the day cells &mdash; were keyed by
      * their <em>position in the grid</em>, 0..41 for a day and 0..5 for a row, which made paging a
      * month rewrite the name of forty-two nodes that stayed the same node. Measured on 2026-09-16:
@@ -159,18 +158,17 @@ public final class CalendarView extends Widget<CalendarView> {
      * A verb that arrives for a day no longer in the grid decodes out of range and is refused,
      * where a slot key would have resolved it to whatever day now stands there.
      *
-     * <p>A chooser's rows and cells have keys of their own rather than the day grid's (DT2,
-     * 2026-09-14). A key is also an <em>identity</em>: the publish step interns (owner, key), so
-     * a month cell keyed {@code 0} was the same node as the day cell keyed {@code 0} across a
-     * view change, and a Windows element is built once with the interfaces its node had when a
-     * client first read it &mdash; a cell first read in the month chooser, where it carries no
-     * selection item, answered no SelectionItem for the day it later stood for. Disjoint keys
-     * make a view change destroy the one set of nodes and mint the other.
+     * <p>A chooser's rows and cells have keys of their own rather than the day grid's. A key is
+     * also an <em>identity</em>: the publish step interns (owner, key), so a month cell keyed
+     * {@code 0} was the same node as the day cell keyed {@code 0} across a view change, and a
+     * Windows element is built once with the interfaces its node had when a client first read it
+     * &mdash; a cell first read in the month chooser, where it carries no selection item, answered
+     * no SelectionItem for the day it later stood for. Disjoint keys make a view change destroy the
+     * one set of nodes and mint the other.
      *
-     * <p>The months and the years are apart from each other as well, not only from the days
-     * (DT2's second half, 2026-09-14): in a month picker the months carry a selection item and
-     * the years a person climbs to do not, so a shared chooser range kept the same defect one
-     * level up.
+     * <p>The months and the years are apart from each other as well, not only from the days: in a
+     * month picker the months carry a selection item and the years a person climbs to do not, so a
+     * shared chooser range kept the same defect one level up.
      */
     private static final long KEY_PREVIOUS = -1;
     private static final long KEY_NEXT = -2;
@@ -229,7 +227,7 @@ public final class CalendarView extends Widget<CalendarView> {
     private View view = View.DAYS;
     /**
      * The finest view this calendar picks in: {@link View#DAYS} for a calendar, {@link View#MONTHS}
-     * for a month picker, {@link View#YEARS} for a year picker (decisions 12 and 47, 2026-09-14).
+     * for a month picker, {@link View#YEARS} for a year picker.
      * The chooser at this level is <b>terminal</b>: a pick there is a selection and not a step
      * down, and the view never goes below it.
      */
@@ -345,7 +343,7 @@ public final class CalendarView extends Widget<CalendarView> {
 
     /**
      * Whether Tab off either end of the header walk is declined rather than wrapped while a
-     * picker drives this grid: the picker's popup has a time row after the grid (decision 19),
+     * picker drives this grid: the picker's popup has a time row after the grid,
      * and the walk running off its end is what hands the keyboard to it.
      */
     private boolean tabLeavesAtEnds;
@@ -433,7 +431,6 @@ public final class CalendarView extends Widget<CalendarView> {
     /**
      * @return the selected period, or {@code null} if none is complete. A period being built &mdash;
      *         one end chosen and the other not &mdash; is not a period and is not answered here
-     *         (ADR 042 &sect;6)
      */
     public DateRange selectedRange() {
         return selectedRange;
@@ -469,8 +466,8 @@ public final class CalendarView extends Widget<CalendarView> {
      * Where the keyboard is, which is <b>not</b> the selection: arrows move this and Enter commits
      * it, so a grid can be walked without firing a form's handler at every step.
      *
-     * <p>Public because it is announced: the {@code ACTIVE} aspect says the cursor moved, and ADR
-     * 040 &sect;1.11 will not let a widget announce a state no accessor answers.
+     * <p>Public because it is announced: the {@code ACTIVE} aspect says the cursor moved, and a
+     * widget may not announce a state no accessor answers.
      *
      * @return the day the cursor is on, or {@code null} before the grid has had focus
      */
@@ -538,11 +535,10 @@ public final class CalendarView extends Widget<CalendarView> {
      * {@code CODE}, and the title, the choosers' keys, Escape and a picker backing out of a
      * chooser as {@code USER}.
      *
-     * <p>Announced as {@code VALUE}, the aspect the month paging already announces (decision
-     * 59, 2026-09-14; DATES-NEW-13): what the grid shows moved, from a month of days to a year
-     * of months, and a watcher that heard nothing for it heard the title's published state flip
-     * with no change to explain it. A view already showing announces nothing, like every other
-     * write of what a widget already holds.
+     * <p>Announced as {@code VALUE}, the aspect the month paging already announces: what the grid
+     * shows moved, from a month of days to a year of months, and a watcher that heard nothing for
+     * it heard the title's published state flip with no change to explain it. A view already
+     * showing announces nothing, like every other write of what a widget already holds.
      */
     void setView(View wanted, Change.Origin origin) {
         Objects.requireNonNull(wanted, "view");
@@ -559,18 +555,18 @@ public final class CalendarView extends Widget<CalendarView> {
         notifyChange(Change.of(Change.Aspect.VALUE, origin));
         if (wanted != View.DAYS && focusHere(Part.GRID)) {
             // The grid a person is standing in now has a cell they are standing on, and it is the
-            // one on show (GALLERY-NEW-2, 2026-09-15): effectiveChooserCursor answers it from this
-            // frame on, so the climb out of the days is a cursor arriving and is announced as one.
-            // Arriving is not moving -- the cell is not stepped, only landed on -- which is the
-            // rule enterPart states for the descent and this is the same rule for the climb.
+            // one on show: effectiveChooserCursor answers it from this frame on, so the climb out
+            // of the days is a cursor arriving and is announced as one. Arriving is not moving --
+            // the cell is not stepped, only landed on -- which is the rule enterPart states for the
+            // descent and this is the same rule for the climb.
             notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
         }
     }
 
     /**
-     * The chooser cell the cursor is on: the one an arrow put it on, or, until one has,
-     * <b>the cell that matches what is on show</b> &mdash; the month of the month being drawn, the
-     * year of the year block (GALLERY-NEW-2, 2026-09-15).
+     * The chooser cell the cursor is on: the one an arrow put it on, or, until one has, <b>the
+     * cell that matches what is on show</b> &mdash; the month of the month being drawn, the year of
+     * the year block.
      *
      * <p>{@link #chooserCursor} is {@code -1} from the moment a view change until the first arrow,
      * and that number reached the paint and the describe pass. So after Ctrl (or Cmd) and Up
@@ -600,13 +596,13 @@ public final class CalendarView extends Widget<CalendarView> {
     }
 
     /**
-     * What this calendar picks: a day, a month or a year (decisions 12, 47 and 48, 2026-09-14).
+     * What this calendar picks: a day, a month or a year.
      *
      * <p>A {@link View#MONTHS} calendar is a month picker: it opens on the twelve months, a pick
      * there is the selection (the first day of the month, as an ISO date) rather than a step
      * down to days it cannot pick, and the title climbs only to the years and back. A
      * {@link View#YEARS} calendar is a year picker the same way. A period at either level runs
-     * from the first day of its first month or year to the last day of its last (decision 51),
+     * from the first day of its first month or year to the last day of its last,
      * so a range of March to June answers 1 March to 30 June.
      *
      * <p>Takes a {@link View} rather than the field's finer list on purpose: an hour is nothing a
@@ -615,7 +611,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * <p>Changing the level drops the selection, for {@link #setSelectionMode}'s reason: a day is
      * not a month, and carrying one across as the other would be inventing a choice. A view finer
      * than the new level moves up to it, announced as {@code VALUE} with the origin
-     * {@code ADJUSTMENT} (decision 59): the calendar moved it, because the level moved.
+     * {@code ADJUSTMENT}: the calendar moved it, because the level moved.
      *
      * @param level the finest view
      * @return this
@@ -664,7 +660,7 @@ public final class CalendarView extends Widget<CalendarView> {
     /**
      * @return the ISO date of the first day of the month currently drawn, <b>in the calendar being
      *         drawn</b>: for a Hijri grid that is the first of the Hijri month, which is most
-     *         often the middle of an ISO one (DATES-NEW-1, 2026-09-14)
+     *         often the middle of an ISO one
      */
     public LocalDate visibleMonth() {
         return firstOfMonth(visibleMonth);
@@ -728,7 +724,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * Shows the month holding a day, <b>the drawn calendar's month</b>. Normalized to that
      * month's first day so two days of one Hijri month compare equal here, and so a Hijri "next"
      * lands on the next Hijri month rather than on a day whose ISO first is the one already
-     * shown, which is what made paging a no-op for most of the year (DATES-NEW-1, 2026-09-14).
+     * shown, which is what made paging a no-op for most of the year until 2026-09-14.
      */
     private CalendarView showMonth(LocalDate day, Change.Origin origin) {
         monthChosen = true; // every path here is somebody choosing: code, a page, a pick, a cursor
@@ -893,7 +889,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * <p>Rarely wanted, and worth having: an application whose domain <em>is</em> a calendar &mdash;
      * an Islamic finance ledger, a Japanese government form &mdash; needs the calendar its documents
      * are written in whatever language the interface is set to. The value exchanged is ISO either
-     * way (ADR 042 &sect;1).
+     * way.
      *
      * @param chronology the calendar to draw, or {@code null} to follow the language again
      * @return this
@@ -940,7 +936,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * a range with one end is not a range. The handler reads what it needs, {@link #selectedDate()}
      * or {@link #selectedRange()}, as every list-shaped widget's does.
      *
-     * <p>The user alone: a {@link #setSelectedDate} from code never reaches it (ADR 040). Code that
+     * <p>The user alone: a {@link #setSelectedDate} from code never reaches it. Code that
      * wants every change, whoever made it, watches the widget with
      * {@link Widget#observeChanges}.
      *
@@ -957,8 +953,8 @@ public final class CalendarView extends Widget<CalendarView> {
     /**
      * The handler, reached for a day in {@code SINGLE} and a closed period in {@code RANGE}.
      *
-     * <p>Chains to {@code super} for every other aspect, which is the link a subclass must not
-     * break (ADR 040 &sect;1.11).
+     * <p>Chains to {@code super} for every other aspect: that call is the link a subclass must
+     * not break.
      */
     @Override
     protected void handleUserChange(Change.Aspect aspect) {
@@ -1039,10 +1035,10 @@ public final class CalendarView extends Widget<CalendarView> {
 
     /**
      * Whether the pick the handler is being told about came from a client's selection write
-     * rather than from a click or Enter: the one pick that holds the cursor back (decision 79).
-     * A {@link DatePicker} reads it inside its handler to mark the day without committing
-     * (decision 102, 2026-09-22): VoiceOver writes {@code AXSelected} on every cell its cursor
-     * reaches, and a popup that committed on the write closed under the user's arrow keys.
+     * rather than from a click or Enter: the one pick that holds the cursor back. A
+     * {@link DatePicker} reads it inside its handler to mark the day without committing: VoiceOver
+     * writes {@code AXSelected} on every cell its cursor reaches, and a popup that committed on the
+     * write closed under the user's arrow keys.
      *
      * @return whether the pick being handled was a client's write
      */
@@ -1055,14 +1051,13 @@ public final class CalendarView extends Widget<CalendarView> {
      *
      * @param moveCursor whether the keyboard cursor lands on the day: a click and Enter say yes,
      *                   because the pointer and the key are where the user is; a reader's
-     *                   {@code SELECT} says no, because a client write is not (decision 79 of
-     *                   2026-09-17, measured on macOS as P5M-1). <b>One exception, and it is
-     *                   geometry rather than policy:</b> where the pick pages the calendar, the
-     *                   cursor follows the selection anyway, because the grid it was standing in
-     *                   is the one being replaced and a cursor left behind would be on a day the
-     *                   calendar no longer draws. Selecting a day of the month on show — which is
-     *                   every day a reader can address without paging first — leaves it where it
-     *                   was.
+     *                   {@code SELECT} says no, because a client write is not. <b>One exception,
+     *                   and it is geometry rather than policy:</b> where the pick pages the
+     *                   calendar, the cursor follows the selection anyway, because the grid it was
+     *                   standing in is the one being replaced and a cursor left behind would be on
+     *                   a day the calendar no longer draws. Selecting a day of the month on show —
+     *                   which is every day a reader can address without paging first — leaves it
+     *                   where it was.
      */
     private boolean pick(LocalDate day, boolean moveCursor, Change.Origin origin) {
         if (!isSelectable(day)) {
@@ -1128,11 +1123,11 @@ public final class CalendarView extends Widget<CalendarView> {
     }
 
     /**
-     * A pick in the chooser this calendar picks in: the month or the year is the selection
-     * (decision 48). The same two-step in {@code RANGE} as {@link #pick}, and the same seam
-     * &mdash; a click, Enter on the cursor and an assistive technology's {@code SELECT} all land
-     * here &mdash; with the period's bounds taken as decision 51 says: a range of March to June is
-     * 1 March to 30 June, in the calendar being drawn.
+     * A pick in the chooser this calendar picks in: the month or the year is the selection. The
+     * same two-step in {@code RANGE} as {@link #pick}, and the same seam &mdash; a click, Enter on
+     * the cursor and an assistive technology's {@code SELECT} all land here &mdash; with a period
+     * taken whole, from the first day of its first month or year to the last day of its last: a
+     * range of March to June is 1 March to 30 June, in the calendar being drawn.
      */
     private boolean pickPeriod(int index, Change.Origin origin) {
         if (!isChooserCellOffered(index)) {
@@ -1204,8 +1199,8 @@ public final class CalendarView extends Widget<CalendarView> {
 
     /**
      * A period spanning two days' periods, in either order, widened to whole months or years at
-     * this calendar's granularity (decision 51): the start is the first day of the earlier
-     * period and the end the last day of the later one.
+     * this calendar's granularity: the start is the first day of the earlier period and the end the
+     * last day of the later one.
      */
     private DateRange periodRange(LocalDate a, LocalDate b) {
         DateRange ordered = DateRange.of(a, b);
@@ -1265,12 +1260,11 @@ public final class CalendarView extends Widget<CalendarView> {
     /**
      * Damages one cell of whichever view is showing, rather than the whole grid.
      *
-     * <p>ADR 043 &sect;9.2. A cursor step changes two cells and used to repaint the widget:
-     * measured at <b>50.4% of a nine-hundred-point window</b> for one arrow key, which under a
-     * full-frame default costs nothing and under a partial one is the difference between a cell
-     * and half a screen. The rect is the cell's box grown by the focus ring's own reach, because
-     * the ring is what a cursor step draws and it sits inside the cell by a gap rather than on
-     * its edge.
+     * <p>A cursor step changes two cells and used to repaint the widget: measured at <b>50.4% of a
+     * nine-hundred-point window</b> for one arrow key, which under a full-frame default costs
+     * nothing and under a partial one is the difference between a cell and half a screen. The rect
+     * is the cell's box grown by the focus ring's own reach, because the ring is what a cursor step
+     * draws and it sits inside the cell by a gap rather than on its edge.
      *
      * @param index the flat cell index, or a negative for nothing
      */
@@ -1425,7 +1419,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * months in lower case inside a sentence and this is not a sentence &mdash; it is the title of
      * what is below it, and "setembro de 2026" as a heading reads as a fragment. The first
      * character is upper-cased through {@link I18n}, so it follows the language's own casing rules
-     * (ADR 034) rather than {@code String.toUpperCase}'s, which turns a Turkish dotless i into the
+     * rather than {@code String.toUpperCase}'s, which turns a Turkish dotless i into the
      * wrong letter. Languages that already capitalise their months are unchanged, and scripts with
      * no case at all are untouched by construction.
      */
@@ -1460,8 +1454,7 @@ public final class CalendarView extends Widget<CalendarView> {
 
     /**
      * A year as this calendar writes one: the bare year of era where that is a whole year
-     * ("2026", "2569", "1448"), and the era with it where it is not ("令和8", "民國115"; decision
-     * 38 and era-year-width, 2026-09-14).
+     * ("2026", "2569", "1448"), and the era with it where it is not ("令和8", "民國115").
      */
     private String yearLabel(Chronology chronology, ChronoLocalDate date, Locale locale) {
         if (gridEraCalendar) {
@@ -1473,12 +1466,12 @@ public final class CalendarView extends Widget<CalendarView> {
     /**
      * The first year of the block a year falls in, so paging lands on the same twenty-four.
      *
-     * <p>Blocked by the <b>proleptic</b> year and not the year of era. Blocking by the year of
-     * era made every Japanese block start at a year-of-era multiple of 24 &mdash; Reiwa 0, which
-     * is not a year &mdash; and paging back from Reiwa's block landed on Heisei's with the years
-     * 2012 to 2018 in neither (DATES-NEW-1). The proleptic year is the one number every
-     * chronology counts without a gap: for ISO, Thai and Hijri it equals the year of era, for
-     * Minguo it is the ROC year, and for Japanese it is the ISO year.
+     * <p>Blocked by the <b>proleptic</b> year and not the year of era. Blocking by the year of era
+     * made every Japanese block start at a year-of-era multiple of 24 &mdash; Reiwa 0, which is not
+     * a year &mdash; and paging back from Reiwa's block landed on Heisei's with the years 2012 to
+     * 2018 in neither. The proleptic year is the one number every chronology counts without a gap:
+     * for ISO, Thai and Hijri it equals the year of era, for Minguo it is the ROC year, and for
+     * Japanese it is the ISO year.
      */
     private static int yearBlockStart(ChronoLocalDate date) {
         int year = date.get(ChronoField.YEAR);
@@ -2462,9 +2455,9 @@ public final class CalendarView extends Widget<CalendarView> {
                 part = Part.GRID;
                 enterPart();
                 damagePartChange(from, part);
-                // The cursor moved, so say so: Down announces the same move and Escape did not
-                // (DATES-NEW-13), which left a watcher with a grid whose ACTIVE cell had moved
-                // and no change to explain it.
+                // The cursor moved, so say so: Down announces the same move and Escape did not,
+                // which left a watcher with a grid whose ACTIVE cell had moved and no change to
+                // explain it.
                 notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
                 event.consume();
             }
@@ -2631,9 +2624,10 @@ public final class CalendarView extends Widget<CalendarView> {
      * four months or six of four years, each cell carrying {@code SELECT} and {@code FOCUS} where
      * it leads somewhere ({@link #describeChooser}).
      *
-     * <p><b>Every role here was mapped by ADR 041</b>, three weeks before this widget existed, and
-     * that is the whole accessibility cost of a calendar: no role is added to the model, no facet,
-     * and no bridge code in {@code limn-backend-lwjgl}, where the three bridges live.
+     * <p><b>Every role here was already mapped for the {@code Table} widget</b>, three weeks before
+     * this widget existed, and that is the whole accessibility cost of a calendar: no role is added
+     * to the model, no facet, and no bridge code in {@code limn-backend-lwjgl}, where the three
+     * bridges live.
      *
      * <p><b>A cell is named with the whole date.</b> "9 September 2026" and not "9": a reader
      * arrowing into a cell hears the cell, and the column head says only which weekday it is under.
@@ -2734,8 +2728,8 @@ public final class CalendarView extends Widget<CalendarView> {
             a.child(KEY_WEEK_ROW_BASE + weekStart);
             a.bounds(0, top, width(), cellH);
             a.role(Accessible.Role.ROW);
-            // A row is what it shows, and says so (P5W-8, 2026-09-16): the numbers drawn across
-            // it, in reading order. A ROW published with an empty name is the shape P5W-1 found
+            // A row is what it shows, and says so: the numbers drawn across it, in reading
+            // order. A ROW published with an empty name is the shape a screen-reader run found
             // on a table -- NVDA speaks a bare 'item de dados' before many of these cells, and
             // Orca discards an unnamed row that is not focusable, selectable or expandable as
             // layout only. It is the week's own numbers rather than the seven full dates its
@@ -2828,7 +2822,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * <p>No selection facet on the cells of a chooser somebody is passing through: descending
      * into a month is navigation and not a choice, and telling a reader that a month is
      * "selected" would be telling them the form now holds a value it does not. The chooser this
-     * calendar picks in is the exception and carries a real one (decision 48): there the month
+     * calendar picks in is the exception and carries a real one: there the month
      * <em>is</em> the value.
      */
     private void describeChooser(Accessibility a, boolean rtl) {
@@ -2843,7 +2837,7 @@ public final class CalendarView extends Widget<CalendarView> {
             a.bounds(0, top, width(), cellH);
             a.role(Accessible.Role.ROW);
             // Named for what it shows, as a week row is: without it a reader crossing the chooser
-            // hears a bare 'item de dados' before each cell (P5W-8) and Orca discards the row.
+            // hears a bare 'item de dados' before each cell and Orca discards the row.
             String rowName = chooserRowName(row, columns);
             if (rowName != null) {
                 a.name(rowName, System.identityHashCode(rowName), Accessible.NameFrom.CONTENT);
@@ -2880,11 +2874,11 @@ public final class CalendarView extends Widget<CalendarView> {
     }
 
     /**
-     * A reader's {@code FOCUS} on a day: the cursor goes there and nothing is selected, the way
-     * an arrow takes it there (decision 11, 2026-09-15). A standalone calendar takes the focus
-     * first, because a cursor is the focused widget's; a picker's grid is no tab stop and is
-     * already driven by its field while it is open. Paging follows the cursor as it does for an
-     * arrow, so a leading day of the month before turns the page.
+     * A reader's {@code FOCUS} on a day: the cursor goes there and nothing is selected, the way an
+     * arrow takes it there. A standalone calendar takes the focus first, because a cursor is the
+     * focused widget's; a picker's grid is no tab stop and is already driven by its field while it
+     * is open. Paging follows the cursor as it does for an arrow, so a leading day of the month
+     * before turns the page.
      */
     private void focusDay(LocalDate day) {
         if (isFocusable() && !keyboardActive) {
@@ -2925,7 +2919,7 @@ public final class CalendarView extends Widget<CalendarView> {
 
     /**
      * Whether the bounds or the filter refuse a day, whatever the selection mode: the rule that
-     * takes a day's verbs away (decision 30). {@link #isSelectable} is the same rule plus the
+     * takes a day's verbs away. {@link #isSelectable} is the same rule plus the
      * mode, and in {@code NONE} it refuses every day.
      */
     private boolean isRefused(LocalDate day) {
@@ -3039,7 +3033,7 @@ public final class CalendarView extends Widget<CalendarView> {
         a.child(key);
         a.bounds(x, pad, w, headerH);
         a.role(Accessible.Role.BUTTON);
-        // Named for what the button pages in the view on show (DATES-NEW-11): a month of days,
+        // Named for what the button pages in the view on show: a month of days,
         // a year of months, a block of years. The chevron drawn says none of it.
         boolean previous = key == KEY_PREVIOUS;
         a.name(switch (view) {
@@ -3061,7 +3055,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * assistive technology's select reaches {@link #pick} exactly as a click does, so it refuses an
      * unselectable day the same way, pages the same way and reaches the handler through the same
      * {@code USER} seam. {@code FOCUS} on a day or a chooser cell takes the path an arrow takes
-     * instead, and moves only the cursor (decision 11, 2026-09-15).
+     * instead, and moves only the cursor.
      *
      * <p>No enabled guard of its own beyond the two the paths already carry: the scene's dispatcher
      * has walked this widget and every ancestor for the enabled flag, refused an owner that is not
@@ -3133,19 +3127,18 @@ public final class CalendarView extends Widget<CalendarView> {
     }
 
     /**
-     * The calendar's mechanisms as the rows shape drives them, over a day cell's index in the
-     * grid. {@code SELECT} is {@link #pick} without the cursor move: the cursor stays where it
-     * is, which a click's does not (decision 79 of 2026-09-17), because FOCUS is the verb that
-     * moves it and a client writing a selection is not a person pointing at a day. {@code pick}
-     * refuses a day the grid refuses a click on, by the same rule the pointer meets; what tells a
-     * reader no is that such a day publishes no SELECT and is not ENABLED (decisions 2 and 30),
-     * so that false never reaches the platform. {@code FOCUS} is refused on a refused day, which
-     * was published with no verb (decision 30). {@code SCROLL_INTO_VIEW} reveals the cell's own
-     * rectangle through the scrolling ancestors, not the calendar's box: the grid does not scroll
-     * by itself, so what moves is the pane the calendar sits in (decision 81), and a calendar
-     * wholly in view moves nothing, which is the free verb's own reading and not a refusal. A
-     * range is a band and not a set, so the selection is single to the shape whatever the mode,
-     * and a day has no activation of its own.
+     * The calendar's mechanisms as the rows shape drives them, over a day cell's index in the grid.
+     * {@code SELECT} is {@link #pick} without the cursor move: the cursor stays where it is, which
+     * a click's does not, because FOCUS is the verb that moves it and a client writing a selection
+     * is not a person pointing at a day. {@code pick} refuses a day the grid refuses a click on, by
+     * the same rule the pointer meets; what tells a reader no is that such a day publishes no
+     * SELECT and is not ENABLED, so that false never reaches the platform. {@code FOCUS} is refused
+     * on a refused day, which was published with no verb. {@code SCROLL_INTO_VIEW} reveals the
+     * cell's own rectangle through the scrolling ancestors, not the calendar's box: the grid does
+     * not scroll by itself, so what moves is the pane the calendar sits in, and a calendar wholly
+     * in view moves nothing, which is the free verb's own reading and not a refusal. A range is a
+     * band and not a set, so the selection is single to the shape whatever the mode, and a day has
+     * no activation of its own.
      */
     private final class RowsHost implements RowsAccessibility.Host<Integer> {
         @Override

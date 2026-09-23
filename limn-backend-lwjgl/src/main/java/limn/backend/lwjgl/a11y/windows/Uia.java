@@ -16,9 +16,9 @@ import org.lwjgl.system.SharedLibrary;
  * be worse than none, because the failure would arrive later, on a thread belonging to a screen
  * reader, in a window a user is trying to read.
  *
- * <p>No shim, for ADR 039 §10.2's reason: the awkward parts of this API are a hand-written
- * {@code VARIANT} layout and a couple of call sites where the ABI leaks, and both are answered
- * better by a small typed layer in Java than by a new binary in the build.
+ * <p>No shim: the awkward parts of this API are a hand-written {@code VARIANT} layout and a couple
+ * of call sites where the ABI leaks, and both are answered better by a small typed layer in Java
+ * than by a new binary in the build.
  */
 final class Uia {
 
@@ -65,10 +65,11 @@ final class Uia {
             NativeLibraries.address(CORE, "UiaRaiseNotificationEvent");
 
     /**
-     * {@code UiaRaiseStructureChangedEvent(provider, StructureChangeType, int* runtimeId,
-     * int runtimeIdLen)}, or {@code 0}. Optional, like the notification. Read on the same guest on
-     * 2026-09-13 (readings/windows-dump-uia-entry-points.txt): exported, ordinal 98, not forwarded;
-     * the managed P/Invoke declares (provider, Int32 enum, Int32[], Int32) returning Int32.
+     * {@code UiaRaiseStructureChangedEvent(provider, StructureChangeType, int* runtimeId, int
+     * runtimeIdLen)}, or {@code 0}. Optional, like the notification. Read on the same guest
+     * on 2026-09-13 (readings/windows-dump-uia-entry-points.txt): exported, ordinal 98, not
+     * forwarded; the managed P/Invoke declares (provider, Int32 enum, Int32[], Int32) returning
+     * Int32.
      */
     private static final long RAISE_STRUCTURE_CHANGED =
             NativeLibraries.address(CORE, "UiaRaiseStructureChangedEvent");
@@ -146,7 +147,7 @@ final class Uia {
      * convention on every architecture this ships to passes a structure that size by address. So
      * what the machine sees is two pointers, and that is what is passed — the same reasoning
      * {@code SafeArrayCreateVector}'s 16-bit first argument needed, and the second of the two
-     * places ADR 039 §2.1 said this would happen.
+     * places the design said this would happen.
      *
      * @param provider   the element whose property moved
      * @param propertyId which property
@@ -223,10 +224,10 @@ final class Uia {
     /**
      * Whether any client is listening, which is the gate the whole tree hangs on.
      *
-     * <p>Asked once per frame on the user-interface thread and nowhere else (§3.4): it is the one
-     * piece of this bridge's state that is not state at all, because UI Automation answers it and
-     * keeps it. A window on a machine with no screen reader running is meant to pay one call to
-     * this and nothing else — no walk, no tree, no element.
+     * <p>Asked once per frame on the user-interface thread and nowhere else: it is the one piece of
+     * this bridge's state that is not state at all, because UI Automation answers it and keeps it.
+     * A window on a machine with no screen reader running is meant to pay one call to this and
+     * nothing else — no walk, no tree, no element.
      *
      * @return {@code false} on a machine with no UI Automation, which is what a caller that must
      *         not pay for accessibility wants to hear

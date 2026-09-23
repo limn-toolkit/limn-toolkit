@@ -1,10 +1,10 @@
 package limn.backend.lwjgl;
 
 /**
- * The pure arithmetic of the bloom pass (ADR 005): how a caller's radius in
- * points becomes half-res blur iterations, and when bloom refuses to run at
- * all. Kept free of GL so the mapping and both of its clamps are testable; the
- * off path and this mapping are the two halves of bloom a unit test can defend.
+ * The pure arithmetic of the bloom pass: how a caller's radius in points
+ * becomes half-res blur iterations, and when bloom refuses to run at all. Kept
+ * free of GL so the mapping and both of its clamps are testable; the off path
+ * and this mapping are the two halves of bloom a unit test can defend.
  */
 final class BloomMath {
 
@@ -20,14 +20,13 @@ final class BloomMath {
 
     /**
      * Below this target sigma (half-res texels) the blur refuses to run.
-     * Settled by eye (ADR 005 §5, step 3, radii 1–4 pt at 1×): the feared
-     * half-res squares never appear (one pair already blurs by
-     * {@link #SIGMA_PER_PAIR} texels, which covers the half-res grid even under
-     * a 1× linear upsample), but that same minimum means every request under
-     * 2 texels gets the identical, wider-than-asked glow. The floor is where
-     * the chain stops over-delivering by more than 2×: refuse under 1 texel
-     * (radius 2 pt at 1×, 1 pt at 2×) rather than answer a tiny radius with a
-     * glow that ignores it.
+     * Settled by eye (radii 1–4 pt at 1×): the feared half-res squares never
+     * appear (one pair already blurs by {@link #SIGMA_PER_PAIR} texels, which
+     * covers the half-res grid even under a 1× linear upsample), but that same
+     * minimum means every request under 2 texels gets the identical,
+     * wider-than-asked glow. The floor is where the chain stops over-delivering
+     * by more than 2×: refuse under 1 texel (radius 2 pt at 1×, 1 pt at 2×)
+     * rather than answer a tiny radius with a glow that ignores it.
      */
     static final float MIN_SIGMA_TEXELS = 1f;
 

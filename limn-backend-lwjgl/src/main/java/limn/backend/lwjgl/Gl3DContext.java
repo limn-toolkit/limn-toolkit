@@ -399,13 +399,13 @@ final class Gl3DContext {
             """;
 
     /**
-     * The bloom chain (ADR 005): bright pass into the target's half-res A,
-     * separable blur A ⇄ B, additive combine back into the resolved colour
-     * texture. Runs after {@link GlRenderTarget#resolve()} (on linear
-     * scene-referred light, after blending, before the display transform)
-     * and only when {@link BloomMath#shouldRun} said yes, so the off path
-     * costs one branch. Depth stays off throughout; the caller's finally
-     * restores the framebuffer and viewport.
+     * The bloom chain: bright pass into the target's half-res A, separable
+     * blur A ⇄ B, additive combine back into the resolved colour texture.
+     * Runs after {@link GlRenderTarget#resolve()} (on linear scene-referred
+     * light, after blending, before the display transform) and only when
+     * {@link BloomMath#shouldRun} said yes, so the off path costs one branch.
+     * Depth stays off throughout; the caller's finally restores the
+     * framebuffer and viewport.
      */
     private void renderBloom(GlRenderTarget target, GlRenderPass pass, float pixelsPerPoint) {
         ensureBloom();

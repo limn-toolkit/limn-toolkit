@@ -50,10 +50,10 @@ import java.util.function.Predicate;
  * DatePicker.ofRange().setGranularity(MONTH)         // a period of whole months
  * }</pre>
  *
- * <p><b>Composition rather than modes</b> (ADR 042 &sect;2). The typing, the segments and the
- * validity are {@link DateField}'s and are not reimplemented here; the grid, the bounds and the
- * marks are {@link CalendarView}'s. What this class owns is exactly three things: the trailing
- * button, when the popup is open, and keeping the two halves in step.
+ * <p><b>Composition rather than modes.</b> The typing, the segments and the validity are
+ * {@link DateField}'s and are not reimplemented here; the grid, the bounds and the marks are
+ * {@link CalendarView}'s. What this class owns is exactly three things: the trailing button, when
+ * the popup is open, and keeping the two halves in step.
  *
  * <p>Because the field is a widget rather than a painted region, a period is two fields with the
  * caret moving between them on Tab, the clipboard works, and a screen reader walks a subtree that
@@ -64,9 +64,8 @@ import java.util.function.Predicate;
  * forwarded to the grid while it is open, so Up, Down, PageUp, PageDown and Enter drive the
  * calendar and the digits still reach the segments. In the in-scene presentation the overlay holds
  * the focus instead and forwards every key and every character the same way, so the two
- * presentations type alike (DATES-NEW-3, 2026-09-14). At an hour granularity or finer the popup
- * carries a time row under the grid, and Tab cycles the keyboard between the grid, its header and
- * that row (decision 19, ADR 042 &sect;11 amended).
+ * presentations type alike. At an hour granularity or finer the popup carries a time row under the
+ * grid, and Tab cycles the keyboard between the grid, its header and that row.
  *
  * <p>The presentation follows {@link DisplayMode}: a window of its own where the platform can place
  * one, an overlay inside the owner window where it cannot &mdash; and an application that documents
@@ -84,7 +83,7 @@ public final class DatePicker extends Widget<DatePicker> {
     private final DateField endField;
     private final CalendarView calendar = new CalendarView();
     /**
-     * The clock under the grid, present while the granularity has a time of day (decision 19).
+     * The clock under the grid, present while the granularity has a time of day.
      * A real {@link DateField} that never takes the focus: the popup contract keeps the keyboard
      * on the field that opened the popup, and this row is driven the way the grid is, by keys
      * and characters the picker hands over while {@link #timeRowActive}.
@@ -94,7 +93,7 @@ public final class DatePicker extends Widget<DatePicker> {
     private boolean timeRowActive;
     /**
      * Whether a key or character is being handed to a field by this class: the field's own
-     * delegate would otherwise hand it straight back here (DATES-NEW-3, reviewer note 3).
+     * delegate would otherwise hand it straight back here.
      */
     private boolean forwarding;
 
@@ -253,10 +252,10 @@ public final class DatePicker extends Widget<DatePicker> {
 
     /**
      * How fine this picker goes, on its field (or both ends of a period) and on its calendar at
-     * once (decision 12, 2026-09-14). {@link DateField.Granularity#MONTH} makes a month picker:
-     * the field shows a month and a year and the popup opens on the twelve months, where a pick
-     * is the selection. {@link DateField.Granularity#YEAR} likewise. {@link DateField.Granularity#HOUR}
-     * and finer keep the day grid and add a time row under it (decision 19).
+     * once. {@link DateField.Granularity#MONTH} makes a month picker: the field shows a month and a
+     * year and the popup opens on the twelve months, where a pick is the selection.
+     * {@link DateField.Granularity#YEAR} likewise. {@link DateField.Granularity#HOUR} and finer
+     * keep the day grid and add a time row under it.
      *
      * <p>Set here and not on {@link #field()}: the calendar has to follow, and a field told alone
      * would leave a month picker opening on days it cannot pick.
@@ -622,11 +621,10 @@ public final class DatePicker extends Widget<DatePicker> {
     }
 
     /**
-     * The grid picked a day: it goes into whichever field is being filled, and the popup closes
-     * -- unless the pick was a reader's selection write, which marks the day in the grid and
-     * commits nothing (decision 102, 2026-09-22): a click and Enter still commit, and Enter on
-     * the marked day reaches here because the calendar no longer swallows a user's pick of the
-     * day already selected.
+     * The grid picked a day: it goes into whichever field is being filled, and the popup closes --
+     * unless the pick was a reader's selection write, which marks the day in the grid and commits
+     * nothing: a click and Enter still commit, and Enter on the marked day reaches here because the
+     * calendar no longer swallows a user's pick of the day already selected.
      */
     private void calendarPicked(LocalDate day) {
         if (day == null || calendar.lastPickWasAClientWrite()) {
@@ -827,7 +825,7 @@ public final class DatePicker extends Widget<DatePicker> {
     /**
      * The characters, before the field sees them: while the popup's time row holds the keyboard
      * the digits are the row's. Everything else falls through to the field that owns the caret,
-     * which is what makes a day typable over an open calendar (DATES-NEW-3).
+     * which is what makes a day typable over an open calendar.
      */
     private void interceptChar(CharEvent event) {
         if (forwarding || !open || !timeRowActive) {
@@ -841,8 +839,8 @@ public final class DatePicker extends Widget<DatePicker> {
     /**
      * A key the in-scene overlay received, handed to the field that would have had it in a
      * window of its own: the overlay holds the focus there and the field does not, and a
-     * Backspace, a paste or a digit that died at the overlay's root was the defect this answers
-     * (DATES-NEW-3). Guarded so the field's own delegate does not hand it straight back.
+     * Backspace, a paste or a digit that died at the overlay's root was the defect this answers.
+     * Guarded so the field's own delegate does not hand it straight back.
      */
     private void forwardToField(KeyEvent event) {
         forwarding = true;
@@ -866,10 +864,10 @@ public final class DatePicker extends Widget<DatePicker> {
      * Asks the popup to draw again after a key it was handed.
      *
      * <p><b>Not a layout.</b> This asked for one, and a layout pass is a full frame by the
-     * structural invariant ADR 002 states -- a widget that moved cannot damage where it used to
-     * be -- so every forwarded arrow key repainted the entire window. Measured: a cursor step
-     * inside an open popup was three full frames and one of one per cent, where the one per cent
-     * was the grid correctly damaging two cells and the rest was this call throwing that away.
+     * toolkit's structural invariant -- a widget that moved cannot damage where it used to be -- so
+     * every forwarded arrow key repainted the entire window. Measured: a cursor step inside an open
+     * popup was three full frames and one of one per cent, where the one per cent was the grid
+     * correctly damaging two cells and the rest was this call throwing that away.
      *
      * <p>Nothing here needs a layout. The grid damages what it changed, and the popup's box is
      * deliberately the same in every view (its measure asks for the day grid's width whatever is
@@ -952,9 +950,9 @@ public final class DatePicker extends Widget<DatePicker> {
         boolean animate = owner.window() != null;
         sceneFade = animate ? 0f : 1f;
         // Before the overlay takes the focus: the field keeps its caret drawn and published,
-        // because that is still where the digits land (DATES-NEW-3), and a field that knows a
-        // picker is aiming at it does not treat the loss of focus as somebody moving on (a
-        // half-typed year is not resolved by the popup opening).
+        // because that is still where the digits land, and a field that knows a picker is aiming at
+        // it does not treat the loss of focus as somebody moving on (a half-typed year is not
+        // resolved by the popup opening).
         filling().setKeyboardActive(true);
         owner.pushOverlay(scenePopup);
         if (animate) {
@@ -1253,13 +1251,13 @@ public final class DatePicker extends Widget<DatePicker> {
     // ------------------------------------------------------------------ accessibility
 
     /**
-     * The box, the focus ring and a period's dash are the chrome around the fields and the
-     * button, which say everything a reader needs. A single picker is no node since decision 55,
-     * so the walk's paints-and-says-nothing guard named this class in every application's log
-     * and recommended {@code setAccessibleName} &mdash; the one call that would make the group a
-     * node again and leave the field nameless &mdash; or {@code setAccessibleIgnored}, which
-     * would take the field and the button out with it. The {@code TabbedPane} and
-     * {@code BackdropPanel} case; a range picker keeps its group and is never asked.
+     * The box, the focus ring and a period's dash are the chrome around the fields and the button,
+     * which say everything a reader needs. A single picker is no node, so the walk's
+     * paints-and-says-nothing guard named this class in every application's log and recommended
+     * {@code setAccessibleName} &mdash; the one call that would make the group a node again and
+     * leave the field nameless &mdash; or {@code setAccessibleIgnored}, which would take the field
+     * and the button out with it. The {@code TabbedPane} and {@code BackdropPanel} case; a range
+     * picker keeps its group and is never asked.
      *
      * @return {@code true}; what this widget draws frames its children
      */
@@ -1269,13 +1267,13 @@ public final class DatePicker extends Widget<DatePicker> {
     }
 
     /**
-     * What the composite says of itself (decisions 18 and 55, 2026-09-14): a single picker says
-     * <b>nothing</b> and is no node &mdash; its field is the picker a reader meets, carries the
-     * label bound to the picker, the popup state and the verbs that open and close it &mdash;
-     * and a range picker is a group that keeps the label over its two named ends. The expanded
-     * state this group once carried, and the verbs it accepted without publishing, are the
-     * field's now; the button is a plain press. The fields and the button are real children and
-     * describe themselves, which is the whole reason they are widgets.
+     * What the composite says of itself: a single picker says <b>nothing</b> and is no node &mdash;
+     * its field is the picker a reader meets, carries the label bound to the picker, the popup
+     * state and the verbs that open and close it &mdash; and a range picker is a group that keeps
+     * the label over its two named ends. The expanded state this group once carried, and the verbs
+     * it accepted without publishing, are the field's now; the button is a plain press. The fields
+     * and the button are real children and describe themselves, which is the whole reason they are
+     * widgets.
      */
     @Override
     protected void onAccessibility(Accessibility a) {
@@ -1286,9 +1284,9 @@ public final class DatePicker extends Widget<DatePicker> {
     }
 
     /**
-     * Where a caption bound to this picker lands (decision 55): on the single field, which is
-     * the node a reader arrives at; a range picker keeps it on the group, whose two ends are
-     * named "Start date" and "End date" for themselves.
+     * Where a caption bound to this picker lands: on the single field, which is the node a reader
+     * arrives at; a range picker keeps it on the group, whose two ends are named "Start date" and
+     * "End date" for themselves.
      */
     @Override
     protected Widget<?> accessibleLabelTarget() {
@@ -1449,9 +1447,8 @@ public final class DatePicker extends Widget<DatePicker> {
         }
 
         /**
-         * A plain press (decision 18): the popup's state is the field's to tell, and a button
-         * that advertised an expand state vended a pattern on Windows whose Expand it then
-         * refused (DATES-NEW-4).
+         * A plain press: the popup's state is the field's to tell, and a button that advertised an
+         * expand state vended a pattern on Windows whose Expand it then refused.
          */
         @Override
         protected void onAccessibility(Accessibility a) {
@@ -1626,7 +1623,7 @@ public final class DatePicker extends Widget<DatePicker> {
         /**
          * The overlay holds the focus in this presentation, so it is where the keys arrive: the
          * picker takes the ones the popup answers, and what is left goes to the field whose
-         * caret is showing, exactly as it would in a window of its own (DATES-NEW-3).
+         * caret is showing, exactly as it would in a window of its own.
          */
         @Override
         protected void onKeyEvent(KeyEvent event) {

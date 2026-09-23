@@ -10,7 +10,8 @@ import java.util.Map;
 import static limn.backend.lwjgl.a11y.windows.UiaPatternProviders.postFirstAccepted;
 
 /**
- * The {@code POPUP_OWNER} shape's half of the Windows bridge (ADR 045 §5): a node that opens something: ExpandCollapse and its state.
+ * The {@code POPUP_OWNER} shape's half of the Windows bridge: a node that opens something:
+ * ExpandCollapse and its state.
  *
  * <p>Moved here verbatim from {@code UiaPatternProviders} on 2026-09-21, under the shape's
  * name and nothing else; the patterns are vended by facet in {@link UiaPatterns} and the

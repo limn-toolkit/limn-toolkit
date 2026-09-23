@@ -51,8 +51,8 @@ import java.util.function.Predicate;
 /**
  * A date, a time, or both, typed into segments the language orders.
  *
- * <p>Two starts and one knob decide the shape (ADR 042 &sect;2, amended 2026-09-14): a field
- * starts at the year or at the hour, and {@link #setGranularity} says how fine it goes.
+ * <p>Two starts and one knob decide the shape: a field starts at the year or at the hour, and
+ * {@link #setGranularity} says how fine it goes.
  *
  * <pre>{@code
  * new DateField()                              // 31/12/2026   -- a date
@@ -63,7 +63,7 @@ import java.util.function.Predicate;
  * new DatePicker()                             // the first, with a calendar to pick from
  * }</pre>
  *
- * <p><b>The segments and the separators are the locale's</b> (ADR 042 &sect;3). They come from the
+ * <p><b>The segments and the separators are the locale's.</b> They come from the
  * language's own short pattern, so a Brazilian field reads day, month, year, an American one month,
  * day, year, a Japanese one year, month, day, and a Korean one keeps the full stop after the last
  * of them. A two-digit year in a pattern is widened to four here, because the field is edited and a
@@ -103,9 +103,9 @@ import java.util.function.Predicate;
 public final class DateField extends Widget<DateField> {
 
     /**
-     * How fine a field goes: which segment is its last. A field that starts at the year edits
-     * down to this; one that starts at the hour edits from there down to it, and refuses the three
-     * date levels (decision 12, 2026-09-14).
+     * How fine a field goes: which segment is its last. A field that starts at the year edits down
+     * to this; one that starts at the hour edits from there down to it, and refuses the three date
+     * levels.
      *
      * <p>A closed list on purpose. A week, a quarter or a decade would each be a real piece of
      * design &mdash; what the segment shows, what a range of them means &mdash; and a value in an
@@ -145,8 +145,8 @@ public final class DateField extends Widget<DateField> {
     /**
      * Which end of a period this field is, when it is one end of a {@link DatePicker#ofRange()}:
      * the end of a period answers the last day or instant of what it names (a month picker's end
-     * field reads June and answers the 30th), the start the first (decision 51, 2026-09-14). A
-     * field that is not an end of anything is a start, which is what a single value is.
+     * field reads June and answers the 30th), the start the first. A field that is not an end of
+     * anything is a start, which is what a single value is.
      */
     private boolean periodEnd;
 
@@ -177,8 +177,8 @@ public final class DateField extends Widget<DateField> {
 
     /**
      * The characters typed since the last key or click, kept so a whole ISO date typed digit by
-     * digit ({@code 2026-12-31}) is recognised as one (ADR 042 &sect;3): typed into a day-first
-     * field segment by segment it committed 0001-02-20 and called it valid.
+     * digit ({@code 2026-12-31}) is recognised as one: typed into a day-first field segment by
+     * segment it committed 0001-02-20 and called it valid.
      */
     private final StringBuilder typedRun = new StringBuilder();
 
@@ -211,11 +211,11 @@ public final class DateField extends Widget<DateField> {
     /** How many digits have been typed into the focused segment since it was last entered. */
     private int typedDigits;
     /**
-     * How many digits the year holds as typed, until the caret leaves it or something else
-     * writes it: what decides whether a year left behind was written with two digits (decision
-     * 57). Apart from {@link #typedDigits}, which a picker aiming at this field and the focus
-     * coming back both reset so the next digit starts the segment again: a year typed as "26"
-     * before an in-scene calendar opened stayed the year 26 when the field was left afterwards.
+     * How many digits the year holds as typed, until the caret leaves it or something else writes
+     * it: what decides whether a year left behind was written with two digits. Apart from
+     * {@link #typedDigits}, which a picker aiming at this field and the focus coming back both
+     * reset so the next digit starts the segment again: a year typed as "26" before an in-scene
+     * calendar opened stayed the year 26 when the field was left afterwards.
      */
     private int yearDigitsTyped;
 
@@ -246,11 +246,11 @@ public final class DateField extends Widget<DateField> {
     /** The picker's, for the characters: see {@link #keyDelegate}. */
     private java.util.function.Consumer<CharEvent> charDelegate;
     /**
-     * Whether a picker's popup is open, and how to open or close it, when this field is the one
-     * a {@link DatePicker} types into (decision 18, 2026-09-14): the field is the node a reader
-     * arrives at, so the field is what says it has a popup, whether it is expanded, and takes
-     * the verbs that open and close it &mdash; the ARIA combobox pattern, and {@code ComboBox}'s.
-     * {@code null} for a field on its own.
+     * Whether a picker's popup is open, and how to open or close it, when this field is the one a
+     * {@link DatePicker} types into: the field is the node a reader arrives at, so the field is
+     * what says it has a popup, whether it is expanded, and takes the verbs that open and close it
+     * &mdash; the ARIA combobox pattern, and {@code ComboBox}'s. {@code null} for a field on its
+     * own.
      */
     private java.util.function.BooleanSupplier popupOpen;
     private java.util.function.Consumer<Boolean> popupSetter;
@@ -301,7 +301,7 @@ public final class DateField extends Widget<DateField> {
     }
 
     /**
-     * How fine this field goes: which segment is its last (decision 12, 2026-09-14).
+     * How fine this field goes: which segment is its last.
      *
      * <p>A field that starts at the year takes any level: {@link Granularity#MONTH} makes it a
      * month picker with no day, {@link Granularity#MINUTE} adds a clock after the date. A field
@@ -373,8 +373,7 @@ public final class DateField extends Widget<DateField> {
      *         filled. A date outside the bounds is still answered here: the field holds what was
      *         typed and says separately that it is not acceptable (see {@link #isValid()}). At a
      *         {@link Granularity} coarser than a day this is the first day of the period named
-     *         &mdash; the last day for the end field of a {@link DatePicker#ofRange()} (decision
-     *         51, 2026-09-14)
+     *         &mdash; the last day for the end field of a {@link DatePicker#ofRange()}
      */
     public LocalDate date() {
         return dateValue;
@@ -383,7 +382,7 @@ public final class DateField extends Widget<DateField> {
     /**
      * @return the time of day, or {@code null} if this field has no time part or it is incomplete.
      *         At {@link Granularity#HOUR} the minute is zero, and for the end field of a period
-     *         the last one of the hour, with the seconds to match (decision 51)
+     *         the last one of the hour, with the seconds to match
      */
     public LocalTime time() {
         return timeValue;
@@ -548,7 +547,7 @@ public final class DateField extends Widget<DateField> {
     /**
      * The time the time segments name, or {@code null} while one this level holds is empty. A
      * segment below the level is the period's first instant, or its last for the end of a
-     * period: an hour field's end at 14 is 14:59:59 (decision 51).
+     * period: an hour field's end at 14 is 14:59:59.
      */
     private LocalTime buildTime() {
         if (!hasTime() || hour == UNSET
@@ -569,7 +568,7 @@ public final class DateField extends Widget<DateField> {
      * <p>A segment below this field's level is {@link #UNSET} and stands for the whole period: the
      * first day of the month or year, or the last day of it for the end of a period, in the
      * calendar being drawn &mdash; the 30th or the 31st, the 28th or the 29th, the last day of a
-     * Hijri year that has no 31 December (decision 51, 2026-09-14).
+     * Hijri year that has no 31 December.
      *
      * @return the date, or {@code null} if the calendar being drawn has no such day at all
      */
@@ -599,7 +598,7 @@ public final class DateField extends Widget<DateField> {
      * Which era a typed year belongs to: the one the current value is in, or the one today is in.
      *
      * <p>ISO answers {@code null} and takes the proleptic-year call, which is the same year for
-     * every date this field can hold. The era segment is read-only (ADR 042 &sect;3), so this is
+     * every date this field can hold. The era segment is read-only, so this is
      * the whole of how an era is decided, and it is why a Japanese field cannot yet be typed
      * across an era boundary.
      */
@@ -612,7 +611,7 @@ public final class DateField extends Widget<DateField> {
         if (reference == null) {
             // Today by the widget's clock (ADR 042 §1), not the wall clock: an empty Japanese
             // field under a clock set to 2018 types into Heisei, and a capture pinned to a day
-            // types into that day's era (DATES-NEW-10, 2026-09-14).
+            // types into that day's era.
             reference = CalendarChronology.date(chronology, today());
             if (reference == null) {
                 return null;
@@ -627,9 +626,9 @@ public final class DateField extends Widget<DateField> {
     }
 
     /**
-     * Whether the drawn calendar's years are spoken and typed with their era: Reiwa 8 and
-     * Minguo 115 say nothing without it, where 2026, 2569 and 1448 do (era-year-width,
-     * 2026-09-14). Read off the year of era today, never off a list of chronologies.
+     * Whether the drawn calendar's years are spoken and typed with their era: Reiwa 8 and Minguo
+     * 115 say nothing without it, where 2026, 2569 and 1448 do. Read off the year of era today,
+     * never off a list of chronologies.
      *
      * <p>Held per chronology rather than derived on every call: the derivation reads the clock
      * and converts today through the chronology, which is two allocations, and the answer was
@@ -806,7 +805,7 @@ public final class DateField extends Widget<DateField> {
      * {@link #dateTime()}; the date is {@code null} while the segments are incomplete, which is the
      * state a person is in for most of the time they are typing.
      *
-     * <p>The user alone (ADR 040): {@link #setDate} from code never reaches it.
+     * <p>The user alone: {@link #setDate} from code never reaches it.
      *
      * @param listener what to run, or {@code null} to clear the slot
      * @return this
@@ -837,9 +836,9 @@ public final class DateField extends Widget<DateField> {
      * <p>The date pattern and the time pattern are fetched separately and joined with a space,
      * never carved out of one combined pattern: carving would leave the joining words of a dozen
      * languages stranded, and which of them to drop is a guess in every language nobody in the room
-     * reads (ADR 042 &sect;3). A level coarser than the pattern is cut from the pattern's own
-     * end: the day and its separator go for a month field, the minute and its colon for an hour
-     * field ({@link DatePattern#without}).
+     * reads. A level coarser than the pattern is cut from the pattern's own end: the day and its
+     * separator go for a month field, the minute and its colon for an hour field
+     * ({@link DatePattern#without}).
      */
     private void ensureParts() {
         Locale locale = locale();
@@ -1013,7 +1012,7 @@ public final class DateField extends Widget<DateField> {
         }
     }
 
-    /** ASCII digits first, then the language's numbering system: ADR 033's one format-time seam. */
+    /** ASCII digits first, then the language's numbering system, substituted at format time. */
     private static String pad(int value, int width) {
         String digits = Integer.toString(Math.abs(value));
         StringBuilder text = new StringBuilder();
@@ -1026,7 +1025,7 @@ public final class DateField extends Widget<DateField> {
 
     /**
      * The whole value as it is drawn: what {@code Ctrl+C} copies. A reader is not handed this
-     * string; it is told the segments one at a time, each with its own value (&sect;8).
+     * string; it is told the segments one at a time, each with its own value.
      *
      * @return the field's text, with its separators and its dashes
      */
@@ -1078,9 +1077,9 @@ public final class DateField extends Widget<DateField> {
     private int segmentMax(DatePattern.Field field) {
         return switch (field) {
             // Not 9999: a year is bounded by what the calendar being drawn can hold, and Hijri
-            // stops at 1600. Asked of the chronology rather than assumed. A year of era that
-            // needs its era is one to three digits (era-year-width), which is what lets a typed
-            // "115" roll on and a typed "8" wait for a Right.
+            // stops at 1600. Asked of the chronology rather than assumed. A year of era that needs
+            // its era is one to three digits, which is what lets a typed "115" roll on and a typed
+            // "8" wait for a Right.
             case YEAR -> eraCalendar() ? 999
                     : (int) Math.min(9999, chronology().range(ChronoField.YEAR_OF_ERA).getMaximum());
             case MONTH -> 12;
@@ -1197,16 +1196,16 @@ public final class DateField extends Widget<DateField> {
     }
 
     /**
-     * Which century a two-digit year means (decision 57, 2026-09-14). A year written with two
-     * digits &mdash; pasted as {@code 31/12/26}, or typed as {@code 26} and left with a Right
-     * or a Home &mdash; resolves into the hundred years that start {@code yearsBack} years
-     * before today by the field's clock: by default 80 back and 19 ahead, so in 2026 {@code 26}
-     * is 2026 and {@code 85} is 1985. A calendar whose years carry their era (Reiwa 8) is not
-     * windowed: there a two-digit year is the whole year.
+     * Which century a two-digit year means. A year written with two digits &mdash; pasted as
+     * {@code 31/12/26}, or typed as {@code 26} and left with a Right or a Home &mdash; resolves
+     * into the hundred years that start {@code yearsBack} years before today by the field's clock:
+     * by default 80 back and 19 ahead, so in 2026 {@code 26} is 2026 and {@code 85} is 1985. A
+     * calendar whose years carry their era (Reiwa 8) is not windowed: there a two-digit year is the
+     * whole year.
      *
-     * <p>{@link #REFUSE_TWO_DIGIT_YEARS} turns the guess off: a two-digit year, pasted or typed
-     * and left, is left blank and the field stays incomplete (decision 57). A typed one stayed
-     * what was typed until 2026-09-14, which called "31/12/26" the valid year 26.
+     * <p>{@link #REFUSE_TWO_DIGIT_YEARS} turns the guess off: a two-digit year, pasted or typed and
+     * left, is left blank and the field stays incomplete. A typed one stayed what was typed until
+     * 2026-09-14, which called "31/12/26" the valid year 26.
      *
      * @param yearsBack how far back the window starts, {@code 0} to {@code 99}, or
      *                  {@link #REFUSE_TWO_DIGIT_YEARS}
@@ -1403,15 +1402,14 @@ public final class DateField extends Widget<DateField> {
     }
 
     /**
-     * Whether the picker's popup, and not this field, is where the keyboard is: the popup is
-     * open and the picker is not aiming here (decision 5, 2026-09-14). In a window of its own
-     * the popup takes no focus, so this field keeps it and its caret; but the calendar's cursor
-     * is what the arrows move, and the tree's effective focus falls through to that cursor in
-     * the popup's tree only when the focused node's own subtree holds no {@code ACTIVE} node
-     * (semantics 4). The caret segment therefore stops claiming {@code ACTIVE} for as long as
-     * the popup holds the keyboard, and claims it again the moment the popup closes or the
-     * picker aims back here. In the scene presentation the overlay holds the focus and the
-     * picker aims here for the digits, so nothing changes there.
+     * Whether the picker's popup, and not this field, is where the keyboard is: the popup is open
+     * and the picker is not aiming here. In a window of its own the popup takes no focus, so this
+     * field keeps it and its caret; but the calendar's cursor is what the arrows move, and the
+     * tree's effective focus falls through to that cursor in the popup's tree only when the focused
+     * node's own subtree holds no {@code ACTIVE} node. The caret segment therefore stops claiming
+     * {@code ACTIVE} for as long as the popup holds the keyboard, and claims it again the moment
+     * the popup closes or the picker aims back here. In the scene presentation the overlay holds
+     * the focus and the picker aims here for the digits, so nothing changes there.
      */
     private boolean popupHoldsKeyboard() {
         return popupOpen != null && !keyboardActive && popupOpen.getAsBoolean();
@@ -1528,11 +1526,11 @@ public final class DateField extends Widget<DateField> {
      * order this language writes them. A run of eight digits with no separators is split by the
      * segments' own widths.
      *
-     * <p>The runs stay strings until each is known to be short enough to be a number
-     * (DATES-NEW-9, 2026-09-14): {@code Integer.parseInt} over the whole of a pasted account
-     * number threw out of the key handler, and a leading zero turned into a seven-digit run
-     * nothing matched. A month or a day outside its range refuses the whole paste rather than
-     * writing 13 into the month, and a two-digit year goes through the window.
+     * <p>The runs stay strings until each is known to be short enough to be a number:
+     * {@code Integer.parseInt} over the whole of a pasted account number threw out of the key
+     * handler, and a leading zero turned into a seven-digit run nothing matched. A month or a day
+     * outside its range refuses the whole paste rather than writing 13 into the month, and a
+     * two-digit year goes through the window.
      */
     private boolean parseByDigitRuns(String text) {
         List<String> runs = new ArrayList<>();
@@ -1764,10 +1762,10 @@ public final class DateField extends Widget<DateField> {
     }
 
     /**
-     * The caret into one segment, as a click on it puts it there: the field takes the focus
-     * unless a picker is already aiming here, a two-digit year the caret leaves resolves as it
-     * does for every other way out of the year (decision 57), and the move is announced. Used by
-     * the pointer and by a reader's {@code FOCUS} on the segment (decision 11, 2026-09-15).
+     * The caret into one segment, as a click on it puts it there: the field takes the focus unless
+     * a picker is already aiming here, a two-digit year the caret leaves resolves as it does for
+     * every other way out of the year, and the move is announced. Used by the pointer and by a
+     * reader's {@code FOCUS} on the segment.
      */
     private void focusSegment(int slot) {
         if (!keyboardActive) {
@@ -1856,11 +1854,10 @@ public final class DateField extends Widget<DateField> {
     }
 
     /**
-     * Remembers a typed character and, once the run reads as an ISO date, commits that date as
-     * a whole (ADR 042 &sect;3, settled typed-iso-run): {@code 2026-12-31} typed digit by digit
-     * into a day-first field went segment by segment to 0001-02-20 and called it valid. The
-     * segments wander while the run is being typed and are overwritten when it completes; a
-     * key or a click starts the run over.
+     * Remembers a typed character and, once the run reads as an ISO date, commits that date as a
+     * whole: {@code 2026-12-31} typed digit by digit into a day-first field went segment by segment
+     * to 0001-02-20 and called it valid. The segments wander while the run is being typed and are
+     * overwritten when it completes; a key or a click starts the run over.
      */
     private void noteTyped(int codepoint) {
         if (!startsAtYear || !granularity.holds(Granularity.MONTH)) {
@@ -1898,12 +1895,11 @@ public final class DateField extends Widget<DateField> {
     }
 
     /**
-     * A two-digit year typed and left (a Right, a Home, a separator, a click into another
-     * segment, or the focus going elsewhere) resolves through the window (decision 57): "26"
-     * left in the year is 2026, as it is on every desktop date field. Four digits are what was
-     * meant; three are left alone too, and so is a year of era. With the guess off the year is
-     * left blank and the field incomplete, as a pasted one is: a form that refuses to guess is
-     * not handed the year 26 as valid.
+     * A two-digit year typed and left (a Right, a Home, a separator, a click into another segment,
+     * or the focus going elsewhere) resolves through the window: "26" left in the year is 2026, as
+     * it is on every desktop date field. Four digits are what was meant; three are left alone too,
+     * and so is a year of era. With the guess off the year is left blank and the field incomplete,
+     * as a pasted one is: a form that refuses to guess is not handed the year 26 as valid.
      */
     private void commitTypedYear() {
         DatePattern.FieldPart part = focusedField();
@@ -2002,7 +1998,7 @@ public final class DateField extends Widget<DateField> {
     // ------------------------------------------------------------------ accessibility
 
     /**
-     * A group of spin buttons, one per editable segment (ADR 042 &sect;8).
+     * A group of spin buttons, one per editable segment.
      *
      * <p>The group carries no value (the comment below says why) and the validity message when it
      * has one; each segment carries its own name, its own bounds, its own value against its own
@@ -2100,11 +2096,11 @@ public final class DateField extends Widget<DateField> {
 
     /**
      * What a reader is told the year segment holds: the year as drawn, or, in a calendar whose
-     * years need their era, the era with it &mdash; "令和8", "民國115" (decision 38, 2026-09-14).
-     * The era is drawn as its own read-only piece of the pattern ("R8/9/9") and is no node of its
-     * own; the year's spoken text is where it reaches a reader, so drawn and spoken agree without
-     * a string of this toolkit's. Built from the segments rather than the value, so a year typed
-     * ahead of its month is spoken with its era too.
+     * years need their era, the era with it &mdash; "令和8", "民國115". The era is drawn as its own
+     * read-only piece of the pattern ("R8/9/9") and is no node of its own; the year's spoken text
+     * is where it reaches a reader, so drawn and spoken agree without a string of this toolkit's.
+     * Built from the segments rather than the value, so a year typed ahead of its month is spoken
+     * with its era too.
      */
     private String yearSpoken(DatePattern.FieldPart field) {
         if (!eraCalendar() || year == UNSET) {
@@ -2140,7 +2136,7 @@ public final class DateField extends Widget<DateField> {
     /**
      * The calendar's open and close, for a field inside a picker: exactly the two verbs the tree
      * publishes, one at a time by state, so a reader's Expand on an open field is refused rather
-     * than reported done while nothing happened (ADR 039 §1.5's refusal contract).
+     * than reported done while nothing happened.
      */
     @Override
     protected boolean onAccessibilityAction(Accessible.Action action, Accessible.Argument arg) {
@@ -2150,7 +2146,7 @@ public final class DateField extends Widget<DateField> {
         return PopupOwnerAccessibility.perform(popupHost, action);
     }
 
-    /** The field's mechanisms as the popup-owner shape drives them (ADR 045 §3). */
+    /** The field's mechanisms as the popup-owner shape drives them. */
     private final class PopupHost implements PopupOwnerAccessibility.Host {
         @Override
         public boolean isOpen() {

@@ -49,13 +49,13 @@ public final class I18nString {
     /** Valid iff {@code cachedEpoch == I18n.epoch()} and the locale matches; 0 is "never resolved". */
     private long cachedEpoch;
     /**
-     * The locale {@link #cached} was resolved under. Part of the memo's key since ADR 035,
-     * because the same string can be read from two subtrees in two languages: inside a
-     * widget pass {@link I18n#locale()} answers that widget's effective locale, and a memo
-     * that could not see it would hand a Hebrew pane the label its Latin neighbour resolved
-     * a frame earlier. One slot still: a static string actually read in two languages every
-     * frame re-resolves per alternation, which is a bundle walk of hash gets and is paid
-     * only where two languages are genuinely on one screen.
+     * The locale {@link #cached} was resolved under. Part of the memo's key since a subtree could
+     * declare its own locale, because the same string can be read from two subtrees in two
+     * languages: inside a widget pass {@link I18n#locale()} answers that widget's effective locale,
+     * and a memo that could not see it would hand a Hebrew pane the label its Latin neighbour
+     * resolved a frame earlier. One slot still: a static string actually read in two languages
+     * every frame re-resolves per alternation, which is a bundle walk of hash gets and is paid only
+     * where two languages are genuinely on one screen.
      */
     private Locale cachedLocale;
 

@@ -6,12 +6,11 @@ import limn.accessibility.Accessible.Action;
 import limn.accessibility.ToggleFacet;
 
 /**
- * The {@code MENU} shape, written once (ADR 045 §3; decision 98, 2026-09-22): what a menu bar,
- * a menu column and their rows publish, and what a reader's verb on a row does. A bar's title
- * and a cascade's row say the same things and obey the same rules — until this, {@code MenuBar}
- * and {@code PopupMenu} each said them in a hook of its own (124 and 42 lines), and the rule of
- * which verbs a title accepts by state (ADR 039 §1.5, amended 2026-09-14; decision 2) was
- * written twice.
+ * The {@code MENU} shape, written once: what a menu bar, a menu column and their rows publish, and
+ * what a reader's verb on a row does. A bar's title and a cascade's row say the same things and
+ * obey the same rules — until this, {@code MenuBar} and {@code PopupMenu} each said them in a hook
+ * of its own (124 and 42 lines), and the rule of which verbs a title accepts by state was written
+ * twice.
  *
  * <p><b>Two halves, as {@link RowsAccessibility} has them.</b> {@link #describeRow} is a static
  * function over the facts of one row and allocates nothing; {@link #performOnRow} takes a
@@ -22,15 +21,15 @@ import limn.accessibility.ToggleFacet;
  * <ul>
  *   <li>A row is a member of its column's or its bar's selection: the highlighted title or row
  *       is the selected one, and the one the keys act on carries {@code ACTIVE}.</li>
- *   <li><b>decision 11</b> — {@code FOCUS} moves the highlight onto a row and chooses nothing and
- *       opens nothing, as the arrows do; a bar offers it while no menu is down, a column on
- *       every row the arrows can land on.</li>
- *   <li><b>decision 2</b> — the verbs a row accepts are exactly the ones it publishes for its
- *       state, and the published list is the only refusal a platform can see: a closed row
- *       with a submenu opens on {@code SHOW_MENU} and on its synonym {@code EXPAND}, the open
- *       one closes on {@code COLLAPSE} alone; a command row chooses on {@code PRESS}, a check
- *       row on {@code PRESS} and on {@code TOGGLE}; a title, a submenu row and a submenu with
- *       nothing in it take no {@code PRESS}.</li>
+ *   <li>{@code FOCUS} moves the highlight onto a row and chooses nothing and opens nothing, as the
+ *       arrows do; a bar offers it while no menu is down, a column on every row the arrows can land
+ *       on.</li>
+ *   <li>The verbs a row accepts are exactly the ones it publishes for its state, and the published
+ *       list is the only refusal a platform can see: a closed row with a submenu opens on
+ *       {@code SHOW_MENU} and on its synonym {@code EXPAND}, the open one closes on
+ *       {@code COLLAPSE} alone; a command row chooses on {@code PRESS}, a check row on
+ *       {@code PRESS} and on {@code TOGGLE}; a title, a submenu row and a submenu with nothing in
+ *       it take no {@code PRESS}.</li>
  *   <li>A row that opens something says so ({@code HAS_POPUP}) and carries its open state; a
  *       check row carries its toggle.</li>
  * </ul>

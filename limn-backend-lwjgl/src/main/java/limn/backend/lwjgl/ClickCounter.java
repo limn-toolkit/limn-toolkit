@@ -12,10 +12,10 @@ import org.lwjgl.system.JNI;
 import org.lwjgl.system.SharedLibrary;
 
 /**
- * Counts presses in a row the way the platform does (ADR 046 §5): the second press of one button
- * within the user's double-click interval, and near the first, is a 2, the third a 3. GLFW reports
- * no click count, so until 2026-09-22 the table and the tree each timed 400 ms on their own, which
- * ignored the interval the user had set in the system settings.
+ * Counts presses in a row the way the platform does: the second press of one button within the
+ * user's double-click interval, and near the first, is a 2, the third a 3. GLFW reports no click
+ * count, so until 2026-09-22 the table and the tree each timed 400 ms on their own, which ignored
+ * the interval the user had set in the system settings.
  *
  * <p>The interval is read from the platform where there is a call for it: {@code [NSEvent
  * doubleClickInterval]} on macOS, {@code GetDoubleClickTime} on Windows. Elsewhere, and whenever the

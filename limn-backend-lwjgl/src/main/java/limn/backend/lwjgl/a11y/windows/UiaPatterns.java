@@ -10,26 +10,26 @@ import limn.accessibility.AccessibleTree;
  * <p><b>On this platform the pattern list is the whole of a control's behaviour.</b> A client asks
  * {@code GetPatternProvider} for each pattern it cares about and takes silence as "this control
  * cannot do that" — so a facet that fails to become a pattern here is not a degraded announcement,
- * it is a control that cannot be operated at all. That is the reason §2.1 spends a paragraph on one
- * of these rows.
+ * it is a control that cannot be operated at all. That is why one of these rows needs a paragraph
+ * of its own.
  *
- * <p><b>The row it spends it on: {@code Value} comes from a {@code TextFacet} as well as from a
- * {@code ValueFacet}.</b> {@code TextPattern} is deferred (§11), and a text widget has never had a
+ * <p><b>The row that needs it: {@code Value} comes from a {@code TextFacet} as well as from a
+ * {@code ValueFacet}.</b> {@code TextPattern} is deferred, and a text widget has never had a
  * numeric value — so mapping {@code Value} from {@code ValueFacet} alone leaves every text field,
  * text area, password field and search field in the toolkit vending no pattern whatsoever. A screen
  * reader would find a named element whose contents it cannot read, cannot set, and cannot report as
  * read-only.
  *
  * <p><b>{@code ScrollItem} is the node's own verb.</b> It says "I can be scrolled into view", and
- * since 2026-09-15 it is vended only where the node publishes {@code SCROLL_INTO_VIEW} (semantics 5,
- * WINDOWS-NEW-7): until then it was vended on any node with a scrollable ancestor, which offered a
- * client a move a list or tree row's widget refused while the client was told it was done.
+ * since 2026-09-15 it is vended only where the node publishes {@code SCROLL_INTO_VIEW}: until then
+ * it was vended on any node with a scrollable ancestor, which offered a client a move a list or
+ * tree row's widget refused while the client was told it was done.
  *
  * <p><b>No node vends {@code Window} or {@code Transform}.</b> The window's root answers
  * {@code get_HostRawElementProvider} with the provider UI Automation made for its HWND, and that
  * host provider serves both patterns for the real window (the probe's {@code [Window,Transform]}
  * came from it); this bridge serves neither interface, so claiming them here answered a client's
- * {@code GetPatternProvider} with a null (W1). An in-scene dialog, which has no HWND, says what it is
+ * {@code GetPatternProvider} with a null. An in-scene dialog, which has no HWND, says what it is
  * with {@code IsDialog}, a property.
  */
 final class UiaPatterns {

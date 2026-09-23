@@ -570,11 +570,11 @@ public final class Scene {
     }
 
     /**
-     * Sets this window's default locale, the per-window root of the inheritance chain: what
-     * makes two windows in two languages expressible, which one process-wide locale could not
-     * say (ADR 006 §4, delivered by ADR 035). Widgets that declare their own locale, and their
-     * subtrees, are unaffected. {@code null} restores fall-through. Retains the declared
-     * locale's bundle tables exactly as {@link Widget#setLocale} does. UI thread only.
+     * Sets this window's default locale, the per-window root of the inheritance chain: what makes
+     * two windows in two languages expressible, which one process-wide locale could not say.
+     * Widgets that declare their own locale, and their subtrees, are unaffected. {@code null}
+     * restores fall-through. Retains the declared locale's bundle tables exactly as
+     * {@link Widget#setLocale} does. UI thread only.
      */
     public void setLocale(java.util.Locale locale) {
         Ui.checkUiThread();
@@ -664,12 +664,11 @@ public final class Scene {
     /**
      * The layer an assistive technology's verb may operate: the layer that owns input, or
      * {@code null} when the window's backend says a modal is open over it and no layer here owns
-     * input at all. The one rule both halves of ADR 039 read (§1.9 and §1.13, amended
-     * 2026-09-15): the walk publishes every node outside it without {@code ENABLED},
-     * {@code FOCUSABLE} or a verb &mdash; and so accepting no setter, which a facet implies only
-     * on an {@code ENABLED} node (fix round 2e) &mdash; and {@link #performAccessibleAction}
-     * refuses every verb on a widget outside it, so the list a platform is answered from is the
-     * list the scene performs (semantics 5).
+     * input at all. The one rule both halves of the accessibility model read: the walk publishes
+     * every node outside it without {@code ENABLED}, {@code FOCUSABLE} or a verb &mdash; and so
+     * accepting no setter, which a facet implies only on an {@code ENABLED} node &mdash; and
+     * {@link #performAccessibleAction} refuses every verb on a widget outside it, so the list a
+     * platform is answered from is the list the scene performs.
      *
      * @return the top overlay, the root when no overlay is open, or {@code null} while a native
      *         modal blocks the window
@@ -784,7 +783,7 @@ public final class Scene {
      * walk too ({@code culledFromPaint}), as one that misses the canvas clip is
      * in every mode.
      *
-     * <p><b>Default on</b>, since ADR 043: the mode the toolkit is correct in is the one it runs,
+     * <p><b>Default on</b>: the mode the toolkit is correct in is the one it runs,
      * and every widget is held to it by {@code DamageContractTest}. {@code false} is the escape
      * hatch for a scene that composites something the toolkit cannot see, and for a capture
      * harness that wants whole frames on purpose; nothing else should need it.
@@ -971,7 +970,7 @@ public final class Scene {
 
     /**
      * The walk that describes this scene, created on first use: another window's walk asks for
-     * it when a popup there names a widget here as its opener (ADR 039 §1.11), and the tests of
+     * it when a popup there names a widget here as its opener, and the tests of
      * the walk read its builder through it.
      *
      * @return this scene's walk
@@ -998,7 +997,7 @@ public final class Scene {
 
     /**
      * The tree this scene last published, for another window's walk that reads the cursor of a
-     * popup this scene draws (decision 5): a value, read from the user-interface thread like
+     * popup this scene draws: a value, read from the user-interface thread like
      * everything else the walk touches.
      *
      * @return the tree, or the empty one when nothing was published yet
@@ -1206,15 +1205,15 @@ public final class Scene {
     }
 
     /**
-     * ADR&nbsp;039&nbsp;&sect;1.5's two free verbs, performed here rather than by every widget.
+     * The walk's two free verbs, performed here rather than by every widget.
      *
-     * <p>The record says a focusable widget gets {@code FOCUS} and {@code SCROLL_INTO_VIEW} for
-     * free "because {@code requestFocus()} and {@code revealInView()} exist for every widget", and
-     * the walk duly advertises both on every focusable node and on no other. Nothing performed
-     * them: the hook's default refuses, and no component wrote the two lines &mdash; so on Windows
-     * every element's {@code SetFocus} did nothing and every {@code ScrollIntoView} failed. The
-     * verbs are the walk's, so the answer is the walk's counterpart and not thirty copies of the
-     * same pair, one of which would be forgotten.
+     * <p>A focusable widget gets {@code FOCUS} and {@code SCROLL_INTO_VIEW} for free, because
+     * {@code requestFocus()} and {@code revealInView()} exist for every widget, and the walk duly
+     * advertises both on every focusable node and on no other. Nothing performed them: the hook's
+     * default refuses, and no component wrote the two lines &mdash; so on Windows every element's
+     * {@code SetFocus} did nothing and every {@code ScrollIntoView} failed. The verbs are the
+     * walk's, so the answer is the walk's counterpart and not thirty copies of the same pair, one
+     * of which would be forgotten.
      *
      * <p><b>Instead of the widget's hook and not after it.</b> The walk advertises these two on
      * a widget that never declared them, so the widget is not their authority and cannot be asked
@@ -1270,7 +1269,7 @@ public final class Scene {
         // Every frame ends, whichever way the step above returned: announcements drained without
         // a walk, a re-present, a clean tree after a reentrant publish already took the walk. A
         // bridge that posts on this thread posts here, so what this frame said is told in this
-        // frame and not held until the tree next changes (MACOS-NEW-8, ADR 039 §5.3).
+        // frame and not held until the tree next changes (ADR 039 §5.3).
         bridge.frameEnded();
     }
 
@@ -1331,15 +1330,15 @@ public final class Scene {
      * <p>The flag it hands {@link limn.backend.AccessibilityBridge#publish} is
      * <b>{@code reentrant}</b>, never "something changed": a restamp that changed nothing has
      * already returned above, and a bridge is told what it may touch, not what moved. The two
-     * callers answer it differently and that is the whole point of the parameter
-     * (2026-09-15, fix round 3, brief item 5). The frame's publish step is the scene's own
-     * thread with nothing of the platform's on the stack, so it is not reentrant and the bridge
-     * may sweep, re-push and drain. {@code Host#republishNow} is the other one, and its contract
-     * says in so many words that it "publishes reentrantly, so the bridge defers every registry
-     * obligation": it is called from inside the platform's own pump, standing on the elements a
-     * sweep would release. Passing {@code false} there — which this did until now, while the walk
-     * branch beside it passed {@code true} — invited a bridge to destroy, re-push and drain under
-     * the caller on the one path that costs four numbers and so looked harmless.
+     * callers answer it differently and that is the whole point of the parameter. The frame's
+     * publish step is the scene's own thread with nothing of the platform's on the stack, so it is
+     * not reentrant and the bridge may sweep, re-push and drain. {@code Host#republishNow} is the
+     * other one, and its contract says in so many words that it "publishes reentrantly, so the
+     * bridge defers every registry obligation": it is called from inside the platform's own pump,
+     * standing on the elements a sweep would release. Passing {@code false} there — which this did
+     * until now, while the walk branch beside it passed {@code true} — invited a bridge to destroy,
+     * re-push and drain under the caller on the one path that costs four numbers and so looked
+     * harmless.
      *
      * @param reentrant whether the platform is on the stack, holding what this bridge vended
      */
@@ -1560,11 +1559,11 @@ public final class Scene {
     /**
      * Adds the rectangle of every backdrop-dependent widget this frame's damage reaches.
      *
-     * <p>ADR 019 &sect;6's limit, closed: a shape filled from what is behind it is stale when what
-     * is behind it repaints, and nothing about the shape itself moved to say so. Adding one such
-     * rectangle can reach another &mdash; a panel over a panel &mdash; so the pass repeats until
-     * nothing new is added, which is at most once per registered widget because each is added at
-     * most once.
+     * <p>A known limit of partial rendering, closed: a shape filled from what is behind it is stale
+     * when what is behind it repaints, and nothing about the shape itself moved to say so. Adding
+     * one such rectangle can reach another &mdash; a panel over a panel &mdash; so the pass repeats
+     * until nothing new is added, which is at most once per registered widget because each is added
+     * at most once.
      *
      * <p>Inert when there are none, which is almost every scene: one emptiness check per frame.
      *
@@ -1804,13 +1803,13 @@ public final class Scene {
     /**
      * Lays out and damages what a visibility change actually moved, instead of the window.
      *
-     * <p>ADR 043 &sect;9.4.4. A widget shown or hidden can only move things inside the nearest
-     * ancestor whose size survives the change: that ancestor's parent placed it against a size
-     * that is still true, so nothing outside it moves. The pass climbs from the widget's parent,
-     * re-measuring each ancestor against the constraints it was last given, and stops at the first
-     * whose size came out the same. It lays that one out in place, compares where each of its
-     * children was with where it is now, and damages the ones that moved -- where they were and
-     * where they went -- plus the widget itself.
+     * <p>A widget shown or hidden can only move things inside the nearest ancestor whose size
+     * survives the change: that ancestor's parent placed it against a size that is still true, so
+     * nothing outside it moves. The pass climbs from the widget's parent, re-measuring each
+     * ancestor against the constraints it was last given, and stops at the first whose size came
+     * out the same. It lays that one out in place, compares where each of its children was with
+     * where it is now, and damages the ones that moved -- where they were and where they went --
+     * plus the widget itself.
      *
      * <p><b>The widget's own old box is damaged through its parent</b>, because a hidden branch
      * damages nothing through itself ({@link #clippedSceneRect}) and a box never erased is a widget
@@ -2566,7 +2565,7 @@ public final class Scene {
     /**
      * What the window delivers input to: a private adapter and not the scene itself, so that a
      * window's plumbing — raw key codes, the end of an input batch, the close — is not part of what
-     * an application calls on its scene (ADR 046 §4). A test drives a scene through the same
+     * an application calls on its scene. A test drives a scene through the same
      * adapter, reached by {@code limn.testing.SceneDriver} in the {@code limn-test} module.
      */
     private final class Input implements WindowInput {
@@ -2642,8 +2641,8 @@ public final class Scene {
     }
 
     /**
-     * The count a press the backend did not count gets from this scene's clock: the fallback of ADR
-     * 046 §5, with the interval the table and the tree used to time on their own.
+     * The count a press the backend did not count gets from this scene's clock: the fallback, with
+     * the interval the table and the tree used to time on their own.
      */
     private static final long FALLBACK_DOUBLE_CLICK_NANOS = 400_000_000L;
     private static final float DOUBLE_CLICK_SLOP = 4;
@@ -2804,7 +2803,7 @@ public final class Scene {
                     // node, in the same publish (ADR 039 §1.10, amended 2026-09-14). Until then
                     // the event was emitted from here, ahead of any walk, so a client told the
                     // window became active found a tree that still said it was not -- and a
-                    // screen reader believes the tree (LINUX-NEW-15).
+                    // screen reader believes the tree.
                     invalidateAccessible();
                     if (!focus.focused) {
                         // The RELEASE happens in another app and never reaches us:

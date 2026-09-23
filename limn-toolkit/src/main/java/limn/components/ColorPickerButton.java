@@ -667,7 +667,7 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
     }
 
     /**
-     * The button's mechanisms as the leaf shape drives them (ADR 045 §3): a press is accepted
+     * The button's mechanisms as the leaf shape drives them: a press is accepted
      * while no picker is up, for truthfulness rather than safety — openPicker returns silently
      * then, and a true would be published as an invocation of something that did nothing.
      */

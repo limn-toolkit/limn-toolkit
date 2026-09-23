@@ -10,7 +10,7 @@ import limn.scene.layout.Flex;
  * A caption beside a control, with the caption declared as the control's label.
  *
  * <p>This is the one idiom the accessibility gallery exists to show, because a caption that merely
- * sits above or below a field names nothing (ADR 039 §1.7): a reader reaching the field hears
+ * sits above or below a field names nothing: a reader reaching the field hears
  * "text field" and nothing else. Four scenes of this demo had a caption helper of their own, and
  * none of the four declared the relation, which is exactly the defect the gallery describes.
  * Every caption in the demo now goes through here, and every one names what it captions.
@@ -46,7 +46,7 @@ public final class Labelled {
 
     /**
      * A caption above a control, in the language the scene is built in: what the accessibility
-     * gallery's reader entries caption themselves with (decision 68).
+     * gallery's reader entries caption themselves with.
      *
      * @param caption the text
      * @param control what it names, and what is placed

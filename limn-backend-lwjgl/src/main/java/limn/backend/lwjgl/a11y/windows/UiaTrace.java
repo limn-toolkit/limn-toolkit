@@ -21,11 +21,11 @@ import java.util.function.Consumer;
  *
  * <p>The 2026-09-16 Windows reading (readings/phase5-windows/summary.md) could not tell, from the
  * application's side, why NVDA heard a Limn widget in one run of fourteen while a plain UI
- * Automation client heard every one of them. Three facts were out of reach and each is a line
- * here: <b>the {@code HRESULT}</b> of a raise, which the bridge discarded — "the HRESULT of the
- * raise is not reachable: the Windows bridge has no trace switch"; <b>whether a client's process
- * reaches the provider at all</b>, which only an inbound trace can say; and <b>what a client
- * subscribed to</b>, which {@code AdviseEventAdded} knows and nothing wrote down.
+ * Automation client heard every one of them. Three facts were out of reach and each is a line here:
+ * <b>the {@code HRESULT}</b> of a raise, which the bridge discarded — "the HRESULT of the raise is
+ * not reachable: the Windows bridge has no trace switch"; <b>whether a client's process reaches the
+ * provider at all</b>, which only an inbound trace can say; and <b>what a client subscribed to</b>,
+ * which {@code AdviseEventAdded} knows and nothing wrote down.
  *
  * <p><b>Nothing listens by default, and then nothing is built.</b> The sink is read once per site
  * and every line is formatted only behind {@link #on()}, as the Linux bridge's {@code AtspiTrace}
@@ -66,12 +66,12 @@ import java.util.function.Consumer;
  * moment, which is what aligns this file with a screen reader's own log. The in-process sink gets
  * the line without the stamp, because that is the form this bridge's tests have always read.
  *
- * <p><b>The microseconds a {@code NOTE} reports for a raise</b> — {@code raised FOCUS_CHANGED for
- * node 1001 in 2314 us} — are measured around the platform call alone and exclude everything this
- * class then spends writing the lines beside them. ADR 039 §13.28's figure for how long a raise
- * waits for a reader's handler (2.5 ms median, one of 50 ms) is read off those notes, and one
- * flushed line to a file on the guest is of the same order as the number; an instrument that
- * inflates the measurement it is read beside would be worse than none.
+ * <p><b>The microseconds a {@code NOTE} reports for a raise</b> —
+ * {@code raised FOCUS_CHANGED for node 1001 in 2314 us} — are measured around the platform call
+ * alone and exclude everything this class then spends writing the lines beside them. The measured
+ * figure for how long a raise waits for a reader's handler (2.5 ms median, one of 50 ms) is read
+ * off those notes, and one flushed line to a file on the guest is of the same order as the number;
+ * an instrument that inflates the measurement it is read beside would be worse than none.
  *
  * <p>Strings a line repeats — a node's name, a property's answer — are cut to
  * {@value #STRING_LIMIT} characters. They are the values the provider itself would hand a client,
@@ -119,13 +119,13 @@ final class UiaTrace {
      * Whether a client's read of one node should say so.
      *
      * <p><b>The volume and the decisions are separate switches.</b> An NVDA read of one node is
-     * dozens of {@code GetPropertyValue} calls, each a flushed line through one
-     * {@code PrintWriter} whose {@code println} is synchronized — so with the whole inbound half
-     * on, the drain thread's {@code RAISE} waits for the RPC threads' disk writes, and the
-     * scheduling of the very thread the 1-in-14 race turns on is perturbed by the instrument
-     * (2026-09-16 review). {@code -Dlimn.a11y.uia.trace.inbound=decisions} keeps the lines that
-     * decide something — what a client subscribed to, what it asked the window for, what it acted
-     * on, and <b>every failing return</b> — and drops the per-node reads.
+     * dozens of {@code GetPropertyValue} calls, each a flushed line through one {@code PrintWriter}
+     * whose {@code println} is synchronized — so with the whole inbound half on, the drain thread's
+     * {@code RAISE} waits for the RPC threads' disk writes, and the scheduling of the very thread
+     * the 1-in-14 race turns on is perturbed by the instrument.
+     * {@code -Dlimn.a11y.uia.trace.inbound=decisions} keeps the lines that decide something — what
+     * a client subscribed to, what it asked the window for, what it acted on, and <b>every failing
+     * return</b> — and drops the per-node reads.
      *
      * <p><b>The default is everything</b>, which is not what the review proposed (it proposed
      * advise-only) and is a judgement to be overruled if the owner disagrees: the first question

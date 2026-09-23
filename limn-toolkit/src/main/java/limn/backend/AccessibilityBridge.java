@@ -83,14 +83,14 @@ public interface AccessibilityBridge {
      * arrive after that first publish (it did in two runs, ~200 ms late, and in two more the reader
      * simply never asked twice). One {@code 0} answer before the first real one and the reader
      * speaks; two and it is silent, in ten runs out of ten
-     * (`.claude/pending/2026-09-13/readings/phase5-windows-diagnosis/evidence-table.txt`).
+     * (readings/phase5-windows-diagnosis/evidence-table.txt).
      *
      * <p><b>What it is owed is the window node alone, and not the scene.</b> No layout has run at a
-     * bind, so every widget is a zero-size rectangle at the origin and a tree of those is worse than
-     * none — it reads perfectly and hit-tests nowhere (ADR 039 §5.2, and §2.2 for the platform that
-     * measured it). The window's role, its title and the size it already has are true at that
-     * instant, and the identifier they are published under is the one every later walk reuses, so
-     * the element a client subscribes to here is the element the contents arrive under.
+     * bind, so every widget is a zero-size rectangle at the origin and a tree of those is worse
+     * than none — it reads perfectly and hit-tests nowhere. The window's role, its title and the
+     * size it already has are true at that instant, and the identifier they are published under is
+     * the one every later walk reuses, so the element a client subscribes to here is the element
+     * the contents arrive under.
      *
      * @return whether this bridge is owed the window's own node the moment a scene binds
      */
@@ -137,19 +137,19 @@ public interface AccessibilityBridge {
      * <p><b>It is the one moment a bridge that posts on the user-interface thread can post.</b>
      * A queue drained at the top of the next publish instead holds every event of a change until
      * the tree changes again: on a still window the last thing that happened is never told at all,
-     * and everything else is told one change late, about a tree that has already moved on
-     * (MACOS-NEW-8). The obligations a reentrant publish deferred are owed here too, because the
-     * frame that reentrant publish asked for need not publish anything.
+     * and everything else is told one change late, about a tree that has already moved on. The
+     * obligations a reentrant publish deferred are owed here too, because the frame that
+     * reentrant publish asked for need not publish anything.
      *
      * <p>Never called from inside a reentrant publish, nor from anywhere the platform is on the
      * stack: it runs at the end of the frame step, where the ordinary publish runs.
      *
-     * <p><b>It is also the publish boundary a bridge that raises elsewhere reads</b> (amended
-     * 2026-09-16): a bridge draining on a thread of its own cannot see where one frame's events
-     * end and the next frame's begin, and the order it owes an assistive technology after a
-     * collapse — the shape of the tree first, then where the user is — is exactly that boundary.
-     * Such a bridge hands the marker to its own thread rather than acting here. The no-op default
-     * is for a bridge with neither obligation.
+     * <p><b>It is also the publish boundary a bridge that raises elsewhere reads</b>: a bridge
+     * draining on a thread of its own cannot see where one frame's events end and the next frame's
+     * begin, and the order it owes an assistive technology after a collapse — the shape of the tree
+     * first, then where the user is — is exactly that boundary. Such a bridge hands the marker to
+     * its own thread rather than acting here. The no-op default is for a bridge with neither
+     * obligation.
      */
     default void frameEnded() {
     }

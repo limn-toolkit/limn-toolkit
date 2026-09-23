@@ -599,7 +599,7 @@ public final class ComboBox extends Widget<ComboBox> {
      * Whether an option of the open list can be chosen or walked onto right now: the list is open
      * and not fading out, and the combo is enabled. The one condition the panel's describe hook
      * publishes {@code SELECT}, {@code PRESS} and {@code FOCUS} on and its action hook performs
-     * them on (2026-09-15, semantics 5).
+     * them on.
      */
     private boolean optionsOperable() {
         return open && isEnabled();
@@ -999,15 +999,14 @@ public final class ComboBox extends Widget<ComboBox> {
      * Opens the list, closes it, or picks an item, each through the path the user's own gesture
      * takes.
      *
-     * <p>No enabled check of its own, unlike the panel's: the node acted on here is this widget,
-     * so the scene's own gate has already walked this field and every ancestor for
+     * <p>No enabled check of its own, unlike the panel's: the node acted on here is this widget, so
+     * the scene's own gate has already walked this field and every ancestor for
      * {@code isEnabled()}, checked that it is showing, that the window is not modal-blocked and
      * that it is inside the layer that owns input. That last test is why a
      * {@link Accessible.Action#COLLAPSE} sent to an open in-scene list does nothing, and why the
-     * walk does not publish one there (ADR 039 §1.13, amended 2026-09-15): the list's own
-     * overlay is that layer, the field is behind it, and the dismissal that lands there is the
-     * overlay's {@code CANCEL} — the same asymmetry the keyboard has, where Esc is delivered to
-     * the overlay and handed back here.
+     * walk does not publish one there: the list's own overlay is that layer, the field is behind
+     * it, and the dismissal that lands there is the overlay's {@code CANCEL} — the same asymmetry
+     * the keyboard has, where Esc is delivered to the overlay and handed back here.
      *
      * @param action what is being asked
      * @param arg    the item to select for {@code SET_VALUE}, by number or by text
@@ -1022,7 +1021,7 @@ public final class ComboBox extends Widget<ComboBox> {
     }
 
     /**
-     * The field's mechanisms as the popup-owner shape drives them (ADR 045 §3): EXPAND on a
+     * The field's mechanisms as the popup-owner shape drives them: EXPAND on a
      * closed list opens it and COLLAPSE on an open one closes it, each through the path the
      * user's own gesture takes; the other state refuses, because nothing was done and saying
      * otherwise is a lie.
@@ -1705,13 +1704,13 @@ public final class ComboBox extends Widget<ComboBox> {
          * highlight onto it, through the path the arrow keys take.
          *
          * <p>All three verbs are refused, and none of them published, while
-         * {@code optionsOperable()} is false (2026-09-15, semantics 5): through the list's
-         * fade-out the three were published and {@code FOCUS} was refused here while
-         * {@code SELECT} and {@code PRESS} were answered {@code true} for a commit that its own
-         * guard dropped. {@code commit} keeps that guard for the pointer, clamps the index,
-         * closes the list and notifies the application only when the selection actually moved —
-         * so re-picking what is already selected says nothing here either, which is the rule the
-         * pointer already obeys. Nothing gains a public entry point for this.
+         * {@code optionsOperable()} is false: until 2026-09-15, through the list's fade-out the
+         * three were published and {@code FOCUS} was refused here while {@code SELECT} and
+         * {@code PRESS} were answered {@code true} for a commit that its own guard dropped.
+         * {@code commit} keeps that guard for the pointer, clamps the index, closes the list and
+         * notifies the application only when the selection actually moved — so re-picking what is
+         * already selected says nothing here either, which is the rule the pointer already obeys.
+         * Nothing gains a public entry point for this.
          *
          * <p>The enabled half is load-bearing in a window of its own: the scene's gate walks the
          * owner's ancestors, and there the panel's chain is the panel alone, with the combo in

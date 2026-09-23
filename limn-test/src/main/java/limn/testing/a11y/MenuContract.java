@@ -20,18 +20,17 @@ import java.util.Set;
 
 /**
  * What every widget of the {@code MENU} shape owes a reader, as named cases over a
- * {@link MenuSubject} (ADR 045 §4; decision 98, 2026-09-22): a menu bar and a popup menu under
- * the same rules, which until this were tested in each widget's own file.
+ * {@link MenuSubject}: a menu bar and a popup menu under the same rules, which until this were
+ * tested in each widget's own file.
  * <ul>
  *   <li>the rows are the members of one selection, named in order, and classify as
  *       {@code MENU};</li>
  *   <li>the four invariants hold, unfocused and focused;</li>
- *   <li><b>decision 11</b> — {@code FOCUS} moves the highlight onto a row and chooses nothing
- *       and opens nothing; a disabled row offers it not;</li>
- *   <li><b>decision 2</b> — a row with something to open offers {@code SHOW_MENU} and
- *       {@code EXPAND} while closed and {@code COLLAPSE} alone while open, each verb doing what
- *       it says and the other refused by state; a row with nothing to open offers none of the
- *       three;</li>
+ *   <li>{@code FOCUS} moves the highlight onto a row and chooses nothing and opens nothing; a
+ *       disabled row offers it not;</li>
+ *   <li>a row with something to open offers {@code SHOW_MENU} and {@code EXPAND} while closed and
+ *       {@code COLLAPSE} alone while open, each verb doing what it says and the other refused by
+ *       state; a row with nothing to open offers none of the three;</li>
  *   <li>{@code PRESS} chooses a command row and {@code TOGGLE} flips a check row, which takes
  *       {@code PRESS} too; a title, a submenu and an empty one take neither;</li>
  *   <li>a row's verbs are the menu verb set and nothing else, and a disabled row carries
@@ -39,8 +38,7 @@ import java.util.Set;
  *   <li>a row keeps its id while the highlight moves.</li>
  * </ul>
  * A refusal is read as an effect: the scene's {@code perform} answers true whenever the node
- * exists (ADR 039 §1.9), so what the contract checks after a refused verb is that nothing
- * changed.
+ * exists, so what the contract checks after a refused verb is that nothing changed.
  */
 public final class MenuContract {
 

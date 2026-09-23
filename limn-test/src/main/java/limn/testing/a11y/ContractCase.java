@@ -3,7 +3,7 @@ package limn.testing.a11y;
 import java.util.Objects;
 
 /**
- * One named check of a per-shape contract (ADR 045 §4): a rule the shape holds every widget of
+ * One named check of a per-shape contract: a rule the shape holds every widget of
  * that shape to, with the decision it comes from in its name, run over a fresh widget each time.
  * The fixtures know nothing of a test framework, so a case is a name and a body that throws
  * {@link AssertionError} with the tree in the message; a test turns a list of cases into its

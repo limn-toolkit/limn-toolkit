@@ -52,7 +52,7 @@ final class UiaVariant {
      * against {@code VARIANT_TRUE} reads it as false. Every boolean <em>property</em> this bridge
      * answers goes through here for that reason -- and only a property: a pattern getter declared
      * {@code BOOL*} takes four bytes and a true of {@code 1} ({@link UiaIds#BOOL_TRUE}), which is
-     * where this constant was wrongly written until 2026-09-15 (WINDOWS-NEW-11).
+     * where this constant was wrongly written until 2026-09-15.
      */
     static final short TRUE = -1;
 

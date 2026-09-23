@@ -270,7 +270,7 @@ public final class LwjglBackend implements Backend {
      * spins at 100% of a core, inside {@code glfwCreateWindow} or inside {@code glfwShowWindow} if
      * the window was created hidden — the map is what it waits on, wherever that happens.
      *
-     * <p><b>What the old preference bought is already handled elsewhere.</b> ADR 028 decided, and
+     * <p><b>What the old preference bought is already handled elsewhere.</b> It was decided, and
      * implemented, that a popup on a platform with no absolute positioning is drawn inside the
      * window that owns it, which is what {@code NativeWindow#supportsAbsolutePositioning()} is for.
      * So the trade was a graceful degradation against an application that does not start, and it
@@ -536,7 +536,7 @@ public final class LwjglBackend implements Backend {
      * {@inheritDoc}
      *
      * <p>Handed to every window's accessibility bridge as it opens, and to the process's AT-SPI
-     * application at once when windows already have one (decision 56).
+     * application at once when windows already have one.
      */
     @Override
     public void setApplicationName(String name) {
@@ -550,8 +550,8 @@ public final class LwjglBackend implements Backend {
     }
 
     /**
-     * The rule decision 56 settled, apart from any window: the name an application was given,
-     * otherwise its first window's title, otherwise nothing.
+     * The rule for naming the application, apart from any window: the name an application was
+     * given, otherwise its first window's title, otherwise nothing.
      *
      * @param given            the name set, or null
      * @param firstWindowTitle the first window's title, or null before any window
@@ -598,7 +598,7 @@ public final class LwjglBackend implements Backend {
     /** How often the loop looks again at a covered window with a frame waiting. */
     private static final long COVERED_RECHECK_NANOS = 250_000_000L;
 
-    /** Holds the loop to the refresh rate when the vsynced swap does not block (decision 113). */
+    /** Holds the loop to the refresh rate when the vsynced swap does not block. */
     private final FramePacer pacer = FramePacer.real(0);
 
     @Override

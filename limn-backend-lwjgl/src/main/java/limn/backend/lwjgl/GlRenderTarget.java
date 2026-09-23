@@ -159,7 +159,7 @@ final class GlRenderTarget implements RenderTarget {
      * Allocates the half-res ping-pong pair on first bloomy frame (leaves the
      * FRAMEBUFFER binding changed; the bloom chain binds its own next).
      * Half-res RGBA16F like the main texture: the chain carries premultiplied
-     * linear scene-referred RGBA, alpha included (ADR 005 finding 3).
+     * linear scene-referred RGBA, alpha included.
      */
     void ensureBloomTargets() {
         if (bloomFboA != 0) {

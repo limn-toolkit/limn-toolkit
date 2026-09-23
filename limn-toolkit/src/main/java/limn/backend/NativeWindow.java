@@ -76,7 +76,7 @@ public interface NativeWindow extends AutoCloseable {
      * {@link #requestClose()}, which (like every programmatic close) bypasses
      * the handler. {@code null} clears. UI thread only.
      *
-     * <p>No default (ADR 046 §5): a backend that ignored it lost an application's "unsaved changes"
+     * <p>No default: a backend that ignored it lost an application's "unsaved changes"
      * veto silently. A backend with no close gesture of its own (headless, embedded) keeps the
      * handler and never calls it, and says so in its implementation.
      */
@@ -114,7 +114,7 @@ public interface NativeWindow extends AutoCloseable {
      * scene turns it on while a text-editing widget holds focus and off
      * otherwise, so composition keys never leak into non-text UI. UI thread only.
      *
-     * <p>No default (ADR 046 §5), nor for the two IME methods below: a backend that ignored them
+     * <p>No default, nor for the two IME methods below: a backend that ignored them
      * broke Chinese, Japanese and Korean input without a word. A backend with no input method
      * (headless) implements them as no-ops, on purpose and in writing.
      */
@@ -273,7 +273,7 @@ public interface NativeWindow extends AutoCloseable {
      * check. It has no position to agree with, so letting the desktop place it is the right
      * outcome rather than a fallback.
      *
-     * <p>No default (ADR 046 §5). It answered {@code true} until 2026-09-22, which is the unsafe
+     * <p>No default. It answered {@code true} until 2026-09-22, which is the unsafe
      * answer: a backend that said nothing claimed a power Wayland does not have, and a popup that
      * trusted it opened wherever the compositor put it. Absolute window position is absent from
      * that protocol by design, so a backend has to say.

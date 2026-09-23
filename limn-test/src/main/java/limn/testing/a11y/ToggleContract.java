@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * What every widget of the {@code TOGGLE} shape owes a reader, as named cases over a
- * {@link ToggleSubject} (ADR 045 §4): the facet is the API's state and the verb is offered
+ * {@link ToggleSubject}: the facet is the API's state and the verb is offered
  * exactly where the flip is; {@code TOGGLE} flips it, heard once by the widget's own listener
  * and announced, where announced, from the user, and flips it back; a disabled toggle withdraws
  * the verb and moves for nothing; and the node keeps its id as it flips. A refusal is read as

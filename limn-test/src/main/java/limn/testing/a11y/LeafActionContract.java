@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * What every widget of the {@code LEAF_ACTION} shape owes a reader, as named cases over a
- * {@link LeafActionSubject} (ADR 045 §4): it is a leaf that offers {@code PRESS}; the verb
+ * {@link LeafActionSubject}: it is a leaf that offers {@code PRESS}; the verb
  * reaches the widget's own handler exactly once; a disabled leaf withdraws the verb and a press
  * reaches nothing; and the node keeps its id across a press. A refusal is read as an effect
  * (see {@link ValueContract}).

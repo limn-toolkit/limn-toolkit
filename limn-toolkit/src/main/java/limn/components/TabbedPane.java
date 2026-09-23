@@ -847,7 +847,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
      */
     private final class TabStrip extends Widget<TabStrip> implements Scrollable {
 
-        /** A header joins the strip; the pane owns the strip's children (ADR 046 §3). */
+        /** A header joins the strip; the pane owns the strip's children. */
         void addHeader(Widget<?> header) {
             add(header);
         }

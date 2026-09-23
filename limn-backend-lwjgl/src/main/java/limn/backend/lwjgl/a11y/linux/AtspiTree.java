@@ -25,13 +25,13 @@ import java.util.function.Supplier;
  * user-interface thread replaces with one volatile write.
  *
  * <p><b>The application object is ours and the windows are the trees'.</b> AT-SPI expects one
- * application at the root of what a connection exports, with its windows beneath it as frames
- * (ADR 039 §2.3); the toolkit publishes a window node per scene and knows nothing of applications.
- * So the root path answers for a synthetic application whose children are the node zero of every
- * window that has published one, in the order the windows joined, and every other path is a node
- * id. Ids are process-wide (§1.3), so a path names one node in one window, a relation may name a
- * node in another — a native popup's root names the field that opened it — and the path a client
- * is holding stays the path of the thing it was holding.
+ * application at the root of what a connection exports, with its windows beneath it as frames; the
+ * toolkit publishes a window node per scene and knows nothing of applications. So the root path
+ * answers for a synthetic application whose children are the node zero of every window that has
+ * published one, in the order the windows joined, and every other path is a node id. Ids are
+ * process-wide, so a path names one node in one window, a relation may name a node in another — a
+ * native popup's root names the field that opened it — and the path a client is holding stays the
+ * path of the thing it was holding.
  */
 final class AtspiTree {
 
@@ -279,13 +279,13 @@ final class AtspiTree {
      * {@code DEFUNCT} alone, and everything else is declined as before.
      *
      * <p>A node leaves with a {@code ChildrenChanged remove} from its parent, a
-     * {@code Cache.RemoveAccessible} and a {@code StateChanged defunct} from its own path
-     * (LINUX-NEW-1), but a client may still hold the reference and ask. GTK 4.22.4 marks a context
-     * defunct before it unregisters it; Orca 50.2 ignores an event whose source has
-     * {@code DEFUNCT} or whose name cannot be read ({@code _handle_early_event_processing},
-     * {@code is_dead}: readings/fedora-orca-dead-object.txt). Declining the name keeps the second
-     * test true; answering the state makes the first true for a client that asks it. Only a path
-     * that parses as a node id: anything else was never ours.
+     * {@code Cache.RemoveAccessible} and a {@code StateChanged defunct} from its own path, but a
+     * client may still hold the reference and ask. GTK 4.22.4 marks a context defunct before it
+     * unregisters it; Orca 50.2 ignores an event whose source has {@code DEFUNCT} or whose name
+     * cannot be read ({@code _handle_early_event_processing}, {@code is_dead}:
+     * readings/fedora-orca-dead-object.txt). Declining the name keeps the second test true;
+     * answering the state makes the first true for a client that asks it. Only a path that parses
+     * as a node id: anything else was never ours.
      */
     private static DBus.Msg departed(DBus.Msg m, String iface) {
         if (m.path == null || !m.path.startsWith(NODE_PREFIX) || !Atspi.I_ACCESSIBLE.equals(iface)
@@ -302,7 +302,7 @@ final class AtspiTree {
 
     /**
      * {@code org.freedesktop.DBus.Introspectable.Introspect} on any path this application exports,
-     * synthesised from what the path serves (LINUX-NEW-5; ADR 039 §2.3).
+     * synthesised from what the path serves.
      *
      * <p>Not read by libatspi or Orca, and what {@code busctl tree}, {@code gdbus introspect} and
      * d-feet walk: a bridge that cannot be browsed is much harder to debug. Every intermediate path
@@ -468,11 +468,11 @@ final class AtspiTree {
      * published. The application object has no geometry of its own, and the first window is what a
      * walk from it goes into.
      *
-     * <p><b>Serving {@code Component} here at all is a choice against both toolkits, and this is the
-     * reasoning</b> (ADR 039 §12.3's rule for a fact two servers answer differently; the phase-3
-     * critic's list, where this was the sixth site). Read on the Fedora KDE 44 guest, 2026-09-15:
-     * GTK 3.24.52 through at-spi2-atk 2.60.6 answers {@code GetExtents}, {@code GetPosition} and
-     * {@code GetSize} on {@code /org/a11y/atspi/accessible/root} with
+     * <p><b>Serving {@code Component} here at all is a choice against both toolkits, and this is
+     * the reasoning</b>, written down because the two toolkits answer it differently. Read on the
+     * Fedora KDE 44 guest, 2026-09-15: GTK 3.24.52 through at-spi2-atk 2.60.6 answers
+     * {@code GetExtents}, {@code GetPosition} and {@code GetSize} on
+     * {@code /org/a11y/atspi/accessible/root} with
      * {@code org.freedesktop.DBus.Error.UnknownMethod}, its own bridge logging
      * {@code impl_GetExtents: assertion 'ATK_IS_COMPONENT (user_data) ' failed} as it does
      * (readings/fedora-gtk3-interface-replies.txt lines 3-9 and 33-36); GTK 4.22.4 answers
@@ -597,19 +597,19 @@ final class AtspiTree {
      * readings/upstream-at-spi2-core-2.60.6-libatspi-interfaces.txt).
      *
      * <p>Posted as {@code SET_VALUE} with the number only where the node accepts it now — a
-     * writable facet on an {@code ENABLED} node (semantics 5 as amended 2026-09-15) — and refused
-     * with {@code org.freedesktop.DBus.Error.Failed} otherwise. That refusal is this bridge's
-     * choice and not a toolkit's: on the Fedora guest GTK 3's ATK bridge and GTK 4.22.4 both answer
-     * success to a {@code CurrentValue} write on an insensitive spin button and on a level bar, the
-     * level bar keeping its number under GTK 4 (readings/fedora-gtk3-interface-replies.txt,
+     * writable facet on an {@code ENABLED} node — and refused with
+     * {@code org.freedesktop.DBus.Error.Failed} otherwise. That refusal is this bridge's choice and
+     * not a toolkit's: on the Fedora guest GTK 3's ATK bridge and GTK 4.22.4 both answer success to
+     * a {@code CurrentValue} write on an insensitive spin button and on a level bar, the level bar
+     * keeping its number under GTK 4 (readings/fedora-gtk3-interface-replies.txt,
      * fedora-gtk4-interface-replies.txt, section 5, 2026-09-15) — the silent success that would
      * have a caller believe a read-only progress bar took the number. {@code Failed} is the name,
      * and not {@code PropertyReadOnly}: the XML this bridge serves declares {@code CurrentValue}
      * writable and it is, on the nodes that accept it — what this node cannot do is take it now,
-     * which is a state of the object and not a property of the interface. Another property of Value,
-     * all read-only in the installed XML, is answered {@code PropertyReadOnly} as the ATK bridge
-     * answers it; a name Value does not have, or a {@code CurrentValue} that is not a number,
-     * {@code InvalidArgs}, as {@code Get} answers a name it does not have.
+     * which is a state of the object and not a property of the interface. Another property of
+     * Value, all read-only in the installed XML, is answered {@code PropertyReadOnly} as the ATK
+     * bridge answers it; a name Value does not have, or a {@code CurrentValue} that is not a
+     * number, {@code InvalidArgs}, as {@code Get} answers a name it does not have.
      */
     private DBus.Msg setValue(DBus.Msg m, Located at) {
         String property = m.body.length > 1 ? String.valueOf(m.body[1]) : "";
@@ -796,9 +796,8 @@ final class AtspiTree {
 
     /**
      * A node's object attributes: {@code toolkit}, where the facets carry them a row's
-     * {@code level}, {@code posinset} and {@code setsize} (L5; decision 4, semantics 6, settled
-     * linux-level-carrier), and on a sorted column's header cell the direction its rows run in
-     * ({@code sort}; decision 36).
+     * {@code level}, {@code posinset} and {@code setsize}, and on a sorted column's header cell the
+     * direction its rows run in ({@code sort}).
      *
      * <p>Orca 50.2 reads a tree item's level from the attribute {@code level} (one-based) before
      * any relation, and a member's position and set size from {@code posinset} and {@code setsize}
@@ -806,10 +805,10 @@ final class AtspiTree {
      * {@code setsize} on its list rows the same way (readings/fedora-gtk4-column-sort.txt). The
      * numbers are the model's, passed through: the level is {@code HierarchyFacet}'s, one-based as
      * the model counts it; the position and the size are {@code SelectionItemFacet}'s, the single
-     * source of the spoken "n of m" (siblings for a tree item, the month's days for a calendar day).
-     * A zero is "no number" and publishes nothing — never "0 of 0" (semantics 6). Nothing announces
-     * a change to them (decision 43): Orca 50.2's {@code object:attributes-changed} handler only
-     * clears its cache (readings/fedora-orca-interface-calls.txt).
+     * source of the spoken "n of m" (siblings for a tree item, the month's days for a calendar
+     * day). A zero is "no number" and publishes nothing — never "0 of 0". Nothing announces a
+     * change to them: Orca 50.2's {@code object:attributes-changed} handler only clears its cache
+     * (readings/fedora-orca-interface-calls.txt).
      *
      * <p>Orca 50.2 reads a sorted column's direction from the object attribute {@code sort}, and
      * only on a node {@code AXUtilitiesRole.is_table_header} accepts: {@code none} or the key's
@@ -868,7 +867,7 @@ final class AtspiTree {
      * <p>A target may live in another window of this process: a native popup's root is
      * {@code POPUP_FOR} the field that opened it, which its owner's scene published. Every window
      * is a frame of the one application object here, so that target is an ordinary reference on
-     * this connection and is named as one (ADR 039 §1.11, §2.3).
+     * this connection and is named as one.
      */
     private List<Object> relationSetOf(AccessibleNode node) {
         List<Object> out = new ArrayList<>();
@@ -900,8 +899,7 @@ final class AtspiTree {
     }
 
     /**
-     * The platform's state set, less the expand axis on a menu row: the first declared exception
-     * (decision 72 of 2026-09-16, built 2026-09-17 under decision 82; ADR 039 §4.2 and §2.3).
+     * The platform's state set, less the expand axis on a menu row: the first declared exception.
      *
      * <p>The model goes on publishing {@code EXPANDABLE} for every node that carries an expand
      * facet, because that is a fact about the widget. What this bridge does not put on the bus,
@@ -1025,7 +1023,7 @@ final class AtspiTree {
 
     /**
      * The deepest node below {@code node} whose box holds a point, from the snapshot's boxes
-     * (LINUX-NEW-5; ADR 039 §2.3: a bounds walk over the snapshot, not {@code Widget#hitTest}).
+     * (a bounds walk over the snapshot, not {@code Widget#hitTest}).
      *
      * <p>Children are tried last first, because a later sibling is drawn over an earlier one, and
      * only a node that is {@code SHOWING} is a hit: a kept cursor row or a column scrolled away has
@@ -1141,14 +1139,14 @@ final class AtspiTree {
     // ------------------------------------------------------------------ org.a11y.atspi.Text
 
     /**
-     * The text interface over a node's text or its value's display form (LINUX-NEW-4; settled
-     * linux-value-text), in characters; {@link AtspiText} holds the arithmetic.
+     * The text interface over a node's text or its value's display form, in characters;
+     * {@link AtspiText} holds the arithmetic.
      *
      * <p>Every method Orca 50.2 calls is answered except the geometry ones
      * (readings/fedora-orca-interface-calls.txt): {@code GetCharacterExtents},
      * {@code GetRangeExtents}, {@code GetOffsetAtPoint} and {@code GetBoundedRanges} are declined,
-     * because no facet carries a range's rectangle (ADR 039 §11), and {@code ScrollSubstringTo}
-     * answers false. Attributes are none, over the whole text. The writes post, through
+     * because no facet carries a range's rectangle, and {@code ScrollSubstringTo} answers false.
+     * Attributes are none, over the whole text. The writes post, through
      * {@link AccessibleNode#accepts}, {@code SET_CARET} for {@code SetCaretOffset} and
      * {@code SET_SELECTION} for the selection methods, each with its offsets back in UTF-16 units;
      * the model holds one selection, so {@code AddSelection} is refused while one stands and a
@@ -1249,10 +1247,10 @@ final class AtspiTree {
     // ------------------------------------------------------------------ org.a11y.atspi.EditableText
 
     /**
-     * Whether a node serves {@code EditableText}: a text the widget publishes {@code EDITABLE}
-     * (settled linux-value-text). A field that is only disabled keeps {@code EDITABLE} and so keeps
-     * the interface, as it keeps its role; it is the writes that {@link AccessibleNode#accepts}
-     * refuses there (ADR 039 §1.2: enabled and read-only are never conflated).
+     * Whether a node serves {@code EditableText}: a text the widget publishes {@code EDITABLE}. A
+     * field that is only disabled keeps {@code EDITABLE} and so keeps the interface, as it keeps
+     * its role; it is the writes that {@link AccessibleNode#accepts} refuses there (enabled and
+     * read-only are never conflated).
      */
     private static boolean isEditableText(AccessibleNode node) {
         return node.text() != null && node.has(Accessible.State.EDITABLE);
@@ -1260,17 +1258,17 @@ final class AtspiTree {
 
     /**
      * The editable-text interface: every write is one {@code SET_TEXT} carrying the whole new
-     * string, built here from the published text, which is the only text verb the model has
-     * (LINUX-NEW-4).
+     * string, built here from the published text, which is the only text verb the model has.
      *
      * <p>{@code SetTextContents} replaces it; {@code InsertText} inserts at a character offset the
-     * whole characters of what it is given whose UTF-8 encoding fits in {@code length} bytes, or all
-     * of it when {@code length} is negative — the unit GTK 3's ATK bridge reads on the Fedora guest
-     * ({@code InsertText(1, "é😀x", n)} into "ab" leaves "ab" for 1, "aéb" for 2 and 3, "aé😀b"
-     * for 6, and all of it for 7 and for -1; readings/fedora-gtk3-interface-replies.txt, 2026-09-15),
-     * whose XML this bridge serves; GTK 4.22.4 ignores the length and inserts everything
-     * (readings/fedora-gtk4-interface-replies.txt); {@code DeleteText} removes a character range. A masked field publishes its mask and not its text ({@code TextFacet}), so an
-     * insertion or deletion built on it would write the mask back: both are refused on a
+     * whole characters of what it is given whose UTF-8 encoding fits in {@code length} bytes, or
+     * all of it when {@code length} is negative — the unit GTK 3's ATK bridge reads on the Fedora
+     * guest ({@code InsertText(1, "é😀x", n)} into "ab" leaves "ab" for 1, "aéb" for 2 and 3, "aé😀b"
+     * for 6, and all of it for 7 and for -1; readings/fedora-gtk3-interface-replies.txt,
+     * 2026-09-15), whose XML this bridge serves; GTK 4.22.4 ignores the length and inserts
+     * everything (readings/fedora-gtk4-interface-replies.txt); {@code DeleteText} removes a
+     * character range. A masked field publishes its mask and not its text ({@code TextFacet}), so
+     * an insertion or deletion built on it would write the mask back: both are refused on a
      * {@code PASSWORD} node, where only a whole replacement means what the client asked. The
      * clipboard is not the bridge's: {@code CutText} and {@code PasteText} answer false and
      * {@code CopyText}, which has no reply value, does nothing. Every write goes through
@@ -1342,8 +1340,7 @@ final class AtspiTree {
     // ------------------------------------------------------------------ org.a11y.atspi.Selection
 
     /**
-     * The selection interface over a node with a {@code SelectionFacet} (L2; semantics 1 of the
-     * 2026-09-13 pass, and the settled atspi-selection-membership).
+     * The selection interface over a node with a {@code SelectionFacet}.
      *
      * <p><b>Two indices, as the installed XML names them.</b> A method whose argument is
      * {@code selectedChildIndex} ({@code GetSelectedChild}, {@code DeselectSelectedChild}) counts
@@ -1356,7 +1353,7 @@ final class AtspiTree {
      * calls only the first two (readings/fedora-orca-interface-calls.txt). A member scrolled away
      * has no node and is not counted: the same degradation {@code GetAccessibleAt} accepts.
      *
-     * <p>Writes post the first verb of their candidate list the node accepts (semantics 5):
+     * <p>Writes post the first verb of their candidate list the node accepts:
      * {@code SelectChild} [ADD_TO_SELECTION, SELECT], {@code DeselectChild} and
      * {@code DeselectSelectedChild} [DESELECT]. {@code SelectAll} and {@code ClearSelection} answer
      * false: the model has no verb for either.
@@ -1401,7 +1398,7 @@ final class AtspiTree {
         return index >= 0 && index < kids.size() ? kids.get(index) : null;
     }
 
-    /** Whether {@code member} is a selected member of {@code container} (semantics 1). */
+    /** Whether {@code member} is a selected member of {@code container}. */
     private static boolean isSelectedMemberOf(AccessibleTree tree, AccessibleNode member,
                                               AccessibleNode container) {
         int index = member.selectionContainer();
@@ -1437,18 +1434,17 @@ final class AtspiTree {
     // ------------------------------------------------------------------ org.a11y.atspi.Table
 
     /**
-     * The table interface over a node with a {@code TableFacet}; ADR 041 §7, semantics 2 and 3 of
-     * the 2026-09-13 pass.
+     * The table interface over a node with a {@code TableFacet}.
      *
-     * <p>Rows and cells are answered from what the walk published: a row the table has not
-     * realized has no node, so {@code GetAccessibleAt} on it answers the null object, which is the
-     * degradation ADR 039 §4.1 already accepts for a client that walks a long list. A cell is found
-     * by its {@code CellFacet} and a row by its cells' — never by a row's position in a selection,
-     * which a calendar's week rows do not carry (LINUX-NEW-10). Which rows are <em>selected</em> is
-     * a different question and is answered by the selection container rule (semantics 1), never by
-     * looking for direct {@code ROW} children carrying {@code SELECTED}; column headers by
-     * {@code CellFacet(-1, c)} among the table's direct group children, which a footer's row −2
-     * never matches (LINUX-NEW-11), and row headers are none.
+     * <p>Rows and cells are answered from what the walk published: a row the table has not realized
+     * has no node, so {@code GetAccessibleAt} on it answers the null object, which is the
+     * degradation already accepted for a client that walks a long list. A cell is found by its
+     * {@code CellFacet} and a row by its cells' — never by a row's position in a selection, which a
+     * calendar's week rows do not carry. Which rows are <em>selected</em> is a different question
+     * and is answered by the selection container rule, never by looking for direct {@code ROW}
+     * children carrying {@code SELECTED}; column headers by {@code CellFacet(-1, c)} among the
+     * table's direct group children, which a footer's row −2 never matches, and row headers are
+     * none.
      */
     private DBus.Msg table(DBus.Msg m, Located at) {
         AccessibleTree tree = at.tree();
@@ -1533,7 +1529,7 @@ final class AtspiTree {
         }
     }
 
-    /** The table-cell interface over a node with a {@code CellFacet}; ADR 041 §7. */
+    /** The table-cell interface over a node with a {@code CellFacet}. */
     private DBus.Msg tableCell(DBus.Msg m, Located at) {
         AccessibleTree tree = at.tree();
         AccessibleNode node = at.node();
@@ -1568,8 +1564,8 @@ final class AtspiTree {
 
     /**
      * Posts the first of {@code candidates} the node accepts now, on the host of the window that
-     * published it (semantics 5: each entry point is an ordered candidate list, and the published
-     * snapshot is the only synchronous authority, read through {@link AccessibleNode#accepts}).
+     * published it (each entry point is an ordered candidate list, and the published snapshot is
+     * the only synchronous authority, read through {@link AccessibleNode#accepts}).
      *
      * @return whether a verb was posted and the host took it; {@code false} for a missing node, a
      *         node that accepts none of them, or a window with no host
@@ -1619,9 +1615,9 @@ final class AtspiTree {
     }
 
     /**
-     * The header of column {@code column} (semantics 3): the child with {@code CellFacet(-1,
-     * column)} of one of the table's direct group children, matched by column and never by
-     * position. A footer cell (row −2) is never a header, and no such node means no header.
+     * The header of column {@code column}: the child with {@code CellFacet(-1, column)} of one of
+     * the table's direct group children, matched by column and never by position. A footer cell
+     * (row −2) is never a header, and no such node means no header.
      */
     private static AccessibleNode columnHeaderOf(AccessibleTree tree, AccessibleNode table,
                                                  int column) {
@@ -1640,7 +1636,7 @@ final class AtspiTree {
     }
 
     /**
-     * The row index a realized row stands at (semantics 2): its cells' {@code CellFacet} row, or -1
+     * The row index a realized row stands at: its cells' {@code CellFacet} row, or -1
      * when it holds no data cell of this table.
      */
     private static int rowIndexOf(AccessibleTree tree, AccessibleNode table, AccessibleNode row) {
@@ -1655,8 +1651,7 @@ final class AtspiTree {
     /**
      * The realized row shown at {@code row}, found by its cells: a {@code ROW} child of the table,
      * or — when the table's rows are not its children — the row standing at that index among the
-     * members the publish resolved to this table (semantics 1). Null when the walk has realized no
-     * such row.
+     * members the publish resolved to this table. Null when the walk has realized no such row.
      *
      * <p>The second half is what lets a selection write name a row a widget hangs under a body of
      * its own, so that {@code AddRowSelection} reaches the row {@code IsRowSelected} reports. It is
@@ -1687,9 +1682,9 @@ final class AtspiTree {
     }
 
     /**
-     * Cell ({@code row}, {@code column}) of {@code table} (semantics 2): the node whose
-     * {@code CellFacet} is that pair and whose nearest table is this one, searched under the
-     * table's row children, where a widget cell hangs under its synthetic row (decision 3).
+     * Cell ({@code row}, {@code column}) of {@code table}: the node whose {@code CellFacet} is that
+     * pair and whose nearest table is this one, searched under the table's row children, where a
+     * widget cell hangs under its synthetic row.
      */
     private static AccessibleNode cellAt(AccessibleTree tree, AccessibleNode table, int row,
                                          int column) {
@@ -1711,9 +1706,8 @@ final class AtspiTree {
     }
 
     /**
-     * The selected rows of a table (semantics 1, the orchestrator's 2026-09-16 ratification): the
-     * members the publish resolved to this table that are selected and stand at a row of it,
-     * wherever they hang.
+     * The selected rows of a table: the members the publish resolved to this table that are
+     * selected and stand at a row of it, wherever they hang.
      *
      * <p>Not its direct {@code ROW} children carrying {@code SELECTED}, which was wrong twice over.
      * A row a widget hangs under a body of its own is still this table's member — the climb passes
@@ -1724,7 +1718,7 @@ final class AtspiTree {
      * and these three were the last readers of the bit.
      *
      * <p>A selected member standing at no row of this table — a calendar's day cell, whose
-     * container is the grid (LINUX-NEW-10) — is no selected row: it has no row index to be
+     * container is the grid — is no selected row: it has no row index to be
      * reported at, and its week row is not selected.
      */
     private static List<AccessibleNode> selectedRowsOf(AccessibleTree tree, AccessibleNode table) {
@@ -1743,10 +1737,10 @@ final class AtspiTree {
      * <p>Only the ones that take no argument: AT-SPI's {@code DoAction} carries an index and
      * nothing else, so a verb that needs a value has no way to arrive through it.
      *
-     * <p>Asked of {@link AccessibleNode#accepts} rather than of the {@code ActionFacet} directly, so
-     * that the list a client reads and the list {@code DoAction} posts from are one fact
-     * (semantics 5). The two are the same today; they would not stay so if {@code accepts} gained a
-     * condition the facet does not carry.
+     * <p>Asked of {@link AccessibleNode#accepts} rather than of the {@code ActionFacet} directly,
+     * so that the list a client reads and the list {@code DoAction} posts from are one fact. The
+     * two are the same today; they would not stay so if {@code accepts} gained a condition the
+     * facet does not carry.
      */
     private static List<Accessible.Action> verbsOf(AccessibleNode node) {
         List<Accessible.Action> out = new ArrayList<>();

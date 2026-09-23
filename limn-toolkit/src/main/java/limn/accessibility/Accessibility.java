@@ -68,10 +68,10 @@ public final class Accessibility {
      * reconciling whatever it holds against the tree it was just handed — a full sweep, which is
      * stronger than replaying the events that were dropped and is the operation it needs on a
      * rebind anyway. <b>Outside the budget</b>, and handed over after the collapse as after any
-     * publish, is the reserved tail (ADR 039 §1.10, amended 2026-09-14; CRIT-3): the per-parent
-     * structure changes, the final focus change, the single cursor change, the per-container
-     * selection changes and the window activation events — the events a reader is directed by,
-     * which the kitchen dialog opening was three events short of losing.
+     * publish, is the reserved tail: the per-parent structure changes, the final focus change,
+     * the single cursor change, the per-container selection changes and the window activation
+     * events — the events a reader is directed by, which the kitchen dialog opening was three
+     * events short of losing.
      */
     public static final int EVENT_BUDGET = 256;
 
@@ -84,10 +84,9 @@ public final class Accessibility {
 
     /**
      * Interned identifiers the table starts out holding. Not a ceiling: a walk that needs more
-     * pairs than the table holds and finds none it may drop grows the table instead (ADR 039 §1.3,
-     * amended 2026-09-14), because dropping a pair a walk is about to ask for again mints it a
-     * new identifier, and that is identity churn on every frame for as long as the walk stays
-     * that large.
+     * pairs than the table holds and finds none it may drop grows the table instead, because
+     * dropping a pair a walk is about to ask for again mints it a new identifier, and that is
+     * identity churn on every frame for as long as the walk stays that large.
      */
     private static final int INTERN_CAPACITY = 4096;
 
@@ -350,20 +349,19 @@ public final class Accessibility {
     private final List<AccessibleEvent> events = new ArrayList<>();
 
     /**
-     * The per-node events of the publish in progress, which are what the budget bounds; and
-     * the reserved tail, which is what a collapse keeps (semantics 7 of the 2026-09-13 pass;
-     * ADR 039 §1.10, amended 2026-09-14): the per-parent structure changes, the final focus
-     * change, the single cursor change, the per-container selection changes and the window
-     * activation events. A bridge that swept on INVALIDATED and heard nothing else would have
-     * lost the focus that moved in the same frame as three hundred labels, which is exactly the
-     * frame in which a reader needs to be told where the user is.
+     * The per-node events of the publish in progress, which are what the budget bounds; and the
+     * reserved tail, which is what a collapse keeps: the per-parent structure changes, the final
+     * focus change, the single cursor change, the per-container selection changes and the window
+     * activation events. A bridge that swept on INVALIDATED and heard nothing else would have lost
+     * the focus that moved in the same frame as three hundred labels, which is exactly the frame in
+     * which a reader needs to be told where the user is.
      */
     private final List<AccessibleEvent> budgeted = new ArrayList<>();
     private final List<AccessibleEvent> tail = new ArrayList<>();
 
     /**
      * The node the focus arrived on in the publish in progress: a surviving node whose FOCUSED
-     * bit came on, or a node that arrived already focused (WINDOWS-NEW-12), which the old
+     * bit came on, or a node that arrived already focused, which the old
      * per-node loop skipped with the rest of a new node's bits. Zero when the focus stood.
      */
     private long focusArrived;
@@ -577,16 +575,15 @@ public final class Accessibility {
      * Sets a state on this node.
      *
      * <p>Two groups of states are <b>refused</b> here rather than stored, and refused loudly,
-     * the way {@link #action(Accessible.Action)} refuses a verb that takes an argument (ADR 039
-     * §1.2, amended 2026-09-14). The states a facet expresses — checked, mixed, expanded,
-     * expandable, selected, selectable, read-only — are derived from that facet, so one fact keeps
-     * one home:
-     * declare the facet. The five the publish step owns — enabled, visible, showing, focusable and focused —
-     * belong to the walk, because a widget's own flag answers only for itself while the tree has
-     * to agree with a keyboard whose traversal stops at the first ancestor that is hidden or
-     * disabled; a synthetic child narrows two of them through {@link #offScreen()} and
-     * {@link #disabled()}. Until this amendment such a call was dropped in silence, and a widget
-     * carried a dead line for months that no reader ever heard.
+     * the way {@link #action(Accessible.Action)} refuses a verb that takes an argument. The states
+     * a facet expresses — checked, mixed, expanded, expandable, selected, selectable, read-only —
+     * are derived from that facet, so one fact keeps one home: declare the facet. The five the
+     * publish step owns — enabled, visible, showing, focusable and focused — belong to the walk,
+     * because a widget's own flag answers only for itself while the tree has to agree with a
+     * keyboard whose traversal stops at the first ancestor that is hidden or disabled; a synthetic
+     * child narrows two of them through {@link #offScreen()} and {@link #disabled()}. Until
+     * 2026-09-14 such a call was dropped in silence, and a widget carried a dead line for months
+     * that no reader ever heard.
      *
      * @param state what to set; never {@code null}
      * @param on    whether it holds
@@ -716,7 +713,7 @@ public final class Accessibility {
 
     /**
      * Declares that this node's state is a number in a range and that it holds <b>no number
-     * right now</b>: a date segment nobody has typed into (decision 16). The range stands, the
+     * right now</b>: a date segment nobody has typed into. The range stands, the
      * {@linkplain #valueText(String, long) text} may say what is shown, and the number published
      * is the minimum, for the platforms that must have one; {@link ValueFacet#empty()} is what says
      * empty. Filling the number later is a {@link AccessibleEvent.Type#VALUE_CHANGED}, even when
@@ -771,18 +768,17 @@ public final class Accessibility {
      * only its realized rows still reports the true row count, so a user hears where they are in
      * the data.
      *
-     * <p><b>The facet's presence is what makes the node {@link Accessible.State#SELECTABLE}</b>
-     * (ADR 039 §1.2, amended 2026-09-16; P5L-1), on every node that declares it, exactly as the
-     * expand facet's presence is what makes a node {@code EXPANDABLE} (semantics 9): declaring
-     * that you are one member of a selection <em>is</em> saying you can be selected, and neither
-     * bit is a widget's to set. Until this amendment <b>nothing in either module published
-     * it</b> — an uncut grep of both mains found two hits in the whole tree, the enum constant
-     * and the AT-SPI bit it maps to — so the state never left the model. The live cost was
-     * measured on Fedora 44 and Ubuntu 24.04 on 2026-09-16: after Ctrl+A, Orca resolved all five
-     * selected rows and discarded every one of them, <i>"believed to be layout only: … is not
-     * focusable, selectable, or expandable and lacks explicit name"</i>, and said nothing at all.
-     * Linux maps the bit ({@code AtspiStates}, bit 22); Windows carries the same fact through the
-     * SelectionItem pattern and macOS through {@code AXSelected}'s settability, so neither
+     * <p><b>The facet's presence is what makes the node {@link Accessible.State#SELECTABLE}</b> on
+     * every node that declares it, exactly as the expand facet's presence is what makes a node
+     * {@code EXPANDABLE}: declaring that you are one member of a selection <em>is</em> saying you
+     * can be selected, and neither bit is a widget's to set. Until 2026-09-16 <b>nothing in either
+     * module published it</b> — an uncut grep of both mains found two hits in the whole tree, the
+     * enum constant and the AT-SPI bit it maps to — so the state never left the model. The live
+     * cost was measured on Fedora 44 and Ubuntu 24.04 on 2026-09-16: after Ctrl+A, Orca resolved
+     * all five selected rows and discarded every one of them, <i>"believed to be layout only: … is
+     * not focusable, selectable, or expandable and lacks explicit name"</i>, and said nothing at
+     * all. Linux maps the bit ({@code AtspiStates}, bit 22); Windows carries the same fact through
+     * the SelectionItem pattern and macOS through {@code AXSelected}'s settability, so neither
      * bridge changes.
      *
      * @param selected      whether this member is selected
@@ -807,10 +803,10 @@ public final class Accessibility {
 
     /**
      * Declares that this node is one member of a selection that <b>no node holds</b>: a radio
-     * button, whose group is not a widget and has no box (semantics 1; ADR 039 §1.2, amended
-     * 2026-09-14). The numbers are as for {@link #selectionItem}; what differs is that no
-     * selection change is raised on the node's published parent, which would be whatever layout
-     * ancestor survived transparency, and a bridge asked for the member's container answers none.
+     * button, whose group is not a widget and has no box. The numbers are as for
+     * {@link #selectionItem}; what differs is that no selection change is raised on the node's
+     * published parent, which would be whatever layout ancestor survived transparency, and a
+     * bridge asked for the member's container answers none.
      *
      * @param selected      whether this member is selected
      * @param positionInSet its one-based position among the members it counts, or {@code 0}
@@ -825,7 +821,7 @@ public final class Accessibility {
      * Declares that this node opens and closes.
      *
      * <p>The facet's presence is what makes the node {@link Accessible.State#EXPANDABLE}, on every
-     * node that declares it (decision 41: menu titles and submenu rows included), and its value is
+     * node that declares it (menu titles and submenu rows included), and its value is
      * what makes it {@link Accessible.State#EXPANDED}; the Linux bridge derives its own
      * {@code COLLAPSED} from the two. Neither bit is a widget's to set.
      *
@@ -942,7 +938,7 @@ public final class Accessibility {
     }
 
     /**
-     * Declares that this node is a grid of rows and columns over data; ADR 041 §7.
+     * Declares that this node is a grid of rows and columns over data.
      *
      * <p>Both counts are the model's, as {@link TableFacet} says: a table publishes only the
      * rows it has realized and still reports how many there are.
@@ -971,12 +967,12 @@ public final class Accessibility {
      * Declares that this node is one cell of a table, at a row and a column as shown, and which
      * way its column's rows are running.
      *
-     * <p>The direction is a fact about a <b>header</b> cell and is meaningless anywhere else: it
-     * is the column's sort, and the header is the control a reader presses to change it (decision
-     * 36, carrier settled 2026-09-15). Every other cell declares {@link CellFacet.Sort#NONE}, and
-     * so does a header whose column is not the one the table is sorted by. The three bridges each
-     * carry it in their platform's own way; the localized phrase a header also puts in its
-     * description is not this, and neither replaces the other (ADR 041 §7).
+     * <p>The direction is a fact about a <b>header</b> cell and is meaningless anywhere else: it is
+     * the column's sort, and the header is the control a reader presses to change it. Every other
+     * cell declares {@link CellFacet.Sort#NONE}, and so does a header whose column is not the one
+     * the table is sorted by. The three bridges each carry it in their platform's own way; the
+     * localized phrase a header also puts in its description is not this, and neither replaces the
+     * other.
      *
      * @param row    the row as shown, from zero, or {@code -1} for a cell of the header row
      * @param column the column as shown, from zero
@@ -1089,8 +1085,7 @@ public final class Accessibility {
     /**
      * Offers a verb on this widget child that <b>this widget's parent</b> performs: a row's
      * {@code SELECT}, published on the row's cell where the platform addresses it and routed by
-     * the scene to the container's {@code onAccessibilityChildAction} hook with the child's key
-     * (ADR 039 §1.5, amended 2026-09-14; decision 7 of the 2026-09-13 pass).
+     * the scene to the container's {@code onAccessibilityChildAction} hook with the child's key.
      *
      * <p>From {@code onAccessibilityChild} only, because that is where a container speaks about
      * a child with the child's node open; and never for a verb the child already claimed in its
@@ -1135,7 +1130,7 @@ public final class Accessibility {
      * widget node being described. The publish step calls this after both describe hooks ran;
      * a widget never does.
      *
-     * <p>They are the walk's and the scene performs them (ADR 039 §1.5), so a container that
+     * <p>They are the walk's and the scene performs them, so a container that
      * {@linkplain #delegate delegated} one of them on a focusable child claimed a verb the walk
      * owns and the scene would have performed both ways at once; that walk is refused.
      *
@@ -1220,36 +1215,35 @@ public final class Accessibility {
     }
 
     /**
-     * Says that the synthetic child being described cannot be operated even though its owner
-     * can: a calendar day the bounds or the filter refuse, a scroll chevron with nothing left to
-     * scroll (decision 30, 2026-09-14). It publishes without {@code ENABLED} while its owner
-     * keeps it.
+     * Says that the synthetic child being described cannot be operated even though its owner can: a
+     * calendar day the bounds or the filter refuse, a scroll chevron with nothing left to scroll.
+     * It publishes without {@code ENABLED} while its owner keeps it.
      *
      * <p>{@link #offScreen()}'s shape, for {@link #offScreen()}'s reason: enabled is one of the
-     * states the publish step owns and a widget cannot set, and the step inherits it from the
-     * owner down onto every synthetic child, which is right for a menu row inside a disabled menu
-     * and wrong for a refused day inside an enabled calendar. So this is <b>narrowing only</b>: a
-     * child may be less enabled than its owner and never more, because the owner's bit is the
-     * keyboard's and a child published operable inside a disabled owner would be refused by
-     * §1.9's gate with nothing said about why. Clear by default and cleared for every child. It
-     * narrows through the nesting: a synthetic child declared inside a disabled one publishes
-     * without {@code ENABLED} too, whether or not it called this itself.
+     * states the publish step owns and a widget cannot set, and the step inherits it from the owner
+     * down onto every synthetic child, which is right for a menu row inside a disabled menu and
+     * wrong for a refused day inside an enabled calendar. So this is <b>narrowing only</b>: a child
+     * may be less enabled than its owner and never more, because the owner's bit is the keyboard's
+     * and a child published operable inside a disabled owner would be refused by the scene's action
+     * gate with nothing said about why. Clear by default and cleared for every child. It narrows
+     * through the nesting: a synthetic child declared inside a disabled one publishes without
+     * {@code ENABLED} too, whether or not it called this itself.
      *
      * <p><b>It does not reach a widget, and the walk refuses the combination.</b> A widget child a
      * container hangs under a disabled synthetic node with {@link #under(long)} would take its
      * enabled bit from the widget tree, as the scene's action gate does, and publish
      * {@code ENABLED} and its verbs beneath its disabled row. No widget combines the two —
-     * {@code Table} is the only caller of {@code under} and never disables a row, and this
-     * method's callers (a calendar's refused day and month, a segmented control's dead chevron,
-     * a combo's options and a menu's rows) hang no widget under the node — so the walk throws
-     * when an enabled container does, and the previous tree stands (2026-09-15, the 2d review). A
-     * widget that needs it owes the walk and the gate the same narrowing in the same change.
+     * {@code Table} is the only caller of {@code under} and never disables a row, and this method's
+     * callers (a calendar's refused day and month, a segmented control's dead chevron, a combo's
+     * options and a menu's rows) hang no widget under the node — so the walk throws when an enabled
+     * container does, and the previous tree stands. A widget that needs it owes the walk and the
+     * gate the same narrowing in the same change.
      *
      * <p>A disabled child carries no verb: the publish step withdraws every verb from a node that
-     * is not {@code ENABLED} ({@link #inoperableAt}, ADR 039 §1.5, amended 2026-09-15), so a
-     * refused day may declare its {@code SELECT} and still publishes none, and a bridge reads the
-     * absence; a setter its facets would imply is implied only on a node that is {@code ENABLED}
-     * and {@code VISIBLE} ({@link AccessibleNode#accepts}).
+     * is not {@code ENABLED} ({@link #inoperableAt}), so a refused day may declare its
+     * {@code SELECT} and still publishes none, and a bridge reads the absence; a setter its facets
+     * would imply is implied only on a node that is {@code ENABLED} and {@code VISIBLE}
+     * ({@link AccessibleNode#accepts}).
      *
      * @throws IllegalStateException if no synthetic child is open
      */
@@ -1270,13 +1264,12 @@ public final class Accessibility {
      * object is the wrong key the moment it is reused, and the data index is the right one.
      *
      * <p>It is answered <b>before</b> the child describes itself, and that ordering is the whole
-     * point (ADR 039 §1.3, amended 2026-09-14). The child's node takes its identifier from the key
-     * before its own hook runs, so a name it hands over is looked up under the identifier it was
-     * published with last frame and carried over unresolved; and everything the child declares
-     * inside itself &mdash; a synthetic child of its own, a widget it holds &mdash; is scoped
-     * under that identifier too, so a composite cell recycled to another row carries none of the
-     * old row's inner elements with it. A key given from the describe-a-child hook would arrive
-     * after both, which is why that hook refuses it.
+     * point. The child's node takes its identifier from the key before its own hook runs, so a name
+     * it hands over is looked up under the identifier it was published with last frame and carried
+     * over unresolved; and everything the child declares inside itself &mdash; a synthetic child of
+     * its own, a widget it holds &mdash; is scoped under that identifier too, so a composite cell
+     * recycled to another row carries none of the old row's inner elements with it. A key given
+     * from the describe-a-child hook would arrive after both, which is why that hook refuses it.
      *
      * @param key a value unique among the children of the node this child hangs under, of both
      *            kinds &mdash; a widget cell keyed {@code 2} and a synthetic cell keyed {@code 2}
@@ -1651,11 +1644,10 @@ public final class Accessibility {
 
     /**
      * Narrows a synthetic child's {@code SHOWING} by the rectangle its owner's clipping ancestors
-     * leave (decision 100, 2026-09-22): a child whose box lies wholly outside it publishes without
-     * the bit, as a widget child scrolled out of the same pane does. The publish step calls this
-     * after {@link #inheritedAt} with the owner's clip in scene coordinates, and only when some
-     * ancestor clips; a widget never does. Narrowing only, like {@link #offScreen()}: a child
-     * already off screen stays so.
+     * leave: a child whose box lies wholly outside it publishes without the bit, as a widget child
+     * scrolled out of the same pane does. The publish step calls this after {@link #inheritedAt}
+     * with the owner's clip in scene coordinates, and only when some ancestor clips; a widget never
+     * does. Narrowing only, like {@link #offScreen()}: a child already off screen stays so.
      *
      * <p>A box with pixels is outside when it shares none with the clip; a box without any (a
      * band a widget publishes at zero height while it is empty) is outside only when its point
@@ -1689,7 +1681,7 @@ public final class Accessibility {
      * Whether the node at an index of the walk in progress is published {@code ENABLED}, as
      * {@link #inherited} or {@link #inheritedAt} settled it. Only the publish step reads it, after
      * that call, as <em>half</em> of the question whether the node is one {@link #inoperableAt}
-     * applies to: since decision 66 (2026-09-15) a node that is not {@code VISIBLE} is inoperable
+     * applies to: since 2026-09-15 a node that is not {@code VISIBLE} is inoperable
      * too, and the publish step reads that axis off the owner's own visible flag rather than from
      * here, because a synthetic child may narrow enabled and showing and there is no narrowing of
      * visible. A widget never asks either. Asked from a describe hook this answers before the bit
@@ -1706,29 +1698,28 @@ public final class Accessibility {
 
     /**
      * Takes every verb off a node the scene will not operate, on any of the three axes it refuses
-     * on (ADR 039 §1.5, §1.9 and §1.13, amended 2026-09-15). The node is not {@code ENABLED} &mdash;
-     * it or an ancestor is disabled, or it lies outside the layer that owns input, beneath an
-     * overlay of the scene or in a window a native modal blocks, or it is a synthetic child its
-     * owner {@linkplain #disabled() narrowed} &mdash; or it is not {@code VISIBLE}: an unselected
-     * tab's contents, a collapsed panel, anything under a widget whose own visible flag is false
-     * (decision 66). The scene or the owner refuses every verb there, and the platform is answered
-     * from the snapshot (semantics 5), so the node publishes no verb &mdash; neither one it
-     * declared nor one its container claimed on it &mdash; and no key binding.
+     * on. The node is not {@code ENABLED} &mdash; it or an ancestor is disabled, or it lies
+     * outside the layer that owns input, beneath an overlay of the scene or in a window a native
+     * modal blocks, or it is a synthetic child its owner {@linkplain #disabled() narrowed}
+     * &mdash; or it is not {@code VISIBLE}: an unselected tab's contents, a collapsed panel,
+     * anything under a widget whose own visible flag is false. The scene or the owner refuses
+     * every verb there, and the platform is answered from the snapshot, so the node publishes no
+     * verb &mdash; neither one it declared nor one its container claimed on it &mdash; and no key
+     * binding.
      *
      * <p><b>{@code VISIBLE} and never {@code SHOWING}.</b> A node that is visible and merely
      * clipped out of a scroll viewport is not one of these: the scene reveals it and performs, the
      * way the two free verbs always have, so it keeps every verb and every setter and this is not
      * called on it.
      *
-     * <p><b>Its setters are not touched here, and need not be</b> (ADR 039 §1.2 and §1.5, amended
-     * 2026-09-15, fix round 2e and decision 66). A writable {@link ValueFacet} or a
-     * {@link TextFacet} without {@link Accessible.State#READ_ONLY} implies its setter only on a
-     * node that is {@code ENABLED} <em>and</em> {@code VISIBLE}
-     * ({@link AccessibleNode#accepts}), and this node is missing one of the two, so its value keeps
-     * the writability it really has and its text keeps its true {@code READ_ONLY}: a disabled field is
-     * an editable field that is disabled, never a read-only one, and so is a field in a tab nobody
-     * selected. What the node says it is and holds is untouched. The publish step calls this after
-     * both describe hooks ran and after the delegate routing was read; a widget never does.
+     * <p><b>Its setters are not touched here, and need not be.</b> A writable {@link ValueFacet} or
+     * a {@link TextFacet} without {@link Accessible.State#READ_ONLY} implies its setter only on a
+     * node that is {@code ENABLED} <em>and</em> {@code VISIBLE} ({@link AccessibleNode#accepts}),
+     * and this node is missing one of the two, so its value keeps the writability it really has and
+     * its text keeps its true {@code READ_ONLY}: a disabled field is an editable field that is
+     * disabled, never a read-only one, and so is a field in a tab nobody selected. What the node
+     * says it is and holds is untouched. The publish step calls this after both describe hooks ran
+     * and after the delegate routing was read; a widget never does.
      *
      * @param index the node's index in this walk
      * @throws IndexOutOfBoundsException if {@code index} names no node in this walk
@@ -1957,7 +1948,7 @@ public final class Accessibility {
      * What {@link #resolveRelations} turns a relation's target into a node identifier with. It
      * is handed the kind as well as the target, because one kind resolves differently: a
      * {@code LABEL_FOR} naming a composite lands on the child the composite says carries its
-     * label (ADR 039 §1.5, amended 2026-09-14; decision 55), and only the walk knows that.
+     * label, and only the walk knows that.
      */
     @FunctionalInterface
     public interface RelationResolver {
@@ -2023,8 +2014,8 @@ public final class Accessibility {
 
     /**
      * Builds the sibling links of the walk being published, in slot order except for a widget
-     * hung under a synthetic row, which takes its place among the row's cells by column (ADR 039
-     * §1.3, amended 2026-09-14); and stamps every node with its index among its siblings.
+     * hung under a synthetic row, which takes its place among the row's cells by column; and
+     * stamps every node with its index among its siblings.
      */
     private void linkSiblings() {
         if (firstChild.length < count) {
@@ -2137,12 +2128,12 @@ public final class Accessibility {
     }
 
     /**
-     * Resolves every member's selection container (semantics 1; ADR 039 §1.2, amended
-     * 2026-09-14): the nearest ancestor with a {@link SelectionFacet}, climbing from the
-     * member's published parent only through synthetic ancestors that lack one. A widget
-     * ancestor carrying the facet counts (the tab strip for a tab header); a widget ancestor
-     * without one ends the climb with no container, as the root does, and a member that
-     * declared itself containerless is not climbed for. Once per publish, allocating nothing.
+     * Resolves every member's selection container: the nearest ancestor with a
+     * {@link SelectionFacet}, climbing from the member's published parent only through synthetic
+     * ancestors that lack one. A widget ancestor carrying the facet counts (the tab strip for a tab
+     * header); a widget ancestor without one ends the climb with no container, as the root does,
+     * and a member that declared itself containerless is not climbed for. Once per publish,
+     * allocating nothing.
      */
     private void resolveSelectionContainers() {
         for (int i = 0; i < count; i++) {
@@ -2175,12 +2166,11 @@ public final class Accessibility {
 
     /**
      * The node the keyboard cursor is on, resolved once per publish and once per quiet-frame
-     * comparison (ADR 039 §1.10, amended 2026-09-14; semantics 4): the first node published
-     * {@code ACTIVE} strictly below the focused node, or, when the focused node's own subtree has
-     * none, the cursor the walk read off the tree of a popup window that node opened. The
-     * window node's own {@code ACTIVE} — which says the window is the desktop's — is never
-     * counted, and no {@link SelectionFacet} is consulted on the way: a container that is not
-     * the focused node, or below it, has no cursor of its own to publish.
+     * comparison: the first node published {@code ACTIVE} strictly below the focused node, or, when
+     * the focused node's own subtree has none, the cursor the walk read off the tree of a popup
+     * window that node opened. The window node's own {@code ACTIVE} — which says the window is the
+     * desktop's — is never counted, and no {@link SelectionFacet} is consulted on the way: a
+     * container that is not the focused node, or below it, has no cursor of its own to publish.
      *
      * @return the active descendant's identifier, or {@code 0}
      */
@@ -2205,11 +2195,11 @@ public final class Accessibility {
     }
 
     /**
-     * Tells this walk where the cursor is inside a popup window the focused node opened, which
-     * the walk reads off that window's published tree (decision 5): the answer
-     * {@link AccessibleTree#activeDescendant()} falls back to when the focused node's own
-     * subtree holds no {@code ACTIVE} node. The publish step calls this once per walk, after the
-     * relations are resolved; {@code 0} when there is no such popup. Reset on every walk.
+     * Tells this walk where the cursor is inside a popup window the focused node opened, which the
+     * walk reads off that window's published tree: the answer
+     * {@link AccessibleTree#activeDescendant()} falls back to when the focused node's own subtree
+     * holds no {@code ACTIVE} node. The publish step calls this once per walk, after the relations
+     * are resolved; {@code 0} when there is no such popup. Reset on every walk.
      *
      * @param id the identifier of the popup's cursor node, minted by the popup's own scene, or
      *           {@code 0}
@@ -2223,7 +2213,7 @@ public final class Accessibility {
      * controller for: the target of the nearest {@link Accessible.Relation#CONTROLLER_FOR}
      * relation resolved to an identifier another scene minted, climbing from the node through
      * its published parents. What the publish step asks for the focused node, so that it can
-     * read the popup's cursor off that scene's tree (decision 5). Allocates nothing.
+     * read the popup's cursor off that scene's tree. Allocates nothing.
      *
      * @param nodeId the node to climb from, by identifier
      * @return the popup root's identifier, or {@code 0} when no such relation is published on
@@ -2264,8 +2254,8 @@ public final class Accessibility {
             if (was == null) {
                 noteArrival(i);
                 if ((now.states & (1L << Accessible.State.FOCUSED.ordinal())) != 0) {
-                    // A node that arrives holding the focus is a focus change like any other
-                    // (WINDOWS-NEW-12): a dialog's first field, a popup's list. Its states are
+                    // A node that arrives holding the focus is a focus change like any other:
+                    // a dialog's first field, a popup's list. Its states are
                     // read on discovery, as every new node's are, but the focus is the one
                     // thing a reader has to be told about rather than asked for.
                     focusArrived = now.id;
@@ -2273,8 +2263,8 @@ public final class Accessibility {
                 if (now.hasSelectionItem && now.selectionContainer != AccessibleNode.NONE) {
                     // A member that arrived selected is a selection that moved onto it: End
                     // onto an unrealized row publishes a brand-new selected node, and the
-                    // container's selection changed as surely as if the row had been there
-                    // (MODEL-NEW-6). No STATE_CHANGED for a new node: a client reads a node's
+                    // container's selection changed as surely as if the row had been there.
+                    // No STATE_CHANGED for a new node: a client reads a node's
                     // states when it discovers it.
                     noteSelectionMove(now, null);
                 }
@@ -2307,7 +2297,7 @@ public final class Accessibility {
                     && (now.value != was.value || now.valueEmpty != was.valueEmpty
                             || !Objects.equals(now.valueText, was.valueText))) {
                 // The number, the text or the emptiness: a segment filled with its minimum
-                // changes only the last two, and a reader has to hear it (CRIT-4). The event
+                // changes only the last two, and a reader has to hear it. The event
                 // carries the numbers; a bridge that speaks the text reads it off the tree it is
                 // handed with the event, which is the tree the event came from.
                 add(AccessibleEvent.property(AccessibleEvent.Type.VALUE_CHANGED, now.id,
@@ -2350,7 +2340,7 @@ public final class Accessibility {
                 if (gone.hasSelectionItem && gone.selected
                         && gone.selectionContainer != AccessibleNode.NONE) {
                     // A selected member that left the tree left its container's selection too,
-                    // and the container, when it survives, is told (MODEL-NEW-6).
+                    // and the container, when it survives, is told.
                     int container = indexIn(slots, count, previous[gone.selectionContainer].id);
                     if (container >= 0) {
                         noteSelectionMove(container, gone.id, false);
@@ -2416,12 +2406,11 @@ public final class Accessibility {
     }
 
     /**
-     * The window's activation, derived by the difference from the window node's {@code ACTIVE}
-     * bit (settled window-activation-order; LINUX-NEW-15, LAB-NEW-2): a window node — the
-     * root, when it is a real window — whose bit came on, or that arrived with it on, is
-     * {@code WINDOW_ACTIVATED}; one whose bit went off is {@code WINDOW_DEACTIVATED}. Named on
-     * that node and emitted in the same publish as the tree that says so, never handed to a
-     * bridge ahead of it: Orca reads the frame's state when the event arrives, and an event
+     * The window's activation, derived by the difference from the window node's {@code ACTIVE} bit:
+     * a window node — the root, when it is a real window — whose bit came on, or that arrived with
+     * it on, is {@code WINDOW_ACTIVATED}; one whose bit went off is {@code WINDOW_DEACTIVATED}.
+     * Named on that node and emitted in the same publish as the tree that says so, never handed to
+     * a bridge ahead of it: Orca reads the frame's state when the event arrives, and an event
      * before the tree found a frame that still said it was not active.
      */
     private void addWindowActivation() {
@@ -2518,7 +2507,7 @@ public final class Accessibility {
      * survives. Under a parent that is itself new it is nothing of its own: the parent's
      * arrival on the nearest surviving ancestor already says the whole subtree appeared, and
      * one event per node inside a new subtree is what pushed a fifty-option popup into the
-     * budget collapse (MODEL-NEW-8).
+     * budget collapse.
      */
     private void noteArrival(int index) {
         int parent = slots[index].parent;
@@ -2530,8 +2519,8 @@ public final class Accessibility {
 
     /**
      * A surviving node whose parent is not the one it had is one child removed from the old
-     * parent and added under the new, on each of them that survives, each naming the other
-     * (MODEL-NEW-4). Its place among unchanged siblings is the reorder pass's.
+     * parent and added under the new, on each of them that survives, each naming the other.
+     * Its place among unchanged siblings is the reorder pass's.
      */
     private void noteMove(int index, Slot was) {
         int parent = slots[index].parent;
@@ -2593,7 +2582,7 @@ public final class Accessibility {
      * the sequence of children under it now that were under it before, against the sequence of
      * children under it before that are under it now, both read off the published links. An
      * insertion or a removal between them moves no rank and is not a reorder; a child whose
-     * rank in the two sequences differs is one (MODEL-NEW-4: a table sorted with its rows'
+     * rank in the two sequences differs is one (a table sorted with its rows'
      * identifiers kept raised nothing).
      */
     private void noteReorders() {
@@ -2653,9 +2642,8 @@ public final class Accessibility {
 
     /**
      * One {@code STRUCTURE_CHANGED} per surviving parent whose children moved, in reading order
-     * of the parents, carrying the added, removed and reordered children (ADR 039 §1.10,
-     * amended 2026-09-14). The notes were taken in walk order, so each list comes out in
-     * reading order too.
+     * of the parents, carrying the added, removed and reordered children. The notes were taken
+     * in walk order, so each list comes out in reading order too.
      */
     private void addStructureChanges() {
         noteReorders();
@@ -2727,8 +2715,8 @@ public final class Accessibility {
 
     /**
      * One {@code SELECTION_CHANGED} per container whose selection moved, in reading order of
-     * the containers, carrying the members that entered and left it (decision 9; semantics 1).
-     * The moves were noted in walk order, so the members come out in reading order too.
+     * the containers, carrying the members that entered and left it. The moves were noted in
+     * walk order, so the members come out in reading order too.
      */
     private void addSelectionChanges() {
         if (moveCount == 0) {
@@ -2910,13 +2898,12 @@ public final class Accessibility {
     /**
      * Mints one identifier that no node in any window of this process has had.
      *
-     * <p>The publish step calls this for a widget's own serial; this class calls it for a
-     * synthetic child's. The counter is this scene's and the identifier carries the scene's tag
-     * above it (ADR 039 §1.3, amended 2026-09-14): a relation can therefore name a node in another
-     * window &mdash; a native popup's root names the field that opened it &mdash; and a bridge
-     * holding several windows' trees can tell from the number alone which tree to ask
-     * ({@link AccessibleTree#holds(long)}), without a registry that would have to be kept in
-     * step with every publish.
+     * <p>The publish step calls this for a widget's own serial; this class calls it for a synthetic
+     * child's. The counter is this scene's and the identifier carries the scene's tag above it: a
+     * relation can therefore name a node in another window &mdash; a native popup's root names the
+     * field that opened it &mdash; and a bridge holding several windows' trees can tell from the
+     * number alone which tree to ask ({@link AccessibleTree#holds(long)}), without a registry that
+     * would have to be kept in step with every publish.
      *
      * @return an identifier no other node in the process has had, and never {@code 0}
      */
@@ -2954,7 +2941,7 @@ public final class Accessibility {
      * so that the identifier could come back. When every pair is that recent the table grows
      * instead, because a pair dropped now is one this walk is about to ask for again, and a
      * fresh identifier for it is a new element to every client on every frame for as long as the
-     * walk stays this large (MODEL-NEW-7). Growth happens on a walk that is minting, which is a
+     * walk stays this large. Growth happens on a walk that is minting, which is a
      * walk that publishes; a quiet frame finds every pair and allocates nothing.
      */
     private long intern(long owner, long key) {

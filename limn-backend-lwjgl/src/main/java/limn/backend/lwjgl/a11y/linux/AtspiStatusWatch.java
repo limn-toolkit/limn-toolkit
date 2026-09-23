@@ -10,27 +10,25 @@ import java.util.concurrent.TimeUnit;
  *
  * <p><b>Read once was not enough, because the switch moves while applications run.</b> The bridge
  * used to read the flag when a window first asked for accessibility and keep the answer, so an
- * application started before the screen reader stayed unreadable for the life of its windows
- * (LINUX-NEW-7). The owner chose the watch over a re-read on activation (decision 29): a thread that
- * waits costs nothing a frame can measure, and a re-read answers only when a window happens to be
- * activated.
+ * application started before the screen reader stayed unreadable for the life of its windows. The
+ * owner chose the watch over a re-read on activation: a thread that waits costs nothing a frame can
+ * measure, and a re-read answers only when a window happens to be activated.
  *
- * <p><b>Only the rising edge is acted on</b> (decision 67). Orca only ever sets the flag true (ADR
- * 039 §6's record of 2026-09-15), so a false never means "the reader left"; the application it
- * feeds ignores every false once it has seen a true and stays embedded. This watch still reports
- * both edges, because what it reports is the switch and not a policy, and the one reader of it
- * decides.
+ * <p><b>Only the rising edge is acted on</b>. Orca only ever sets the flag true (recorded
+ * 2026-09-15), so a false never means "the reader left"; the application it feeds ignores every
+ * false once it has seen a true and stays embedded. This watch still reports both edges, because
+ * what it reports is the switch and not a policy, and the one reader of it decides.
  *
  * <p><b>What the switch sends was read before this was written</b>, on both desktops the lab has
  * (readings/fedora-a11y-status-signal.txt, Fedora KDE 44, at-spi2-core 2.60.6, dbus-broker 37;
  * readings/ubuntu-a11y-status-signal.txt, Ubuntu 24.04, at-spi2-core 2.52.0, dbus-daemon 1.14.10;
- * both 2026-09-15, {@code scripts/a11y/linux/read-a11y-status-signal.sh --flip}): at-spi-bus-launcher,
- * the owner of {@code org.a11y.Bus}, broadcasts {@code org.freedesktop.DBus.Properties.PropertiesChanged}
- * on {@code /org/a11y/bus} with the body {@code ("org.a11y.Status", {"IsEnabled": <b>}, [])} once
- * per change of the value and nothing when it is set to what it already is; a subscriber whose match
- * names the sender {@code org.a11y.Bus} by that well-known name receives it on both buses. The
- * upstream function that sends it is byte-identical in 2.52.0 and 2.60.6
- * (readings/upstream-at-spi-bus-launcher-2.52-2.60.txt).
+ * both 2026-09-15, {@code scripts/a11y/linux/read-a11y-status-signal.sh --flip}):
+ * at-spi-bus-launcher, the owner of {@code org.a11y.Bus}, broadcasts
+ * {@code org.freedesktop.DBus.Properties.PropertiesChanged} on {@code /org/a11y/bus} with the body
+ * {@code ("org.a11y.Status", {"IsEnabled": <b>}, [])} once per change of the value and nothing when
+ * it is set to what it already is; a subscriber whose match names the sender {@code org.a11y.Bus}
+ * by that well-known name receives it on both buses. The upstream function that sends it is
+ * byte-identical in 2.52.0 and 2.60.6 (readings/upstream-at-spi-bus-launcher-2.52-2.60.txt).
  *
  * <p><b>The order of the calls is the correctness argument.</b> Both matches are added before the
  * flag is read, so a change between the two arrives as a signal after the read rather than falling
@@ -40,18 +38,18 @@ import java.util.concurrent.TimeUnit;
  * <p><b>The launcher is followed by its name, not by reconnecting.</b> The session connection does
  * not end when at-spi-bus-launcher does, so the watch also matches the bus's own
  * {@code NameOwnerChanged} for {@code org.a11y.Bus} (arg0): a new owner is a new launcher, whose
- * switch is read again; no owner is no accessibility bus, so the switch is off until one appears.
- * A session with no launcher at all answers the read with an error, and the watch then parks on
- * the same connection until the name gets an owner, instead of reconnecting on a timer. Only the
+ * switch is read again; no owner is no accessibility bus, so the switch is off until one appears. A
+ * session with no launcher at all answers the read with an error, and the watch then parks on the
+ * same connection until the name gets an owner, instead of reconnecting on a timer. Only the
  * session connection itself ending — the session going away — is retried after a back-off. The
  * signal's shape and its routing by arg0 were read on both guests
  * (readings/fedora-dbus-bus-facts.txt, readings/ubuntu-dbus-bus-facts.txt, 2026-09-15,
  * {@code scripts/a11y/linux/read-dbus-bus-facts.py}): {@code NameOwnerChanged} is sent by
  * {@code org.freedesktop.DBus} from {@code /org/freedesktop/DBus} with signature {@code sss} (name,
  * old owner, new owner, an empty string for none), and a match with {@code arg0} receives that
- * name's changes and not the unique names' on dbus-broker 37 and dbus-daemon 1.14.10.
- * Until the linux-A review this class said a restarted launcher was followed because the watch
- * reconnects; it did not, and a session with no launcher reconnected every minute for ever.
+ * name's changes and not the unique names' on dbus-broker 37 and dbus-daemon 1.14.10. This class
+ * used to say a restarted launcher was followed because the watch reconnects; it did not, and a
+ * session with no launcher reconnected every minute for ever.
  */
 final class AtspiStatusWatch implements Runnable {
 

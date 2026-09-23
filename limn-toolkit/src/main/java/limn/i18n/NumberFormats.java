@@ -12,7 +12,7 @@ import java.util.function.DoubleFunction;
  * <p>Every format here follows the {@linkplain I18n#locale() language in effect where it
  * formats}, read at that moment: a locale switch reaches widgets already on screen, and a widget
  * inside a subtree that {@linkplain limn.scene.Widget#setLocale declares its own locale} formats
- * in that subtree's language (ADR 035) &mdash; separators, digits and a currency's symbol and
+ * in that subtree's language &mdash; separators, digits and a currency's symbol and
  * position alike &mdash; because the widget's passes hold its effective locale in scope. A format
  * is a plain {@code DoubleFunction<String>}: anything else you write is equally acceptable, and
  * reads the same scope for free by asking {@code I18n.locale()} when it formats.
@@ -24,8 +24,8 @@ import java.util.function.DoubleFunction;
  * Column.currency("Total", Order::total, Currency.getInstance("BRL")); // -> "R$ 1.234,50"
  * }</pre>
  *
- * <p>Until ADR 041 this class was {@code limn.components.chart.ChartFormats}; the table gave it
- * a second caller and the name moved with it.
+ * <p>This class was once {@code limn.components.chart.ChartFormats}; the table gave it a second
+ * caller and the name moved with it.
  */
 public final class NumberFormats {
 
@@ -201,7 +201,7 @@ public final class NumberFormats {
      * of the active {@linkplain I18n#numberingSystem() numbering system}. The fold is what makes
      * a declared system authoritative: Java's own locale data already writes Arabic-Indic digits
      * under {@code ar}, and an override must win over the locale's formatter as well as over
-     * ASCII (ADR 033).
+     * ASCII.
      */
     private static String localized(String text) {
         return I18n.localizeDigits(I18n.toAsciiDigits(text));

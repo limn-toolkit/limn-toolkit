@@ -4,7 +4,7 @@ import java.util.function.Consumer;
 
 /**
  * Where the Linux bridge says what it did, so a reader that heard nothing can be asked about rather
- * than guessed at (LINUX-NEW-6).
+ * than guessed at.
  *
  * <p>The 2026-09-13 tree-reader run could not tell, from the application's side, whether its events
  * had been sent at all: the inbound calls were traced, the outbound signals were not, a refusal was

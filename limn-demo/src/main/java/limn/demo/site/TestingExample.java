@@ -12,7 +12,7 @@ import limn.testing.TestRulers;
 import static limn.testing.SceneDriver.drive;
 
 /**
- * The worked example the testing guide shows (ADR 046 §4): a form driven with no display through
+ * The worked example the testing guide shows: a form driven with no display through
  * {@code limn-test}. Compiled by {@code ./gradlew check}, and run by {@code TestingExampleTest}, so
  * what the guide says the test observes is what it observes.
  */

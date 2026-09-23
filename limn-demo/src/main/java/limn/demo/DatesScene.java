@@ -24,7 +24,7 @@ import java.time.LocalTime;
 import java.util.Set;
 
 /**
- * Demo of the date widgets (ADR 042): the four shapes a form asks for, a period, and the grid on
+ * Demo of the date widgets: the four shapes a form asks for, a period, and the grid on
  * its own with week numbers, bounds, a filter and marks.
  *
  * <p>Every date here is fixed rather than taken from the clock, so two runs and two captures show
@@ -69,7 +69,7 @@ final class DatesScene {
 
     /**
      * The same two, with {@code -cursor} giving the grid the keyboard: what a person sees the
-     * instant Ctrl (or Cmd) and Up climb out of the days (GALLERY-NEW-2, 2026-09-15). The cell on
+     * instant Ctrl (or Cmd) and Up climb out of the days (2026-09-15). The cell on
      * show carries the cursor ring from that frame; until that date the chooser was drawn with no
      * ring at all until the first arrow, so this pair is the render of the change.
      *
@@ -88,8 +88,8 @@ final class DatesScene {
 
     /**
      * {@code --scene dates-month-picker}, {@code dates-time-row} and {@code dates-month-range}
-     * (each also {@code -light}): one picker per granularity the owner is shown a render of
-     * (decisions 12, 19 and 51), opened by the capture the way {@code dates-popup} is.
+     * (each also {@code -light}): one picker per granularity the owner is shown a render of,
+     * opened by the capture the way {@code dates-popup} is.
      *
      * @param light which palette
      * @param which {@code month-picker}, {@code time-row} or {@code month-range}
@@ -137,9 +137,9 @@ final class DatesScene {
     }
 
     /**
-     * {@code --scene dates-era} (and {@code -light}): a year of an era drawn at its own width
-     * (settled era-year-width, 2026-09-14), "R8" and not "R0008", in the Japanese calendar as the
-     * Japanese language writes it and as an English form that chose the calendar writes it.
+     * {@code --scene dates-era} (and {@code -light}): a year of an era drawn at its own width,
+     * "R8" and not "R0008", in the Japanese calendar as the Japanese language writes it and as
+     * an English form that chose the calendar writes it.
      */
     static Scene era(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());

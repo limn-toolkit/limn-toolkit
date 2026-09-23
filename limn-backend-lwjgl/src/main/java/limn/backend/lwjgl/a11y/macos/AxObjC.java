@@ -24,14 +24,14 @@ import static org.lwjgl.system.MemoryUtil.memUTF8;
  * The whole of this module's contact with the Objective-C runtime: sending messages, making
  * strings, passing a {@code CGRect} by value, and reading a constant out of AppKit.
  *
- * <p>There is no native code of ours anywhere here. A message send is
- * {@code objc_msgSend} reached through LWJGL's JNI trampoline ({@link ObjC}); a struct argument is libffi; a class
- * and a selector are the runtime's own functions (§10.2). The alternative was a shim with a build,
- * a signature and a platform matrix of its own, for a handful of calls.
+ * <p>There is no native code of ours anywhere here. A message send is {@code objc_msgSend} reached
+ * through LWJGL's JNI trampoline ({@link ObjC}); a struct argument is libffi; a class and a
+ * selector are the runtime's own functions. The alternative was a shim with a build, a signature
+ * and a platform matrix of its own, for a handful of calls.
  *
- * <p><b>Every constant is read, never remembered</b> (§12.3). A role is an {@code NSString} global
- * on this platform, so {@link #constant} resolves the symbol and fails loudly when it is absent
- * rather than answering a null that becomes an attribute a reader silently never hears.
+ * <p><b>Every constant is read, never remembered</b>. A role is an {@code NSString} global on this
+ * platform, so {@link #constant} resolves the symbol and fails loudly when it is absent rather than
+ * answering a null that becomes an attribute a reader silently never hears.
  */
 final class AxObjC {
 
@@ -129,11 +129,11 @@ final class AxObjC {
      *
      * <p>Autoreleased and not retained, because most of these are returned straight out of an
      * accessibility callback, where the convention is that the caller does not own what a getter
-     * hands back and AppKit's own pool is on the stack; the ones this module makes at a publish or a
-     * frame's end are made inside a pool of its own ({@link #pushPool}). The bytes are explicitly UTF-8: the phase 7
-     * probe run measured that {@code stringWithUTF8String:} answers <b>nil</b> for invalid UTF-8, so
-     * a bridge that took the platform default encoding would produce nameless nodes rather than
-     * mangled ones (§13.23).
+     * hands back and AppKit's own pool is on the stack; the ones this module makes at a publish or
+     * a frame's end are made inside a pool of its own ({@link #pushPool}). The bytes are explicitly
+     * UTF-8: the phase 7 probe run measured that {@code stringWithUTF8String:} answers <b>nil</b>
+     * for invalid UTF-8, so a bridge that took the platform default encoding would produce nameless
+     * nodes rather than mangled ones.
      *
      * @param value the text
      * @return the string, or zero when {@code value} is null
@@ -267,7 +267,7 @@ final class AxObjC {
      *
      * @param selector the selector
      * @return its encoding, or {@code null} when no class declares it — which the caller answers by
-     *         not installing the selector, because the alternative is guessing (MACOS-NEW-6)
+     *         not installing the selector, because the alternative is guessing
      */
     String encodingOrNull(String selector) {
         for (String className : new String[] {

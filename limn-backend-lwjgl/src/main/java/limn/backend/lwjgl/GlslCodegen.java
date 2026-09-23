@@ -11,11 +11,11 @@ import java.util.stream.Collectors;
  * Generates GLSL for a {@link TargetProfile} from the neutral shader IR. The
  * engine owns the framework: the Frame/Lights/Material std140 blocks, the sampler
  * and varyings, the Cook-Torrance BRDF; the fragment writes linear scene-referred
- * light, the display transform being the composite's job (ADR 004). The material's
+ * light, the display transform being the composite's job. The material's
  * {@link SurfaceOutputs} DAG supplies only the four surface expressions
  * ({@code baseColor}/{@code metallic}/{@code roughness}/{@code emissive}) spliced
- * into {@code main()}. This is the portability core: the same IR compiles
- * to GLSL 330 and GLSL ES 3.00 unchanged (they differ only in the header), and it
+ * into {@code main()}. This is the portability core: the same IR compiles to
+ * GLSL 330 and GLSL ES 3.00 unchanged (they differ only in the header), and it
  * reproduces the hand-written reference shader (verified by golden + pixel tests).
  *
  * <p>Pure string generation (no GL), so it is unit-testable headless.

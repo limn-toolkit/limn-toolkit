@@ -22,14 +22,12 @@ import java.util.TreeSet;
  * Backend-wide font registry (CPU data, shared by all windows). The four Roboto faces
  * (Regular, Bold, Italic, Bold-Italic; Apache 2.0) back {@link Font#DEFAULT_FAMILY} and any
  * unknown family; they arrive from the required {@code limn-fonts-roboto} artifact, and the
- * optional Noto fallbacks from the {@code limn-fonts-*} artifacts an application opts in to
- * (ADR 036). Loading is lazy throughout: only Roboto Regular parses at
- * construction; the style variants parse on first resolve, and the heavyweight
- * Noto fallbacks arrive from a background parse (see
- * {@link #parseHeavyFallbacks}/{@link #installHeavyFallbacks}). A {@link Font}'s
- * {@code (family, bold, italic)} triple resolves to the matching face, degrading
- * gracefully (drop italic, then bold, then to the family's regular, then the
- * global fallback).
+ * optional Noto fallbacks from the {@code limn-fonts-*} artifacts an application opts in to.
+ * Loading is lazy throughout: only Roboto Regular parses at construction; the style variants
+ * parse on first resolve, and the heavyweight Noto fallbacks arrive from a background parse
+ * (see {@link #parseHeavyFallbacks}/{@link #installHeavyFallbacks}). A {@link Font}'s
+ * {@code (family, bold, italic)} triple resolves to the matching face, degrading gracefully
+ * (drop italic, then bold, then to the family's regular, then the global fallback).
  *
  * <p><b>Script fallback.</b> Any code point the primary face lacks (CJK, emoji,
  * Arabic, Hebrew, Devanagari, Thai, …) is resolved against the registered fallback
@@ -62,9 +60,9 @@ final class FontStore implements AutoCloseable {
 
     /**
      * Where a bundled face lives on the classpath: {@code limn/fonts/}, the path the
-     * limn-fonts artifacts publish their resources under (ADR 036). Only the menu symbols —
-     * authored by this project, versioned with it — still live in this module's own resources,
-     * under the old {@code limn/backend/lwjgl/fonts/} path.
+     * limn-fonts artifacts publish their resources under. Only the menu symbols — authored by
+     * this project, versioned with it — still live in this module's own resources, under the
+     * old {@code limn/backend/lwjgl/fonts/} path.
      *
      * <p>The old path is kept as a fallback for every face all the same: it costs one
      * {@code getResource} probe, and it is the documented location an application could have

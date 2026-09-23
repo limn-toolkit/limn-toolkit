@@ -11,8 +11,8 @@
  * {@link limn.concurrent.Work} that fetches them, so a directory or a remote catalogue can open a
  * row before it can name what is inside it.
  *
- * <p>Columns are not here: a {@code TreeTable} is ADR 044 §9, and the day it arrives is the day
- * the anchor walk this package copies from {@code ListView} and {@code Table} collapses into one
- * engine the three of them share (§3).
+ * <p>Columns are not here: a {@code TreeTable} is a widget still to come, and the day it arrives
+ * is the day the anchor walk this package copies from {@code ListView} and {@code Table} collapses
+ * into one engine the three of them share.
  */
 package limn.components.tree;

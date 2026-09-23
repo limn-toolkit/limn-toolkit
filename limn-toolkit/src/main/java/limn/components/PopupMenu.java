@@ -1852,15 +1852,13 @@ public final class PopupMenu {
          * answered by whether the scroll actually moved.
          *
          * <p>And the verbs answered are exactly the verbs {@link #describeColumn} publishes for
-         * the row's state (ADR 039 §1.5, amended 2026-09-14; decision 2): {@code SHOW_MENU} and
-         * {@code EXPAND} open a closed submenu row, {@code COLLAPSE} closes the open one,
-         * {@code PRESS} chooses a command or check row and {@code TOGGLE} a check row alone, and
-         * {@code FOCUS} moves the highlight onto any row the arrows can reach without choosing or
-         * opening it, closing whatever column was open below that row's own (decision 11,
-         * 2026-09-15).
-         * {@code PRESS} on a submenu row and {@code TOGGLE} on a command row were accepted as
-         * unpublished synonyms until that day and are refused now, because a verb a node
-         * performs without publishing is one a reader cannot see and one platform invokes by
+         * the row's state: {@code SHOW_MENU} and {@code EXPAND} open a closed submenu row,
+         * {@code COLLAPSE} closes the open one, {@code PRESS} chooses a command or check row and
+         * {@code TOGGLE} a check row alone, and {@code FOCUS} moves the highlight onto any row the
+         * arrows can reach without choosing or opening it, closing whatever column was open below
+         * that row's own. {@code PRESS} on a submenu row and {@code TOGGLE} on a command row were
+         * accepted as unpublished synonyms until 2026-09-14 and are refused now, because a verb a
+         * node performs without publishing is one a reader cannot see and one platform invokes by
          * accident.
          *
          * @param key    a column key, a band key, or a row's serial

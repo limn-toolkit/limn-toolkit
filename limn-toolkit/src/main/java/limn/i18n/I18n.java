@@ -35,17 +35,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *
  * <h2>A subtree can hold its own language</h2>
  * A widget that {@linkplain limn.scene.Widget#setLocale declares a locale} gives its
- * whole subtree one, resolved down the tree exactly as {@code ControlSize} is
- * (ADR 035). The mechanism this class contributes is the <b>scope</b>: while the
- * toolkit measures, lays out, paints or dispatches an event to a widget, that
- * widget's effective locale is {@linkplain #pushScope in scope}, and {@link #locale()}
- * answers it. Everything that already read {@code I18n.locale()} at the moment it
- * resolved, formatted or broke text &mdash; {@link I18nString#get()},
- * {@link I18nString#format}, {@link #localizeDigits}, a chart format, a line
- * breaker &mdash; follows the subtree it is working inside without knowing
- * subtrees exist. That is the point: after ADR 006's own argument, the default
- * spelling is the correct one, and a widget written naively cannot capture the
- * wrong language.
+ * whole subtree one, resolved down the tree exactly as {@code ControlSize} is. The mechanism
+ * this class contributes is the <b>scope</b>: while the toolkit measures, lays out, paints or
+ * dispatches an event to a widget, that widget's effective locale is
+ * {@linkplain #pushScope in scope}, and {@link #locale()} answers it. Everything that already
+ * read {@code I18n.locale()} at the moment it resolved, formatted or broke text &mdash;
+ * {@link I18nString#get()}, {@link I18nString#format}, {@link #localizeDigits}, a chart format,
+ * a line breaker &mdash; follows the subtree it is working inside without knowing subtrees
+ * exist. That is the point: the default spelling is the correct one, and a widget written
+ * naively cannot capture the wrong language.
  *
  * <p>Mutators are meant to be called on the UI thread (checked when a {@code Ui}
  * runtime is installed, so headless tests can drive them directly).
@@ -89,11 +87,11 @@ public final class I18n {
      * scope}'s locale, else the {@linkplain #processLocale() process locale}.
      *
      * <p>Inside a widget's measure, layout, paint or event dispatch this is that widget's
-     * {@linkplain limn.scene.Widget#locale() effective locale}, because the toolkit opens
-     * the scope around each of those; everywhere else &mdash; application startup, a
-     * posted task, a worker thread &mdash; it is the process locale, exactly as before
-     * ADR 035. Reading it at the moment text is resolved or formatted is what makes code
-     * follow the subtree it is working inside.
+     * {@linkplain limn.scene.Widget#locale() effective locale}, because the toolkit opens the scope
+     * around each of those; everywhere else &mdash; application startup, a posted task, a worker
+     * thread &mdash; it is the process locale, exactly as before a subtree could declare one.
+     * Reading it at the moment text is resolved or formatted is what makes code follow the subtree
+     * it is working inside.
      */
     public static Locale locale() {
         Locale scoped = SCOPE.get();
@@ -242,10 +240,10 @@ public final class I18n {
     /**
      * The digits a formatted number is written in: the {@linkplain NumberingSystem#forLocale
      * own system} of the {@linkplain #locale() locale in effect here}, unless
-     * {@link #setNumberingSystem} declared otherwise. There is no numbering-system axis and
-     * ADR 033's Decision 1 still stands: substitution happens at format time inside the widgets
-     * that render numbers they own, so application strings are never rewritten. What changed
-     * with ADR 035 is only which locale the system is derived from &mdash; the effective one, so
+     * {@link #setNumberingSystem} declared otherwise. There is no numbering-system axis:
+     * substitution happens at format time inside the widgets that render numbers they own, so
+     * application strings are never rewritten. What changed when a subtree could declare its own
+     * locale is only which locale the system is derived from &mdash; the effective one, so
      * an Arabic subtree's spinner writes Arabic-Indic digits inside a Latin interface with no
      * second mechanism. The declared override stays process-wide and wins everywhere, because it
      * is a statement about the process ("this deployment writes Latin digits"), not about a
@@ -276,8 +274,8 @@ public final class I18n {
      * {@link NumberingSystem#LATN} or when there is nothing to rewrite, so the default locale
      * pays an object comparison and a scan, not an allocation.
      *
-     * <p>This is the <b>format-time</b> half of ADR 033: call it on a string the widget itself
-     * rendered from a number, never on text an application authored.
+     * <p>This is the <b>format-time</b> half of digit substitution: call it on a string the widget
+     * itself rendered from a number, never on text an application authored.
      */
     public static String localizeDigits(String text) {
         NumberingSystem system = numberingSystem();
@@ -300,8 +298,8 @@ public final class I18n {
 
     /**
      * {@code text} with every digit of every known system folded back to ASCII: the
-     * <b>parse-time</b> half of ADR 033, and deliberately independent of the active system —
-     * a value pasted under one locale must survive being committed under another.
+     * <b>parse-time</b> half of digit substitution, and deliberately independent of the active
+     * system — a value pasted under one locale must survive being committed under another.
      */
     public static String toAsciiDigits(String text) {
         char[] out = null;
@@ -399,8 +397,8 @@ public final class I18n {
      * ä after z — but almost every application never needs to say so, and the default keeps
      * order and case in the language the user is reading. Following {@code locale()} rather
      * than the process locale is what makes a type-ahead fold, or a sort run inside a pass,
-     * answer for the subtree it is working inside (ADR 035), exactly as digits do; the
-     * declared override stays process-wide and wins everywhere, for ADR 034's reason.
+     * answer for the subtree it is working inside, exactly as digits do; the declared override
+     * stays process-wide and wins everywhere, as the numbering-system override does.
      */
     public static Locale textLocale() {
         Locale declared = declaredTextLocale;
@@ -471,9 +469,9 @@ public final class I18n {
      * <p>{@link I18nString#get()} is the ordinary way to read a string and resolves under the
      * locale in effect on this thread. This is the other way, and it exists for one caller: an
      * accessibility bridge answering a platform's question about a node, which must resolve under
-     * <em>that node's</em> locale (§1.7) and is very often not on the user-interface thread when it
-     * does. {@link #pushScope} cannot serve it — that is thread-confined ambient state, and a
-     * bridge reaching for it would be the silent data race this toolkit's threading rules exist to
+     * <em>that node's</em> locale and is very often not on the user-interface thread when it does.
+     * {@link #pushScope} cannot serve it — that is thread-confined ambient state, and a bridge
+     * reaching for it would be the silent data race this toolkit's threading rules exist to
      * prevent.
      *
      * <p><b>Safe from any thread</b>, and read-only: the bundle list is copy-on-write and each

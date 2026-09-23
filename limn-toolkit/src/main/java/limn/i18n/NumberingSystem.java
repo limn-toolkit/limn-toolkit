@@ -6,8 +6,7 @@ import java.util.Locale;
  * The digits a formatted number is written in: one zero code point and its nine successors,
  * which is all a decimal numbering system is. Resolved from the {@linkplain I18n#locale() UI
  * language} by {@link I18n#numberingSystem()} and applied at <em>format time</em> through
- * {@link I18n#localizeDigits}; nothing at the shaping or drawing layer knows this type exists
- * (ADR 033).
+ * {@link I18n#localizeDigits}; nothing at the shaping or drawing layer knows this type exists.
  *
  * <p><b>The table below is CLDR's, checked against it.</b>
  * {@code scripts/i18n/dump-cldr-locale-facts.mjs} reads Node's {@code Intl.NumberFormat}, which

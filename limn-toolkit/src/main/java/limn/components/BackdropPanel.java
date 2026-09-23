@@ -65,8 +65,7 @@ public final class BackdropPanel extends Padding {
      *
      * <p>Which is why it is stale whenever they change, without anything about the panel moving.
      * Answering this is what puts its rectangle into the damage of a frame that repaints anything
-     * underneath it, and it is what ADR 019 &sect;6 said had to exist before partial rendering
-     * could be trusted over one of these.
+     * underneath it, and without it partial rendering could not be trusted over one of these.
      */
     @Override
     protected boolean paintsFromBackdrop() {

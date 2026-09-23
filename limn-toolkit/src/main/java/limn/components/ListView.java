@@ -68,9 +68,9 @@ import java.util.function.Supplier;
  * left standing on a node a page scroll deleted. Every other row outside the viewport goes back
  * back to its cell source, and so does that one the moment the focus leaves it or the data is
  * refreshed.
- * <b>And so is the selected row while the list itself holds the keyboard</b> (decision 22,
- * 2026-09-14): the selection is the reader's cursor here, and a wheel or a bar drag that scrolled
- * it away used to recycle it, leaving the reader's cursor on nothing until the next arrow key.
+ * <b>And so is the selected row while the list itself holds the keyboard</b>: the selection is
+ * the reader's cursor here, and a wheel or a bar drag that scrolled it away used to recycle it,
+ * leaving the reader's cursor on nothing until the next arrow key.
  * It is kept the same way — mounted, outside the viewport, published not showing and still the
  * cursor — across a refresh too, and released by the first pass after the keyboard leaves.
  *
@@ -84,7 +84,7 @@ import java.util.function.Supplier;
  *
  * <p><b>Inside a scroller</b> the list scrolls itself first and hands the wheel on at either
  * end: a detent that finds this list already at the top or the bottom is left unconsumed and
- * reaches the scroll pane that holds it (decision 44).
+ * reaches the scroll pane that holds it.
  *
  * <p><b>The scroll bar does not take part in the size axis</b> ({@link ScrollBar#thickness()}
  * is 15 pt at every step), and it overlays the rows rather than insetting them, so at a
@@ -108,10 +108,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     private static final int VISIBLE_ROWS_HINT = 6;
 
     /**
-     * How many seed rows tall this list prefers to be under an unbounded height (decision 44,
-     * 2026-09-14). Multiplied by the token's seed and never by the realized average: the average
-     * moves as rows of other heights scroll in, and a preference that moved with it re-laid out
-     * the parent on every such scroll and made a list inside a scroll pane jitter.
+     * How many seed rows tall this list prefers to be under an unbounded height. Multiplied by
+     * the token's seed and never by the realized average: the average moves as rows of other
+     * heights scroll in, and a preference that moved with it re-laid out the parent on every such
+     * scroll and made a list inside a scroll pane jitter.
      */
     private int visibleRows = VISIBLE_ROWS_HINT;
 
@@ -328,9 +328,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * Sets how many rows tall this list prefers to be when its parent gives it no height — a
      * list inside a {@link ScrollView} or an unconstrained column — as a count of the step's
      * seed rows (default 6). A bounded height from the parent always wins; this is the free-axis
-     * fallback only. The preference is the seed's and not the realized rows' on purpose
-     * (decision 44): a preference that followed the measured average moved every time a row of
-     * another height scrolled in, and re-laid out the parent with it. UI thread only.
+     * fallback only. The preference is the seed's and not the realized rows' on purpose: a
+     * preference that followed the measured average moved every time a row of another height
+     * scrolled in, and re-laid out the parent with it. UI thread only.
      *
      * @param rows a row count of at least one
      * @return this list
@@ -682,7 +682,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * setter does. {@code index} is already valid or {@code -1}; announces only when the
      * selection moved, after the reveal. The cursor lands on the row when {@code moveCursor}:
      * every gesture's answer, and not a reader's {@code SELECT} on a list whose cursor is not
-     * its selection (decision 79 of 2026-09-17, as the tree has it).
+     * its selection, as the tree has it.
      */
     private void selectOnly(int index, boolean reveal, boolean moveCursor, Change.Origin origin) {
         int wasCursor = cursor;
@@ -1135,17 +1135,16 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * always realized. A screen reader user did. A reader whose cursor follows the keyboard focus
      * onto a focusable row — VoiceOver's does — was standing on that row when a Page Down released
      * it, and with the node gone from the tree the reader fell back to "you are currently in a
-     * window" (ADR 039 §13.29). So the row the keyboard is in is kept alive, in data order, with
-     * its widget and its focus untouched; {@link #placeKeptOutside} puts it where it is, which is
-     * outside the viewport. It is released by the first pass that finds it outside the run and no
-     * longer holding the focus, or by any pass that releases everything.
+     * window". So the row the keyboard is in is kept alive, in data order, with its widget and its
+     * focus untouched; {@link #placeKeptOutside} puts it where it is, which is outside the
+     * viewport. It is released by the first pass that finds it outside the run and no longer
+     * holding the focus, or by any pass that releases everything.
      *
-     * <p>The selected row is the same story one step up (decision 22, 2026-09-14; ADR 039 §1.10's
-     * cursor amendment): while the list holds the keyboard the selected row is the reader's
-     * cursor — the one node below the focused list published {@code ACTIVE} — and a wheel or a
-     * bar drag that scrolled it away recycled it, so the cursor resolved to nothing until the
-     * next arrow key. A row that is the cursor is kept exactly as a row holding the focus is,
-     * and released by the first pass after the keyboard leaves the list.
+     * <p>The selected row is the same story one step up: while the list holds the keyboard the
+     * selected row is the reader's cursor — the one node below the focused list published
+     * {@code ACTIVE} — and a wheel or a bar drag that scrolled it away recycled it, so the cursor
+     * resolved to nothing until the next arrow key. A row that is the cursor is kept exactly as a
+     * row holding the focus is, and released by the first pass after the keyboard leaves the list.
      *
      * <p>{@code count} is the item count as the caller read it, and {@code 0} means
      * spare nothing: {@link #refresh} unmounts every cell because each is bound to a datum the
@@ -1186,8 +1185,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * Realizes the selected row when this list holds the keyboard and the pass left it
      * unrealized: after a {@link #refresh}, which releases everything, or on the first pass after
      * the list took the focus with its selection already scrolled away. {@link #recycleExcept}
-     * keeps a cursor row that is mounted; this is what mounts one that is not, so the two
-     * together are decision 22's "kept while focused, across refresh too".
+     * keeps a cursor row that is mounted; this is what mounts one that is not, so that together
+     * they keep the cursor row while the list is focused, across a refresh too.
      *
      * <p>Nothing is placed here: {@link #placeKeptOutside} runs next and puts every mounted row
      * outside the run where the scroll estimate says it is, this one included.
@@ -1321,9 +1320,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     /**
      * Damages one row's band, rather than the list, when what changed is that row's highlight.
      *
-     * <p>ADR 043 &sect;9.2. An arrow key used to answer with {@code invalidate()} and repaint the
-     * whole list &mdash; correct and out of all proportion, which is the failure mode partial
-     * rendering has. Measured at the full widget for one keystroke; two bands after this.
+     * <p>An arrow key used to answer with {@code invalidate()} and repaint the whole list &mdash;
+     * correct and out of all proportion, which is the failure mode partial rendering has.
+     * Measured at the full widget for one keystroke; two bands after this.
      *
      * <p>Full width and no outset, because the highlight is a rounded rect drawn across the list
      * and <em>inset</em> inside the row's own box: it reaches nothing this rectangle does not
@@ -1628,12 +1627,11 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * subtraction and will move a list that overflows by a third of a point, so a slop-gated
      * boolean would advertise a refusal the widget does not make.
      *
-     * <p>The verb is on this node and not on a row, which is where the record's own survey was
-     * wrong: the walk records a published node's owner as the widget it came from, and the scene
-     * dispatches strictly to that owner, so a verb written onto a row would be sent to the
-     * application's own cell widget and refused there. It is offered only while something is
-     * selected, because {@link #activate()} on an empty selection is a no-op and a verb that can
-     * only fail is worse than an absent one.
+     * <p>The verb is on this node and not on a row: the walk records a published node's owner as
+     * the widget it came from, and the scene dispatches strictly to that owner, so a verb written
+     * onto a row would be sent to the application's own cell widget and refused there. It is
+     * offered only while something is selected, because {@link #activate()} on an empty selection
+     * is a no-op and a verb that can only fail is worse than an absent one.
      *
      * <p>Nothing is formatted here. The one string this hook can hand over is an
      * {@link I18nString} the item holds, compared by reference, so a frame that damaged the
@@ -1689,7 +1687,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     }
 
     /**
-     * A mounted cell's identity is its data index (ADR 039 §1.3), answered before the cell
+     * A mounted cell's identity is its data index, answered before the cell
      * describes itself so that its name is carried over under that identity and whatever the
      * cell holds inside it follows the row when the cell is recycled.
      */
@@ -1729,26 +1727,23 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * because here the selection <em>is</em> the cursor — there is no second highlight, unlike the
      * combo's — and the keyboard stays on the list while it moves, which is exactly what an active
      * descendant is for: without the bit a reader can enumerate the rows and never learn which one
-     * the user is on. <b>Only while this list holds the keyboard</b> (ADR 039 §1.10, amended
-     * 2026-09-14; the settled active-state gate): the cursor is resolved from the focused node
-     * down, so an unfocused list that marked its selected row active would hand the widget the
-     * user is actually in a cursor it does not have — a list nested inside another list's row
-     * cell would have handed the outer list its selected row as the outer list's own cursor,
-     * which is the cost the earlier text of this paragraph accepted and this gate removes.
+     * the user is on. <b>Only while this list holds the keyboard</b>: the cursor is resolved from
+     * the focused node down, so an unfocused list that marked its selected row active would hand
+     * the widget the user is actually in a cursor it does not have — a list nested inside another
+     * list's row cell would have handed the outer list its selected row as the outer list's own
+     * cursor, which is the cost the earlier text of this paragraph accepted and this gate removes.
      *
-     * <p>The verbs are <em>delegated</em> rather than written: a verb written onto a row would
-     * be dispatched to the application's own cell widget, whose hook answers false, which is why
-     * the record's survey was wrong to ask for a row verb and why §11 recorded per-row actuation
-     * as absent. A delegated verb is published on the row and routed to
-     * {@link #onAccessibilityChildAction} (ADR 039 §1.5, amended 2026-09-14), so a reader's
-     * "select this row" lands on the row it addressed and the list performs it. The row verb set
-     * of decision 20, read against this widget: {@code SELECT} always, because a list has no
-     * selection mode and is never {@code NONE}; {@code SCROLL_INTO_VIEW} on a cell that cannot
-     * take the keyboard, because on one that can the walk already grants it free and a second
-     * performer is refused; never {@code ADD_TO_SELECTION} or {@code DESELECT}, because this
-     * list selects one row and has no multi-select to add to; and never {@code FOCUS}
-     * (decision 11), because the selection is the cursor here and a focus that selected would be
-     * {@code SELECT} under another name. {@code PRESS} stays on the list — see
+     * <p>The verbs are <em>delegated</em> rather than written: a verb written onto a row would be
+     * dispatched to the application's own cell widget, whose hook answers false, and the verb would
+     * never be performed. A delegated verb is published on the row and routed to
+     * {@link #onAccessibilityChildAction}, so a reader's "select this row" lands on the row it
+     * addressed and the list performs it. The row verb set, read against this widget:
+     * {@code SELECT} always, because a list has no selection mode and is never {@code NONE};
+     * {@code SCROLL_INTO_VIEW} on a cell that cannot take the keyboard, because on one that can the
+     * walk already grants it free and a second performer is refused; never {@code ADD_TO_SELECTION}
+     * or {@code DESELECT}, because this list selects one row and has no multi-select to add to; and
+     * never {@code FOCUS}, because the selection is the cursor here and a focus that selected would
+     * be {@code SELECT} under another name. {@code PRESS} stays on the list — see
      * {@link #onAccessibility}.
      *
      * @param child the child being described, which is the bar or one mounted cell
@@ -1797,11 +1792,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
 
     /**
      * A verb the list claimed on a row's cell, performed by the rules of the ROWS shape
-     * ({@link RowsAccessibility#performOnRow}, ADR 045 §3) over {@link RowsHost}: {@code SELECT}
+     * ({@link RowsAccessibility#performOnRow}) over {@link RowsHost}: {@code SELECT}
      * makes that row the selection, as a click on it does, through the same {@code USER} seam and
      * with the same reveal; {@code SCROLL_INTO_VIEW} reveals the row where it is, as the walk's
-     * free verb reveals a focusable one, and moves neither the selection nor the cursor
-     * (decision 20).
+     * free verb reveals a focusable one, and moves neither the selection nor the cursor.
      */
     @Override
     protected boolean onAccessibilityChildAction(Widget<?> child, long key, Accessible.Action action,

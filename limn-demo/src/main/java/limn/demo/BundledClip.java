@@ -10,10 +10,10 @@ import java.nio.file.Path;
 /**
  * The ten-second Big Buck Bunny excerpt this jar carries, as a file a decoder can open.
  *
- * <p>The build copies it out of the repository's {@code media/} into {@code limn/demo/media/},
- * with its licence beside it, for the reason ADR 027's dated note gives: the shipping FFmpeg
- * payload has no H.264 <em>encoder</em> (ADR 011 keeps every GPL component out), so a program that
- * wants to show real H.264 cannot make a clip and has to carry one.
+ * <p>The build copies it out of the repository's {@code media/} into {@code limn/demo/media/}, with
+ * its licence beside it, because the shipping FFmpeg payload has no H.264 <em>encoder</em> (every
+ * GPL component is kept out), so a program that wants to show real H.264 cannot make a clip and has
+ * to carry one.
  *
  * <p>&copy; 2008 Blender Foundation, <a href="https://peach.blender.org/">peach.blender.org</a>,
  * under the Creative Commons Attribution 3.0 Unported licence, whose text ships beside it. The

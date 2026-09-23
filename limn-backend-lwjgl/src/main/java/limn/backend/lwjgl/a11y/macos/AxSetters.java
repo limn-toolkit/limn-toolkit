@@ -7,22 +7,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The setter half: which of the toolkit's verbs a reader's write to an attribute means, and on which
- * nodes the attribute is settable at all (MACOS-NEW-11; semantics 5).
+ * The setter half: which of the toolkit's verbs a reader's write to an attribute means, and on
+ * which nodes the attribute is settable at all.
  *
  * <p><b>Settable is NOT the gate's answer alone: a client is told settable unless the modern gate
- * AND the legacy {@code accessibilityIsAttributeSettable:} BOTH refuse.</b> Measured on the guest
- * 2026-09-16 in two passes ({@code readings/macos-gate-setter-probe-read.txt}, then
+ * AND the legacy {@code accessibilityIsAttributeSettable:} BOTH refuse.</b> Measured on the
+ * guest 2026-09-16 in two passes ({@code readings/macos-gate-setter-probe-read.txt}, then
  * {@code readings/macos-settable-mechanism-serve.txt} and {@code -read.txt}: seven elements in one
  * window, every ask logged). The modern gate alone cannot say no, because when the class itself
  * <em>implements</em> the setter AppKit <b>discards the gate's NO and reports settable anyway</b> —
  * which is all six setters here, so a leaf row and a static text with no actions both answered
  * settable for every one of them. The legacy selector alone cannot say no either: the element whose
- * gate refused nothing was never asked it for a setter attribute at all, because a gate YES ends the
- * question. Only where both refuse does a client read {@code no}. So <b>the legacy selector is what
- * makes the telling equal the gate</b>, and it is answered from {@link AxGate#allows} so the two
- * cannot drift apart — not the modern gate doing it after all, which is the claim ADR 039 §2.2 and
- * this javadoc withdrew earlier the same day.
+ * gate refused nothing was never asked it for a setter attribute at all, because a gate YES ends
+ * the question. Only where both refuse does a client read {@code no}. So <b>the legacy selector is
+ * what makes the telling equal the gate</b>, and it is answered from {@link AxGate#allows} so the
+ * two cannot drift apart — not the modern gate doing it after all, which is the claim the design
+ * and this javadoc withdrew earlier the same day.
  *
  * <p>The proof that per-element settability is expressible at all — which is why this is a hook and
  * not one Objective-C class per shape — is two instances of <b>one</b> class in that reading,
@@ -51,18 +51,17 @@ import java.util.List;
  * {@code setAccessibility…} selector is refused on every node ({@link AxGate}). The second half is not
  * pedantry: a row whose {@code AXFocused} was settable because the row accepts {@code FOCUS} — while a
  * native row carries no {@code AXFocused} at all — was measured as inviting the write VoiceOver makes
- * (P5M-1, 2026-09-16; see {@link #offers}).
+ * (2026-09-16; see {@link #offers}).
  *
  * <p><b>It did not stop the cursor fight, and the record says so.</b> Re-measured the same day with
  * a jar carrying this refusal: nine unrequested focus moves before, nine after. The write this
  * refuses is genuinely inert now, and VoiceOver never used it — every revert begins with
  * {@code AXSelectedRowsChanged} on the outline, through {@code setAccessibilitySelectedRows:},
  * which stays offered because a native container offers it. What drags the cursor is that a
- * {@code SELECT} moves it here and does not on AppKit, which is a model question and is open. See
- * ADR 039 §2.2's second amendment of 2026-09-16 and
- * {@code readings/phase5-hear-the-fixes/macos-findings.txt}.
+ * {@code SELECT} moves it here and does not on AppKit, which is a model question and is open
+ * ({@code readings/phase5-hear-the-fixes/macos-findings.txt}).
  *
- * <p><b>A write is posted, never waited for</b> (§1.9): the setter returns nothing, and a verb the node
+ * <p><b>A write is posted, never waited for</b>: the setter returns nothing, and a verb the node
  * does not accept is not posted. The check is made again on the write itself, because a client may
  * send the setter without asking whether the attribute is settable first.
  */
@@ -91,16 +90,17 @@ final class AxSetters {
             SELECTED_ROWS);
 
     /**
-     * The attribute a client asks {@code AXUIElementIsAttributeSettable} about, and the setter a write
-     * to it would send — keyed by AppKit's exported symbol for the name, never by the name itself
-     * (§12.3), which {@link AxElementClass} resolves off the running AppKit and
+     * The attribute a client asks {@code AXUIElementIsAttributeSettable} about, and the setter a
+     * write to it would send — keyed by AppKit's exported symbol for the name, never by the name
+     * itself, which {@link AxElementClass} resolves off the running AppKit and
      * {@code AxConstantsTest} holds against the dump.
      *
-     * <p>That AppKit asks {@code accessibilityIsAttributeSettable:} with exactly these names, and with
-     * the attribute name rather than the selector, is read and not assumed: the probe's log carries
-     * {@code AXDisclosing}, {@code AXSelected}, {@code AXValue}, {@code AXFocused}, {@code AXExpanded}
-     * and {@code AXSelectedRows}, each asked of the element whose gate had just refused its setter
-     * ({@code readings/macos-settable-mechanism-serve.txt}, 2026-09-16, macOS 26.6.2).
+     * <p>That AppKit asks {@code accessibilityIsAttributeSettable:} with exactly these names, and
+     * with the attribute name rather than the selector, is read and not assumed: the probe's log
+     * carries {@code AXDisclosing}, {@code AXSelected}, {@code AXValue}, {@code AXFocused},
+     * {@code AXExpanded} and {@code AXSelectedRows}, each asked of the element whose gate had just
+     * refused its setter ({@code readings/macos-settable-mechanism-serve.txt}, 2026-09-16,
+     * macOS 26.6.2).
      *
      * <p><b>An attribute that is not here is not settable</b>, and that is a measured answer rather
      * than a default. The same log shows AppKit asking this selector for {@code AXPosition} and
@@ -158,7 +158,7 @@ final class AxSetters {
             // (readings/macos-table-probe.txt). The view takes focus; its rows are selected. Offering
             // it on a row let VoiceOver's cursor sync write its own previous row back 40 ms after every
             // key and drag the application's cursor with it, so no tree script got past row index 2
-            // (P5M-1, readings/phase5-macos/). A reader still moves the cursor the native way, by
+            // (readings/phase5-macos/). A reader still moves the cursor the native way, by
             // writing AXSelected on the row or AXSelectedRows on the container, which both post SELECT.
             case FOCUSED -> node.accepts(Accessible.Action.FOCUS) && !grid.isRow(node);
             case SELECTED -> node.accepts(Accessible.Action.SELECT) || node.accepts(Accessible.Action.DESELECT);
@@ -216,20 +216,20 @@ final class AxSetters {
      * What {@code setAccessibilitySelectedRows:} posts: the verbs that leave exactly the written rows
      * selected, or nothing at all.
      *
-     * <p>Read on the macOS 26.6.2 guest, 2026-09-15 ({@code scripts/a11y/macos/selection-writes-probe.swift}):
-     * a native outline's selection becomes exactly the rows written, in either mode — one row replaces
-     * whatever was selected, two rows in a multi-select outline become the selection, an empty array
-     * empties it — and a single-select outline refuses two rows with {@code kAXErrorIllegalArgument}
-     * and changes nothing. So one row is a click, {@code SELECT} (decision 10), which replaces; more
-     * than one, or none, is the difference from what is selected now, {@code DESELECT} on each selected
-     * row not written and {@code ADD_TO_SELECTION} on each written row not selected, and the write is
-     * refused whole unless the row accepts every verb it needs (semantics 5). A single-select
-     * container's rows publish no {@code ADD_TO_SELECTION} and no {@code DESELECT} (decision 20), so
-     * there two rows are refused, as natively, and an empty array too, where a native outline that
-     * allows an empty selection clears it.
+     * <p>Read on the macOS 26.6.2 guest, 2026-09-15
+     * ({@code scripts/a11y/macos/selection-writes-probe.swift}): a native outline's selection
+     * becomes exactly the rows written, in either mode — one row replaces whatever was selected,
+     * two rows in a multi-select outline become the selection, an empty array empties it — and a
+     * single-select outline refuses two rows with {@code kAXErrorIllegalArgument} and changes
+     * nothing. So one row is a click, {@code SELECT}, which replaces; more than one, or none, is
+     * the difference from what is selected now, {@code DESELECT} on each selected row not written
+     * and {@code ADD_TO_SELECTION} on each written row not selected, and the write is refused whole
+     * unless the row accepts every verb it needs. A single-select container's rows publish no
+     * {@code ADD_TO_SELECTION} and no {@code DESELECT}, so there two rows are refused, as natively,
+     * and an empty array too, where a native outline that allows an empty selection clears it.
      *
      * <p>The rows compared are the realized ones, the only ones a client can name: a selected row the
-     * container has not realized is not deselected by a write that leaves it out (ADR 039 §4.1).
+     * container has not realized is not deselected by a write that leaves it out.
      *
      * @param grid      the row lookups
      * @param container the table, outline or list written to
@@ -282,10 +282,9 @@ final class AxSetters {
     }
 
     /**
-     * What {@code setAccessibilityValue:} posts. A text node takes a string as its whole new text; a
-     * node with a writable value takes a number as the value and a string as the value's text, which
-     * the widget parses (semantics 5: "a ValueFacet's SetValue posts SET_VALUE OfText"). A string goes
-     * to the text first where a node has both.
+     * What {@code setAccessibilityValue:} posts. A text node takes a string as its whole new text;
+     * a node with a writable value takes a number as the value and a string as the value's text,
+     * which the widget parses. A string goes to the text first where a node has both.
      *
      * @param node   the node written to
      * @param text   the written object's text when it is a string, else {@code null}

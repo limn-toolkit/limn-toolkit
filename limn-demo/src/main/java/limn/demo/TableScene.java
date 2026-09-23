@@ -111,8 +111,8 @@ final class TableScene {
      * The state a render asks for through {@code LIMN_TABLE_DEMO}, so the owner can review a
      * keyboard state a capture cannot reach by itself: {@code focus} puts the keyboard in the
      * table on its lead row; {@code sorted} then sorts by customer, which moves that row far
-     * down and lets the reveal show it (decision 40 of 2026-09-14); {@code header} moves the
-     * keyboard on to the header's column cursor (decision 36); {@code strip} widens the
+     * down and lets the reveal show it; {@code header} moves the keyboard on to the header's
+     * column cursor; {@code strip} widens the
      * customer column past the window, reserves the bars' strips and scrolls to the last column
      * after the first layout, which is where the reserved vertical strip used to cover a strip's
      * width of that column (a60a2b1). Unset, the scene is as it was.

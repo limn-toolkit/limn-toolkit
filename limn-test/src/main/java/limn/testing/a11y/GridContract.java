@@ -18,14 +18,13 @@ import java.util.Map;
 
 /**
  * What every widget of the {@code GRID} shape owes a reader beyond what its rows do, as named
- * cases over a {@link GridSubject} (ADR 045 §4; decision 99, 2026-09-22):
+ * cases over a {@link GridSubject}:
  * <ul>
  *   <li>the container is of the {@code GRID} shape and carries a {@code TableFacet} whose column
  *       count is the header's;</li>
  *   <li>the four invariants hold, unfocused and focused;</li>
- *   <li>the header cells sit at row −1, one per column, in order, each carrying the direction
- *       its column is sorted in (decision 36) and {@code PRESS} exactly where the column
- *       sorts;</li>
+ *   <li>the header cells sit at row −1, one per column, in order, each carrying the direction its
+ *       column is sorted in and {@code PRESS} exactly where the column sorts;</li>
  *   <li>{@code PRESS} on a sortable header sorts by it and the facet says so, and a second press
  *       changes the direction the facet reports;</li>
  *   <li>a data cell is a {@code CELL} at a row and a column inside the counts;</li>

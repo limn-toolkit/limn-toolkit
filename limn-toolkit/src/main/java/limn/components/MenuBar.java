@@ -751,11 +751,10 @@ public final class MenuBar extends Widget<MenuBar> {
      * current title; not multi-selectable, because one menu is down at a time.
      *
      * <p><b>Why the toolkit names it.</b> The constructor makes the bar focusable unconditionally,
-     * so it is a permanent tab stop, and a focusable node with no name at all is what §12.1's
-     * gallery rule refuses. The class holds no string of its own to offer. The name is redundant
-     * with the role, which is the argument against it and is why it is written down; an
-     * application that wants better still wins, because {@code setAccessibleName} is applied after
-     * this hook.
+     * so it is a permanent tab stop, and a focusable node with no name at all is what the gallery's
+     * invariants refuse. The class holds no string of its own to offer. The name is redundant with
+     * the role, which is the argument against it and is why it is written down; an application that
+     * wants better still wins, because {@code setAccessibleName} is applied after this hook.
      *
      * <p><b>Each title's box is its own</b>, not the widget's: the same prefix sum over
      * {@link #titleWidth} that measure, paint, {@link #titleAt} and the dropdown's anchor share,
@@ -853,16 +852,15 @@ public final class MenuBar extends Widget<MenuBar> {
      * <p>"Down" is the fact the describe hook publishes: this title is the open one <em>and</em> a
      * cascade is on screen. A title whose show was refused is published collapsed with the verbs
      * that open it, so its {@code EXPAND} asks for the open again and its {@code COLLAPSE} is
-     * refused (decision 2; until 2026-09-15 this hook and the verbs read the index alone, and the
+     * refused (until 2026-09-15 this hook and the verbs read the index alone, and the
      * refused title published {@code COLLAPSE} beside {@code collapsed}).
      *
      * <p>The verbs answered are exactly the verbs {@link #onAccessibility} publishes for the
      * title's state: {@code SHOW_MENU} and {@code EXPAND} open a closed title, {@code COLLAPSE}
      * closes the open one, {@code FOCUS} takes the keyboard and puts the bar's cursor on any title
-     * while no menu is down, without opening it (decision 11, 2026-09-15), and {@code PRESS} —
-     * accepted here as a third synonym until 2026-09-14 — is refused, because a verb a node
-     * performs without publishing is one a reader cannot see and one platform invokes by accident
-     * (ADR 039 §1.5, amended that day; decision 2).
+     * while no menu is down, without opening it, and {@code PRESS} — accepted here as a third
+     * synonym until 2026-09-14 — is refused, because a verb a node performs without publishing is
+     * one a reader cannot see and one platform invokes by accident.
      *
      * <p>The answer to an open is whether a cascade is on screen, not whether the bar now believes
      * one is: the show is refused outright over a window that cannot host a popup, and answering

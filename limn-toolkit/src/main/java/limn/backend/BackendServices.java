@@ -21,7 +21,7 @@ import limn.video.VideoSurfaces;
 
 /**
  * Everything a {@link Backend} provides to the toolkit besides its windows, named in one place and
- * installed by one call (ADR 046 §5).
+ * installed by one call.
  *
  * <p>Until 2026-09-22 a backend installed each of these through a static setter of its own, and
  * nothing on the SPI said which it owed: a backend that forgot the text ruler measured every string

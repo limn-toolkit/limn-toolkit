@@ -7,7 +7,7 @@ import limn.backend.lwjgl.a11y.PlatformBridge;
 
 /**
  * Reads a Limn window to a screen reader on Linux, over AT-SPI2: one window's facade onto the
- * process's one AT-SPI application ({@link AtspiApplication}, ADR 039 §2.3).
+ * process's one AT-SPI application ({@link AtspiApplication}).
  *
  * <p>Hand one to a window and its scene publishes into the desktop's accessibility tree as a frame
  * of the application; hand it nothing and there is no cost at all, which is the arrangement the
@@ -22,17 +22,16 @@ import limn.backend.lwjgl.a11y.PlatformBridge;
  * {@code org.a11y.Status.IsEnabled} on the session bus says whether assistive technology is running
  * at all, and it moves while applications run: a screen reader started after this window turns it
  * on. The process keeps one session connection and one parked thread following it
- * ({@link AtspiStatusWatch}, decision 29). While it has never been true no connection to the
- * accessibility bus is opened, no scene walks and no frame is spent; the first true asks every
- * window for a publish, and there it stays: <b>once embedded, embedded for the life of the
- * process</b> (decision 67), as a GTK application is once {@code atk-bridge} has loaded. A false
- * afterwards changes nothing, because it never means what a teardown would need it to mean:
- * neither Orca 50.2 nor 46.1 ever writes the switch false
- * (readings/fedora-orca-switch-writes.txt, readings/ubuntu-orca-switch-writes.txt), so a reader
- * that quits leaves it on, and a false that does arrive — the desktop's own accessibility setting
- * — can arrive while a reader is still reading us (ADR 039 §6). The gate is never "a client asked
- * us something recently": Orca registers for a focus change and then calls nothing until one
- * fires, so a gate of that shape goes silent exactly when the interface is being used.
+ * ({@link AtspiStatusWatch}). While it has never been true no connection to the accessibility bus
+ * is opened, no scene walks and no frame is spent; the first true asks every window for a publish,
+ * and there it stays: <b>once embedded, embedded for the life of the process</b>, as a GTK
+ * application is once {@code atk-bridge} has loaded. A false afterwards changes nothing, because it
+ * never means what a teardown would need it to mean: neither Orca 50.2 nor 46.1 ever writes the
+ * switch false (readings/fedora-orca-switch-writes.txt, readings/ubuntu-orca-switch-writes.txt), so
+ * a reader that quits leaves it on, and a false that does arrive — the desktop's own accessibility
+ * setting — can arrive while a reader is still reading us. The gate is never "a client asked us
+ * something recently": Orca registers for a focus change and then calls nothing until one fires, so
+ * a gate of that shape goes silent exactly when the interface is being used.
  *
  * <p><b>Which thread may do what is the whole of the concurrency design.</b> The user-interface
  * thread publishes snapshots and enqueues events and blocks on nothing. The status thread follows
@@ -70,7 +69,7 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
      * The join this window's {@link #reconcileOwed} belongs to, so an owe raised on a connection
      * clients no longer hold is not paid on the next one. UI thread. What was <em>announced</em> is
      * not remembered here: the last effective focus is one memory for the process and lives on
-     * {@link AtspiApplication} (semantics 4, settled 2026-09-15), because the platform focus is one.
+     * {@link AtspiApplication}, because the platform focus is one.
      */
     int reconcileGeneration;
     /**
@@ -83,8 +82,8 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
 
     /**
      * Whether this window's startup was said into nothing — published before the application had
-     * joined the bus, every event of it dropped — and is to be said again once the join has landed
-     * (P5U-1). Set on the user-interface thread by the event that was dropped, read there again
+     * joined the bus, every event of it dropped — and is to be said again once the join has landed.
+     * Set on the user-interface thread by the event that was dropped, read there again
      * once the joined state is visible; cleared by the one frame that says it. Volatile because
      * the joined state it is read against is published by the joiner thread.
      */
@@ -110,7 +109,7 @@ public final class AtspiBridge extends PlatformBridge implements AtspiTree.Windo
      * session bus it can reach — headless, a container, a CI runner — gets {@link
      * AccessibilityBridge#NONE} and no thread at all.
      *
-     * @param applicationName what the desktop calls this process (decision 56: the backend's
+     * @param applicationName what the desktop calls this process (the backend's
      *                        application name, by default its first window's title)
      * @return a bridge, or {@link AccessibilityBridge#NONE} when there is no session bus to watch
      */

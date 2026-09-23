@@ -5,11 +5,11 @@ import limn.accessibility.Accessible;
 import limn.accessibility.Accessible.Action;
 
 /**
- * The {@code VALUE} shape, written once (ADR 045 §3): a node that carries a number in a range —
+ * The {@code VALUE} shape, written once: a node that carries a number in a range —
  * a slider, a spin button, a scroll bar, a splitter, a progress bar — publishes the number, its
  * bounds and its step, offers {@code INCREMENT} and {@code DECREMENT} unless it is read-only,
  * and accepts {@code SET_VALUE} with a finite number, which is implied by the facet and never
- * listed (ADR 039 §1.9: a verb that takes an argument is not published as a verb).
+ * listed (a verb that takes an argument is not published as a verb).
  *
  * <p>The rules: a verb on a disabled node is refused; {@code INCREMENT} and {@code DECREMENT}
  * move by the widget's own step, which the widget clamps as its keys do; {@code SET_VALUE} with

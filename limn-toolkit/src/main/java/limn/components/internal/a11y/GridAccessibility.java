@@ -6,19 +6,19 @@ import limn.accessibility.Accessible.Action;
 import limn.accessibility.CellFacet;
 
 /**
- * The {@code GRID} shape's container half, written once (ADR 045 §3; decision 99, 2026-09-22):
- * what a table and its cells publish beyond what its rows do. A grid is rows whose members
- * carry cells (§1.2): the rows are {@link RowsAccessibility}'s, and what this adds is the
- * {@code TableFacet} with its counts, the header cells at row −1 with the sort they carry, the
- * data cells found by their facet, and the summary cells at row −2. Until this, {@code Table}
- * and {@code CalendarView} each wrote that half in its own hook.
+ * The {@code GRID} shape's container half, written once: what a table and its cells publish beyond
+ * what its rows do. A grid is rows whose members carry cells: the rows are
+ * {@link RowsAccessibility}'s, and what this adds is the {@code TableFacet} with its counts, the
+ * header cells at row −1 with the sort they carry, the data cells found by their facet, and the
+ * summary cells at row −2. Until this, {@code Table} and {@code CalendarView} each wrote that half
+ * in its own hook.
  *
  * <p><b>The rules:</b>
  * <ul>
  *   <li>the container is a {@code TABLE} carrying a {@code TableFacet} with the rows and
  *       columns it shows;</li>
  *   <li>a header cell is a {@code COLUMN_HEADER} at row −1 carrying the direction its column
- *       is sorted in (decision 36), and offers {@code PRESS} exactly when the column sorts; the
+ *       is sorted in, and offers {@code PRESS} exactly when the column sorts; the
  *       localized phrase a platform reads the direction from is the widget's (its strings);</li>
  *   <li>a data cell is a {@code CELL} at its row and column, offers {@code FOCUS} where the
  *       grid's cursor is a cell (a table's), and carries {@code ACTIVE} while it is that

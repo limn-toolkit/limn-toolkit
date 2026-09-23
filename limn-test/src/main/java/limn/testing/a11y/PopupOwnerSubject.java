@@ -3,7 +3,7 @@ package limn.testing.a11y;
 import limn.scene.Widget;
 
 /**
- * A widget of the {@code POPUP_OWNER} shape (ADR 045 §1) as the popup-owner contract sees it:
+ * A widget of the {@code POPUP_OWNER} shape as the popup-owner contract sees it:
  * something that opens a popup, which the contract can build fresh, closed, and read the open
  * state of through the widget's own API.
  */

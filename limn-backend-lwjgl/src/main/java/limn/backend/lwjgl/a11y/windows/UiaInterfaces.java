@@ -141,9 +141,9 @@ final class UiaInterfaces {
                     "get_IsTopmost"));
 
     /**
-     * The four table interfaces, read off the Windows 11 ARM64 guest on 2026-09-09 for ADR 041
-     * §7: a grid is asked for a cell by row and column and for its counts, a table for its
-     * headers, and a cell for where it is and which headers it is under.
+     * The four table interfaces, read off the Windows 11 ARM64 guest on 2026-09-09: a grid is asked
+     * for a cell by row and column and for its counts, a table for its headers, and a cell for
+     * where it is and which headers it is under.
      */
     static final Vtable GRID_PROVIDER = new Vtable(
             "IGridProvider", "b17d6187-0907-464b-a168-0ef17a1572b1",
@@ -170,8 +170,8 @@ final class UiaInterfaces {
     /**
      * The one interface that is about the client and not about a node: UI Automation calls it on
      * the <b>root</b> when a client subscribes to events that cover this window, and again when it
-     * unsubscribes. Read off the guest on 2026-09-07, for ADR&nbsp;039 &sect;13.5's second half —
-     * whether a gate can be per window rather than per process.
+     * unsubscribes. Read off the guest on 2026-09-07, to learn whether a gate can be per window
+     * rather than per process.
      */
     static final Vtable ADVISE_EVENTS = new Vtable(
             "IRawElementProviderAdviseEvents", "a407b27b-0f6d-4427-9292-473c7bf93258",

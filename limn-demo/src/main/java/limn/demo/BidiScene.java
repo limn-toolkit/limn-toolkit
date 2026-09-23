@@ -30,10 +30,9 @@ import java.util.Locale;
  *
  * <p><b>What this screen deliberately does not show is mirroring.</b> The Arabic and Hebrew is
  * correct right-to-left text sitting in a left-to-right layout: the specimens start at the left
- * edge, and the fields keep their unmirrored frames. ADR 031 §4 makes direction-as-a-layout-axis
- * an ADR of its own rather than a loose end here, because it reaches every component; correct
- * text inside an unmirrored screen is the intermediate state it chose over shipping neither
- * half.
+ * edge, and the fields keep their unmirrored frames. Direction as a layout axis is a design of
+ * its own rather than a loose end here, because it reaches every component; correct text inside
+ * an unmirrored screen is the intermediate state chosen over shipping neither half.
  *
  * <p>A picture is the wrong instrument for bidi — it looks right while being wrong — which is
  * why the caret, the selection boxes and the glyph counts are pinned headlessly instead. What a
@@ -44,7 +43,7 @@ import java.util.Locale;
  *
  * <p>One block is a specimen of <em>resolution</em> rather than of shaping: the same bundle
  * string and the same spinner value twice, once inheriting the window's locale and once under
- * a column that declares Arabic (ADR 035). Every visible difference between the halves is the
+ * a column that declares Arabic. Every visible difference between the halves is the
  * declaration at work, and in the kitchen sink's Scripts tab the language picker makes the
  * other half of the claim — it moves the inheriting pair and cannot reach the pinned one.
  */
@@ -63,7 +62,7 @@ final class BidiScene {
     /** {@code marhaba} ("hello"): five letters, and the Arabic half of the mixed line below. */
     private static final String MARHABA = "مرحبا";
 
-    /** {@code riyal}: the right-to-left run of ADR 031 Finding 4's bidi fixture. */
+    /** {@code riyal}: the right-to-left run of the three-run bidi line below. */
     private static final String RIYAL = "ريال";
 
     /** {@code kataba} ("he wrote"): kaf, fatha, teh, fatha, beh, fatha — three letters, three marks. */
@@ -255,11 +254,11 @@ final class BidiScene {
     }
 
     /**
-     * ADR 035 as a widget pair: the right half sits under a column that declares
-     * {@link #ARABIC}, and nothing else about it differs from the left one. The label is a
-     * kitchen-bundle string the sink already ships — this scene adds no translation of its
+     * A locale declared on a subtree, as a widget pair: the right half sits under a column that
+     * declares {@link #ARABIC}, and nothing else about it differs from the left one. The label
+     * is a kitchen-bundle string the sink already ships — this scene adds no translation of its
      * own — so الإشعارات over Notifications is the subtree's string lookup, and ٤٢ over 42
-     * is ADR 033's format-time seam reading the effective locale instead of the process
+     * is the format-time digit substitution reading the effective locale instead of the process
      * one. Both spinners are live: type into the pinned one and the Arabic-Indic digits it
      * shows are the digits it takes.
      */

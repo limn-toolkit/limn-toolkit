@@ -14,14 +14,14 @@ import java.util.TreeSet;
  * the string at.
  *
  * <p><b>Characters here, UTF-16 units everywhere else.</b> The model counts in UTF-16 code units
- * ({@link TextFacet}); AT-SPI counts characters (ADR 039 §2.3), so an offset crosses from one to the
+ * ({@link TextFacet}); AT-SPI counts characters, so an offset crosses from one to the
  * other in {@link #charsOf} and {@link #unitsOf} and nowhere else, and a boundary is found on the
  * units and reported in characters.
  *
- * <p><b>Two kinds of node serve the interface</b> (settled linux-value-text): a node with a
- * {@code TextFacet}, whose caret and selection are its own, and a node with a {@code ValueFacet}
- * whose display form is not empty — a date segment's "15" or "empty", a spinner's "07:30" — which
- * is read-only text with no caret and no selection. A node with both answers from its text.
+ * <p><b>Two kinds of node serve the interface</b>: a node with a {@code TextFacet}, whose caret and
+ * selection are its own, and a node with a {@code ValueFacet} whose display form is not empty — a
+ * date segment's "15" or "empty", a spinner's "07:30" — which is read-only text with no caret and
+ * no selection. A node with both answers from its text.
  *
  * <p><b>What a line is.</b> The facet carries no soft wrap, so a line and a paragraph are what a
  * line feed delimits; a wrapped line in a text area reads as its whole paragraph. The word and
@@ -39,13 +39,13 @@ import java.util.TreeSet;
  * guest answer differently: GTK 4.22.4's text view answers a paragraph as what a line feed
  * delimits, GTK 3.24.52's ATK bridge answers {@code ('', -1, -1)} — nothing at all
  * (readings/fedora-gtk4-interface-replies.txt and readings/fedora-gtk3-interface-replies.txt,
- * section 4, scripts/a11y/linux/read-gtk-interface-replies.py, 2026-09-15). GTK 4's is taken,
- * for three reasons: it is the newer toolkit and the direction the desktops are moving; it agrees
- * with what this facet can honestly say, since with no soft wrap a paragraph and a line are the
- * same run of characters here; and a client asking for a paragraph is better served with the run it
- * would get from a line than with an empty string it cannot use — GTK 3's answer tells a reader
- * nothing, and Orca moving by paragraph over a Limn text area would simply stop. Whether Orca 50.2
- * actually moves by paragraph over it is a phase-5 measurement, not an assumption made here.
+ * section 4, scripts/a11y/linux/read-gtk-interface-replies.py, 2026-09-15). GTK 4's is taken, for
+ * three reasons: it is the newer toolkit and the direction the desktops are moving; it agrees with
+ * what this facet can honestly say, since with no soft wrap a paragraph and a line are the same run
+ * of characters here; and a client asking for a paragraph is better served with the run it would
+ * get from a line than with an empty string it cannot use — GTK 3's answer tells a reader nothing,
+ * and Orca moving by paragraph over a Limn text area would simply stop. Whether Orca 50.2 actually
+ * moves by paragraph over it is a phase-5 measurement, not an assumption made here.
  *
  * <p>GTK 4 leaves the line feed out of a line and a paragraph; the ATK bridge's line keeps it, and
  * so does this one.

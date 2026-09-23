@@ -16,9 +16,9 @@ import java.time.ZoneOffset;
  *
  * <p>One clock for the two runners that need one. The site gallery's capture pins it so a capture
  * taken tomorrow is the capture taken today (a calendar's "today" ring and its reader's "today"
- * moved with the wall clock, ADR 043 §9.3); the accessibility gallery's date entries pin it so a
+ * moved with the wall clock); the accessibility gallery's date entries pin it so a
  * reader run on any guest, on any day, hears the same today cell and steps an empty segment from
- * the same day (LAB-NEW-13; the Fedora guest's clock ran days behind). It is applied by whatever
+ * the same day (the Fedora guest's clock ran days behind). It is applied by whatever
  * builds a scene and never by the scene functions the site publishes as samples: a reader copying
  * a calendar should not copy a clock pinned to a documentation date.
  */

@@ -24,13 +24,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * Automation, which is every machine that is not Windows, so a cross-platform application can call
  * it unconditionally.
  *
- * <p><b>What lives here and which thread owns it</b>, from ADR&nbsp;039&nbsp;§3.4. The tree()
- * tree is a {@code volatile} field written by the user-interface thread and read by any RPC thread;
- * the registry is concurrent because an element is minted the first time a client navigates to a
- * node and up to three RPC threads may reach the same unvisited node at once; the listening gate is
- * no state at all, because UI Automation answers it. Nothing here holds a widget, and no widget can
- * reach anything here — a client may hold an element for minutes, and one that reached a widget
- * would pin a detached subtree for exactly that long.
+ * <p><b>What lives here and which thread owns it</b>. The tree() tree is a {@code volatile} field
+ * written by the user-interface thread and read by any RPC thread; the registry is concurrent
+ * because an element is minted the first time a client navigates to a node and up to three RPC
+ * threads may reach the same unvisited node at once; the listening gate is no state at all, because
+ * UI Automation answers it. Nothing here holds a widget, and no widget can reach anything here — a
+ * client may hold an element for minutes, and one that reached a widget would pin a detached
+ * subtree for exactly that long.
  *
  * <p><b>What is not yet verified.</b> Everything above the platform calls is exercised by this
  * module's own tests on any machine. The calls into {@code uiautomationcore} and the window
@@ -48,11 +48,11 @@ public final class UiaBridge extends PlatformBridge {
     private final UiaElements elements = new UiaElements();
 
     /**
-     * Interface pointer to the object behind it, for the pointers an element's object built when
-     * it was minted: its identity pointer, which every reader here goes by (a hand-over, the
+     * Interface pointer to the object behind it, for the pointers an element's object built when it
+     * was minted: its identity pointer, which every reader here goes by (a hand-over, the
      * disconnect's liveness check, the whole-registry empty, which frees by object identity), and
      * the fixed and pattern interfaces built with it. A pattern interface built later, when the
-     * snapshot first serves it (W2), is not entered: nothing looks an object up by that pointer.
+     * snapshot first serves it, is not entered: nothing looks an object up by that pointer.
      */
     private final Map<Long, UiaObject> objects = new ConcurrentHashMap<>();
 
@@ -71,7 +71,7 @@ public final class UiaBridge extends PlatformBridge {
     /**
      * The thread that raises, or {@code null} while nothing has been emitted since the last stop.
      * Written by the user-interface thread only: started lazily by {@link #emit}, stopped and
-     * joined by the whole-registry empty, which is the one order §3.4 allows.
+     * joined by the whole-registry empty, which is the one order the threading rules allow.
      */
     private Thread drain;
 
@@ -80,7 +80,7 @@ public final class UiaBridge extends PlatformBridge {
 
     /**
      * Every bridge holding a published tree in this process, so that a cursor resolved into a
-     * native popup's tree (decision 5: {@link AccessibleTree#activeDescendant()} may name a node
+     * native popup's tree ({@link AccessibleTree#activeDescendant()} may name a node
      * another window minted) is answered and raised through the provider of the window that holds
      * it. Added on a publish, removed on detach; read by drain and RPC threads.
      */
@@ -114,18 +114,18 @@ public final class UiaBridge extends PlatformBridge {
 
     /**
      * The last effective focus announced in this process, by whichever bridge's drain raised it
-     * (semantics 4: each bridge remembers the last effective focus it announced; one memory for
-     * the process, because UI Automation has one focus and a raise in another window moves it).
-     * A focus event that names it again is not raised again; a re-announcement after a collapse
-     * or the model's INVALIDATED is, whatever it names. Forgotten when nothing in a window is
-     * focused, when a window is deactivated, and when the bridge that owns it empties.
+     * (each bridge remembers the last effective focus it announced; one memory for the process,
+     * because UI Automation has one focus and a raise in another window moves it). A focus event
+     * that names it again is not raised again; a re-announcement after a collapse or the model's
+     * INVALIDATED is, whatever it names. Forgotten when nothing in a window is focused, when a
+     * window is deactivated, and when the bridge that owns it empties.
      */
     private static final java.util.concurrent.atomic.AtomicReference<Announced> ANNOUNCED =
             new java.util.concurrent.atomic.AtomicReference<>();
 
     /**
      * How many event subscriptions covering this window are standing: added minus removed. The
-     * spike's reading for §13.5's second half; not yet a gate.
+     * spike's reading of whether a gate can be per window; not yet a gate.
      */
     private final java.util.concurrent.atomic.AtomicInteger advised =
             new java.util.concurrent.atomic.AtomicInteger();
@@ -255,7 +255,7 @@ public final class UiaBridge extends PlatformBridge {
         return drain;
     }
 
-    /** @return how many times the queue has collapsed since this bridge opened (§13.19). */
+    /** @return how many times the queue has collapsed since this bridge opened. */
     int collapses() {
         return events.collapses();
     }
@@ -286,16 +286,15 @@ public final class UiaBridge extends PlatformBridge {
      *
      * <p>{@code UiaClientsAreListening()} alone was the gate until 2026-09-07, and it is
      * process-wide: true once any client in the session holds any event handler, which on the
-     * Windows 11 guest was seventeen processes with no reader among them — so every window paid
-     * the walk on every damaged frame for nobody (ADR&nbsp;039 &sect;13.5). It keeps its honest
-     * half here, the negative: when it is false nobody is listening to anything. When it is true,
-     * what decides is this window's own two facts — whether a client's event subscription covers
-     * it, which UI Automation says through {@code IRawElementProviderAdviseEvents} on the root and
-     * says again when the subscription is withdrawn; and whether a client asked for the root through
-     * {@code WM_GETOBJECT} within the last {@link #ASKED_WINDOW_NANOS}, which is the one thing a
-     * client that reads without ever subscribing does. Measured on the guest: with no reader the
-     * flag was true and neither fact held; with NVDA attached the subscription arrived before the
-     * first frame.
+     * Windows 11 guest was seventeen processes with no reader among them — so every window paid the
+     * walk on every damaged frame for nobody. It keeps its honest half here, the negative: when it
+     * is false nobody is listening to anything. When it is true, what decides is this window's own
+     * two facts — whether a client's event subscription covers it, which UI Automation says through
+     * {@code IRawElementProviderAdviseEvents} on the root and says again when the subscription is
+     * withdrawn; and whether a client asked for the root through {@code WM_GETOBJECT} within the
+     * last {@link #ASKED_WINDOW_NANOS}, which is the one thing a client that reads without ever
+     * subscribing does. Measured on the guest: with no reader the flag was true and neither fact
+     * held; with NVDA attached the subscription arrived before the first frame.
      */
     @Override
     public boolean isListening() {
@@ -409,12 +408,12 @@ public final class UiaBridge extends PlatformBridge {
     /**
      * <p>Handed over, never raised here. This used to raise straight through on the thread the
      * scene drained on — the user-interface thread — on the belief that a raise returns without
-     * waiting for a client, and the belief is false: measured with NVDA attached (ADR&nbsp;039
-     * &sect;13.28), a property-changed raise waits for the reader's handler and its calls back into
-     * this provider, 2.5&nbsp;ms median and one of 50&nbsp;ms, which is a frame's budget spent
-     * inside the platform. So this offers to the bounded queue &sect;1.10 asks of every bridge and
-     * returns, and {@link #raise} runs on a thread of this bridge's own, started the first time
-     * there is something to raise — a window nobody reads starts no thread.
+     * waiting for a client, and the belief is false: measured with NVDA attached, a
+     * property-changed raise waits for the reader's handler and its calls back into this provider,
+     * 2.5&nbsp;ms median and one of 50&nbsp;ms, which is a frame's budget spent inside the
+     * platform. So this offers to the bounded queue every bridge keeps and returns, and
+     * {@link #raise} runs on a thread of this bridge's own, started the first time there is
+     * something to raise — a window nobody reads starts no thread.
      *
      * @param event what moved
      */
@@ -461,9 +460,9 @@ public final class UiaBridge extends PlatformBridge {
     /**
      * The drain thread's whole life: take, raise, until stopped. A collapse marker is a sweep of
      * the registry against the published tree — every element whose node has left is released,
-     * which is what the swallowed {@code NODE_DESTROYED}s would have done one by one (§1.10) —
-     * followed by one invalidate-everything raise on the root, and then, <b>at the tail's place</b>,
-     * the re-announcement of the effective focus ({@link #reannounceOwed}) — before the first tail
+     * which is what the swallowed {@code NODE_DESTROYED}s would have done one by one — followed by
+     * one invalidate-everything raise on the root, and then, <b>at the tail's place</b>, the
+     * re-announcement of the effective focus ({@link #reannounceOwed}) — before the first tail
      * event that is not a {@code STRUCTURE_CHANGED}, or at the frame's end when there is none.
      */
     private void drainLoop() {
@@ -527,21 +526,21 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
-     * The re-announcement a sweep left owed, raised now (semantics 4 as settled 2026-09-15: every
-     * bridge re-announces the effective focus after the model's {@code INVALIDATED} and after its
-     * own queue collapse, <b>after</b> the tail's structure events and not before them).
+     * The re-announcement a sweep left owed, raised now (settled 2026-09-15: every bridge
+     * re-announces the effective focus after the model's {@code INVALIDATED} and after its own
+     * queue collapse, <b>after</b> the tail's structure events and not before them).
      *
      * <p>Until 2026-09-15 it was raised the moment the sweep finished — before the
-     * {@code STRUCTURE_CHANGED}s the model reserves outside its budget and sends next (decision 28,
-     * semantics 7: children first, then focus, cursor and selection). A reader told where the user
-     * is and then told the shape of the tree under it re-reads and asks again; told in decision
-     * 28's order it does not. Linux reconciles at the same place and macOS posts focus last in the
-     * frame; this is the third bridge joining them.
+     * {@code STRUCTURE_CHANGED}s the model reserves outside its budget and sends next (children
+     * first, then focus, cursor and selection). A reader told where the user is and then told the
+     * shape of the tree under it re-reads and asks again; told the structure first, it does not.
+     * Linux reconciles at the same place and macOS posts focus last in the frame; this is the third
+     * bridge joining them.
      *
      * <p>Two collapses with no tail between them owe one re-announcement, not two: what the raise
      * pays for is the element the sweep may have released under the reader, and one raise after the
-     * last sweep says it. Each raise waits for the reader's handler (§13.28), so a second one is a
-     * frame's budget spent saying what has just been said.
+     * last sweep says it. Each raise waits for the reader's handler, so a second one is a frame's
+     * budget spent saying what has just been said.
      *
      * <p><b>The second flush point is the frame's end, not an empty queue</b> (2026-09-16).
      * Until today {@link #drainLoop} tested {@code events.size() == 0} on this thread while the
@@ -627,7 +626,7 @@ public final class UiaBridge extends PlatformBridge {
      *
      * <p>{@code NODE_DESTROYED} raises nothing and releases this bridge's claim on the element: a
      * client still holding it gets {@code UIA_E_ELEMENTNOTAVAILABLE} from then on, which is what
-     * §1.3 promises, and a client that never asked for it has nothing to release.
+     * such a client is promised, and a client that never asked for it has nothing to release.
      *
      * @param event what moved
      */
@@ -650,7 +649,7 @@ public final class UiaBridge extends PlatformBridge {
         if (event.type() == AccessibleEvent.Type.WINDOW_DEACTIVATED) {
             // Nothing is raised: UI Automation follows the focus into whatever window took it.
             // What changes is the memory, so the return to this window is heard however little
-            // moved while it was away; and nothing raised is nothing paid (WINDOWS-NEW-6).
+            // moved while it was away; and nothing raised is nothing paid.
             ANNOUNCED.set(null);
             UiaWindow.say("WINDOW_DEACTIVATED for node " + event.nodeId()
                     + " raises nothing and forgets the announced focus");
@@ -715,7 +714,7 @@ public final class UiaBridge extends PlatformBridge {
                 // window's activation, BOUNDS_CHANGED and CARET_MOVED are handled above since
                 // 2026-09-15.) Nothing is
                 // raised, so nothing pays the change a client that asked is owed: only a raise
-                // that reached the client may clear the flag (WINDOWS-NEW-6).
+                // that reached the client may clear the flag.
                 UiaWindow.say("unmapped " + event.type() + " for node " + event.nodeId());
                 return;
             }
@@ -760,9 +759,9 @@ public final class UiaBridge extends PlatformBridge {
      * <p>Every raise site reads this the instant the platform call answers and before it says
      * anything, because a line can be a flushed write to a file when a guest run named one
      * (-Dlimn.a11y.uia.trace) and a flushed line is easily in the hundreds of microseconds — the
-     * same order as the number itself. ADR 039 §13.28's "2.5 ms median, one of 50 ms" is read off
-     * these notes, and an instrument that inflates the measurement it is read beside is worse than
-     * no instrument (2026-09-16 review; the memory rule measure-against-a-noise-floor).
+     * same order as the number itself. The measured "2.5 ms median, one of 50 ms" is read off these
+     * notes, and an instrument that inflates the measurement it is read beside is worse than no
+     * instrument.
      *
      * @param started a {@link System#nanoTime} reading from before the call
      * @return the microseconds since, as the notes print them
@@ -773,10 +772,9 @@ public final class UiaBridge extends PlatformBridge {
 
     /**
      * Where the user is, raised: {@code AutomationFocusChanged} on the element of the tree's
-     * {@linkplain AccessibleTree#effectiveFocus() effective focus} as the snapshot has it now
-     * (decision 1; semantics 4; W3, WINDOWS-NEW-4, WINDOWS-NEW-2), then, when the focus moved, a
-     * {@code HasKeyboardFocus} property change on the element it left and on the one it reached
-     * (ADR 039 §2.4's {@code FOCUS_CHANGED} row).
+     * {@linkplain AccessibleTree#effectiveFocus() effective focus} as the snapshot has it now,
+     * then, when the focus moved, a {@code HasKeyboardFocus} property change on the element it left
+     * and on the one it reached.
      *
      * <p><b>On the effective focus, not on the event's node</b>, and read off the current tree:
      * NVDA 2024.4.2 queues the focus only if the sender answers {@code HasKeyboardFocus} true when
@@ -795,16 +793,16 @@ public final class UiaBridge extends PlatformBridge {
      * node this tree does not hold, and its element is that window's: the raise goes through the
      * popup bridge's own element, under that bridge's guard.
      *
-     * <p><b>Remembered, and not raised twice in a row (semantics 4).</b> One publish can name the
-     * same element several times: a focus arriving on a table with a cursor is a
-     * {@code FOCUS_CHANGED} and an {@code ACTIVE_DESCENDANT_CHANGED}, and a publish past the model's
-     * budget is an {@code INVALIDATED} followed by both. Each raise waits for the reader's handler
-     * (ADR 039 §13.28: 2.5&nbsp;ms median, up to 50 on this thread), and NVDA drops the repeat
-     * anyway. So a focus event naming the element last announced in this process is skipped, while
-     * a {@code reannouncement} -- after the collapse and the sweep, which a client may have
-     * answered by re-reading -- raises whatever it names. The memory is the process's, so a raise
-     * in another window makes the return here heard; a deactivation forgets it, so the focus change
-     * into a window that is activated again is raised.
+     * <p><b>Remembered, and not raised twice in a row.</b> One publish can name the same element
+     * several times: a focus arriving on a table with a cursor is a {@code FOCUS_CHANGED} and an
+     * {@code ACTIVE_DESCENDANT_CHANGED}, and a publish past the model's budget is an
+     * {@code INVALIDATED} followed by both. Each raise waits for the reader's handler (2.5&nbsp;ms
+     * median, up to 50 on this thread), and NVDA drops the repeat anyway. So a focus event naming
+     * the element last announced in this process is skipped, while a {@code reannouncement} --
+     * after the collapse and the sweep, which a client may have answered by re-reading -- raises
+     * whatever it names. The memory is the process's, so a raise in another window makes the return
+     * here heard; a deactivation forgets it, so the focus change into a window that is activated
+     * again is raised.
      *
      * @param cause          what prompted it, for the trace: the event type, or the collapse it
      *                       follows
@@ -918,7 +916,7 @@ public final class UiaBridge extends PlatformBridge {
      * <p><b>The {@code HRESULT} travels back on the caller's own stack</b>, which is why the answer
      * is not a boolean. It was a volatile field until 2026-09-16, read by {@link #raiseFocus} after
      * the guard around the write had been released: two windows' drain threads raising a focus into
-     * the same popup bridge (decision 5) could interleave between the write and the read, and the
+     * the same popup bridge could interleave between the write and the read, and the
      * trace would then print the other thread's number — in exactly the case the field was
      * introduced for, on the one column the next guest run is told to grep first.
      *
@@ -958,20 +956,20 @@ public final class UiaBridge extends PlatformBridge {
 
     /**
      * What one container's {@code SELECTION_CHANGED} raises, as {@code {eventId, nodeId}} pairs in
-     * order (decision 9; semantics 1): {@code Selection_Invalidated} on the container when more
-     * than {@link UiaIds#INVALIDATE_LIMIT} members entered and left it; otherwise, in a container
-     * that selects one, {@code ElementSelected} on the member that entered, and
+     * order: {@code Selection_Invalidated} on the container when more than
+     * {@link UiaIds#INVALIDATE_LIMIT} members entered and left it; otherwise, in a container that
+     * selects one, {@code ElementSelected} on the member that entered, and
      * {@code ElementRemovedFromSelection} on each that left when none entered; in a container that
      * selects many, {@code ElementAddedToSelection} on each member that entered and
      * {@code ElementRemovedFromSelection} on each that left. Replaces the single
      * {@code ElementSelected} this bridge raised on the container itself, which is an item event
-     * raised on something that is not an item (WINDOWS-NEW-5).
+     * raised on something that is not an item.
      *
      * <p>A decision only: which of them reaches a client is {@link #raiseSelection}'s held-element
      * gate. NVDA 2024.4.2 speaks none of them for a generic item (readings/nvda-2024.4.2-uia.md §2:
      * ElementSelected needs the focus's ControllerFor, the other two map to a state change on a
-     * non-focus object); what it speaks as the cursor moves is the focus change of item 3. The
-     * events are raised for the clients that do subscribe to selection.
+     * non-focus object); what it speaks as the cursor moves is the focus change. The events are
+     * raised for the clients that do subscribe to selection.
      *
      * @param event a {@code SELECTION_CHANGED}
      * @return the raises, container first when it is bulk
@@ -1000,8 +998,8 @@ public final class UiaBridge extends PlatformBridge {
     /**
      * Raises {@link #selectionRaises} for the elements a client holds, and nothing for the rest:
      * the member that just entered a selection is not minted for it, because a client that never
-     * asked for it reads its selected state when it does (§13.28's cost argument), and a member
-     * that left the tree has no element left to raise on.
+     * asked for it reads its selected state when it does, and a member that left the tree has no
+     * element left to raise on.
      */
     private void raiseSelection(AccessibleEvent event) {
         boolean anything = false;
@@ -1031,26 +1029,25 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
-     * {@code {kind, processing}} for an announcement (WINDOWS-NEW-1): kind {@code Other}, because
-     * the model says nothing of what an announcement is about; processing by politeness.
-     * {@code ASSERTIVE} interrupts, which is {@code ImportantMostRecent}: NVDA 2024.4.2 cancels its
-     * speech first for {@code MostRecent} and {@code ImportantMostRecent} and queues the others
+     * {@code {kind, processing}} for an announcement: kind {@code Other}, because the model says
+     * nothing of what an announcement is about; processing by politeness. {@code ASSERTIVE}
+     * interrupts, which is {@code ImportantMostRecent}: NVDA 2024.4.2 cancels its speech first for
+     * {@code MostRecent} and {@code ImportantMostRecent} and queues the others
      * (readings/nvda-2024.4.2-uia.md §4), and an interruption is important. {@code POLITE} waits,
      * which is {@code All}: queued, none dropped for a later one. The enumerators were read on the
      * guest 2026-09-13 ({@link UiaIds#NOTIFICATION_KIND_OTHER}).
      *
      * <p><b>The pairing itself is a choice and not a reading</b>, which the phase-3 critic listed
      * among the constants this bridge added without one. What the guest settled is the five kinds
-     * and the six processings and their numbers; what no reading settles is which of them two
-     * model politenesses become, because the model's {@code Politeness} has no counterpart on the
+     * and the six processings and their numbers; what no reading settles is which of them two model
+     * politenesses become, because the model's {@code Politeness} has no counterpart on the
      * platform and no native control was found raising a notification to be copied. The reasoning
      * is the one above, argued from the reader's own handler rather than from a provider: of the
      * five kinds, four claim the announcement is about an item added, an item removed, an action
      * completed or an action aborted, and the model asserts none of those, so {@code Other} is the
      * only kind that is not a claim; and of the six processings, the two that cancel speech are
      * where {@code ASSERTIVE}'s promise to interrupt can be kept, the important one because an
-     * interruption is by definition important. It is Windows open question 4, and phase 5 hears
-     * what NVDA does with each.
+     * interruption is by definition important. Phase 5 hears what NVDA does with each.
      *
      * @param politeness the announcement's
      * @return the kind and the processing, in that order
@@ -1064,7 +1061,7 @@ public final class UiaBridge extends PlatformBridge {
 
     /**
      * An announcement, raised with {@code UiaRaiseNotificationEvent} on the root's element, minted if
-     * no client holds it (WINDOWS-NEW-1). It was mapped to the notification event id and then
+     * no client holds it. It was mapped to the notification event id and then
      * dropped, because the model names no node for it (node {@code 0}) and nothing held one; and
      * {@code UiaRaiseAutomationEvent}, which it would have gone through, carries no text.
      *
@@ -1118,15 +1115,15 @@ public final class UiaBridge extends PlatformBridge {
 
     /**
      * What one parent's {@code STRUCTURE_CHANGED} raises, as {@code {type, raisedOn, runtimeIdOf}}
-     * node triples in order (WINDOWS-NEW-3), the shape the platform's own
+     * node triples in order, the shape the platform's own
      * {@code AutomationPeer.UpdateChildrenInternal} raises, read as IL on the guest 2026-09-15
      * (readings/windows-dump-uia-provider-conventions.txt §3): when more children entered and left
-     * than the limit, one change on the parent with the parent's runtime id, {@code
-     * ChildrenBulkRemoved} when none entered, {@code ChildrenBulkAdded} when none left,
+     * than the limit, one change on the parent with the parent's runtime id,
+     * {@code ChildrenBulkRemoved} when none entered, {@code ChildrenBulkAdded} when none left,
      * {@code ChildrenInvalidated} when both; otherwise {@code ChildRemoved} on the parent with each
-     * removed child's runtime id, then {@code ChildAdded} on each added child with its own. The limit
-     * is the platform's: {@link UiaIds#ITEMS_INVALIDATE_LIMIT} for a container of items (a list,
-     * tree, table or grid: a node with a selection or a table facet), which is what
+     * removed child's runtime id, then {@code ChildAdded} on each added child with its own. The
+     * limit is the platform's: {@link UiaIds#ITEMS_INVALIDATE_LIMIT} for a container of items (a
+     * list, tree, table or grid: a node with a selection or a table facet), which is what
      * {@code ItemsControlAutomationPeer} passes, else {@link UiaIds#INVALIDATE_LIMIT}. A publish
      * that moved surviving children adds one {@code ChildrenReordered} on the parent with the
      * parent's own runtime id. {@code UpdateChildrenInternal} has no case for a move; the shape is
@@ -1175,13 +1172,13 @@ public final class UiaBridge extends PlatformBridge {
     /**
      * Raises {@link #structureRaises} through {@code UiaRaiseStructureChangedEvent}, when a client
      * holds the parent's element: a client that never asked for the parent holds nothing its
-     * children could have changed under, and reads them when it does ask (§13.28's cost argument).
-     * With the parent held, an added child's element is minted for its {@code ChildAdded}, as the
-     * platform's peer raises it on the child's own provider; a removed child's runtime id is still
-     * its identifier's. It was {@code UiaRaiseAutomationEvent} with the structure-changed id before,
-     * which carries neither a type nor a runtime id, and dropped whenever the parent was unheld.
-     * NVDA 2024.4.2 subscribes to no structure change (readings/nvda-2024.4.2-uia.md §5); the event
-     * is for the clients that do.
+     * children could have changed under, and reads them when it does ask. With the parent held, an
+     * added child's element is minted for its {@code ChildAdded}, as the platform's peer raises it
+     * on the child's own provider; a removed child's runtime id is still its identifier's. It was
+     * {@code UiaRaiseAutomationEvent} with the structure-changed id before, which carries neither a
+     * type nor a runtime id, and dropped whenever the parent was unheld. NVDA 2024.4.2 subscribes
+     * to no structure change (readings/nvda-2024.4.2-uia.md §5); the event is for the clients that
+     * do.
      */
     private void raiseStructure(AccessibleEvent event) {
         UiaElement parent = elements.peek(event.nodeId());
@@ -1232,12 +1229,12 @@ public final class UiaBridge extends PlatformBridge {
 
     /**
      * This bridge's fragment pointer for a node, handed to another window's {@code GetFocus} on
-     * that window's RPC thread (decision 5), under this bridge's guard: the element is minted,
+     * that window's RPC thread, under this bridge's guard: the element is minted,
      * found and referenced while the whole-registry empty cannot run, and not at all once this
      * bridge has left the open set, which its detach does before it empties.
      *
      * <p>Since 2026-09-15 it also hands over the <b>simple</b> interface, for an element-valued
-     * relation property whose target lives here (CRIT-2): {@code ControllerFor} on the opener of a
+     * relation property whose target lives here: {@code ControllerFor} on the opener of a
      * native popup names the popup's root, and the property declares
      * {@code IRawElementProviderSimple**}.
      *
@@ -1275,7 +1272,7 @@ public final class UiaBridge extends PlatformBridge {
 
     /**
      * Whether a node of this tree is where the user is: this tree's effective focus, or the cursor
-     * another open window's focused node resolved into this tree (decision 5). What
+     * another open window's focused node resolved into this tree. What
      * {@code HasKeyboardFocus} answers, so that it agrees with {@link #raiseFocus}.
      *
      * @param nodeId a node of this bridge's tree
@@ -1300,7 +1297,7 @@ public final class UiaBridge extends PlatformBridge {
     /**
      * @return the first node of this tree another open window's effective focus names, or
      *         {@code 0}; what this window's {@code GetFocus} answers when nothing of its own is
-     *         focused (decision 5)
+     *         focused
      */
     private long cursorFromAnotherWindow() {
         AccessibleTree tree = tree();
@@ -1331,8 +1328,8 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
-     * A value that moved, raised as the property of each pattern the node vends that it moved on
-     * (the settled value-text-event item; CRIT-4's Windows half), only for an element a client holds.
+     * A value that moved, raised as the property of each pattern the node vends that it moved on,
+     * only for an element a client holds.
      *
      * <p>Until 2026-09-15 one property was raised, {@code RangeValue.Value} whenever the node had a
      * number, so a node vending both patterns -- a spinner's "07:30", a date segment's "empty" --
@@ -1341,9 +1338,9 @@ public final class UiaBridge extends PlatformBridge {
      * control's value from {@code Value} when it vends both and maps both properties to its
      * {@code valueChange} (readings/nvda-2024.4.2-uia.md §3).
      *
-     * <p>The old string goes as an empty variant: the model's event carries the two numbers and
-     * not the text, and a COM client's {@code HandlePropertyChangedEvent} receives the new value
-     * alone (sender, propertyId, newValue: UIAutomationCore.dll's type library, read 2026-09-13,
+     * <p>The old string goes as an empty variant: the model's event carries the two numbers and not
+     * the text, and a COM client's {@code HandlePropertyChangedEvent} receives the new value alone
+     * (sender, propertyId, newValue: UIAutomationCore.dll's type library, read 2026-09-13,
      * readings/windows-dump-uia-typelib-all-members.txt).
      *
      * @param event the {@code VALUE_CHANGED}
@@ -1363,7 +1360,7 @@ public final class UiaBridge extends PlatformBridge {
         int[] properties = valueRaises(event, tree, node);
         if (properties.length == 0) {
             // Nothing a vended pattern carries moved (a bare number's emptiness), or the node has
-            // gone: nothing raised, so nothing pays the event an ask is owed (WINDOWS-NEW-6).
+            // gone: nothing raised, so nothing pays the event an ask is owed.
             UiaWindow.say("unmapped " + event.type() + " for node " + event.nodeId()
                     + ": no vended pattern's property moved");
             return;
@@ -1397,22 +1394,21 @@ public final class UiaBridge extends PlatformBridge {
      * vends Value.
      *
      * <p>A number that did not move means the text or the emptiness did (the model raises the event
-     * for nothing else, ADR 039 §1.10's 2026-09-14 amendment), so RangeValue, which carries only the
-     * number, is not raised. The Value string is raised even when the number moved and the text
-     * happened not to, because the event carries no text to compare: a Value vended from a value
-     * facet is the number's spoken form, which moves with it.
+     * for nothing else since 2026-09-14), so RangeValue, which carries only the number, is not
+     * raised. The Value string is raised even when the number moved and the text happened not to,
+     * because the event carries no text to compare: a Value vended from a value facet is the
+     * number's spoken form, which moves with it.
      *
-     * <p><b>That last half is a choice and not a reading</b> (Windows open question 8), listed by
-     * the phase-3 critic among this bridge's mappings that no guest settled. Nothing was read
-     * saying whether a provider whose number moved should also raise {@code Value.Value}; what was
-     * read is that NVDA 2024.4.2 reads a control's value from {@code Value} when it vends both
-     * patterns and maps both properties to its one {@code valueChange}
-     * (readings/nvda-2024.4.2-uia.md §3). The reasoning is that the event carries the two numbers
-     * and no text, so the alternative — raising {@code Value.Value} only when the text is known to
-     * have moved — cannot be computed from what the model sends, and the failure modes are not
-     * symmetric: a redundant raise costs one reader handler (§13.28), while a missing one leaves a
-     * spinner's "07:30" spoken as whatever it said before. Phase 5 hears whether a spinner step is
-     * spoken once or twice.
+     * <p><b>That last half is a choice and not a reading</b>, listed by the phase-3 critic among
+     * this bridge's mappings that no guest settled. Nothing was read saying whether a provider
+     * whose number moved should also raise {@code Value.Value}; what was read is that NVDA 2024.4.2
+     * reads a control's value from {@code Value} when it vends both patterns and maps both
+     * properties to its one {@code valueChange} (readings/nvda-2024.4.2-uia.md §3). The reasoning
+     * is that the event carries the two numbers and no text, so the alternative — raising
+     * {@code Value.Value} only when the text is known to have moved — cannot be computed from what
+     * the model sends, and the failure modes are not symmetric: a redundant raise costs one reader
+     * handler, while a missing one leaves a spinner's "07:30" spoken as whatever it said before.
+     * Phase 5 hears whether a spinner step is spoken once or twice.
      *
      * @param event the {@code VALUE_CHANGED}
      * @param tree  the tree the node is read from
@@ -1566,12 +1562,12 @@ public final class UiaBridge extends PlatformBridge {
     /**
      * The <b>second</b> property one change moves, or {@code 0} for a change that moves one.
      *
-     * <p>There is exactly one today, and it is decision 36's (2026-09-16): a sorted column header's
-     * direction is carried on this platform by {@code ItemStatus} <b>and</b> {@code HelpText},
-     * File Explorer's convention, and both are answered from the node's description
-     * ({@code UiaProperties}). So the description that moves when a column is re-sorted moves both,
-     * and a client that caches {@code ItemStatus} — the property the convention exists for — went
-     * on saying the old direction, because a sort reaches this bridge as a description change and
+     * <p>There is exactly one today, settled 2026-09-16: a sorted column header's direction is
+     * carried on this platform by {@code ItemStatus} <b>and</b> {@code HelpText}, File Explorer's
+     * convention, and both are answered from the node's description ({@code UiaProperties}). So the
+     * description that moves when a column is re-sorted moves both, and a client that caches
+     * {@code ItemStatus} — the property the convention exists for — went on saying the old
+     * direction, because a sort reaches this bridge as a description change and
      * {@code DESCRIPTION_CHANGED} raised {@code HelpText} alone. The integration log recorded the
      * gap as "a sort arrives as a publish, not a state change", which is half right: it is not a
      * state change, and it is not silent either.
@@ -1752,7 +1748,7 @@ public final class UiaBridge extends PlatformBridge {
     }
 
     /**
-     * The whole-registry empty of §3.4.
+     * The whole-registry empty.
      *
      * <p><b>By identity, because one object answers to several pointers.</b> An element serving the
      * two interfaces every node has, plus one per pattern it vends, appears in the pointer map
@@ -1789,7 +1785,7 @@ public final class UiaBridge extends PlatformBridge {
             // the same on WM_DESTROY for a window that dies under an attached bridge). Without
             // it the cache kept a pointer to the root, and the popup's close crashed the process
             // in a freed trampoline some 240 ms after the objects below were freed, with every
-            // object disconnected (P5W-3, readings/p5w3-windows/date-picker-native-fix-1).
+            // object disconnected (readings/p5w3-windows/date-picker-native-fix-1).
             withdrawTheWindowsProvider();
             // Then, while every closure the platform may call back through is still there.
             long root = rootProviderForDisconnect;
@@ -1801,7 +1797,7 @@ public final class UiaBridge extends PlatformBridge {
             // Then each object is let go of, and freed now only if the platform holds no reference
             // on it any more: the disconnects above release UI Automation's own, a client's proxies
             // release theirs on their own threads afterwards, and an object freed under one of
-            // those is P5W-3 (UiaObject#retire).
+            // those is a crash (UiaObject#retire).
             for (UiaObject object : distinct) {
                 if (object.retire()) {
                     freedNow++;
@@ -1819,7 +1815,7 @@ public final class UiaBridge extends PlatformBridge {
 
     /**
      * Every other element a client was handed, disconnected the same way and for the same reason
-     * as the root, before its closures go (P5W-3, read on the Windows guest 2026-09-22).
+     * as the root, before its closures go (read on the Windows guest 2026-09-22).
      *
      * <p>Until then the root was the one provider disconnected here, on the reading that it is the
      * one {@code UiaReturnRawElementProvider} handed over. Every other element a client had reached
@@ -1832,10 +1828,10 @@ public final class UiaBridge extends PlatformBridge {
      * ({@code readings/p5w3-windows/date-picker-native-1}: {@code freed 14 objects}, then a Windows
      * Application Error 1000, {@code 0xc0000005}; the 2026-09-16 runs of the same script hung
      * instead, on the order this bridge had then). {@code UiaDisconnectProvider} takes any
-     * {@code IRawElementProviderSimple}, so each object is disconnected through the simple interface
-     * every one of them serves: one call per element a client was ever handed, on the
-     * user-interface thread, under the guard, while the closures it calls back through are alive.
-     * A window nobody read holds no element and pays nothing here.
+     * {@code IRawElementProviderSimple}, so each object is disconnected through the simple
+     * interface every one of them serves: one call per element a client was ever handed, on the
+     * user-interface thread, under the guard, while the closures it calls back through are alive. A
+     * window nobody read holds no element and pays nothing here.
      *
      * @param distinct every object of the registry, by identity
      * @param root     the root's pointer, disconnected already, or {@code 0}
@@ -2071,8 +2067,8 @@ public final class UiaBridge extends PlatformBridge {
         }
 
         /**
-         * <p>The same hand-over, through the simple interface the relation properties declare
-         * (CRIT-2): a {@code ControllerFor}, {@code LabeledBy} or {@code DescribedBy} target that
+         * <p>The same hand-over, through the simple interface the relation properties declare:
+         * a {@code ControllerFor}, {@code LabeledBy} or {@code DescribedBy} target that
          * another open window holds is that window's element, minted and referenced there, under
          * that bridge's guard.
          */
@@ -2139,7 +2135,7 @@ public final class UiaBridge extends PlatformBridge {
      * the same thing and can tell.
      *
      * <p><b>The pattern interfaces are the node's set as the snapshot has it at each ask, not at
-     * the first one (W2, 2026-09-15).</b> They are the object's {@linkplain UiaObject.Varying
+     * the first one (2026-09-15).</b> They are the object's {@linkplain UiaObject.Varying
      * varying} interfaces: every query and every hand-over reads {@link UiaPatterns#supports}
      * against the tree of that moment, builds a pattern gained since in a field the object
      * reserved, and refuses one lost since. Before, the list was fixed when the element was

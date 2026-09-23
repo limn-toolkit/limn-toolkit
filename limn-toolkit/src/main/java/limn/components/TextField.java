@@ -224,8 +224,8 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * handler Enter is left alone, so a {@link Dialog}'s default button still answers it, and it is
      * never taken while an input method is composing, where Enter commits the composition.
      *
-     * <p>What a subclass overriding the key hook used to do, before this class was sealed (ADR 046
-     * §2): the route the forms guide taught for submitting on Enter.
+     * <p>What a subclass overriding the key hook used to do, before this class was sealed: the
+     * route the forms guide taught for submitting on Enter.
      *
      * @param listener the handler, or {@code null} to clear the slot
      * @return this field

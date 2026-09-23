@@ -7,7 +7,7 @@ import limn.scene.Scene;
  * The one way outside {@code limn.scene} to reach a scene's window input, for the test driver of
  * {@code limn-test} and for a program that replays input into a scene of its own (the demo's
  * captures and films). Not API: an application talks to its scene through {@link Scene}, and a
- * window receives input from the adapter {@link Scene#bind} hands it (ADR 046 §4).
+ * window receives input from the adapter {@link Scene#bind} hands it.
  *
  * <p>The scene installs the hook from its own static initializer, and only the scene can: an
  * install from any other class is refused, so the hook cannot be replaced by whoever loads first.

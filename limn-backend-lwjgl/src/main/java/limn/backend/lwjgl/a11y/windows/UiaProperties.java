@@ -26,12 +26,12 @@ import limn.accessibility.StateNames;
  * eight roles UI Automation has no word for, and it is spoken to the user, so it has to resolve
  * under the node's own locale — which needs this module to carry a bundle of its own, and it does
  * not yet. {@code HeadingLevel} needs a constant from {@code uiautomationcoreapi.h}: the guest's
- * interop assembly knows the property (it is in {@link UiaIds}) and not the enumerators, and §12.3
- * is explicit that a recalled constant is a defect that compiles. {@code Culture} is an LCID, and
- * Java has no mapping from a {@link java.util.Locale} to one; the guest can be asked for the whole
- * table, and that is a reading, not a guess. Until then each answers {@code VT_EMPTY}, which costs
- * a switch control the word "switch" and a heading the word "heading" — real losses, named here so
- * they are visible rather than discovered by a listener.
+ * interop assembly knows the property (it is in {@link UiaIds}) and not the enumerators, and a
+ * recalled constant is a defect that compiles. {@code Culture} is an LCID, and Java has no mapping
+ * from a {@link java.util.Locale} to one; the guest can be asked for the whole table, and that is a
+ * reading, not a guess. Until then each answers {@code VT_EMPTY}, which costs a switch control the
+ * word "switch" and a heading the word "heading" — real losses, named here so they are visible
+ * rather than discovered by a listener.
  *
  * <p><b>Three properties are elements and not values</b> -- {@code LabeledBy}, {@code DescribedBy}
  * and {@code ControllerFor} -- and are answered by the provider from {@link #relatedNodes}, which
@@ -143,7 +143,7 @@ final class UiaProperties {
                 return node.role() == Accessible.Role.DIALOG
                         || node.role() == Accessible.Role.ALERT;
 
-            // Semantics 6 (decision 4; W4, CRIT-6): "n of m" from the selection item's numbers and
+            // Semantics 6 (decision 4): "n of m" from the selection item's numbers and
             // the depth from the hierarchy facet, each only when it is not zero, which is the
             // model's "no number" and a client's too (NVDA 2024.4.2 uses each only when positive,
             // readings/nvda-2024.4.2-uia.md §2). The level passes through: the platform's base is
@@ -233,10 +233,10 @@ final class UiaProperties {
 
     /**
      * @param node the node asked
-     * @return whether it is the header cell of a column the table is sorted on: a cell in the header
-     *         row (ADR 041 §7's {@code -1}) whose {@code CellFacet.Sort} is not {@code NONE}. A
-     *         footer cell carries {@code -2} and a data cell a row from zero, and neither heads a
-     *         column, whatever direction its facet holds
+     * @return whether it is the header cell of a column the table is sorted on: a cell in the
+     *         header row ({@code -1}) whose {@code CellFacet.Sort} is not {@code NONE}. A footer
+     *         cell carries {@code -2} and a data cell a row from zero, and neither heads a column,
+     *         whatever direction its facet holds
      */
     private static boolean isSortedHeader(AccessibleNode node) {
         return node.cell() != null && node.cell().row() == -1

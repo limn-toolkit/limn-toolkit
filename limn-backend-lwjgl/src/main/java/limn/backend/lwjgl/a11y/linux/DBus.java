@@ -33,7 +33,7 @@ import limn.concurrent.internal.Threads;
  *  - little-endian on the wire when writing (we read either endianness);
  *  - no UNIX fd passing, and it is never negotiated: java.nio cannot do SCM_RIGHTS, and a connection
  *    that agreed to NEGOTIATE_UNIX_FD is one a peer may send a descriptor-carrying message to,
- *    which this reader could not even parse (ADR 039 §2.3). Unnegotiated, the bus refuses to route
+ *    which this reader could not even parse. Unnegotiated, the bus refuses to route
  *    such a message here; the type 'h' is neither read nor written;
  *  - no abstract-socket transport (java.net.UnixDomainSocketAddress is filesystem-path only);
  *  - method-call handlers run on the single reader thread, so a handler must not make a
@@ -562,7 +562,7 @@ final class DBus {
          *
          * <p>For a connection whose whole life is one thread waiting on the next message — the
          * accessibility switch's watch, which is the one thread a process keeps when nothing is
-         * reading (ADR 039 §6). A reader and a writer thread for it would be two more.
+         * reading. A reader and a writer thread for it would be two more.
          *
          * @param address the bus address
          * @return the authenticated connection; {@code Hello} not yet sent
@@ -682,7 +682,7 @@ final class DBus {
          * <p>There is no {@code NEGOTIATE_UNIX_FD} and there must never be one. The spike sent it
          * "only to see the answer"; both buses answer {@code AGREE_UNIX_FD}, and an agreed connection
          * is one the bus will route a descriptor-carrying message to — a type this reader cannot
-         * parse, arriving as ancillary data {@code java.nio} cannot receive (LINUX-NEW-13).
+         * parse, arriving as ancillary data {@code java.nio} cannot receive.
          *
          * @param uid the numeric user id, as text
          * @return the command lines, without their CRLF
@@ -720,8 +720,8 @@ final class DBus {
          * {@code accessibility.conf} set {@code max_message_size} to 1000000000, above what either
          * bus accepted, and dbus-broker's {@code --max-bytes} is, in its own help on the Fedora
          * guest, the "maximum number of bytes each user may allocate in the broker" — a per-user
-         * quota, not a message size. A length past this one is not a message any bus relays, so
-         * the stream cannot be followed past it, and nothing is allocated for it.
+         * quota, not a message size. A length past this one is not a message any bus relays, so the
+         * stream cannot be followed past it, and nothing is allocated for it.
          */
         static final int MAX_MESSAGE = 1 << 27;
 
@@ -921,7 +921,7 @@ final class DBus {
          * guard only the read: a message whose body did not parse — a type this client does not
          * speak, a header variant it did not expect — threw out of the loop, the reader thread died,
          * and the connection stayed open and embedded with no one answering it, which is exactly
-         * what at-spi2-core 2.60 hides from the desktop (LINUX-NEW-13). An unparsable message is
+         * what at-spi2-core 2.60 hides from the desktop. An unparsable message is
          * logged and, when it was a method call whose header could be read, refused with an error
          * reply; the loop goes on to the next message.
          */
@@ -1044,11 +1044,11 @@ final class DBus {
         static final String UNKNOWN_METHOD = "org.freedesktop.DBus.Error.UnknownMethod";
 
         /**
-         * The error {@code Properties.Set} of a property declared read-only gets. What GTK
-         * 3.24.52's ATK bridge (at-spi2-atk 2.60.6) answers to {@code Set(org.a11y.atspi.Value,
-         * MinimumValue, d)} on a spin button and a level bar, read 2026-09-15 on the Fedora KDE 44
-         * guest (readings/fedora-gtk3-interface-replies.txt, section 5,
-         * scripts/a11y/linux/read-gtk-interface-replies.py).
+         * The error {@code Properties.Set} of a property declared read-only gets. What
+         * GTK 3.24.52's ATK bridge (at-spi2-atk 2.60.6) answers to
+         * {@code Set(org.a11y.atspi.Value, MinimumValue, d)} on a spin button and a level bar,
+         * read 2026-09-15 on the Fedora KDE 44 guest (readings/fedora-gtk3-interface-replies.txt,
+         * section 5, scripts/a11y/linux/read-gtk-interface-replies.py).
          *
          * <p><b>A choice between two readings that disagree, and the reasoning</b> (the phase-3
          * critic asked for it in writing). GTK 4.22.4 refuses the same write with
@@ -1069,7 +1069,7 @@ final class DBus {
          * {@code UnknownMethod} when there is no handler or it declines, and an error when it
          * throws. Never null and never a throw.
          *
-         * <p>A handler that threw used to leave the caller with nothing at all (LINUX-NEW-9), and
+         * <p>A handler that threw used to leave the caller with nothing at all, and
          * libatspi waits out a newly added application's whole call timeout — up to fifteen seconds
          * — before it pings and declares the process hung. Arguments of the wrong number or type
          * (an index past the body, a cast that does not hold) are the caller's mistake and answer
@@ -1078,11 +1078,11 @@ final class DBus {
          *
          * <p>"Anything else" includes the errors a handler's own code raises — a recursion that
          * overflows the stack, a failed assertion, a class that fails to load — and not only
-         * exceptions. It used to catch {@code Exception} alone, so such an error left this method, ended
-         * the reader thread and with it the connection, and each client call that provoked it cost a
-         * join (the linux-A review). The errors that say the virtual machine itself is failing
-         * ({@link OutOfMemoryError}, {@link InternalError}) are not answered here: they still end the
-         * reader, and the join's back-off decides when to try again.
+         * exceptions. It used to catch {@code Exception} alone, so such an error left this method,
+         * ended the reader thread and with it the connection, and each client call that provoked it
+         * cost a join. The errors that say the virtual machine itself is failing
+         * ({@link OutOfMemoryError}, {@link InternalError}) are not answered here: they still end
+         * the reader, and the join's back-off decides when to try again.
          *
          * @param handler what answers the call's path, or null
          * @param conn    the connection it arrived on

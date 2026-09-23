@@ -27,8 +27,8 @@ final class AtspiStates {
 
     /**
      * The platform's own bit for a node that can open and is closed: {@code EXPANDABLE} without
-     * {@code EXPANDED}, which the toolkit carries as two facts and this platform as three
-     * (decision 27, 2026-09-14). Read with {@link #EXPANDABLE}'s bit off the Fedora KDE 44 guest
+     * {@code EXPANDED}, which the toolkit carries as two facts and this platform as three.
+     * Read with {@link #EXPANDABLE}'s bit off the Fedora KDE 44 guest
      * (libatspi 2.60.6, {@code Atspi.StateType} typelib) on 2026-09-13 by
      * {@code scripts/a11y/linux/dump-atspi-constants.py}, the same run that read
      * {@link AtspiRoles}'s TREE numbers.
@@ -106,7 +106,7 @@ final class AtspiStates {
         }
         if (has.test(Accessible.State.EXPANDABLE) && !has.test(Accessible.State.EXPANDED)) {
             // Collapsed is what this platform calls a node that can open and has not: derived, so
-            // that Orca can say "collapsed" on a closed tree row rather than nothing (L3). Its
+            // that Orca can say "collapsed" on a closed tree row rather than nothing. Its
             // state-changed:collapsed travels with the EXPANDED or EXPANDABLE flip that moved it
             // (AtspiEvents.expandChanged), so a client's cached set never holds both.
             out |= 1L << COLLAPSED;

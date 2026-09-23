@@ -1023,7 +1023,7 @@ final class Viewport3DScene {
     }
 
     /**
-     * Bloom's test bench (ADR 005): emissive spheres rising across the
+     * Bloom's test bench: emissive spheres rising across the
      * threshold (the dimmest must NOT glow) over an opaque ground AND a
      * transparent background, so the glow's alpha handling shows against the
      * UI behind the viewport (finding 3: it must neither vanish at the edge
@@ -1083,10 +1083,10 @@ final class Viewport3DScene {
     }
 
     /**
-     * The bloom viewport plus its live controls (ADR 005 §2.4): a threshold
+     * The bloom viewport plus its live controls: a threshold
      * and an intensity the user can move; a bloom only ever exercised at its
      * default of "off" is not exercised at all. The radius stays at 6 pt (it
-     * had its own eyeball pass in step 3).
+     * had its own eyeball pass).
      *
      * @param fillHeight like {@link #debugViewport}: {@code true} flexes the
      *                   viewport to the height-bounded kitchen tab, {@code false}
@@ -1143,7 +1143,7 @@ final class Viewport3DScene {
         return row;
     }
 
-    /** Standalone bloom scene (ADR 005): the glow over both opaque and transparent ground truth. */
+    /** Standalone bloom scene: the glow over both opaque and transparent ground truth. */
     static Scene bloomScene(boolean light) {
         Theme.setCurrent(light ? Theme.light() : Theme.dark());
         Theme theme = Theme.current();

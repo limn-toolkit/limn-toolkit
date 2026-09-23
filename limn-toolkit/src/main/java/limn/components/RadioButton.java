@@ -358,16 +358,15 @@ public final class RadioButton extends Widget<RadioButton> {
      *
      * <p>The selection facet reads the {@code selected} field and never the eased dot, and its two
      * numbers come from the group through readers that touch its list and allocate nothing; the
-     * public {@link ButtonGroup#members()} is a copy per call and would cost one per damaged
-     * frame. A standalone radio has no set and says so with zeros, which a bridge publishes as
-     * nothing. There is no group node for the numbers to hang under, because a {@link ButtonGroup}
-     * is not a widget and has no box, and there is no relation to it for the same reason: a
-     * relation's target has to be a published node. So the facet says the member has <b>no
-     * container</b> (ADR 039 §1.2, amended 2026-09-14): a radio's selection change is its own
-     * selected-state event and is never laid on whatever layout node happens to be its published
-     * parent, and a bridge asked for its selection container answers none. The radio is
-     * deliberately not marked {@link Accessible.State#ACTIVE}: the publish
-     * step takes the first active node in a container's subtree as that container's active
+     * public {@link ButtonGroup#members()} is a copy per call and would cost one per damaged frame.
+     * A standalone radio has no set and says so with zeros, which a bridge publishes as nothing.
+     * There is no group node for the numbers to hang under, because a {@link ButtonGroup} is not a
+     * widget and has no box, and there is no relation to it for the same reason: a relation's
+     * target has to be a published node. So the facet says the member has <b>no container</b>: a
+     * radio's selection change is its own selected-state event and is never laid on whatever layout
+     * node happens to be its published parent, and a bridge asked for its selection container
+     * answers none. The radio is deliberately not marked {@link Accessible.State#ACTIVE}: the
+     * publish step takes the first active node in a container's subtree as that container's active
      * descendant, and a radio inside a list cell would hijack the list's.
      *
      * <p>Only select is offered. A radio never toggles off, so there is no deselect, and the only

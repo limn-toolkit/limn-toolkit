@@ -76,7 +76,7 @@ final class UiaStrings {
      * <p><b>The one call site where the ABI leaks.</b> {@code SafeArrayCreateVector}'s first
      * argument is a 16-bit {@code VARTYPE} and {@code JNI.invoke*} is named for pointer-sized and
      * narrow arguments only, so there is no overload that spells it. It is passed as an int, which
-     * is what the calling convention does with a short anyway; ADR 039 §2.1 predicted this exact
+     * is what the calling convention does with a short anyway; the design predicted this exact
      * leak.
      *
      * @param values the integers to hand over

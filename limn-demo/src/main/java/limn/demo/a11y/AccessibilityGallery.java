@@ -83,11 +83,12 @@ import static limn.testing.SceneDriver.drive;
  * sink, which is a showcase of what the widgets look like and not of what they say.
  *
  * <p>It is a reference in two directions. {@code AccessibleGalleryTest} in this module's tests
- * renders every entry headlessly in both palettes and asserts ADR 039 §12.1's four gallery-wide
- * invariants over the published trees, and asserts that every toolkit class overriding an
- * accessibility hook has an entry here — so a component cannot gain an accessible surface without
- * a scene that shows it used right. And {@link #main} opens the same entries in a real window
- * with a picker, so a reader on a guest can be pointed at exactly the scene the test read.
+ * renders every entry headlessly in both palettes and asserts the four invariants of
+ * {@code AccessibleInvariants} over the published trees, and asserts that every toolkit class
+ * overriding an accessibility hook has an entry here — so a component cannot gain an accessible
+ * surface without a scene that shows it used right. And {@link #main} opens the same entries in a
+ * real window with a picker, so a reader on a guest can be pointed at exactly the scene the test
+ * read.
  *
  * <p>An entry names the classes it <b>covers</b>: the components whose hooks the scene exercises.
  * That list is what the completeness test matches against the toolkit's sources, and it holds
@@ -99,14 +100,12 @@ import static limn.testing.SceneDriver.drive;
  * puts the keyboard in ({@link Built#focus}). The scripts are in {@link ReaderScripts};
  * {@link ReaderDriver} ({@code limn-demo --reader <id>}) runs one in a window of its own on a
  * guest, and {@code ReaderStepsTest} runs every one headlessly, failing on a step that changes
- * nothing a reader could be told or leaves one of its facts untrue (decision 24 of the 2026-09-13
- * pass).
+ * nothing a reader could be told or leaves one of its facts untrue.
  *
  * <p>Those entries, and only those, speak the run's language: their captions, their labels, the
  * mark on a calendar day and the two sentences the announcement entry says come from
- * {@link GalleryStrings}, so a pt-BR reader pass (decision 65) hears no English (decision 68). The
- * entries' data — the table's ranges, the tree's files — is not translated, for the reason
- * {@link Fact} gives.
+ * {@link GalleryStrings}, so a pt-BR reader pass hears no English. The entries' data — the
+ * table's ranges, the tree's files — is not translated, for the reason {@link Fact} gives.
  */
 public final class AccessibilityGallery {
 
@@ -285,7 +284,7 @@ public final class AccessibilityGallery {
      * that some node is there at all, with its role, its name and the states it has and has not.
      *
      * <p>Names, descriptions and values are written in English, the language the labels are, and
-     * are compared only in a run built in English; a run in another language (decision 65's pt-BR)
+     * are compared only in a run built in English; a run in another language (the guests' pt-BR)
      * compares the roles, the states and the rows, whose first cell holds data no language
      * translates. A fact never names a platform constant: it is the toolkit's own tree.
      *
@@ -307,7 +306,7 @@ public final class AccessibilityGallery {
         public enum Subject {
             /**
              * Where the reader stands: the entry's window's effective focus, the active
-             * descendant when there is one (read across into a popup's own window, decision 5)
+             * descendant when there is one (read across into a popup's own window)
              * and the focused node otherwise.
              */
             CURSOR,
@@ -444,7 +443,7 @@ public final class AccessibilityGallery {
     }
 
     /**
-     * What a reader run drives on an entry (decision 24): the short name the driver and the guest
+     * What a reader run drives on an entry: the short name the driver and the guest
      * recipes use, and the steps in order. The widget the run focuses first is the entry's
      * {@link Built#focus}.
      *
@@ -469,7 +468,7 @@ public final class AccessibilityGallery {
      *                  identified: {@code main}'s argument, an exemption's key, the title of the
      *                  window a headless test binds it to. English, and stable. What the picker
      *                  <em>shows</em> is {@link #label()}, which for an entry a reader run drives
-     *                  is the run's language (decision 68)
+     *                  is the run's language
      * @param covers    the component classes whose accessibility hooks the scene exercises
      * @param publishes the roles the scene promises to put in the tree — what makes a cover
      *                  claim checkable: an entry that says it shows an open menu and publishes
@@ -495,7 +494,7 @@ public final class AccessibilityGallery {
         /**
          * @return what to show for this entry: the reader catalogue's name for one a reader run
          *         drives, so the picker a reader is pointed at is in the run's language too
-         *         (decision 68), and the entry's own name for one no run drives
+         *        , and the entry's own name for one no run drives
          */
         public I18nString label() {
             return GalleryStrings.label(name);
@@ -602,7 +601,7 @@ public final class AccessibilityGallery {
                         AccessibilityGallery::datePicker),
                 // Closed, so the field a reader arrives at is checked as it stands in a form:
                 // named by the caption bound to the picker, carrying the popup state and the
-                // verb that opens it (decisions 18 and 55, 2026-09-14; DATES-NEW-12). The open
+                // verb that opens it (decisions 18 and 55, 2026-09-14). The open
                 // entry above never checked it, because everything under its overlay is not
                 // published focusable.
                 new Entry("Date picker, closed", List.of(DatePicker.class),
@@ -948,9 +947,10 @@ public final class AccessibilityGallery {
 
     /**
      * A folder tree the way a file browser holds one, for the reader run that replaced
-     * {@code --scene tree-reader}'s scene (decision 24): two folders open, a closed one with
-     * children, a folder whose children have to be fetched ("Remote"), one whose fetch finds nothing
-     * ("Trash", decision 45's "Empty" line) and one that is empty from the start ("Empty folder").
+     * {@code --scene tree-reader}'s scene: two folders open, a closed one with children, a
+     * folder whose children have to be fetched ("Remote"), one whose fetch finds nothing
+     * ("Trash", which shows an "Empty" line) and one that is empty from the start ("Empty
+     * folder").
      * The first rows are the ones that scene had, in its order, so the step numbers the 2026-09-13
      * guest recipes wait on still land where their labels say. A row's cell is an application's
      * composite — a label with an icon, a count against the trailing edge, and an "Open" button on
@@ -1037,8 +1037,7 @@ public final class AccessibilityGallery {
      * A table as an application uses one: several rows selected in {@code MULTI}, a footer
      * summarising two columns, and a widget column whose switches are named — "Visited" is
      * what a reader hears for the control, and it says which column it stands in without the
-     * header (B5 of the 2026-09-13 pass, settled as table-golden-scene; its transcript is the
-     * committed golden {@code table.txt}).
+     * header (its transcript is the committed golden {@code table.txt}).
      */
     private static Built table() {
         Column page = page();
@@ -1078,13 +1077,12 @@ public final class AccessibilityGallery {
      */
     /**
      * The one entry that makes the application speak: two buttons whose handlers call
-     * {@code Scene#announce}, one politely and one assertively (brief item 4 of the phase-3 fix
-     * round, 2026-09-15).
+     * {@code Scene#announce}, one politely and one assertively.
      *
      * <p>Nothing else in the gallery announces anything, so the three bridges' announcement paths
      * — a UIA notification, an AT-SPI {@code Announcement} and an {@code NSAccessibility}
-     * announcement posted on the window — had no scene to be heard on, and phase 5's "VoiceOver
-     * hearing an announcement posted on the window" had nothing to press. An announcement is the
+     * announcement posted on the window — had no scene to be heard on, and a VoiceOver run meant
+     * to hear an announcement posted on the window had nothing to press. An announcement is the
      * application speaking rather than a property of a node, so it cannot be reached by walking a
      * tree: a run has to press something.
      *
@@ -1092,12 +1090,13 @@ public final class AccessibilityGallery {
      * heard only one would leave the other unread. The buttons are ordinary buttons: what is being
      * exercised is the scene's own path, not a widget's.
      *
-     * <p><b>The two announced strings are the reason decision 68 was load-bearing</b> (landed
-     * 2026-09-15). Every other entry's English was a caption or a label — a word beside a widget,
-     * which a pt-BR run hears as a name — while these two are the only strings in the gallery a
-     * reader speaks as a <em>sentence</em>, straight through from the application, and a pt-BR pass
-     * heard them in English. They come from {@link GalleryStrings} like every other word a reader
-     * run is driven over, and {@code ReaderEntryLanguageTest} hears them in both languages.
+     * <p><b>The two announced strings are the reason the entries' own strings are translated</b>
+     * (since 2026-09-15). Every other entry's English was a caption or a label — a word beside a
+     * widget, which a pt-BR run hears as a name — while these two are the only strings in the
+     * gallery a reader speaks as a <em>sentence</em>, straight through from the application, and a
+     * pt-BR pass heard them in English. They come from {@link GalleryStrings} like every other word
+     * a reader run is driven over, and {@code ReaderEntryLanguageTest} hears them in both
+     * languages.
      */
     private static Built announcing() {
         Column page = page();
@@ -1130,7 +1129,7 @@ public final class AccessibilityGallery {
     /**
      * Three fields: one that is only a date, one that carries a clock as well, and one left empty,
      * so a reader is checked against the date's segments, the clock's after them, and a segment
-     * that holds no number (decisions 16 and 53: its value is a word).
+     * that holds no number (its value is a word).
      */
     private static Built dateField() {
         Column page = page();
@@ -1181,12 +1180,12 @@ public final class AccessibilityGallery {
      * reader driver all build the same tree; these scenes are not published as samples, so the
      * pinned clock is copied into nobody's application.
      *
-     * <p>The language is <b>not</b> pinned here (decision 65, 2026-09-15, which replaced the
-     * en-US the entries declared from 2026-09-14): an entry speaks the process's, so the reader
-     * driver's pt-BR — the guests' reader language — reaches every widget string, and the headless
-     * tests' English stays theirs. Since decision 68 the captions follow it too: an entry a reader
-     * run drives takes its captions, labels and marks from {@link GalleryStrings}, so a pt-BR pass
-     * is monolingual and an English one is unchanged.
+     * <p>The language is <b>not</b> pinned here (this replaced the en-US the entries declared from
+     * 2026-09-14): an entry speaks the process's, so the reader driver's pt-BR — the guests' reader
+     * language — reaches every widget string, and the headless tests' English stays theirs. Since
+     * 2026-09-15 the captions follow it too: an entry a reader run drives takes its captions,
+     * labels and marks from {@link GalleryStrings}, so a pt-BR pass is monolingual and an English
+     * one is unchanged.
      */
     private static Widget<?> pinnedForReaders(Widget<?> root) {
         limn.demo.DocumentationDay.pin(root);

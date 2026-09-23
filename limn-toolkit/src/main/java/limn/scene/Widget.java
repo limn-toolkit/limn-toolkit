@@ -226,7 +226,7 @@ public abstract class Widget<W extends Widget<W>> {
 
     /**
      * Appends a child (UI thread only). Protected: a widget arranges children of its own, and only a
-     * {@link limn.scene.layout.Container} takes them from outside (ADR 046 §3).
+     * {@link limn.scene.layout.Container} takes them from outside.
      */
     protected void add(Widget<?> child) {
         Ui.checkUiThread();
@@ -492,13 +492,13 @@ public abstract class Widget<W extends Widget<W>> {
      * Reveals one rectangle of this widget's own content, in this widget's coordinates, through
      * every scrolling ancestor — what {@link #revealInView()} does for the whole widget.
      *
-     * <p>For a widget whose parts are not widgets: a calendar's day cell, a table's row, a
-     * chart's point. Such a part has no box of its own to reveal and no {@code paintOutset()} of
-     * its own to grow by, so <b>the rectangle is taken as given</b>, and a caller that draws
-     * outside it passes the larger rectangle rather than relying on an inflation this method
-     * cannot know the size of. Added for decision 81 of 2026-09-17, where a reader's
-     * {@code SCROLL_INTO_VIEW} on a day cell had to move the scroll view the calendar sits in and
-     * the whole-widget reveal would have scrolled the calendar's own edge into view instead.
+     * <p>For a widget whose parts are not widgets: a calendar's day cell, a table's row, a chart's
+     * point. Such a part has no box of its own to reveal and no {@code paintOutset()} of its own to
+     * grow by, so <b>the rectangle is taken as given</b>, and a caller that draws outside it passes
+     * the larger rectangle rather than relying on an inflation this method cannot know the size of.
+     * Added on 2026-09-17, when a reader's {@code SCROLL_INTO_VIEW} on a day cell had to move the
+     * scroll view the calendar sits in and the whole-widget reveal would have scrolled the
+     * calendar's own edge into view instead.
      *
      * @param rectX      the rectangle's left, in this widget's coordinates
      * @param rectY      the rectangle's top, in this widget's coordinates
@@ -575,14 +575,14 @@ public abstract class Widget<W extends Widget<W>> {
     }
 
     /**
-     * The rectangle, in scene coordinates, that this widget's {@linkplain #clipsChildren()
-     * clipping} ancestors leave of it: the intersection of every clipping ancestor's clip
-     * rectangle for the child the walk came up through, which is exactly what {@link #isShowing()}
-     * tests this widget's own box against. The accessible walk narrows a synthetic child by it
-     * (decision 100, 2026-09-22): a row a calendar draws below the fold of the scroll pane it
-     * sits in is no more on screen than a widget child there would be, and until this the walk
-     * published every synthetic child with its owner's showing bit, so the rows and cells beyond
-     * the pane said {@code SHOWING} and the four invariants refused them.
+     * The rectangle, in scene coordinates, that this widget's
+     * {@linkplain #clipsChildren() clipping} ancestors leave of it: the intersection of every
+     * clipping ancestor's clip rectangle for the child the walk came up through, which is exactly
+     * what {@link #isShowing()} tests this widget's own box against. The accessible walk narrows a
+     * synthetic child by it: a row a calendar draws below the fold of the scroll pane it sits in is
+     * no more on screen than a widget child there would be, and until this the walk published every
+     * synthetic child with its owner's showing bit, so the rows and cells beyond the pane said
+     * {@code SHOWING} and the four invariants refused them.
      *
      * <p>Fills {@code out} with {@code x0, y0, x1, y1} and answers true only when some ancestor
      * clips; with no clipping ancestor nothing narrows and {@code out} is left alone, so a
@@ -1155,7 +1155,7 @@ public abstract class Widget<W extends Widget<W>> {
      *         default}, else its {@linkplain #setInheritanceHost host}'s, else the
      *         {@linkplain I18n#processLocale() process locale}. The language this subtree's
      *         strings resolve in, its numbers take their digits from, and its text breaks
-     *         lines under (ADR 035); it is <b>not</b> a direction &mdash; a Hebrew-locale
+     *         lines under; it is <b>not</b> a direction &mdash; a Hebrew-locale
      *         subtree still lays out by its {@link #layoutDirection()}, and the two axes are
      *         declared separately because they genuinely vary separately.
      *
@@ -1220,10 +1220,10 @@ public abstract class Widget<W extends Widget<W>> {
 
     /**
      * Sets the locale for this widget and every descendant that does not declare its own; it
-     * inherits down the tree like {@link #setControlSize}. {@code null} restores inheritance.
-     * This is ADR 006 §4's escape hatch, delivered by ADR 035: the recorded case is a Hebrew
-     * interface holding a left-to-right, English-locale code pane, where reading everything
-     * off the process locale is the shortcut that breaks it.
+     * inherits down the tree like {@link #setControlSize}. {@code null} restores inheritance. This
+     * is the escape hatch from one process-wide locale: the recorded case is a Hebrew interface
+     * holding a left-to-right, English-locale code pane, where reading everything off the process
+     * locale is the shortcut that breaks it.
      *
      * <p>The declared locale is {@linkplain I18n#retainLocale retained} while the
      * declaration stands, so every bundle keeps a prepared table for it; clearing or
@@ -1299,7 +1299,7 @@ public abstract class Widget<W extends Widget<W>> {
      * <p>The widget's effective locale is held {@linkplain I18n#pushScope in scope} while
      * {@link #onMeasure} runs, so everything the measure resolves or formats — an
      * {@code I18nString}, a chart tick, a line break — answers in this subtree's language
-     * without the subclass doing anything (ADR 035).
+     * without the subclass doing anything.
      *
      * <p>Correctness is a property of the key: the only way this can return a stale size is
      * if the resolved axes <em>and</em> the constraints <em>and</em> {@code needsMeasure} all
@@ -2102,7 +2102,7 @@ public abstract class Widget<W extends Widget<W>> {
      * <p>Called on the UI thread before the child's node exists, so the only two things that may
      * be written here are the two above; a fact about the child &mdash; its role, its position,
      * a state &mdash; goes in {@link #onAccessibilityChild}, which runs after the child's own
-     * hook. The split is what makes identity right (ADR 039 §1.3): the child's node is begun
+     * hook. The split is what makes identity right: the child's node is begun
      * under the identifier the key decides, so its name is carried over from the last frame
      * under that identifier, and every node it declares inside itself &mdash; a synthetic child,
      * a widget it holds &mdash; is scoped under it and follows the row when the child is recycled.
@@ -2123,14 +2123,14 @@ public abstract class Widget<W extends Widget<W>> {
      * first; {@link limn.accessibility.Accessibility#key(long)} refuses to be called from here.
      *
      * <p><b>This is the only place {@link limn.accessibility.Accessibility#delegate} may be
-     * called</b> (ADR 039 §1.5, amended 2026-09-14): a verb this widget claims on the child —
-     * a list's {@code SELECT} on a row — is published on the child's node and routed to
-     * {@link #onAccessibilityChildAction}. The builder refuses a delegation from anywhere else,
-     * and refuses one here for a verb the child declared for itself, for a verb that takes an
-     * argument, and for {@code FOCUS} or {@code SCROLL_INTO_VIEW} on a focusable child, which the
-     * walk performs on its own. A verb <em>written</em> here with
-     * {@link limn.accessibility.Accessibility#action} would be dispatched to the child's own
-     * {@link #onAccessibilityAction}, which is why a child hook writes facts and delegates verbs.
+     * called</b>: a verb this widget claims on the child — a list's {@code SELECT} on a row — is
+     * published on the child's node and routed to {@link #onAccessibilityChildAction}. The builder
+     * refuses a delegation from anywhere else, and refuses one here for a verb the child declared
+     * for itself, for a verb that takes an argument, and for {@code FOCUS} or
+     * {@code SCROLL_INTO_VIEW} on a focusable child, which the walk performs on its own. A verb
+     * <em>written</em> here with {@link limn.accessibility.Accessibility#action} would be
+     * dispatched to the child's own {@link #onAccessibilityAction}, which is why a child hook
+     * writes facts and delegates verbs.
      *
      * @param child the child being described
      * @param a     the child's node
@@ -2149,14 +2149,13 @@ public abstract class Widget<W extends Widget<W>> {
      * re-derives a guard it already has.
      *
      * <p><b>The platform is not told the answer.</b> It was answered from the published snapshot
-     * before this ran (ADR 039 §1.9, §1.5's amendment of 2026-09-14): the bridge accepts a verb
-     * the node publishes and refuses one it does not, synchronously, and the post that reaches
-     * here carries no reply back. So {@code false} here is honest bookkeeping and nothing more
-     * &mdash; a refused {@code PRESS} raises no {@code INVOKED} &mdash; and the one contract a
-     * reader can see is the published one: a node accepts exactly the parameterless verbs in its
-     * action facet plus the setters its writable facets imply. A widget that would answer
-     * {@code true} for a verb it did not publish is a defect the gallery ratchet in
-     * {@code limn-demo} reports; a widget that accepts a synonym publishes it.
+     * before this ran: the bridge accepts a verb the node publishes and refuses one it does not,
+     * synchronously, and the post that reaches here carries no reply back. So {@code false} here is
+     * honest bookkeeping and nothing more &mdash; a refused {@code PRESS} raises no {@code INVOKED}
+     * &mdash; and the one contract a reader can see is the published one: a node accepts exactly
+     * the parameterless verbs in its action facet plus the setters its writable facets imply. A
+     * widget that would answer {@code true} for a verb it did not publish is a defect the gallery
+     * ratchet in {@code limn-demo} reports; a widget that accepts a synonym publishes it.
      *
      * @param action what was asked; one of the seventeen, including the four that carry an
      *               argument
@@ -2173,19 +2172,17 @@ public abstract class Widget<W extends Widget<W>> {
      * Performs a verb this widget {@linkplain limn.accessibility.Accessibility#delegate claimed}
      * on one of its widget children: a list's {@code SELECT} on a row that is the application's
      * own cell, published on the row where a reader addresses it and performed by the list,
-     * which is the only thing that knows what selecting that row means (ADR 039 §1.5, amended
-     * 2026-09-14).
+     * which is the only thing that knows what selecting that row means.
      *
-     * <p>Called on the UI thread from a posted task, after the scene re-checked the child the
-     * way it re-checks any node an action lands on, and that this widget is still its parent —
-     * with one difference: the child need only be visible, and it is this widget that must be
-     * showing, because this widget performs the verb and a cursor row kept outside its viewport
-     * is not showing (ADR 039 §1.5, amended 2026-09-15).
-     * The child is named twice on purpose: by the key this widget gave it in
-     * {@link #onAccessibilityChildIdentity}, which is how a pooling container thinks of a row,
-     * and by the widget itself, for a container that keys nothing. Every verb the child
-     * declared for itself still reaches the child's own {@link #onAccessibilityAction}; only the
-     * verbs this widget delegated arrive here.
+     * <p>Called on the UI thread from a posted task, after the scene re-checked the child the way
+     * it re-checks any node an action lands on, and that this widget is still its parent — with one
+     * difference: the child need only be visible, and it is this widget that must be showing,
+     * because this widget performs the verb and a cursor row kept outside its viewport is not
+     * showing. The child is named twice on purpose: by the key this widget gave it in
+     * {@link #onAccessibilityChildIdentity}, which is how a pooling container thinks of a row, and
+     * by the widget itself, for a container that keys nothing. Every verb the child declared for
+     * itself still reaches the child's own {@link #onAccessibilityAction}; only the verbs this
+     * widget delegated arrive here.
      *
      * @param child  the child the verb was addressed to
      * @param key    the identity key this widget gave that child, or {@code 0} when it gave none
@@ -2223,10 +2220,9 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * <p>It exists for one mode and is inert outside it. With partial rendering on, a frame
      * repaints only what was invalidated, and a widget like this can be stale without having
-     * changed at all: nothing about it moved, but what it is made of did. ADR 019 &sect;6 recorded
-     * that as the mode's known limit and named the fix; this is it. A widget that answers
-     * {@code true} is registered with its scene, and its rectangle joins the damage of any frame
-     * whose damage reaches it.
+     * changed at all: nothing about it moved, but what it is made of did. That was the mode's known
+     * limit, and this is its fix. A widget that answers {@code true} is registered with its scene,
+     * and its rectangle joins the damage of any frame whose damage reaches it.
      *
      * <p><b>Reaching it is over-approximated on purpose.</b> What actually stales the picture is a
      * change <em>behind</em> it, and the test here is any intersection, front or back. Deciding
@@ -2346,19 +2342,18 @@ public abstract class Widget<W extends Widget<W>> {
 
     /**
      * The widget a label bound to this one names: this widget, unless it is a composite whose
-     * keyboard lands on an inner control, in which case that control (ADR 039 §1.5, amended
-     * 2026-09-14; decision 55).
+     * keyboard lands on an inner control, in which case that control.
      *
      * <p>A form's caption is bound to the widget the application holds &mdash; a date picker
-     * &mdash; and what a reader arrives at is the field inside it. Naming the group would put
-     * the caption on a node the keyboard never lands on and leave the focused field nameless. So
-     * a composite answers the child that should carry the caption, and the publish step names
-     * that child from the label with {@code NameFrom.LABEL}, gives it the {@code LABELLED_BY}
-     * relation, resolves the label's own {@code LABEL_FOR} to it, and leaves this widget's node
-     * without either &mdash; a group that declares nothing else is then transparent. The answer
-     * may redirect again (a composite inside a composite) and it must be a descendant of this
-     * widget: anything else is refused by the walk, loudly, because a caption that lands on a
-     * stranger is exactly the confidently wrong name §11 refuses to infer.
+     * &mdash; and what a reader arrives at is the field inside it. Naming the group would put the
+     * caption on a node the keyboard never lands on and leave the focused field nameless. So a
+     * composite answers the child that should carry the caption, and the publish step names that
+     * child from the label with {@code NameFrom.LABEL}, gives it the {@code LABELLED_BY} relation,
+     * resolves the label's own {@code LABEL_FOR} to it, and leaves this widget's node without
+     * either &mdash; a group that declares nothing else is then transparent. The answer may
+     * redirect again (a composite inside a composite) and it must be a descendant of this widget:
+     * anything else is refused by the walk, loudly, because a caption that lands on a stranger is
+     * exactly the confidently wrong name the toolkit refuses to infer.
      *
      * <p>Called on the UI thread by the publish step, only while a label is bound to this
      * widget. An explicit {@link #setAccessibleName(limn.i18n.I18nString)} on this widget is

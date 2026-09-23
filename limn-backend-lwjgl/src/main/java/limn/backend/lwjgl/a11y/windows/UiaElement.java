@@ -9,8 +9,8 @@ package limn.backend.lwjgl.a11y.windows;
  * registry testable on a machine with no COM at all: the rules it enforces are about maps and
  * threads, and those are the rules that bite.
  *
- * <p><b>No element ever holds a widget</b>, for ADR 039 §1.2's reason: a client can hold an element
- * for minutes, and one that reached a widget would pin a detached subtree for exactly that long.
+ * <p><b>No element ever holds a widget</b>: a client can hold an element for minutes, and one that
+ * reached a widget would pin a detached subtree for exactly that long.
  */
 interface UiaElement {
 
@@ -28,8 +28,8 @@ interface UiaElement {
      *
      * <p><b>Not a destruction.</b> The COM object outlives this call by however long a client keeps
      * its own reference, and answers {@code UIA_E_ELEMENTNOTAVAILABLE} for the whole of that time —
-     * which is precisely the behaviour §1.3 promises to a client holding an element for a node that
-     * has left the tree. Calling it twice for one element is what the registry's protocol exists to
+     * which is precisely the behaviour promised to a client holding an element for a node that has
+     * left the tree. Calling it twice for one element is what the registry's protocol exists to
      * prevent.
      */
     void release();

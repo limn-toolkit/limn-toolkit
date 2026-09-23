@@ -20,24 +20,24 @@ import java.util.Set;
 
 /**
  * What every widget of the {@code ROWS} shape owes a reader, as named cases over a
- * {@link RowsSubject} (ADR 045 §4). Each case builds the subject fresh, binds it headlessly,
- * reads the tree the scene published and drives verbs into it the way a platform does. The rules
- * are the ones the 2026-09-13 pass decided for rows, one case each, so that a regression a reader
- * found once in one widget is refused in every widget of the shape:
+ * {@link RowsSubject}. Each case builds the subject fresh, binds it headlessly, reads the tree the
+ * scene published and drives verbs into it the way a platform does. The rules are the ones
+ * decided for rows, one case each, so that a regression a reader found once in one widget is
+ * refused in every widget of the shape:
  * <ul>
- *   <li><b>decision 10</b> — {@code SELECT} means a click and replaces the selection;
- *       {@code ADD_TO_SELECTION} joins it and {@code DESELECT} leaves it, offered by state and
- *       only where there is a multiple selection;</li>
- *   <li><b>decision 11</b> — {@code FOCUS} is offered on a row only where it moves the cursor
- *       without selecting, and refused where the cursor is the selection;</li>
- *   <li><b>decision 20</b> — a row's verbs are the row verb set and nothing else, with
- *       {@code EXPAND} and {@code COLLAPSE} by state;</li>
- *   <li><b>decision 79</b> — a {@code SELECT} that arrives from a client selects the row
- *       addressed, announces one selection change from the user, and leaves the cursor where it
- *       was — unless the cursor is the selection, in which case it follows;</li>
- *   <li><b>decision 80</b> — a row that offers {@code PRESS} activates itself, not the cursor;</li>
- *   <li><b>decision 81</b> — a row of a widget that scrolls offers {@code SCROLL_INTO_VIEW}, and
- *       the verb brings it into the box.</li>
+ *   <li>{@code SELECT} means a click and replaces the selection; {@code ADD_TO_SELECTION} joins
+ *       it and {@code DESELECT} leaves it, offered by state and only where there is a multiple
+ *       selection;</li>
+ *   <li>{@code FOCUS} is offered on a row only where it moves the cursor without selecting, and
+ *       refused where the cursor is the selection;</li>
+ *   <li>a row's verbs are the row verb set and nothing else, with {@code EXPAND} and
+ *       {@code COLLAPSE} by state;</li>
+ *   <li>a {@code SELECT} that arrives from a client selects the row addressed, announces one
+ *       selection change from the user, and leaves the cursor where it was — unless the cursor
+ *       is the selection, in which case it follows;</li>
+ *   <li>a row that offers {@code PRESS} activates itself, not the cursor;</li>
+ *   <li>a row of a widget that scrolls offers {@code SCROLL_INTO_VIEW}, and the verb brings it
+ *       into the box.</li>
  * </ul>
  * Plus what any tree owes ({@link AccessibleInvariants}), that a row keeps its id while the
  * selection and the cursor move, and that the cursor is published only while the widget has
@@ -45,13 +45,14 @@ import java.util.Set;
  *
  * <p>A member is a node carrying a {@code SelectionItemFacet}; the container is the node its
  * {@code selectionContainer} resolves to, or, for a subject whose members are containerless
- * (a radio group; decision 107, 2026-09-22), their common parent, which carries no facet. The members may classify as {@code ROWS} (a list's
- * rows, a tree's, a table's) or as {@code GRID} (a calendar's day cells), because a grid is rows
- * whose members carry cells (§1.2): the rules are the selection's, not the row's role's.
+ * (a radio group), their common parent, which carries no facet. The members may classify as
+ * {@code ROWS} (a list's rows, a tree's, a table's) or as {@code GRID} (a calendar's day cells),
+ * because a grid is rows whose members carry cells: the rules are the selection's, not the row's
+ * role's.
  */
 public final class RowsContract {
 
-    /** The verbs a row may carry, decision 20; the walk's free verbs are among them. */
+    /** The verbs a row may carry; the walk's free verbs are among them. */
     public static final Set<Action> ROW_VERBS = EnumSet.of(Action.SELECT, Action.ADD_TO_SELECTION,
             Action.DESELECT, Action.FOCUS, Action.PRESS, Action.EXPAND, Action.COLLAPSE,
             Action.SCROLL_INTO_VIEW);

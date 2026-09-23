@@ -64,7 +64,7 @@ public final class SiteShowcase {
          * The flag-bearing case, kept at the old primary's shape so its callers state the flags
          * and nothing else. Left to right: the one right-to-left entry says so through
          * {@link #rtl()}, because a direction is never derived from the locale beside it — the
-         * capture list follows the same rule the toolkit does (ADR 032).
+         * capture list follows the same rule the toolkit does.
          */
         public Entry(String id, String title, Locale locale, boolean paletteInvariant,
                 boolean warmUpPass, boolean filmed, boolean settles,

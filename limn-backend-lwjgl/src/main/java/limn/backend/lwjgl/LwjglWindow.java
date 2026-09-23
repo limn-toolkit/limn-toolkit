@@ -162,7 +162,7 @@ final class LwjglWindow implements NativeWindow {
     private float contentScaleOverride;
     private float pixelsPerScreenCoord = 1f;
     private boolean frameRequested = true;
-    /** Presses in a row, counted with the platform's double-click interval (ADR 046 §5). */
+    /** Presses in a row, counted with the platform's double-click interval. */
     private final ClickCounter clicks = ClickCounter.forThisPlatform();
 
     /** Whether a frame has been presented since the window was made; see {@link #isCovered}. */
@@ -173,7 +173,7 @@ final class LwjglWindow implements NativeWindow {
     private int presentedHeight = -1;
 
     /**
-     * How old the back buffer's contents are, for partial rendering (ADR 046 §5). GLFW's contexts
+     * How old the back buffer's contents are, for partial rendering. GLFW's contexts
      * are double buffered and no call here reads the age back, so this says what double buffering
      * guarantees and nothing more: 2 once two frames of this size have been presented, and 0 — the
      * whole window — before that, which covers the first frames and every resize, where the back
@@ -690,7 +690,7 @@ final class LwjglWindow implements NativeWindow {
 
     /**
      * Whether this window is on screen and entirely covered, so a frame drawn now would be seen by
-     * nobody (decision 113, PF-1). macOS only, where it is read off {@code occlusionState}; every
+     * nobody. macOS only, where it is read off {@code occlusionState}; every
      * other platform answers false and paces through {@link FramePacer} alone.
      *
      * <p>Only for a window that GLFW calls visible and that has presented at least once: a hidden

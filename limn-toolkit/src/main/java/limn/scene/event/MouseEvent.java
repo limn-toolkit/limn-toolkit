@@ -52,7 +52,7 @@ public final class MouseEvent extends InputEvent {
 
     /**
      * @return how many presses in a row this is — 2 on the second press of a double click — counted
-     *         with the platform's own double-click interval where the backend knows it (ADR 046 §5),
+     *         with the platform's own double-click interval where the backend knows it,
      *         and 1 for anything that is not a press, release or click
      */
     public int clickCount() {

@@ -16,14 +16,13 @@ import java.util.List;
 
 /**
  * What every widget of the {@code POPUP_OWNER} shape owes a reader, as named cases over a
- * {@link PopupOwnerSubject} (ADR 045 §4): it says {@code HAS_POPUP} before anything has
- * happened; its open state is the facet's and the API's; closed, it offers {@code EXPAND} and
- * not {@code COLLAPSE}; {@code EXPAND} opens it and something appears in the tree, described
- * where it lives (ADR 039 §1.11); open, it never offers {@code EXPAND}, and offers
- * {@code COLLAPSE} unless a layer above owns the input (§1.13), in which case it offers
- * nothing; a second {@code EXPAND} changes nothing; closing through the API brings
- * {@code EXPAND} back; and the node keeps its id across the round trip. A refusal is read as an
- * effect (see {@link ValueContract}).
+ * {@link PopupOwnerSubject}: it says {@code HAS_POPUP} before anything has happened; its open
+ * state is the facet's and the API's; closed, it offers {@code EXPAND} and not {@code COLLAPSE};
+ * {@code EXPAND} opens it and something appears in the tree, described where it lives; open, it
+ * never offers {@code EXPAND}, and offers {@code COLLAPSE} unless a layer above owns the input,
+ * in which case it offers nothing; a second {@code EXPAND} changes nothing; closing through the
+ * API brings {@code EXPAND} back; and the node keeps its id across the round trip. A refusal is
+ * read as an effect (see {@link ValueContract}).
  */
 public final class PopupOwnerContract {
 

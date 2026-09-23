@@ -33,8 +33,8 @@ import java.util.function.ToDoubleFunction;
  *
  * <p><b>Sorting.</b> A header click sorts through {@link #compare}: a comparator the application
  * named, else the values themselves &mdash; numbers numerically, strings through the language's
- * collator (ADR 034), anything else comparable by itself &mdash; else the formatted text. A widget
- * column has no value and is not sortable unless given a comparator.
+ * collator, anything else comparable by itself &mdash; else the formatted text. A widget column has
+ * no value and is not sortable unless given a comparator.
  *
  * <p><b>The footer.</b> A column may put something in the table's summary row, which is pinned
  * under the rows the way the header is pinned over them and appears as soon as one column has
@@ -113,8 +113,8 @@ public final class Column<T> {
     }
 
     /**
-     * A column of numbers: aligned to the reading end, formatted and localized as the charts
-     * format an axis (ADR 033), and sorted numerically.
+     * A column of numbers: aligned to the reading end, formatted and localized as the charts format
+     * an axis, and sorted numerically.
      *
      * @param title what the header says
      * @param value a row's number
@@ -595,7 +595,8 @@ public final class Column<T> {
 
     /**
      * How {@code a} and {@code b} compare on this column: the named comparator, else the values
-     * as ADR 041 §4 orders them, {@code null} first.
+     * &mdash; numbers numerically, text through the collator, anything else comparable by itself,
+     * else the formatted text &mdash; with {@code null} first.
      */
     int compare(T a, T b, Collator collator, Locale locale) {
         if (comparator != null) {
@@ -626,7 +627,7 @@ public final class Column<T> {
     }
 
     /**
-     * {@code row}'s sort key, computed once per sort rather than once per comparison (decision 114):
+     * {@code row}'s sort key, computed once per sort rather than once per comparison:
      * the value, its number, and its collation key when it is text. Compared by {@link #compareKeys},
      * which orders exactly as {@link #compare} does.
      *

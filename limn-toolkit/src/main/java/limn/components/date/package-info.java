@@ -13,7 +13,6 @@
  * separate axis resolved from the widget's language &mdash; Gregorian everywhere until a locale
  * carries a {@code u-ca} extension or an application names one &mdash; so a Thai user picks a day
  * out of a grid headed with a Buddhist year and the application stores the ISO date it asked for.
- * ADR 042 is the record.
  *
  * <p>{@link limn.components.date.DateRange} is a period, both ends included and never inverted;
  * {@link limn.components.date.DayMark} is what is true of one day beyond its number, as a dot and

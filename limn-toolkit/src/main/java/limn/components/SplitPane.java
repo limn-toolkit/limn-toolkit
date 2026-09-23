@@ -715,7 +715,7 @@ public final class SplitPane extends Widget<SplitPane> {
         }
 
         /**
-         * The divider's mechanisms as the value shape drives them (ADR 045 §3). The widget keeps
+         * The divider's mechanisms as the value shape drives them. The widget keeps
          * its own guard, as the pointer and the keyboard arms do: the scene's gate has already
          * checked the ancestor chain, and dragTo has no guard of its own to fall back on. A step
          * reads firstExtent rather than the laid-out box, because an action can arrive between a

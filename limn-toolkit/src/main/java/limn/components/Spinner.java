@@ -304,8 +304,8 @@ public final class Spinner extends Widget<Spinner> {
      * cache that has to be invalidated at each of them is one new path away from painting a stale
      * number, which is the worst thing this widget could do. {@code mode} and {@code decimals}
      * are final, so the value, the i18n epoch and the effective locale are the whole input — the
-     * epoch because the numbering system rides the locale (ADR 033), and the locale itself
-     * because this widget's subtree can now hold its own (ADR 035), which moves the digits
+     * epoch because the numbering system rides the locale, and the locale itself
+     * because this widget's subtree can now hold its own, which moves the digits
      * without moving the epoch; a memo that could see neither would repaint yesterday's digits
      * under either kind of switch.
      *
@@ -1439,17 +1439,17 @@ public final class Spinner extends Widget<Spinner> {
      * crossing, so a hook that published either would re-copy the whole tree for a mouse the reader
      * is not using.
      *
-     * <p><b>An arrow that cannot move the value any further says so</b> (decision 69, 2026-09-16,
-     * which is decision 30 and semantics 5 carried from the refused calendar day and
-     * {@code SegmentedControl}'s dead chevron onto every stepper in the toolkit): at {@code max}
-     * the upper half is narrowed with {@link limn.accessibility.Accessibility#disabled()} and at
-     * {@code min} the lower half is, and the publish step then withdraws the {@code PRESS} each
-     * declares, so a reader says "unavailable" instead of offering an act that does nothing. What
-     * stood here until 2026-09-15 was that a declared {@code ENABLED} is ignored so a reader must
-     * infer the bound from the value against the bounds — the first half untrue since
-     * {@code Accessibility#disabled()} arrived on 2026-09-14, the second half an inference the
-     * owner has now declined to ask a reader to make. It is heard on every spinner in the toolkit,
-     * twenty-two arrows in a colour picker among them.
+     * <p><b>An arrow that cannot move the value any further says so</b> (since 2026-09-16, the rule
+     * of the refused calendar day and {@code SegmentedControl}'s dead chevron carried onto every
+     * stepper in the toolkit): at {@code max} the upper half is narrowed with
+     * {@link limn.accessibility.Accessibility#disabled()} and at {@code min} the lower half is, and
+     * the publish step then withdraws the {@code PRESS} each declares, so a reader says
+     * "unavailable" instead of offering an act that does nothing. What stood here until 2026-09-15
+     * was that a declared {@code ENABLED} is ignored so a reader must infer the bound from the
+     * value against the bounds — the first half untrue since {@code Accessibility#disabled()}
+     * arrived on 2026-09-14, the second half an inference the owner has now declined to ask a
+     * reader to make. It is heard on every spinner in the toolkit, twenty-two arrows in a colour
+     * picker among them.
      *
      * <p>The two predicates are the bound halves of {@code paintButtons}' own, {@code value < max}
      * and {@code value > min}, read from the same fields in the same pass: the arrow a reader is
@@ -1563,16 +1563,15 @@ public final class Spinner extends Widget<Spinner> {
      * a direction of the value, not a side of the box. A hook built out of the mirrored horizontal
      * pair would run backwards in Arabic and Hebrew.
      *
-     * <p>{@code SET_VALUE} takes a number or a text (decision 5; CRIT-7's widget half,
-     * 2026-09-14). A text is read by {@link #parse}, the same reader a typed commit goes
-     * through — {@code 42}, {@code 1,5} with the comma most of the world types, {@code 7:30} on a
-     * time spinner, any known digit set — because a platform's value pattern hands over the
-     * string a client spoke or typed ({@code Value.SetValue("42")} on Windows, once the bridge
-     * routes it here), and a reader that could only set by number could not set at all. It
-     * refuses anything that is not a number, in either form, <em>before</em> the clamp, which
-     * is where the real defect would be: {@code Math.max}/{@code Math.min} pass {@code NaN}
-     * through untouched and {@code Math.rint} keeps it, so an unguarded set would store it and
-     * publish it forever. It then cancels the edit for the reason {@link #setValue}'s own
+     * <p>{@code SET_VALUE} takes a number or a text. A text is read by {@link #parse}, the same
+     * reader a typed commit goes through — {@code 42}, {@code 1,5} with the comma most of the world
+     * types, {@code 7:30} on a time spinner, any known digit set — because a platform's value
+     * pattern hands over the string a client spoke or typed ({@code Value.SetValue("42")} on
+     * Windows, once the bridge routes it here), and a reader that could only set by number could
+     * not set at all. It refuses anything that is not a number, in either form, <em>before</em> the
+     * clamp, which is where the real defect would be: {@code Math.max}/{@code Math.min} pass
+     * {@code NaN} through untouched and {@code Math.rint} keeps it, so an unguarded set would store
+     * it and publish it forever. It then cancels the edit for the reason {@link #setValue}'s own
      * documentation gives — the half-typed text is no longer about the number now in the field —
      * and applies through the from-the-user path, never through {@code setValue}, which is the
      * silent one and would move the value while telling the application nothing.
@@ -1592,7 +1591,7 @@ public final class Spinner extends Widget<Spinner> {
     }
 
     /**
-     * The spinner's mechanisms as the value shape drives them (ADR 045 §3): a step is the key's
+     * The spinner's mechanisms as the value shape drives them: a step is the key's
      * path, a set reads a text through the same {@link #parse} a typed commit does, cancels the
      * edit and applies from the user.
      */
@@ -1654,15 +1653,15 @@ public final class Spinner extends Widget<Spinner> {
      * acknowledgement a press owes; the value change reaches a reader as the next publish's
      * difference.
      *
-     * <p><b>An arrow at its bound is refused here too</b> (decision 69, 2026-09-16), by the same
-     * two bounds the hook publishes and before {@code commitEdit} or anything else runs. Such an
-     * arrow publishes no verb, so a press can only arrive from a platform working off a stale
-     * snapshot — but nothing between that platform and this method rereads the node:
-     * {@code Scene#performAccessibleAction} gates a synthetic press on the <em>owner's</em> enabled
-     * chain, which a narrowed child does not narrow. Until 2026-09-16 the refusal was left to the
-     * answer alone, and with an edit open there was nothing to refuse it: the press committed the
-     * typed number on the way to a step it could not take, so the value moved, the application's
-     * handler ran and the scene spoke an {@code INVOKED} for a dead arrow.
+     * <p><b>An arrow at its bound is refused here too</b>, by the same two bounds the hook
+     * publishes and before {@code commitEdit} or anything else runs. Such an arrow publishes no
+     * verb, so a press can only arrive from a platform working off a stale snapshot — but nothing
+     * between that platform and this method rereads the node: {@code Scene#performAccessibleAction}
+     * gates a synthetic press on the <em>owner's</em> enabled chain, which a narrowed child does
+     * not narrow. Until 2026-09-16 the refusal was left to the answer alone, and with an edit open
+     * there was nothing to refuse it: the press committed the typed number on the way to a step it
+     * could not take, so the value moved, the application's handler ran and the scene spoke an
+     * {@code INVOKED} for a dead arrow.
      *
      * <p><b>The answer is then whether anything moved</b>, kept as the second line of defence for
      * a live arrow that clamps anyway (a NaN bound, a snap grid that lands on the value it left).

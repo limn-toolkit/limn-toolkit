@@ -8,9 +8,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * What is waiting to be written to the connection, and the one policy that decides what may wait.
  *
  * <p>Separate from the connection because the policy is where the hazard is and a socket is not
- * needed to state it. §3.3's rule has three sides and this is the third: the reader thread must
- * never write, the writer thread must never read, and <b>whoever offers must never block</b>. A
- * bounded queue that made the offering thread wait would park the user-interface thread on a
+ * needed to state it. The threading rule has three sides and this is the third: the reader thread
+ * must never write, the writer thread must never read, and <b>whoever offers must never block</b>.
+ * A bounded queue that made the offering thread wait would park the user-interface thread on a
  * client that has stopped draining, which is the same stall reached from a different direction.
  *
  * <p>So the queue is unbounded as a structure and bounded as a policy, and the bound applies to
@@ -36,12 +36,12 @@ final class Outbound {
      *
      * <p>The tail is what a reader is directed by — where the focus and the cursor went, what the
      * structure and the selection did, whether the window is active — and the model keeps it
-     * outside its own event budget for that reason (ADR 039 §1.10, semantics 7). A backlog of
-     * ordinary signals must not cost it: that is exactly the moment the reader most needs to hear
-     * where the user is (decision 28, "Outbound carries a kind flag so it never drops the tail").
-     * It is still bounded, because a queue that grows for ever behind a writer that never writes is
-     * a leak, not a policy: sixteen times the ordinary bound is tails of many publishes, which a
-     * connection whose writer is moving at all never accumulates. Policy, not a platform constant.
+     * outside its own event budget for that reason. A backlog of ordinary signals must not cost it:
+     * that is exactly the moment the reader most needs to hear where the user is ("Outbound carries
+     * a kind flag so it never drops the tail"). It is still bounded, because a queue that grows for
+     * ever behind a writer that never writes is a leak, not a policy: sixteen times the ordinary
+     * bound is tails of many publishes, which a connection whose writer is moving at all never
+     * accumulates. Policy, not a platform constant.
      */
     static final int TAIL_BOUND = SIGNAL_BOUND * 16;
 

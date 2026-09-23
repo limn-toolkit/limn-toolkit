@@ -14,12 +14,12 @@ import java.util.List;
 
 /**
  * What every widget of the {@code TEXT} shape owes a reader, as named cases over a
- * {@link TextSubject} (ADR 045 §4): the facet's string is the API's; {@code SET_TEXT} with a
- * text replaces it and with anything else changes nothing; {@code SET_CARET} with a collapsed
- * range moves the caret and {@code SET_SELECTION} with a range selects it, each read back off
- * the facet; and the node keeps its id as the text changes. The helper itself,
- * {@code limn.components.internal.text.TextAccessibility}, predates the record and is what the shape
- * was modelled on.
+ * {@link TextSubject}: the facet's string is the API's; {@code SET_TEXT} with a text replaces it
+ * and with anything else changes nothing; {@code SET_CARET} with a collapsed range moves the caret
+ * and {@code SET_SELECTION} with a range selects it, each read back off the facet; and the node
+ * keeps its id as the text changes. The helper itself,
+ * {@code limn.components.internal.text.TextAccessibility}, predates the shapes and is what the
+ * shape was modelled on.
  */
 public final class TextContract {
 

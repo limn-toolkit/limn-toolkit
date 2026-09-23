@@ -11,7 +11,7 @@ package limn.components;
  * <ul>
  *   <li><b>Wayland</b>, where a client cannot place a toplevel at an anchor. A menu window would
  *       open near the middle of the display wearing whatever frame the compositor puts on
- *       toplevels, which is worse than any overlay. See ADR 028.</li>
+ *       toplevels, which is worse than any overlay.</li>
  *   <li><b>macOS exclusive fullscreen</b>, where a second window taking focus minimizes the
  *       fullscreen owner.</li>
  * </ul>

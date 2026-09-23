@@ -9,8 +9,8 @@ import limn.accessibility.AccessibleTree;
  *
  * <p>Navigation, the runtime id, the screen rectangle, the focused element and the element under a
  * point: five questions a client asks constantly, and every one of them is answerable from an
- * immutable tree with no widget touched and no thread of ours entered. That is the whole shape ADR
- * 039 is built around, and it is why these can be asserted here rather than only in a guest.
+ * immutable tree with no widget touched and no thread of ours entered. That is the whole shape the
+ * bridges are built around, and it is why these can be asserted here rather than only in a guest.
  *
  * <p><b>The element under a point is not {@code Widget#hitTest}.</b> That method answers
  * {@code null} for a disabled subtree at every level, because it exists to route input and input
@@ -41,7 +41,7 @@ final class UiaFragment {
         };
     }
 
-    // ---- tree rows, nested (decision 4; semantics 6; W4)
+    // ---- tree rows, nested (decision 4; semantics 6)
     //
     // A tree publishes its rows flat, as siblings under the tree, each with its level in a hierarchy
     // facet. NVDA 2024.4.2 derives a tree item's level from how many TreeItem ancestors it has and
@@ -206,7 +206,7 @@ final class UiaFragment {
      * the marker with the host window's own runtime id, which is what makes the result unique
      * across processes without this bridge knowing anything about other processes. The identifier
      * is 64 bits and the array is of 32-bit integers, so it takes two slots — and it is split
-     * rather than truncated, because §1.3 mints identifiers from a counter that will outrun 32 bits
+     * rather than truncated, because identifiers are minted from a counter that will outrun 32 bits
      * in a long-lived application and two nodes sharing a runtime id are one element to a client.
      *
      * @param nodeId the node's identifier
@@ -221,8 +221,8 @@ final class UiaFragment {
      *
      * <p>A node's own bounds are logical and window-relative, so this is the one place the window's
      * origin and its scale factor are applied. Both come from the snapshot rather than from the
-     * window, for §3.4's reason: the window's position is user-interface-thread-confined and this
-     * is asked on an RPC thread, so the frame that published the tree is what stamped them onto it.
+     * window: the window's position is user-interface-thread-confined and this is asked on an RPC
+     * thread, so the frame that published the tree is what stamped them onto it.
      *
      * @param tree the tree the node came from, for the origin and the factor it was stamped with
      * @param node the node
@@ -240,14 +240,14 @@ final class UiaFragment {
 
     /**
      * What {@code GetFocus} answers: where the user is, which is the tree's
-     * {@linkplain AccessibleTree#effectiveFocus() effective focus} (decision 1; semantics 4) --
-     * the cursor row, cell, day or segment of a focused widget, and the focused node itself when it
-     * has no cursor. Until 2026-09-15 this answered {@link AccessibleTree#focused()}, the widget,
-     * so a reader asking after a cursor move found the table and never the cell (W3, LAB-NEW-4).
+     * {@linkplain AccessibleTree#effectiveFocus() effective focus} -- the cursor row, cell, day or
+     * segment of a focused widget, and the focused node itself when it has no cursor.
+     * Until 2026-09-15 this answered {@link AccessibleTree#focused()}, the widget, so a reader
+     * asking after a cursor move found the table and never the cell.
      *
      * @param tree the published tree
      * @return the index of that node, or {@link AccessibleNode#NONE} when nothing in this window
-     *         is focused or the cursor lives in another window's tree (decision 5), which the
+     *         is focused or the cursor lives in another window's tree, which the
      *         provider answers through that window
      */
     static int focus(AccessibleTree tree) {

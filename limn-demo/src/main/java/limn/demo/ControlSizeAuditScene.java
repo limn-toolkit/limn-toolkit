@@ -35,10 +35,10 @@ import java.util.Map;
  * The pointer-target audit: the 24&nbsp;pt WCAG 2.2 SC 2.5.8 (AA) floor drawn over every
  * interactive element, with the ones that fall short marked as failures.
  *
- * <p><b>Why this is not the scene ADR 002 §9 phase 4 described.</b> That text asked for target
- * circles over "both the paint box and the hit box". Decision 4 cancelled the hit-region
- * mechanism: there is no {@code Widget.hitOutset()} and no second hit pass, so a widget's hit
- * box <em>is</em> its paint box and drawing two circles would be drawing the same circle twice.
+ * <p><b>Why this is not the scene first planned.</b> The plan asked for target circles over
+ * "both the paint box and the hit box", and the hit-region mechanism was then cancelled: there
+ * is no {@code Widget.hitOutset()} and no second hit pass, so a widget's hit box <em>is</em> its
+ * paint box and drawing two circles would be drawing the same circle twice.
  * What survives of the floor is a {@code Math.max} clamp at exactly three sites (see
  * {@link Strokes#MIN_HIT_TARGET}). The interesting question is therefore no longer "do the two
  * boxes agree" but "does the painted box actually clear 24&nbsp;pt", which nothing in the type
@@ -51,8 +51,8 @@ import java.util.Map;
  * table verbatim) and the axis neither created nor closed it; a scene that drew only green
  * circles would be decoration, and would quietly assert conformance the toolkit does not have.
  *
- * <p>The ramp rows show the other half of decision 4: because the height ramp starts at 24, a
- * Button / ComboBox / TextField clears the floor <em>in paint</em> at every step, XSMALL
+ * <p>The ramp rows show the other half of that cancellation: because the height ramp starts at 24,
+ * a Button / ComboBox / TextField clears the floor <em>in paint</em> at every step, XSMALL
  * included, so pointer dispatch never had to grow a widget beyond its own ink.
  *
  * <p>The overlay is a wrapper widget that paints after its child subtree has been laid out. No
@@ -230,8 +230,8 @@ final class ControlSizeAuditScene {
          * <p>"Target" is {@code isFocusable()}: the toolkit's only structural signal that a
          * widget takes input, so the audit cannot drift out of sync with a component list
          * maintained here. Two consequences worth knowing before reading the count. A
-         * pointer-only target (ScrollBar) is not focusable and is not audited; decision 5
-         * exempts it from the size axis anyway. And TabbedPane's roving focus leaves exactly one
+         * pointer-only target (ScrollBar) is not focusable and is not audited; it is
+         * exempt from the size axis anyway. And TabbedPane's roving focus leaves exactly one
          * tab header focusable, so a tab strip would report one target rather than n; no tab
          * strip is in this scene for that reason.
          */

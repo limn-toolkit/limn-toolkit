@@ -3,8 +3,7 @@ package limn.backend.lwjgl;
 import java.util.function.LongSupplier;
 
 /**
- * Holds the event loop to the display's refresh rate when the vsynced swap does not (decision 113,
- * PF-1).
+ * Holds the event loop to the display's refresh rate when the vsynced swap does not.
  *
  * <p>The loop paces itself by handing one window per iteration a swap interval of one, which blocks
  * until the next vertical blank. That is a request, not a guarantee: macOS does not block the swap of

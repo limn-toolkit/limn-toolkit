@@ -9,10 +9,9 @@ import limn.graphics.Images;
 import java.nio.file.Path;
 
 /**
- * The worked example the media and background-work guides show for loading a file once a window
- * is up (decision 116, DOC-1): the guides used to name {@code Images.loadAsync} and
- * {@code Sounds.loadAsync}, which never existed. Compiled by {@code ./gradlew check}, so the sample
- * a reader copies is one that builds.
+ * The worked example the media and background-work guides show for loading a file once a window is
+ * up: the guides used to name {@code Images.loadAsync} and {@code Sounds.loadAsync}, which never
+ * existed. Compiled by {@code ./gradlew check}, so the sample a reader copies is one that builds.
  */
 public final class LoadingExample {
 

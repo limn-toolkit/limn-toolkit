@@ -14,7 +14,9 @@ import static limn.backend.lwjgl.a11y.windows.UiaPatternProviders.refusal;
 import static limn.backend.lwjgl.a11y.windows.UiaPatternProviders.postFirstAccepted;
 
 /**
- * The {@code ROWS} shape's half of the Windows bridge (ADR 045 §5): a selection and its members: Selection on the container, SelectionItem and ScrollItem on a member, and the outline nesting a tree's rows get under their parent row, which UI Automation navigates rather than reads off a level.
+ * The {@code ROWS} shape's half of the Windows bridge: a selection and its members: Selection on
+ * the container, SelectionItem and ScrollItem on a member, and the outline nesting a tree's rows
+ * get under their parent row, which UI Automation navigates rather than reads off a level.
  *
  * <p>Moved here verbatim from {@code UiaPatternProviders} on 2026-09-21, under the shape's
  * name and nothing else; the patterns are vended by facet in {@link UiaPatterns} and the
@@ -30,7 +32,7 @@ final class UiaRowsShape {
     static void slots(int patternId, Map<String, CallbackI> slots, long nodeId,
                       UiaProvider.Context context) {
         switch (patternId) {
-            // ISelectionProvider (W1's Selection half; semantics 1): the container's members are the
+            // ISelectionProvider (semantics 1): the container's members are the
             // realized nodes whose selection container, resolved once at publish, is this node.
             case UiaIds.SELECTION_PATTERN -> {
                 slots.put("GetSelection", (UiaCom.PP) (self, out) -> {
@@ -122,7 +124,7 @@ final class UiaRowsShape {
      * The simple pointers of a container's realized selected members, in reading order: every node
      * of the snapshot carrying a selected {@code SelectionItemFacet} whose resolved selection
      * container is this one. A selected member the widget has not realized (a row scrolled far
-     * away) has no node and is not listed, the degradation ADR 039 §4.1 accepts.
+     * away) has no node and is not listed, an accepted degradation.
      */
     private static long[] selectedMembersOf(AccessibleTree tree, int container,
                                             UiaProvider.Context context) {
@@ -146,8 +148,8 @@ final class UiaRowsShape {
     /**
      * A row of an outline below its top level, which UI Automation nests under its parent row
      * rather than beside it (NVDA counts TreeItem ancestors and ignores the Level property):
-     * the rows shape's member carrying a hierarchy facet, whatever widget published it (ADR 045
-     * §1: a shape is derived, not a role).
+     * the rows shape's member carrying a hierarchy facet, whatever widget published it, because a
+     * shape is derived, not a role.
      *
      * @param node a node
      * @return whether it is nested under an earlier row

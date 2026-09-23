@@ -23,8 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * The one place an ISO date becomes a date in the calendar system being drawn, and the one place
  * that conversion is allowed to fail quietly.
  *
- * <p>ADR 042 &sect;1: the application exchanges {@link LocalDate}, and which calendar the widget
- * draws is a display axis resolved from the locale. Nearly always that axis is ISO &mdash;
+ * <p>The application exchanges {@link LocalDate}, and which calendar the widget draws is a
+ * display axis resolved from the locale. Nearly always that axis is ISO &mdash;
  * {@link Chronology#ofLocale} answers {@code IsoChronology} for Arabic, Thai, Hebrew, Persian and
  * Japanese alike, and answers anything else only when the locale carries a {@code u-ca} extension
  * &mdash; so the common path here converts nothing at all.
@@ -139,7 +139,7 @@ final class CalendarChronology {
      * day: the one answer to "which month is this" that is right in every chronology. A Hijri
      * month starts three weeks into an ISO one, so {@code day.withDayOfMonth(1)} names a day of
      * the <em>previous</em> Hijri month for most of the year; paging, the choosers and the cursor
-     * all went wrong on exactly that until 2026-09-14 (DATES-NEW-1).
+     * all went wrong on exactly that until 2026-09-14.
      *
      * @param chronology the calendar being drawn
      * @param day        any day
@@ -163,9 +163,9 @@ final class CalendarChronology {
      * (Hijri) do. Read off the year of era <em>today</em> rather than off a list of chronologies,
      * so a calendar the runtime adds later is classified by the same rule.
      *
-     * <p>This is the settled reading of ADR 042 &sect;3's widening rule (era-year-width,
-     * 2026-09-14): the four-digit widening removes a two-digit year's ambiguity, and a year of era
-     * that is one to three digits long inside a named era is not ambiguous.
+     * <p>This is why a date field draws a year at four digits in most calendars and at its own
+     * width in one whose years carry an era: the four-digit widening removes a two-digit year's
+     * ambiguity, and a year of era one to three digits long inside a named era is not ambiguous.
      *
      * @param chronology the calendar being drawn
      * @param today      the widget's today
@@ -247,8 +247,8 @@ final class CalendarChronology {
     /**
      * The whole date, spoken rather than looked at: what a screen reader is told a day cell is.
      *
-     * <p>The long style and not the short one, for the reason ADR 042 &sect;8 gives: a cell heard on
-     * its own has to say what it is, and a bare number is not a date.
+     * <p>The long style and not the short one, because a cell heard on its own has to say what it
+     * is, and a bare number is not a date.
      *
      * @param chronology the calendar being drawn
      * @param date       the day

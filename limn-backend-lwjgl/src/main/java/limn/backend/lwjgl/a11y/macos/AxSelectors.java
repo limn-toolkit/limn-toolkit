@@ -14,11 +14,11 @@ import java.util.function.Function;
  * running AppKit does not declare.
  *
  * <p><b>One list, so that a test can tie each selector to the dump.</b> An encoding is read out of
- * the running AppKit and never written down (§12.3), which leaves the committed dump of
+ * the running AppKit and never written down, which leaves the committed dump of
  * {@code scripts/a11y/macos/dump-appkit-constants.swift} as the only place a selector is checked
  * before it reaches a Mac. The selectors used to be literals scattered over the element class and
- * the action table, and two of them were not in the dump at all (MACOS-NEW-6). {@code AxConstantsTest}
- * now asserts every name here has an encoding in the dump, {@code AxSelectorsTest} that the element
+ * the action table, and two of them were not in the dump at all. {@code AxConstantsTest} now
+ * asserts every name here has an encoding in the dump, {@code AxSelectorsTest} that the element
  * class installs exactly these, each with the closure shape listed ({@link Kind}), and
  * {@link AxElementClass} refuses to install a selector that is not listed or a closure of another
  * shape.
@@ -77,14 +77,14 @@ final class AxSelectors {
     static final List<String> ON_ELEMENT;
 
     /**
-     * Installed on the class a table's column elements are vended as (M4), each also listed on the
+     * Installed on the class a table's column elements are vended as, each also listed on the
      * element class with the same shape, so {@link #KINDS} holds both.
      */
     static final List<String> ON_COLUMN = List.of("accessibilityRole", "accessibilityIndex",
             "accessibilityRows", "accessibilityVisibleRows", "accessibilityHeader", "accessibilityParent",
             "isAccessibilitySelectorAllowed:", "accessibilityActionNames");
 
-    /** Installed on the one content-view subclass, where AppKit asks where the focus is (§13.22). */
+    /** Installed on the one content-view subclass, where AppKit asks where the focus is. */
     static final List<String> ON_VIEW = List.of("accessibilityFocusedUIElement");
 
     /** Every listed selector's closure shape. */
@@ -179,12 +179,12 @@ final class AxSelectors {
      * What a selector is installed only together with: when any selector named here is not installed,
      * neither is the key.
      *
-     * <p><b>The gate and the actions are one unit.</b> AppKit builds the action list a client is shown
-     * out of what an object responds to, and every element is one class, so without
+     * <p><b>The gate and the actions are one unit.</b> AppKit builds the action list a client is
+     * shown out of what an object responds to, and every element is one class, so without
      * {@code isAccessibilitySelectorAllowed:} every element would advertise every action — a button
-     * "increment", a slider "show menu" (semantics 5). An action selector installed while the gate is
-     * not is therefore worse than no action at all, and is withheld with it. The converse does not
-     * hold: a gate with one action missing only answers for the actions that are there.
+     * "increment", a slider "show menu". An action selector installed while the gate is not is
+     * therefore worse than no action at all, and is withheld with it. The converse does not hold: a
+     * gate with one action missing only answers for the actions that are there.
      *
      * <p><b>The two legacy entry points are one unit</b>: {@code accessibilityAttributeNames} would
      * advertise {@code AXElementBusy} that a lone value getter could not answer, and a lone value

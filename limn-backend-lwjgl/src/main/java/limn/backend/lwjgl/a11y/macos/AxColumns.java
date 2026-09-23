@@ -11,19 +11,19 @@ import java.util.Map;
 /**
  * The column elements a table is vended with, which stand for no node, and the ways one goes away.
  *
- * <p><b>Why a table has them at all</b> (M4; decision 34 of 2026-09-13, "a native NSTableView
- * decides"): a native view-based NSTableView read on the macOS 26.6.2 guest (2026-09-15,
- * {@code scripts/a11y/macos/table-probe.swift}) answers {@code AXColumns} with one {@code AXColumn}
- * element per column, each answering its {@code AXIndex}, its {@code AXHeader} (the header button) and
- * its {@code AXRows} (that column's cells), and lists them among the table's children. The toolkit has
- * no column node and gains none — ADR 039 §1.12's roles are closed — so the bridge keeps a second,
- * bridge-only kind of element, keyed by the table's identifier and the shown column's index.
+ * <p><b>Why a table has them at all</b>: a native view-based NSTableView read on the macOS 26.6.2
+ * guest (2026-09-15, {@code scripts/a11y/macos/table-probe.swift}) answers {@code AXColumns} with
+ * one {@code AXColumn} element per column, each answering its {@code AXIndex}, its {@code AXHeader}
+ * (the header button) and its {@code AXRows} (that column's cells), and lists them among the
+ * table's children. The toolkit has no column node and gains none — its roles are closed — so the
+ * bridge keeps a second, bridge-only kind of element, keyed by the table's identifier and the shown
+ * column's index.
  *
- * <p><b>The same lifetime rules as a node's element, applied to a key that is not a node.</b> Minted
- * on the first ask, the same object on every ask after (§1.3's stability, for a client that kept one);
- * released at a frame's end when its table has left the tree or no longer shows that column, and all
- * at once on a rebind or a detach, each demoted before it is released (the factory's job), and never
- * from a reentrant publish (§3.2). User-interface thread only, as {@link AxElements} is.
+ * <p><b>The same lifetime rules as a node's element, applied to a key that is not a node.</b>
+ * Minted on the first ask, the same object on every ask after, for a client that kept one; released
+ * at a frame's end when its table has left the tree or no longer shows that column, and all at once
+ * on a rebind or a detach, each demoted before it is released (the factory's job), and never from a
+ * reentrant publish. User-interface thread only, as {@link AxElements} is.
  */
 final class AxColumns {
 

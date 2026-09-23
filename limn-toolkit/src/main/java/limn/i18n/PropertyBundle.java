@@ -56,12 +56,12 @@ public final class PropertyBundle implements StringBundle {
      * One table per locale something is reading, and nothing else: a language nobody is
      * reading costs no memory, the way a font nobody draws with is not resident.
      *
-     * <p>Who is reading is {@link I18n}'s ledger, not this class's guess: the process
-     * locale plus every {@linkplain I18n#retainLocale retained} subtree locale, each
-     * {@linkplain #prepare prepared} in and {@linkplain #release released} out. A process
-     * that has visited ten languages holds the tables for the ones on screen, not ten;
-     * before ADR 035 that number was exactly one, and it grew only because two languages
-     * can now genuinely be on screen at once. Coming back to a released language re-reads
+     * <p>Who is reading is {@link I18n}'s ledger, not this class's guess: the process locale plus
+     * every {@linkplain I18n#retainLocale retained} subtree locale, each
+     * {@linkplain #prepare prepared} in and {@linkplain #release released} out. A process that has
+     * visited ten languages holds the tables for the ones on screen, not ten; before a subtree
+     * could declare its own locale that number was exactly one, and it grew only because two
+     * languages can now genuinely be on screen at once. Coming back to a released language re-reads
      * the file, inside {@code prepare} and never on a paint path.
      */
     private final Map<Locale, Map<String, String>> tables = new ConcurrentHashMap<>();

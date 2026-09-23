@@ -3,7 +3,7 @@ package limn.testing.a11y;
 import limn.scene.Widget;
 
 /**
- * A widget of the {@code TOGGLE} shape (ADR 045 §1) as the toggle contract sees it: something
+ * A widget of the {@code TOGGLE} shape as the toggle contract sees it: something
  * that publishes one node that is on or off, which the contract can build fresh, read the state
  * of through the widget's own API, and ask whether the flip is on offer.
  */

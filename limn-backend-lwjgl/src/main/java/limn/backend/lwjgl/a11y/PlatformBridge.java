@@ -8,8 +8,8 @@ import limn.backend.AccessibilityBridge;
  * answer through, and what binding and unbinding do to both.
  *
  * <p><b>This is deliberately small, and the things that are not here are the point.</b> The three
- * bridges look alike from a distance and are not alike where it counts, which is ADR 039 §4's whole
- * subject — a neutral abstraction over them would force one of them to lie. So:
+ * bridges look alike from a distance and are not alike where it counts, and a neutral abstraction
+ * over them would force one of them to lie. So:
  *
  * <ul>
  *   <li><b>The event queue is not here.</b> Windows raises straight through, because a
@@ -18,7 +18,7 @@ import limn.backend.AccessibilityBridge;
  *       {@code NSAccessibilityPostNotification} is a cross-process call and one frame's difference
  *       can be hundreds of nodes wide. Those are three measured properties of three APIs, not three
  *       implementations of one idea.</li>
- *   <li><b>The element registry is not here.</b> §3.4 assigns a different owner to each: Windows
+ *   <li><b>The element registry is not here.</b> Each platform gives it a different owner: Windows
  *       needs concurrent maps because UI Automation calls a provider from several threads while the
  *       user-interface thread sleeps; macOS gets a plain map with a thread assertion because every
  *       callback there <em>is</em> the user-interface thread; Linux addresses nodes by object path
@@ -29,7 +29,7 @@ import limn.backend.AccessibilityBridge;
  *       real gate is this window's own subscriptions and asks — which is why <em>both</em> want a
  *       priming publish: a gate of that shape cannot open until a client has something to ask
  *       about. Windows wants one thing more, a root before the first frame, because there the
- *       asking is a message that is not repeated (§3.1).</li>
+ *       asking is a message that is not repeated.</li>
  * </ul>
  *
  * <p><b>The snapshot is {@code volatile} for all three, and that is a small concession by one of

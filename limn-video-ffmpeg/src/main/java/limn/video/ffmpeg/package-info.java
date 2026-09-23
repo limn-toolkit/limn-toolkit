@@ -7,7 +7,7 @@
  * no FFmpeg at all.
  *
  * <p><b>The library is not in this repository and Gradle does not build it.</b> It is the
- * limn-ffmpeg-natives artifact, versioned with FFmpeg (ADR 037): this module brings its JNI shim
+ * limn-ffmpeg-natives artifact, versioned with FFmpeg: this module brings its JNI shim
  * along, and an application adds the {@code natives-<os>-<arch>} classifier for its platform. A
  * build that added none has no library, which is an ordinary case rather than a broken one.
  * Everything here is written so that absence is

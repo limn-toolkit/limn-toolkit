@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The four invariants every published tree holds, whatever is in it (ADR 039 §12.1, ADR 045 §4):
+ * The four invariants every published tree holds, whatever is in it:
  * no node has role {@code UNKNOWN}; a focusable node has a name; no two nodes share an id; and a
  * node that says it is showing has a box, lies inside the scene, and overlaps every showing
  * ancestor. "Inside" cannot mean wholly inside, because a row scrolled half off the top of a list

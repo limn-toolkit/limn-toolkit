@@ -6,12 +6,12 @@ import limn.scene.Widget;
 import java.util.List;
 
 /**
- * A widget of the {@code ROWS} shape (ADR 045 §1) as the rows contract sees it: something that
- * publishes a selection and members of it, which the contract can build fresh, read the
- * selection and the cursor of through the widget's own API, and ask three things about that the
- * published tree cannot say. Those three are the variants of the shape (§3): whether the cursor
- * is the selection or separate from it, how rows beyond the box are reached, and whether there
- * is a multiple selection to enter.
+ * A widget of the {@code ROWS} shape as the rows contract sees it: something that publishes a
+ * selection and members of it, which the contract can build fresh, read the selection and the
+ * cursor of through the widget's own API, and ask three things about that the published tree
+ * cannot say. Those three are the variants of the shape: whether the cursor is the selection or
+ * separate from it, how rows beyond the box are reached, and whether there is a multiple
+ * selection to enter.
  *
  * <p>A subject builds its rows as plain cells that cannot take the keyboard, so that what the
  * contract reads on a row is the row's and not the walk's free verbs on a focusable child. The
@@ -85,7 +85,7 @@ public interface RowsSubject {
 
     /**
      * @return whether the members have no container node of their own — a radio group, whose
-     *     rows are widgets and whose group is not (decision 107): the contract then reads the
+     *     rows are widgets and whose group is not: the contract then reads the
      *     members' common parent as the box, expects the cursor to be the selection, and hears
      *     the selection change on the members that moved rather than on a container
      */

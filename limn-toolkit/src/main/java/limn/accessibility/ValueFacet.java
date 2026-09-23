@@ -9,13 +9,13 @@ package limn.accessibility;
  * asks the same element for both through two different interfaces. The text is already resolved
  * under the node's own locale; nothing downstream formats anything.
  *
- * <p><b>A value can say it has no number</b> (ADR 039 §1.2, amended 2026-09-14; decision 16): a
- * date segment nobody has typed into has a range and a text and nothing in between. Such a facet is
- * {@link #empty()}, keeps its {@code min}, {@code max}, {@code step} and {@code text}, and carries
- * the <em>minimum</em> as its {@code value}, because two platforms have no way to answer "no number"
- * where a number is mandatory (UIA's {@code RangeValue.Value}, AT-SPI's {@code CurrentValue}) and
- * the minimum is what they answer there; the text and the events are what say empty. A bridge that
- * can say it, says it from this flag and not from the number.
+ * <p><b>A value can say it has no number</b>: a date segment nobody has typed into has a range and
+ * a text and nothing in between. Such a facet is {@link #empty()}, keeps its {@code min},
+ * {@code max}, {@code step} and {@code text}, and carries the <em>minimum</em> as its
+ * {@code value}, because two platforms have no way to answer "no number" where a number is
+ * mandatory (UIA's {@code RangeValue.Value}, AT-SPI's {@code CurrentValue}) and the minimum is what
+ * they answer there; the text and the events are what say empty. A bridge that can say it, says it
+ * from this flag and not from the number.
  *
  * <p>A value that advances on its own &mdash; a playing video's position, a determinate progress
  * bar &mdash; is published <b>rounded to the resolution a user can act on</b>, by the widget. The
@@ -29,7 +29,7 @@ package limn.accessibility;
  *
  * <p>The tree raises {@link AccessibleEvent.Type#VALUE_CHANGED} when the number, the text
  * <em>or</em> the emptiness moved: a segment filled with a digit that happens to be its minimum
- * changes only its text and its emptiness, and a reader has to hear it (CRIT-4, DATES-NEW-8).
+ * changes only its text and its emptiness, and a reader has to hear it.
  *
  * @param value    the current value, or the minimum when {@code empty}
  * @param min      the smallest value the node accepts

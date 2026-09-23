@@ -18,9 +18,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * a block of vtable pointers, one per interface, and the address a client is handed for interface
  * <i>i</i> is the address of field <i>i</i> — so dereferencing it finds that interface's vtable and
  * a client walking slot 5 finds slot 5 of the interface it asked for. Nothing else is stored in the
- * object. What this bridge needs to know about it is kept on the Java side, keyed by pointer, for
- * §3.4's reason: a client may be reading the object on an RPC thread while the user-interface
- * thread would be writing it.
+ * object. What this bridge needs to know about it is kept on the Java side, keyed by pointer: a
+ * client may be reading the object on an RPC thread while the user-interface thread would be
+ * writing it.
  *
  * <p><b>{@code QueryInterface} has rules, and they are the ones a hand-written object gets wrong.</b>
  * Asking for {@code IUnknown} must answer the <em>same</em> pointer every time and through every
@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * then follows whatever was in its variable. And every successful query is a reference the caller
  * now owns, so it counts.
  *
- * <p><b>Some interfaces come and go while the object lives (W2, 2026-09-15).</b> A node's pattern
+ * <p><b>Some interfaces come and go while the object lives (2026-09-15).</b> A node's pattern
  * set is a fact of the snapshot, and the snapshot moves: a tree gains {@code Invoke} once it has a
  * cursor row, a leaf that gains children gains {@code ExpandCollapse}, a disabled button loses
  * {@code Invoke}. An object built once with the set of its first ask answered the gained pattern
@@ -304,15 +304,15 @@ final class UiaObject {
      * The registry lets this object go: its own reference is dropped, and the object is freed now
      * if nothing else holds it, or once the platform's last reference is released.
      *
-     * <p>P5W-3 (2026-09-22): the registry used to free every object outright when a window's
-     * tree went away, on the reading that {@code UiaDisconnectProvider} had released every
-     * platform reference first. It had not — a client's proxies release theirs on threads of
-     * their own, after the disconnect returns — and closing a date picker's native popup under
-     * NVDA freed fourteen objects and died in a freed trampoline ({@code jvm.dll} at one offset,
-     * every run). A reference count is what COM gives an object for exactly this, so the count
-     * decides: an object the platform still holds outlives the registry, answers nothing (its
-     * bridge is closed), and is freed when the platform lets go. One that never lets go is a
-     * bounded leak, which is the failure to prefer.
+     * <p>Until 2026-09-22 the registry freed every object outright when a window's tree went away,
+     * on the reading that {@code UiaDisconnectProvider} had released every platform reference
+     * first. It had not — a client's proxies release theirs on threads of their own, after the
+     * disconnect returns — and closing a date picker's native popup under NVDA freed fourteen
+     * objects and died in a freed trampoline ({@code jvm.dll} at one offset, every run). A
+     * reference count is what COM gives an object for exactly this, so the count decides: an object
+     * the platform still holds outlives the registry, answers nothing (its bridge is closed), and
+     * is freed when the platform lets go. One that never lets go is a bounded leak, which is the
+     * failure to prefer.
      *
      * @return whether it was freed now
      */
@@ -387,8 +387,8 @@ final class UiaObject {
      *
      * <p>Never called from {@code Release} and never from a finalizer: the registry decides, after
      * the count has reached zero ({@link #retire}, {@link #freeRetired}), and freeing under a
-     * client that still holds a pointer is a crash in this process, inside a closure that no
-     * longer exists, which is what P5W-3 was.
+     * client that still holds a pointer is a crash in this process, inside a closure that no longer
+     * exists, which is what closing a native popup under NVDA used to do.
      */
     synchronized void free() {
         UiaCom.freeClosures(closures);

@@ -17,7 +17,7 @@ import java.util.function.LongSupplier;
  * The one AT-SPI2 application a Limn process is, with every window it opens as a frame beneath it.
  *
  * <p><b>One connection per process, not per window, because the platform has one application
- * object per connection.</b> ADR 039 §2.3 says so and the code did the opposite until 2026-09-15:
+ * object per connection.</b> The design says so, and the code did the opposite until 2026-09-15:
  * each native window opened its own connection and did its own {@code Socket.Embed}, so a
  * DatePicker's calendar or a ComboBox's list — a native popup window — was a second application on
  * the desktop, literally named "popup", and its {@code POPUP_FOR} named a field no client could reach
@@ -43,15 +43,15 @@ import java.util.function.LongSupplier;
  * per-window bookkeeping kept on each facade ({@code member}, {@code shownAsFrame},
  * {@code frameId}) is the user-interface thread's alone.
  *
- * <p><b>Joined only once some window has a tree</b> (docs/design/accessibility.md): at-spi2-core
- * 2.60 reads an application as it registers and never lists one that answers "no children". A
- * window that arrives after the join, or leaves before the process does, is announced from the
- * application object as an ordinary {@code ChildrenChanged} carrying the frame's reference, which is
- * the one shape libatspi 2.60.6 updates a cached child list from
+ * <p><b>Joined only once some window has a tree</b> (docs/design/accessibility.md):
+ * at-spi2-core 2.60 reads an application as it registers and never lists one that answers "no
+ * children". A window that arrives after the join, or leaves before the process does, is announced
+ * from the application object as an ordinary {@code ChildrenChanged} carrying the frame's
+ * reference, which is the one shape libatspi 2.60.6 updates a cached child list from
  * ({@code cache_process_children_changed}, readings/upstream-at-spi2-core-2.60.6-libatspi.txt); it
  * removes the child before inserting it, so an arrival told twice is harmless and one never told is
- * not. When the last window leaves, the connection goes with it, so the next window registers with a
- * tree again rather than into an application the registry already decided was empty.
+ * not. When the last window leaves, the connection goes with it, so the next window registers with
+ * a tree again rather than into an application the registry already decided was empty.
  */
 final class AtspiApplication {
 
@@ -189,7 +189,7 @@ final class AtspiApplication {
     private volatile String name = "";
     /**
      * Whether the desktop has ever said assistive technology is running. Written once, from false to
-     * true, by whichever thread sees the first true (decision 67; {@link #enabled(boolean)}); read
+     * true, by whichever thread sees the first true ({@link #enabled(boolean)}); read
      * once a frame by {@link AtspiBridge#isListening()}, which is the same volatile read a plain
      * field was.
      */
@@ -213,9 +213,9 @@ final class AtspiApplication {
     private AtspiBridge announcedIn;
     /**
      * The node this process last told clients was focused, or 0 — <b>one memory, for the process,
-     * because the platform focus is one</b> (semantics 4, settled for the three bridges on
-     * 2026-09-15; Windows keeps the same pair in {@code UiaBridge.ANNOUNCED}). It used to be a field
-     * per {@link AtspiBridge}, which is one memory per window and not per focus.
+     * because the platform focus is one</b> (settled for the three bridges on 2026-09-15; Windows
+     * keeps the same pair in {@code UiaBridge.ANNOUNCED}). It used to be a field per
+     * {@link AtspiBridge}, which is one memory per window and not per focus.
      *
      * <p>What a collapse or a refusal is reconciled against: a {@code focused} 0 goes to this node
      * when it still stands and lost the focus — from its own window's context, which is not always
@@ -250,7 +250,7 @@ final class AtspiApplication {
     }
 
     /**
-     * Names the application object (decision 56: the backend's application name, by default the
+     * Names the application object (the backend's application name, by default the
      * title of its first window). Read on every ask, so a later name is what the next client reads.
      *
      * @param applicationName what the desktop should call this process; {@code null} leaves it
@@ -292,21 +292,21 @@ final class AtspiApplication {
     /**
      * The desktop's switch moved, or was read. Any thread; the watch thread in the process.
      *
-     * <p><b>On is once and for ever (decision 67).</b> The first true asks every attached window for
+     * <p><b>On is once and for ever.</b> The first true asks every attached window for
      * a publish, which buys the frame an idle window would otherwise never spend, and that publish
      * joins. A later false is recorded nowhere and changes nothing: the application stays embedded
      * for the life of the process, as a GTK application does once {@code atk-bridge} has loaded.
      *
-     * <p>It used to leave the bus on a false, which is decision 29's teardown half. That half rested
-     * on the switch going false when the reader left, and it does not: neither Orca 50.2 (Fedora KDE
-     * 44) nor Orca 46.1 (Ubuntu 24.04) ever writes {@code IsEnabled} false — the only write either
-     * makes sets it true at start — and at-spi-bus-launcher clears nothing when the screen reader is
-     * disabled (readings/fedora-orca-switch-writes.txt, readings/ubuntu-orca-switch-writes.txt,
-     * readings/upstream-at-spi-bus-launcher-2.52-2.60.txt, 2026-09-15). So the false the teardown
-     * waited for never arrived from a reader quitting, and the one that did arrive — the desktop's
-     * own accessibility setting turned off, or its bus going away — would drop a reader that is
-     * still running on the connection it is still reading. The cost of staying is one embedded
-     * connection and its two threads, which ADR 039 §6 records.
+     * <p>It used to leave the bus on a false, which is the teardown half of the rule for watching
+     * the switch. That half rested on the switch going false when the reader left, and it does not:
+     * neither Orca 50.2 (Fedora KDE 44) nor Orca 46.1 (Ubuntu 24.04) ever writes {@code IsEnabled}
+     * false — the only write either makes sets it true at start — and at-spi-bus-launcher clears
+     * nothing when the screen reader is disabled (readings/fedora-orca-switch-writes.txt,
+     * readings/ubuntu-orca-switch-writes.txt, readings/upstream-at-spi-bus-launcher-2.52-2.60.txt,
+     * 2026-09-15). So the false the teardown waited for never arrived from a reader quitting, and
+     * the one that did arrive — the desktop's own accessibility setting turned off, or its bus
+     * going away — would drop a reader that is still running on the connection it is still reading.
+     * The cost of staying is one embedded connection and its two threads.
      *
      * <p>The rising edge is taken with a compare-and-set, so the "any thread" above is true as
      * written: the process has one status thread today, and a check-then-set on a plain field would
@@ -448,25 +448,25 @@ final class AtspiApplication {
      * after the publish it describes. Dropped while the application has not joined, as every event
      * before the join always was.
      *
-     * <p><b>The reserved tail is never lost to a backlog, and neither is where the user is</b>
-     * (decision 28, semantics 4 and 7). The model keeps structure, focus, cursor, selection and
-     * window activation outside its event budget and sends them after an {@code INVALIDATED}; here
-     * their signals are sent as the tail kind, which the ordinary {@link Outbound#SIGNAL_BOUND}
-     * does not refuse. {@code INVALIDATED} itself sends nothing of its own — this bridge holds no
-     * per-node state to sweep, and a client's cache is kept by the tail's structure signals — and
-     * neither does a refused signal at the moment it is refused: each leaves the focus and the
-     * cursor owed, and they are said again at the tail's place, after the structure signals and
-     * before the first tail event that follows them ({@link #reconcile}) — or, when the tail held
-     * nothing after them, at {@link #frameEnded}. The tail's own {@code FOCUS_CHANGED} and cursor
-     * change arrive there, so a collapse sends decision 28's order: children-changed and the cache,
-     * then focus, cursor, selection and the window's activation. An owed reconcile says the focus
-     * and the cursor <b>whether or not they moved</b> (semantics 4), which is what a client that
-     * lost the collapsed events needs and what the other two bridges already did.
+     * <p><b>The reserved tail is never lost to a backlog, and neither is where the user is</b>. The
+     * model keeps structure, focus, cursor, selection and window activation outside its event
+     * budget and sends them after an {@code INVALIDATED}; here their signals are sent as the tail
+     * kind, which the ordinary {@link Outbound#SIGNAL_BOUND} does not refuse. {@code INVALIDATED}
+     * itself sends nothing of its own — this bridge holds no per-node state to sweep, and a
+     * client's cache is kept by the tail's structure signals — and neither does a refused signal at
+     * the moment it is refused: each leaves the focus and the cursor owed, and they are said again
+     * at the tail's place, after the structure signals and before the first tail event that follows
+     * them ({@link #reconcile}) — or, when the tail held nothing after them, at
+     * {@link #frameEnded}. The tail's own {@code FOCUS_CHANGED} and cursor change arrive there, so
+     * a collapse sends everything in one order: children-changed and the cache, then focus, cursor,
+     * selection and the window's activation. An owed reconcile says the focus and the cursor
+     * <b>whether or not they moved</b>, which is what a client that lost the collapsed events needs
+     * and what the other two bridges already did.
      *
-     * <p>Until the review of linux-B the focus was said the moment {@code INVALIDATED} arrived —
-     * before the structure, and before an {@code Activate} after which it was then not said again
-     * — and the memory of what was announced was cleared on every publish, so every collapse
-     * repeated both even when neither had moved.
+     * <p>At first the focus was said the moment {@code INVALIDATED} arrived — before the structure,
+     * and before an {@code Activate} after which it was then not said again — and the memory of
+     * what was announced was cleared on every publish, so every collapse repeated both even when
+     * neither had moved.
      *
      * @param window the facade whose scene raised it, whose tree the event describes
      * @param event  what the difference between two published trees found
@@ -480,7 +480,7 @@ final class AtspiApplication {
             }
             // And no later difference says it again, because the tree already holds it: the
             // frame's ACTIVE, its Activate and the initial focus were the whole of what a reader
-            // heard nothing of (P5U-1). The frame after the join says the window's state again.
+            // heard nothing of. The frame after the join says the window's state again.
             window.startupOwed = true;
             return;
         }
@@ -563,10 +563,10 @@ final class AtspiApplication {
      * once per frame per window, whether or not the window published.
      *
      * <p><b>This is where a collapse's re-announcement lands when its tail held nothing after the
-     * structure signals</b> (semantics 4). The reconcile runs at the first tail event that follows
-     * them, and a tail of structure alone has none; before 2026-09-15 the window then waited for its
-     * next publish, so a collapse on a window that then went still re-announced nothing at all —
-     * the case the semantics are about. Here it is said in the frame it belongs to, against the tree
+     * structure signals</b>. The reconcile runs at the first tail event that follows them, and a
+     * tail of structure alone has none; before 2026-09-15 the window then waited for its next
+     * publish, so a collapse on a window that then went still re-announced nothing at all — the
+     * case the semantics are about. Here it is said in the frame it belongs to, against the tree
      * that frame published.
      *
      * @param window the facade whose frame ended
@@ -577,23 +577,24 @@ final class AtspiApplication {
     }
 
     /**
-     * Says a window's startup again, once, after a join its first publish beat (P5U-1, Ubuntu 24.04
+     * Says a window's startup again, once, after a join its first publish beat (Ubuntu 24.04
      * with at-spi 2.52 and Orca 46.1, 2026-09-16). User-interface thread.
      *
-     * <p>The join is requested by the first publish that has a tree and lands on a thread of its own,
-     * so it can never precede that publish, and the events of that publish — the frame's
+     * <p>The join is requested by the first publish that has a tree and lands on a thread of its
+     * own, so it can never precede that publish, and the events of that publish — the frame's
      * {@code ACTIVE}, its {@code Activate}, the {@code FOCUSED} of the control the user starts in —
      * were dropped as every event before the join is ({@link #emit}, which marks the window as
-     * owing this). Nothing re-sent them: a later publish emits only what moved, and those bits
-     * had not. A join that lands before the publish's own events are emitted — the other side of
-     * the race — drops nothing, marks nothing, and says nothing twice. Measured on the guest, the announcement scene lost
-     * its whole burst six times in six: Orca said nothing at startup, named the window five seconds
-     * late off an unrelated event, and never named the control that held the focus, while a client
-     * that <em>walked</em> the tree saw every bit in place ({@code readings/phase5-ubuntu/summary.md}).
+     * owing this). Nothing re-sent them: a later publish emits only what moved, and those bits had
+     * not. A join that lands before the publish's own events are emitted — the other side of the
+     * race — drops nothing, marks nothing, and says nothing twice. Measured on the guest, the
+     * announcement scene lost its whole burst six times in six: Orca said nothing at startup, named
+     * the window five seconds late off an unrelated event, and never named the control that held
+     * the focus, while a client that <em>walked</em> the tree saw every bit in place
+     * ({@code readings/phase5-ubuntu/summary.md}).
      *
      * <p>So the frame after the join says the burst from the tree as it stands — the frame's active
      * state, then the window's activation, whose reconcile says the focus and the cursor after it,
-     * in the order a window that activates later sends (decision 28) — through {@link #emit}, so a
+     * in the order a window that activates later sends — through {@link #emit}, so a
      * bus not joined, a bit already said, or a frame that is not the active one are handled where
      * they always are. A window whose frame is not active has no burst to owe: its focus is where
      * the user would return to, and the active frame's own startup says where the user is.
@@ -709,7 +710,7 @@ final class AtspiApplication {
      * the focus included. Every other frame's tree still names a focused node — the node the user
      * would return to — and that node is not where the user is. Orca 50.2 says so to a focus event
      * from such a frame: "[frame] lacks active state", and then "unable to find active window"
-     * (readings/fedora-l4-baseline/summary.md, LAB-NEW-2).
+     * (readings/fedora-l4-baseline/summary.md).
      *
      * @param window the facade
      * @return whether its published tree carries the window's own {@code ACTIVE}
@@ -721,8 +722,8 @@ final class AtspiApplication {
     }
 
     /**
-     * The kinds the model reserves outside its budget (ADR 039 §1.10, amended 2026-09-14), whose
-     * signals the connection's ordinary backlog never refuses.
+     * The kinds the model reserves outside its budget, whose signals the connection's ordinary
+     * backlog never refuses.
      */
     static boolean isInTheTail(AccessibleEvent.Type type) {
         return switch (type) {
@@ -764,46 +765,45 @@ final class AtspiApplication {
 
     /**
      * The focus and the cursor as the window's tree has them, against what this <em>process</em>
-     * last announced, as tail signals (semantics 4 and 7; decision 28; LINUX-NEW-15, LAB-NEW-2).
+     * last announced, as tail signals.
      *
      * <p><b>Only the active frame reconciles, and the memory it is compared against is one for the
-     * process</b> (semantics 4 as settled for the three bridges on 2026-09-15; the memory used to be
-     * a field per window, and the unconditional re-say below was not gated at all). The platform
-     * focus is one: the window the desktop has active holds it and every other frame holds a node
-     * the user would return to. So a window that is not active returns from here having said
-     * nothing — it neither repeats nor contradicts what the active frame announced — and the one
-     * memory is what the active frame's reconcile reads. See {@link #holdsThePlatformFocus}.
+     * process</b> (settled for the three bridges on 2026-09-15; the memory used to be a field per
+     * window, and the unconditional re-say below was not gated at all). The platform focus is one:
+     * the window the desktop has active holds it and every other frame holds a node the user would
+     * return to. So a window that is not active returns from here having said nothing — it neither
+     * repeats nor contradicts what the active frame announced — and the one memory is what the
+     * active frame's reconcile reads. See {@link #holdsThePlatformFocus}.
      *
-     * <p><b>A reconcile that is owed says them again whether or not they moved</b> (semantics 4,
-     * settled for all three bridges on 2026-09-15). A reconcile is owed by the model's
-     * {@code INVALIDATED} and by a signal this connection refused: in both cases what the client
-     * holds is not what this window published, and a focus that did not move is exactly the case
-     * where the client is left standing on a node whose state it never received. Linux was the
-     * bridge that sent nothing there, while Windows re-raises and macOS re-posts unconditionally.
-     * Saying it twice is safe on the one client read: Orca 50.2's {@code set_locus_of_focus}
-     * returns without a word when the locus is already that object (focus_manager.py 278-281,
-     * readings/fedora-orca-focus-manager.txt). A reconcile that is <em>not</em> owed — the one after
-     * every {@code Activate} — keeps the older rule below, so an activation does not repeat a focus
-     * it has just said.
+     * <p><b>A reconcile that is owed says them again whether or not they moved</b> (settled for all
+     * three bridges on 2026-09-15). A reconcile is owed by the model's {@code INVALIDATED} and by a
+     * signal this connection refused: in both cases what the client holds is not what this window
+     * published, and a focus that did not move is exactly the case where the client is left
+     * standing on a node whose state it never received. Linux was the bridge that sent nothing
+     * there, while Windows re-raises and macOS re-posts unconditionally. Saying it twice is safe on
+     * the one client read: Orca 50.2's {@code set_locus_of_focus} returns without a word when the
+     * locus is already that object (focus_manager.py 278-281,
+     * readings/fedora-orca-focus-manager.txt). A reconcile that is <em>not</em> owed — the one
+     * after every {@code Activate} — keeps the older rule below, so an activation does not repeat a
+     * focus it has just said.
      *
      * <p>Otherwise said only when they differ from what was announced. When the focus moved, the
-     * node last announced focused first hears
-     * {@code focused} 0 if it still stands — libatspi 2.60.6's {@code cache_process_state_changed}
-     * sets or clears only the bit an event names, so a collapse that lost the loser's change left a
-     * long-lived cache holding FOCUSED on two nodes — and then the node now focused hears 1. A
-     * node no window holds any more is not addressed: its {@code RemoveAccessible} disposed it. The
-     * cursor follows whenever it differs or the focus was just said, because Orca 50.2's
-     * {@code _on_focused_changed} moves its locus to a focused container's selected child
-     * (readings/fedora-orca-event-consumers.txt, default.py 1090-1116), which only the cursor's own
-     * event brings back.
+     * node last announced focused first hears {@code focused} 0 if it still stands —
+     * libatspi 2.60.6's {@code cache_process_state_changed} sets or clears only the bit an event
+     * names, so a collapse that lost the loser's change left a long-lived cache holding FOCUSED on
+     * two nodes — and then the node now focused hears 1. A node no window holds any more is not
+     * addressed: its {@code RemoveAccessible} disposed it. The cursor follows whenever it differs
+     * or the focus was just said, because Orca 50.2's {@code _on_focused_changed} moves its locus
+     * to a focused container's selected child (readings/fedora-orca-event-consumers.txt,
+     * default.py 1090-1116), which only the cursor's own event brings back.
      *
      * <p>{@code afterTheLocusMoved} is the reconcile after {@code Activate}: Orca's locus went to
-     * the frame at the frame's {@code active} 1 or at the {@code Activate}, so a focus or cursor not
-     * said since then ({@code focusSaid}, {@code cursorSaid}, cleared where it moved) is said again
-     * even though it was announced before. Two identical copies waiting in Orca's queue together
-     * are handled once, the earlier obsoleted by the later ({@code _is_obsoleted_by}, same type
-     * and source; readings/fedora-orca-event-queue.txt), and a locus set to the object it already
-     * is returns without a word ({@code set_locus_of_focus}, focus_manager.py 278-281,
+     * the frame at the frame's {@code active} 1 or at the {@code Activate}, so a focus or cursor
+     * not said since then ({@code focusSaid}, {@code cursorSaid}, cleared where it moved) is said
+     * again even though it was announced before. Two identical copies waiting in Orca's queue
+     * together are handled once, the earlier obsoleted by the later ({@code _is_obsoleted_by}, same
+     * type and source; readings/fedora-orca-event-queue.txt), and a locus set to the object it
+     * already is returns without a word ({@code set_locus_of_focus}, focus_manager.py 278-281,
      * readings/fedora-orca-focus-manager.txt). The previous text here said a copy in the same
      * publish was dropped by Orca's 0.1 s same-type filter; that filter is not reached by a
      * {@code focused} 1 from a focused source ({@code _ignore_by_focus_state} returns first,
@@ -927,7 +927,7 @@ final class AtspiApplication {
         java.util.function.Consumer<String> trace = AtspiTrace.trace;
         if (trace != null) {
             // Every signal and every refusal, named, so a reader that heard nothing can be asked
-            // whether anything was sent (LINUX-NEW-6).
+            // whether anything was sent.
             trace.accept((accepted ? "sent " : "REFUSED ") + (tail ? "(tail) " : "")
                     + AtspiTrace.describe(message)
                     + (accepted ? "" : "; refused so far: " + link.refused()));
@@ -1064,9 +1064,8 @@ final class AtspiApplication {
     /**
      * The joined connection stopped on its own: its reader reached the end of the stream or could
      * not go on, or its writer could not write. An application still believing itself embedded
-     * would go on sending signals into a connection nobody answers on — the "embedded but deaf"
-     * state LINUX-NEW-13 found — so the join is let go of and every window is asked for a publish,
-     * which joins again.
+     * would go on sending signals into a connection nobody answers on — an "embedded but deaf"
+     * state — so the join is let go of and every window is asked for a publish, which joins again.
      *
      * <p>At once only when the connection had held for {@link #STEADY_NANOS}. One lost sooner is a
      * failure: until 2026-09-15 a successful join reset the count, so a connection that joined and
@@ -1098,10 +1097,10 @@ final class AtspiApplication {
      * unless the last window left or the application joined meanwhile.
      *
      * <p>It used to only record when the next join might start and leave the asking to whatever
-     * published next (LINUX-NEW-12, the linux-A review). A scene publishes only when its tree is
-     * dirty, so an idle window — the window decision 29 is about, opened before the reader and then
-     * left alone — stayed off the desktop after one failed join until something else changed on
-     * screen, and a publish that fell inside the back-off was dropped with nothing to repeat it.
+     * published next. A scene publishes only when its tree is dirty, so an idle window — the window
+     * the switch is watched for, opened before the reader and then left alone — stayed off the
+     * desktop after one failed join until something else changed on screen, and a publish that fell
+     * inside the back-off was dropped with nothing to repeat it.
      */
     private void waitOutTheBackOffAndAskAgain() {
         long wait = Math.min(LONGEST_RETRY_NANOS, FIRST_RETRY_NANOS << Math.min(failures - 1, 16));
@@ -1155,7 +1154,7 @@ final class AtspiApplication {
      *
      * <p>It used not to: the connection was opened outside any {@code try}, so a {@code Hello} or an
      * {@code Embed} that timed out or answered an error left a socket and its reader and writer
-     * threads behind, once per attempt, and the attempt was repeated on every frame (LINUX-NEW-12).
+     * threads behind, once per attempt, and the attempt was repeated on every frame.
      *
      * @param lost run once if the connection later stops working on its own
      * @throws IOException when a step fails

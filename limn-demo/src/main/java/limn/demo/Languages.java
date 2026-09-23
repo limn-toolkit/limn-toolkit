@@ -13,11 +13,11 @@ import java.util.Locale;
  * <p>Hindi, Arabic and Hebrew are in the list to be looked at, not only read. Hindi
  * was listed here while it still rendered as empty boxes, because the translation was
  * correct and the gap was in rendering; Arabic and Hebrew were not shipped at all,
- * because a bundle would have promised something two layers were missing. ADR 031 added
- * both — a shaper to choose the glyphs, the bidi algorithm to order them — so all three
- * draw. What it deliberately did not add is mirroring: an Arabic or Hebrew screen here is
- * correct right-to-left text inside a left-to-right layout, and ADR 031 §4 says why that
- * intermediate state is worth shipping over neither half.
+ * because a bundle would have promised something two layers were missing. The toolkit
+ * then added both — a shaper to choose the glyphs, the bidi algorithm to order them — so all
+ * three draw. What it deliberately did not add is mirroring: an Arabic or Hebrew screen here is
+ * correct right-to-left text inside a left-to-right layout, an intermediate state worth shipping
+ * over neither half.
  */
 final class Languages {
 
