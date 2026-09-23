@@ -175,6 +175,9 @@ tasks.register<JavaExec>("captureGallery") {
     }
     if (JavaVersion.current().majorVersion.toInt() >= 24) {
         jvmArgs("--enable-native-access=ALL-UNNAMED")
+        // LWJGL still reads memory through sun.misc.Unsafe; without this every run on 24+ opens
+        // with four lines of warning about it.
+        jvmArgs("--sun-misc-unsafe-memory-access=allow")
     }
 }
 
@@ -203,6 +206,9 @@ tasks.register<JavaExec>("accessibilityGallery") {
     }
     if (JavaVersion.current().majorVersion.toInt() >= 24) {
         jvmArgs("--enable-native-access=ALL-UNNAMED")
+        // LWJGL still reads memory through sun.misc.Unsafe; without this every run on 24+ opens
+        // with four lines of warning about it.
+        jvmArgs("--sun-misc-unsafe-memory-access=allow")
     }
 }
 
@@ -232,6 +238,9 @@ tasks.named<JavaExec>("run") {
     // Applications that ship this decoder need the same flag; see FfmpegLibrary's documentation.
     if (JavaVersion.current().majorVersion.toInt() >= 24) {
         jvmArgs("--enable-native-access=ALL-UNNAMED")
+        // LWJGL still reads memory through sun.misc.Unsafe; without this every run on 24+ opens
+        // with four lines of warning about it.
+        jvmArgs("--sun-misc-unsafe-memory-access=allow")
     }
 }
 
@@ -258,6 +267,9 @@ tasks.register<Jar>("fatJar") {
     manifest {
         attributes(
             "Main-Class" to "limn.demo.Main",
+            // Read by `java -jar` on JDK 24 and later, and ignored before: the jar's own answer to
+            // the restricted-method warning LWJGL's System.load would otherwise print.
+            "Enable-Native-Access" to "ALL-UNNAMED",
             "Implementation-Title" to "Limn kitchen sink",
             "Implementation-Version" to project.version,
         )

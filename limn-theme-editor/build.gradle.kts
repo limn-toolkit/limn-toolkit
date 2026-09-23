@@ -74,5 +74,8 @@ tasks.named<JavaExec>("run") {
     }
     if (JavaVersion.current().majorVersion.toInt() >= 24) {
         jvmArgs("--enable-native-access=ALL-UNNAMED")
+        // LWJGL still reads memory through sun.misc.Unsafe; without this every run on 24+ opens
+        // with four lines of warning about it.
+        jvmArgs("--sun-misc-unsafe-memory-access=allow")
     }
 }
