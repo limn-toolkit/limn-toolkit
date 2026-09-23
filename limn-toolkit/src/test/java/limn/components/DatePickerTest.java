@@ -12,9 +12,12 @@ import limn.scene.Scene;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -39,6 +42,24 @@ import static limn.testing.SceneDriver.drive;
 class DatePickerTest extends ComponentTestBase {
 
     private static final LocalDate ANCHOR = LocalDate.of(2026, 9, 9);
+
+    /**
+     * Today, a week after the anchor: in the month the calendar opens on, and not the day the
+     * tests select, so a grid that opened on the selection is told apart from one that opened on
+     * today.
+     */
+    private static final Clock SEPTEMBER_16 =
+            Clock.fixed(Instant.parse("2026-09-16T12:00:00Z"), ZoneOffset.UTC);
+
+    /** A picker for one date whose today is fixed, so the day a test runs on changes nothing. */
+    private static DatePicker datePicker() {
+        return new DatePicker().setClock(SEPTEMBER_16);
+    }
+
+    /** A picker for a period, on the same fixed clock. */
+    private static DatePicker rangePicker() {
+        return DatePicker.ofRange().setClock(SEPTEMBER_16);
+    }
 
     private DatePicker picker;
     private Scene scene;
@@ -67,7 +88,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void thePickerIsAFieldAndAGridAndOwnsNeithersBehaviour() {
-        build(new DatePicker());
+        build(datePicker());
         assertNotNull(picker.field());
         assertNotNull(picker.calendar());
         assertNull(picker.endField(), "a picker for one date has one field");
@@ -79,7 +100,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void openingAndClosingAnnouncesTheExpandedState() {
-        build(new DatePicker());
+        build(datePicker());
         List<Change.Aspect> heard = new ArrayList<>();
         picker.observeChanges((widget, change) -> heard.add(change.aspect()));
         assertFalse(picker.isOpen());
@@ -94,7 +115,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void altDownOpensTheGridAndEscapeClosesIt() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDate(ANCHOR);
         key(Keys.DOWN, Keys.MOD_ALT);
         assertTrue(picker.isOpen());
@@ -104,7 +125,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void whileTheGridIsOpenTheNavigationKeysDriveItAndTheDigitsStillReachTheField() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDate(ANCHOR);
         picker.open();
         key(Keys.DOWN, 0);
@@ -138,7 +159,7 @@ class DatePickerTest extends ComponentTestBase {
      */
     @Test
     void whileTheInSceneCalendarIsOpenTypedDigitsAndBackspaceStillReachTheField() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
         picker.setDate(ANCHOR);
         picker.open();
@@ -155,7 +176,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void aDateTypedIntoTheFieldMovesTheGridWithoutOpeningIt() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDate(ANCHOR);
         picker.field().setDate(LocalDate.of(2027, 3, 4));
         assertEquals(LocalDate.of(2027, 3, 4), picker.calendar().selectedDate());
@@ -165,7 +186,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void theBoundsReachTheFieldAndTheGridAtOnce() {
-        build(new DatePicker());
+        build(datePicker());
         LocalDate min = LocalDate.of(2026, 9, 1);
         LocalDate max = LocalDate.of(2026, 9, 30);
         picker.setMinDate(min);
@@ -189,7 +210,7 @@ class DatePickerTest extends ComponentTestBase {
      */
     @Test
     void aPickerDownToTheMinuteCarriesATimeRowInItsPopupAndTabCyclesThroughIt() {
-        build(new DatePicker().setGranularity(DateField.Granularity.MINUTE));
+        build(datePicker().setGranularity(DateField.Granularity.MINUTE));
         picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
         assertEquals(LocalTime.of(18, 30), picker.time());
         assertEquals(ANCHOR, picker.date());
@@ -235,7 +256,7 @@ class DatePickerTest extends ComponentTestBase {
      */
     @Test
     void theInSceneCalendarTabsThroughItsTimeRowTheSameWay() {
-        build(new DatePicker().setGranularity(DateField.Granularity.MINUTE));
+        build(datePicker().setGranularity(DateField.Granularity.MINUTE));
         picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
         picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
         picker.open();
@@ -275,7 +296,7 @@ class DatePickerTest extends ComponentTestBase {
      */
     @Test
     void aLevelChangedWhileTheCalendarIsOpenRebuildsTheCardWithOrWithoutItsTimeRow() {
-        build(new DatePicker().setGranularity(DateField.Granularity.MINUTE));
+        build(datePicker().setGranularity(DateField.Granularity.MINUTE));
         picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
         picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
         picker.open();
@@ -304,7 +325,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void aMonthRangePickerAnswersWholeMonthsAtBothEnds() {
-        build(DatePicker.ofRange().setGranularity(DateField.Granularity.MONTH));
+        build(rangePicker().setGranularity(DateField.Granularity.MONTH));
         picker.field().setDate(LocalDate.of(2026, 3, 15));
         picker.endField().setDate(LocalDate.of(2026, 6, 15));
         assertEquals("03/2026", picker.field().text());
@@ -330,7 +351,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void anHourRangeRunsFromTheFirstMinuteOfItsStartToTheLastOfItsEnd() {
-        build(DatePicker.ofRange().setGranularity(DateField.Granularity.HOUR));
+        build(rangePicker().setGranularity(DateField.Granularity.HOUR));
         picker.field().setDateTime(LocalDateTime.of(2026, 3, 1, 0, 30));
         picker.endField().setDateTime(LocalDateTime.of(2026, 3, 1, 23, 30));
         assertEquals(LocalDateTime.of(2026, 3, 1, 0, 0), picker.field().dateTime(),
@@ -343,7 +364,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void aRangePickerIsTwoFieldsAndOneGridInRangeMode() {
-        build(DatePicker.ofRange());
+        build(rangePicker());
         assertNotNull(picker.endField());
         assertEquals("RANGE", picker.calendar().selectionMode().name());
         assertNull(picker.range(), "neither end is filled yet");
@@ -356,14 +377,14 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void aPickerThatIsNotARangeRefusesARangeRatherThanIgnoringIt() {
-        build(new DatePicker());
+        build(datePicker());
         assertThrows(IllegalStateException.class,
                 () -> picker.setRange(new DateRange(ANCHOR, ANCHOR.plusDays(1))));
     }
 
     @Test
     void aHalfFilledPeriodIsNotAPeriod() {
-        build(DatePicker.ofRange());
+        build(rangePicker());
         picker.field().setDate(ANCHOR);
         assertNull(picker.range(), "one end is not a period");
         picker.endField().setDate(ANCHOR.plusDays(3));
@@ -372,7 +393,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void theHandlerRunsForTheUserAndTheWatcherHearsEverything() {
-        build(new DatePicker());
+        build(datePicker());
         List<LocalDate> handled = new ArrayList<>();
         List<Change.Aspect> watched = new ArrayList<>();
         picker.onSelect(() -> handled.add(picker.date()));
@@ -401,7 +422,7 @@ class DatePickerTest extends ComponentTestBase {
      */
     @Test
     void theCalendarOpensAgainAfterItHasBeenUsedOnce() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
         scene.bind(new StubWindow());
         scene.layoutPass(400, 320);
@@ -419,7 +440,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void aPeriodCanBePickedFromTheGridMoreThanOnce() {
-        build(DatePicker.ofRange());
+        build(rangePicker());
         picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
         scene.bind(new StubWindow());
         scene.layoutPass(400, 320);
@@ -444,7 +465,7 @@ class DatePickerTest extends ComponentTestBase {
      */
     @Test
     void theCalendarOpensAgainEvenWhileTheOldCardIsStillFadingOut() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
         scene.bind(new StubWindow());
         scene.layoutPass(400, 320);
@@ -469,7 +490,7 @@ class DatePickerTest extends ComponentTestBase {
      */
     @Test
     void aPickMadeOverAWindowHandsTheFocusToTheFieldOnceTheCardHasFaded() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
         picker.setDate(ANCHOR);
         scene.bind(new StubWindow());
@@ -509,7 +530,7 @@ class DatePickerTest extends ComponentTestBase {
      */
     @Test
     void theCalendarButtonTakesFocusAndAnswersTheKeyboard() {
-        build(new DatePicker());
+        build(datePicker());
         limn.scene.Widget<?> affordance = picker.children().stream()
                 .filter(child -> child != picker.field() && child.isFocusable())
                 .findFirst().orElseThrow(() -> new AssertionError(
@@ -525,7 +546,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void theKeyboardReachesTheMonthAndYearChoosers() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDate(ANCHOR);
         picker.open();
         assertEquals(CalendarView.View.DAYS, picker.calendar().view());
@@ -544,7 +565,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void shiftTabLeavesTheHeaderForTheGridWithoutClosingThePopup() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDate(ANCHOR);
         picker.open();
         key(Keys.TAB, 0);                    // grid -> the arrow that pages back
@@ -557,7 +578,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void comingDownFromTheHeaderLandsOnWhatIsShowingRatherThanJumping() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDate(ANCHOR);              // September, which is cell 8 of the month chooser
         picker.open();
         picker.calendar().setView(CalendarView.View.MONTHS);
@@ -574,7 +595,7 @@ class DatePickerTest extends ComponentTestBase {
      */
     @Test
     void aSecondDownMovesTheCursorRatherThanCreatingIt() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDate(ANCHOR);
         picker.open();
         picker.calendar().setView(CalendarView.View.MONTHS);
@@ -588,7 +609,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void tabWrapsInsideThePopupRatherThanFallingOutOfIt() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDate(ANCHOR);
         picker.open();
         for (int i = 0; i < 6; i++) {
@@ -604,7 +625,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void theFieldComesFirstAndTheButtonSecond() {
-        build(new DatePicker());
+        build(datePicker());
         List<limn.scene.Widget<?>> stops = picker.children().stream()
                 .filter(limn.scene.Widget::isFocusable)
                 .toList();
@@ -620,7 +641,7 @@ class DatePickerTest extends ComponentTestBase {
      */
     @Test
     void pickingAMonthReturnsToTheGridWithADayUnderTheCursor() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDate(ANCHOR);
         picker.open();
         picker.calendar().setView(CalendarView.View.MONTHS);
@@ -640,7 +661,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void theCursorFollowsTheSelectionWhenItIsInTheMonthChosen() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDate(LocalDate.of(2026, 8, 20));
         picker.open();
         picker.calendar().setView(CalendarView.View.MONTHS);
@@ -655,7 +676,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void aYearPickedLandsOnAMonthWithACursorToo() {
-        build(new DatePicker());
+        build(datePicker());
         picker.setDate(ANCHOR);
         picker.open();
         picker.calendar().setView(CalendarView.View.YEARS);
@@ -672,7 +693,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void losingTheWindowsFocusClosesTheCalendar() {
-        build(new DatePicker());
+        build(datePicker());
         picker.open();
         assertTrue(picker.isOpen());
         drive(scene).windowFocusChanged(false);
@@ -687,7 +708,7 @@ class DatePickerTest extends ComponentTestBase {
      */
     @Test
     void setRangeAnnouncesTheWholePeriodOnceAndOnlyOnTheUiThread() throws Exception {
-        build(DatePicker.ofRange());
+        build(rangePicker());
         LocalDate from = LocalDate.of(2026, 9, 10);
         LocalDate to = LocalDate.of(2026, 9, 14);
         List<String> heard = new ArrayList<>();
@@ -716,7 +737,7 @@ class DatePickerTest extends ComponentTestBase {
 
     @Test
     void theFieldsHandlerSlotIsStillTheApplicationsToTake() {
-        build(new DatePicker());
+        build(datePicker());
         // The picker follows its field through observeChanges precisely so that this call works:
         // a picker that had taken onChange for its own wiring would throw here.
         List<LocalDate> heard = new ArrayList<>();
@@ -739,7 +760,7 @@ class DatePickerTest extends ComponentTestBase {
     void aTwoDigitYearTypedBeforeTheCalendarOpenedInTheSceneStillResolvesWhenTheFieldIsLeft() {
         java.time.Clock in2026 = java.time.Clock.fixed(java.time.Instant.parse("2026-09-09T12:00:00Z"),
                 java.time.ZoneOffset.UTC);
-        build(new DatePicker());
+        build(datePicker());
         picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
         picker.setClock(in2026);
         picker.field().setTwoDigitYearWindow(DateField.REFUSE_TWO_DIGIT_YEARS);
@@ -753,7 +774,7 @@ class DatePickerTest extends ComponentTestBase {
         assertNull(picker.date(), "with the guess off the typed two-digit year is left blank");
         assertFalse(picker.field().isValid(), "and the field is incomplete (decision 57)");
 
-        build(new DatePicker());
+        build(datePicker());
         picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
         picker.setClock(in2026);
         type("311226");

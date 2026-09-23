@@ -21,6 +21,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +48,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class NativePopupRelationTest {
 
     private static final long FRAME_NANOS = TimeUnit.MILLISECONDS.toNanos(20);
+
+    /** The date picker's today, so that the month its calendar opens on is the same on every run. */
+    private static final Clock SEPTEMBER_9 =
+            Clock.fixed(Instant.parse("2026-09-09T12:00:00Z"), ZoneOffset.UTC);
 
     private HeadlessUi ui;
     private UiRuntime runtime;
@@ -86,7 +93,7 @@ class NativePopupRelationTest {
 
     @Test
     void aNativeCalendarNamesItsPickerAndThePickerNamesTheCalendarBack() {
-        DatePicker picker = new DatePicker();
+        DatePicker picker = new DatePicker().setClock(SEPTEMBER_9);
         HeadlessWindow host = show(picker);
 
         picker.open();
@@ -111,7 +118,7 @@ class NativePopupRelationTest {
      */
     @Test
     void closingTheNativePopupWithdrawsTheMirrorFromTheOpener() {
-        DatePicker picker = new DatePicker();
+        DatePicker picker = new DatePicker().setClock(SEPTEMBER_9);
         HeadlessWindow host = show(picker);
         picker.open();
         HeadlessWindow popup = popupWindow();

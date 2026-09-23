@@ -24,6 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class WatcherContractTest extends ComponentTestBase {
 
+    /** The date widgets' today, so that what they announce does not move with the day of the run. */
+    private static final Clock SEPTEMBER_9 =
+            Clock.fixed(Instant.parse("2026-09-09T12:00:00Z"), ZoneOffset.UTC);
+
     private static List<String> watch(Widget<?> widget) {
         List<String> heard = new ArrayList<>();
         widget.observeChanges((w, change) -> heard.add(change.aspect() + "/" + change.origin()));
@@ -47,7 +51,7 @@ class WatcherContractTest extends ComponentTestBase {
 
     @Test
     void aValueTheGranularityTrimmedIsAnAdjustment() {
-        DateField field = new DateField().setDate(LocalDate.of(2026, 9, 23));
+        DateField field = new DateField().setClock(SEPTEMBER_9).setDate(LocalDate.of(2026, 9, 23));
         List<String> heard = watch(field);
         field.setGranularity(DateField.Granularity.MONTH);
         assertTrue(heard.contains("VALUE/ADJUSTMENT"), heard.toString());
@@ -56,7 +60,9 @@ class WatcherContractTest extends ComponentTestBase {
 
     @Test
     void aMonthTheClockMovedIsAnAdjustment() {
-        CalendarView calendar = new CalendarView();
+        // Built on a fixed today, so the clock set below always moves the month: on the wall
+        // clock this failed for the whole of February 2031, whose month the new clock names.
+        CalendarView calendar = new CalendarView().setClock(SEPTEMBER_9);
         List<String> heard = watch(calendar);
         calendar.setClock(Clock.fixed(Instant.parse("2031-02-10T12:00:00Z"), ZoneOffset.UTC));
         assertEquals(List.of("VALUE/ADJUSTMENT"), heard);
@@ -64,7 +70,7 @@ class WatcherContractTest extends ComponentTestBase {
 
     @Test
     void theSameFilterAgainIsNoChange() {
-        CalendarView calendar = new CalendarView();
+        CalendarView calendar = new CalendarView().setClock(SEPTEMBER_9);
         Predicate<LocalDate> weekdays = day -> day.getDayOfWeek().getValue() < 6;
         calendar.setDateFilter(weekdays);
         List<String> heard = watch(calendar);

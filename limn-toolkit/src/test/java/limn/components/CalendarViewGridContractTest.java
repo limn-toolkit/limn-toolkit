@@ -12,8 +12,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +30,13 @@ import java.util.stream.Stream;
  * date says.
  */
 class CalendarViewGridContractTest extends ComponentTestBase {
+
+    /**
+     * Today, two years after the month on show, where the wall clock always was: no cell is
+     * today, and the cursor starts on the first of the month.
+     */
+    private static final Clock SEPTEMBER_9_2026 =
+            Clock.fixed(Instant.parse("2026-09-09T12:00:00Z"), ZoneOffset.UTC);
 
     private Locale before;
 
@@ -52,7 +62,7 @@ class CalendarViewGridContractTest extends ComponentTestBase {
 
         @Override
         public Widget<?> build() {
-            calendar = new CalendarView();
+            calendar = new CalendarView().setClock(SEPTEMBER_9_2026);
             calendar.setFirstDayOfWeek(DayOfWeek.SUNDAY);
             calendar.setVisibleMonth(LocalDate.of(2024, 9, 1));
             calendar.setAccessibleName("Calendar");

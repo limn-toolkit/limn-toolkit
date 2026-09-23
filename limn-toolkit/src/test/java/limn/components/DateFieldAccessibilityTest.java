@@ -8,8 +8,11 @@ import limn.i18n.I18n;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 
@@ -30,6 +33,15 @@ import static limn.testing.SceneDriver.drive;
 class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     private static final Locale PT_BR = Locale.forLanguageTag("pt-BR");
+
+    /** Today, for every field a test does not give a clock of its own. */
+    private static final Clock SEPTEMBER_9 =
+            Clock.fixed(Instant.parse("2026-09-09T12:00:00Z"), ZoneOffset.UTC);
+
+    /** A date field whose today is fixed, so the day a test runs on changes nothing in it. */
+    private static DateField dateField() {
+        return new DateField().setClock(SEPTEMBER_9);
+    }
 
     private DateField bindField(DateField field, Locale locale) {
         I18n.setLocale(locale);
@@ -52,7 +64,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void aFieldIsAGroupOfOneSpinButtonPerEditableSegment() {
-        DateField field = bindField(new DateField(), PT_BR);
+        DateField field = bindField(dateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 12, 31));
         frame();
         List<AccessibleNode> segments = segmentNodes();
@@ -69,7 +81,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void theSegmentsAreNamedForWhatTheyHoldAndInTheOrderTheLanguageWritesThem() {
-        DateField field = bindField(new DateField(), PT_BR);
+        DateField field = bindField(dateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 12, 31));
         frame();
         List<AccessibleNode> segments = segmentNodes();
@@ -77,7 +89,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("Mês", segments.get(1).name());
         assertEquals("Ano", segments.get(2).name());
 
-        DateField american = bindField(new DateField(), Locale.forLanguageTag("en-US"));
+        DateField american = bindField(dateField(), Locale.forLanguageTag("en-US"));
         american.setDate(LocalDate.of(2026, 12, 31));
         frame();
         assertEquals("Month", segmentNodes().get(0).name(), "the month comes first here");
@@ -86,7 +98,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void eachSegmentCarriesItsOwnRangeAndNotTheFieldsOwn() {
-        DateField field = bindField(new DateField(), PT_BR);
+        DateField field = bindField(dateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 2, 10));
         frame();
         List<AccessibleNode> segments = segmentNodes();
@@ -99,7 +111,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void theGroupPublishesNoValueOfItsOwnAndTheSegmentsCarryThem() {
-        DateField field = bindField(new DateField(), PT_BR);
+        DateField field = bindField(dateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 12, 31));
         frame();
         // A group has no number, and a min, a max and a step over a date would be three lies. The
@@ -115,7 +127,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void anUnacceptableValueIsPublishedInvalidWithTheReason() {
-        DateField field = bindField(new DateField(), PT_BR);
+        DateField field = bindField(dateField(), PT_BR);
         field.setMaxDate(LocalDate.of(2026, 1, 1));
         field.setDate(LocalDate.of(2026, 12, 31));
         frame();
@@ -127,7 +139,8 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void aClockFieldPublishesItsHourMinuteAndDayPeriod() {
-        DateField field = bindField(DateField.ofTime(), Locale.forLanguageTag("en-US"));
+        DateField field = bindField(DateField.ofTime().setClock(SEPTEMBER_9),
+                Locale.forLanguageTag("en-US"));
         field.setTime(LocalTime.of(14, 30));
         frame();
         List<String> names = segmentNodes().stream().map(AccessibleNode::name).toList();
@@ -138,7 +151,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void aStepFromOutsideReachesThePathTheArrowKeysReach() throws InterruptedException {
-        DateField field = bindField(new DateField(), PT_BR);
+        DateField field = bindField(dateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 12, 31));
         frame();
         AccessibleNode month = segmentNodes().get(1);
@@ -156,7 +169,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void aDigitThatRollsTheCaretOntoTheNextSegmentMovesTheFieldsCursor() {
-        DateField field = bindField(new DateField(), PT_BR);
+        DateField field = bindField(dateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 12, 31));
         scene.requestFocus(field);
         frame();
@@ -237,8 +250,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void anEraCalendarsYearSegmentSpeaksItsEra() {
         DateField field = bindField(new DateField(), Locale.forLanguageTag("ja-JP-u-ca-japanese"));
-        field.setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-09-09T12:00:00Z"),
-                java.time.ZoneOffset.UTC));
+        field.setClock(SEPTEMBER_9);
         field.setDate(LocalDate.of(2026, 9, 9));
         frame();
         List<AccessibleNode> segments = segmentNodes();
@@ -247,12 +259,12 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(8, segments.get(0).value().value());
         assertEquals("R8/9/9", field.text(), "drawn with the era's one letter");
 
-        DateField minguo = bindField(new DateField(), Locale.forLanguageTag("zh-TW-u-ca-roc"));
+        DateField minguo = bindField(dateField(), Locale.forLanguageTag("zh-TW-u-ca-roc"));
         minguo.setDate(LocalDate.of(2026, 9, 9));
         frame();
         assertEquals("民國115", segmentNodes().get(0).value().text());
 
-        DateField thai = bindField(new DateField(), Locale.forLanguageTag("th-TH-u-ca-buddhist"));
+        DateField thai = bindField(dateField(), Locale.forLanguageTag("th-TH-u-ca-buddhist"));
         thai.setDate(LocalDate.of(2026, 9, 9));
         frame();
         List<String> texts = segmentNodes().stream().map(node -> node.value().text()).toList();
@@ -261,7 +273,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void aSetValueFromOutsideClampsToTheSegmentsOwnRange() throws InterruptedException {
-        DateField field = bindField(new DateField(), PT_BR);
+        DateField field = bindField(dateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 6, 10));
         frame();
         AccessibleNode day = segmentNodes().get(0);
@@ -278,7 +290,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void anArrowBetweenSegmentsMovesTheFieldsCursorOnce() {
-        DateField field = bindField(new DateField(), PT_BR);
+        DateField field = bindField(dateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 12, 31));
         scene.requestFocus(field);
         frame();
@@ -312,7 +324,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void focusOnASegmentPutsTheCaretThereAndChangesNoValue() throws InterruptedException {
-        DateField field = bindField(new DateField(), PT_BR);
+        DateField field = bindField(dateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 12, 31));
         frame();
         AccessibleNode year = segmentNodes().get(2);
@@ -345,7 +357,7 @@ class DateFieldAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void aDisabledFieldsSegmentsCarryNoVerbAndAcceptNoValue() throws InterruptedException {
-        DateField field = bindField(new DateField(), PT_BR);
+        DateField field = bindField(dateField(), PT_BR);
         field.setDate(LocalDate.of(2026, 12, 31));
         field.setEnabled(false);
         frame();

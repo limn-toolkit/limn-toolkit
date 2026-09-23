@@ -153,7 +153,9 @@ class AxTableSceneTest {
 
     @Test
     void aCalendarsDayIsFoundAtItsColumnAndWeekAndEachWeekIsNumberedByItsDays() {
-        CalendarView calendar = new CalendarView();
+        CalendarView calendar = new CalendarView()
+                .setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-09-16T12:00:00Z"),
+                        java.time.ZoneOffset.UTC));
         calendar.setVisibleMonth(LocalDate.of(2026, 9, 9));
         bind(calendar);
         AxGrid grid = new AxGrid(bridge);

@@ -45,13 +45,20 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
 
     private static final LocalDate ANCHOR = LocalDate.of(2026, 9, 9);
 
+    /**
+     * Today, unless a test sets its own: a week after the anchor, in the month on show and not the
+     * day the tests select, so what a reader hears of the cursor and of today stays apart.
+     */
+    private static final Clock SEPTEMBER_16 =
+            Clock.fixed(Instant.parse("2026-09-16T12:00:00Z"), ZoneOffset.UTC);
+
     private CalendarView bindCalendar() {
         return bindCalendar(Locale.forLanguageTag("pt-BR"));
     }
 
     private CalendarView bindCalendar(Locale locale) {
         I18n.setLocale(locale);
-        CalendarView calendar = new CalendarView();
+        CalendarView calendar = new CalendarView().setClock(SEPTEMBER_16);
         calendar.setVisibleMonth(ANCHOR);
         bind(calendar);
         return calendar;

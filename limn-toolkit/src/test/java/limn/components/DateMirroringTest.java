@@ -10,7 +10,10 @@ import limn.scene.LayoutDirection;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -38,6 +41,13 @@ class DateMirroringTest extends AccessibleComponentTestBase {
 
     private static final LocalDate ANCHOR = LocalDate.of(2026, 9, 9);
 
+    /**
+     * Today, a week after the anchor: in the month on show and not the day the tests select, so
+     * the cursor's moves are counted from the selection and not from a today that sits under it.
+     */
+    private static final Clock SEPTEMBER_16 =
+            Clock.fixed(Instant.parse("2026-09-16T12:00:00Z"), ZoneOffset.UTC);
+
     @AfterEach
     void resetLocale() {
         I18n.setLocale(Locale.US);
@@ -45,7 +55,7 @@ class DateMirroringTest extends AccessibleComponentTestBase {
 
     private CalendarView bindCalendar(LayoutDirection direction) {
         I18n.setLocale(Locale.forLanguageTag("pt-BR"));
-        CalendarView calendar = new CalendarView();
+        CalendarView calendar = new CalendarView().setClock(SEPTEMBER_16);
         calendar.setVisibleMonth(ANCHOR);
         calendar.setShowWeekNumbers(true);
         calendar.setLayoutDirection(direction);
@@ -137,7 +147,7 @@ class DateMirroringTest extends AccessibleComponentTestBase {
     @Test
     void theFieldsSegmentsKeepTheirOrderAndOnlyTheRunMoves() {
         I18n.setLocale(Locale.forLanguageTag("pt-BR"));
-        DateField ltr = new DateField();
+        DateField ltr = new DateField().setClock(SEPTEMBER_16);
         ltr.setDate(ANCHOR);
         ltr.setLayoutDirection(LayoutDirection.LTR);
         bind(ltr);
@@ -151,7 +161,7 @@ class DateMirroringTest extends AccessibleComponentTestBase {
         }
 
         I18n.setLocale(Locale.forLanguageTag("pt-BR"));
-        DateField rtl = new DateField();
+        DateField rtl = new DateField().setClock(SEPTEMBER_16);
         rtl.setDate(ANCHOR);
         rtl.setLayoutDirection(LayoutDirection.RTL);
         bind(rtl);

@@ -105,6 +105,13 @@ class NotificationContractTest extends ComponentTestBase {
 
     // ------------------------------------------------------------------------------ the rows
 
+    /**
+     * The date widgets' today. A calendar's cursor starts on today when its month shows it, so
+     * the rows below would otherwise pass or fail by the day they run on.
+     */
+    private static final java.time.Clock SEPTEMBER_9 = java.time.Clock.fixed(
+            java.time.Instant.parse("2026-09-09T12:00:00Z"), java.time.ZoneOffset.UTC);
+
     private static final List<Row> ROWS = List.of(
             new Row("limn.components.BackdropPanel",
                     () -> new BackdropPanel(new BackdropEffect.Wash(Color.BLACK, 0.4f, -0.2f),
@@ -321,7 +328,8 @@ class NotificationContractTest extends ComponentTestBase {
             // click: a click needs the grid's geometry to have settled, and Enter reaches the same
             // private pick() through the same USER seam, which is what this test is about.
             new Row("limn.components.date.CalendarView",
-                    () -> new CalendarView().setVisibleMonth(java.time.LocalDate.of(2026, 9, 9)),
+                    () -> new CalendarView().setClock(SEPTEMBER_9)
+                            .setVisibleMonth(java.time.LocalDate.of(2026, 9, 9)),
                     w -> ((CalendarView) w).setSelectedDate(java.time.LocalDate.of(2026, 9, 15)),
                     Change.Aspect.SELECTION,
                     new Gesture(Change.Aspect.SELECTION,
@@ -331,7 +339,7 @@ class NotificationContractTest extends ComponentTestBase {
                                 key(scene, Keys.ENTER);
                             })),
             new Row("limn.components.date.DateField",
-                    () -> new DateField().setDate(java.time.LocalDate.of(2026, 9, 9)),
+                    () -> new DateField().setClock(SEPTEMBER_9).setDate(java.time.LocalDate.of(2026, 9, 9)),
                     w -> ((DateField) w).setDate(java.time.LocalDate.of(2026, 9, 15)),
                     Change.Aspect.VALUE,
                     new Gesture(Change.Aspect.VALUE,
@@ -344,7 +352,7 @@ class NotificationContractTest extends ComponentTestBase {
             // announced: that forwarding is the row's subject, since a watcher on the picker must
             // not have to know the picker has children.
             new Row("limn.components.date.DatePicker",
-                    () -> new DatePicker().setDate(java.time.LocalDate.of(2026, 9, 9)),
+                    () -> new DatePicker().setClock(SEPTEMBER_9).setDate(java.time.LocalDate.of(2026, 9, 9)),
                     w -> ((DatePicker) w).setDate(java.time.LocalDate.of(2026, 9, 15)),
                     Change.Aspect.VALUE,
                     new Gesture(Change.Aspect.VALUE,

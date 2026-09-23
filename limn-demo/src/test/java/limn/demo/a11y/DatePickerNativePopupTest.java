@@ -19,7 +19,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
@@ -40,6 +43,14 @@ import static limn.testing.SceneDriver.drive;
 class DatePickerNativePopupTest {
 
     private static final long FRAME_NANOS = TimeUnit.MILLISECONDS.toNanos(20);
+
+    /**
+     * Today, a week after the date every picker here holds: in the month the calendar opens on,
+     * and not the day it holds, so the cursor found on that day is the selection's and not
+     * today's.
+     */
+    private static final Clock SEPTEMBER_16 =
+            Clock.fixed(Instant.parse("2026-09-16T12:00:00Z"), ZoneOffset.UTC);
 
     private HeadlessUi ui;
     private UiRuntime runtime;
@@ -65,7 +76,7 @@ class DatePickerNativePopupTest {
 
     @Test
     void theFieldOpensAndClosesItsCalendarWindowWithTheVerbsItPublishes() {
-        DatePicker picker = new DatePicker();
+        DatePicker picker = new DatePicker().setClock(SEPTEMBER_16);
         picker.setDate(LocalDate.of(2026, 9, 9));
         HeadlessWindow host = show(picker);
 
@@ -109,7 +120,7 @@ class DatePickerNativePopupTest {
      */
     @Test
     void whileTheCalendarWindowHoldsTheKeyboardTheEffectiveFocusIsItsCursorNotTheFieldsCaret() {
-        DatePicker picker = new DatePicker();
+        DatePicker picker = new DatePicker().setClock(SEPTEMBER_16);
         picker.setDate(LocalDate.of(2026, 9, 9));
         HeadlessWindow host = show(picker);
         AccessibleTree tree = host.bridge().tree();
@@ -158,7 +169,7 @@ class DatePickerNativePopupTest {
      */
     @Test
     void aClimbToTheMonthsInAWindowOfItsOwnLandsTheEffectiveFocusOnTheMonthOnShow() {
-        DatePicker picker = new DatePicker();
+        DatePicker picker = new DatePicker().setClock(SEPTEMBER_16);
         picker.setDate(LocalDate.of(2026, 9, 9));
         HeadlessWindow host = show(picker);
         picker.open();

@@ -100,7 +100,9 @@ class AxValuesTest {
         AtomicLong nanos = new AtomicLong();
         HeadlessUi ui = new HeadlessUi(nanos::get);
         try {
-            DateField field = new DateField();
+            DateField field = new DateField()
+                    .setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-09-09T12:00:00Z"),
+                            java.time.ZoneOffset.UTC));
             field.setDate(null);
             Scene scene = new Scene(new SizedBox(320, 60, field), nanos::get);
             ProbeWindow window = new ProbeWindow();

@@ -10,7 +10,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -45,6 +48,19 @@ import static limn.testing.SceneDriver.drive;
 class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
 
     private static final Locale PT_BR = Locale.forLanguageTag("pt-BR");
+
+    /**
+     * Today, a week after the date every picker here holds: in the month the calendar opens on,
+     * and not the day the tests find by name, so the cursor a reader is told about is the
+     * selection's and not today's.
+     */
+    private static final Clock SEPTEMBER_16 =
+            Clock.fixed(Instant.parse("2026-09-16T12:00:00Z"), ZoneOffset.UTC);
+
+    /** A picker for one date whose today is fixed, so the day a test runs on changes nothing. */
+    private static DatePicker datePicker() {
+        return new DatePicker().setClock(SEPTEMBER_16);
+    }
 
     private DatePicker picker;
 
@@ -129,7 +145,7 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void theCaptionNamesTheFieldAndTheFieldSaysItHasAPopup() throws InterruptedException {
-        bindCaptioned(new DatePicker(), "Data de entrega");
+        bindCaptioned(datePicker(), "Data de entrega");
         List<AccessibleNode> groups = nodesOf(Accessible.Role.GROUP);
         assertEquals(1, groups.size(),
                 "one group: the field's; the picker's own is no node " + describe(tree()));
@@ -195,7 +211,7 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
 
     @Test
     void aRangePickerKeepsTheCaptionOnItsGroupAndNamesItsTwoEnds() {
-        bindCaptioned(DatePicker.ofRange(), "Estadia");
+        bindCaptioned(DatePicker.ofRange().setClock(SEPTEMBER_16), "Estadia");
         List<AccessibleNode> groups = nodesOf(Accessible.Role.GROUP);
         assertEquals(3, groups.size(), "the picker's group and its two fields " + describe(tree()));
         AccessibleNode group = groups.get(0);
@@ -220,7 +236,7 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void focusOnADayOfTheOpenCalendarMovesItsCursorAndCommitsNothing() throws InterruptedException {
-        bindCaptioned(new DatePicker(), "Data de entrega");
+        bindCaptioned(datePicker(), "Data de entrega");
         List<LocalDate> picked = new ArrayList<>();
         picker.onSelect(() -> picked.add(picker.date()));
         picker.open();
@@ -250,7 +266,7 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void theFieldsSegmentsCarryNoVerbBeneathTheCalendarOverlay() throws InterruptedException {
-        bindCaptioned(new DatePicker(), "Data de entrega");
+        bindCaptioned(datePicker(), "Data de entrega");
         AccessibleNode field = nodesOf(Accessible.Role.GROUP).get(0);
         AccessibleNode month = childrenOf(field).get(1);
         assertTrue(offers(month, Accessible.Action.FOCUS), "closed, the segment is operable "
@@ -301,7 +317,7 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void throughTheFadeOutTheCalendarsLayerOffersNoCancel() throws InterruptedException {
-        bindCaptioned(new DatePicker(), "Data de entrega");
+        bindCaptioned(datePicker(), "Data de entrega");
         picker.open();
         frame();
         settleAnimations(null); // faded in, so the fade out has somewhere to start from
@@ -335,7 +351,7 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aClimbToTheMonthsInTheSceneLandsTheEffectiveFocusOnTheMonthOnShow()
             throws InterruptedException {
-        bindCaptioned(new DatePicker(), "Data de entrega");
+        bindCaptioned(datePicker(), "Data de entrega");
         picker.open();
         frame();
         // The reader puts the cursor in the grid first, as its recipe does: in this presentation
@@ -371,7 +387,7 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void aClientsSelectMarksADayWithoutClosingAndEnterThenCommitsIt() throws InterruptedException {
-        bindCaptioned(new DatePicker(), "Data de entrega");
+        bindCaptioned(datePicker(), "Data de entrega");
         picker.open();
         frame();
         AccessibleNode tenth = nodesOf(Accessible.Role.CELL).stream()

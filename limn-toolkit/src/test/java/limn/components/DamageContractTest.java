@@ -236,6 +236,13 @@ class DamageContractTest extends ComponentTestBase {
 
     // ------------------------------------------------------------------------------ the rows
 
+    /**
+     * The date widgets' today. A calendar's cursor starts on today when its month shows it, so
+     * the rows below would otherwise pass or fail by the day they run on.
+     */
+    private static final java.time.Clock SEPTEMBER_9 = java.time.Clock.fixed(
+            java.time.Instant.parse("2026-09-09T12:00:00Z"), java.time.ZoneOffset.UTC);
+
     private static final List<Row> ROWS = List.of(
             natural("BackdropPanel", () -> new BackdropPanel(
                     new BackdropEffect.Wash(Color.BLACK, 0.4f, -0.2f), Insets.NONE,
@@ -331,18 +338,16 @@ class DamageContractTest extends ComponentTestBase {
                     // A fixed today: the cursor starts on today when the month shows it, and from
                     // the 23rd on, RIGHT then DOWN crossed into the next month, whose new page is a
                     // whole repaint. The test failed by the calendar date, not by the code.
-                    () -> new CalendarView()
-                            .setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-09-09T12:00:00Z"),
-                                    java.time.ZoneOffset.UTC))
+                    () -> new CalendarView().setClock(SEPTEMBER_9)
                             .setVisibleMonth(java.time.LocalDate.of(2026, 9, 9)),
                     0, 0, List.of(hover().ceiling(0.1f), focus().ceiling(0.1f),
                             key("RIGHT", Keys.RIGHT).ceiling(0.1f),
                             key("DOWN", Keys.DOWN).ceiling(0.1f), click().ceiling(0.1f)), null),
             new Row("limn.components.date.DateField",
-                    () -> new DateField().setDate(java.time.LocalDate.of(2026, 9, 9)),
+                    () -> new DateField().setClock(SEPTEMBER_9).setDate(java.time.LocalDate.of(2026, 9, 9)),
                     0, 0, both(), null),
             new Row("limn.components.date.DatePicker",
-                    () -> new DatePicker().setDate(java.time.LocalDate.of(2026, 9, 9)),
+                    () -> new DatePicker().setClock(SEPTEMBER_9).setDate(java.time.LocalDate.of(2026, 9, 9)),
                     0, 0, pointer(), null),
             // A table that overflows both axes, so the wheel and a horizontal focus move have
             // something to do (TABLE-NEW-6: the row used to hold one column over eight rows,

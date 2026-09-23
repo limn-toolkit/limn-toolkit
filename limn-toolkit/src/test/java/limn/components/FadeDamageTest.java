@@ -10,6 +10,9 @@ import limn.scene.Widget;
 import limn.scene.layout.Padding;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -223,7 +226,10 @@ class FadeDamageTest extends ComponentTestBase {
     /** One ring on one cell, wherever the roving cursor is. */
     @Test
     void aCalendarFocusFadeRepaintsOneCell() {
-        CalendarView calendar = new CalendarView();
+        // Today fixed mid-month and mid-week, where the cursor starts: a fixed day, so that the
+        // cell the ring is measured on does not move with the day the test runs.
+        CalendarView calendar = new CalendarView()
+                .setClock(Clock.fixed(Instant.parse("2026-09-09T12:00:00Z"), ZoneOffset.UTC));
         mount(calendar);
         calendar.requestFocus();
         assertFadeStaysUnder(calendar, 2, 0.10f, "a calendar's focus fade");

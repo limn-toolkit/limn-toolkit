@@ -11,8 +11,11 @@ import limn.scene.Scene;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.chrono.Chronology;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +36,14 @@ class CalendarViewTest extends ComponentTestBase {
     /** A Wednesday, in a month that starts on a Tuesday: the awkward shape, on purpose. */
     private static final LocalDate ANCHOR = LocalDate.of(2026, 9, 9);
 
+    /**
+     * Today, a week after the anchor: in the month on show, so the cursor starts on it and its
+     * ring is drawn, and not the day the tests select, so a cursor that went to the selection is
+     * told apart from one that stayed on today.
+     */
+    private static final Clock SEPTEMBER_16 =
+            Clock.fixed(Instant.parse("2026-09-16T12:00:00Z"), ZoneOffset.UTC);
+
     private CalendarView calendar;
     private Scene scene;
 
@@ -42,7 +53,7 @@ class CalendarViewTest extends ComponentTestBase {
 
     private void build(Locale locale) {
         I18n.setLocale(locale);
-        calendar = new CalendarView();
+        calendar = new CalendarView().setClock(SEPTEMBER_16);
         calendar.setVisibleMonth(ANCHOR);
         scene = new Scene(calendar);
         scene.setTextRuler(RULER);
