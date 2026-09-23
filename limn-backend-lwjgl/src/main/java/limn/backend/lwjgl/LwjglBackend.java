@@ -100,9 +100,40 @@ public final class LwjglBackend implements Backend {
     private volatile boolean running;
     private volatile boolean terminated;
 
+    /**
+     * The error for LWJGL's native libraries not loading, which on the module path has one usual
+     * cause that LWJGL's own advice (a library path) does not name: its natives jars are modules
+     * that nothing requires, so they are never resolved. The module names are this
+     * module's own LWJGL requirements with {@code .natives} after them, which is LWJGL's naming.
+     */
+    static RuntimeException nativesMissing(UnsatisfiedLinkError missing) {
+        Module self = LwjglBackend.class.getModule();
+        if (!self.isNamed() || self.getDescriptor() == null) {
+            return new IllegalStateException("LWJGL's native libraries did not load: "
+                    + missing.getMessage(), missing);
+        }
+        String natives = self.getDescriptor().requires().stream()
+                .map(java.lang.module.ModuleDescriptor.Requires::name)
+                .filter(name -> name.startsWith("org.lwjgl"))
+                .sorted()
+                .map(name -> name + ".natives")
+                .collect(java.util.stream.Collectors.joining(","));
+        return new IllegalStateException("LWJGL's native libraries did not load ("
+                + missing.getMessage() + "). limn.backend.lwjgl is running from the module path, "
+                + "where LWJGL's lwjgl-*-natives-<platform> jars are modules that nothing requires "
+                + "and so are never loaded. Put the jars for this platform on the class path, or "
+                + "keep them on the module path and add: --add-modules " + natives, missing);
+    }
+
     public LwjglBackend() {
-        selectPlatform();
-        if (!glfwInit()) {
+        boolean initialized;
+        try {
+            selectPlatform();
+            initialized = glfwInit();
+        } catch (UnsatisfiedLinkError missing) {
+            throw nativesMissing(missing);
+        }
+        if (!initialized) {
             // GLFW's own description, read back the way the window-creation failure reads it
             // (LwjglWindow): "glfwInit() failed" alone names the call and not the reason, and
             // this is the one line anybody debugging a machine that will not start ever sees.

@@ -87,7 +87,8 @@ Four kinds of jar belong on the class path even when the application is a module
 - **The FFmpeg native jars**, `limn-ffmpeg-natives`, which the video decoder also reads as
   resources.
 - **LWJGL's native jars.** They are modules that nothing requires, so on the module path they are
-  never loaded, and LWJGL reports a missing `liblwjgl`.
+  never loaded. The backend then stops with the `--add-modules` line that loads them, if you
+  would rather keep them there.
 - **jlayer**, the MP3 decoder. It has no module name, and the backend reads it from the class
   path.
 
