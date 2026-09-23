@@ -70,7 +70,9 @@ class ReaderStepsTest {
             // Added 2026-09-15 (brief item 4 of the phase-3 fix round): the only script that makes
             // the application speak, so the three bridges' announcement paths can be heard in
             // phase 5. The guest recipes owe a section for it.
-            "announcement");
+            "announcement",
+            // Added 2026-09-23: the list's MULTI mode (decision 136), owed a reader run before 0.8.0.
+            "list-multi");
 
     /** The widgets H2 (with DT8, B9 and T7) found no reader run could be pointed at. */
     private static final List<Class<?>> WIDGETS_A_READER_MUST_HEAR = List.of(

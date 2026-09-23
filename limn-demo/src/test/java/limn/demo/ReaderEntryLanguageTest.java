@@ -66,6 +66,8 @@ class ReaderEntryLanguageTest {
             // the table's records: the ranges realized in its 240-point box, and their continents
             "Alps", "Andes", "Atlas", "Carpathians", "Caucasus",
             "Europe", "South America", "Africa",
+            // the MULTI list's records: all ten ranges, which its 300-point box shows at once
+            "Himalayas", "Pyrenees", "Rockies", "Urals", "Zagros",
             // the tree's folders, its two composite row names and the files under them
             "Documents", "Documents 2", "Reports", "Reports 2", "Media", "Media 2",
             "Remote", "Trash", "Empty folder",

@@ -572,6 +572,11 @@ public final class AccessibilityGallery {
                 new Entry("List view with rows", List.of(ListView.class, ScrollBar.class),
                         List.of(Role.LIST, Role.LIST_ITEM, Role.SCROLL_BAR),
                         AccessibilityGallery::listView),
+                // The list's MULTI mode (decision 136) had a headless contract and no scene a
+                // reader could be pointed at; this is the one its reader run drives.
+                new Entry("List view, several selected", List.of(ListView.class),
+                        List.of(Role.LIST, Role.LIST_ITEM),
+                        AccessibilityGallery::listViewMulti, ReaderScripts.LIST_MULTI),
                 new Entry("Table with a header and rows", List.of(Table.class),
                         List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL,
                                 Role.SWITCH),
@@ -906,6 +911,24 @@ public final class AccessibilityGallery {
         list.setSelectedIndex(2);
         page.add(Labelled.above("Mountain ranges", list, new SizedBox(SizedBox.UNSET, 160, list)));
         return new Built(page);
+    }
+
+    /**
+     * The same ranges in {@code MULTI}, where the keyboard cursor is apart from the selection:
+     * Space takes the cursor row out of the selection and leaves the cursor on it, Shift extends a
+     * range and the command modifier with A takes every row. Its caption is the run's language,
+     * as every entry a reader is driven over.
+     */
+    private static Built listViewMulti() {
+        Column page = page();
+        ListView<Item> list = rows(
+                "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas", "Pyrenees",
+                "Rockies", "Urals", "Zagros");
+        list.setSelectionMode(SelectionMode.MULTI);
+        list.setSelectedIndex(2);
+        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, list,
+                new SizedBox(SizedBox.UNSET, 300, list)));
+        return Built.focusing(page, list);
     }
 
     /**

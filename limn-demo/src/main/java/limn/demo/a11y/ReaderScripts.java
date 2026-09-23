@@ -10,6 +10,7 @@ import static limn.accessibility.Accessible.Role.BUTTON;
 import static limn.accessibility.Accessible.Role.CELL;
 import static limn.accessibility.Accessible.Role.COLUMN_HEADER;
 import static limn.accessibility.Accessible.Role.GROUP;
+import static limn.accessibility.Accessible.Role.LIST_ITEM;
 import static limn.accessibility.Accessible.Role.SPIN_BUTTON;
 import static limn.accessibility.Accessible.Role.SWITCH;
 import static limn.accessibility.Accessible.Role.TREE_ITEM;
@@ -125,6 +126,39 @@ public final class ReaderScripts {
                     .expecting(cursor(SWITCH, "Visited").inRow("Andes")),
             Step.chord(Keys.A, Step.COMMAND, "selects every row")
                     .expecting(row("Andes").with(SELECTED), row("Urals").with(SELECTED))));
+
+    /**
+     * "List view, several selected": a list in {@code MULTI}, starting with Atlas selected and
+     * the cursor on it. As in the table, a plain arrow selects the row it lands on and nothing
+     * else; Shift grows a range from the anchor; Space toggles the cursor row and leaves the cursor
+     * where it is, which is the one state a reader must tell apart from SINGLE: standing on a row
+     * that is not selected.
+     */
+    public static final ReaderScript LIST_MULTI = new ReaderScript("list-multi", List.of(
+            Step.press(Keys.DOWN, "moves to Carpathians, which alone is selected")
+                    .expecting(cursor(LIST_ITEM, "Carpathians").with(SELECTED),
+                            shown(LIST_ITEM, "Atlas").without(SELECTED)),
+            Step.chord(Keys.DOWN, Keys.MOD_SHIFT, "extends the selection to Caucasus")
+                    .expecting(cursor(LIST_ITEM, "Caucasus").with(SELECTED),
+                            shown(LIST_ITEM, "Carpathians").with(SELECTED)),
+            Step.chord(Keys.DOWN, Keys.MOD_SHIFT, "extends the selection to Himalayas")
+                    .expecting(cursor(LIST_ITEM, "Himalayas").with(SELECTED),
+                            shown(LIST_ITEM, "Carpathians").with(SELECTED),
+                            shown(LIST_ITEM, "Caucasus").with(SELECTED)),
+            Step.press(Keys.SPACE, "takes Himalayas out and keeps the cursor on it")
+                    .expecting(cursor(LIST_ITEM, "Himalayas").without(SELECTED),
+                            shown(LIST_ITEM, "Caucasus").with(SELECTED)),
+            Step.press(Keys.SPACE, "puts Himalayas back")
+                    .expecting(cursor(LIST_ITEM, "Himalayas").with(SELECTED)),
+            Step.press(Keys.END, "moves to Zagros, which alone is selected")
+                    .expecting(cursor(LIST_ITEM, "Zagros").with(SELECTED),
+                            shown(LIST_ITEM, "Himalayas").without(SELECTED)),
+            Step.chord(Keys.A, Step.COMMAND, "selects every row")
+                    .expecting(cursor(LIST_ITEM, "Zagros").with(SELECTED),
+                            shown(LIST_ITEM, "Alps").with(SELECTED)),
+            Step.press(Keys.HOME, "moves to Alps, which alone is selected")
+                    .expecting(cursor(LIST_ITEM, "Alps").with(SELECTED),
+                            shown(LIST_ITEM, "Zagros").without(SELECTED))));
 
     /**
      * "Announcements": the application speaking. Nothing else in the gallery calls
