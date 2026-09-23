@@ -565,7 +565,7 @@ final class AccessibleWalk {
             // list says "Cordilheiras, list". The relation it gets is the truth too: the caption
             // labels this layer as much as the field. A popup whose field has no caption keeps
             // the name its own hook gave it.
-            label = widget.inheritanceHost().accessibleLabelledBy();
+            label = captionOf(widget.inheritanceHost());
         }
         // Under the widget's own language, as the two hooks above were: the node records that
         // language and the model re-resolves a name when it moves, so a string the walk hands
@@ -740,6 +740,28 @@ final class AccessibleWalk {
     }
 
     /** The caption an ancestor sent down to {@code widget}, or {@code null}; nearest sender wins. */
+    /**
+     * The caption that names {@code widget}: its own binding, or one a composite above it redirects
+     * to it (a date picker's caption names the field inside it), read off the widget tree and not
+     * off the walk's redirect stack, which a popup walked after the tree no longer holds.
+     *
+     * @param widget the field a popup opened from
+     * @return its caption, or {@code null} when nothing names it
+     */
+    private static Widget<?> captionOf(Widget<?> widget) {
+        Widget<?> own = widget.accessibleLabelledBy();
+        if (own != null) {
+            return own;
+        }
+        for (Widget<?> at = widget.parent(); at != null; at = at.parent()) {
+            Widget<?> label = at.accessibleLabelledBy();
+            if (label != null && labelTargetOf(at) == widget) {
+                return label;
+            }
+        }
+        return null;
+    }
+
     private Widget<?> redirectedLabelFor(Widget<?> widget) {
         for (int i = redirectCount - 1; i >= 0; i--) {
             if (redirectTargets[i] == widget) {

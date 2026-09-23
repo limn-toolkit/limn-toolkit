@@ -193,9 +193,12 @@ class DatePickerAccessibilityTest extends AccessibleComponentTestBase {
         assertTrue(picker.isOpen(), "Collapse on the field beneath the overlay does nothing, "
                 + "which is why the field does not publish it");
         AccessibleNode overlay = nodesOf(Accessible.Role.GROUP).stream()
-                .filter(group -> group.name().equals("Calendário") && offers(group, Accessible.Action.CANCEL))
+                .filter(group -> group.name().equals("Data de entrega")
+                        && offers(group, Accessible.Action.CANCEL))
                 .findFirst().orElseThrow(() -> new AssertionError(
-                        "no overlay group with CANCEL in " + describe(tree())));
+                        "no overlay group with CANCEL, named by the picker's caption (2026-09-23: "
+                                + "the layer and the card were both \"Calendário\" and NVDA said it "
+                                + "twice), in " + describe(tree())));
         assertEquals(overlay.id(), tree().focused(), "the overlay holds the focus (decision 1)");
         long cursor = tree().firstActiveBelow(tree().indexOf(overlay.id()));
         assertTrue(cursor != 0, "and the calendar's cursor is ACTIVE under it " + describe(tree()));
