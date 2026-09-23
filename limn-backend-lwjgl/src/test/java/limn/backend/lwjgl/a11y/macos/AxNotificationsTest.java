@@ -58,6 +58,29 @@ class AxNotificationsTest {
                 "ACTIVE is read back off no attribute: the focused node's cursor event is the focus change");
     }
 
+    /**
+     * 2026-09-23: a state is told as a value change only where AXValue carries it. VoiceOver re-reads
+     * the value on every one, and on a combo box, which it reads as a text field, the combo's
+     * expanded and enabled flips on opening made it announce the value it had cached against the
+     * new one as typed text ("Atlas, texto inserido").
+     */
+    @Test
+    void onlyAStateAXValueCarriesIsToldAsAValueChange() {
+        for (Accessible.State told : java.util.List.of(Accessible.State.CHECKED, Accessible.State.MIXED,
+                Accessible.State.PRESSED, Accessible.State.SELECTED, Accessible.State.BUSY)) {
+            assertTrue(AxNotifications.toldAsAValueChange(AccessibleEvent.state(7, told, true)),
+                    told + " is read back off AXValue, or has a rule of its own");
+        }
+        for (Accessible.State notTold : java.util.List.of(Accessible.State.EXPANDED,
+                Accessible.State.ENABLED, Accessible.State.INVALID, Accessible.State.REQUIRED,
+                Accessible.State.FOCUSED, Accessible.State.SHOWING)) {
+            assertTrue(!AxNotifications.toldAsAValueChange(AccessibleEvent.state(7, notTold, true)),
+                    notTold + " is not in AXValue, and a value change for it is a false one");
+        }
+        assertTrue(AxNotifications.toldAsAValueChange(
+                AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 7)), "a value change is one");
+    }
+
     @Test
     void aDestroyedNodeIsPostedByNobodyHere() {
         // §13.20, measured: AppKit posts AXUIElementDestroyed itself, once, however the client

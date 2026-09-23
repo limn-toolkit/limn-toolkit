@@ -210,6 +210,29 @@ final class AxNotifications {
     }
 
     /**
+     * Whether a state change is told as a value change: only a state {@code AXValue} carries — a
+     * toggle's checked, mixed or pressed state, read back as its 0, 1 or 2 — and a member's
+     * selected state, which has its own rule ({@code selectedToldOnItsContainer}). Every other
+     * state flip was posted as {@code AXValueChanged} until 2026-09-23, on the reasoning that a
+     * client re-reads whatever changed; VoiceOver re-reads the value, and on a combo box, which it
+     * treats as a text field, it announced the value it had cached against the new one as typed
+     * text — "Atlas, texto inserido" on opening a list whose choice had moved
+     * (readings/combo-macos, ours-combo-1, ours-combo-inscene-1). The combo's expanded and enabled
+     * flips were the posts; a native pop-up button opening its menu posts no value change. An
+     * outline row's expanded state is told as a disclosure before this is asked.
+     *
+     * @param event any event
+     * @return false for a state change {@code AXValue} does not carry; true for every other event
+     */
+    static boolean toldAsAValueChange(AccessibleEvent event) {
+        if (event.type() != AccessibleEvent.Type.STATE_CHANGED) return true;
+        return switch (event.state()) {
+            case CHECKED, MIXED, PRESSED, SELECTED, BUSY -> true;
+            default -> false;
+        };
+    }
+
+    /**
      * What a {@code SELECTION_CHANGED} is posted as, on its container, by the shape of that container's
      * members: the notification of the attribute its selection is read from.
      *

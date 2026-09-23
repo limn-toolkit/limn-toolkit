@@ -1054,6 +1054,8 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                 posting = AxNotifications.disclosure(Boolean.TRUE.equals(event.newValue()));
                 AccessibleNode outline = tree().node(opened.selectionContainer());
                 if (!recountedContainers.contains(outline.id())) recountedContainers.add(outline.id());
+            } else if (!AxNotifications.toldAsAValueChange(event)) {
+                continue;
             }
             if (posting.subject() == AxNotifications.Subject.APPLICATION) {
                 focusOwed = true;

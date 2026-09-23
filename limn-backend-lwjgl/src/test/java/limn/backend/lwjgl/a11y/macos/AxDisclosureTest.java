@@ -179,9 +179,9 @@ class AxDisclosureTest {
                 .map(line -> line.substring("posted ".length())).toList();
         assertEquals(List.of("NSAccessibilityRowExpandedNotification",
                         "NSAccessibilityRowCollapsedNotification",
-                        "NSAccessibilityValueChangedNotification",
                         "NSAccessibilityRowCountChangedNotification"), posted,
-                "each row on itself, the outline's count once for the frame, and a combo box's open "
-                        + "state still a value change: " + trace);
+                "each row on itself and the outline's count once for the frame; a combo box's open "
+                        + "state is no value change since 2026-09-23, because AXValue does not carry "
+                        + "it and VoiceOver read the post as typed text: " + trace);
     }
 }
