@@ -213,7 +213,7 @@ export const ko: Catalog = {
     "MP3 지원은 LGPL-2.1인 JLayer에서 오며, 오디오 디코더 인터페이스 뒤에 독립된 jar로 유지됩니다. 배포판이 LGPL 의무를 피해야 한다면 이 의존성 하나만 제외하세요. WAV와 Ogg Vorbis는 그대로 동작합니다.",
   "licence.ffmpeg.heading": "FFmpeg 영상과, 함께 배포되는 것",
   "licence.ffmpeg.body":
-    "선택적인 H.264 디코더는 축소한 FFmpeg을 LGPL-2.1-or-later로 동적 링크합니다. <b>그 네이티브 라이브러리는 데스크톱 대상마다 하나씩인 classifier로, 그리고 어디서나 쓸 수 있는 묶음인 <code>natives-all</code>로 배포됩니다.</b> 따라서 <code>limn-video-ffmpeg</code>을 포함한 배포물은 FFmpeg을 배포하는 것이며, jar는 라이선스 본문과 요구되는 고지를 함께 담고 있습니다. 동적으로 링크되어 교체할 수 있고, 그것이 이 라이선스가 요구하는 바입니다. 이 모듈에 의존하는 것은 아무것도 없습니다. 빼버려도 다른 미디어 형식은 모두 그대로 동작합니다.",
+    "선택적인 동영상 디코더는 MP4와 Matroska의 H.264, HEVC, VP9, VP8을 다루며, 축소한 FFmpeg을 LGPL-2.1-or-later로 동적 링크합니다. <b>그 네이티브 라이브러리는 별도의 아티팩트인 <code>limn-ffmpeg-natives</code>로, 데스크톱 대상마다 classifier가 하나씩 있고, 어디서나 쓸 수 있는 묶음으로는 <code>limn-video-ffmpeg-natives-all</code>이 그 모두를 지정합니다.</b> 따라서 <code>limn-video-ffmpeg</code>과 그 라이브러리를 포함한 배포물은 FFmpeg을 배포하는 것이며, 각 jar는 라이선스 본문과 요구되는 고지를 함께 담고 있습니다. 동적으로 링크되어 교체할 수 있고, 그것이 이 라이선스가 요구하는 바입니다. 이 모듈에 의존하는 것은 아무것도 없습니다. 빼버려도 다른 미디어 형식은 모두 그대로 동작합니다.",
   "licence.notAdvice":
     "이 가운데 어느 것도 법률 자문이 아닙니다. 라이선스를 직접 읽고, 귀하의 법률 자문을 구하십시오.",
 

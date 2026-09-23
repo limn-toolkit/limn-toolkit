@@ -71,7 +71,8 @@ part in layout like a label does. The decoder behind it is a separate concern:
 - **The pure-Java decoders** ship in `limn-toolkit` itself, with no native code and no
   third-party dependency. They read Y4M and generate test patterns, which is enough to drive
   the widget and not enough to play a film.
-- **`limn-video-ffmpeg`** decodes H.264 and AAC in MP4 through a trimmed FFmpeg. The FFmpeg
+- **`limn-video-ffmpeg`** decodes H.264, HEVC, VP9 and VP8 video, with AAC, Opus or Vorbis
+  audio, out of MP4 and Matroska (WebM included), through a trimmed FFmpeg. The FFmpeg
   libraries are a separate artifact, `limn-ffmpeg-natives`, versioned with FFmpeg rather than
   with the toolkit (so it stays in your cache across Limn upgrades), one `natives-<os>-<arch>`
   classifier per desktop target, for the same platforms the backend covers (macOS, Windows and

@@ -212,7 +212,7 @@ export const ja: Catalog = {
     "MP3 対応は LGPL-2.1 の JLayer によるもので、音声デコーダーのインターフェイスの背後に独立した jar として保たれています。配布物で LGPL の義務を避ける必要があれば、この依存だけを除外してください。WAV と Ogg Vorbis はそのまま動きます。",
   "licence.ffmpeg.heading": "FFmpeg による動画と、一緒に配布されるもの",
   "licence.ffmpeg.body":
-    "任意の H.264 デコーダは、削り込んだ FFmpeg を LGPL-2.1-or-later として動的にリンクします。<b>そのネイティブライブラリは、デスクトップ対象ごとに 1 つの classifier で、そしてどこにでも配れる一括版として <code>natives-all</code> で公開されます</b>。したがって <code>limn-video-ffmpeg</code> を含む配布物は FFmpeg を配布していることになり、jar はライセンス本文と必要な告知を併せて運びます。動的リンクで差し替え可能であり、それがこのライセンスの求めるところです。この module に依存しているものは他にありません。外してしまえば、ほかのメディア形式はすべてそのまま動きます。",
+    "任意の動画デコーダは、MP4 と Matroska の H.264、HEVC、VP9、VP8 を扱い、削り込んだ FFmpeg を LGPL-2.1-or-later として動的にリンクします。<b>そのネイティブライブラリは独立したアーティファクト <code>limn-ffmpeg-natives</code> で、デスクトップ対象ごとに 1 つの classifier があり、どこにでも配れる一括版として <code>limn-video-ffmpeg-natives-all</code> がそのすべてを指定します</b>。したがって <code>limn-video-ffmpeg</code> とそれらのライブラリを含む配布物は FFmpeg を配布していることになり、それぞれの jar がライセンス本文と必要な告知を併せて運びます。動的リンクで差し替え可能であり、それがこのライセンスの求めるところです。この module に依存しているものは他にありません。外してしまえば、ほかのメディア形式はすべてそのまま動きます。",
   "licence.notAdvice":
     "以上はいずれも法的助言ではありません。ライセンスを読み、ご自身の弁護士にご相談ください。",
 
