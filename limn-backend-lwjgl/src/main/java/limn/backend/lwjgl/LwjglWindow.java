@@ -1,5 +1,7 @@
 package limn.backend.lwjgl;
 
+import limn.backend.lwjgl.internal.ObjC;
+
 import limn.backend.Cursor;
 import limn.backend.FrameCallback;
 import limn.backend.FrameInfo;

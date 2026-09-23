@@ -38,6 +38,7 @@ public final class TestingExample {
     }
 
     // #region guide:testing
+    @SuppressWarnings("try") // the runtime is used by being installed, not by name
     static String typeANameAndSave() {
         try (HeadlessUi ui = new HeadlessUi()) {       // the UI thread is this one
             NameForm form = new NameForm();
@@ -50,6 +51,7 @@ public final class TestingExample {
         }
     }
 
+    @SuppressWarnings("try")
     static String typeANameAndPressEnter() {
         try (HeadlessUi ui = new HeadlessUi()) {
             NameForm form = new NameForm();

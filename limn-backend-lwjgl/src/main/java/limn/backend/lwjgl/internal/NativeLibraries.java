@@ -1,4 +1,4 @@
-package limn.backend.lwjgl;
+package limn.backend.lwjgl.internal;
 
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Library;
@@ -13,7 +13,8 @@ import org.lwjgl.system.SharedLibrary;
  * platform declines to open, and the window it would have served opens anyway. Three classes
  * wrote the same try-and-null pair for it; this is the pair once.
  *
- * <p>Internal to the backend; nothing above it names this type.
+ * <p>Internal to the backend: public for its accessibility packages, in a package the module
+ * does not export.
  */
 public final class NativeLibraries {
 

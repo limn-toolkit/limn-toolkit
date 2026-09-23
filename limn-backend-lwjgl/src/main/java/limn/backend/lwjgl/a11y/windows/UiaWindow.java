@@ -1,6 +1,6 @@
 package limn.backend.lwjgl.a11y.windows;
 
-import limn.backend.lwjgl.NativeLibraries;
+import limn.backend.lwjgl.internal.NativeLibraries;
 import org.lwjgl.system.Callback;
 import org.lwjgl.system.JNI;
 import org.lwjgl.system.SharedLibrary;

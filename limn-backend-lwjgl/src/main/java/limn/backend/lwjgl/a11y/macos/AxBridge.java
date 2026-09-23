@@ -5,7 +5,7 @@ import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
-import limn.backend.lwjgl.ObjC;
+import limn.backend.lwjgl.internal.ObjC;
 import limn.backend.lwjgl.a11y.PlatformBridge;
 import limn.graphics.Rect;
 

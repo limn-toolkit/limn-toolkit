@@ -3,7 +3,7 @@ package limn.backend.lwjgl.a11y.macos;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.RoleNames;
-import limn.backend.lwjgl.ObjC;
+import limn.backend.lwjgl.internal.ObjC;
 import limn.backend.lwjgl.a11y.ClosureArgs;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Callback;

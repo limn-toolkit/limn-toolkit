@@ -1,4 +1,4 @@
-package limn.backend.lwjgl;
+package limn.backend.lwjgl.internal;
 
 import org.lwjgl.system.JNI;
 import org.lwjgl.system.macosx.ObjCRuntime;

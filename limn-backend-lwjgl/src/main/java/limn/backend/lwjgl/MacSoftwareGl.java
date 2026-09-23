@@ -1,5 +1,7 @@
 package limn.backend.lwjgl;
 
+import limn.backend.lwjgl.internal.ObjC;
+
 import org.lwjgl.glfw.GLFWNativeCocoa;
 import org.lwjgl.system.MemoryStack;
 

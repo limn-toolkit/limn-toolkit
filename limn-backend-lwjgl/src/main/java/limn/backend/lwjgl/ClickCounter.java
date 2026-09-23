@@ -1,5 +1,9 @@
 package limn.backend.lwjgl;
 
+import limn.backend.lwjgl.internal.ObjC;
+
+import limn.backend.lwjgl.internal.NativeLibraries;
+
 import java.util.function.LongSupplier;
 
 import limn.backend.Platform;

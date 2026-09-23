@@ -1,6 +1,6 @@
 package limn.backend.lwjgl.a11y.macos;
 
-import limn.backend.lwjgl.ObjC;
+import limn.backend.lwjgl.internal.ObjC;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.JNI;
