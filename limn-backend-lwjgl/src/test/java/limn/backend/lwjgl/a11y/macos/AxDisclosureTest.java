@@ -184,4 +184,26 @@ class AxDisclosureTest {
                         + "state is no value change since 2026-09-23, because AXValue does not carry "
                         + "it and VoiceOver read the post as typed text: " + trace);
     }
+
+    /**
+     * 2026-09-23: an outline whose row opened, and whose structure changed with it, is told its rows
+     * changed and not its layout: a native outline posts AXRowCountChanged and AXRowExpanded and
+     * nothing else, and with a layout change beside them VoiceOver re-synced its cursor and read
+     * another row ("Trash, reduzido" for Reports) where over an NSOutlineView it says "linha 2
+     * expandida".
+     */
+    @Test
+    void anOutlineToldItsRowsChangedIsNotAlsoToldItsLayoutChanged() {
+        Fixture f = over(anOutline(0, 1, 2, 3, 4, 5));
+        List<String> trace = new ArrayList<>();
+        f.bridge().trace(trace::add);
+        f.grid().rows(f.tree().find(1001));
+        f.bridge().emit(AccessibleEvent.state(1014, Accessible.State.EXPANDED, true));
+        f.bridge().emit(AccessibleEvent.of(AccessibleEvent.Type.STRUCTURE_CHANGED, 1001));
+        f.bridge().frameEnded();
+        List<String> posted = trace.stream().filter(line -> line.startsWith("posted "))
+                .map(line -> line.substring("posted ".length())).toList();
+        assertEquals(List.of("NSAccessibilityRowExpandedNotification",
+                "NSAccessibilityRowCountChangedNotification"), posted, trace.toString());
+    }
 }

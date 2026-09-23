@@ -480,6 +480,13 @@ Found and fixed on 2026-09-23, by the first reader round over a `ListView` in `M
   `AXList` it was the row's `setAccessibilitySelected:`. Both post the same `SELECT`, which is where
   the refusal stands, so the rule and what was heard stand; the route in the record did not.
 
+- **The macOS tree's "Trash" at step 4.** Opening a row posted a layout change on the outline beside
+  the row-expanded and row-count changes; a native `NSOutlineView` posts only the latter two, and with
+  the layout change VoiceOver re-synced its cursor, wrote a stale row back as the selection and scrolled
+  to another row after an opening. A row container told its rows changed is no longer also told its
+  layout changed; VoiceOver then says "linha 2 contraída" and "linha 2 expandida" as it does natively
+  (`scripts/a11y/macos/outline-steps-probe.swift`).
+
 Evidence: `.claude/pending/2026-09-23/readings/` (`summary.txt`, and the `list-multi-*` directories,
 with the native probe `scripts/a11y/macos/multi-list-probe.swift`).
 

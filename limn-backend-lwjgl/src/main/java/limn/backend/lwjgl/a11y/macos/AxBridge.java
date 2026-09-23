@@ -1061,6 +1061,17 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                 focusOwed = true;
                 continue;
             }
+            if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED
+                    && recountedContainers.contains(event.nodeId())) {
+                // A row container told its rows changed is not told its layout changed as well: a
+                // native outline posts AXRowCountChanged on itself and AXRowExpanded on the row, and
+                // nothing else. With the layout change beside them VoiceOver re-synced its cursor,
+                // wrote a stale row back as the selection and, after an opening, scrolled to another
+                // row and read it ("Trash, reduzido" for Reports); without it, it says "linha 2
+                // expandida" as it does over an NSOutlineView (readings/list-multi-macos, ntree-1 and
+                // texp-tree-1, 2026-09-23; scripts/a11y/macos/outline-steps-probe.swift).
+                continue;
+            }
             if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED && tree().nodeCount() > 0
                     && event.nodeId() == tree().root().id()) {
                 posting = AxNotifications.WINDOW_LAYOUT_CHANGED;
@@ -1320,6 +1331,13 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         if (to != null) {
             to.accept("posted " + posting.notificationSymbol()
                     + (posting.subject() == AxNotifications.Subject.WINDOW ? " on the window" : ""));
+            // Which node it landed on, as a line of its own so that "posted X" stays the symbol:
+            // a reader's answer to a post is read against the element it was posted on.
+            AccessibleNode on = posting.subject() == AxNotifications.Subject.NODE ? nodeFor(subject) : null;
+            if (on != null) {
+                to.accept("posted-on " + on.id() + "=" + on.role()
+                        + (on.name() == null ? "" : " '" + on.name() + "'"));
+            }
         }
         if (objc != null) {
             objc.post(subject, posting.literal()
