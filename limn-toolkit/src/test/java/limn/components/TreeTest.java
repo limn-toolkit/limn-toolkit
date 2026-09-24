@@ -797,6 +797,70 @@ class TreeTest extends ComponentTestBase {
     }
 
     /**
+     * TR-1 of the 2026-09-24 review: the cursor climbed onto whatever row closed while its own row
+     * was not a row, so with its row hidden by a reload, closing an unrelated branch put the cursor
+     * on that branch, and Enter opened it. A collapse moves the cursor only when the cursor was
+     * under the row that closed.
+     */
+    @Test
+    void closingAnotherBranchWhileTheCursorsRowReloadsLeavesTheCursorOnIt() {
+        Node remote = new Node("remote", List.of());
+        Node one = Node.leaf("one");
+        Node local = Node.of("local", Node.leaf("notes"));
+        CountingModel model = new CountingModel(List.of(remote, local),
+                Map.of("remote", List.of(one, Node.leaf("two"))));
+        Tree<Node> tree = mount(model);
+        List<Node> activated = new ArrayList<>();
+        tree.onActivate(activated::add);
+        scene.requestFocus(tree);
+        tree.expand(remote);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        tree.expand(local);
+        scene.layoutPass(220, 200);
+        tree.setSelected(one);
+
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertEquals(one, tree.cursorNode(), "kept while its row's children are on their way");
+        pressTriangle(tree, "local");
+        assertFalse(tree.isExpanded(local), "the triangle closed local: " + drawn(tree));
+        assertEquals(one, tree.cursorNode(), "and the cursor was not under it, so it stayed");
+        press(Keys.ENTER);
+        assertFalse(activated.contains(local), "Enter did not open the branch that closed");
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        scene.layoutPass(220, 200);
+        assertEquals(one, tree.cursorNode(), "and it is on its row again once the reload lands");
+
+        tree.collapse(remote);
+        assertEquals(remote, tree.cursorNode(), "a collapse over the cursor still climbs to it");
+    }
+
+    /**
+     * The same rule for a cursor hidden under the row that closes: a row whose reload is still out
+     * and is closed takes the cursor, which would otherwise wait under a closed row for a load the
+     * collapse cancelled.
+     */
+    @Test
+    void closingTheBranchWhoseReloadHidesTheCursorPutsTheCursorOnTheBranch() {
+        Node remote = new Node("remote", List.of());
+        Node one = Node.leaf("one");
+        CountingModel model = new CountingModel(List.of(remote, Node.leaf("b")),
+                Map.of("remote", List.of(one, Node.leaf("two"))));
+        Tree<Node> tree = mount(model);
+        scene.requestFocus(tree);
+        tree.expand(remote);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        scene.layoutPass(220, 200);
+        tree.setSelected(one);
+
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        tree.collapse(remote);
+        assertEquals(remote, tree.cursorNode(), "the cursor was under remote, so it climbs to it");
+    }
+
+    /**
      * Selecting a node under a closed branch selects it where it is — re-opening the branch
      * finds it selected — and neither reveals it nor moves the cursor, which stays on a row the
      * user can see (decision 21). Before, the cursor moved onto the hidden node with all of
