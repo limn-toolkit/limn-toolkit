@@ -148,6 +148,8 @@ final class LwjglWindow implements NativeWindow {
      * elsewhere, or where the gate could not be made.
      */
     private long imeGatedView = NULL;
+    /** What {@link #setSizeLimits} last applied, for {@link #sizeLimits()}. */
+    private limn.backend.SizeLimits sizeLimits = limn.backend.SizeLimits.NONE;
     private final GLCapabilities glCapabilities;
     private final GlRenderer renderer;
     private final limn.backend.Clipboard clipboard;
@@ -420,6 +422,11 @@ final class LwjglWindow implements NativeWindow {
             if (MacInputContextGate.install(view)) {
                 imeGatedView = view;
             }
+        }
+        // After the scale is read: the limits are logical, and GLFW's are screen coordinates.
+        limn.backend.SizeLimits limits = config.sizeLimits();
+        if (!limits.equals(limn.backend.SizeLimits.NONE)) {
+            setSizeLimits(limits.minWidth(), limits.minHeight(), limits.maxWidth(), limits.maxHeight());
         }
         glfwSetCursorEnterCallback(handle, (win, entered) -> {
             if (input != null && !inputBlocked()) {
@@ -1056,10 +1063,16 @@ final class LwjglWindow implements NativeWindow {
         if (destroyed) {
             return;
         }
+        sizeLimits = new limn.backend.SizeLimits(minWidth, minHeight, maxWidth, maxHeight);
         // Same logical → screen conversion as setSize (GLFW limits are screen coords).
         glfwSetWindowSizeLimits(handle,
                 toScreenOrDontCare(minWidth), toScreenOrDontCare(minHeight),
                 toScreenOrDontCare(maxWidth), toScreenOrDontCare(maxHeight));
+    }
+
+    @Override
+    public limn.backend.SizeLimits sizeLimits() {
+        return sizeLimits;
     }
 
     private int toScreenOrDontCare(int logical) {

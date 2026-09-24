@@ -37,10 +37,11 @@ public final class WindowConfig {
     private final boolean focusOnShow;
     private final int screenX;
     private final int screenY;
+    private final SizeLimits sizeLimits;
 
     private WindowConfig(String title, int width, int height, boolean visible, boolean resizable,
                          boolean decorated, boolean floating, boolean transparent,
-                         boolean focusOnShow, int screenX, int screenY) {
+                         boolean focusOnShow, int screenX, int screenY, SizeLimits sizeLimits) {
         this.title = Objects.requireNonNull(title, "title");
         Checks.positiveSize(width, height, "window size");
         this.width = width;
@@ -53,6 +54,7 @@ public final class WindowConfig {
         this.focusOnShow = focusOnShow;
         this.screenX = screenX;
         this.screenY = screenY;
+        this.sizeLimits = sizeLimits;
     }
 
     /**
@@ -66,7 +68,7 @@ public final class WindowConfig {
      */
     public static WindowConfig of(String title, int width, int height) {
         return new WindowConfig(title, width, height, true, true, true, false, false, true,
-                ANY_POSITION, ANY_POSITION);
+                ANY_POSITION, ANY_POSITION, SizeLimits.NONE);
     }
 
     /**
@@ -156,40 +158,80 @@ public final class WindowConfig {
         return screenY;
     }
 
+    /**
+     * @return the bounds the user may resize the window within; {@link SizeLimits#NONE} unless
+     *         {@link #minSize} or {@link #maxSize} set one
+     */
+    public SizeLimits sizeLimits() {
+        return sizeLimits;
+    }
+
+    /**
+     * A copy the user cannot make smaller than {@code width}&times;{@code height}. A window whose
+     * content stops being usable below some size says so here, where the window is made, rather
+     * than with {@link NativeWindow#setSizeLimits} once it is on screen. The limits bound the
+     * user's resizing; a window opened at a size outside them is brought within them as it opens.
+     *
+     * @param width  the narrowest, in logical points; {@code 0} leaves the width open
+     * @param height the shortest; {@code 0} leaves the height open
+     * @return a copy with that minimum and this configuration's maximum
+     * @throws IllegalArgumentException when it would be above a maximum already set
+     */
+    public WindowConfig minSize(int width, int height) {
+        return new WindowConfig(title, this.width, this.height, visible, resizable, decorated, floating,
+                transparent, focusOnShow, screenX, screenY,
+                new SizeLimits(width, height, sizeLimits.maxWidth(), sizeLimits.maxHeight()));
+    }
+
+    /**
+     * A copy the user cannot make larger than {@code width}&times;{@code height}; see
+     * {@link #minSize}.
+     *
+     * @param width  the widest, in logical points; {@code 0} leaves the width open
+     * @param height the tallest; {@code 0} leaves the height open
+     * @return a copy with that maximum and this configuration's minimum
+     * @throws IllegalArgumentException when it would be below a minimum already set
+     */
+    public WindowConfig maxSize(int width, int height) {
+        return new WindowConfig(title, this.width, this.height, visible, resizable, decorated, floating,
+                transparent, focusOnShow, screenX, screenY,
+                new SizeLimits(sizeLimits.minWidth(), sizeLimits.minHeight(), width, height));
+    }
+
     /** @return a copy that starts shown or hidden */
     public WindowConfig visible(boolean newVisible) {
         return new WindowConfig(title, width, height, newVisible, resizable, decorated, floating,
-                transparent, focusOnShow, screenX, screenY);
+                transparent, focusOnShow, screenX, screenY, sizeLimits);
     }
 
     /** @return a copy the user may, or may not, resize */
     public WindowConfig resizable(boolean newResizable) {
         return new WindowConfig(title, width, height, visible, newResizable, decorated, floating,
-                transparent, focusOnShow, screenX, screenY);
+                transparent, focusOnShow, screenX, screenY, sizeLimits);
     }
 
     /** @return a copy with, or without, the native title bar and border */
     public WindowConfig decorated(boolean newDecorated) {
         return new WindowConfig(title, width, height, visible, resizable, newDecorated, floating,
-                transparent, focusOnShow, screenX, screenY);
+                transparent, focusOnShow, screenX, screenY, sizeLimits);
     }
 
     /** @return a copy that stays, or does not stay, above other windows */
     public WindowConfig floating(boolean newFloating) {
         return new WindowConfig(title, width, height, visible, resizable, decorated, newFloating,
-                transparent, focusOnShow, screenX, screenY);
+                transparent, focusOnShow, screenX, screenY, sizeLimits);
     }
 
     /** @return a copy with a transparent, or opaque, framebuffer */
     public WindowConfig transparent(boolean newTransparent) {
         return new WindowConfig(title, width, height, visible, resizable, decorated, floating,
-                newTransparent, focusOnShow, screenX, screenY);
+                newTransparent, focusOnShow, screenX, screenY, sizeLimits);
     }
 
     /** @return a copy that does, or does not, take the input focus when shown */
     public WindowConfig focusOnShow(boolean newFocusOnShow) {
         return new WindowConfig(title, width, height, visible, resizable, decorated, floating,
-                transparent, newFocusOnShow, screenX, screenY);
+                transparent, newFocusOnShow, screenX, screenY, sizeLimits);
     }
 
     /**
@@ -214,7 +256,7 @@ public final class WindowConfig {
      */
     public WindowConfig at(int x, int y) {
         return new WindowConfig(title, width, height, visible, resizable, decorated, floating,
-                transparent, focusOnShow, x, y);
+                transparent, focusOnShow, x, y, sizeLimits);
     }
 
     /**
@@ -244,13 +286,13 @@ public final class WindowConfig {
                 && c.visible == visible && c.resizable == resizable && c.decorated == decorated
                 && c.floating == floating && c.transparent == transparent
                 && c.focusOnShow == focusOnShow && c.screenX == screenX && c.screenY == screenY
-                && c.title.equals(title);
+                && c.title.equals(title) && c.sizeLimits.equals(sizeLimits);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(title, width, height, visible, resizable, decorated, floating,
-                transparent, focusOnShow, screenX, screenY);
+                transparent, focusOnShow, screenX, screenY, sizeLimits);
     }
 
     @Override
@@ -259,6 +301,7 @@ public final class WindowConfig {
                 + (resizable ? "" : ", fixed") + (decorated ? "" : ", undecorated")
                 + (floating ? ", floating" : "") + (transparent ? ", transparent" : "")
                 + (focusOnShow ? "" : ", no focus") + (screenX == ANY_POSITION ? "" : ", at "
-                + screenX + "," + screenY) + "]";
+                + screenX + "," + screenY) + (sizeLimits.equals(SizeLimits.NONE) ? "" : ", " + sizeLimits)
+                + "]";
     }
 }

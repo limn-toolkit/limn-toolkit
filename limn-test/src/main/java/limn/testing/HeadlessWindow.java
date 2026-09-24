@@ -240,6 +240,12 @@ public final class HeadlessWindow implements NativeWindow {
     @Override public float contentScale() { return 1; }
     @Override public void overrideContentScale(float scale) { }
     @Override public void setSize(int newWidth, int newHeight) { }
+    /** Kept, so a test can read back what a configuration or a scene asked for. */
+    private limn.backend.SizeLimits sizeLimits = limn.backend.SizeLimits.NONE;
+    @Override public void setSizeLimits(int minWidth, int minHeight, int maxWidth, int maxHeight) {
+        sizeLimits = new limn.backend.SizeLimits(minWidth, minHeight, maxWidth, maxHeight);
+    }
+    @Override public limn.backend.SizeLimits sizeLimits() { return sizeLimits; }
     @Override public void show() { visible = true; }
     @Override public void hide() { visible = false; }
     @Override public void focus() {

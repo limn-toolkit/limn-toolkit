@@ -108,7 +108,15 @@ public class StubWindow implements NativeWindow {
     @Override public int framebufferHeight() { return 300; }
     @Override public float contentScale() { return 1; }
     @Override public void overrideContentScale(float scale) { }
-    @Override public void setSize(int width, int height) { }
+    /** The last {@link #setSize} a scene or a test asked for, {@code null} before any. */
+    public int[] lastSize;
+    @Override public void setSize(int width, int height) { lastSize = new int[] {width, height}; }
+    /** What {@link #setSizeLimits} last set, read back by {@link #sizeLimits()}. */
+    public limn.backend.SizeLimits sizeLimits = limn.backend.SizeLimits.NONE;
+    @Override public void setSizeLimits(int minWidth, int minHeight, int maxWidth, int maxHeight) {
+        sizeLimits = new limn.backend.SizeLimits(minWidth, minHeight, maxWidth, maxHeight);
+    }
+    @Override public limn.backend.SizeLimits sizeLimits() { return sizeLimits; }
     @Override public void show() { }
     @Override public void hide() { }
     @Override public void focus() { }

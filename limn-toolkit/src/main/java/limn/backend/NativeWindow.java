@@ -53,10 +53,21 @@ public interface NativeWindow extends AutoCloseable {
     /**
      * Constrains user resizing to the given bounds in logical points; pass
      * {@code <= 0} for any bound to leave it unconstrained. Only affects
-     * interactive resizes; {@link #setSize} is not clamped. The default
-     * implementation ignores it (headless/embedding). UI thread only.
+     * interactive resizes; {@link #setSize} is not clamped. A window made from a
+     * {@link WindowConfig} with {@link WindowConfig#minSize} or {@link WindowConfig#maxSize}
+     * starts with those. The default implementation ignores it (headless/embedding).
+     * UI thread only.
      */
     default void setSizeLimits(int minWidth, int minHeight, int maxWidth, int maxHeight) {
+    }
+
+    /**
+     * @return the bounds the user may resize this window within, as its configuration or the last
+     *         {@link #setSizeLimits} set them; {@link SizeLimits#NONE} where the implementation
+     *         keeps none (headless, embedding)
+     */
+    default SizeLimits sizeLimits() {
+        return SizeLimits.NONE;
     }
 
     /**

@@ -55,7 +55,10 @@ public final class HeadlessBackend implements Backend {
 
     @Override
     public NativeWindow createWindow(WindowConfig config) {
-        return open(config.title(), config.width(), config.height());
+        HeadlessWindow window = open(config.title(), config.width(), config.height());
+        limn.backend.SizeLimits limits = config.sizeLimits();
+        window.setSizeLimits(limits.minWidth(), limits.minHeight(), limits.maxWidth(), limits.maxHeight());
+        return window;
     }
 
     @Override
