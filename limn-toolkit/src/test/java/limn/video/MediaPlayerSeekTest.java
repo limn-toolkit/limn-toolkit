@@ -345,6 +345,93 @@ class MediaPlayerSeekTest {
         }
     }
 
+    // ------------------------------------------------------------------ the position being left
+    //
+    // A seek can land while the decode thread is inside a read, and whatever that read reports
+    // belongs to the position the viewer just left. A picture from it was already released rather
+    // than shown; these are the three other things a read can report.
+
+    @Test
+    void anEndReadFromThePositionBeingLeftDoesNotEndThePlayer() {
+        PooledTestStream stream = new PooledTestStream(16, 16, 6);
+        stream.frameCount = 3;
+        Hand hand = new Hand();
+        try (MediaPlayer player = manual(stream, hand, 4)) {
+            player.start();
+            pump(player, 3); // every picture read; the next read is the end
+            stream.duringNextRead = () -> player.seek(0, SeekMode.EXACT);
+            player.decodeStep(); // that read, with the seek landing inside it
+
+            pump(player, 3);
+            VideoFrame shown = player.takePicture();
+            assertNotNull(shown, "a viewer who seeked back from the end sees the start again");
+            shown.release();
+            assertFalse(player.isEnded(), "the end was the old position's, not the new one's");
+        }
+    }
+
+    @Test
+    void aFailureFromThePositionBeingLeftIsNotTheNewPositionsFailure() {
+        PooledTestStream stream = new PooledTestStream(16, 16, 6);
+        Hand hand = new Hand();
+        try (MediaPlayer player = manual(stream, hand, 4)) {
+            player.start();
+            pump(player, 2);
+            stream.duringNextRead = () -> {
+                player.seek(2_000_000, SeekMode.EXACT);
+                stream.failOnRead = new IllegalStateException("a read at the position being left");
+            };
+            player.decodeStep();
+            stream.failOnRead = null; // the stream reads fine from where the viewer went
+
+            pump(player, 3);
+            assertNull(player.failure(),
+                    "a decode that threw at one position says nothing about another, and the "
+                            + "seek that cleared the failures before it must clear this one too");
+            assertSame(MediaPlayer.State.PLAYING, player.state());
+            VideoFrame landed = player.takePicture();
+            assertNotNull(landed);
+            assertTrue(landed.ptsMicros() >= 2_000_000);
+            landed.release();
+        }
+    }
+
+    @Test
+    void aLoopingEndFromThePositionBeingLeftIsNotAWrap() {
+        PooledTestStream stream = new PooledTestStream(16, 16, 6);
+        stream.frameCount = 3;
+        SteadyEngine engine = new SteadyEngine();
+        Sounds.installEngine(engine);
+        Hand hand = new Hand();
+        try (MediaPlayer player = manual(stream, hand, 4)) {
+            player.setAudio(new SilentSource(), PlayOptions.DEFAULTS);
+            player.setLooping(true);
+            player.start();
+            engine.handle.seconds = 0.05;
+            pump(player, 3);
+            VideoFrame first = player.takePicture();
+            assertNotNull(first);
+            first.release();
+            assertTrue(player.isFollowingAudio());
+
+            stream.duringNextRead = () -> {
+                player.seek(0, SeekMode.EXACT);
+                engine.handle.seconds = 0; // the track moved with it, as a seekable one does
+            };
+            player.decodeStep(); // the end of the old position, which a looping player wraps
+            pump(player, 3);
+            VideoFrame after = player.takePicture();
+            if (after != null) {
+                after.release();
+            }
+
+            assertTrue(player.isFollowingAudio(),
+                    "a wrap counted after the seek made its first picture look like a new pass, "
+                            + "and a new pass drops the soundtrack as master");
+            assertEquals(0, stream.resets, "nothing rewound a stream the seek was about to place");
+        }
+    }
+
     // ------------------------------------------------------------------ the concurrent case
 
     @Test

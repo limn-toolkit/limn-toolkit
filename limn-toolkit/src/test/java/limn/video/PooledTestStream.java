@@ -41,6 +41,11 @@ final class PooledTestStream implements VideoStreamSource {
     CountDownLatch release;
     /** Counted down as a read begins, before it blocks on {@link #release}. */
     CountDownLatch entered;
+    /**
+     * Run once, inside the next read and before it answers: what lets a test with no decode thread
+     * land a seek exactly where one would land while that thread is in a read.
+     */
+    Runnable duringNextRead;
     /** Set by a test after it has closed the player: a read past it is a broken shutdown promise. */
     volatile boolean shutdownComplete;
 
@@ -165,6 +170,11 @@ final class PooledTestStream implements VideoStreamSource {
                 Thread.currentThread().interrupt();
                 return Read.END;
             }
+        }
+        Runnable during = duringNextRead;
+        if (during != null) {
+            duringNextRead = null;
+            during.run();
         }
         if (failOnRead != null) {
             throw failOnRead;
