@@ -110,6 +110,27 @@ class DateFieldTest extends ComponentTestBase {
         assertEquals("28/02/2023", field.text(), "the day segment follows the complete year");
     }
 
+    /**
+     * A year left with three of its digits typed is final, and the day follows it the way it
+     * follows a complete one: the field showed 29/02/0202 while its value was the 28th, because
+     * only a two-digit year was resolved on the way out and the day was cut only as a year
+     * arrived whole.
+     */
+    @Test
+    void aYearLeftWithThreeDigitsCutsTheDayItShows() {
+        build(dateField(), PT_BR);
+        type("2902202");
+        scene.requestFocus(null);
+        assertEquals(LocalDate.of(202, 2, 28), field.date());
+        assertEquals("28/02/0202", field.text(), "what is shown is the value");
+
+        build(dateField(), PT_BR);
+        type("3104202");
+        key(Keys.HOME);
+        assertEquals("30/04/0202", field.text(), "left with Home, the same");
+        assertEquals(LocalDate.of(202, 4, 30), field.date());
+    }
+
     @Test
     void aTwoDigitYearInThePatternIsWidenedToFour() {
         // en-US's short pattern is M/d/yy. The order and the separators are the locale's; a

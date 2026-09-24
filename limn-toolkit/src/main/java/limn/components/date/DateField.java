@@ -2098,28 +2098,43 @@ public final class DateField extends Widget<DateField> {
      * it is on every desktop date field. Four digits are what was meant; three are left alone too,
      * and so is a year of era. With the guess off the year is left blank and the field incomplete,
      * as a pasted one is: a form that refuses to guess is not handed the year 26 as valid.
+     *
+     * <p>However many digits it was typed with, a year left is final, as an arrow's is, and the
+     * day is cut to its month then. The digits of a year still arriving leave the day alone, which
+     * is what keeps the 29th of 29022024; a year left at three of them showed 29/02/0202 while the
+     * value was the 28th.
      */
     private void commitTypedYear() {
         DatePattern.FieldPart part = focusedField();
         if (part == null || part.field() != DatePattern.Field.YEAR || yearDigitsTyped == 0
-                || yearDigitsTyped > 2 || year == UNSET || year >= 100 || eraCalendar()) {
+                || year == UNSET) {
             return;
         }
-        int resolved = resolveTwoDigitYear(year);
+        boolean twoDigits = yearDigitsTyped <= 2 && year < 100 && !eraCalendar();
         yearDigitsTyped = 0;
-        if (resolved == year) {
+        int yearWas = year;
+        int dayWas = day;
+        if (twoDigits) {
+            year = resolveTwoDigitYear(year);
+        }
+        if (day != UNSET) {
+            day = Math.min(day, daysInCurrentMonth());
+        }
+        if (year == yearWas && day == dayWas) {
             return;
         }
-        year = resolved;
-        if (day != UNSET) {
-            day = Math.min(day, daysInCurrentMonth()); // the year is final now, as an arrow's is
-        }
+        LocalDate dateWas = dateValue;
         typedDigits = 0;
         lastMoveWasTime = false;
         rebuildValue();
         invalidate();
-        notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
-        refreshValidity(Change.Origin.USER);
+        // A resolved year moves the date, and that is the person's typing arriving. A day cut to
+        // the month the value already stood in moves only the segment drawn: the field's own
+        // consequence, announced for a reader and kept from the handler, whose date is unchanged.
+        Change.Origin origin = Objects.equals(dateWas, dateValue)
+                ? Change.Origin.ADJUSTMENT : Change.Origin.USER;
+        notifyChange(Change.of(Change.Aspect.VALUE, origin));
+        refreshValidity(origin);
     }
 
     @Override
