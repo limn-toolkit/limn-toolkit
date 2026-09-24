@@ -431,6 +431,28 @@ class DateFieldTest extends ComponentTestBase {
                 "a day past a short month is the last day of it, as typing 31 into February is");
     }
 
+    /**
+     * A date-and-time field takes its own copy back whole. No date parser takes a trailing
+     * clock, so the date half was never read: the paste kept the old date under the new time.
+     */
+    @Test
+    void aDateAndTimeFieldTakesItsOwnCopyBackWhole() {
+        LocalDateTime copied = LocalDateTime.of(2026, 12, 31, 21, 30);
+        for (String tag : new String[]{"en-US", "pt-BR", "de-DE", "ja-JP"}) {
+            build(dateField().setGranularity(DateField.Granularity.MINUTE),
+                    Locale.forLanguageTag(tag));
+            field.setDateTime(copied);
+            String text = field.text();
+            field.setDateTime(LocalDateTime.of(2020, 1, 1, 8, 0));
+            paste(text);
+            assertEquals(copied, field.dateTime(), tag + " pasting '" + text + "'");
+        }
+        build(dateField().setGranularity(DateField.Granularity.MINUTE), PT_BR);
+        field.setDateTime(LocalDateTime.of(2020, 1, 1, 8, 0));
+        paste("2026-12-31T21:30:00");
+        assertEquals(copied, field.dateTime(), "the ISO form a database hands over, T and all");
+    }
+
     @Test
     void aTypedIsoRunCommitsTheSameDayAsTheLanguagesForm() {
         build(dateField(), PT_BR);

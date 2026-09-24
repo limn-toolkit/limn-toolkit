@@ -1453,6 +1453,10 @@ public final class DateField extends Widget<DateField> {
      * day from a month on its own and must not be given the chance while a real parser might
      * succeed.
      *
+     * <p>In a field that carries both halves the date is read from the text <em>before</em> the
+     * clock, and the clock on its own: no date parser takes a trailing time, so a field's own copy
+     * ({@code 12/31/2026 9:30 PM}) pasted back kept the old date under the new time.
+     *
      * @param text what was pasted
      * @return whether anything was read
      */
@@ -1460,32 +1464,46 @@ public final class DateField extends Widget<DateField> {
         if (text == null || text.isBlank()) {
             return false;
         }
+        ensureParts();
         String trimmed = I18n.toAsciiDigits(text.trim());
+        ReadTime clock = hasTime() ? parseTime(trimmed) : null;
+        boolean read = false;
         if (startsAtYear) {
-            Parsed parsed = parseDate(trimmed);
+            String dateText = clock == null ? trimmed : textBeforeClock(trimmed, clock.start());
+            Parsed parsed = dateText.isEmpty() ? null : parseDate(dateText);
             if (parsed != null) {
                 applyDate(parsed.date());
                 if (parsed.yearUnknown()) {
                     year = UNSET; // a two-digit year with the guess off: blank, and incomplete
                     rebuildValue();
                 }
-                if (hasTime()) {
-                    LocalTime clock = parseTime(trimmed);
-                    if (clock != null) {
-                        applyTime(clock);
-                    }
-                }
-                return true;
+                read = true;
+            } else if (!dateText.isEmpty()) {
+                read = parseByDigitRuns(dateText);
             }
         }
-        if (hasTime()) {
-            LocalTime clock = parseTime(trimmed);
-            if (clock != null) {
-                applyTime(clock);
-                return true;
-            }
+        if (clock != null) {
+            applyTime(clock.time());
+            read = true;
         }
-        return startsAtYear && parseByDigitRuns(trimmed);
+        return read;
+    }
+
+    /**
+     * The date half of a date-and-time paste: the text before its clock, without the space, the
+     * comma or the ISO {@code T} that joined the two.
+     */
+    private static String textBeforeClock(String text, int clockStart) {
+        int end = clockStart;
+        while (end > 0) {
+            char c = text.charAt(end - 1);
+            boolean isoJoint = c == 'T' && end > 1 && Character.isDigit(text.charAt(end - 2));
+            if (!Character.isWhitespace(c) && !Character.isSpaceChar(c) && c != ',' && !isoJoint) {
+                break;
+            }
+            end--;
+        }
+        return text.substring(0, end);
     }
 
     /**
@@ -1524,7 +1542,14 @@ public final class DateField extends Widget<DateField> {
         return null;
     }
 
-    private LocalTime parseTime(String text) {
+    /**
+     * A time of day read out of text, and where its text starts, which is where the date of a
+     * date-and-time paste ends.
+     */
+    private record ReadTime(LocalTime time, int start) {
+    }
+
+    private ReadTime parseTime(String text) {
         java.util.regex.Matcher clock =
                 TIME_OF_DAY.matcher(text);
         if (!clock.find()) {
@@ -1541,7 +1566,7 @@ public final class DateField extends Widget<DateField> {
             } else if (h == 12 && lower.contains("am")) {
                 h = 0;
             }
-            return LocalTime.of(h, m, s);
+            return new ReadTime(LocalTime.of(h, m, s), clock.start());
         } catch (DateTimeException | NumberFormatException e) {
             return null;
         }
