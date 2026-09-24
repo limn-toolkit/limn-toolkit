@@ -1543,7 +1543,8 @@ public final class DateField extends Widget<DateField> {
     }
 
     /**
-     * A time of day read out of text, and where its text starts, which is where the date of a
+     * A time of day read out of text, and where its text starts: at the clock, or at the
+     * day-period word before it ("오후 9:30", "下午9:30"), which is where the date of a
      * date-and-time paste ends.
      */
     private record ReadTime(LocalTime time, int start) {
@@ -1559,17 +1560,133 @@ public final class DateField extends Widget<DateField> {
             int h = Integer.parseInt(clock.group(1));
             int m = Integer.parseInt(clock.group(2));
             int s = clock.group(3) == null ? 0 : Integer.parseInt(clock.group(3));
-            // A 12-hour string carrying a period: the two letters decide the half of the day.
-            String lower = text.toLowerCase(Locale.ROOT);
-            if (h <= 12 && lower.contains("pm") && h < 12) {
+            int start = clock.start();
+            // A 12-hour string carrying a period: the word beside the clock decides the half of
+            // the day, after it in English and Arabic, before it in Korean and Chinese.
+            int half = UNSET;
+            for (java.util.Map.Entry<String, Integer> word : dayPeriodWords().entrySet()) {
+                int after = dayPeriodAfter(text, clock.end(), word.getKey());
+                int before = after < 0 ? dayPeriodBefore(text, start, word.getKey()) : -1;
+                if (after >= 0 || before >= 0) {
+                    half = word.getValue();
+                    start = before >= 0 ? before : start;
+                    break;
+                }
+            }
+            if (half == 1 && h < 12) {
                 h += 12;
-            } else if (h == 12 && lower.contains("am")) {
+            } else if (half == 0 && h == 12) {
                 h = 0;
             }
-            return new ReadTime(LocalTime.of(h, m, s), clock.start());
+            return new ReadTime(LocalTime.of(h, m, s), start);
         } catch (DateTimeException | NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * The words this language writes for the two halves of the day, folded, each with the half
+     * it names (0 or 1), longest first so a word is never cut short by one it begins with: the
+     * ones the field draws and the JDK's {@code a} for the language &mdash; "p. m." in the Spanish
+     * of the United States, "오후" in Korean, "下午" in Chinese, "م" in Arabic &mdash; and the
+     * ASCII "am" and "pm" a paste from anywhere else carries. Only "am" and "pm" were matched
+     * until 2026-09-24, and every one of those four lost its afternoon. A word written in both
+     * halves (a flexible period such as "at night" runs past midnight) names neither and is left
+     * out.
+     */
+    private java.util.Map<String, Integer> dayPeriodWords() {
+        List<String> patterns = new ArrayList<>(List.of("a"));
+        for (DatePattern.Part part : parts) {
+            if (part instanceof DatePattern.FieldPart field
+                    && field.field() == DatePattern.Field.DAY_PERIOD
+                    && !patterns.contains(field.pattern())) {
+                patterns.add(field.pattern());
+            }
+        }
+        java.util.Map<String, Integer> halves = new java.util.HashMap<>();
+        java.util.Set<String> both = new java.util.HashSet<>();
+        for (String pattern : patterns) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern, locale());
+            for (int h = 0; h < 24; h++) {
+                // At the hour, as segmentText draws the segment.
+                String word = foldDayPeriod(formatter.format(LocalTime.of(h, 0)));
+                Integer was = halves.putIfAbsent(word, h / 12);
+                if (was != null && was != h / 12) {
+                    both.add(word);
+                }
+            }
+        }
+        halves.keySet().removeAll(both);
+        halves.remove("");
+        halves.putIfAbsent("am", 0);
+        halves.putIfAbsent("pm", 1);
+        java.util.Map<String, Integer> longestFirst = new java.util.LinkedHashMap<>();
+        halves.entrySet().stream()
+                .sorted((a, b) -> b.getKey().length() - a.getKey().length())
+                .forEach(e -> longestFirst.put(e.getKey(), e.getValue()));
+        return longestFirst;
+    }
+
+    /**
+     * A day-period word as it is compared: lower case, without the full stops, the spaces and
+     * the format marks that separate "p. m." from "p.m." and "PM" &mdash; the space in the JDK's
+     * Spanish one is a no-break space, which {@link Character#isWhitespace} does not count.
+     */
+    private static String foldDayPeriod(String word) {
+        StringBuilder folded = new StringBuilder();
+        for (int i = 0; i < word.length(); i++) {
+            char c = word.charAt(i);
+            if (!ignoredInDayPeriod(c)) {
+                folded.append(Character.toLowerCase(c));
+            }
+        }
+        return folded.toString();
+    }
+
+    private static boolean ignoredInDayPeriod(char c) {
+        return c == '.' || Character.isWhitespace(c) || Character.isSpaceChar(c)
+                || Character.getType(c) == Character.FORMAT;
+    }
+
+    /**
+     * Whether a folded day-period word is written from {@code from} on, and not as the start of a
+     * longer word: "amanhã" after a clock is not the morning.
+     *
+     * @return where the word ends, or -1
+     */
+    private static int dayPeriodAfter(String text, int from, String word) {
+        int at = from;
+        for (int i = 0; i < word.length(); i++) {
+            while (at < text.length() && ignoredInDayPeriod(text.charAt(at))) {
+                at++;
+            }
+            if (at >= text.length() || Character.toLowerCase(text.charAt(at)) != word.charAt(i)) {
+                return -1;
+            }
+            at++;
+        }
+        return at < text.length() && Character.isLetter(text.charAt(at)) ? -1 : at;
+    }
+
+    /**
+     * Whether a folded day-period word is written just before {@code end}. No word boundary is
+     * asked for on this side: the languages that put the word first write Chinese and Japanese
+     * among them, where nothing separates it from the word before.
+     *
+     * @return where the word starts, or -1
+     */
+    private static int dayPeriodBefore(String text, int end, String word) {
+        int at = end;
+        for (int i = word.length() - 1; i >= 0; i--) {
+            while (at > 0 && ignoredInDayPeriod(text.charAt(at - 1))) {
+                at--;
+            }
+            if (at == 0 || Character.toLowerCase(text.charAt(at - 1)) != word.charAt(i)) {
+                return -1;
+            }
+            at--;
+        }
+        return at;
     }
 
     /**

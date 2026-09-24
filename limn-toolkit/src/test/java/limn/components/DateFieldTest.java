@@ -453,6 +453,34 @@ class DateFieldTest extends ComponentTestBase {
         assertEquals(copied, field.dateTime(), "the ISO form a database hands over, T and all");
     }
 
+    /**
+     * A 12-hour time is read with the language's own words for the two halves of the day, before
+     * the clock or after it, however they are dotted and spaced. Only the ASCII "am" and "pm"
+     * were matched, and every one of these pasted its evening back as the morning.
+     */
+    @Test
+    void aPastedTwelveHourTimeKeepsItsHalfOfTheDayInTheLanguagesOwnWords() {
+        for (String tag : new String[]{"en-CA", "ko-KR", "ar-EG", "es-US", "zh-TW", "en-US"}) {
+            for (LocalTime copied : new LocalTime[]{LocalTime.of(21, 30), LocalTime.of(0, 30)}) {
+                build(timeField(), Locale.forLanguageTag(tag));
+                field.setTime(copied);
+                String text = field.text();
+                field.setTime(LocalTime.of(12, 0));
+                paste(text);
+                assertEquals(copied, field.time(), tag + " pasting '" + text + "'");
+            }
+        }
+        build(dateField().setGranularity(DateField.Granularity.MINUTE),
+                Locale.forLanguageTag("ko-KR"));
+        LocalDateTime copied = LocalDateTime.of(2026, 12, 31, 21, 30);
+        field.setDateTime(copied);
+        String text = field.text();
+        field.setDateTime(LocalDateTime.of(2020, 1, 1, 8, 0));
+        paste(text);
+        assertEquals(copied, field.dateTime(),
+                "the word before the clock is not part of the date: '" + text + "'");
+    }
+
     @Test
     void aTypedIsoRunCommitsTheSameDayAsTheLanguagesForm() {
         build(dateField(), PT_BR);
