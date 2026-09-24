@@ -1339,8 +1339,14 @@ public final class VideoView extends Widget<VideoView> {
         int generation = tickGeneration;
         Ui.postDelayed(() -> {
             polling = false;
-            if (generation != tickGeneration || ticking || scene() == null) {
+            Scene scene = scene();
+            if (generation != tickGeneration || ticking || scene == null) {
                 return; // superseded, already ticking again, or detached
+            }
+            if (scene.window() != null && scene.window().isClosed()) {
+                // A closed window detaches nothing: the scene keeps its tree, so this would
+                // otherwise poll, and keep that scene reachable, for as long as the process ran.
+                return;
             }
             if (!isShowing() || !isRunnable()) {
                 return; // the next paint re-arms; nothing to poll for meanwhile

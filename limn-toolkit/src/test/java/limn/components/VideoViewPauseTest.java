@@ -1,6 +1,8 @@
 package limn.components;
 
 import limn.scene.Scene;
+import limn.testing.HeadlessBackend;
+import limn.testing.HeadlessWindow;
 import limn.video.MediaPlayer;
 import limn.video.VideoClock;
 import limn.video.VideoStreamSource.SeekMode;
@@ -10,6 +12,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -198,6 +201,33 @@ class VideoViewPauseTest extends ComponentTestBase {
         assertTrue(surfaces.lastPtsMicros() > 0,
                 "and it is that picture on screen, not the one from before the seek");
         assertTrue(view.isPaused(), "a seek is not a resume");
+    }
+
+    /**
+     * A paused player is watched on a timer, for a resume through the player rather than the view.
+     * A closed window detaches nothing, so the timer used to outlive it: a wake-up a few times a
+     * second for as long as the process ran, each one keeping the scene reachable.
+     */
+    @Test
+    void thePausedPlayersPollStopsWithItsWindow() {
+        AtomicLong clock = new AtomicLong();
+        runtime.setDelayClock(clock::get);
+        MediaPlayer player = new MediaPlayer(new TestVideoStream(64, 36)).setOwnsDecodeThread(false);
+        VideoView view = new VideoView().setPlayer(player); // never started, which reads as paused
+        HeadlessWindow window = new HeadlessBackend(runtime).open("video", 100, 100);
+        Scene scene = new Scene(view, nanos::get);
+        scene.setTextRuler(RULER);
+        scene.bind(window);
+        window.frame(); // the paint finds the player paused and arms the poll instead of a ticker
+        assertTrue(runtime.nanosUntilNextDeadline() >= 0, "a paused player is polled");
+
+        window.close();
+        clock.addAndGet(TimeUnit.SECONDS.toNanos(1));
+        runtime.drain();
+
+        assertEquals(-1, runtime.nanosUntilNextDeadline(),
+                "the poll after the close is the last, and nothing is left queued");
+        player.close();
     }
 
     private Scene attach(VideoView view) {

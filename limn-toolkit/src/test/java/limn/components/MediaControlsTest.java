@@ -8,6 +8,8 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.sound.AudioStreamSource;
 import limn.sound.PlayOptions;
+import limn.testing.HeadlessBackend;
+import limn.testing.HeadlessWindow;
 import limn.video.MediaPlayer;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
@@ -227,6 +229,31 @@ class MediaControlsTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
         assertEquals(3, stream.seeks, "and letting go lands, throttled by nothing");
         assertEquals(VideoStreamSource.SeekMode.EXACT, stream.seekedMode);
+    }
+
+    /**
+     * A closed window detaches nothing: its scene keeps the tree, so a bar that asked only whether
+     * it was showing and attached went on polling forever, and the task it left queued each time
+     * kept the whole scene reachable.
+     */
+    @Test
+    void theHeartbeatStopsWithItsWindow() {
+        AtomicLong clock = new AtomicLong();
+        runtime.setDelayClock(clock::get);
+        HeadlessWindow window = new HeadlessBackend(runtime).open("player", (int) BAR_W, (int) BAR_H);
+        controls = new MediaControls(new VideoView());
+        scene = new Scene(controls);
+        scene.setTextRuler(RULER);
+        scene.bind(window);
+        window.frame(); // the paint that arms the poll
+        assertTrue(runtime.nanosUntilNextDeadline() >= 0, "a painted bar polls");
+
+        window.close();
+        clock.addAndGet(TimeUnit.SECONDS.toNanos(1));
+        runtime.drain();
+
+        assertEquals(-1, runtime.nanosUntilNextDeadline(),
+                "the tick after the close is the last, and nothing is left queued");
     }
 
     /** @return the transport's scrub bar, the one slider over a thousand steps, or null */
