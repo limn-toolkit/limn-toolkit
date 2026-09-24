@@ -556,7 +556,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      */
     private void setExpanded(T node, boolean open, Change.Origin origin) {
         Objects.requireNonNull(node, "node");
-        if (open == expanded.contains(node) || model.isLeaf(node)) {
+        // A leaf never opens, but one that is open closes: a row opened while it had children
+        // and emptied since is a leaf and still open, and refusing it too left Left and
+        // collapse() dead on it, and Left never stepping out to its parent.
+        if (open == expanded.contains(node) || open && model.isLeaf(node)) {
             return;
         }
         if (open) {

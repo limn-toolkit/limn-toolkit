@@ -271,6 +271,59 @@ class TreeTest extends ComponentTestBase {
     }
 
     /**
+     * TR-2 of the 2026-09-24 review: an open row whose children the application then removed is
+     * a leaf and still open, and the one seam that closes a row refused every leaf, so Left and
+     * {@code collapse()} did nothing on it and Left never stepped out to the parent either. A leaf
+     * still never opens; an open one closes.
+     */
+    @Test
+    void anOpenRowThatBecameALeafClosesAndLeftThenStepsOut() {
+        Node parent = Node.leaf("parent");
+        Node folder = Node.leaf("folder");
+        Map<String, List<Node>> kids = new java.util.HashMap<>(
+                Map.of("parent", List.of(folder), "folder", List.of(Node.leaf("file"))));
+        Tree<Node> tree = mount(new Tree.Model<>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(parent);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return kids.getOrDefault(node.name(), List.of());
+            }
+
+            @Override
+            public Widget<?> cellFor(Node node) {
+                return new Label(node.name());
+            }
+        });
+        tree.expand(parent).expand(folder);
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+        tree.setSelected(folder);
+        kids.put("folder", List.of()); // the application empties the folder
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertTrue(tree.isExpanded(folder), "a leaf now, and still open");
+
+        press(Keys.LEFT);
+        assertFalse(tree.isExpanded(folder), "Left closes it");
+        assertEquals(folder, tree.cursorNode(), "and stays on it, as on any open row");
+        press(Keys.LEFT);
+        assertEquals(parent, tree.cursorNode(), "the next Left steps out to the parent");
+        tree.expand(folder);
+        assertFalse(tree.isExpanded(folder), "a leaf still does not open");
+
+        kids.put("folder", List.of(Node.leaf("file")));
+        tree.expand(folder);
+        kids.put("folder", List.of());
+        tree.refresh();
+        tree.collapse(folder);
+        assertFalse(tree.isExpanded(folder), "and collapse() from code closes one too");
+    }
+
+    /**
      * The three handlers hear the user's gesture and never the caller's verb (ADR 040):
      * Right and Left reach {@code onExpand} and {@code onCollapse} with the row they opened or
      * closed, Enter reaches {@code onActivate} with the cursor row, and {@code expand()},
