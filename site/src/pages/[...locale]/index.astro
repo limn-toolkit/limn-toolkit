@@ -386,6 +386,7 @@ if (reader.length === 0) {
 
   .hero__inner {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: clamp(2.5rem, 5vw, 4rem);
     align-items: center;
   }
@@ -394,7 +395,7 @@ if (reader.length === 0) {
      wants every pixel it can get. */
   @media (min-width: 62rem) {
     .hero__inner {
-      grid-template-columns: 5fr 7fr;
+      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
     }
   }
 
@@ -412,8 +413,11 @@ if (reader.length === 0) {
 
   /* ------------------------------------------------------------------- try */
 
+  /* minmax(0, …) in every column, as .themes explains below: a bare column defaults to
+     min-content, and on a phone the widest code line pushed the page 250px past the screen. */
   .try {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: clamp(1.25rem, 3vw, 2.5rem);
     align-items: start;
     margin-block-start: clamp(2.5rem, 5vw, 4rem);
@@ -424,8 +428,11 @@ if (reader.length === 0) {
   /* The same split as the install below it, and for the same reason: two commands with a
      comment each are the widest thing in this section, and they get the wide column. */
   @media (min-width: 62rem) {
+    /* The commands take the width their longest line needs where there is room for it, and
+       shrink into a scroll where there is not: the macOS one is about 880px, and a column that
+       insisted on it pushed a 1000px window 100px wide and left the copy 140px. */
     .try {
-      grid-template-columns: 4fr 8fr;
+      grid-template-columns: minmax(12rem, 1fr) minmax(0, max-content);
     }
   }
 
@@ -487,6 +494,7 @@ if (reader.length === 0) {
   .try__panel {
     display: none;
     flex-basis: 100%;
+    min-inline-size: 0;
     margin-block-start: 0.5rem;
   }
 
@@ -499,6 +507,7 @@ if (reader.length === 0) {
 
   .install {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: clamp(1.75rem, 4vw, 3rem);
     align-items: start;
     margin-block-start: 2.25rem;
@@ -509,13 +518,14 @@ if (reader.length === 0) {
      desktop, which is the one place there is no excuse for it. */
   @media (min-width: 62rem) {
     .install {
-      grid-template-columns: 4fr 8fr;
+      grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
     }
   }
 
   .install__copy,
   .install__code {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1.25rem;
   }
 
@@ -553,18 +563,20 @@ if (reader.length === 0) {
 
   .features {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: clamp(3rem, 6vw, 5.5rem);
   }
 
   .feature {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: clamp(1.5rem, 4vw, 3rem);
     align-items: center;
   }
 
   @media (min-width: 58rem) {
     .feature {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
 
     /* Alternating, so the eye zig-zags down the page instead of running down one gutter. */
@@ -618,7 +630,7 @@ if (reader.length === 0) {
   .thumbs {
     display: grid;
     gap: 0.75rem;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: center;
     background-color: var(--tint);
   }
