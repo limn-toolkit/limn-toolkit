@@ -1117,6 +1117,17 @@ public final class DateField extends Widget<DateField> {
      * alike, announce alike and reach the handler alike.
      */
     private void writeSegment(DatePattern.Field field, int value, Change.Origin origin) {
+        writeSegment(field, value, origin, true);
+    }
+
+    /**
+     * @param complete whether the segment now holds what was meant: false while a typed run is still
+     *                 arriving, whose partial values are not years or months anyone chose. Typing
+     *                 29022024 passed through the years 2, 20 and 202, none of them leap, and the
+     *                 day was cut to 28 at the first.
+     */
+    private void writeSegment(DatePattern.Field field, int value, Change.Origin origin,
+                              boolean complete) {
         switch (field) {
             case YEAR -> year = value;
             case MONTH -> month = value;
@@ -1135,7 +1146,7 @@ public final class DateField extends Widget<DateField> {
         }
         // A day that overshot the month it is now in follows the month rather than emptying the
         // field: 31 January stepped to February is 28, which is what every date editor does.
-        if ((field == DatePattern.Field.MONTH || field == DatePattern.Field.YEAR)
+        if (complete && (field == DatePattern.Field.MONTH || field == DatePattern.Field.YEAR)
                 && day != UNSET) {
             day = Math.min(day, daysInCurrentMonth());
         }
@@ -1283,11 +1294,12 @@ public final class DateField extends Widget<DateField> {
         if (next < segmentMin(field) && typedDigits >= width) {
             next = segmentMin(field);
         }
-        writeSegment(field, next, Change.Origin.USER);
         // On to the next segment when this one is full, or when no further digit could fit in it:
         // a 3 typed into a two-digit day cannot become 3x for any x, so waiting for a second digit
         // would make the field feel stuck.
-        if (typedDigits >= width || next * 10 > max) {
+        boolean full = typedDigits >= width || next * 10 > max;
+        writeSegment(field, next, Change.Origin.USER, full);
+        if (full) {
             moveSlot(1, true);
         }
     }
@@ -1916,6 +1928,9 @@ public final class DateField extends Widget<DateField> {
             return;
         }
         year = resolved;
+        if (day != UNSET) {
+            day = Math.min(day, daysInCurrentMonth()); // the year is final now, as an arrow's is
+        }
         typedDigits = 0;
         lastMoveWasTime = false;
         rebuildValue();

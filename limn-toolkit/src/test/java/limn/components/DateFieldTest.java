@@ -89,6 +89,27 @@ class DateFieldTest extends ComponentTestBase {
         assertEquals("12/31/2026", field.text());
     }
 
+    /**
+     * A leap day typed in full is the leap day. Each year digit was written as it arrived, the
+     * years 2, 20 and 202 have no 29 February, and the day was cut to 28 at the first of them.
+     * A complete year without one still cuts it, as an arrow does.
+     */
+    @Test
+    void aLeapDayTypedInFullIsKept() {
+        build(dateField(), PT_BR);
+        type("29022024");
+        assertEquals(LocalDate.of(2024, 2, 29), field.date(), field.text());
+
+        build(dateField(), EN_US);
+        type("02292024");
+        assertEquals(LocalDate.of(2024, 2, 29), field.date(), field.text());
+
+        build(dateField(), PT_BR);
+        type("29022023");
+        assertEquals(LocalDate.of(2023, 2, 28), field.date(), field.text());
+        assertEquals("28/02/2023", field.text(), "the day segment follows the complete year");
+    }
+
     @Test
     void aTwoDigitYearInThePatternIsWidenedToFour() {
         // en-US's short pattern is M/d/yy. The order and the separators are the locale's; a
