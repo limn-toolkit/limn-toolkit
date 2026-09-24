@@ -661,6 +661,26 @@ class TableTest extends ComponentTestBase {
                 "with a footer the last row sits higher, so the first shown row is later");
     }
 
+    /**
+     * FN-9 of the 2026-09-24 review: the footer's documentation asks a numeric column for "a
+     * number", and its formatter cast what came back to {@code Double}, so the natural
+     * {@code mapToInt(...).sum()} threw a ClassCastException out of {@code setRows}. Any
+     * {@code Number} is written by the column's format now.
+     */
+    @Test
+    void aNumericColumnsFooterFunctionMayAnswerAnyNumber() {
+        Column<Person> sum = ageColumn().footer(all -> all.stream().mapToInt(Person::age).sum());
+        Column<Person> max = ageColumn().footer(
+                all -> all.stream().mapToLong(Person::age).max().orElse(0));
+        Column<Person> exact = ageColumn().footer(all -> new java.math.BigDecimal("2.5"));
+        Table<Person> table = new Table<>(List.of(nameColumn(), sum, max, exact));
+        table.setRows(List.of(new Person("A", 2), new Person("B", 3)));
+        assertEquals("5", table.footerTextOf(sum), "an int");
+        assertEquals("3", table.footerTextOf(max), "a long");
+        assertTrue(table.footerTextOf(exact).matches("2[.,]5"),
+                "a BigDecimal: " + table.footerTextOf(exact));
+    }
+
     @Test
     void aNumericColumnsFormatWritesItsCellsAndItsFooterAlike() {
         Column<Person> price = Column.<Person>numeric("Price", p -> p.age() * 10.5,

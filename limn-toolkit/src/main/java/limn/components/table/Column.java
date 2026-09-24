@@ -146,8 +146,10 @@ public final class Column<T> {
                                         DoubleFunction<String> format) {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(format, "format");
+        // Any Number, not only the Double a cell holds: the same format writes the footer, and a
+        // footer function answers whatever number the application computed, an int sum included.
         Column<T> column = new Column<>(title, row -> value.applyAsDouble(row),
-                (v, locale) -> format.apply((Double) v), null);
+                (v, locale) -> format.apply(((Number) v).doubleValue()), null);
         column.alignment = Alignment.END;
         column.numberFormat = format;
         return column;
@@ -416,7 +418,7 @@ public final class Column<T> {
     /**
      * Computes this column's footer cell from all the rows, and formats the result as the
      * column's cells are formatted: a {@link #text} column expects a string back, a
-     * {@link #numeric} one a number, an {@link #of} column a value of its own type.
+     * {@link #numeric} one any {@code Number}, an {@link #of} column a value of its own type.
      *
      * @param summary the footer value from the rows; {@code null} removes the footer cell
      * @return this column
@@ -508,7 +510,7 @@ public final class Column<T> {
         DoubleFunction<String> number = NumberFormats.number();
         this.footerText = null;
         this.footer = rows -> (double) rows.size();
-        this.footerFormat = (v, locale) -> number.apply((Double) v);
+        this.footerFormat = (v, locale) -> number.apply(((Number) v).doubleValue());
         return this;
     }
 
@@ -533,7 +535,7 @@ public final class Column<T> {
             }
             return aggregate.of(numbers);
         };
-        this.footerFormat = (v, locale) -> number.apply((Double) v);
+        this.footerFormat = (v, locale) -> number.apply(((Number) v).doubleValue());
         return this;
     }
 
