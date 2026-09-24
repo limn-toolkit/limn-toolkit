@@ -1376,6 +1376,13 @@ public final class PopupMenu {
                 return;
             }
             Column col = cols.get(c);
+            if (col.highlight == i && c + 1 < cols.size() && cols.get(c + 1).parentItem == i) {
+                // The row whose submenu is already open: nothing to change. Rebuilding it here
+                // closed every deeper column and sent the submenu's highlight back to its first
+                // row on each pointer move, so a 1 pt twitch of the mouse undid what the keyboard
+                // had done inside the submenu.
+                return;
+            }
             if (c == cols.size() - 1 && !item.hasSubmenu()) {
                 // Pure highlight move in the deepest column: the cascade keeps
                 // its bounds: repaint just the two affected rows (partial
