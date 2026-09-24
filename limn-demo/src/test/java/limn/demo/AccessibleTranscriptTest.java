@@ -114,6 +114,10 @@ class AccessibleTranscriptTest {
     @Test
     void theKitchenSinkWithItsDialogOpenSoundsLikeItsTranscript() {
         KitchenSinkScene.Built built = KitchenSinkScene.create(false);
+        // Its Dates tab rings today: pinned, or the transcript is true on one day only, and on that
+        // day only in the time zone it was recorded in (the Linux runner, on UTC, failed it hours
+        // after it was written).
+        DocumentationDay.pin(built.scene().root());
         HeadlessWindow host = show("Limn kitchen sink", built.scene());
 
         Dialog dialog = built.openDialog().get();
