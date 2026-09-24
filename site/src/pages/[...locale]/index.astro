@@ -44,9 +44,10 @@ const gradle = `dependencies {
     implementation("io.github.limn-toolkit:limn-backend-lwjgl:${limnVersion()}")
 }`;
 
-// The two programs, runnable by alias, one tab per operating system. The macOS tab carries the
-// flag inside the command rather than in a sentence beside it, because a sentence that says
-// "add this on macOS" is one a reader on macOS pastes past. The aliases resolve the newest
+// The two programs, runnable by alias: one tab for Windows and Linux, whose commands are the same
+// and which open by default, and one for macOS. The macOS tab carries the flag inside the command
+// rather than in a sentence beside it, because a sentence that says "add this on macOS" is one a
+// reader on macOS pastes past. The aliases resolve the newest
 // release from Maven Central, so nothing here carries a version; the note beside them does,
 // filled in at build time like every {{version}} in the guides.
 const aliases = (flag: string) =>
@@ -55,9 +56,8 @@ const aliases = (flag: string) =>
     `jbang ${flag}theme-editor@limn-toolkit/limn-toolkit  # ${msg("home.try.editorComment")}`,
   ].join("\n");
 const systems = [
+  { id: "windows-linux", label: `${msg("home.try.windows")} / ${msg("home.try.linux")}`, code: aliases("") },
   { id: "macos", label: msg("home.try.macos"), code: aliases("--java-options=-XstartOnFirstThread ") },
-  { id: "linux", label: msg("home.try.linux"), code: aliases("") },
-  { id: "windows", label: msg("home.try.windows"), code: aliases("") },
 ] as const;
 
 // The components row shows a handful of widgets rather than one, because "a set" is the
@@ -490,9 +490,8 @@ if (reader.length === 0) {
     margin-block-start: 0.5rem;
   }
 
-  #try-macos:checked ~ [data-system="macos"],
-  #try-linux:checked ~ [data-system="linux"],
-  #try-windows:checked ~ [data-system="windows"] {
+  #try-windows-linux:checked ~ [data-system="windows-linux"],
+  #try-macos:checked ~ [data-system="macos"] {
     display: block;
   }
 
@@ -696,11 +695,11 @@ if (reader.length === 0) {
 </style>
 
 <script>
-  // Pre-select the reader's own system, and nothing more: the tabs are radios and work without
-  // this. The user agent is the only signal a static page has, and a wrong guess costs a click.
+  // Windows and Linux open by default; a reader on a Mac is moved to the macOS tab, whose command
+  // carries the flag the JVM needs there. The tabs are radios and work without this. The user
+  // agent is the only signal a static page has, and a wrong guess costs a click.
   for (const group of document.querySelectorAll<HTMLElement>("[data-try]")) {
-    const agent = navigator.userAgent;
-    const system = /Mac/.test(agent) ? "macos" : /Win/.test(agent) ? "windows" : /Linux|X11/.test(agent) ? "linux" : null;
+    const system = /Mac/.test(navigator.userAgent) ? "macos" : null;
     if (!system) continue;
     const input = group.querySelector<HTMLInputElement>(`input[value="${system}"]`);
     if (input) input.checked = true;

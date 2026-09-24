@@ -78,6 +78,8 @@ anexado a cada release, com todas as plataformas dentro:
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
 
+O JBang resolve a versão mais nova uma vez e a guarda: acrescente `--fresh` para pegar uma mais nova, como em `jbang --fresh demo@limn-toolkit/limn-toolkit`.
+
 ## Instalação
 
 ```kotlin

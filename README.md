@@ -77,6 +77,8 @@ attached to every release, every platform inside:
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
 
+JBang resolves the newest release once and keeps it: add `--fresh` to take a newer one, as in `jbang --fresh demo@limn-toolkit/limn-toolkit`.
+
 ## Install
 
 ```kotlin

@@ -24,7 +24,9 @@ jbang theme-editor@limn-toolkit/limn-toolkit   # the screen that authors a theme
 On macOS put `--java-options=-XstartOnFirstThread` before the name; the flag is macOS-only, and
 the caution below says why. What downloads is the toolkit, the fonts and the native libraries
 of the machine you are on: each artifact's POM selects them by operating system, so the other
-five platforms' never arrive. The names run the newest release; to pin one, use the coordinate
+five platforms' never arrive. The names run the newest release, resolved the first time and then
+kept by JBang: add `--fresh` (`jbang --fresh demo@limn-toolkit/limn-toolkit`) to take a newer
+one. To pin one, use the coordinate
 instead — `jbang io.github.limn-toolkit:limn-demo:{{version}}`, or `limn-theme-editor` for the
 editor. With no network, the demo is also one file attached to every release, every platform
 inside: `jbang limn-demo-all.jar`.

@@ -1,5 +1,5 @@
 {
-  "description": "Limn, a UI toolkit for desktop Java: the two programs it ships, runnable by name. `jbang demo@limn-toolkit/limn-toolkit` opens the kitchen sink and `jbang theme-editor@limn-toolkit/limn-toolkit` the theme editor; on macOS put --java-options=-XstartOnFirstThread before the alias. Each resolves the newest release from Maven Central — RELEASE rather than a number, so a release never has to edit this file — and its POM selects the native libraries of the machine it runs on, so only that platform's are downloaded.",
+  "description": "Limn, a UI toolkit for desktop Java: the two programs it ships, runnable by name. `jbang demo@limn-toolkit/limn-toolkit` opens the kitchen sink and `jbang theme-editor@limn-toolkit/limn-toolkit` the theme editor; on macOS put --java-options=-XstartOnFirstThread before the alias. Each resolves the newest release from Maven Central — RELEASE rather than a number, so a release never has to edit this file — and its POM selects the native libraries of the machine it runs on, so only that platform's are downloaded. JBang keeps the release it resolved the first time; add --fresh before the alias to take a newer one.",
   "aliases": {
     "demo": {
       "script-ref": "io.github.limn-toolkit:limn-demo:RELEASE",

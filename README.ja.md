@@ -69,6 +69,8 @@ jbang theme-editor@limn-toolkit/limn-toolkit
 jbang https://github.com/limn-toolkit/limn-toolkit/releases/latest/download/limn-demo-all.jar
 ```
 
+JBang は最新リリースを一度だけ解決して保持します。より新しいリリースを取得するには `--fresh` を付けてください（例：`jbang --fresh demo@limn-toolkit/limn-toolkit`）。
+
 ## インストール
 
 ```kotlin
