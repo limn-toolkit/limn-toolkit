@@ -369,6 +369,20 @@ public final class DateField extends Widget<DateField> {
         rebuildValue();
     }
 
+    /**
+     * The first or the last day of the period the date segments name, whichever end of a period
+     * this field is: the picker's, for a period typed backwards, whose two ends swap and must
+     * each take the other edge of its own period. The value itself at the level of a day, and
+     * {@code null} while the date is incomplete.
+     */
+    LocalDate periodBound(boolean last) {
+        if (dateValue == null) {
+            return null;
+        }
+        LocalDate bound = buildDate(year, month, day, last);
+        return bound == null ? dateValue : bound;
+    }
+
     // ------------------------------------------------------------------ the value
 
     /**
@@ -576,6 +590,11 @@ public final class DateField extends Widget<DateField> {
      * @return the date, or {@code null} if the calendar being drawn has no such day at all
      */
     private LocalDate buildDate(int yearOfEra, int monthOfYear, int dayOfMonth) {
+        return buildDate(yearOfEra, monthOfYear, dayOfMonth, periodEnd);
+    }
+
+    /** {@link #buildDate(int, int, int)} at the end of the period asked for, not this field's. */
+    private LocalDate buildDate(int yearOfEra, int monthOfYear, int dayOfMonth, boolean last) {
         Chronology chronology = chronology();
         try {
             Era era = eraForBuilding(chronology);
@@ -583,13 +602,13 @@ public final class DateField extends Widget<DateField> {
                 ChronoLocalDate first = era == null
                         ? chronology.date(yearOfEra, 1, 1)
                         : chronology.date(era, yearOfEra, 1, 1);
-                return CalendarChronology.iso(periodEnd
+                return CalendarChronology.iso(last
                         ? first.with(ChronoField.DAY_OF_YEAR, first.lengthOfYear()) : first);
             }
             ChronoLocalDate first = era == null
                     ? chronology.date(yearOfEra, monthOfYear, 1)
                     : chronology.date(era, yearOfEra, monthOfYear, 1);
-            int wanted = dayOfMonth == UNSET ? periodEnd ? first.lengthOfMonth() : 1 : dayOfMonth;
+            int wanted = dayOfMonth == UNSET ? last ? first.lengthOfMonth() : 1 : dayOfMonth;
             int clamped = Math.min(wanted, first.lengthOfMonth());
             return CalendarChronology.iso(first.with(ChronoField.DAY_OF_MONTH, clamped));
         } catch (DateTimeException | ArithmeticException e) {

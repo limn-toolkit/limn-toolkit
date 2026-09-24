@@ -428,6 +428,30 @@ class DatePickerTest extends ComponentTestBase {
         assertEquals("04/2026", picker.endField().text());
     }
 
+    /**
+     * A period of months typed backwards is still whole months: the ends swap and each takes the
+     * other edge of its own month. Putting the two days the fields answer in order made June then
+     * March the 31st of March to the 1st of June, with both fields reading as valid.
+     */
+    @Test
+    void aMonthRangeTypedBackwardsIsStillWholeMonths() {
+        build(rangePicker().setGranularity(DateField.Granularity.MONTH));
+        type("062026");
+        scene.requestFocus(picker.endField());
+        type("032026");
+        assertEquals("06/2026", picker.field().text());
+        assertEquals("03/2026", picker.endField().text());
+        DateRange whole = new DateRange(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 6, 30));
+        assertEquals(whole, picker.range());
+        assertEquals(whole, picker.calendar().selectedRange(), "and the grid is shown the same");
+
+        build(rangePicker().setGranularity(DateField.Granularity.YEAR));
+        picker.field().setDate(LocalDate.of(2027, 5, 5));
+        picker.endField().setDate(LocalDate.of(2025, 5, 5));
+        assertEquals(new DateRange(LocalDate.of(2025, 1, 1), LocalDate.of(2027, 12, 31)),
+                picker.range(), "years the same way");
+    }
+
     @Test
     void anHourRangeRunsFromTheFirstMinuteOfItsStartToTheLastOfItsEnd() {
         build(rangePicker().setGranularity(DateField.Granularity.HOUR));

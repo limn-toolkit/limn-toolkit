@@ -384,7 +384,16 @@ public final class DatePicker extends Widget<DatePicker> {
     public DateRange range() {
         LocalDate start = field.date();
         LocalDate end = endField == null ? null : endField.date();
-        return start == null || end == null ? null : DateRange.of(start, end);
+        if (start == null || end == null) {
+            return null;
+        }
+        if (end.isBefore(start)) {
+            // Typed backwards: the ends swap, and each takes the other edge of its own period. A
+            // month range typed as June then March is 1 March to 30 June; putting the two days
+            // the fields answer in order made it 31 March to 1 June.
+            return DateRange.of(endField.periodBound(false), field.periodBound(true));
+        }
+        return new DateRange(start, end);
     }
 
     /**
