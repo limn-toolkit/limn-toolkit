@@ -9,6 +9,6 @@
     "`pnpm since:review` prints that set, and `pnpm generate` runs it. Read them, update",
     "the pages that need it, then move `contentReviewedAt` to the commit you read up to."
   ],
-  "contentReviewedAt": "1151234d21eeaf538ab555030a518a41b5f639d2",
-  "contentReviewedOn": "2026-09-22"
+  "contentReviewedAt": "db5d7b417c1a2747b02d2d7aecde10460de16762",
+  "contentReviewedOn": "2026-09-24"
 }
