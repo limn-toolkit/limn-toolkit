@@ -75,6 +75,10 @@ toolkit's own widgets are held to. A widget can carry an id: `setId("save")`, th
 - `ListView<T>` is a typed list over your items, with the three selection modes.
 - A backend of your own keeps native modals with `limn.backend.ModalStack`: which window a modal
   blocks, and why the topmost one is always answerable.
+- A window's size limits can be part of its configuration: `WindowConfig.minSize(w, h)` and
+  `maxSize(w, h)`, read back with `window.sizeLimits()`.
+- `scene.pack()` sizes the window to its content's natural size, within those limits and the
+  display's work area.
 - Scroll bars can reserve a strip instead of overlaying.
 - A spinner can be set by text.
 - A covered window on macOS stops rendering until it is uncovered.

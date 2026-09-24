@@ -108,6 +108,31 @@ new SizedBox(280, SizedBox.UNSET, textArea)
 `UNSET` on an axis means "leave that one alone". Use it sparingly: a layout built out of
 fixed sizes is a layout that breaks at the first long translation.
 
+## The window's size
+
+The scene gives its root exactly the window's size, whatever the content asks for: nothing in the
+content holds the window open. A window made smaller than its content keeps the part that fits
+and cuts off the rest, and only a `ScrollView` scrolls to it. So where a layout stops being usable
+below some size, say so on the window, where it is made:
+
+```java
+backend.createWindow(WindowConfig.of("Invoices", 900, 640)
+        .minSize(640, 420)
+        .maxSize(1600, 1200));
+```
+
+The limits bound what the user can do with the window's edges; `window.setSizeLimits(…)` changes
+them later, and `window.sizeLimits()` reads them. A size set from code is not clamped.
+
+To size a window to its content instead of guessing a number, bind the scene and call
+`scene.pack()`, before showing the window if it was made hidden. It measures the root with nothing
+bounding it, settles the width first and then measures the height at that width, so a paragraph
+that wraps gets its lines, and keeps the result within the window's limits and its display's work
+area. A dialog or a form packs well. Content that fills whatever it is given does not ask for
+much, so a list or a table packs to little more than its header; and text that wraps asks for its
+whole length on one line, which the work area then caps. Give such a window a size, or a
+maximum, rather than packing it.
+
 ## Common shapes
 
 **A centred card.** A `Row` with `MainAlignment.CENTER` and `CrossAlignment.CENTER`, one

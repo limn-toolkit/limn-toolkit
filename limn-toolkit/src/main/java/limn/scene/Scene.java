@@ -444,6 +444,58 @@ public final class Scene {
         requestRender();
     }
 
+    /**
+     * Sizes the bound window to what this scene's content asks for: the root measured with no bound
+     * on either axis, rounded up to whole points, kept within the window's
+     * {@linkplain NativeWindow#sizeLimits() size limits} and no larger than its display's work
+     * area. The call a dialog or a tool window makes once its content is in place, instead of
+     * guessing a size in its configuration; a window created hidden can be packed before it is
+     * shown, and appears at its size.
+     *
+     * <p>What the content asks for is each widget's natural size: a label its text, a button its
+     * label and padding, a column the sum of its children. The width is settled first, and the
+     * height is then measured at that width, so a paragraph that wraps gets the lines it wraps
+     * into. A dialog or a form packs well. Content that fills whatever it is given does not ask
+     * for much: a flexible child asks for its floor, a list or a table for little more than its
+     * header, and a widget with no natural size on an axis leaves the window's size there as it
+     * was. Text that wraps asks for its whole length on one line, which the work area then caps;
+     * a window meant to be narrower sets a maximum. The layout is redone at the new size on the
+     * next frame. UI thread only.
+     *
+     * @throws IllegalStateException when the scene is bound to no window
+     */
+    public void pack() {
+        Ui.checkUiThread();
+        if (window == null) {
+            throw new IllegalStateException("pack() sizes the window a scene is bound to, and this "
+                    + "scene is bound to none");
+        }
+        limn.backend.SizeLimits limits = window.sizeLimits();
+        float areaWidth = Float.POSITIVE_INFINITY;
+        float areaHeight = Float.POSITIVE_INFINITY;
+        limn.backend.Display display = window.display();
+        float factor = window.logicalToScreenFactor();
+        if (display != null && factor > 0) {
+            limn.backend.ScreenRect area = display.workArea();
+            if (area.width() > 0 && area.height() > 0) {
+                areaWidth = area.width() / factor;
+                areaHeight = area.height() / factor;
+            }
+        }
+        // The width first, with nothing bounding either axis, and then the height AT that width:
+        // text that wraps has no natural width of its own, only a height for a width it is given,
+        // and measured once with both open it would ask for one line's height at any width.
+        Size natural = root.measure(new Constraints(0, Constraints.UNBOUNDED_LIMIT, 0,
+                Constraints.UNBOUNDED_LIMIT));
+        float width = Math.min(areaWidth, limits.clampWidth(Float.isFinite(natural.width())
+                ? (float) Math.ceil(natural.width()) : window.logicalWidth()));
+        Size atWidth = root.measure(new Constraints(width, width, 0, Constraints.UNBOUNDED_LIMIT));
+        float height = Math.min(areaHeight, limits.clampHeight(Float.isFinite(atWidth.height())
+                ? (float) Math.ceil(atWidth.height()) : window.logicalHeight()));
+        window.setSize(Math.max(1, (int) width), Math.max(1, (int) height));
+        relayout(); // measured with no bound just now; the next pass measures at the window's size
+    }
+
     /** @return the bound window, or {@code null} when headless */
     public NativeWindow window() {
         return window;
