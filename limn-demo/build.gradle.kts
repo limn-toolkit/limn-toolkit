@@ -247,11 +247,12 @@ tasks.named<JavaExec>("run") {
 // ------------------------------------------------------------------ the jar a stranger can run
 //
 // One file, everything inside it, and a Main-Class: `jbang <url>` and the kitchen sink is on
-// screen, with nothing cloned and nothing installed. It exists because this module is
-// deliberately NOT published to Maven Central — it is a showcase, not a library, and publishing
-// it would invite an application to depend on it — and a showcase nobody can start is not one.
-// A jar attached to a GitHub release is a thing somebody runs and not a thing a build file can
-// declare, which is the distinction that keeps both properties.
+// screen, with nothing cloned, nothing installed and nothing resolved. The module is published to
+// Maven Central as well, for `jbang io.github.limn-toolkit:limn-demo:<version>`, with a POM that
+// brings only the machine's own natives and a description that says no application should depend
+// on it; this jar is the other door, the one a URL opens, attached to every GitHub release with
+// every platform inside. A jar attached to a release is a thing somebody runs and not a thing a
+// build file can declare.
 //
 // FAT rather than thin, and that is jbang's constraint rather than a preference: a jar it fetches
 // by URL arrives alone, with no POM read and no dependency resolved. Whatever is not in here is

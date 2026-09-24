@@ -21,9 +21,10 @@ dependencies {
     api(project(":limn-toolkit"))
 
     // The backend is for ThemeEditorApp, and for nothing else in this module. compileOnly plus
-    // runtimeOnly rather than implementation, so the PUBLISHED jar still declares only
-    // limn-toolkit: an application that embeds ThemeEditor must not inherit a window toolkit
-    // it already has, and the module keeps the property this file opens with. The consequence is
+    // runtimeOnly rather than implementation, so an application that embeds ThemeEditor compiles
+    // against limn-toolkit alone and never sees the backend's API: the published POM names the
+    // backend at runtime scope, which is what lets `jbang` run the editor from its coordinate, and
+    // an embedding application that brings its own excludes it by name. The consequence is
     // deliberate and small: ThemeEditorApp is a class that will not load without a backend on
     // the classpath, which is exactly what running it means.
     compileOnly(project(":limn-backend-lwjgl"))
