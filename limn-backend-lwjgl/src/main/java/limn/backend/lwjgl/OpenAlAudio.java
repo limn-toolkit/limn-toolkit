@@ -465,10 +465,12 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
             return Playback.NONE;
         }
         // Stopped-but-unreaped streams must not occupy admission slots: a
-        // stop-then-play track swap in one event handler has to succeed.
+        // stop-then-play track swap in one event handler has to succeed. Their
+        // decoders are the service thread's to close when it is running: it may
+        // be inside one right now, reading it without the monitor (phase B).
         for (int i = streams.size() - 1; i >= 0; i--) {
             if (streams.get(i).stopRequested) {
-                reapStream(i, streams.get(i));
+                reapStream(i, streams.get(i), streamThread == null);
             }
         }
         int channels = source.channels();
@@ -657,6 +659,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
                     return;
                 }
                 if (streams.isEmpty()) {
+                    closeOwedDecoders(); // between decodes: this thread is in none of them
                     streamThread = null; // idle: stop ticking; restarted on next playStream
                     return;
                 }
@@ -694,6 +697,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
                 }
                 applyRefills(jobs);      // phase C: upload + queue (AL, locked)
                 serviceStreamStates();   // underruns, drains, stop requests
+                closeOwedDecoders();     // phase B is over: this thread is in no decoder
             }
             // After the upload, and after every path that skipped it: a job whose audio was
             // dropped (stream stopped, seeked past) still borrowed a buffer.
@@ -881,9 +885,25 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         if (closeDecoder) {
             Closeables.closeQuietly(stream.decoder, "an audio stream source");
         } else {
-            LOG.log(Level.WARNING, "stream decoder left open: the service thread is still "
-                    + "decoding from it at shutdown");
+            decodersOwedAClose.add(stream.decoder);
         }
+    }
+
+    /**
+     * Decoders of streams reaped where the service thread may still be inside them: taken on a
+     * caller's thread by a stop-then-play swap, which reaped a stream the service thread was
+     * decoding from, and closed it there while stb_vorbis read it (a use-after-free found by the
+     * 2026-09-24 review). The service thread closes them after its decode and its seeks, where
+     * it is inside none; {@link #close()} does once the thread has left. Guarded by the monitor.
+     */
+    private final List<AudioStreamSource> decodersOwedAClose = new ArrayList<>();
+
+    /** Closes what {@link #decodersOwedAClose} holds (monitor held, the service thread in none). */
+    private void closeOwedDecoders() {
+        for (AudioStreamSource decoder : decodersOwedAClose) {
+            Closeables.closeQuietly(decoder, "an audio stream source");
+        }
+        decodersOwedAClose.clear();
     }
 
 
@@ -926,6 +946,12 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         synchronized (this) {
             for (int i = streams.size() - 1; i >= 0; i--) {
                 reapStream(i, streams.get(i), serviceThreadGone);
+            }
+            if (serviceThreadGone) {
+                closeOwedDecoders();
+            } else if (!decodersOwedAClose.isEmpty()) {
+                LOG.log(Level.WARNING, "{0} stream decoder(s) left open: the service thread is "
+                        + "still decoding at shutdown", decodersOwedAClose.size());
             }
             for (Voice voice : voices) {
                 alDeleteSources(voice.source);

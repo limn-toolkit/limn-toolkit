@@ -103,6 +103,46 @@ class OpenAlStreamIsolationTest {
         }
     }
 
+    /**
+     * A stop-then-play swap reaps the stopped track on the caller's thread, and the service thread
+     * may be inside that track's decoder. The decoder is left to the service thread, which closes
+     * it after its read; closed on the caller's thread, a Vorbis handle was freed inside a native
+     * read (the 2026-09-24 review's CN-1).
+     */
+    @Test
+    void aStopThenPlaySwapLeavesADecoderInUseToTheServiceThread() throws InterruptedException {
+        OpenAlAudio audio = new OpenAlAudio();
+        try {
+            assumeTrue(audio.isAvailable(), "needs an audio device");
+            BlockingSource playing = new BlockingSource();
+            Playback first = audio.playStream(playing, PlayOptions.DEFAULTS);
+            assumeTrue(first != Playback.NONE, "the device would not take a streaming track");
+            CountDownLatch entered = new CountDownLatch(1);
+            CountDownLatch release = new CountDownLatch(1);
+            playing.entered = entered;
+            playing.release = release;
+            assertTrue(entered.await(10, TimeUnit.SECONDS),
+                    "the service thread to be inside a refill decode");
+
+            first.stop();
+            Playback second = audio.playStream(new BlockingSource(), PlayOptions.DEFAULTS);
+            assumeTrue(second != Playback.NONE, "a second streaming track");
+            assertFalse(playing.closedWhileReading.get(),
+                    "the swap did not close the decoder the service thread is reading");
+
+            playing.release = null;
+            release.countDown();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (!playing.closed.get() && System.nanoTime() < deadline) {
+                Thread.sleep(10);
+            }
+            assertTrue(playing.closed.get(), "the service thread closed it after its read");
+            assertFalse(playing.closedWhileReading.get());
+        } finally {
+            assertDoesNotThrow(audio::close);
+        }
+    }
+
     /** Silence that can be held open mid-read, remembering which array each read was given. */
     private static final class BlockingSource implements AudioStreamSource {
         final AtomicReference<short[]> firstReadInto = new AtomicReference<>();
