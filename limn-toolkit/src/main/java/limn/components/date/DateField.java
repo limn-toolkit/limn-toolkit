@@ -369,6 +369,20 @@ public final class DateField extends Widget<DateField> {
         rebuildValue();
     }
 
+    /**
+     * The first or the last day of the period the date segments name, whichever end of a period
+     * this field is: the picker's, for a period typed backwards, whose two ends swap and must
+     * each take the other edge of its own period. The value itself at the level of a day, and
+     * {@code null} while the date is incomplete.
+     */
+    LocalDate periodBound(boolean last) {
+        if (dateValue == null || granularity.holds(Granularity.DAY)) {
+            return dateValue;
+        }
+        LocalDate bound = buildDate(year, month, day, last);
+        return bound == null ? dateValue : bound;
+    }
+
     // ------------------------------------------------------------------ the value
 
     /**
@@ -576,6 +590,11 @@ public final class DateField extends Widget<DateField> {
      * @return the date, or {@code null} if the calendar being drawn has no such day at all
      */
     private LocalDate buildDate(int yearOfEra, int monthOfYear, int dayOfMonth) {
+        return buildDate(yearOfEra, monthOfYear, dayOfMonth, periodEnd);
+    }
+
+    /** {@link #buildDate(int, int, int)} at the end of the period asked for, not this field's. */
+    private LocalDate buildDate(int yearOfEra, int monthOfYear, int dayOfMonth, boolean last) {
         Chronology chronology = chronology();
         try {
             Era era = eraForBuilding(chronology);
@@ -583,13 +602,13 @@ public final class DateField extends Widget<DateField> {
                 ChronoLocalDate first = era == null
                         ? chronology.date(yearOfEra, 1, 1)
                         : chronology.date(era, yearOfEra, 1, 1);
-                return CalendarChronology.iso(periodEnd
+                return CalendarChronology.iso(last
                         ? first.with(ChronoField.DAY_OF_YEAR, first.lengthOfYear()) : first);
             }
             ChronoLocalDate first = era == null
                     ? chronology.date(yearOfEra, monthOfYear, 1)
                     : chronology.date(era, yearOfEra, monthOfYear, 1);
-            int wanted = dayOfMonth == UNSET ? periodEnd ? first.lengthOfMonth() : 1 : dayOfMonth;
+            int wanted = dayOfMonth == UNSET ? last ? first.lengthOfMonth() : 1 : dayOfMonth;
             int clamped = Math.min(wanted, first.lengthOfMonth());
             return CalendarChronology.iso(first.with(ChronoField.DAY_OF_MONTH, clamped));
         } catch (DateTimeException | ArithmeticException e) {
@@ -662,7 +681,8 @@ public final class DateField extends Widget<DateField> {
 
     /**
      * The earliest acceptable date. A typed date before it is held and published invalid, never
-     * snapped.
+     * snapped. A field coarser than a day names a month or a year, which is acceptable when any
+     * day of it is: a month field bounded at 15 September accepts September.
      *
      * @param date the bound, or {@code null} for none
      * @return this
@@ -758,8 +778,12 @@ public final class DateField extends Widget<DateField> {
             return DateStrings.INVALID_INCOMPLETE;
         }
         if (dateValue != null) {
-            if (minDate != null && dateValue.isBefore(minDate)
-                    || maxDate != null && dateValue.isAfter(maxDate)) {
+            // The bounds are days and a month or a year field names a whole period of them: the
+            // period is in range when a day of it is, which is the rule the calendar's choosers
+            // offer a cell by. Held against the value alone, a month field whose minimum fell on
+            // the 15th refused the very month its picker had just offered and taken.
+            if (minDate != null && periodBound(true).isBefore(minDate)
+                    || maxDate != null && periodBound(false).isAfter(maxDate)) {
                 return DateStrings.INVALID_OUT_OF_RANGE;
             }
             if (dateFilter != null && !dateFilter.test(dateValue)) {
@@ -1134,7 +1158,10 @@ public final class DateField extends Widget<DateField> {
             case DAY -> day = value;
             case HOUR24 -> hour = value;
             case HOUR12 -> {
-                int half = hour == UNSET ? 0 : hour / 12;
+                // An empty hour takes its half of the day from the clock, as the day period's own
+                // first step does: a first Up at 21:40 is 9 PM, and "12" typed at noon is noon.
+                // It took the morning, so both landed twelve hours early.
+                int half = hour == UNSET ? defaultFor(DatePattern.Field.DAY_PERIOD) : hour / 12;
                 hour = half * 12 + value % 12;
             }
             case MINUTE -> minute = value;
@@ -1453,6 +1480,10 @@ public final class DateField extends Widget<DateField> {
      * day from a month on its own and must not be given the chance while a real parser might
      * succeed.
      *
+     * <p>In a field that carries both halves the date is read from the text <em>before</em> the
+     * clock, and the clock on its own: no date parser takes a trailing time, so a field's own copy
+     * ({@code 12/31/2026 9:30 PM}) pasted back kept the old date under the new time.
+     *
      * @param text what was pasted
      * @return whether anything was read
      */
@@ -1460,32 +1491,46 @@ public final class DateField extends Widget<DateField> {
         if (text == null || text.isBlank()) {
             return false;
         }
+        ensureParts();
         String trimmed = I18n.toAsciiDigits(text.trim());
+        ReadTime clock = hasTime() ? parseTime(trimmed) : null;
+        boolean read = false;
         if (startsAtYear) {
-            Parsed parsed = parseDate(trimmed);
+            String dateText = clock == null ? trimmed : textBeforeClock(trimmed, clock.start());
+            Parsed parsed = dateText.isEmpty() ? null : parseDate(dateText);
             if (parsed != null) {
                 applyDate(parsed.date());
                 if (parsed.yearUnknown()) {
                     year = UNSET; // a two-digit year with the guess off: blank, and incomplete
                     rebuildValue();
                 }
-                if (hasTime()) {
-                    LocalTime clock = parseTime(trimmed);
-                    if (clock != null) {
-                        applyTime(clock);
-                    }
-                }
-                return true;
+                read = true;
+            } else if (!dateText.isEmpty()) {
+                read = parseByDigitRuns(dateText);
             }
         }
-        if (hasTime()) {
-            LocalTime clock = parseTime(trimmed);
-            if (clock != null) {
-                applyTime(clock);
-                return true;
-            }
+        if (clock != null) {
+            applyTime(clock.time());
+            read = true;
         }
-        return startsAtYear && parseByDigitRuns(trimmed);
+        return read;
+    }
+
+    /**
+     * The date half of a date-and-time paste: the text before its clock, without the space, the
+     * comma or the ISO {@code T} that joined the two.
+     */
+    private static String textBeforeClock(String text, int clockStart) {
+        int end = clockStart;
+        while (end > 0) {
+            char c = text.charAt(end - 1);
+            boolean isoJoint = c == 'T' && end > 1 && Character.isDigit(text.charAt(end - 2));
+            if (!Character.isWhitespace(c) && !Character.isSpaceChar(c) && c != ',' && !isoJoint) {
+                break;
+            }
+            end--;
+        }
+        return text.substring(0, end);
     }
 
     /**
@@ -1524,7 +1569,15 @@ public final class DateField extends Widget<DateField> {
         return null;
     }
 
-    private LocalTime parseTime(String text) {
+    /**
+     * A time of day read out of text, and where its text starts: at the clock, or at the
+     * day-period word before it ("오후 9:30", "下午9:30"), which is where the date of a
+     * date-and-time paste ends.
+     */
+    private record ReadTime(LocalTime time, int start) {
+    }
+
+    private ReadTime parseTime(String text) {
         java.util.regex.Matcher clock =
                 TIME_OF_DAY.matcher(text);
         if (!clock.find()) {
@@ -1534,17 +1587,133 @@ public final class DateField extends Widget<DateField> {
             int h = Integer.parseInt(clock.group(1));
             int m = Integer.parseInt(clock.group(2));
             int s = clock.group(3) == null ? 0 : Integer.parseInt(clock.group(3));
-            // A 12-hour string carrying a period: the two letters decide the half of the day.
-            String lower = text.toLowerCase(Locale.ROOT);
-            if (h <= 12 && lower.contains("pm") && h < 12) {
+            int start = clock.start();
+            // A 12-hour string carrying a period: the word beside the clock decides the half of
+            // the day, after it in English and Arabic, before it in Korean and Chinese.
+            int half = UNSET;
+            for (java.util.Map.Entry<String, Integer> word : dayPeriodWords().entrySet()) {
+                int after = dayPeriodAfter(text, clock.end(), word.getKey());
+                int before = after < 0 ? dayPeriodBefore(text, start, word.getKey()) : -1;
+                if (after >= 0 || before >= 0) {
+                    half = word.getValue();
+                    start = before >= 0 ? before : start;
+                    break;
+                }
+            }
+            if (half == 1 && h < 12) {
                 h += 12;
-            } else if (h == 12 && lower.contains("am")) {
+            } else if (half == 0 && h == 12) {
                 h = 0;
             }
-            return LocalTime.of(h, m, s);
+            return new ReadTime(LocalTime.of(h, m, s), start);
         } catch (DateTimeException | NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * The words this language writes for the two halves of the day, folded, each with the half
+     * it names (0 or 1), longest first so a word is never cut short by one it begins with: the
+     * ones the field draws and the JDK's {@code a} for the language &mdash; "p. m." in the Spanish
+     * of the United States, "오후" in Korean, "下午" in Chinese, "م" in Arabic &mdash; and the
+     * ASCII "am" and "pm" a paste from anywhere else carries. Only "am" and "pm" were matched
+     * until 2026-09-24, and every one of those four lost its afternoon. A word written in both
+     * halves (a flexible period such as "at night" runs past midnight) names neither and is left
+     * out.
+     */
+    private java.util.Map<String, Integer> dayPeriodWords() {
+        List<String> patterns = new ArrayList<>(List.of("a"));
+        for (DatePattern.Part part : parts) {
+            if (part instanceof DatePattern.FieldPart field
+                    && field.field() == DatePattern.Field.DAY_PERIOD
+                    && !patterns.contains(field.pattern())) {
+                patterns.add(field.pattern());
+            }
+        }
+        java.util.Map<String, Integer> halves = new java.util.HashMap<>();
+        java.util.Set<String> both = new java.util.HashSet<>();
+        for (String pattern : patterns) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern, locale());
+            for (int h = 0; h < 24; h++) {
+                // At the hour, as segmentText draws the segment.
+                String word = foldDayPeriod(formatter.format(LocalTime.of(h, 0)));
+                Integer was = halves.putIfAbsent(word, h / 12);
+                if (was != null && was != h / 12) {
+                    both.add(word);
+                }
+            }
+        }
+        halves.keySet().removeAll(both);
+        halves.remove("");
+        halves.putIfAbsent("am", 0);
+        halves.putIfAbsent("pm", 1);
+        java.util.Map<String, Integer> longestFirst = new java.util.LinkedHashMap<>();
+        halves.entrySet().stream()
+                .sorted((a, b) -> b.getKey().length() - a.getKey().length())
+                .forEach(e -> longestFirst.put(e.getKey(), e.getValue()));
+        return longestFirst;
+    }
+
+    /**
+     * A day-period word as it is compared: lower case, without the full stops, the spaces and
+     * the format marks that separate "p. m." from "p.m." and "PM" &mdash; the space in the JDK's
+     * Spanish one is a no-break space, which {@link Character#isWhitespace} does not count.
+     */
+    private static String foldDayPeriod(String word) {
+        StringBuilder folded = new StringBuilder();
+        for (int i = 0; i < word.length(); i++) {
+            char c = word.charAt(i);
+            if (!ignoredInDayPeriod(c)) {
+                folded.append(Character.toLowerCase(c));
+            }
+        }
+        return folded.toString();
+    }
+
+    private static boolean ignoredInDayPeriod(char c) {
+        return c == '.' || Character.isWhitespace(c) || Character.isSpaceChar(c)
+                || Character.getType(c) == Character.FORMAT;
+    }
+
+    /**
+     * Whether a folded day-period word is written from {@code from} on, and not as the start of a
+     * longer word: "amanhã" after a clock is not the morning.
+     *
+     * @return where the word ends, or -1
+     */
+    private static int dayPeriodAfter(String text, int from, String word) {
+        int at = from;
+        for (int i = 0; i < word.length(); i++) {
+            while (at < text.length() && ignoredInDayPeriod(text.charAt(at))) {
+                at++;
+            }
+            if (at >= text.length() || Character.toLowerCase(text.charAt(at)) != word.charAt(i)) {
+                return -1;
+            }
+            at++;
+        }
+        return at < text.length() && Character.isLetter(text.charAt(at)) ? -1 : at;
+    }
+
+    /**
+     * Whether a folded day-period word is written just before {@code end}. No word boundary is
+     * asked for on this side: the languages that put the word first write Chinese and Japanese
+     * among them, where nothing separates it from the word before.
+     *
+     * @return where the word starts, or -1
+     */
+    private static int dayPeriodBefore(String text, int end, String word) {
+        int at = end;
+        for (int i = word.length() - 1; i >= 0; i--) {
+            while (at > 0 && ignoredInDayPeriod(text.charAt(at - 1))) {
+                at--;
+            }
+            if (at == 0 || Character.toLowerCase(text.charAt(at - 1)) != word.charAt(i)) {
+                return -1;
+            }
+            at--;
+        }
+        return at;
     }
 
     /**
@@ -1929,28 +2098,43 @@ public final class DateField extends Widget<DateField> {
      * it is on every desktop date field. Four digits are what was meant; three are left alone too,
      * and so is a year of era. With the guess off the year is left blank and the field incomplete,
      * as a pasted one is: a form that refuses to guess is not handed the year 26 as valid.
+     *
+     * <p>However many digits it was typed with, a year left is final, as an arrow's is, and the
+     * day is cut to its month then. The digits of a year still arriving leave the day alone, which
+     * is what keeps the 29th of 29022024; a year left at three of them showed 29/02/0202 while the
+     * value was the 28th.
      */
     private void commitTypedYear() {
         DatePattern.FieldPart part = focusedField();
         if (part == null || part.field() != DatePattern.Field.YEAR || yearDigitsTyped == 0
-                || yearDigitsTyped > 2 || year == UNSET || year >= 100 || eraCalendar()) {
+                || year == UNSET) {
             return;
         }
-        int resolved = resolveTwoDigitYear(year);
+        boolean twoDigits = yearDigitsTyped <= 2 && year < 100 && !eraCalendar();
         yearDigitsTyped = 0;
-        if (resolved == year) {
+        int yearWas = year;
+        int dayWas = day;
+        if (twoDigits) {
+            year = resolveTwoDigitYear(year);
+        }
+        if (day != UNSET) {
+            day = Math.min(day, daysInCurrentMonth());
+        }
+        if (year == yearWas && day == dayWas) {
             return;
         }
-        year = resolved;
-        if (day != UNSET) {
-            day = Math.min(day, daysInCurrentMonth()); // the year is final now, as an arrow's is
-        }
+        LocalDate dateWas = dateValue;
         typedDigits = 0;
         lastMoveWasTime = false;
         rebuildValue();
         invalidate();
-        notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
-        refreshValidity(Change.Origin.USER);
+        // A resolved year moves the date, and that is the person's typing arriving. A day cut to
+        // the month the value already stood in moves only the segment drawn: the field's own
+        // consequence, announced for a reader and kept from the handler, whose date is unchanged.
+        Change.Origin origin = Objects.equals(dateWas, dateValue)
+                ? Change.Origin.ADJUSTMENT : Change.Origin.USER;
+        notifyChange(Change.of(Change.Aspect.VALUE, origin));
+        refreshValidity(origin);
     }
 
     @Override

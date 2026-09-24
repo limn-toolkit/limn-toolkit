@@ -33,6 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The script half of {@link LayoutDirection} is checked against a second source, and one that
  * cannot go stale — the JDK's own Unicode data — by {@code LayoutDirectionScriptsTest}, which
  * lives in that class's package because the table it reads is not public.
+ *
+ * <p>The dump's third table, the region a language named alone is read for when a calendar needs
+ * its week, is checked by {@code LikelyRegionsTest} in the date package, for the same reason.
  */
 class CldrLocaleFactsTest {
 

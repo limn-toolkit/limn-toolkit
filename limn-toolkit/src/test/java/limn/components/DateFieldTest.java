@@ -110,6 +110,27 @@ class DateFieldTest extends ComponentTestBase {
         assertEquals("28/02/2023", field.text(), "the day segment follows the complete year");
     }
 
+    /**
+     * A year left with three of its digits typed is final, and the day follows it the way it
+     * follows a complete one: the field showed 29/02/0202 while its value was the 28th, because
+     * only a two-digit year was resolved on the way out and the day was cut only as a year
+     * arrived whole.
+     */
+    @Test
+    void aYearLeftWithThreeDigitsCutsTheDayItShows() {
+        build(dateField(), PT_BR);
+        type("2902202");
+        scene.requestFocus(null);
+        assertEquals(LocalDate.of(202, 2, 28), field.date());
+        assertEquals("28/02/0202", field.text(), "what is shown is the value");
+
+        build(dateField(), PT_BR);
+        type("3104202");
+        key(Keys.HOME);
+        assertEquals("30/04/0202", field.text(), "left with Home, the same");
+        assertEquals(LocalDate.of(202, 4, 30), field.date());
+    }
+
     @Test
     void aTwoDigitYearInThePatternIsWidenedToFour() {
         // en-US's short pattern is M/d/yy. The order and the separators are the locale's; a
@@ -176,6 +197,25 @@ class DateFieldTest extends ComponentTestBase {
         key(Keys.RIGHT);
         key(Keys.UP);    // the year
         assertEquals(LocalDate.of(2026, 3, 15), field.date());
+    }
+
+    /**
+     * On a twelve-hour clock the empty hour's first step is the clock's own hour, afternoon and
+     * all: the hour took the morning, so a first Up at 21:40 said 9:40 AM, and "1230" typed at
+     * noon was half past midnight.
+     */
+    @Test
+    void anEmptyHoursFirstStepOnATwelveHourClockKeepsTheClocksHalfOfTheDay() {
+        build(DateField.ofTime().setClock(
+                Clock.fixed(Instant.parse("2026-09-09T21:40:00Z"), ZoneOffset.UTC)), EN_US);
+        key(Keys.UP);    // the hour
+        key(Keys.RIGHT);
+        key(Keys.UP);    // the minute
+        assertEquals(LocalTime.of(21, 40), field.time(), field.text());
+
+        build(timeField(), EN_US);  // noon
+        type("1230");
+        assertEquals(LocalTime.of(12, 30), field.time(), field.text());
     }
 
     @Test
@@ -429,6 +469,56 @@ class DateFieldTest extends ComponentTestBase {
         paste("31/02/2026");
         assertEquals(LocalDate.of(2026, 2, 28), field.date(),
                 "a day past a short month is the last day of it, as typing 31 into February is");
+    }
+
+    /**
+     * A date-and-time field takes its own copy back whole. No date parser takes a trailing
+     * clock, so the date half was never read: the paste kept the old date under the new time.
+     */
+    @Test
+    void aDateAndTimeFieldTakesItsOwnCopyBackWhole() {
+        LocalDateTime copied = LocalDateTime.of(2026, 12, 31, 21, 30);
+        for (String tag : new String[]{"en-US", "pt-BR", "de-DE", "ja-JP"}) {
+            build(dateField().setGranularity(DateField.Granularity.MINUTE),
+                    Locale.forLanguageTag(tag));
+            field.setDateTime(copied);
+            String text = field.text();
+            field.setDateTime(LocalDateTime.of(2020, 1, 1, 8, 0));
+            paste(text);
+            assertEquals(copied, field.dateTime(), tag + " pasting '" + text + "'");
+        }
+        build(dateField().setGranularity(DateField.Granularity.MINUTE), PT_BR);
+        field.setDateTime(LocalDateTime.of(2020, 1, 1, 8, 0));
+        paste("2026-12-31T21:30:00");
+        assertEquals(copied, field.dateTime(), "the ISO form a database hands over, T and all");
+    }
+
+    /**
+     * A 12-hour time is read with the language's own words for the two halves of the day, before
+     * the clock or after it, however they are dotted and spaced. Only the ASCII "am" and "pm"
+     * were matched, and every one of these pasted its evening back as the morning.
+     */
+    @Test
+    void aPastedTwelveHourTimeKeepsItsHalfOfTheDayInTheLanguagesOwnWords() {
+        for (String tag : new String[]{"en-CA", "ko-KR", "ar-EG", "es-US", "zh-TW", "en-US"}) {
+            for (LocalTime copied : new LocalTime[]{LocalTime.of(21, 30), LocalTime.of(0, 30)}) {
+                build(timeField(), Locale.forLanguageTag(tag));
+                field.setTime(copied);
+                String text = field.text();
+                field.setTime(LocalTime.of(12, 0));
+                paste(text);
+                assertEquals(copied, field.time(), tag + " pasting '" + text + "'");
+            }
+        }
+        build(dateField().setGranularity(DateField.Granularity.MINUTE),
+                Locale.forLanguageTag("ko-KR"));
+        LocalDateTime copied = LocalDateTime.of(2026, 12, 31, 21, 30);
+        field.setDateTime(copied);
+        String text = field.text();
+        field.setDateTime(LocalDateTime.of(2020, 1, 1, 8, 0));
+        paste(text);
+        assertEquals(copied, field.dateTime(),
+                "the word before the clock is not part of the date: '" + text + "'");
     }
 
     @Test

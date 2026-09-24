@@ -981,6 +981,44 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * A week is a region's, and a language named without one has the week of the region it most
+     * likely means: German, French and Russian start on Monday and number the first row of 2027
+     * as week 53, as Germany, France and Russia do. The JDK reads every region-less locale as
+     * the United States, so all three started on Sunday and called that row week 1.
+     */
+    @Test
+    void aLanguageWithoutARegionHasTheWeekOfTheRegionItMeans() {
+        for (String tag : new String[]{"de", "fr", "ru"}) {
+            CalendarView calendar = bindCalendar(Locale.forLanguageTag(tag));
+            calendar.setShowWeekNumbers(true);
+            calendar.setVisibleMonth(LocalDate.of(2027, 1, 5));
+            frame();
+            assertEquals(DayOfWeek.MONDAY, calendar.firstDayOfWeek(), tag);
+            assertEquals("53", childrenOf(rowNodes().get(0)).get(0).name(), tag);
+        }
+    }
+
+    /**
+     * A declared first day is where the numbered weeks start. A German grid told to start on
+     * Sunday numbered each row by the Monday week its Sunday closes, so the row of 3 to 9 January
+     * 2027 said week 53 over six days of week 1.
+     */
+    @Test
+    void aDeclaredFirstDayNumbersTheWeeksThatStartOnIt() {
+        CalendarView calendar = bindCalendar(Locale.GERMANY);
+        calendar.setShowWeekNumbers(true);
+        calendar.setFirstDayOfWeek(DayOfWeek.SUNDAY);
+        calendar.setVisibleMonth(LocalDate.of(2027, 1, 5));
+        frame();
+        List<String> weeks = new ArrayList<>();
+        for (int row = 0; row < 3; row++) {
+            weeks.add(childrenOf(rowNodes().get(row)).get(0).name());
+        }
+        // 27 Dec to 2 Jan holds two days of 2027 and four make a German first week.
+        assertEquals(List.of("52", "1", "2"), weeks);
+    }
+
+    /**
      * The Minguo calendar, which ADR 042 §12 named as verified and no test exercised: the year
      * of the Republic with its era, in the title as in the field.
      */

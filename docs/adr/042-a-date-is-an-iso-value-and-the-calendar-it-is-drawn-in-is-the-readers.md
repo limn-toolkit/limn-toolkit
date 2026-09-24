@@ -433,6 +433,19 @@ optional `I18nString` that joins the cell's accessible name, so a holiday, a dea
 appointments is both visible and spoken. The colour is the application's, because a holiday is red
 in one domain and a deadline red in another, and the toolkit has no opinion about which.
 
+**Amendment, 2026-09-24 (FN-12): a week is a region's, and a declared first day numbers the weeks
+too.** `WeekFields.of(locale)` reads a locale that names no region as the United States, so "de",
+"fr" and "ru" started their weeks on Sunday and numbered them the American way. A locale without a
+region is now read for the region CLDR's likely subtags give its language (Germany for "de",
+Brazil for "pt"), from a table held to ICU by `LikelyRegionsTest` over the `likely` rows that
+`scripts/i18n/dump-cldr-locale-facts.mjs` now writes; the JDK has the data and no API for it. And
+"`setFirstDayOfWeek` overrides the derived day" left the numbering behind: each row took the
+language's week number of its first day, so a German grid started on Sunday labelled the row of 3
+to 9 January 2027 week 53 over six days of week 1. The rows are now numbered from the day they
+start on, with the language's count of days that make a first week. Pinned by
+`CalendarViewAccessibilityTest.aLanguageWithoutARegionHasTheWeekOfTheRegionItMeans` and
+`aDeclaredFirstDayNumbersTheWeeksThatStartOnIt`.
+
 ## 8. What a screen reader is told
 
 **The grid.** `TABLE` with `table(6 rows, 7 or 8 columns)`; the weekday header is a `GROUP` of

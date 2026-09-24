@@ -428,6 +428,57 @@ class DatePickerTest extends ComponentTestBase {
         assertEquals("04/2026", picker.endField().text());
     }
 
+    /**
+     * A bound that falls inside a month leaves that month acceptable to the field as well as to
+     * the chooser: the chooser offered September under a minimum of 15 September, and the field
+     * then held the month's first day against the bound and called the pick out of range.
+     */
+    @Test
+    void aMonthTheChooserOffersUnderABoundInsideItIsOneTheFieldAccepts() {
+        build(datePicker().setGranularity(DateField.Granularity.MONTH));
+        picker.setMinDate(LocalDate.of(2026, 9, 15));
+        picker.open();
+        assertEquals(CalendarView.View.MONTHS, picker.calendar().view());
+        key(Keys.ENTER, 0);       // September, where the cursor opens
+        assertEquals(LocalDate.of(2026, 9, 1), picker.date());
+        assertTrue(picker.field().isValid(), "offered by the chooser, accepted by the field: "
+                + picker.field().validationMessage());
+        picker.setDate(LocalDate.of(2026, 8, 1));
+        assertFalse(picker.field().isValid(), "the month wholly before the bound is still refused");
+
+        build(rangePicker().setGranularity(DateField.Granularity.MONTH));
+        picker.setMaxDate(LocalDate.of(2026, 9, 15));
+        picker.setRange(new DateRange(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 9, 30)));
+        assertTrue(picker.endField().isValid(),
+                "the end of a period answers the 30th, and September still has days before the 15th");
+        picker.endField().setDate(LocalDate.of(2026, 10, 1));
+        assertFalse(picker.endField().isValid());
+    }
+
+    /**
+     * A period of months typed backwards is still whole months: the ends swap and each takes the
+     * other edge of its own month. Putting the two days the fields answer in order made June then
+     * March the 31st of March to the 1st of June, with both fields reading as valid.
+     */
+    @Test
+    void aMonthRangeTypedBackwardsIsStillWholeMonths() {
+        build(rangePicker().setGranularity(DateField.Granularity.MONTH));
+        type("062026");
+        scene.requestFocus(picker.endField());
+        type("032026");
+        assertEquals("06/2026", picker.field().text());
+        assertEquals("03/2026", picker.endField().text());
+        DateRange whole = new DateRange(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 6, 30));
+        assertEquals(whole, picker.range());
+        assertEquals(whole, picker.calendar().selectedRange(), "and the grid is shown the same");
+
+        build(rangePicker().setGranularity(DateField.Granularity.YEAR));
+        picker.field().setDate(LocalDate.of(2027, 5, 5));
+        picker.endField().setDate(LocalDate.of(2025, 5, 5));
+        assertEquals(new DateRange(LocalDate.of(2025, 1, 1), LocalDate.of(2027, 12, 31)),
+                picker.range(), "years the same way");
+    }
+
     @Test
     void anHourRangeRunsFromTheFirstMinuteOfItsStartToTheLastOfItsEnd() {
         build(rangePicker().setGranularity(DateField.Granularity.HOUR));
