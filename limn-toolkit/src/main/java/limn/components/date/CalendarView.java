@@ -1849,8 +1849,10 @@ public final class CalendarView extends Widget<CalendarView> {
                 }
                 // Gated on the fade rather than on isFocused, so the ring keeps rendering while it
                 // fades out: focus is already gone by then and the ring would otherwise blink off.
+                // And on the grid holding the roving focus: on a header control the ring is that
+                // control's, and the cursor's stayed drawn beside it.
                 float focus = focusFade.value();
-                if (focus > 0.001f && day.equals(cursor)) {
+                if (focus > 0.001f && part == Part.GRID && day.equals(cursor)) {
                     float gap = Strokes.FOCUS_GAP_INDICATOR;
                     canvas.drawRoundRect(left + gap, top + gap, cellW - 2 * gap, cellH - 2 * gap,
                             radius, Strokes.FOCUS_RING_THIN, theme.focusRing().withAlpha(focus));
@@ -1900,7 +1902,7 @@ public final class CalendarView extends Widget<CalendarView> {
             Color ink = !offered ? theme.disabledText() : stands == 2 ? theme.onPrimary() : theme.text();
             canvas.drawText(line, left + (cellW - line.metrics().width()) / 2,
                     top + (cellH - fm.height()) / 2 + fm.ascent(), ink);
-            if (focus > 0.001f && i == effectiveChooserCursor()) {
+            if (focus > 0.001f && part == Part.GRID && i == effectiveChooserCursor()) {
                 float gap = Strokes.FOCUS_GAP_INDICATOR;
                 canvas.drawRoundRect(left + gap, top + gap, cellW - 2 * gap, cellH - 2 * gap,
                         radius, Strokes.FOCUS_RING_THIN, theme.focusRing().withAlpha(focus));

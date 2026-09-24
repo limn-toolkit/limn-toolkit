@@ -461,6 +461,56 @@ class CalendarViewTest extends ComponentTestBase {
     }
 
     /**
+     * One focus ring, on whichever part holds the roving focus: on a header control the cursor's
+     * ring stayed drawn in the grid beside the control's, in the days and in a chooser alike.
+     */
+    @Test
+    void theFocusRingIsDrawnOnlyWhereTheRovingFocusIs() {
+        I18n.setLocale(Locale.forLanguageTag("pt-BR"));
+        long[] nanos = {0};
+        calendar = new CalendarView().setClock(SEPTEMBER_16);
+        calendar.setVisibleMonth(ANCHOR);
+        scene = new Scene(calendar, () -> nanos[0]); // the ring fades in on scene time
+        scene.setTextRuler(RULER);
+        scene.layoutPass(400, 400);
+        scene.requestFocus(calendar);
+        List<RoundRect> rings = new ArrayList<>();
+        FakeCanvas recording = new FakeCanvas(400, 400) {
+            @Override
+            public void drawRoundRect(RoundRect roundRect, float strokeWidth, Paint paint) {
+                // The ring's colour at whatever alpha its fade has reached.
+                limn.graphics.Color ring = Theme.current().focusRing();
+                if (strokeWidth == Strokes.FOCUS_RING_THIN && paint instanceof limn.graphics.Color c
+                        && c.r() == ring.r() && c.g() == ring.g() && c.b() == ring.b() && c.a() > 0) {
+                    rings.add(roundRect);
+                }
+            }
+        };
+        java.util.function.IntSupplier frame = () -> {
+            for (int i = 0; i < 20; i++) { // the fades run out
+                nanos[0] += java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(50);
+                scene.renderFrame(recording);
+            }
+            calendar.invalidate(); // then one whole frame, to count everything it draws
+            rings.clear();
+            scene.renderFrame(recording);
+            return rings.size();
+        };
+        assertEquals(1, frame.getAsInt(), "the cursor's ring, in the grid");
+        float gridRingY = rings.get(0).y();
+        key(Keys.TAB);
+        assertEquals(1, frame.getAsInt(), "Tab onto the arrow that pages back: its ring alone");
+        assertTrue(rings.get(0).y() < gridRingY, "and it is up in the header: " + rings);
+        key(Keys.TAB, Keys.MOD_SHIFT);
+        assertEquals(1, frame.getAsInt(), "back on the grid: the cursor's ring again");
+
+        key(Keys.UP, Keys.MOD_CONTROL);   // up to the months
+        assertEquals(1, frame.getAsInt(), "a chooser's cursor has the one ring");
+        key(Keys.TAB);
+        assertEquals(1, frame.getAsInt(), "and gives it up to the header control Tab reaches");
+    }
+
+    /**
      * The chooser's selection is painted from answers held between frames (they were derived
      * per cell per frame, through the chronology and back), so what has to hold is that the
      * held answers follow the selection: the solid cell is March, and after the selection moves
