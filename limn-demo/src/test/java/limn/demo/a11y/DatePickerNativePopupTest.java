@@ -192,9 +192,11 @@ class DatePickerNativePopupTest {
     }
 
     /**
-     * A click in the calendar's window makes it the system's key window, and the keys then went to
-     * a scene nothing in which takes them. The picker gives the owner window the keyboard back, and
-     * a click on the time row aims the keyboard there, as Tab does.
+     * A click in the calendar's window makes it the system's key window, and its keys then went to
+     * a scene nothing in which takes them. The popup keeps the keyboard it was given and hands its
+     * keys on, a click on the time row aims them there as Tab does, and only closing gives the
+     * owner window the keyboard back: handed back on the click, the blur that followed closed the
+     * popup under the pointer, because the owner's focus event had not arrived yet.
      */
     @Test
     void aClickOnTheTimeRowInTheCalendarsWindowTakesTheKeyboardThere() {
@@ -205,9 +207,6 @@ class DatePickerNativePopupTest {
         picker.open();
         HeadlessWindow popup = popupWindow();
         settle(host, popup);
-        // What the desktop does on a click into the popup's window.
-        host.desktopFocus(false);
-        popup.desktopFocus(true);
         int asked = host.focusRequests();
 
         limn.components.date.DateField row = null;
@@ -224,23 +223,33 @@ class DatePickerNativePopupTest {
         float x = row.localToSceneX() + 4;
         float y = row.localToSceneY() + row.height() / 2;
         Scene popupScene = row.scene();
+        // What the desktop does on a click into the popup's window, and nothing undoes it.
+        host.desktopFocus(false);
+        popup.desktopFocus(true);
         drive(popupScene).mouseMoved(x, y);
         drive(popupScene).mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, x, y);
         drive(popupScene).mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, x, y);
         drive(popupScene).inputBatchEnded();
-        assertTrue(host.focusRequests() > asked, "the owner window asked for the keyboard back");
-        host.desktopFocus(true);
-        popup.desktopFocus(false);
         settle(host, popup);
-        assertTrue(picker.isOpen(), "and the calendar stays open");
+        assertTrue(picker.isOpen(), "the calendar stays open under the click");
+        assertEquals(asked, host.focusRequests(), "and keeps the keyboard the click gave it");
 
         for (char c : "0905".toCharArray()) {
-            drive(hostScene).charTyped(c);
+            drive(popupScene).charTyped(c);
         }
-        drive(hostScene).inputBatchEnded();
+        drive(popupScene).inputBatchEnded();
         // English keeps a 12-hour clock: 09 typed over 6:30 PM is 9 PM, as its own row shows it.
         assertEquals(java.time.LocalTime.of(21, 5), picker.time(), "the digits went into the time row");
         assertEquals(LocalDate.of(2026, 9, 9), picker.date(), "and the date is untouched");
+        drive(popupScene).keyEvent(limn.input.Keys.UP, true, false, 0);
+        drive(popupScene).inputBatchEnded();
+        // The minutes complete, the caret moved on to the period, and the arrow turns it.
+        assertEquals(java.time.LocalTime.of(9, 5), picker.time(), "an arrow reaches the row too");
+
+        drive(popupScene).keyEvent(limn.input.Keys.ENTER, true, false, 0);
+        drive(popupScene).inputBatchEnded();
+        assertFalse(picker.isOpen(), "Enter closes it");
+        assertTrue(host.focusRequests() > asked, "and closing hands the owner window the keyboard");
     }
 
     private Scene hostScene;

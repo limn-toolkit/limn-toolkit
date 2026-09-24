@@ -113,8 +113,6 @@ public final class DatePicker extends Widget<DatePicker> {
     private Subscription blurHandle;
     private Subscription dismissHandle;
     private Subscription popupBlurHandle;
-    /** Gives the owner window the keyboard back after a click in the popup's own window. */
-    private Subscription popupPressHandle;
 
     /**
      * The trailing affordance, a real widget rather than a painted region.
@@ -856,7 +854,8 @@ public final class DatePicker extends Widget<DatePicker> {
      * A key the in-scene overlay received, handed to the field that would have had it in a
      * window of its own: the overlay holds the focus there and the field does not, and a
      * Backspace, a paste or a digit that died at the overlay's root was the defect this answers.
-     * Guarded so the field's own delegate does not hand it straight back.
+     * A popup window a click has made the key one hands its keys here too. Guarded so the field's
+     * own delegate does not hand it straight back.
      */
     private void forwardToField(KeyEvent event) {
         forwarding = true;
@@ -1027,15 +1026,6 @@ public final class DatePicker extends Widget<DatePicker> {
         scene.graftPopup(popupScene);
         popupScene.bind(popupWindow);
         popupBlurHandle = popupScene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
-        // A click in the popup's window makes it the system's key window on macOS, Windows and
-        // X11 alike, and the keys then went to a scene nothing in which takes them: the arrows
-        // after a click on a paging arrow, the digits after a click on the time row. The popup
-        // never holds the keyboard, so the window that opened it is given it back.
-        popupPressHandle = popupScene.observePresses(pressed -> {
-            if (scene() != null && scene().window() != null) {
-                scene().window().focus();
-            }
-        });
         popupScene.setBackground(Color.TRANSPARENT);
         int screenY = above
                 ? anchorTop - Math.round((gap + content.height()) * factor)
@@ -1110,10 +1100,6 @@ public final class DatePicker extends Widget<DatePicker> {
             dismissHandle.cancel();
             dismissHandle = null;
         }
-        if (popupPressHandle != null) {
-            popupPressHandle.cancel();
-            popupPressHandle = null;
-        }
         if (popupBlurHandle != null) {
             popupBlurHandle.cancel();
             popupBlurHandle = null;
@@ -1125,6 +1111,14 @@ public final class DatePicker extends Widget<DatePicker> {
             popupScene = null;
             popupPanel = null;
             NativeWindow parent = scene() != null ? scene().window() : null;
+            if (closingScene != null && closingScene.isWindowFocused()
+                    && parent != null && !parent.isClosed()) {
+                // A click made the popup's window the key one, and the keyboard would otherwise go
+                // wherever the desktop sends it when that window is destroyed. Here, and not on
+                // the click: handed back while the popup was open, the blur that followed closed
+                // it, because the owner's own focus event had not arrived yet.
+                parent.focus();
+            }
             Runnable destroy = () -> {
                 if (parent != null && !parent.isClosed()) {
                     parent.unregisterChildPopup(closing);
@@ -1602,6 +1596,34 @@ public final class DatePicker extends Widget<DatePicker> {
 
         private boolean fading() {
             return scenePopup != null && sceneFade < 1f;
+        }
+
+        /**
+         * The keys that reach the popup's own window, which the desktop makes the key window on a
+         * click in it: the arrows after a click on a paging arrow, the digits after a click on the
+         * time row. Nothing in this scene is focusable, so they arrive here, and go where they
+         * would have gone from the owner's field. In the scene the overlay above takes them.
+         */
+        @Override
+        protected void onKeyEvent(KeyEvent event) {
+            if (scenePopup != null) {
+                return;
+            }
+            DatePicker.this.interceptKey(event);
+            if (!event.isConsumed() && open) {
+                forwardToField(event);
+            }
+        }
+
+        @Override
+        protected void onCharTyped(CharEvent event) {
+            if (scenePopup != null) {
+                return;
+            }
+            DatePicker.this.interceptChar(event);
+            if (!event.isConsumed() && open) {
+                forwardToField(event);
+            }
         }
 
         @Override
