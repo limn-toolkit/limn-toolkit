@@ -350,6 +350,16 @@ public final class LineChart extends CartesianChart<LineChart> {
         return widest * HOVER_SCALE + Strokes.BORDER;
     }
 
+    /** The widest marker's lit reach, or half the widest stroke when that is more. */
+    @Override
+    float markReach() {
+        float stroke = 0;
+        for (int i = 0; i < seriesCount(); i++) {
+            stroke = Math.max(stroke, series(i).lineWidth() / 2);
+        }
+        return Math.max(hoverMarkMargin(), stroke);
+    }
+
     private void paintCrosshair(Canvas canvas, Theme theme, int category) {
         float center = bandCenter(category);
         Color ink = theme.outline();

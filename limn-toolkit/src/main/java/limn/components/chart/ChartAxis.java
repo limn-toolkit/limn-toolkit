@@ -261,9 +261,18 @@ public final class ChartAxis {
             }
         }
         if (hi < lo) {
-            double swap = lo;
-            lo = hi;
-            hi = swap;
+            if (min != null && max == null) {
+                // A pinned end past every value keeps its place and the free end follows it,
+                // padded out below: swapping them made the pinned minimum the top of the
+                // scale, an axis upside down from the one asked for.
+                hi = lo;
+            } else if (max != null && min == null) {
+                lo = hi;
+            } else {
+                double swap = lo;
+                lo = hi;
+                hi = swap;
+            }
         }
         if (hi - lo < Math.ulp(hi) * 8) {
             // A flat series still needs a range to draw in; centre it on the value.
