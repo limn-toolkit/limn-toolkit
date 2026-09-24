@@ -1,5 +1,6 @@
 package limn.scene.layout;
 
+import limn.concurrent.Ui;
 import limn.internal.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -29,6 +30,7 @@ public final class Expanded extends Widget<Expanded> {
     private final int flex;
     private final Widget<?> child;
     private float minMain;
+    private float maxMain = Constraints.UNBOUNDED_LIMIT;
 
     private Expanded(Widget<?> child, int flex) {
         Checks.atLeast(flex, 1, "flex");
@@ -80,9 +82,14 @@ public final class Expanded extends Widget<Expanded> {
      * than silently truncated. Declare floors that fit, or give the container more room.
      *
      * <p>Negative values clamp to {@code 0}. UI thread only.
+     *
+     * @throws IllegalArgumentException when above a ceiling {@link #atMost} set
      */
     public Expanded atLeast(float points) {
         float floor = Math.max(0, points);
+        if (floor > maxMain) {
+            throw new IllegalArgumentException("floor " + floor + " is above the ceiling " + maxMain);
+        }
         if (this.minMain != floor) {
             this.minMain = floor;
             markNeedsLayout();
@@ -93,6 +100,47 @@ public final class Expanded extends Widget<Expanded> {
     /** @return the declared main-axis floor in points, {@code 0} when none was set */
     public float minMain() {
         return minMain;
+    }
+
+    /**
+     * Declares a main-axis ceiling, in logical points: this child is never given more than
+     * {@code points}, however much the weighted split would hand it. Chains after {@link #of},
+     * beside {@link #atLeast}; the default is no ceiling.
+     *
+     * <p>The container holds ceilings the way it holds floors. A child whose share would pass its
+     * ceiling is frozen at the ceiling and drops out of the split, and what it gives up is
+     * re-divided among the others, floors first. When every flexible child is held at its
+     * ceiling, the space left over is placed by the container's main alignment, as it is in a row
+     * with no flexible child.
+     *
+     * <p>{@link Constraints#UNBOUNDED_LIMIT} clears it. UI thread only.
+     *
+     * @param points the most this child is given along the main axis, in logical points
+     * @return this
+     * @throws IllegalArgumentException when negative or {@code NaN}, or below the floor
+     *                                  {@link #atLeast} set
+     */
+    public Expanded atMost(float points) {
+        Ui.checkUiThread();
+        if (!(points >= 0)) {
+            throw new IllegalArgumentException("ceiling must not be negative or NaN, got " + points);
+        }
+        if (points < minMain) {
+            throw new IllegalArgumentException("ceiling " + points + " is below the floor " + minMain);
+        }
+        if (this.maxMain != points) {
+            this.maxMain = points;
+            markNeedsLayout();
+        }
+        return this;
+    }
+
+    /**
+     * @return the declared main-axis ceiling in points, {@link Constraints#UNBOUNDED_LIMIT} when
+     *         none was set
+     */
+    public float maxMain() {
+        return maxMain;
     }
 
     @Override

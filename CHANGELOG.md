@@ -75,6 +75,10 @@ toolkit's own widgets are held to. A widget can carry an id: `setId("save")`, th
 - `ListView<T>` is a typed list over your items, with the three selection modes.
 - A backend of your own keeps native modals with `limn.backend.ModalStack`: which window a modal
   blocks, and why the topmost one is always answerable.
+- Every widget takes a minimum and a maximum size: `setMinWidth`, `setMaxWidth`, `setMinHeight`,
+  `setMaxHeight`, each read back by its getter. A bound narrows what the parent allows and never
+  overrides it. A flexible child takes a ceiling beside its floor, `Expanded.atMost`, and along an
+  open axis a flexible child now asks for its floor instead of nothing.
 - A window's size limits can be part of its configuration: `WindowConfig.minSize(w, h)` and
   `maxSize(w, h)`, read back with `window.sizeLimits()`.
 - `scene.pack()` sizes the window to its content's natural size, within those limits and the

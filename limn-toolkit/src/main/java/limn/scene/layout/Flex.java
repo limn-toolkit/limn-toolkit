@@ -146,6 +146,16 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
         return child instanceof Expanded expanded ? expanded.minMain() : 0;
     }
 
+    private static float maxMainOf(Widget<?> child) {
+        return child instanceof Expanded expanded ? expanded.maxMain() : Constraints.UNBOUNDED_LIMIT;
+    }
+
+    /**
+     * Whether the last split held a child at its ceiling, in which case the flexible children may
+     * not have taken all the space and main alignment places what is left.
+     */
+    private boolean flexCeilingHeld;
+
     /** Resolved main-axis extent per child index, and which of those are floors. */
     private float[] flexShares = new float[8];
     private boolean[] flexFrozen = new boolean[8];
@@ -167,6 +177,12 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
      * <p>Floors that cannot all fit drive the pool negative; the unfrozen children then
      * take {@code 0} rather than a negative width, and the container overflows. That is
      * {@code atLeast}'s documented outcome, not a degenerate case to guard against.
+     *
+     * <p>{@linkplain Expanded#atMost Ceilings} are held the same way, in a round that finds no
+     * floor to freeze: every child whose share passes its ceiling is frozen there and what it
+     * gives up goes back to the pool for the rest. Floors come first because a round that froze
+     * a floor has shrunk the pool, and a share checked against a ceiling before that would be
+     * checked against space that is not there.
      *
      * <p>With no floors declared nothing is ever frozen and this is the plain weighted
      * split, arithmetic included: the running {@code pool}/{@code assigned} form hands
@@ -190,25 +206,34 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
             }
         }
 
+        flexCeilingHeld = false;
         for (boolean froze = true; froze && weightLeft > 0; ) {
             froze = false;
             float frozenMain = 0;
             int frozenWeight = 0;
-            for (int i = 0; i < childCount; i++) {
-                Widget<?> child = children().get(i);
-                int flex = flexOf(child);
-                if (!child.isVisible() || flex == 0 || flexFrozen[i]) {
-                    continue;
-                }
-                // Weighed against the round's own pool, so every violation in a round is
-                // found before any of them shrinks the pool for the others.
-                float floor = minMainOf(child);
-                if (floor > 0 && remaining * flex / weightLeft < floor) {
-                    flexFrozen[i] = true;
-                    flexShares[i] = floor;
-                    frozenMain += floor;
-                    frozenWeight += flex;
-                    froze = true;
+            for (int pass = 0; pass < 2 && !froze; pass++) {
+                boolean ceilings = pass == 1; // floors first; ceilings only in a round with none
+                for (int i = 0; i < childCount; i++) {
+                    Widget<?> child = children().get(i);
+                    int flex = flexOf(child);
+                    if (!child.isVisible() || flex == 0 || flexFrozen[i]) {
+                        continue;
+                    }
+                    // Weighed against the round's own pool, so every violation in a round is
+                    // found before any of them shrinks the pool for the others.
+                    float share = remaining * flex / weightLeft;
+                    float bound = ceilings ? maxMainOf(child) : minMainOf(child);
+                    boolean violated = ceilings
+                            ? bound != Constraints.UNBOUNDED_LIMIT && share > bound
+                            : bound > 0 && share < bound;
+                    if (violated) {
+                        flexFrozen[i] = true;
+                        flexShares[i] = bound;
+                        frozenMain += bound;
+                        frozenWeight += flex;
+                        froze = true;
+                        flexCeilingHeld |= ceilings;
+                    }
                 }
             }
             remaining -= frozenMain;
@@ -265,6 +290,19 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
             maxCross = Math.max(maxCross, crossOf(size));
         }
 
+        if (totalFlex > 0 && !mainBounded) {
+            // Nothing to share out along an open axis, so a flexible child asks for its floor,
+            // which is what a packed window or a scrolling column gives it; without one it asks
+            // for nothing, as it always has.
+            for (Widget<?> child : children()) {
+                float floor = child.isVisible() && flexOf(child) > 0 ? minMainOf(child) : 0;
+                if (floor > 0) {
+                    Size size = child.measure(tightMain(childConstraints(constraints, floor), floor));
+                    fixedMain += floor;
+                    maxCross = Math.max(maxCross, crossOf(size));
+                }
+            }
+        }
         if (totalFlex > 0 && mainBounded) {
             resolveFlexShares(Math.max(0, mainMax - fixedMain - gapsTotal));
             int childCount = children().size();
@@ -365,8 +403,9 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
             contentMain += mainSizes[i];
         }
 
-        // Pass 3: place. Leftover goes to main alignment when no flex absorbed it.
-        float free = totalFlex > 0 ? 0 : Math.max(0, mainSize - contentMain);
+        // Pass 3: place. Leftover goes to main alignment when no flex absorbed it: when there is
+        // none, or when a ceiling held one back.
+        float free = totalFlex > 0 && !flexCeilingHeld ? 0 : Math.max(0, mainSize - contentMain);
         // Resolved once for the whole pass: two resolutions that disagreed inside one layout
         // would place a child against one edge and its neighbour against the other.
         //

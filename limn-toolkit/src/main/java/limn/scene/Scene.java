@@ -456,11 +456,13 @@ public final class Scene {
      * label and padding, a column the sum of its children. The width is settled first, and the
      * height is then measured at that width, so a paragraph that wraps gets the lines it wraps
      * into. A dialog or a form packs well. Content that fills whatever it is given does not ask
-     * for much: a flexible child asks for its floor, a list or a table for little more than its
-     * header, and a widget with no natural size on an axis leaves the window's size there as it
-     * was. Text that wraps asks for its whole length on one line, which the work area then caps;
-     * a window meant to be narrower sets a maximum. The layout is redone at the new size on the
-     * next frame. UI thread only.
+     * for much: a flexible child asks for its floor ({@code Expanded.atLeast}), a list or a table
+     * for little more than its header, and a widget with no natural size on an axis leaves the
+     * window's size there as it was. Text that wraps asks for its whole length on one line, which
+     * the work area then caps. Bounds on the content are what a packed window follows: a
+     * paragraph with {@link Widget#setMaxWidth} packs to that width, and a list given a floor
+     * packs to that height. The layout is redone at the new size on the next frame. UI thread
+     * only.
      *
      * @throws IllegalStateException when the scene is bound to no window
      */

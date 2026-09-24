@@ -7,6 +7,7 @@ import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.i18n.I18n;
+import limn.internal.lang.Checks;
 import limn.scene.event.CharEvent;
 import limn.scene.event.FileDropEvent;
 import limn.scene.event.KeyEvent;
@@ -1279,6 +1280,147 @@ public abstract class Widget<W extends Widget<W>> {
         return child.baselineOffset();
     }
 
+    // ---------------------------------------------------------------- size bounds
+
+    private float minWidth;
+    private float minHeight;
+    private float maxWidth = Constraints.UNBOUNDED_LIMIT;
+    private float maxHeight = Constraints.UNBOUNDED_LIMIT;
+
+    /**
+     * Keeps this widget at least {@code width} points wide wherever its parent lets it choose its
+     * width. {@code 0}, the default, is no minimum.
+     *
+     * <p><b>The parent wins.</b> A bound narrows what the parent allows and never overrides it: a
+     * widget whose parent fixes its width (the scene's root, which is the window's size; a
+     * {@code STRETCH} column; a flexible child along its row or column, whose share
+     * {@code Expanded.atLeast} and {@code atMost} bound instead) takes that width whatever its
+     * bounds say. Where the parent leaves the choice open, as a column does across and a row does
+     * for a child that is not flexible, the widget's natural size is brought within its bounds.
+     * UI thread only.
+     *
+     * @param width the narrowest, in logical points
+     * @return this widget
+     * @throws IllegalArgumentException when negative, {@code NaN} or infinite, or above
+     *                                  {@link #maxWidth()}
+     */
+    public final W setMinWidth(float width) {
+        Ui.checkUiThread();
+        return setBounds(Checks.notNegative(width, "minimum width"), maxWidth, minHeight, maxHeight);
+    }
+
+    /**
+     * Keeps this widget at most {@code width} points wide wherever its parent lets it choose its
+     * width, the bound a paragraph or a form needs so that it does not run the width of a wide
+     * window; see {@link #setMinWidth} for where a bound takes effect. {@link
+     * Constraints#UNBOUNDED_LIMIT}, the default, is no maximum. UI thread only.
+     *
+     * @param width the widest, in logical points
+     * @return this widget
+     * @throws IllegalArgumentException when negative or {@code NaN}, or below {@link #minWidth()}
+     */
+    public final W setMaxWidth(float width) {
+        Ui.checkUiThread();
+        return setBounds(minWidth, maximum(width, "maximum width"), minHeight, maxHeight);
+    }
+
+    /**
+     * Keeps this widget at least {@code height} points tall wherever its parent lets it choose its
+     * height; see {@link #setMinWidth}. {@code 0}, the default, is no minimum. UI thread only.
+     *
+     * @param height the shortest, in logical points
+     * @return this widget
+     * @throws IllegalArgumentException when negative, {@code NaN} or infinite, or above
+     *                                  {@link #maxHeight()}
+     */
+    public final W setMinHeight(float height) {
+        Ui.checkUiThread();
+        return setBounds(minWidth, maxWidth, Checks.notNegative(height, "minimum height"), maxHeight);
+    }
+
+    /**
+     * Keeps this widget at most {@code height} points tall wherever its parent lets it choose its
+     * height; see {@link #setMinWidth}. {@link Constraints#UNBOUNDED_LIMIT}, the default, is no
+     * maximum. UI thread only.
+     *
+     * @param height the tallest, in logical points
+     * @return this widget
+     * @throws IllegalArgumentException when negative or {@code NaN}, or below {@link #minHeight()}
+     */
+    public final W setMaxHeight(float height) {
+        Ui.checkUiThread();
+        return setBounds(minWidth, maxWidth, minHeight, maximum(height, "maximum height"));
+    }
+
+    /** @return the minimum width {@link #setMinWidth} set, {@code 0} for none */
+    public final float minWidth() {
+        return minWidth;
+    }
+
+    /** @return the maximum width {@link #setMaxWidth} set, {@link Constraints#UNBOUNDED_LIMIT} for none */
+    public final float maxWidth() {
+        return maxWidth;
+    }
+
+    /** @return the minimum height {@link #setMinHeight} set, {@code 0} for none */
+    public final float minHeight() {
+        return minHeight;
+    }
+
+    /** @return the maximum height {@link #setMaxHeight} set, {@link Constraints#UNBOUNDED_LIMIT} for none */
+    public final float maxHeight() {
+        return maxHeight;
+    }
+
+    private static float maximum(float value, String name) {
+        if (!(value >= 0)) {
+            throw new IllegalArgumentException(name + " must not be negative or NaN, got " + value);
+        }
+        return value;
+    }
+
+    private W setBounds(float newMinWidth, float newMaxWidth, float newMinHeight, float newMaxHeight) {
+        if (newMaxWidth < newMinWidth) {
+            throw new IllegalArgumentException("maximum width " + newMaxWidth + " is below the minimum "
+                    + newMinWidth);
+        }
+        if (newMaxHeight < newMinHeight) {
+            throw new IllegalArgumentException("maximum height " + newMaxHeight
+                    + " is below the minimum " + newMinHeight);
+        }
+        if (newMinWidth != minWidth || newMaxWidth != maxWidth || newMinHeight != minHeight
+                || newMaxHeight != maxHeight) {
+            minWidth = newMinWidth;
+            maxWidth = newMaxWidth;
+            minHeight = newMinHeight;
+            maxHeight = newMaxHeight;
+            markNeedsLayout();
+        }
+        return self();
+    }
+
+    /** Whether any bound is set, which is the only case the measure funnel has anything to do. */
+    private boolean hasBounds() {
+        return minWidth > 0 || minHeight > 0 || maxWidth != Constraints.UNBOUNDED_LIMIT
+                || maxHeight != Constraints.UNBOUNDED_LIMIT;
+    }
+
+    /**
+     * The parent's constraints narrowed by this widget's bounds, each bound first brought within
+     * the parent's range so that the parent wins where the two disagree.
+     */
+    private Constraints boundedBy(Constraints parent) {
+        float minW = within(Math.max(parent.minWidth(), minWidth), parent.minWidth(), parent.maxWidth());
+        float maxW = within(Math.min(parent.maxWidth(), maxWidth), minW, parent.maxWidth());
+        float minH = within(Math.max(parent.minHeight(), minHeight), parent.minHeight(), parent.maxHeight());
+        float maxH = within(Math.min(parent.maxHeight(), maxHeight), minH, parent.maxHeight());
+        return new Constraints(minW, maxW, minH, maxH);
+    }
+
+    private static float within(float value, float lo, float hi) {
+        return Math.max(lo, Math.min(value, hi));
+    }
+
     // ---------------------------------------------------------------- layout
 
     /**
@@ -1318,9 +1460,14 @@ public abstract class Widget<W extends Widget<W>> {
                 && constraints.equals(lastConstraints)) {
             return lastSize;
         }
+        // Bounds narrow what the parent allows and never widen it; a widget with none is measured
+        // exactly as before, its answer untouched.
+        boolean bounded = hasBounds();
+        Constraints within = bounded ? boundedBy(constraints) : constraints;
         Locale enclosing = I18n.pushScope(locale);
         try {
-            lastSize = Objects.requireNonNull(onMeasure(constraints), "onMeasure returned null");
+            Size answer = Objects.requireNonNull(onMeasure(within), "onMeasure returned null");
+            lastSize = bounded ? within.constrain(answer.width(), answer.height()) : answer;
         } finally {
             I18n.popScope(enclosing);
         }

@@ -49,6 +49,11 @@ and it is the tidiest way to push a group to the far edge:
 This is the mechanism behind every "toolbar with actions on the right" and every "sidebar
 beside a content pane that grows".
 
+A share can be bounded. `Expanded.of(child).atLeast(120)` is never given less than 120 points
+along the row or column, and `atMost(320)` never more: the row freezes a child at its bound and
+shares what is left among the others, floors first. When every flexible child is held at its
+ceiling, what remains is placed by the row's main alignment, as if none of them were flexible.
+
 ## Overlays
 
 `Stack` draws its children in order against one shared box, which is what an overlay is:
@@ -98,15 +103,32 @@ same picture puts two half-pane-wide tiles at the bottom.
 
 ## Sizing a widget explicitly
 
-When a widget genuinely has a fixed size (a thumbnail, a fixed-width sidebar, a minimum
-for a text area), wrap it:
+Every widget takes a minimum and a maximum on each axis, and keeps its natural size within
+them: a paragraph that must not run the width of a wide window, a button that should not be
+narrower than its neighbours.
+
+```java
+new Label(terms).setWrap(true).setMaxWidth(560);
+new Button("Save").setMinWidth(96);
+```
+
+**The parent wins.** A bound narrows what the parent allows and never overrides it. It acts
+where the parent leaves the size to the child: across a column (whose children start at their
+own width), along a row for a child that is not flexible, inside a stack. Where the parent fixes
+the size, the bound has no say: the scene's root is the window's size, a `STRETCH` column gives
+every child its width, and a flexible child's share is the row's to decide, which is what
+`atLeast` and `atMost` on `Expanded` bound instead. To centre a form of at most 560 points in a
+wider window, put it in a `Stack` aligned to the centre.
+
+When a widget genuinely has a fixed size (a thumbnail, a fixed-width sidebar), wrap it:
 
 ```java
 new SizedBox(280, SizedBox.UNSET, textArea)
 ```
 
 `UNSET` on an axis means "leave that one alone". Use it sparingly: a layout built out of
-fixed sizes is a layout that breaks at the first long translation.
+fixed sizes is a layout that breaks at the first long translation, where a maximum lets the
+text reflow.
 
 ## The window's size
 
@@ -129,9 +151,10 @@ To size a window to its content instead of guessing a number, bind the scene and
 bounding it, settles the width first and then measures the height at that width, so a paragraph
 that wraps gets its lines, and keeps the result within the window's limits and its display's work
 area. A dialog or a form packs well. Content that fills whatever it is given does not ask for
-much, so a list or a table packs to little more than its header; and text that wraps asks for its
-whole length on one line, which the work area then caps. Give such a window a size, or a
-maximum, rather than packing it.
+much, so a list or a table packs to little more than its header, and text that wraps asks for its
+whole length on one line, which the work area then caps. Bounds on the content are what a packed
+window follows: a paragraph with `setMaxWidth(560)` packs to that width, and a list in an
+`Expanded` with `atLeast(240)` packs to that height.
 
 ## Common shapes
 

@@ -102,6 +102,19 @@ class ScenePackTest extends ComponentTestBase {
     }
 
     @Test
+    void boundsOnTheContentAreWhatAPackedWindowFollows() {
+        String text = "A paragraph long enough to need several lines once it is held to a column "
+                + "narrower than the screen, which is what a maximum on the widget is for.";
+        Column column = new Column();
+        column.add(new Label(text).setWrap(true).setMaxWidth(200));
+        column.add(limn.scene.layout.Expanded.of(new SizedBox(50, 10)).atLeast(160));
+        int[] size = pack(column, windowOn(2000, 2000));
+        assertTrue(size[0] <= 200, "the paragraph's maximum, not the screen: " + size[0]);
+        assertTrue(size[1] >= 160 + 3 * 12, "its lines at 200 and the flexible child's floor: "
+                + size[1]);
+    }
+
+    @Test
     void anAxisWithNoNaturalSizeKeepsTheWindowsSize() {
         assertArrayEquals(new int[] {400, 30}, pack(new Fills(), windowOn(2000, 2000)),
                 "the stub window's own width, 400");
