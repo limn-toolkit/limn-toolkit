@@ -90,6 +90,12 @@ toolkit's own widgets are held to. A widget can carry an id: `setId("save")`, th
   the audio thread is still reading it.
 - A click on a date picker's time row puts the keyboard there, and a click in the calendar's own
   window no longer leaves the keys going nowhere.
+- A click on a date picker's calendar takes the keyboard back from its time row, onto the arrow,
+  title or day clicked.
+- A drag on a combo box's scrollbar no longer leaves the arrows dead in its list, and a row chosen
+  by pointer gives the keyboard back to the field's window.
+- A key a widget acts on ends the wheel scrolling still arriving, so a trackpad's inertia no
+  longer carries a list away from the row an arrow key just scrolled into view.
 
 ### Breaking, and how to move
 

@@ -177,6 +177,65 @@ class NativePopupCursorTest {
         assertTrue(host.focusRequests() > asked, "and gives the field's window the keyboard");
     }
 
+    /**
+     * The inertia a trackpad adds after the fingers lift arrives in the list's window as wheel
+     * events, and it went on scrolling the list after an arrow key had scrolled the highlight into
+     * view: the row was carried off again. A key the combo acts on in the owner window ends the
+     * stream still arriving in the list's; a new gesture after a pause scrolls as ever.
+     */
+    @Test
+    void anArrowKeyWinsOverTheInertiaStillScrollingTheList() {
+        java.util.List<String> items = new java.util.ArrayList<>();
+        for (int i = 1; i <= 60; i++) {
+            items.add("Item " + i);
+        }
+        ComboBox combo = new ComboBox(items);
+        Column root = new Column();
+        root.add(combo);
+        HeadlessWindow host = backend.open("Limn popups", 400, 300);
+        new Scene(root, () -> nanos).bind(host); // the test's clock, which the pauses are told on
+        host.frame();
+        host.desktopFocus(true);
+        settle(host);
+        combo.requestFocus();
+        combo.open();
+        HeadlessWindow popup = popupWindow();
+        settle(host, popup);
+        for (int i = 0; i < 3; i++) {
+            host.key(Keys.DOWN);
+        }
+        settle(host, popup);
+        Scene list = popup.scene();
+        float x = popup.logicalWidth() / 2;
+        float y = popup.logicalHeight() / 2;
+        for (int i = 0; i < 40; i++) { // a flick to the end, one event a frame
+            nanos += TimeUnit.MILLISECONDS.toNanos(16);
+            limn.testing.SceneDriver.drive(list).scroll(0, -10, x, y);
+        }
+        double end = listOffset(host, popup);
+        assertTrue(end > 1000, "the flick reached the end of the list: " + end);
+
+        host.key(Keys.UP);
+        double revealed = listOffset(host, popup);
+        assertTrue(revealed < 200, "the arrow scrolled the highlight back into view: " + revealed);
+        for (int i = 0; i < 20; i++) { // the inertia's tail, still arriving
+            nanos += TimeUnit.MILLISECONDS.toNanos(16);
+            limn.testing.SceneDriver.drive(list).scroll(0, -0.2f, x, y);
+        }
+        assertEquals(revealed, listOffset(host, popup), "the tail no longer carries the row off");
+
+        nanos += TimeUnit.MILLISECONDS.toNanos(300);
+        limn.testing.SceneDriver.drive(list).scroll(0, -1, x, y);
+        assertTrue(listOffset(host, popup) > revealed, "and a new gesture after a pause scrolls");
+    }
+
+    /** The list's scroll offset, as its scroll bar publishes it in the host's tree. */
+    private static double listOffset(HeadlessWindow host, HeadlessWindow popup) {
+        popup.frame();
+        host.frame();
+        return only(host.bridge().tree(), Accessible.Role.SCROLL_BAR).value().value();
+    }
+
     private HeadlessWindow show(limn.scene.Widget<?> content) {
         Column root = new Column();
         root.add(content);

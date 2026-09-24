@@ -2905,22 +2905,27 @@ public final class Scene {
                     handleButton(button);
                     invalidate = true;
                 } else if (raw instanceof RawScroll scroll) {
-                    dispatchBubbling(hitAt(scroll.x, scroll.y), new MouseEvent(
-                            MouseEvent.Type.WHEEL, scroll.x, scroll.y, -1, scroll.dx, scroll.dy,
-                            modifiers));
-                    // Scrolling moves content under a stationary cursor: re-hover.
-                    if (pressed == null) {
-                        updateHover(hitAt(scroll.x, scroll.y));
+                    if (!wheelStreamEnded()) {
+                        dispatchBubbling(hitAt(scroll.x, scroll.y), new MouseEvent(
+                                MouseEvent.Type.WHEEL, scroll.x, scroll.y, -1, scroll.dx, scroll.dy,
+                                modifiers));
+                        // Scrolling moves content under a stationary cursor: re-hover.
+                        if (pressed == null) {
+                            updateHover(hitAt(scroll.x, scroll.y));
+                        }
+                        invalidate = true;
                     }
-                    invalidate = true;
                 } else if (raw instanceof RawKey key) {
                     handleKey(key);
                     invalidate = true;
                 } else if (raw instanceof RawChar ch) {
                     // Like keys: with nothing focused, chars go to the topmost
                     // modal layer, never to the blocked content underneath.
-                    dispatchBubbling(focused != null ? focused : inputRoot(),
-                            new CharEvent(ch.codepoint));
+                    CharEvent typed = new CharEvent(ch.codepoint);
+                    dispatchBubbling(focused != null ? focused : inputRoot(), typed);
+                    if (typed.isConsumed()) {
+                        endWheelStreams(); // a letter that finds an option moves a list too
+                    }
                     invalidate = true;
                 } else if (raw instanceof RawPreedit preedit) {
                     // Composition only makes sense for a focused widget that
@@ -3072,9 +3077,55 @@ public final class Scene {
         // Between the focused widget and the Tab fallback: what nobody focused wanted may still
         // be a shortcut, and what nobody wants at all must still traverse.
         offerToShortcutHandlers(event);
-        if (!event.isConsumed() && key.pressed && key.key == Keys.TAB) {
+        boolean acted = event.isConsumed();
+        if (!acted && key.pressed && key.key == Keys.TAB) {
             focusTraverse((key.mods & Keys.MOD_SHIFT) != 0, Change.Origin.USER);
+            acted = true; // a traversal reveals the widget it lands on
         }
+        if (acted && key.pressed) {
+            endWheelStreams();
+        }
+    }
+
+    /**
+     * The longest pause between two wheel events of one stream. A trackpad's or a Magic Mouse's
+     * inertia on macOS arrived every 8 to 17 ms and slowed to 67 ms at its tail, measured in a
+     * combo box's list; a precision touchpad's on Windows is delivered as wheel messages too.
+     */
+    private static final long WHEEL_STREAM_GAP_NANOS = TimeUnit.MILLISECONDS.toNanos(150);
+
+    private boolean wheelSeen;
+    private long lastWheelNanos;
+    /** Whether a key ended the wheel stream still arriving; see {@link #endWheelStreams}. */
+    private boolean wheelStreamCut;
+
+    /**
+     * Ends the wheel stream in flight in this window and in the popups it publishes: a key a
+     * widget acted on wins over the wheel events still arriving from a gesture that ended before
+     * it. The inertia a trackpad adds after the fingers lift kept scrolling a combo box's list,
+     * so the row the arrow had just scrolled into view was carried off again by some twenty rows.
+     * The key goes to the owner window and the wheel to the list's own, which is why the popups
+     * a window publishes are ended with it. What the stream still sends is dropped until it
+     * pauses; a new gesture after a pause scrolls as ever.
+     */
+    private void endWheelStreams() {
+        Scene owner = graftedInto != null ? graftedInto : this;
+        owner.wheelStreamCut = true;
+        for (int i = 0; i < owner.graftedPopups.size(); i++) {
+            owner.graftedPopups.get(i).wheelStreamCut = true;
+        }
+    }
+
+    /** Whether this wheel event belongs to a stream a key has ended; a pause starts a new one. */
+    private boolean wheelStreamEnded() {
+        long now = clock.getAsLong();
+        boolean continuing = wheelSeen && now - lastWheelNanos < WHEEL_STREAM_GAP_NANOS;
+        wheelSeen = true;
+        lastWheelNanos = now;
+        if (!continuing) {
+            wheelStreamCut = false;
+        }
+        return wheelStreamCut;
     }
 
     @SuppressWarnings("unchecked")
