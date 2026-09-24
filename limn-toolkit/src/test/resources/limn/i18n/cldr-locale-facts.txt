@@ -1,11 +1,13 @@
 # CLDR locale facts, dumped from ICU.
 # node v26.7.0, ICU 78.3, Unicode 17.0
-# produced by scripts/i18n/dump-cldr-locale-facts.mjs on 2026-09-21
+# produced by scripts/i18n/dump-cldr-locale-facts.mjs on 2026-09-24
 #
 # rtl <language subtag> ...   every subtag ICU writes right to left, searched over all
 #                             two- and three-letter codes
 # digits <language> <system>  a language whose default digits are not latn
 # digits <language>-<REGION> <system>   a region that differs from its language
+# likely <language>-<REGION> ...   the region ICU's likely subtags give a two-letter
+#                             language named alone
 rtl ae ar dv fa he iw ji ks ps sd ug ur yi aao abh abv
 rtl acm acq acw acx adf aeb aec aee aeq afb aib aii aij aiq ajp ajt
 rtl aju amw apc apd ara arb arc arq ars ary arz ask atn auj auz avd
@@ -62,3 +64,19 @@ digits sd arab
 digits sd-IN latn
 digits ur-IN arabext
 digits uz-AF arabext
+likely aa-ET ab-GE ae-IR af-ZA ak-GH am-ET an-ES ar-EG as-IN av-RU ay-BO az-AZ
+likely ba-RU be-BY bg-BG bi-VU bm-ML bn-BD bo-CN br-FR bs-BA ca-ES ce-RU ch-GU
+likely co-FR cr-CA cs-CZ cu-RU cv-RU cy-GB da-DK de-DE dv-MV dz-BT ee-GH el-GR
+likely en-US eo-001 es-ES et-EE eu-ES fa-IR ff-SN fi-FI fj-FJ fo-FO fr-FR fy-NL
+likely ga-IE gd-GB gl-ES gn-PY gu-IN gv-IM ha-NG he-IL hi-IN ho-PG hr-HR ht-HT
+likely hu-HU hy-AM hz-NA ia-001 id-ID ie-EE ig-NG ii-CN ik-US io-001 is-IS it-IT
+likely iu-CA ja-JP jv-ID ka-GE kg-CD ki-KE kj-NA kk-KZ kl-GL km-KH kn-IN ko-KR
+likely kr-NG ks-IN ku-TR kv-RU kw-GB ky-KG la-VA lb-LU lg-UG li-NL ln-CD lo-LA
+likely lt-LT lu-CD lv-LV mg-MG mh-MH mi-NZ mk-MK ml-IN mn-MN mr-IN ms-MY mt-MT
+likely my-MM na-NR nb-NO nd-ZW ne-NP ng-NA nl-NL nn-NO no-NO nr-ZA nv-US ny-MW
+likely oc-FR oj-CA om-ET or-IN os-GE pa-IN pi-GB pl-PL ps-AF pt-BR qu-PE rm-CH
+likely rn-BI ro-RO ru-RU rw-RW sa-IN sc-IT sd-PK se-NO sg-CF si-LK sk-SK sl-SI
+likely sm-WS sn-ZW so-SO sq-AL sr-RS ss-ZA st-ZA su-ID sv-SE sw-TZ ta-IN te-IN
+likely tg-TJ th-TH ti-ET tk-TM tn-ZA to-TO tr-TR ts-ZA tt-RU ty-PF ug-CN uk-UA
+likely ur-PK uz-UZ ve-ZA vi-VN vo-001 wa-BE wo-SN xh-ZA yi-UA yo-NG za-CN zh-CN
+likely zu-ZA

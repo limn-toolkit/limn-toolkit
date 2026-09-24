@@ -910,7 +910,9 @@ public final class CalendarView extends Widget<CalendarView> {
      * Shows a leading column of week numbers, in the numbering this language uses &mdash; which is
      * not ISO's everywhere, and deliberately so: Germany counts a week as belonging to the year
      * holding four of its days and the United States to the year holding its first, so the same
-     * week at the turn of a year has two right answers and this shows each reader theirs.
+     * week at the turn of a year has two right answers and this shows each reader theirs. A
+     * language named without a region ("de") is read for the region it most likely means, and a
+     * first day set with {@link #setFirstDayOfWeek} is where the numbered weeks start too.
      *
      * @param show whether to show the column
      * @return this
@@ -1444,7 +1446,9 @@ public final class CalendarView extends Widget<CalendarView> {
         for (int i = 0; i < CELLS; i++) {
             dayText[i] = I18n.localizeDigits(Integer.toString(dayNumber(gridStartEpoch + i)));
         }
-        WeekFields weekFields = CalendarChronology.weekFields(locale);
+        // Numbered from the day the rows start on, which is a declared first day when there is
+        // one: a row's number is read off its first day, and that day has to begin a week.
+        WeekFields weekFields = CalendarChronology.weekFields(locale, firstDay);
         for (int w = 0; w < WEEKS; w++) {
             LocalDate rowStart = start.plusDays((long) w * DAYS_IN_WEEK);
             weekText[w] = I18n.localizeDigits(

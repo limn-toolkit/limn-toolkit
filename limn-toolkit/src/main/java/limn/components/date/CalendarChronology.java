@@ -204,7 +204,7 @@ final class CalendarChronology {
      * @return the day a week starts on
      */
     static DayOfWeek firstDayOfWeek(Locale locale) {
-        return WeekFields.of(locale).getFirstDayOfWeek();
+        return weekFields(locale).getFirstDayOfWeek();
     }
 
     /**
@@ -213,11 +213,96 @@ final class CalendarChronology {
      * holds its first day, and the two disagree about the turn of most years. A calendar that showed
      * one of them the other's number would be showing a number that is wrong where they work.
      *
+     * <p>A week is a region's and not a language's, so a locale that names no region is read for
+     * the region its language most likely means ({@link #likelyRegion}): the JDK reads every such
+     * locale as the United States, and "de", "fr" and "ru" started their weeks on a Sunday and
+     * numbered them the American way until 2026-09-24.
+     *
      * @param locale the language in effect
      * @return its week fields
      */
     static WeekFields weekFields(Locale locale) {
-        return WeekFields.of(locale);
+        return WEEKS.computeIfAbsent(locale, CalendarChronology::readWeek);
+    }
+
+    /**
+     * The week numbering for a grid whose rows start on {@code firstDay}: the language's count of
+     * the days that make a first week, from the day the rows actually start on. A week number
+     * names a row, and read off the language's own week it named the week the row's first day
+     * closed &mdash; under a Sunday start a German row was labelled with the week before the six
+     * days that followed.
+     *
+     * @param locale   the language in effect
+     * @param firstDay the day the drawn week starts on, the language's or a declared one
+     * @return the week fields to number the rows with
+     */
+    static WeekFields weekFields(Locale locale, DayOfWeek firstDay) {
+        return WeekFields.of(firstDay, weekFields(locale).getMinimalDaysInFirstWeek());
+    }
+
+    /**
+     * Read once per locale and held: the lookup walks the JDK's locale providers, and the grid
+     * asks for the first day of the week on every paint. Bounded by the locales an application
+     * actually uses.
+     */
+    private static final Map<Locale, WeekFields> WEEKS = new ConcurrentHashMap<>();
+
+    private static WeekFields readWeek(Locale locale) {
+        String region = locale.getCountry().isEmpty() ? likelyRegion(locale.getLanguage()) : null;
+        if (region == null) {
+            return WeekFields.of(locale);
+        }
+        try {
+            return WeekFields.of(new Locale.Builder().setLocale(locale).setRegion(region).build());
+        } catch (java.util.IllformedLocaleException e) {
+            return WeekFields.of(locale); // a legacy variant the builder refuses: the JDK's reading
+        }
+    }
+
+    /**
+     * The region a language named alone most likely means, by CLDR's likely subtags: Germany for
+     * "de", Brazil for "pt", Egypt for "ar", the world ("001") for Esperanto.
+     *
+     * <p>Measured, not listed from memory: this is the {@code likely} rows of
+     * {@code cldr-locale-facts.txt}, which {@code scripts/i18n/dump-cldr-locale-facts.mjs} asks ICU
+     * for over every two-letter language, and {@code LikelyRegionsTest} holds the two together.
+     * The JDK carries the same data and does not expose it: {@link Locale} has no counterpart of
+     * ICU's {@code maximize}.
+     *
+     * @param language a language subtag
+     * @return the region, or {@code null} for a language CLDR does not know
+     */
+    static String likelyRegion(String language) {
+        return LIKELY_REGIONS.get(language);
+    }
+
+    private static final Map<String, String> LIKELY_REGIONS = likelyRegions(
+            "aa-ET ab-GE ae-IR af-ZA ak-GH am-ET an-ES ar-EG as-IN av-RU ay-BO az-AZ",
+            "ba-RU be-BY bg-BG bi-VU bm-ML bn-BD bo-CN br-FR bs-BA ca-ES ce-RU ch-GU",
+            "co-FR cr-CA cs-CZ cu-RU cv-RU cy-GB da-DK de-DE dv-MV dz-BT ee-GH el-GR",
+            "en-US eo-001 es-ES et-EE eu-ES fa-IR ff-SN fi-FI fj-FJ fo-FO fr-FR fy-NL",
+            "ga-IE gd-GB gl-ES gn-PY gu-IN gv-IM ha-NG he-IL hi-IN ho-PG hr-HR ht-HT",
+            "hu-HU hy-AM hz-NA ia-001 id-ID ie-EE ig-NG ii-CN ik-US io-001 is-IS it-IT",
+            "iu-CA ja-JP jv-ID ka-GE kg-CD ki-KE kj-NA kk-KZ kl-GL km-KH kn-IN ko-KR",
+            "kr-NG ks-IN ku-TR kv-RU kw-GB ky-KG la-VA lb-LU lg-UG li-NL ln-CD lo-LA",
+            "lt-LT lu-CD lv-LV mg-MG mh-MH mi-NZ mk-MK ml-IN mn-MN mr-IN ms-MY mt-MT",
+            "my-MM na-NR nb-NO nd-ZW ne-NP ng-NA nl-NL nn-NO no-NO nr-ZA nv-US ny-MW",
+            "oc-FR oj-CA om-ET or-IN os-GE pa-IN pi-GB pl-PL ps-AF pt-BR qu-PE rm-CH",
+            "rn-BI ro-RO ru-RU rw-RW sa-IN sc-IT sd-PK se-NO sg-CF si-LK sk-SK sl-SI",
+            "sm-WS sn-ZW so-SO sq-AL sr-RS ss-ZA st-ZA su-ID sv-SE sw-TZ ta-IN te-IN",
+            "tg-TJ th-TH ti-ET tk-TM tn-ZA to-TO tr-TR ts-ZA tt-RU ty-PF ug-CN uk-UA",
+            "ur-PK uz-UZ ve-ZA vi-VN vo-001 wa-BE wo-SN xh-ZA yi-UA yo-NG za-CN zh-CN",
+            "zu-ZA");
+
+    private static Map<String, String> likelyRegions(String... rows) {
+        Map<String, String> regions = new java.util.HashMap<>();
+        for (String row : rows) {
+            for (String pair : row.split(" ")) {
+                int dash = pair.indexOf('-');
+                regions.put(pair.substring(0, dash), pair.substring(dash + 1));
+            }
+        }
+        return Map.copyOf(regions);
     }
 
     /**
