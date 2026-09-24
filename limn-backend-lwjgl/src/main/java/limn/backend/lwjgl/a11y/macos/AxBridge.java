@@ -1159,12 +1159,21 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         boolean swept = collapsing;
         boolean focusOwed = false;
         List<AccessibleEvent> drained = events.drain();
+        boolean focusTold = false;
         for (int i = 0; i < drained.size(); i++) {
             AccessibleEvent event = drained.get(i);
             if (event.type() == AccessibleEvent.Type.SELECTION_CHANGED && elements.holds(event.nodeId())) {
                 toldSelections.add(event.nodeId());
             }
+            focusTold |= event.type() == AccessibleEvent.Type.FOCUS_CHANGED
+                    || event.type() == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED;
         }
+        // The node this frame's focus change will name, when it names a new one: its reading carries
+        // its value, and a value change posted beside it is what VoiceOver reads instead -- a combo
+        // whose list closed on a new choice was said as "Atlas, texto inserido" and not as the combo.
+        Announced arriving = focusTold ? effectiveFocusNow() : null;
+        long refocused = arriving != null && arriving.bridge() == this && !arriving.equals(ANNOUNCED.get())
+                ? arriving.nodeId() : 0;
         for (AccessibleEvent event : drained) {
             if (event.type() == AccessibleEvent.Type.INVALIDATED) swept = true;
             if (event.type() == AccessibleEvent.Type.NODE_DESTROYED) {
@@ -1191,6 +1200,10 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                 AccessibleNode outline = tree().node(opened.selectionContainer());
                 if (!recountedContainers.contains(outline.id())) recountedContainers.add(outline.id());
             } else if (!AxNotifications.toldAsAValueChange(event)) {
+                continue;
+            } else if (refocused != 0 && event.nodeId() == refocused
+                    && (event.type() == AccessibleEvent.Type.VALUE_CHANGED
+                    || event.type() == AccessibleEvent.Type.TEXT_CHANGED)) {
                 continue;
             }
             if (posting.subject() == AxNotifications.Subject.APPLICATION) {
