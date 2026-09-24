@@ -8,8 +8,14 @@ import Cocoa
 // this is the control. The steps are made by the program, as the demo's driver makes them, three
 // seconds apart; every AXSelected / AXSelectedRows / AXDisclosing write a client makes is logged.
 //
+// The `lazy` variant is the script's steps 13 to 18 instead: the cursor on Remote, Remote opened with
+// no children yet, its three arriving 0.6 s later through reloadItem(_:reloadChildren:) as the demo's
+// fetch delivers them, then down onto index.json, back to Remote, Remote closed, down onto Trash. On
+// Limn's tree VoiceOver moved its own cursor onto the tree after the children arrived and said nothing
+// of the next three steps (readings/list-multi-macos, hyb-tree-1).
+//
 // Build on the guest: swiftc -O -o outline-steps-probe outline-steps-probe.swift
-// usage: outline-steps-probe [first-step-seconds]   (default 6)
+// usage: outline-steps-probe [first-step-seconds] [steps|lazy]   (defaults 6, steps)
 
 setvbuf(stdout, nil, _IOLBF, 0)
 let clock: DateFormatter = {
@@ -30,6 +36,8 @@ let reports = Node("Reports", [Node("Q3 regional revenue.pdf"), Node("2026.pdf")
 let documents = Node("Documents", [reports, Node("meeting notes.md")])
 let media = Node("Media", [Node("clip.mp4"), Node("cover.png")])
 let remote = Node("Remote", [Node("index.json"), Node("a.json"), Node("b.json")])
+let lazy = CommandLine.arguments.count > 2 && CommandLine.arguments[2] == "lazy"
+var remoteFetched = !lazy
 let roots = [documents, media, remote, Node("Trash", [Node("old.txt")]), Node("Empty folder")]
 
 final class LoggingOutline: NSOutlineView {
@@ -58,7 +66,8 @@ final class D: NSObject, NSApplicationDelegate, NSOutlineViewDataSource, NSOutli
     init(first: Double) { self.first = first }
 
     func outlineView(_ o: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
-        (item as? Node)?.kids.count ?? roots.count
+        if (item as? Node) === remote && !remoteFetched { return 0 }
+        return (item as? Node)?.kids.count ?? roots.count
     }
     func outlineView(_ o: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
         (item as? Node)?.kids[index] ?? roots[index]
@@ -109,7 +118,21 @@ final class D: NSObject, NSApplicationDelegate, NSOutlineViewDataSource, NSOutli
         window.makeFirstResponder(outline)
         NSApp.activate(ignoringOtherApps: true)
         say("pid=\(getpid()) up; rows=\(outline.numberOfRows)")
-        let steps: [(String, () -> Void)] = [
+        let steps: [(String, () -> Void)] = lazy ? [
+            ("13 DOWN moves to Remote, not fetched", { self.select(remote) }),
+            ("14 RIGHT opens Remote; its children arrive 0.6 s later", {
+                self.outline.expandItem(remote)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    remoteFetched = true
+                    self.outline.reloadItem(remote, reloadChildren: true)
+                    say("fetched: rows=\(self.outline.numberOfRows)")
+                }
+            }),
+            ("15 DOWN moves to index.json", { self.select(remote.kids[0]) }),
+            ("16 LEFT climbs back to Remote", { self.select(remote) }),
+            ("17 LEFT closes Remote", { self.outline.collapseItem(remote) }),
+            ("18 DOWN moves to Trash", { self.select(roots[3]) }),
+        ] : [
             ("1 DOWN lands on Documents", { self.select(documents) }),
             ("2 DOWN moves to Reports", { self.select(reports) }),
             ("3 LEFT closes Reports", { self.outline.collapseItem(reports) }),

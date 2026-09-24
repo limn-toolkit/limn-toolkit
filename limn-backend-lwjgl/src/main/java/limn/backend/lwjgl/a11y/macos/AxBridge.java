@@ -684,8 +684,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             text.append(header);
         }
         if (text.length() == 0) return false;
-        // Assertive: it answers the key the user just pressed, and VoiceOver spoke only the first of the
-        // polite ones this was posted as (readings list-multi-macos, hyb-table-1 against hyb-table-2).
+        // Assertive: it answers the key the user just pressed (and on this platform both are posted high).
         return announce(AccessibleEvent.announcement(text.toString(), Accessible.Politeness.ASSERTIVE));
     }
 

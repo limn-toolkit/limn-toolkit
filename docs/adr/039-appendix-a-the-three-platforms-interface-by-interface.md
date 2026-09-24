@@ -1882,6 +1882,24 @@ returns: neither is an accessibility callback, so no pool of AppKit's is on the 
 were still alive 120 polled frames later, about five blocks a frame, and none with the pool (read on the
 macOS 26.6.2 guest, 25G83, 2026-09-15, `scripts/a11y/macos/AutoreleaseProbe.java`; the macos-C review).
 
+**Amended 2026-09-23: a polite announcement is posted at the high priority too, because VoiceOver has
+no priority that waits.** "10 polite, 90 assertive" above assumed low meant "spoken when whatever is
+being read finishes". Measured with the gallery's loading tree (`--reader tree-loading`, macOS 26.6.2):
+"Remote, 3 itens", posted low when Remote's fetched children arrive, reached VoiceOver while it was
+still saying "linha 7 expandida"; VoiceOver queued it, moved its own cursor to the outline — a native
+`NSOutlineView` makes it do the same (`scripts/a11y/macos/outline-steps-probe.swift`, `lazy`) — and
+spoke its hint for the outline, about eight seconds long. Until the hint ended no focus change in the
+tree was spoken, and the queued announcement came out at the script's step 17: steps 15 to 17 silent in
+seven runs of seven, at low and at medium (50). Taking `AXElementBusyChanged` away, posting
+`RowExpanded` again as the native outline does when its children arrive, and posting the focus change
+again after the recount changed nothing; posting the announcement high did — all twenty-one steps spoken
+in two runs of two (`readings/list-multi-macos`, `hyb-tree-1`, `hyb-tree-2`, `texp-*`). It surfaced
+when a row container stopped being told `LayoutChanged` (ADR 045 §8), which had made VoiceOver re-read
+and drop the queued announcement unsaid. The cost is that a polite announcement now interrupts what
+VoiceOver is saying: "Carregando Remote" and "Remote, 3 itens" take the place of "linha 7 expandida",
+and an application's polite announcement can cut a reading short. NVDA and Orca keep their polite
+level, which waits and was heard waiting.
+
 **Amendment, 2026-09-15 (semantics 4, one shape on all three bridges): the macOS bridge keeps the
 memory too.** Phase 3 left three readings of "each bridge remembers the last effective focus it
 announced": Windows one memory per process, Linux one per window sending only differences, and macOS

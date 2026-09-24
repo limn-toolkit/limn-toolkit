@@ -44,6 +44,9 @@ held by a test to what its gestures repaint.
 - On macOS VoiceOver is told a table is focused, as AppKit's own tables are, so it reads the row
   the selection moves to, says when the selection empties and counts a select-all. A move along a
   row is said as the cell and its column.
+- On macOS a polite announcement is posted at VoiceOver's high priority, because at a lower one
+  VoiceOver held it back behind its own hint and stopped reading the focus for several seconds, as
+  a tree's branch finished loading. It now interrupts what VoiceOver is saying.
 - A popup that belongs to a control (your own, like a combo's list, a menu or a calendar) opens with
   `Scene.pushPopup` instead of `pushOverlay`: the page beneath it then stays enabled for a screen
   reader, as a native drop-down leaves its field, where a dialog disables what is behind it. An

@@ -290,14 +290,20 @@ final class AxNotifications {
      * {@code dump-appkit-constants.swift} lists them as absent, permanently, to keep that visible.
      * The key they ride under <em>is</em> exported and is read the ordinary way.
      *
-     * @param politeness how much the announcement wants to interrupt
+     * <p>Both politeness levels are posted high, because VoiceOver has no level that waits the way
+     * polite means. Measured on macOS 26.6.2 with the gallery's loading tree (2026-09-23): a low or a
+     * medium announcement that arrived while VoiceOver was still speaking was queued behind the hint it
+     * then spoke for the tree it had moved to, about eight seconds long, and every focus change in the
+     * tree went unsaid until the hint ended — three steps of the script, in seven runs of seven. Posted
+     * high, all twenty-one steps were spoken in two runs of two. What that costs is that a polite
+     * announcement now interrupts what VoiceOver is saying, as an assertive one always did.
+     *
+     * @param politeness how much the announcement wants to interrupt; on this platform, not at all
      * @return the number AppKit expects under {@code NSAccessibilityPriorityKey}
      */
     static int priorityFor(Accessible.Politeness politeness) {
         return switch (politeness) {
-            // Polite: spoken when whatever is being read finishes, which is what low means here.
-            case POLITE -> 10;
-            case ASSERTIVE -> 90;
+            case POLITE, ASSERTIVE -> 90;
         };
     }
 

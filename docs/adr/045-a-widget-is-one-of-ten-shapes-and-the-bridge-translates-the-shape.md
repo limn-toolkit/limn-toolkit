@@ -487,7 +487,11 @@ Found and fixed on 2026-09-23, by the first reader round over a `ListView` in `M
   native table posts nothing as it scrolls rows into view either); VoiceOver then says "linha 2
   contraída" and "linha 2 expandida" as it does natively (`scripts/a11y/macos/outline-steps-probe.swift`),
   and on the table follows the cell down the rows at steps 10 and 11, where it had written AXFocused
-  on the table and gone silent. The table's steps 9, 12 and 13 stay open: they are the focus idiom's.
+  on the table and gone silent. The table's steps 9, 12 and 13 were the focus idiom's, and closed with
+  it: on macOS a table is the focused element while the cursor walks its cells, and a move along a row
+  is announced (ADR 039, appendix A, §2.2's amendment of the same date). The loading tree then lost
+  steps 15 to 17 to a polite announcement VoiceOver held behind its own hint, which the layout change
+  had flushed before; a polite announcement is now posted high on macOS (§2.4's amendment of that date).
 
 Evidence: `.claude/pending/2026-09-23/readings/` (`summary.txt`, and the `list-multi-*` directories,
 with the native probe `scripts/a11y/macos/multi-list-probe.swift`).

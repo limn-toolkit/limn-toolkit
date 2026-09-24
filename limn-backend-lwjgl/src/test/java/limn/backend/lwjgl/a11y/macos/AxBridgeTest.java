@@ -655,7 +655,7 @@ class AxBridgeTest {
         bridge.frameEnded();
         assertEquals(List.of(
                         "NSAccessibilityAnnouncementRequestedNotification on the window 'Saved' priority 90",
-                        "NSAccessibilityAnnouncementRequestedNotification on the window 'Still saving' priority 10"),
+                        "NSAccessibilityAnnouncementRequestedNotification on the window 'Still saving' priority 90"),
                 posted(trace), "each announcement, in order, on the window, carrying its text and priority");
     }
 

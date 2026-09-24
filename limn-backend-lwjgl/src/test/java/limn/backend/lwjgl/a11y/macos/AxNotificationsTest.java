@@ -155,12 +155,10 @@ class AxNotificationsTest {
     @Test
     void anAnnouncementIsToldWithAPriorityAndAKey() {
         assertNotNull(AxNotifications.of(AccessibleEvent.Type.ANNOUNCEMENT));
-        assertTrue(AxNotifications.priorityFor(Accessible.Politeness.ASSERTIVE)
-                        > AxNotifications.priorityFor(Accessible.Politeness.POLITE),
-                "an assertive announcement interrupts and a polite one waits, so the numbers order "
-                        + "the same way; these are the one platform constant that cannot be dlsymed");
         for (Accessible.Politeness politeness : Accessible.Politeness.values()) {
-            assertTrue(AxNotifications.priorityFor(politeness) > 0, politeness + " has no priority");
+            assertEquals(90, AxNotifications.priorityFor(politeness),
+                    politeness + " is posted high: a low or medium one VoiceOver queued behind its own hint, and "
+                            + "every focus change went unsaid until the hint ended");
         }
     }
 }
