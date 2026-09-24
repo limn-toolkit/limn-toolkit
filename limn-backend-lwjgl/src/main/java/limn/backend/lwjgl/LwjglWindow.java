@@ -485,14 +485,14 @@ final class LwjglWindow implements NativeWindow {
                 // GLFW clipboard access is main-thread only; this is the one
                 // GLFW-touching API the toolkit hands applications directly.
                 backend.uiRuntime().checkUiThread();
-                String value = glfwGetClipboardString(handle);
+                String value = glfwGetClipboardString(clipboardWindow());
                 return value == null ? "" : value;
             }
 
             @Override
             public void set(String text) {
                 backend.uiRuntime().checkUiThread();
-                glfwSetClipboardString(handle, text == null ? "" : text);
+                glfwSetClipboardString(clipboardWindow(), text == null ? "" : text);
             }
         };
     }
@@ -520,7 +520,7 @@ final class LwjglWindow implements NativeWindow {
     public void publishAccessibilityElsewhere() {
         backend.uiRuntime().checkUiThread();
         accessibility = limn.backend.AccessibilityBridge.NONE;
-        if (!MACOS) {
+        if (!MACOS || destroyed) {
             return;
         }
         long nsWindow = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle);
@@ -571,10 +571,14 @@ final class LwjglWindow implements NativeWindow {
      * It surfaced the moment the backend began opening bridges itself, on the first Wayland guest.
      *
      * <p>Wayland answers zero, which is honest: this backend has not been taught to hand a Wayland
-     * surface to anything, and nothing on that platform wants one.
+     * surface to anything, and nothing on that platform wants one. So does a closed window, whose
+     * platform window is gone with it.
      */
     @Override
     public long nativeHandle() {
+        if (destroyed) {
+            return 0;
+        }
         return switch (org.lwjgl.glfw.GLFW.glfwGetPlatform()) {
             case org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WIN32 ->
                     org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
@@ -588,6 +592,15 @@ final class LwjglWindow implements NativeWindow {
 
     long handle() {
         return handle;
+    }
+
+    /**
+     * The window to hand GLFW's clipboard calls. The clipboard is the application's and outlives
+     * any one window, and GLFW reads no window for it and documents NULL as a valid argument; a
+     * closed window's handle is freed memory and is not.
+     */
+    private long clipboardWindow() {
+        return destroyed ? NULL : handle;
     }
 
     // The three context calls GLFW cannot make for a window created with no client
@@ -923,10 +936,23 @@ final class LwjglWindow implements NativeWindow {
         return title;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>A closed window keeps the title, for {@link #title()}, and asks GLFW nothing. That holds
+     * for every setter here: the handle was freed with the window, and GLFW does not check what it
+     * is given, so a call that reaches it corrupts whatever the allocator put there since, or
+     * aborts the process. It is an ordinary call to meet, because nothing tells an application's
+     * pending work that the user closed the window: a title set when a background load completes
+     * is the common case.
+     */
     @Override
     public void setTitle(String newTitle) {
         backend.uiRuntime().checkUiThread();
         this.title = Objects.requireNonNull(newTitle, "title");
+        if (destroyed) {
+            return;
+        }
         glfwSetWindowTitle(handle, newTitle);
     }
 
@@ -966,6 +992,9 @@ final class LwjglWindow implements NativeWindow {
     public void setSize(int width, int height) {
         backend.uiRuntime().checkUiThread();
         Checks.positiveSize(width, height, "window size");
+        if (destroyed) {
+            return;
+        }
         // GLFW takes SCREEN coordinates: logical points on macOS, physical
         // pixels on Windows/X11. Convert via the framebuffer-per-screen-coord
         // ratio so "logical points" holds on every platform:
@@ -1063,6 +1092,9 @@ final class LwjglWindow implements NativeWindow {
     @Override
     public void show() {
         backend.uiRuntime().checkUiThread();
+        if (destroyed) {
+            return; // closed is not hidden: there is nothing left to show
+        }
         glfwShowWindow(handle);
         if (nsglContext != NULL) {
             // A window built hidden (every popup) gets its drawable here.
@@ -1073,6 +1105,9 @@ final class LwjglWindow implements NativeWindow {
     @Override
     public void hide() {
         backend.uiRuntime().checkUiThread();
+        if (destroyed) {
+            return;
+        }
         glfwHideWindow(handle);
     }
 
@@ -1451,7 +1486,7 @@ final class LwjglWindow implements NativeWindow {
     @Override
     public void setScreenPosition(int x, int y) {
         backend.uiRuntime().checkUiThread();
-        if (!supportsAbsolutePositioning()) {
+        if (!supportsAbsolutePositioning() || destroyed) {
             return; // the desktop places this window; asking again only logs an error
         }
         glfwSetWindowPos(handle, x, y);
@@ -1477,11 +1512,18 @@ final class LwjglWindow implements NativeWindow {
      * transition, a stream of platform errors on a session where nothing is wrong. It also leaves
      * the caller's buffer untouched, and {@code MemoryStack} hands out whatever was in that memory,
      * so a caller that ignored the error would read a number rather than a zero.
+     *
+     * <p>A closed window answers where it last was, which the position callback kept.
      */
     private void readWindowPos(IntBuffer px, IntBuffer py) {
         if (!supportsAbsolutePositioning()) {
             px.put(0, 0);
             py.put(0, 0);
+            return;
+        }
+        if (destroyed) {
+            px.put(0, lastScreenX);
+            py.put(0, lastScreenY);
             return;
         }
         glfwGetWindowPos(handle, px, py);
@@ -1490,29 +1532,42 @@ final class LwjglWindow implements NativeWindow {
     @Override
     public void setMousePassthrough(boolean passthrough) {
         backend.uiRuntime().checkUiThread();
+        if (destroyed) {
+            return;
+        }
         org.lwjgl.glfw.GLFW.glfwSetWindowAttrib(handle,
                 org.lwjgl.glfw.GLFW.GLFW_MOUSE_PASSTHROUGH, passthrough ? GLFW_TRUE : GLFW_FALSE);
     }
 
+    // The cursor position the last poll read, in screen coordinates: what a closed window, which
+    // has nothing left to poll, answers with.
+    private double polledCursorX;
+    private double polledCursorY;
+
     @Override
     public float cursorX() {
         backend.uiRuntime().checkUiThread();
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            DoubleBuffer x = stack.mallocDouble(1);
-            DoubleBuffer y = stack.mallocDouble(1);
-            glfwGetCursorPos(handle, x, y); // polled: live even unfocused/passthrough
-            return toLogical(x.get(0));
-        }
+        pollCursor(); // polled: live even unfocused/passthrough
+        return toLogical(polledCursorX);
     }
 
     @Override
     public float cursorY() {
         backend.uiRuntime().checkUiThread();
+        pollCursor();
+        return toLogical(polledCursorY);
+    }
+
+    private void pollCursor() {
+        if (destroyed) {
+            return;
+        }
         try (MemoryStack stack = MemoryStack.stackPush()) {
             DoubleBuffer x = stack.mallocDouble(1);
             DoubleBuffer y = stack.mallocDouble(1);
             glfwGetCursorPos(handle, x, y);
-            return toLogical(y.get(0));
+            polledCursorX = x.get(0);
+            polledCursorY = y.get(0);
         }
     }
 
@@ -1527,7 +1582,7 @@ final class LwjglWindow implements NativeWindow {
     @Override
     public void setAboveSystemChrome(boolean above) {
         backend.uiRuntime().checkUiThread();
-        if (!MACOS) {
+        if (!MACOS || destroyed) {
             // On Windows/X11 a topmost window sized to the full monitor already
             // sits over the taskbar/panel; nothing extra to do.
             return;
@@ -1544,6 +1599,9 @@ final class LwjglWindow implements NativeWindow {
     @Override
     public limn.backend.Display display() {
         backend.uiRuntime().checkUiThread();
+        if (destroyed) {
+            return null; // a closed window sits on no display
+        }
         long monitor = monitorForWindow();
         return monitor == NULL ? null : backend.displayFor(monitor);
     }
