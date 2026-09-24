@@ -83,6 +83,18 @@ public final class TableExample {
     }
     // #endregion
 
+    // #region guide:table-row-button
+    /**
+     * A column of buttons that act on their own row. The factory is given the row it builds a
+     * cell for and runs again for every row that comes into view, so each button holds on to its
+     * row; no widget is ever shown for another row.
+     */
+    public static Column<Release> removeColumn(java.util.function.Consumer<Release> remove) {
+        return Column.widget("", release -> new limn.components.Button("Remove")
+                .onAction(() -> remove.accept(release)));
+    }
+    // #endregion
+
     /**
      * The example as a scene, for the check that holds the guides' own examples to the same
      * accessibility invariants the gallery's entries are held to.

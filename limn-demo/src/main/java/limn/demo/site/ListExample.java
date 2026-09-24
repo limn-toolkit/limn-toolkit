@@ -1,11 +1,14 @@
 package limn.demo.site;
 
+import limn.components.Button;
 import limn.components.Label;
 import limn.components.ListView;
 import limn.components.SelectionMode;
 import limn.scene.Change;
 import limn.scene.Insets;
+import limn.scene.layout.Expanded;
 import limn.scene.layout.Padding;
+import limn.scene.layout.Row;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -66,4 +69,60 @@ public final class ListExample {
         return list;
     }
     // #endregion
+
+    // #region guide:list-row-button
+    /**
+     * A pooled row with a button in it. The row keeps the item it is showing, and the button,
+     * given its action once when the row is made, reads it when pressed: a widget shows another
+     * item after it is recycled, and nothing has to be registered again.
+     */
+    static final class RemovableRow extends Padding {
+        private final Label name;
+        private Person person;
+
+        RemovableRow(Consumer<Person> remove) {
+            this(new Label(""), new Button("Remove"), remove);
+        }
+
+        private RemovableRow(Label name, Button button, Consumer<Person> remove) {
+            super(Insets.symmetric(6, 14), row(name, button));
+            this.name = name;
+            button.onAction(() -> remove.accept(person));
+        }
+
+        private static Row row(Label name, Button button) {
+            Row row = new Row().gap(8);
+            row.add(Expanded.of(name));
+            row.add(button);
+            return row;
+        }
+
+        void show(Person person) {
+            this.person = person;
+            name.setText(person.name());
+        }
+    }
+
+    /** The screen the list lives on: it owns the items, so it removes one and refreshes. */
+    static final class People {
+        private final List<Person> people;
+        private final ListView<Person> list;
+
+        People(List<Person> people) {
+            this.people = people;
+            this.list = ListView.pooled(() -> new RemovableRow(this::remove), RemovableRow::show);
+            list.setItems(people);
+        }
+
+        private void remove(Person person) {
+            people.remove(person);
+            list.refresh();
+        }
+    }
+    // #endregion
+
+    /** @return the example above, for a check that it builds and runs */
+    static ListView<Person> removable(List<Person> people) {
+        return new People(people).list;
+    }
 }

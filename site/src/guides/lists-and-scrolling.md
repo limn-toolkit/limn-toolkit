@@ -44,6 +44,21 @@ several kinds, `new ListView<>(cellFor, recycle)` hands each widget back to you 
 
 {% snippet guide:list-pooled %}
 
+### A button in a row
+
+A button in a row acts on that row's item, and how it finds the item depends on where the row's
+widget came from. A cell function that makes a fresh widget for each row — `new ListView<>(cellFor)`,
+or a table's `Column.widget` — is handed the item it builds for, so the button holds on to it:
+`item -> new Button("Remove").onAction(() -> remove(item))`. A pooled row shows another item after
+it is recycled, so the row keeps the item it is showing, and the button, given its action once when
+the row is made, reads it when pressed:
+
+{% snippet guide:list-row-button %}
+
+Nothing is registered again when a row is recycled. An action slot holds one handler and a second
+registration throws, which is what makes re-registering it in the bind function the wrong place:
+it would have to be cleared with `onAction(null)` first, every time.
+
 `setSelectionMode` takes the `SelectionMode` that `Table` and `Tree` take, with the same
 gestures. `SINGLE` is the default. With `MULTI`, the command modifier (Ctrl, or Cmd on macOS)
 toggles a row, Shift selects a range, Space toggles the row under the keyboard, and Ctrl+A or
@@ -154,7 +169,12 @@ keeps its place on screen; both clamp at the ends.
 
 `Column.widget` is the escape hatch for a cell that is a control — a switch, a button — and those
 cells are real children, mounted and released with their row, and published as cells of their row
-so a reader finds them by row and column like any other. A hidden column (`visible(false)`) builds
+so a reader finds them by row and column like any other. The factory is given the row, and a
+button made there acts on it:
+
+{% snippet guide:table-row-button %}
+
+ A hidden column (`visible(false)`) builds
 no widget and publishes nothing at all; show or hide one and the table lays out again, so ask for
 a layout rather than a `refresh()` — the rows have not changed.
 
