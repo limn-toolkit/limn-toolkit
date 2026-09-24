@@ -16,6 +16,15 @@ import java.nio.IntBuffer;
  */
 final class StbImageDecoder implements ImageDecoder {
 
+    /**
+     * The most pixels one image decodes to: 2<sup>28</sup>, a 16384&times;16384 image, 1 GiB of RGBA,
+     * which also keeps {@code width * height * 4} inside an {@code int}. The header is read first
+     * and a larger image refused before stb allocates anything: a file of a kilobyte whose header
+     * claimed 23000&times;23000 decoded to 2 GB, and past about 23170&sup2; the array size overflowed.
+     * Images come from users' files and from the colour bitmaps of an emoji font.
+     */
+    static final long MAX_PIXELS = 1L << 28;
+
     @Override
     public Image decode(byte[] fileBytes) {
         ByteBuffer encoded = OffHeap.copyOf(fileBytes);
@@ -24,6 +33,16 @@ final class StbImageDecoder implements ImageDecoder {
                 IntBuffer width = stack.mallocInt(1);
                 IntBuffer height = stack.mallocInt(1);
                 IntBuffer channels = stack.mallocInt(1);
+                if (!STBImage.stbi_info_from_memory(encoded, width, height, channels)) {
+                    throw new IllegalArgumentException(
+                            "stbi_info_from_memory failed: " + STBImage.stbi_failure_reason());
+                }
+                long claimed = (long) width.get(0) * height.get(0);
+                if (claimed > MAX_PIXELS) {
+                    throw new IllegalArgumentException("an image of " + width.get(0) + "x"
+                            + height.get(0) + " pixels is larger than " + MAX_PIXELS
+                            + " pixels, the most one image decodes to");
+                }
                 // stb loads top-down by default; force 4 channels (RGBA).
                 STBImage.stbi_set_flip_vertically_on_load(false);
                 ByteBuffer pixels = STBImage.stbi_load_from_memory(encoded, width, height, channels, 4);
