@@ -115,6 +115,14 @@ public final class SceneDriver implements WindowInput {
     /**
      * A wheel or trackpad scroll over a point.
      *
+     * <p><b>A scroll can be dropped as the tail of a gesture.</b> A fresh key press that a widget
+     * acts on ends the wheel stream still arriving, which is what stops a trackpad's inertia from
+     * scrolling away what an arrow key just revealed. So a scroll that arrives within 150 ms of
+     * the previous one, on the scene's clock, after such a key press, is dropped, and with the
+     * wall clock a test's calls are microseconds apart. A test that scrolls, presses a key and
+     * scrolls again builds its scene with a clock it advances ({@code new Scene(root, clock)})
+     * and moves that clock past 150 ms before the second scroll.
+     *
      * @param deltaX horizontal amount, in wheel notches
      * @param deltaY vertical amount, in wheel notches; positive scrolls up, as the platforms report
      * @param x      logical x of the pointer

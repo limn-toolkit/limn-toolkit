@@ -55,6 +55,11 @@ queue until `inputBatchEnded()`, exactly as one frame's input does.
 Keys that are not text go through `press`: Enter, Tab, the arrows, Escape. Text goes through
 `type`.
 
+A key a widget acts on ends the wheel stream still arriving, so a `scroll` within 150 ms of the
+previous one, after such a key, is dropped as the tail of that gesture. A test that scrolls
+after a key builds its scene with a clock it advances, `new Scene(root, clock)`, and moves it
+past 150 ms first.
+
 A test that cannot reach a widget, because the screen builds it where the test cannot see, can
 name it instead. The screen calls `button.setId("save")` and the test calls
 `drive(scene).click("save")`. To check a widget afterwards, `scene.find("save")` returns it,

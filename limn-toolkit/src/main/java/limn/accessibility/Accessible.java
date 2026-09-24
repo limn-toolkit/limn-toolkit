@@ -43,7 +43,12 @@ public final class Accessible {
         SCROLL_BAR,
         /** A pane split by a draggable divider. */
         SPLIT_PANE,
-        /** The draggable divider of a {@link #SPLIT_PANE}. */
+        /**
+         * The draggable divider of a {@link #SPLIT_PANE}. Its box is the band a pointer grabs,
+         * which may reach over the edges of the siblings it divides, and a point in that band is
+         * the splitter's whatever order the siblings are published in: that is where the pointer
+         * drags it.
+         */
         SPLITTER,
         /** A bar of commands. */
         TOOL_BAR,

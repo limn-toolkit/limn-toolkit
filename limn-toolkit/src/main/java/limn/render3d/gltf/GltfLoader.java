@@ -35,6 +35,17 @@ import java.util.concurrent.CancellationException;
  * <p>Every entry point reads and parses on the thread that calls it. The {@code ...Async} ones put
  * that on the {@code Ui} worker pool and deliver on the UI thread, which is what an application
  * loading a model behind a live window wants; the synchronous ones stay for setup code and tests.
+ *
+ * <p><b>One load creates at most 2<sup>26</sup> array elements</b>, a quarter of a gigabyte of
+ * floats, and a model that needs more is refused with an {@link IllegalArgumentException}. What
+ * that holds depends on whether the model carries its normals. A mesh that does costs six floats a
+ * vertex and one index a triangle corner, so an indexed one of the usual shape, with about half as
+ * many vertices as triangles, fits up to some eleven million triangles. A mesh without normals is
+ * given flat ones, which takes a vertex of its own for every corner: three floats of position,
+ * three of normal, two more with texture coordinates and a new index, on top of the arrays read
+ * from the file. The same indexed mesh then fits up to about 2.6 million triangles, and one with
+ * no index list, as a scan converted from STL often is, about two million. Exporting the normals
+ * with the model is what lets a larger one load.
  */
 public final class GltfLoader {
 
@@ -44,11 +55,11 @@ public final class GltfLoader {
 
     /**
      * The most array elements one load creates, over every accessor, index list, converted
-     * strip and generated normal together: 2<sup>26</sup>, a quarter of a gigabyte of floats,
-     * which still holds a model of millions of vertices with their normals. Each
-     * accessor is bounded by the bytes behind it, but primitives may name the same accessor
+     * strip and generated normal together: 2<sup>26</sup>, a quarter of a gigabyte of floats.
+     * Each accessor is bounded by the bytes behind it, but primitives may name the same accessor
      * again and again: a 168 KB file whose two thousand strips all reused one 64 KB buffer
-     * asked for more than two gigabytes.
+     * asked for more than two gigabytes. What that holds, in triangles, is in the class
+     * documentation.
      */
     static final long MAX_ELEMENTS = 1L << 26;
 
@@ -360,13 +371,24 @@ public final class GltfLoader {
                             "unsupported glTF primitive mode " + mode + " (points/lines/loops)");
                 });
                 if (data.has(VertexAttribute.POSITION) && !data.has(VertexAttribute.NORMAL)) {
-                    spend((long) data.indices().length * (data.has(VertexAttribute.UV0) ? 8 : 6),
+                    spend(flatNormalElements(data.indices().length, data.has(VertexAttribute.UV0)),
                             "flat normals");
                     data = withFlatNormals(data);
                 }
                 prims.add(new GltfModel.Primitive(data, intOr(prim, "material", -1)));
             }
             return new GltfModel.MeshDef(prims, strOr(mesh, "name", ""));
+        }
+
+        /**
+         * The elements {@link #withFlatNormals} creates for a primitive of {@code indices} corners:
+         * a position, a normal and, with texture coordinates, a UV for every corner, and the index
+         * list that draws them in order. Charged against the budget before the arrays exist, so it
+         * has to be exactly what is allocated there; a count that left out the index list let every
+         * flat-shaded mesh past the budget by one element a corner.
+         */
+        static long flatNormalElements(int indices, boolean uv) {
+            return (long) indices * (3 + 3 + (uv ? 2 : 0) + 1);
         }
 
         /**

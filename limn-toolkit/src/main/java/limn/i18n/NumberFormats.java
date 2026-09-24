@@ -37,6 +37,20 @@ public final class NumberFormats {
      * {@code "1,234.5"} in English and {@code "1.234,5"} in German.
      */
     public static DoubleFunction<String> number() {
+        return number(2);
+    }
+
+    /**
+     * {@link #number()} with up to {@code maxDecimals} decimals instead of two: grouped, and
+     * with no trailing zeros, so {@code number(3)} writes {@code 0.105} as {@code "0.105"} and
+     * {@code 0.11} as {@code "0.11"}. The precision a caller wants for values that sit closer
+     * together than a hundredth, which is what a chart's axis asks for when its ticks do.
+     *
+     * @param maxDecimals the most decimals written; a negative count writes none
+     * @return the format
+     */
+    public static DoubleFunction<String> number(int maxDecimals) {
+        String pattern = "%,." + Math.max(0, maxDecimals) + "f";
         return v -> {
             if (!Double.isFinite(v)) {
                 return "-";
@@ -44,7 +58,7 @@ public final class NumberFormats {
             if (v == Math.rint(v) && Math.abs(v) < 1e15) {
                 return localized(String.format(I18n.locale(), "%,d", (long) v));
             }
-            String text = String.format(I18n.locale(), "%,.2f", v);
+            String text = String.format(I18n.locale(), pattern, v);
             return localized(trimZeros(text));
         };
     }

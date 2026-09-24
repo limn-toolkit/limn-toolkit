@@ -24,6 +24,12 @@ import limn.io.Resources;
  * whole UI. Rasterization needs the backend running (the RASTERIZER.current() is installed
  * at startup); call {@link #image()} during setup to warm the cache if desired.
  *
+ * <p><b>A source the rasterizer refuses draws nothing.</b> A malformed SVG, or one with no
+ * size of its own, fails at every size, so the first refusal is remembered, logged once as a
+ * warning, and answered from then on with an empty bitmap rather than a parse per paint: an
+ * exception thrown from a paint is caught by the frame and counted against the window, and
+ * enough of them stop the window repainting at all.
+ *
  * <p><b>An instance is confined to the UI thread</b>: the size cache is a plain
  * LRU map with no lock, and it is written by every miss. {@link #image(int)} and
  * {@link #image(int, boolean)} therefore reject any other thread once a backend is
@@ -50,6 +56,14 @@ public final class SvgIcon implements Icon {
     private static final Installed<SvgRasterizer> RASTERIZER = new Installed<>(
             "no SvgRasterizer installed. Is the backend started?");
 
+    /**
+     * What an icon whose source was refused answers every size with: one transparent pixel,
+     * shared, so that every broken icon draws nothing through a single texture.
+     */
+    private static final Image NOTHING = new Image(1, 1, new byte[4]);
+
+    private static final System.Logger LOG = System.getLogger(SvgIcon.class.getName());
+
     private final byte[] svg;
     private final Map<Integer, Image> bySize = new LinkedHashMap<>(16, 0.75f, true) {
         @Override
@@ -61,6 +75,9 @@ public final class SvgIcon implements Icon {
     // Integer boxing of its key) entirely.
     private int lastSize = -1;
     private Image lastImage;
+    // Set once, on the UI thread, by the first refusal of the source; never cleared, because
+    // the source it judged cannot change.
+    private RuntimeException refused;
 
     private SvgIcon(byte[] svg) {
         this.svg = svg;
@@ -114,6 +131,9 @@ public final class SvgIcon implements Icon {
      * clean. There is no asynchronous form of {@link Icon#image} itself, and there should not be:
      * a paint asking for a bitmap has to be answered during that paint.
      *
+     * <p>A source the rasterizer refuses is answered with an empty bitmap, at this size and at
+     * every size not already cached, and is not handed to the rasterizer again.
+     *
      * @param pixelSize target extent in device pixels; values below 1 are treated as 1
      * @throws IllegalStateException if called off the UI thread while a backend is running, or if
      *                               no {@link SvgRasterizer} is installed
@@ -125,7 +145,17 @@ public final class SvgIcon implements Icon {
         if (cached != null) {
             return cached;
         }
-        Image raster = requireRasterizer().rasterize(svg, size);
+        if (refused != null) {
+            return NOTHING;
+        }
+        SvgRasterizer rasterizer = requireRasterizer();
+        Image raster;
+        try {
+            raster = rasterizer.rasterize(svg, size);
+        } catch (RuntimeException e) {
+            refuse(e);
+            return NOTHING;
+        }
         fold(size, raster);
         return raster;
     }
@@ -152,7 +182,9 @@ public final class SvgIcon implements Icon {
      * <p>Cancelling stops the delivery, not the work: if the rasterize had already finished, the
      * bitmap is still folded into the cache; it is paid for either way, and the next paint at that
      * size may as well have it. A failure (no installed RASTERIZER.current(), malformed SVG) reaches
-     * {@code onFailure} on the UI thread; nothing is thrown from here.
+     * {@code onFailure} on the UI thread; nothing is thrown from here. A refused source is
+     * remembered as {@link #image(int)} remembers it, and asking again fails with the same cause
+     * without rasterizing.
      *
      * @param pixelSize target extent in device pixels; values below 1 are treated as 1
      * @throws IllegalStateException if called off the UI thread, or if no backend is running
@@ -164,10 +196,24 @@ public final class SvgIcon implements Icon {
         if (cached != null) {
             return Ui.work(progress -> cached);
         }
+        RuntimeException known = refused;
+        if (known != null) {
+            return Ui.work(progress -> {
+                throw known;
+            });
+        }
         return Ui.work(progress -> {
             // Worker thread: rasterize here, but never touch the cache from here; the fold is
             // posted, and lands before this value is delivered because the queue is in order.
-            Image raster = requireRasterizer().rasterize(svg, size);
+            // A refusal is posted the same way, and still thrown for onFailure to hear.
+            SvgRasterizer rasterizer = requireRasterizer();
+            Image raster;
+            try {
+                raster = rasterizer.rasterize(svg, size);
+            } catch (RuntimeException e) {
+                Ui.post(() -> refuse(e));
+                throw e;
+            }
             Ui.post(() -> fold(size, raster));
             return raster;
         });
@@ -208,6 +254,16 @@ public final class SvgIcon implements Icon {
         bySize.put(size, raster);
         lastSize = size;
         lastImage = raster;
+    }
+
+    /** Remembers that the rasterizer refused this source, and says so once. */
+    private void refuse(RuntimeException cause) {
+        if (refused != null) {
+            return;
+        }
+        refused = cause;
+        LOG.log(System.Logger.Level.WARNING,
+                "An SVG icon's source was refused by the rasterizer; the icon draws nothing", cause);
     }
 
     /**

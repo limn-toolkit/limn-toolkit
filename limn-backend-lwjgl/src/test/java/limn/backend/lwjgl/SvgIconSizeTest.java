@@ -6,6 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -50,5 +51,19 @@ class SvgIconSizeTest {
         // Theme brightness is irrelevant for SVG (the tint recolors it), so it does
         // not fork the cache.
         assertSame(small, icon.image(24, true));
+    }
+
+    @Test
+    void aSourceNanoSvgRefusesDrawsNothingInsteadOfThrowingFromEveryPaint() {
+        // No width, no height, no viewBox and no shape to take a size from: NanoSVG parses it
+        // and finds no size, and this rasterizer refuses it, as it refuses text that is not
+        // SVG at all.
+        SvgIcon sizeless = SvgIcon.of("<svg xmlns=\"http://www.w3.org/2000/svg\"><g/></svg>");
+        SvgIcon garbage = SvgIcon.of("this is not an svg");
+        for (SvgIcon icon : new SvgIcon[] {sizeless, garbage}) {
+            Image first = assertDoesNotThrow(() -> icon.image(24, false));
+            assertEquals(1, first.width(), "an empty bitmap stands in for the icon");
+            assertSame(first, icon.image(48, false), "at every size, and without a new parse");
+        }
     }
 }

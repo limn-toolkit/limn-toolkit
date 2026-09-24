@@ -491,6 +491,48 @@ class UiaFragmentTest {
                         + "describing a control the user cannot see or reach");
     }
 
+    /**
+     * A split pane as it publishes: the first pane's content, the splitter, the second pane's
+     * content, with the splitter's box the 24-point grab band reaching over both. The pointer drags
+     * the divider anywhere in that band, and the band's half over the second pane answered that
+     * pane's button here, because the later sibling was taken to be on top.
+     */
+    @Test
+    void aSplitterAnswersAcrossItsWholeGrabBandThoughItIsPublishedBetweenThePanes() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int split = a.begin(1001, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.SPLIT_PANE);
+        a.inherited(true, true, true, false, false);
+        a.begin(1002, split, Locale.ENGLISH, 0, 0, 195.5f, 300);
+        a.role(Accessible.Role.BUTTON);
+        a.name(I18nString.literal("Left"), Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(1003, split, Locale.ENGLISH, 188, 0, 24, 300);
+        a.role(Accessible.Role.SPLITTER);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.begin(1004, split, Locale.ENGLISH, 204.5f, 0, 195.5f, 300);
+        a.role(Accessible.Role.BUTTON);
+        a.name(I18nString.literal("Right"), Accessible.NameFrom.CONTENT);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        a.end();
+        AccessibleTree tree = a.publish(0, 0, 0, 1f, true);
+
+        for (int x = 188; x < 212; x++) {
+            assertEquals(tree.indexOf(1003), UiaFragment.elementFromPoint(tree, x + 0.5, 150),
+                    "the pointer drags the divider at x=" + x + ", so a reader there is on it");
+        }
+        assertEquals(tree.indexOf(1002), UiaFragment.elementFromPoint(tree, 187.5, 150));
+        assertEquals(tree.indexOf(1004), UiaFragment.elementFromPoint(tree, 212.5, 150));
+    }
+
     @Test
     void anEmptyTreeAnswersNothingRatherThanThrowing() {
         assertEquals(AccessibleNode.NONE, UiaFragment.elementFromPoint(AccessibleTree.EMPTY, 0, 0));

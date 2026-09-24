@@ -371,8 +371,44 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
         }
         paintGrid(canvas, t, theme);
         paintHoverBand(canvas, theme);
-        paintMarks(canvas);
+        paintMarksInPlot(canvas);
         paintAxisLabels(canvas, t, theme);
+    }
+
+    /**
+     * The marks, clipped to the plot and to no more than a mark on its edge needs.
+     *
+     * <p>A value the scale does not reach, which a pinned end makes ordinary, puts its bar or
+     * its line past the plot, and without the clip it was drawn there: over the axis labels,
+     * past the chart's own box onto its neighbours, and, since the chart damages only its box
+     * when its values change, left behind on screen after they did. The clip is also held
+     * inside the box, which is what keeps every mark inside the damage the chart declares.
+     */
+    private void paintMarksInPlot(Canvas canvas) {
+        float reach = markReach();
+        float left = Math.max(0, plotX - reach);
+        float top = Math.max(0, plotY - reach);
+        float right = Math.min(width(), plotX + plotWidth + reach);
+        float bottom = Math.min(height(), plotY + plotHeight + reach);
+        if (right <= left || bottom <= top) {
+            return;
+        }
+        canvas.save();
+        try {
+            canvas.clipRect(left, top, right - left, bottom - top);
+            paintMarks(canvas);
+        } finally {
+            canvas.restore();
+        }
+    }
+
+    /**
+     * How far past the plot a mark standing on its edge reaches: a marker centred on the top of
+     * the scale, or half a line's stroke along it. The clip around the marks leaves this much
+     * room so that an in-range mark is never cut; a bar ends on the plot's edge and needs none.
+     */
+    float markReach() {
+        return hoverMarkMargin();
     }
 
     /**
@@ -457,8 +493,9 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
         scale = valueAxis.resolve(min, max);
         tickLabels = new String[scale.tickCount()];
         tickLabelWidth = 0;
+        java.util.function.DoubleFunction<String> format = valueAxis.tickFormat(scale);
         for (int i = 0; i < tickLabels.length; i++) {
-            tickLabels[i] = valueAxis.format().apply(scale.tick(i));
+            tickLabels[i] = format.apply(scale.tick(i));
             tickLabelWidth = Math.max(tickLabelWidth, labelWidth(tickLabels[i], labelFont));
         }
     }

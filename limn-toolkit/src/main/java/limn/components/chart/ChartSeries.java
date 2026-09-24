@@ -16,7 +16,9 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>{@link Double#NaN} is a <b>gap</b>, not a zero: a line breaks across it and a bar is
  * not drawn for it. That is the difference between "we measured nothing" and "we measured
- * zero", and the two must not look the same.
+ * zero", and the two must not look the same. An infinite value is a gap too: no scale can
+ * reach it, so it is left out of the axis' range and draws nothing, and the finite values
+ * around it chart as they would without it.
  *
  * <p>Every setter here reaches back into the chart holding the series, so changing a
  * series after the chart is on screen animates and repaints exactly like changing it
@@ -113,14 +115,22 @@ public final class ChartSeries {
     }
 
     /**
-     * The value at {@code index}, or {@link Double#NaN} when the series is shorter than
-     * that, which reads as a gap, exactly like an explicit NaN.
+     * The value at {@code index} as the chart reads it: {@link Double#NaN} for a gap, which is
+     * what an explicit NaN, an infinite value and an index past the end of the series all are.
+     * {@link #values()} still hands back what was set.
      */
     public double value(int index) {
-        return index >= 0 && index < values.length ? values[index] : Double.NaN;
+        if (index < 0 || index >= values.length) {
+            return Double.NaN;
+        }
+        double value = values[index];
+        // Every reader of a value, the scale, the marks, the stacks and the tooltip, comes
+        // through here, so one infinity is kept from all of them at once: in the scale it
+        // turned the whole axis into 0..1, and in the geometry every mark into NaN.
+        return Double.isInfinite(value) ? Double.NaN : value;
     }
 
-    /** The values, copied. */
+    /** The values, copied, exactly as they were set. */
     public double[] values() {
         return values.clone();
     }

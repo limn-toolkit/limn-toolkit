@@ -2923,8 +2923,10 @@ public final class Scene {
                     // modal layer, never to the blocked content underneath.
                     CharEvent typed = new CharEvent(ch.codepoint);
                     dispatchBubbling(focused != null ? focused : inputRoot(), typed);
-                    if (typed.isConsumed()) {
-                        endWheelStreams(); // a letter that finds an option moves a list too
+                    // A letter that finds an option moves a list too; one typed by a held key's
+                    // auto-repeat is a repeat as well, and a repeat does not end a stream.
+                    if (typed.isConsumed() && !lastPressRepeated) {
+                        endWheelStreams();
                     }
                     invalidate = true;
                 } else if (raw instanceof RawPreedit preedit) {
@@ -3060,6 +3062,9 @@ public final class Scene {
 
     private void handleKey(RawKey key) {
         trackModifiers(key.mods, key.key, key.pressed);
+        if (key.pressed) {
+            lastPressRepeated = key.repeat;
+        }
         if (key.key >= 0) { // GLFW reports -1 for a key it cannot name; there is nothing to pair
             if (key.pressed) {
                 // A repeat re-sets a bit that is already set: held keys stay held, and a REPEAT
@@ -3082,7 +3087,7 @@ public final class Scene {
             focusTraverse((key.mods & Keys.MOD_SHIFT) != 0, Change.Origin.USER);
             acted = true; // a traversal reveals the widget it lands on
         }
-        if (acted && key.pressed) {
+        if (acted && key.pressed && !key.repeat) {
             endWheelStreams();
         }
     }
@@ -3098,6 +3103,11 @@ public final class Scene {
     private long lastWheelNanos;
     /** Whether a key ended the wheel stream still arriving; see {@link #endWheelStreams}. */
     private boolean wheelStreamCut;
+    /**
+     * Whether the last key press was the platform's auto-repeat of a held key. The characters a
+     * held key types carry no flag of their own, so they are judged by the press they follow.
+     */
+    private boolean lastPressRepeated;
 
     /**
      * Ends the wheel stream in flight in this window and in the popups it publishes: a key a
@@ -3107,6 +3117,10 @@ public final class Scene {
      * The key goes to the owner window and the wheel to the list's own, which is why the popups
      * a window publishes are ended with it. What the stream still sends is dropped until it
      * pauses; a new gesture after a pause scrolls as ever.
+     *
+     * <p>Only a fresh press ends a stream. A held key repeats every 30 ms or so, and when each
+     * repeat ended the stream, a wheel turned while the key was held lost all but its first
+     * event; the stream in flight when the key went down is still ended by that first press.
      */
     private void endWheelStreams() {
         Scene owner = graftedInto != null ? graftedInto : this;
