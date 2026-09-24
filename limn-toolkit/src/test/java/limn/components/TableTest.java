@@ -307,6 +307,30 @@ class TableTest extends ComponentTestBase {
      * is the lead in {@code SINGLE}, may differ from it in {@code MULTI} after a toggle, and is
      * the only row there is in {@code NONE}.
      */
+    /**
+     * A refresh after the application removed rows from the front keeps the cursor on its record.
+     * The cursor's old position was checked against the new list's size, so a cursor past the new
+     * end was taken for gone: on I after A–E were removed it landed on J, and Enter opened J.
+     */
+    @Test
+    void aRefreshAfterRowsLeftTheFrontKeepsTheCursorOnItsRecord() {
+        Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));
+        List<Person> rows = people(10);
+        table.setRows(rows);
+        AtomicInteger activated = new AtomicInteger(-1);
+        table.onActivate(activated::set);
+        Scene scene = scene(table, new FakeCanvas(300, 300));
+        scene.requestFocus(table);
+        table.setSelectedRow(8); // Person 8, the cursor and the selection
+        rows.subList(0, 5).clear();
+        table.refresh();
+        assertEquals(3, table.selectedRow(), "the selection followed Person 8");
+        assertEquals(3, table.focusRow(), "and so did the cursor");
+        drive(scene).keyEvent(Keys.ENTER, true, false, 0);
+        drive(scene).inputBatchEnded();
+        assertEquals(3, activated.get(), "Enter opens Person 8, not Person 9");
+    }
+
     @Test
     void enterAndADoubleClickActivateTheCursorRow() {
         Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));

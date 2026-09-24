@@ -372,9 +372,21 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         return rowKey == null ? row : rowKey.apply(row);
     }
 
-    /** A model row the four tracked positions name, or {@code -1}; view positions are converted. */
+    /**
+     * A model row the four tracked positions name, or {@code -1}; view positions are converted.
+     * Read against the positions the rows had when they were tracked and not the list's size now:
+     * an application that removed rows before calling {@link #refresh()} left the cursor past the
+     * new end, and it is still a record to find (the tracked keys say whether it survived). Cut at
+     * the new size, the cursor on I after A–E were removed was taken for gone and landed on J.
+     */
     private int trackedModel(int viewIndex) {
-        return viewIndex >= 0 && viewIndex < rows.size() ? modelOf(viewIndex) : -1;
+        if (viewIndex < 0) {
+            return -1;
+        }
+        if (view == null) {
+            return viewIndex;
+        }
+        return viewIndex < view.length ? view[viewIndex] : -1;
     }
 
     /**
@@ -388,6 +400,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         int count = rows.size();
         int a = trackedModel(focusRow);
         int b = trackedModel(rangeAnchor);
+        a = a < count ? a : -1; // read below by model index: only rows the list holds now
+        b = b < count ? b : -1;
         int c = lead >= 0 && lead < count ? lead : -1;
         // The three extras, sorted and deduplicated, merged with the selection's set bits.
         int e0 = Math.min(a, Math.min(b, c));
