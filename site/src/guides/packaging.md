@@ -77,7 +77,9 @@ module com.example.app {
 | `limn.themeeditor` | the theme editor, as an automatic module |
 
 Packages with `internal` in their name are shared between these modules and are not
-exported to yours.
+exported to yours. Only the packages a module exports are yours, and only they are in the API
+reference: the shared `internal` packages and the backend's screen-reader bridges are not
+exported.
 
 The font jars and the FFmpeg native jars need nothing: each names itself as a module, the
 backend and the video decoder require them, and the JVM loads them from the module path. Two

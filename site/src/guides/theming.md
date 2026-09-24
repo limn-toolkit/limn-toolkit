@@ -6,7 +6,7 @@ description: "Palettes, density and how to make the toolkit look like your produ
 ## Picking a palette
 
 A theme is a palette plus one shape metric. Switching one is a single call, which makes it
-current, applies its font and repaints the scenes you hand it:
+current, applies its font, and repaints the scenes you hand it on the palette's own background:
 
 ```java
 Theme.limnLight().apply(scene);
@@ -28,12 +28,13 @@ rather than after it: a palette that has had its ink darkened and its accent dee
 longer the palette it was borrowed from, and shipping it under the original name would be a
 claim about someone else's work.
 
-The palette is process-wide, so hand `apply` every live scene: each one repaints, and nothing
-is re-measured, because a palette carries colours and corner radii and nothing in the toolkit
+The palette is process-wide, so hand `apply` every live scene: each one repaints, and clears
+to the palette's `background` from its next frame unless its background is translucent, as a
+popup's is. Nothing is re-measured, because a palette carries colours and corner radii and nothing in the toolkit
 measures from either. A palette's font is the exception that re-measures, and `apply` applies it
 through the font axis, which does its own relayout. `Theme.setCurrent` is the cheaper half on its
-own: it switches the palette and tells whoever subscribed through `Theme.observeChanges`, and
-repaints nothing, which is what a colour well wants when it changes the palette on every frame of
+own: it switches the palette and tells whoever subscribed through `Theme.observeChanges`,
+repaints nothing and leaves every scene's background as it was, which is what a colour well wants when it changes the palette on every frame of
 a drag and repaints its own preview.
 
 ## Building your own

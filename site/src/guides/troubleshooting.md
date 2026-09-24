@@ -26,10 +26,10 @@ or put it in an error dialog, so that a bug report from a machine you cannot rea
 
 ## "The default UI font is not on the classpath"
 
-The backend needs Roboto, which arrives with it as a dependency. Either the build excludes
-`limn-fonts-roboto`, and removing the exclusion is the fix, or the application runs from the
-module path with the font jars on it, where nothing requires them and they are never loaded.
-Keep them on the class path; [Packaging](/docs/packaging/#on-the-module-path) explains why.
+The backend needs Roboto, which arrives with it as a dependency, so the one way to lose it is a
+build that excludes `limn-fonts-roboto`: remove the exclusion. On the module path the font jars are
+named modules the backend requires, and they load from there as they do from the class path;
+[Packaging](/docs/packaging/#on-the-module-path) has the details.
 
 ## "LWJGL's native libraries did not load"
 

@@ -104,12 +104,13 @@ into its items, so arrowing through the list is read item by item without leavin
 menu is different, because its window takes the keyboard while it is open: it is a tree of its
 own, as a native menu is, and the reader follows the focus into it and back out.
 
-A date picker's calendar crosses the same way. The field and the calendar in its popup point at
-each other, so a reader announces the popup, follows the cursor through the grid and the month
-chooser, and is back on the field's day segment when it closes. The keyboard stays with the
-field throughout; a pointer click in the calendar's window makes it the key window, and the
-picker hands every key that reaches it on to the field, so the keys do what they did before the
-click. Where the platform has no second window, as in a Wayland session, the picker draws in the
+A date picker's calendar crosses the same way. It is published under the field, as a combo's
+list is, so no second window is announced; a reader follows the cursor through the grid and the
+month chooser, and is back on the field's day segment when it closes. The keyboard stays with
+the field throughout; a pointer click in the calendar's window makes it the key window, and the
+picker hands every key that reaches it on to the field, so the keys act on what was clicked: the
+grid, a header arrow or the time row. Closing the popup gives the field's window the keyboard
+back. Where the platform has no second window, as in a Wayland session, the picker draws in the
 scene instead, and there is nothing to cross.
 
 A list publishes its true row count and the rows it has realized, which is what makes a
@@ -154,9 +155,12 @@ publishes the same facts on all three platforms, so a screen should not depend o
 - **A position in a set.** Published everywhere. NVDA speaks it unasked. Orca speaks it only
   when the user has turned on its own position option, which is off by default. VoiceOver never
   speaks it. Where a row's place carries meaning, draw it as well.
-- **A selection change.** VoiceOver announces one: the row that left, the count after select-all.
-  Orca speaks the row it lands on, not how many were taken. NVDA says nothing. Where the change is
-  the point of the screen, say it in the interface.
+- **A selection change.** VoiceOver says a row was added to or removed from the selection and
+  how many rows are selected, none and all included. Orca says a row was selected or unselected,
+  and that all items were selected. NVDA says a list's row is not selected when it leaves, and
+  nothing at a select-all or when Space takes a table's row out from one of its cells, as in
+  Windows' own lists and grids. Where the change is the point of the screen, say it in the
+  interface.
 - **A sort.** NVDA and Orca speak the direction when a header sorts; VoiceOver is given it and
   does not read it out.
 - **A busy state.** Published, and spoken by none of them, which is why a tree announces its
@@ -165,10 +169,29 @@ publishes the same facts on all three platforms, so a screen should not depend o
   own words. What the toolkit guarantees is the stop and the withheld verb; do not copy one
   reader's phrasing into your interface expecting it to match.
 
-Three things follow the platform mappings but have not yet been checked with a reader: moving
-the caret in a text field or reading it by character, a Japanese-calendar era segment, and a
+Four things follow the platform mappings but have not yet been checked with a reader: moving
+the caret in a text field or reading it by character, a Japanese-calendar era segment, a
 reader's own verbs on a tree row (expanding, collapsing or selecting one through the
-accessibility action rather than the keyboard).
+accessibility action rather than the keyboard), and, under Orca on X11, a combo's list or a date
+picker's calendar opened in a window of its own.
+
+## Saying something, and popups of your own
+
+`scene.announce(text, Accessible.Politeness.POLITE)` has the reader say a sentence that no focus
+move would: a search's result count, a save that finished. `POLITE` waits for the reader to finish
+what it is saying, and `ASSERTIVE` interrupts; on macOS both are posted at VoiceOver's high
+priority, because at a lower one VoiceOver holds the sentence back behind its own hint. Announce
+what changed, once, in the user's language; a sentence repeated on every frame of a change is
+noise a reader cannot skip.
+
+A popup of your own that belongs to a control, the way a combo's list belongs to its field, opens
+with `scene.pushPopup(layer)` rather than `pushOverlay`: the page beneath it stays enabled for a
+reader, as a native drop-down leaves its field enabled, where a dialog disables what is behind it.
+A popup of your own drawn in a window of its own calls `scene.graftPopup(popupScene)` before its
+scene is bound, with the popup's root naming its opener through `setInheritanceHost`: the reader
+then reads it under the control that opened it and never leaves the main window. Graft only a
+popup whose keys go on to that control, as the combo's list and the calendar hand theirs; a menu,
+whose window takes the keyboard for itself, keeps a tree of its own.
 
 ## The edges
 

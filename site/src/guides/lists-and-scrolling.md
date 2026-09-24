@@ -63,7 +63,8 @@ it would have to be cleared with `onAction(null)` first, every time.
 gestures. `SINGLE` is the default. With `MULTI`, the command modifier (Ctrl, or Cmd on macOS)
 toggles a row, Shift selects a range, Space toggles the row under the keyboard, and Ctrl+A or
 Cmd+A takes every row. `NONE` moves the keyboard without selecting anything. `selectedIndex()`
-is the row selected last, `selectedIndices()` and `selectedItems()` are all of them, and
+is the lead, the row selected last, which Ctrl+A or Cmd+A leaves where it was (the first row when
+there was none), `selectedIndices()` and `selectedItems()` are all of them, and
 `cursorIndex()` is the row the keyboard is on, which in `MULTI` need not be selected.
 
 A list inside something that gives it no height of its own — a `Column`, a `ScrollView` — has to
@@ -128,12 +129,15 @@ writes it, symbol and side included, and `Column.of` takes any value with a form
 handed the table's locale. A numeric column takes any of `NumberFormats` for its cells and its
 footer alike: `prefix("R$ ")` for a fixed prefix, `decimals(2)`, `unit(" kg")`, `compact()`. Widths are a preferred width, a minimum, and a weight: every
 column gets its preferred width, and what is left of the viewport is shared among the
-weighted ones. A table wider than its viewport scrolls sideways, and the header scrolls with the
+weighted ones. A column the user has dragged keeps that width and takes no share of what is
+left until `resetWidth()`. A table wider than its viewport scrolls sideways, and the header scrolls with the
 columns, because a title has to stay over the column it names. It is pinned vertically: the rows
 scroll under it.
 
 A click on a header sorts, cycling ascending, descending and your list's own order. The table
-sorts through a permutation and never touches your list. The selection is by **record**, not by
+sorts through a permutation and never touches your list. Without a comparator of your own, a
+column sorts by its values: numbers by exact value, text through the language's collator, and a
+column that mixes kinds puts its numbers first, then its text. The selection is by **record**, not by
 row number: a selected row stays selected through a sort, and through a `refresh()` that inserted
 rows above it, because the table follows the record rather than the index it was at. Records that
 are equal are matched by the order they occur in; where your records are mutable, or equal without
@@ -149,7 +153,8 @@ and back.
 
 The table is published as a grid: rows of cells under column headers, with the sort direction on
 the sorted header. Readers describe it in different shapes, one speaking a cell with its column,
-one a whole row, one the cell alone, and they disagree about announcing a sort or a selection
+one a whole row, one the cell, adding its column as the cursor moves along a row, and they
+disagree about announcing a sort or a selection
 change ([What readers say](/docs/accessibility/#what-readers-say)). Where a selection change is
 the point of the screen, say it in the interface rather than leaving it to the reader to mention.
 
@@ -235,9 +240,10 @@ publishes a busy state beside them, but no screen reader speaks one, and the "Lo
 deliberately not a row the cursor can stand on, so a reader steps over that as well. The tree
 announces the load instead, in three sentences named after the branch: "Loading *branch*" when a
 lazy load begins, "*branch*, 3 items" when its children arrive, counted in the reader's language,
-and "*branch* empty" when it lands on nothing. Each is polite, so that a tree opening branch after
-branch does not cut its own reader off mid-word, and an eager branch that runs no load announces
-nothing.
+and "*branch* empty" when it lands on nothing. Each is polite, so NVDA and Orca say it when they
+finish what they are saying; VoiceOver has no level that waits, so there it is posted high and
+interrupts, since otherwise it is held behind VoiceOver's own hint for seconds. An eager branch
+that runs no load announces nothing.
 
 The example overrides `isLeaf` because an entry already knows whether it is a folder; left alone,
 the tree reads `children` and calls a node a leaf only when its children are known and there are
@@ -313,7 +319,9 @@ panes.setRatio(0.3f).setMinimums(140, 260);
 
 The ratio is the fraction the first child gets, and the minimums are in points; below them
 the divider stops rather than letting a pane collapse to nothing. `SplitPane.vertical(…)`
-is the same thing stacked.
+is the same thing stacked. `setDividerFocusable(true)` makes the divider a Tab stop, met between
+the two panes; the arrows move it by a step, Shift with them by a point, and Home and End to
+either minimum.
 
 ## Tabs
 

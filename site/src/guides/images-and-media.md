@@ -12,6 +12,9 @@ Image logo = Images.fromResource("app/logo.png");
 ImageView view = new ImageView(logo);
 ```
 
+An image whose header claims more than 2^28 pixels is refused before it is decoded, rather than
+asking for gigabytes.
+
 `Images.load(Path)`, `Images.fromResource(String)` and `Images.decode(byte[])` all read on
 the thread that calls them, which is fine during startup and not fine in a click handler.
 Anywhere a frame is already running, load on the worker pool and take the result on the UI
@@ -28,7 +31,8 @@ Going the other way, `Images.encode(…)` and `Images.saveAsync(…)` write PNG.
 
 The toolkit takes an `Icon` wherever a small vector mark belongs: a button, a text field's
 leading slot, a menu item. Icons are drawn as paths rather than loaded as bitmaps, so they
-stay sharp at every control size and pick up the theme's colour.
+stay sharp at every control size and pick up the theme's colour. An `SvgIcon` whose source the
+rasterizer refuses draws nothing and says why in the log, once.
 
 The `limn-icons-tabler` artifact packages the Tabler icon set if you would rather not draw your
 own — one enum constant per icon, drawn through the same `SvgIcon`. It is versioned with Tabler

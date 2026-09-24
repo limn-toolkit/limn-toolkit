@@ -66,7 +66,7 @@ export const es: Catalog = {
 
   "home.try.heading": "Pruébalo ahora",
   "home.try.body":
-    "La demo y el editor de temas, directo desde Maven Central. Nada que clonar; jbang descarga un JDK si no tienes ninguno.",
+    "La demo y el editor de temas, directo desde Maven Central. Nada que clonar; jbang descarga un JDK si no tienes ninguno. JBang resuelve la versión más reciente una sola vez y la conserva: añade --fresh para obtener una más nueva.",
   "home.try.osLabel": "Sistema operativo",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -134,7 +134,7 @@ export const es: Catalog = {
 
   "home.languages.heading": "En los idiomas de tus usuarios",
   "home.languages.body":
-    "Latino, griego, cirílico y CJK se mezclan en una misma cadena, y la fuente correcta se elige por carácter. Árabe, hebreo, devanagari y tailandés se dibujan con la forma correcta — letras unidas, ligaduras, diacríticos — y un idioma de derecha a izquierda refleja toda la ventana: filas, márgenes, barras de desplazamiento, flechas. Los métodos de entrada componen dentro del campo, y la edición avanza por grafema.",
+    "Latino, griego, cirílico y CJK se mezclan en una misma cadena, y se elige una fuente para cada tramo de una misma escritura. Árabe, hebreo, devanagari y tailandés se dibujan con la forma correcta — letras unidas, ligaduras, diacríticos — y un idioma de derecha a izquierda refleja toda la ventana: filas, márgenes, barras de desplazamiento, flechas. Los métodos de entrada componen dentro del campo, y la edición avanza por grafema.",
   "home.languages.alt":
     "La misma pantalla capturada en japonés, chino simplificado, coreano y ruso, unida en una sola ventana.",
   "home.languages.link": "Lee la guía de texto",

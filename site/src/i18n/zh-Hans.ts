@@ -64,7 +64,7 @@ export const zhHans: Catalog = {
 
   "home.try.heading": "立刻试试",
   "home.try.body":
-    "演示与主题编辑器，直接来自 Maven Central。无需克隆；没有 JDK 时 jbang 会自动获取。",
+    "演示与主题编辑器，直接来自 Maven Central。无需克隆；没有 JDK 时 jbang 会自动获取。JBang 只解析一次最新版本并保留下来：要获取更新的版本，请加上 --fresh。",
   "home.try.osLabel": "操作系统",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -131,7 +131,7 @@ export const zhHans: Catalog = {
 
   "home.languages.heading": "用你的用户的语言",
   "home.languages.body":
-    "拉丁、希腊、西里尔与中日韩文字可混在同一个字符串里，字体逐字选择。阿拉伯文、希伯来文、天城文和泰文会被正确塑形——连写、合字、附加符号——从右到左的语言则让整个窗口镜像：行、边距、滚动条、方向键。输入法在字段内组字，编辑按字素移动。",
+    "拉丁、希腊、西里尔与中日韩文字可混在同一个字符串里，字体按同一种文字的连续片段选择。阿拉伯文、希伯来文、天城文和泰文会被正确塑形——连写、合字、附加符号——从右到左的语言则让整个窗口镜像：行、边距、滚动条、方向键。输入法在字段内组字，编辑按字素移动。",
   "home.languages.alt":
     "同一个界面分别用日语、简体中文、韩语和俄语截取，拼接成一个窗口。",
   "home.languages.link": "阅读文本指南",

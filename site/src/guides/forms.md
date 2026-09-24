@@ -74,7 +74,9 @@ is that field with a calendar behind a button, and either of them carries a cloc
 separators included. `MONTH` makes the picker's popup a month chooser and `YEAR` a year chooser,
 each terminal: a pick there *is* the value. A picker at `HOUR` or finer puts a time row under the
 grid, and Tab walks the card from top to bottom, the header, the grid and that row, and round
-again; the popup opens on the grid, so its first Tab reaches the row. `CalendarView` takes its own level as a
+again; the popup opens on the grid, so its first Tab reaches the row. A click on the time row
+sends the keys there, and a click on the header or the grid gives them back to the control
+clicked. `CalendarView` takes its own level as a
 `CalendarView.View`, since a grid of months is still a grid and a grid of hours is not a thing.
 
 {% shot dates "The four shapes, a period, and the grid on its own." %}
@@ -110,7 +112,10 @@ Right move between segments; digits fill the current segment and roll on to the 
 `31122026` commits the last day of 2026 without a separator being typed, and a screen reader is
 told which segment the caret rolled on to. `Ctrl/Cmd+V` parses what is on the clipboard: the
 locale's own order first, and an ISO date (`2026-12-31`) whatever the locale, which is what a date
-out of a spreadsheet or a database usually is. `Alt+Down` opens the calendar and `Alt+Up` or `Esc`
+out of a spreadsheet or a database usually is. `Ctrl/Cmd+C` copies the value as shown. A date
+and a time pasted together fill both halves, and a twelve-hour time is read with the language's
+own words for its half of the day (p.m., 오후, 下午), so a field's own copy pastes back whole.
+`Alt+Down` opens the calendar and `Alt+Up` or `Esc`
 closes it, which is the combo box's idiom and what a reader is told the field can do.
 
 In the grid, Page Up and Page Down page a month and Shift with either pages a year; in a range,
@@ -124,7 +129,9 @@ picker's popup.
 
 Two fields and one grid: the first click in the calendar anchors the period, the second closes it,
 and the days between are drawn as a band. `range()` answers `null` until both ends are filled — a
-period with one end is not a period, and is not published as one.
+period with one end is not a period, and is not published as one. Ends typed in the wrong
+order are put in order a whole period at a time: months typed 06/2026 then 03/2026 run from
+1 March to 30 June.
 
 ### Which days may be picked
 
@@ -136,7 +143,8 @@ the difference is deliberate: **the grid refuses the click** — the day is draw
 carries no verb, so a reader is told plainly that it cannot be chosen — while **the field holds
 what was typed** and marks itself invalid with a message saying which rule was broken. A field that
 snapped a typed date to the nearest legal one would be throwing away what somebody wrote and
-telling them nothing.
+telling them nothing. A field of months or years is in range when any day of the period it names
+is, the rule the chooser offers a cell by.
 
 The keyboard **stops on a refused day** rather than skipping it. Skipping makes a month with
 scattered rules feel as if the arrow key were broken, and it hides the shape of the rule; stopping
@@ -168,6 +176,11 @@ reader's phrasing into your interface expecting it to match. Up on an empty segm
 today, not from the segment's minimum. The month chooser names the month on show, and the paging
 buttons are named for the view they page. Not every reader speaks a day's position; see
 [What readers say](/docs/accessibility/#what-readers-say).
+
+The week starts where the language's region starts it, and a language named without a
+region, `de` or `fr`, is read for the region it most likely means rather than the United States.
+`CalendarView.setFirstDayOfWeek` fixes the day (a picker's grid is `picker.calendar()`), and
+`setShowWeekNumbers(true)` numbers the rows in the language's own numbering, from that day.
 
 Reading right to left, the grid mirrors and the field does not. A grid is columns in reading order,
 so the first day of the week moves to the edge reading starts from and Left and Right swap with it.

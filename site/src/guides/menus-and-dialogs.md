@@ -179,7 +179,9 @@ instead of asking the platform its own way:
   and `contentScale()`.
 
 `Backend.displays()` and `Backend.primaryDisplay()` enumerate them, and a window knows which one
-it is on: `NativeWindow.display()` returns the monitor containing the window's centre. Fullscreen
+it is on: `NativeWindow.display()` returns the monitor containing the window's centre, or
+`null` once the window is closed. A `Display` whose monitor was unplugged answers what it last
+read. Fullscreen
 takes either form, `enterFullscreen(Resolution)` or the integer one, and native popups clamp
 themselves to `display().workArea()`, which is why a menu near the bottom of the screen does not
 open under the dock.

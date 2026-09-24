@@ -46,7 +46,7 @@ export const en = {
   // system. `note` carries {{version}}, filled in at build time like the guides are.
   "home.try.heading": "Try it now",
   "home.try.body":
-    "The demo and the theme editor, straight from Maven Central. Nothing to clone; jbang fetches a JDK if you have none.",
+    "The demo and the theme editor, straight from Maven Central. Nothing to clone; jbang fetches a JDK if you have none. JBang resolves the newest release once and keeps it: add --fresh to take a newer one.",
   "home.try.osLabel": "Operating system",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -113,7 +113,7 @@ export const en = {
 
   "home.languages.heading": "In your users' languages",
   "home.languages.body":
-    "Latin, Greek, Cyrillic and CJK mix in one string, and the right font is picked per character. Arabic, Hebrew, Devanagari and Thai are shaped correctly — joined forms, ligatures, marks — and a right-to-left language mirrors the whole window: rows, insets, scrollbars, arrow keys. Input methods compose inside the field, and editing moves by grapheme cluster.",
+    "Latin, Greek, Cyrillic and CJK mix in one string, and a face is picked for each run of one script. Arabic, Hebrew, Devanagari and Thai are shaped correctly — joined forms, ligatures, marks — and a right-to-left language mirrors the whole window: rows, insets, scrollbars, arrow keys. Input methods compose inside the field, and editing moves by grapheme cluster.",
   "home.languages.alt":
     "The same screen captured in Japanese, Simplified Chinese, Korean and Russian, quilted into one window.",
   "home.languages.link": "Read the text guide",

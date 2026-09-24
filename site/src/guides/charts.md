@@ -22,8 +22,9 @@ BarChart revenue = BarChart.of(List.of("Q1", "Q2", "Q3", "Q4"),
 `addSeries`, `removeSeries` and `setValues` all take effect immediately: a chart bound to
 live data is a `setValues` on a timer, not a rebuild.
 
-**A gap is `Double.NaN`.** A line breaks there rather than drawing through zero, which is
-the difference between "we have no reading" and "the reading was nothing".
+**A gap is `Double.NaN`**, and an infinite value is read as one too; `values()` still hands
+back what you set. A line breaks there rather than drawing through zero, which is the difference
+between "we have no reading" and "the reading was nothing".
 
 ## Bars
 
@@ -78,6 +79,10 @@ Both cartesian charts expose their two axes:
 chart.valueAxis().setBeginAtZero(true).setTickCount(5).setFormat(v -> v + " ms");
 chart.categoryAxis().setTitle("Week");
 ```
+
+Left on its default format, an axis writes its ticks with as many decimals as their spacing
+needs (`NumberFormats.number(n)` is that format on its own); a format you set is used as it is.
+Bars and lines stay inside the plot, cut at a pinned `setMin` or `setMax`.
 
 The legend is a real part of the widget: `setLegendPosition(…)` moves it, and
 `setLegendInteractive(true)` lets a reader click a series to hide it.

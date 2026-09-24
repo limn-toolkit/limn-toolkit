@@ -66,7 +66,7 @@ export const de: Catalog = {
 
   "home.try.heading": "Jetzt ausprobieren",
   "home.try.body":
-    "Die Demo und der Theme-Editor, direkt aus Maven Central. Nichts zu klonen; jbang lädt ein JDK, falls keines da ist.",
+    "Die Demo und der Theme-Editor, direkt aus Maven Central. Nichts zu klonen; jbang lädt ein JDK, falls keines da ist. JBang ermittelt die neueste Version einmal und behält sie: Fügen Sie --fresh hinzu, um eine neuere zu holen.",
   "home.try.osLabel": "Betriebssystem",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -134,7 +134,7 @@ export const de: Catalog = {
 
   "home.languages.heading": "In den Sprachen Ihrer Nutzer",
   "home.languages.body":
-    "Lateinisch, Griechisch, Kyrillisch und CJK mischen sich in einer Zeichenkette, und die passende Schrift wird pro Zeichen gewählt. Arabisch, Hebräisch, Devanagari und Thai werden korrekt geformt — verbundene Buchstaben, Ligaturen, diakritische Zeichen — und eine von rechts nach links laufende Sprache spiegelt das ganze Fenster: Zeilen, Ränder, Bildlaufleisten, Pfeiltasten. Eingabemethoden komponieren im Feld, und die Bearbeitung bewegt sich nach Graphemen.",
+    "Lateinisch, Griechisch, Kyrillisch und CJK mischen sich in einer Zeichenkette, und für jeden Abschnitt eines Schriftsystems wird eine Schriftart gewählt. Arabisch, Hebräisch, Devanagari und Thai werden korrekt geformt — verbundene Buchstaben, Ligaturen, diakritische Zeichen — und eine von rechts nach links laufende Sprache spiegelt das ganze Fenster: Zeilen, Ränder, Bildlaufleisten, Pfeiltasten. Eingabemethoden komponieren im Feld, und die Bearbeitung bewegt sich nach Graphemen.",
   "home.languages.alt":
     "Derselbe Bildschirm, aufgenommen auf Japanisch, vereinfachtem Chinesisch, Koreanisch und Russisch, zu einem Fenster zusammengesetzt.",
   "home.languages.link": "Zum Text-Leitfaden",

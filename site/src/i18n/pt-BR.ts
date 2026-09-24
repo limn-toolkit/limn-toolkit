@@ -66,7 +66,7 @@ export const ptBR: Catalog = {
 
   "home.try.heading": "Teste agora",
   "home.try.body":
-    "A vitrine e o editor de temas, direto do Maven Central. Nada para clonar; o jbang baixa uma JDK se você não tiver nenhuma.",
+    "A vitrine e o editor de temas, direto do Maven Central. Nada para clonar; o jbang baixa uma JDK se você não tiver nenhuma. O JBang resolve a versão mais nova uma vez e a guarda: acrescente --fresh para pegar uma mais nova.",
   "home.try.osLabel": "Sistema operacional",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -133,7 +133,7 @@ export const ptBR: Catalog = {
 
   "home.languages.heading": "Nos idiomas dos seus usuários",
   "home.languages.body":
-    "Latino, grego, cirílico e CJK se misturam numa mesma string, e a fonte certa é escolhida por caractere. Árabe, hebraico, devanágari e tailandês são renderizados com a forma correta — letras ligadas, ligaturas, diacríticos — e um idioma da direita para a esquerda espelha a janela inteira: linhas, margens, barras de rolagem, setas. Os métodos de entrada compõem dentro do campo, e a edição avança por grafema.",
+    "Latino, grego, cirílico e CJK se misturam numa mesma string, e uma fonte é escolhida para cada trecho de uma mesma escrita. Árabe, hebraico, devanágari e tailandês são renderizados com a forma correta — letras ligadas, ligaturas, diacríticos — e um idioma da direita para a esquerda espelha a janela inteira: linhas, margens, barras de rolagem, setas. Os métodos de entrada compõem dentro do campo, e a edição avança por grafema.",
   "home.languages.alt":
     "A mesma tela capturada em japonês, chinês simplificado, coreano e russo, costurada em uma única janela.",
   "home.languages.link": "Leia o guia de texto",

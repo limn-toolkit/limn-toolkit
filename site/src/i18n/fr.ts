@@ -66,7 +66,7 @@ export const fr: Catalog = {
 
   "home.try.heading": "Essayez tout de suite",
   "home.try.body":
-    "La démo et l’éditeur de thèmes, directement depuis Maven Central. Rien à cloner ; jbang télécharge un JDK si vous n’en avez pas.",
+    "La démo et l’éditeur de thèmes, directement depuis Maven Central. Rien à cloner ; jbang télécharge un JDK si vous n’en avez pas. JBang résout la version la plus récente une seule fois et la conserve : ajoutez --fresh pour en prendre une plus récente.",
   "home.try.osLabel": "Système d’exploitation",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -134,7 +134,7 @@ export const fr: Catalog = {
 
   "home.languages.heading": "Dans les langues de vos utilisateurs",
   "home.languages.body":
-    "Latin, grec, cyrillique et CJC se mêlent dans une même chaîne, et la bonne police est choisie caractère par caractère. L’arabe, l’hébreu, la devanagari et le thaï sont façonnés correctement — lettres liées, ligatures, diacritiques — et une langue de droite à gauche reflète toute la fenêtre : lignes, marges, barres de défilement, flèches. Les méthodes de saisie composent dans le champ, et l’édition avance par graphème.",
+    "Latin, grec, cyrillique et CJC se mêlent dans une même chaîne, et une police est choisie pour chaque segment d’une même écriture. L’arabe, l’hébreu, la devanagari et le thaï sont façonnés correctement — lettres liées, ligatures, diacritiques — et une langue de droite à gauche reflète toute la fenêtre : lignes, marges, barres de défilement, flèches. Les méthodes de saisie composent dans le champ, et l’édition avance par graphème.",
   "home.languages.alt":
     "Le même écran capturé en japonais, chinois simplifié, coréen et russe, assemblé en une seule fenêtre.",
   "home.languages.link": "Lire le guide du texte",
