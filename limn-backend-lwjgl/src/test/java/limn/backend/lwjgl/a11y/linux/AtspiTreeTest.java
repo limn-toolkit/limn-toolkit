@@ -1261,6 +1261,46 @@ class AtspiTreeTest {
     }
 
     /**
+     * A split pane as it publishes: the first pane's content, the splitter, the second pane's
+     * content, with the splitter's box the 24-point grab band reaching over both. The pointer drags
+     * the divider anywhere in that band; Orca's mouse review over the band's half on the second
+     * pane was told about that pane's button, because the later sibling was taken to be on top.
+     */
+    @Test
+    void aSplitterAnswersAcrossItsWholeGrabBandThoughItIsPublishedBetweenThePanes() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        int split = a.begin(9500, 0, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.SPLIT_PANE);
+        a.inherited(true, true, true, false, false);
+        a.begin(9501, split, Locale.ENGLISH, 0, 0, 196, 300);
+        a.role(Accessible.Role.BUTTON);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.begin(9502, split, Locale.ENGLISH, 188, 0, 24, 300);
+        a.role(Accessible.Role.SPLITTER);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.begin(9503, split, Locale.ENGLISH, 204, 0, 196, 300);
+        a.role(Accessible.Role.BUTTON);
+        a.inherited(true, true, true, true, false);
+        a.end();
+        a.end();
+        a.end();
+        tree.set(a.publish(0, 200, 100, 1f, true));
+
+        for (int x = 188; x < 212; x++) {
+            assertEquals(path(9502), hitAt(path(1000), x, 150, Atspi.COORD_WINDOW),
+                    "the pointer drags the divider at x=" + x + ", so a reader there is on it");
+        }
+        assertEquals(path(9501), hitAt(path(1000), 187, 150, Atspi.COORD_WINDOW));
+        assertEquals(path(9503), hitAt(path(1000), 212, 150, Atspi.COORD_WINDOW));
+    }
+
+    /**
      * Component.GrabFocus posts FOCUS where the node publishes it (semantics 5; LINUX-NEW-5): it
      * answered UnknownMethod although ADR 039 §2.3 promised it.
      */

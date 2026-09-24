@@ -239,6 +239,34 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
                 "the value is a magnitude along the divided axis; it does not turn around");
     }
 
+    /**
+     * What a point lookup on every platform relies on: the splitter's published box reaches over
+     * the contents of both panes, it is published between them rather than after them, and the
+     * pointer is on the divider at every point of that box. Tree order alone, which puts the later
+     * sibling on top, would hand the band's half over the second pane to that pane's content; the
+     * role is what tells a bridge otherwise.
+     */
+    @Test
+    void thePointerIsOnTheDividerAcrossTheSplittersWholeBoxThoughItOverlapsBothPanes() {
+        bindSplit();
+        AccessibleNode band = splitter();
+        AccessibleNode first = node("first");
+        AccessibleNode second = node("second");
+
+        assertTrue(first.x() + first.width() > band.x(),
+                "the band reaches over the first pane's content" + describe(tree()));
+        assertTrue(second.x() < band.x() + band.width(),
+                "and over the second's" + describe(tree()));
+        List<AccessibleNode> children = childrenOf(node(Accessible.Role.SPLIT_PANE));
+        assertEquals(band.id(), children.get(1).id(), "published between them, not on top");
+
+        float y = band.y() + band.height() / 2 - split.localToSceneY();
+        for (float x = band.x() + 0.5f; x < band.x() + band.width(); x += 1) {
+            assertTrue(split.hitTest(x - split.localToSceneX(), y) == split.divider(),
+                    "the pointer drags the divider at x=" + x + ", inside the splitter's box");
+        }
+    }
+
     // ------------------------------------------------------------------------------ the value
 
     @Test

@@ -6,6 +6,7 @@ import limn.accessibility.AccessibleRelation;
 import limn.accessibility.AccessibleTree;
 import limn.accessibility.CellFacet;
 import limn.backend.AccessibilityBridge;
+import limn.backend.lwjgl.a11y.PointLookup;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -1025,9 +1026,10 @@ final class AtspiTree {
      * The deepest node below {@code node} whose box holds a point, from the snapshot's boxes
      * (a bounds walk over the snapshot, not {@code Widget#hitTest}).
      *
-     * <p>Children are tried last first, because a later sibling is drawn over an earlier one, and
-     * only a node that is {@code SHOWING} is a hit: a kept cursor row or a column scrolled away has
-     * a box nothing is drawn in. The point is converted once, to the window's own coordinates, and
+     * <p>Children are tried last first, because a later sibling is drawn over an earlier one, with a
+     * splitter before them all, because its grab band reaches over the panes it divides and is
+     * published between them ({@link PointLookup}); and only a node that is {@code SHOWING} is a
+     * hit: a kept cursor row or a column scrolled away has a box nothing is drawn in. The point is converted once, to the window's own coordinates, and
      * every box is compared there. Orca 50.2 asks with {@code WINDOW} coordinates
      * ({@code ax_component.py}, readings/fedora-orca-interface-calls.txt).
      *
@@ -1043,7 +1045,7 @@ final class AtspiTree {
         for (AccessibleNode at = node; ; ) {
             AccessibleNode next = null;
             List<AccessibleNode> kids = tree.children(at);
-            for (int i = kids.size() - 1; i >= 0; i--) {
+            for (int i : PointLookup.tryOrder(kids.size(), kids::get, true)) {
                 AccessibleNode kid = kids.get(i);
                 if (!kid.has(Accessible.State.SHOWING)) {
                     continue;

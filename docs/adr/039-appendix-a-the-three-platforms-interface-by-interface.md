@@ -1216,6 +1216,19 @@ KDE 44 guest's at-spi2-atk 2.60.6 for `Selection`, `Value`, `Text`, `EditableTex
 `TableCell` (readings/fedora-dbus-<Interface>.xml) — plus the three standard interfaces; a path that
 names nothing is declined.
 
+#### Amendment 2026-09-24 — a splitter is tried before its siblings, on all three platforms
+
+"A later sibling is drawn over an earlier one" stopped being true of one node when a split pane put
+its divider between its panes in the widget tree, so that Tab and a reader meet it where it is on
+screen; the split still hit-tests the divider first and paints it last. The splitter's box is the
+24-point grab band, which reaches over both panes' contents, and in tree order the band's half over
+the second pane answered that pane's content here and in `ElementProviderFromPoint`, while macOS,
+whose `accessibilityHitTest:` walk goes first to last, gave the other half to the first pane. All three
+lookups now try a `SPLITTER` before its siblings and keep their own order for the rest (the backend's
+`PointLookup`); the role's own documentation says a point in its box is the splitter's. The box stays
+the band (`SplitPaneAccessibilityTest` pins it as the target a user aims at), and nothing new is
+published.
+
 #### Amendment 2026-09-15 (review of the interfaces item) — `GetPosition` and `GetSize` are two out arguments
 
 **What was wrong.** The `Component.GetExtents`, `GetPosition`, `GetSize` row was answered with one

@@ -3,6 +3,9 @@ package limn.backend.lwjgl.a11y.windows;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import limn.backend.lwjgl.a11y.PointLookup;
+
+import java.util.List;
 
 /**
  * What {@code IRawElementProviderFragment} and its root answer, computed from the snapshot alone.
@@ -259,9 +262,11 @@ final class UiaFragment {
      * The deepest node whose box contains a screen point.
      *
      * <p>Deepest, and among siblings the last one, because later siblings paint over earlier ones
-     * and what a pointer is over is what a user can see. A node that is not {@code SHOWING} is
-     * skipped: it is not on the glass, so nothing can be over it — which is also what keeps a
-     * scrolled-away row from answering for a point inside its viewport.
+     * and what a pointer is over is what a user can see; a splitter comes before them all, because
+     * its grab band reaches over the panes it divides and is published between them
+     * ({@link PointLookup}). A node that is not {@code SHOWING} is skipped: it is not on the glass,
+     * so nothing can be over it — which is also what keeps a scrolled-away row from answering for
+     * a point inside its viewport.
      *
      * @param tree the published tree
      * @param x    a screen x
@@ -279,12 +284,12 @@ final class UiaFragment {
         }
         for (boolean descended = true; descended; ) {
             descended = false;
-            // Last-to-first: the later sibling is the one painted on top.
-            for (int child = tree.node(at).lastChild(); child != AccessibleNode.NONE;
-                    child = tree.node(child).previousSibling()) {
-                AccessibleNode candidate = tree.node(child);
+            // Last-to-first, the later sibling being the one painted on top, and a splitter first.
+            List<AccessibleNode> children = tree.children(tree.node(at));
+            for (int i : PointLookup.tryOrder(children.size(), children::get, true)) {
+                AccessibleNode candidate = children.get(i);
                 if (candidate.has(Accessible.State.SHOWING) && contains(tree, candidate, x, y)) {
-                    at = child;
+                    at = tree.indexOf(candidate.id());
                     descended = true;
                     break;
                 }
