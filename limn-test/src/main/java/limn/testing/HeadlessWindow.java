@@ -120,6 +120,7 @@ public final class HeadlessWindow implements NativeWindow {
     private boolean visible;
     private boolean closed;
     private boolean bridgeAsked;
+    private int focusRequests;
     boolean modal;
     boolean modalBlocked;
 
@@ -241,7 +242,19 @@ public final class HeadlessWindow implements NativeWindow {
     @Override public void setSize(int newWidth, int newHeight) { }
     @Override public void show() { visible = true; }
     @Override public void hide() { visible = false; }
-    @Override public void focus() { }
+    @Override public void focus() {
+        focusRequests++;
+    }
+
+    /**
+     * How many times something asked this window for the input focus. Nothing moves it here, as
+     * nothing moves a desktop's without its window manager; {@link #desktopFocus} is that.
+     *
+     * @return the count of {@code focus()} calls
+     */
+    public int focusRequests() {
+        return focusRequests;
+    }
     @Override public boolean isVisible() { return visible; }
     @Override public boolean isClosed() { return closed; }
     @Override public void enterFullscreen(int w, int h, int refreshRate) { }

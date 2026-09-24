@@ -1400,6 +1400,17 @@ public final class DateField extends Widget<DateField> {
         popupSetter = setOpen;
     }
 
+    /**
+     * What a picker runs when this field is clicked, before the caret moves: a popup's time row is
+     * not focusable, so the click would otherwise land a segment in a field the keyboard never
+     * reaches. The picker's, not an application's, as {@link #setKeyboardActive} is.
+     */
+    private Runnable pointerHook;
+
+    void setPointerHook(Runnable hook) {
+        pointerHook = hook;
+    }
+
     /** The picker's, not an application's: see {@link #keyboardActive}. */
     void setKeyboardActive(boolean active) {
         if (keyboardActive == active) {
@@ -1772,6 +1783,9 @@ public final class DateField extends Widget<DateField> {
             return;
         }
         event.consume();
+        if (pointerHook != null) {
+            pointerHook.run();
+        }
         requestFocus();
         focusSegment(slotAt(sceneToLocalX(event.x())));
     }

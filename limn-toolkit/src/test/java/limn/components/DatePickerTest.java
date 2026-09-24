@@ -290,6 +290,46 @@ class DatePickerTest extends ComponentTestBase {
     }
 
     /**
+     * A click on the popup's time row aims the keyboard there, as the Tab cycle does: the row is
+     * not focusable, and a click only moved its caret while the keys kept going to the grid, so
+     * the digits typed after it landed in the date.
+     */
+    @Test
+    void aClickOnTheTimeRowTakesTheKeyboardThere() {
+        build(datePicker().setGranularity(DateField.Granularity.MINUTE));
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
+        picker.open();
+        scene.renderFrame(new limn.testing.NoopCanvas(600, 600));
+        DateField row = timeRowOf(picker);
+        float x = row.localToSceneX() + 4; // the hour segment, at the row's start
+        float y = row.localToSceneY() + row.height() / 2;
+        drive(scene).mouseMoved(x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
+        type("0905");
+        assertEquals(LocalTime.of(9, 5), picker.time(), "the digits went into the clicked row");
+        assertEquals(ANCHOR, picker.date(), "and the date is untouched");
+        key(Keys.UP, 0);
+        assertEquals(LocalTime.of(9, 6), picker.time(), "and so do the arrows");
+    }
+
+    /** The popup's time row: the date field beside the calendar on the popup's card. */
+    private static DateField timeRowOf(DatePicker picker) {
+        java.util.ArrayDeque<limn.scene.Widget<?>> todo = new java.util.ArrayDeque<>();
+        todo.add(picker.calendar().parent());
+        while (!todo.isEmpty()) {
+            limn.scene.Widget<?> at = todo.poll();
+            if (at instanceof DateField field && field != picker.field()) {
+                return field;
+            }
+            todo.addAll(at.children());
+        }
+        throw new AssertionError("no time row on the popup's card");
+    }
+
+    /**
      * The card is built for the level it opened at: its time row is a child added when the card
      * was made. A level changed while the card is showing used to leave the old row on it (and
      * a new row off it) until the next open; the popup is now rebuilt around the change.

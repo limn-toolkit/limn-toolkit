@@ -191,6 +191,58 @@ class DatePickerNativePopupTest {
                         + Transcript.of(tree));
     }
 
+    /**
+     * A click in the calendar's window makes it the system's key window, and the keys then went to
+     * a scene nothing in which takes them. The picker gives the owner window the keyboard back, and
+     * a click on the time row aims the keyboard there, as Tab does.
+     */
+    @Test
+    void aClickOnTheTimeRowInTheCalendarsWindowTakesTheKeyboardThere() {
+        DatePicker picker = new DatePicker().setClock(SEPTEMBER_16)
+                .setGranularity(limn.components.date.DateField.Granularity.MINUTE);
+        picker.setDateTime(java.time.LocalDateTime.of(2026, 9, 9, 18, 30));
+        HeadlessWindow host = show(picker);
+        picker.open();
+        HeadlessWindow popup = popupWindow();
+        settle(host, popup);
+        // What the desktop does on a click into the popup's window.
+        host.desktopFocus(false);
+        popup.desktopFocus(true);
+        int asked = host.focusRequests();
+
+        limn.components.date.DateField row = null;
+        java.util.ArrayDeque<limn.scene.Widget<?>> todo = new java.util.ArrayDeque<>();
+        todo.add(picker.calendar().parent());
+        while (!todo.isEmpty() && row == null) {
+            limn.scene.Widget<?> at = todo.poll();
+            if (at instanceof limn.components.date.DateField field && field != picker.field()) {
+                row = field;
+            }
+            todo.addAll(at.children());
+        }
+        assertTrue(row != null, "a time row on the calendar's card");
+        float x = row.localToSceneX() + 4;
+        float y = row.localToSceneY() + row.height() / 2;
+        Scene popupScene = row.scene();
+        drive(popupScene).mouseMoved(x, y);
+        drive(popupScene).mouseButton(limn.input.Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(popupScene).mouseButton(limn.input.Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(popupScene).inputBatchEnded();
+        assertTrue(host.focusRequests() > asked, "the owner window asked for the keyboard back");
+        host.desktopFocus(true);
+        popup.desktopFocus(false);
+        settle(host, popup);
+        assertTrue(picker.isOpen(), "and the calendar stays open");
+
+        for (char c : "0905".toCharArray()) {
+            drive(hostScene).charTyped(c);
+        }
+        drive(hostScene).inputBatchEnded();
+        // English keeps a 12-hour clock: 09 typed over 6:30 PM is 9 PM, as its own row shows it.
+        assertEquals(java.time.LocalTime.of(21, 5), picker.time(), "the digits went into the time row");
+        assertEquals(LocalDate.of(2026, 9, 9), picker.date(), "and the date is untouched");
+    }
+
     private Scene hostScene;
 
     private HeadlessWindow show(limn.scene.Widget<?> content) {

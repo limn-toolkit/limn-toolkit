@@ -113,6 +113,8 @@ public final class DatePicker extends Widget<DatePicker> {
     private Subscription blurHandle;
     private Subscription dismissHandle;
     private Subscription popupBlurHandle;
+    /** Gives the owner window the keyboard back after a click in the popup's own window. */
+    private Subscription popupPressHandle;
 
     /**
      * The trailing affordance, a real widget rather than a painted region.
@@ -294,6 +296,9 @@ public final class DatePicker extends Widget<DatePicker> {
             if (timeRow == null) {
                 timeRow = DateField.ofTime();
                 timeRow.setFocusable(false);
+                // A click aims the keyboard here as a Tab does: the row is not focusable, and a
+                // click that only moved its caret left the keys going to the grid.
+                timeRow.setPointerHook(this::aimAtTimeRow);
                 timeRow.setAccessibleName(DateStrings.TIME_OF_DAY);
                 timeRow.setClock(clock);
                 timeRow.observeChanges((widget, change) -> {
@@ -808,12 +813,20 @@ public final class DatePicker extends Widget<DatePicker> {
     }
 
     private void enterTimeRow(KeyEvent tab) {
+        aimAtTimeRow();
+        tab.consume();
+    }
+
+    /** The keyboard onto the popup's time row, by a Tab or by a click on it. */
+    private void aimAtTimeRow() {
+        if (!open || timeRow == null || timeRowActive) {
+            return;
+        }
         calendar.setKeyboardActive(false);
         timeRowActive = true;
         timeRow.setKeyboardActive(true);
         // The caret is not drawn in the field while the row has it: one caret at a time.
         filling().setKeyboardActive(false);
-        tab.consume();
         repaintPopup();
     }
 
@@ -1014,6 +1027,15 @@ public final class DatePicker extends Widget<DatePicker> {
         scene.graftPopup(popupScene);
         popupScene.bind(popupWindow);
         popupBlurHandle = popupScene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
+        // A click in the popup's window makes it the system's key window on macOS, Windows and
+        // X11 alike, and the keys then went to a scene nothing in which takes them: the arrows
+        // after a click on a paging arrow, the digits after a click on the time row. The popup
+        // never holds the keyboard, so the window that opened it is given it back.
+        popupPressHandle = popupScene.observePresses(pressed -> {
+            if (scene() != null && scene().window() != null) {
+                scene().window().focus();
+            }
+        });
         popupScene.setBackground(Color.TRANSPARENT);
         int screenY = above
                 ? anchorTop - Math.round((gap + content.height()) * factor)
@@ -1087,6 +1109,10 @@ public final class DatePicker extends Widget<DatePicker> {
         if (dismissHandle != null) {
             dismissHandle.cancel();
             dismissHandle = null;
+        }
+        if (popupPressHandle != null) {
+            popupPressHandle.cancel();
+            popupPressHandle = null;
         }
         if (popupBlurHandle != null) {
             popupBlurHandle.cancel();
