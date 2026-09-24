@@ -230,6 +230,52 @@ class TableTest extends ComponentTestBase {
         assertEquals(SortOrder.ASCENDING, table.sortOrder(), "but the header shows the order");
     }
 
+    /**
+     * FN-3 of the 2026-09-24 review: a number met a string through both formatted texts, so in a
+     * column holding 5, 20 and "3" the order was a cycle, 5 &lt; 20 &lt; "3" &lt; 5. The sort threw
+     * "Comparison method violates its general contract" on the 21st of these lists, and every
+     * refresh threw again while the header showed the sort. The numbers come first now, by value,
+     * then the text.
+     */
+    @Test
+    void aColumnMixingNumbersAndTextSortsTheNumbersFirstAndThenTheText() {
+        Column<Object> value = Column.of("Value", (Object o) -> o,
+                (Object v, java.util.Locale l) -> String.valueOf(v));
+        java.util.Random random = new java.util.Random(1);
+        List<List<Object>> lists = new ArrayList<>();
+        List<Table<Object>> tables = new ArrayList<>();
+        for (int list = 0; list < 40; list++) {
+            List<Object> rows = new ArrayList<>();
+            int n = 64 + random.nextInt(2000);
+            for (int i = 0; i < n; i++) {
+                int k = random.nextInt(1000);
+                rows.add(random.nextBoolean() ? (Object) k : (Object) Integer.toString(k));
+            }
+            Table<Object> table = new Table<>(List.of(value));
+            table.setRows(rows);
+            table.setSort(value, SortOrder.ASCENDING);
+            table.refresh();
+            lists.add(rows);
+            tables.add(table);
+        }
+        for (int list = 0; list < lists.size(); list++) {
+            List<Object> rows = lists.get(list);
+            Table<Object> table = tables.get(list);
+            Object previous = rows.get(table.viewToModel(0));
+            for (int v = 1; v < rows.size(); v++) {
+                Object current = rows.get(table.viewToModel(v));
+                String where = "list " + list + ", row " + v + ": " + previous + " then " + current;
+                if (current instanceof Integer c) {
+                    assertTrue(previous instanceof Integer p && p <= c, where);
+                } else if (previous instanceof String p) {
+                    // Strings of digits alone collate as they compare by char.
+                    assertTrue(p.compareTo((String) current) <= 0, where);
+                }
+                previous = current;
+            }
+        }
+    }
+
     @Test
     void theKeyboardMovesTheFocusCellAndTheSelectionWithIt() {
         Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));

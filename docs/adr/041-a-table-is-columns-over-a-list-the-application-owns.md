@@ -422,6 +422,21 @@ mark may change. `Table.isHeaderFocused()` and `headerColumn()` answer the state
 `TableTest.theHeaderIsAFocusStopOfItsOwnAndTheKeyboardSortsFromIt`; what a reader is told is in
 §7's amendment of the same date.
 
+**Amended 2026-09-24 (FN-3 and FN-11 of the 2026-09-24 review).** The default comparator held
+for a column of one kind and broke for a column of two: a number met a string through both
+formatted texts, so a column holding 5, 20 and "3" ordered them 5 < 20 < "3" < 5, the sort threw
+"Comparison method violates its general contract", and every `refresh` threw again while the
+header showed the sort. And "`Number`s numerically" was through `double`, so two ids past 2^53
+sorted as equal. The derived order is one total order now: values of different kinds compare by
+kind — numbers, then text, then `Comparable`s, then anything else by its formatted text — and
+`Comparable`s of different classes by the class's name, an enum constant with a body counting as
+its enum. Numbers compare exactly: whole numbers, `BigInteger` and `BigDecimal` by value, a double
+against them by its exact value, and doubles among themselves by `Double.compare`, negative zero
+and NaN included. A column of one kind sorts as it did. Pinned by
+`TableTest.aColumnMixingNumbersAndTextSortsTheNumbersFirstAndThenTheText` and by
+`ColumnSortKeyTest.theDerivedOrderIsATotalOrderOverValuesOfEveryKind` and
+`longsBigIntegersAndBigDecimalsCompareExactly`.
+
 ---
 
 ## 5. Columns have widths and weights, and the header resizes them
