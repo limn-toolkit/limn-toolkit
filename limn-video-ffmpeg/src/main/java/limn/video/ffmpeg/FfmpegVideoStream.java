@@ -17,7 +17,8 @@ import limn.video.VideoStreamSource;
  *
  * <p><b>Closing this closes the container</b>, including its soundtrack. A caller that reached
  * this through {@code Videos.open} has never seen the container object and closing what it was
- * handed has to work, so this is the one thing it can mean.
+ * handed has to work, so this is the one thing it can mean. A picture already handed out stays
+ * readable until it is released, which is what lets a view keep showing one across the close.
  *
  * <p>Threading is the SPI's: {@link #readFrame()}, {@link #reset()} and {@link #close()} come from
  * one thread, serialized by whoever owns the stream, and {@link VideoFrame#release()} may come
@@ -113,8 +114,16 @@ final class FfmpegVideoStream implements VideoStreamSource {
             ended = true;
             return Read.END;
         }
-        current = frames.publish(slot, scratch[FfmpegNative.R_EPOCH],
-                scratch[FfmpegNative.R_PTS_MICROS], scratch);
+        try {
+            current = frames.publish(slot, scratch[FfmpegNative.R_EPOCH],
+                    scratch[FfmpegNative.R_PTS_MICROS], scratch);
+        } catch (RuntimeException | Error failed) {
+            // The slot was on loan from the moment the shim returned it, and a picture nobody
+            // received is one nobody will release: hand it back here, or a close of the
+            // container would wait for it forever.
+            media.releaseVideo(slot);
+            throw failed;
+        }
         return Read.FRAME;
     }
 

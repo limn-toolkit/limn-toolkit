@@ -62,7 +62,7 @@ final class Gl3DContext {
     private final Set<GlTexture> textures =
             Collections.newSetFromMap(new IdentityHashMap<>());
 
-    // Built-in material programs (lazy; need the context current). Raw programs keyed by material.
+    // Built-in material programs (lazy; need the context current). Raw programs keyed by their sources.
     private ShaderProgram unlitProgram;
     private int uUnlitMvp;
     private int uUnlitColor;
@@ -73,7 +73,9 @@ final class Gl3DContext {
     private int uLitLightDir;
     private int uLitLightColor;
     private int uLitAmbient;
-    private final Map<Material.Raw, RawProgram> rawPrograms = new IdentityHashMap<>();
+    // By equality, which a record has: the same two sources are the same program, whichever
+    // instance carries them, so a material rebuilt every frame compiles once and not every frame.
+    private final Map<Material.Raw, RawProgram> rawPrograms = new HashMap<>();
 
     /**
      * One compiled surface program and every location the pass or a draw needs from
@@ -821,8 +823,8 @@ final class Gl3DContext {
      *
      * <p>Keyed by a string and deliberately not by the material's identity: a record is
      * cheap to rebuild, applications do rebuild them per frame, and an identity-keyed
-     * cache would therefore link a fresh program every frame. {@link Material.Raw} does
-     * exactly that and it is a trap, not a precedent.
+     * cache would therefore link a fresh program every frame. {@link Material.Raw}'s cache
+     * did exactly that until it was keyed by the record's equality.
      */
     private SurfaceProgram ensureSurface(Material.Surface surface) {
         SurfaceProgram existing = surfacePrograms.get(surface.key());
@@ -1196,7 +1198,11 @@ final class Gl3DContext {
         uLitAmbient = litProgram.uniformLocation("u_ambient");
     }
 
-    private RawProgram ensureRaw(Material.Raw raw) {
+    /**
+     * The program for one raw material, compiled on first use. Package-private for the test that
+     * holds the cache to one program per pair of sources.
+     */
+    RawProgram ensureRaw(Material.Raw raw) {
         RawProgram existing = rawPrograms.get(raw);
         if (existing != null) {
             return existing;

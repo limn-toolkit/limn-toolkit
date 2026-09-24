@@ -13,6 +13,7 @@ import limn.i18n.I18nString;
 import limn.scene.Constraints;
 import limn.scene.Insets;
 import limn.scene.LayoutDirection;
+import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.layout.Expanded;
@@ -475,7 +476,11 @@ public final class MediaControls extends Widget<MediaControls> {
     private void poll() {
         Ui.postDelayed(() -> {
             // Ends with the bar leaving the screen; the paint that brings it back arms it again.
-            if (!isShowing() || scene() == null) {
+            // And with its window closing, which detaches nothing: the scene keeps its tree, so
+            // this would otherwise poll, and keep that scene reachable, as long as the process ran.
+            Scene scene = scene();
+            if (!isShowing() || scene == null
+                    || (scene.window() != null && scene.window().isClosed())) {
                 polling = false;
                 return;
             }

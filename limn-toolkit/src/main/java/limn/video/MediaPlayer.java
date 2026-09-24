@@ -730,8 +730,7 @@ public final class MediaPlayer implements AutoCloseable {
             try {
                 video.seek(seekTo, mode);
             } catch (RuntimeException error) {
-                fail(error);
-                return Step.DONE;
+                return fail(error, epoch);
             }
             return Step.PRODUCED; // nothing decoded, but there is work to do straight away
         }
@@ -749,25 +748,43 @@ public final class MediaPlayer implements AutoCloseable {
                     return Step.IDLE;
                 }
                 case END -> {
-                    if (looping && video.canReset()) {
-                        video.reset();
-                        synchronized (lock) {
-                            decodePass++;
-                        }
-                        return Step.IDLE;
-                    }
-                    synchronized (lock) {
-                        sourceEnded = true;
-                        lock.notifyAll();
-                    }
-                    return Step.DONE;
+                    return ended(epoch);
                 }
                 default -> throw new IllegalStateException("unreachable");
             }
         } catch (RuntimeException error) {
-            fail(error);
-            return Step.DONE;
+            return fail(error, epoch);
         }
+    }
+
+    /**
+     * The stream reported its end: a wrap when looping, and the end otherwise, unless a seek
+     * arrived while that read was in flight. Then the end is the one of the position the viewer
+     * left, like the picture {@link #enqueue} releases for the same reason, and the pass that
+     * performs the seek is what says where the stream is now.
+     */
+    private Step ended(long epoch) {
+        boolean wrap = looping && video.canReset();
+        synchronized (lock) {
+            if (epoch != seekEpoch) {
+                return Step.PRODUCED; // the seek is waiting, so straight on to it
+            }
+            if (!wrap) {
+                sourceEnded = true;
+                lock.notifyAll();
+                return Step.DONE;
+            }
+        }
+        video.reset(); // outside the lock, as a read is
+        synchronized (lock) {
+            if (epoch != seekEpoch) {
+                // A seek during the rewind: it resets the pass itself, and a wrap counted after it
+                // would make its first picture look like the next pass and drop the master for it.
+                return Step.PRODUCED;
+            }
+            decodePass++;
+        }
+        return Step.IDLE;
     }
 
     private Step enqueue(VideoFrame frame, long epoch) {
@@ -849,21 +866,31 @@ public final class MediaPlayer implements AutoCloseable {
         }
     }
 
-    private void fail(RuntimeException error) {
-        failure = error;
+    /**
+     * A read or a seek threw. Discarded when a seek arrived while it was in flight: {@link #seek}
+     * clears a failure because a decode that threw at one position says nothing about another, and
+     * this one was thrown at the position being left.
+     */
+    private Step fail(RuntimeException error, long epoch) {
         synchronized (lock) {
+            if (epoch != seekEpoch) {
+                return Step.PRODUCED; // the seek is waiting, so straight on to it
+            }
+            failure = error;
             // Not `decoding = false`: the thread parks rather than exiting, so a seek out of a
             // position that could not be decoded is answered by the thread that is already there.
             sourceEnded = true;
-            // Under the lock, and unconditional: this is the write every transition in
-            // enterState is checked against, and outside the lock it could land in the middle
-            // of one of them and be overwritten by a state the UI thread chose before it.
+            // Under the lock, and unconditional once the failure is this position's: this is the
+            // write every transition in enterState is checked against, and outside the lock it
+            // could land in the middle of one of them and be overwritten by a state the UI thread
+            // chose before it.
             state = State.FAILED;
             lock.notifyAll();
         }
         // Somewhere a user can see it: a decode thread belongs to no event-loop phase, so without
         // this the only trace of a broken stream would be a widget saying it cannot be played.
         Crashes.report(CrashPhase.DECODE, error);
+        return Step.DONE;
     }
 
     // ----------------------------------------------------------------- status

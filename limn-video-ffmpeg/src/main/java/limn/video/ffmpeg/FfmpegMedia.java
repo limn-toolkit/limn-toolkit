@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -75,6 +76,13 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * inside a read when an application closes the container, and the alternative to answering it is
  * a use-after-free in a thread the application does not know exists.
  *
+ * <p><b>A picture still held when the container closes stays whole until it is released.</b> Its
+ * planes, or its hardware surface, are the decoder's memory, and a view keeps the picture it is
+ * showing and the one it read ahead across a close it was not told about, then uploads one of them
+ * at its next paint. So closing ends the reading at once and frees the decoder, and the input with
+ * it, when the last picture handed out comes back. A consumer that never releases a picture holds
+ * the decoder open, which is a leak it can see, where freeing under it was a crash it could not.
+ *
  * <h2>Subtitles</h2>
  *
  * <p>{@link #subtitleTracks()} lists them and {@link #selectSubtitles(int)} chooses one;
@@ -95,7 +103,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * a picture is released by whichever thread happened to finish with it. A read-write lock is what
  * makes that safe: every call takes the read lock, so none of them waits for another, and
  * {@link #close()} takes the write lock, so it waits for the reads that are in flight and
- * everything after it finds the handle gone.
+ * everything after it finds the container closed.
  */
 public final class FfmpegMedia implements AutoCloseable {
 
@@ -139,8 +147,23 @@ public final class FfmpegMedia implements AutoCloseable {
     private final Path file;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
-    /** Zero once closed. Only ever read under the lock, and only ever written under the write lock. */
+    /**
+     * Zero once the decoder is freed, which is not when the container is closed but when the last
+     * picture out on loan comes back afterwards. Only ever read under the lock, and only ever
+     * written under the write lock.
+     */
     private long handle;
+
+    /** Set by {@link #close()}, and read and written exactly as {@link #handle} is. */
+    private boolean closed;
+
+    /**
+     * Pictures the shim has handed out and nobody has released yet: a slot {@code readVideo}
+     * returned, less every {@code releaseVideo}. Counted under the read lock by every thread that
+     * reads or releases, so it is atomic; read under the write lock by the one decision that
+     * needs it to hold still, whether a close may free the decoder now.
+     */
+    private final AtomicInteger picturesOut = new AtomicInteger();
 
     private final FfmpegVideoStream video;
     private final boolean hardware;
@@ -747,7 +770,7 @@ public final class FfmpegMedia implements AutoCloseable {
         long[] values = new long[FfmpegNative.STATS_LENGTH];
         lock.readLock().lock();
         try {
-            if (handle != 0) {
+            if (!closed) {
                 FfmpegNative.stats(handle, values);
             }
         } finally {
@@ -756,17 +779,29 @@ public final class FfmpegMedia implements AutoCloseable {
         return values;
     }
 
-    /** Releases the decoder and the input. Idempotent, and safe while another thread is reading. */
+    /**
+     * Releases the decoder and the input. Idempotent, and safe while another thread is reading.
+     *
+     * <p>Everything reads as closed from here on. The decoder itself is freed now if no picture is
+     * out, and otherwise when the last one is released, because a picture a consumer still holds
+     * lives in the decoder's memory; see the class comment.
+     */
     @Override
     public void close() {
         lock.writeLock().lock();
         try {
-            if (handle != 0) {
-                FfmpegNative.close(handle);
-                handle = 0;
-            }
+            closed = true;
+            freeIfDrained();
         } finally {
             lock.writeLock().unlock();
+        }
+    }
+
+    /** Frees the decoder once it is closed and nothing it decoded is held. Under the write lock. */
+    private void freeIfDrained() {
+        if (closed && handle != 0 && picturesOut.get() == 0) {
+            FfmpegNative.close(handle);
+            handle = 0;
         }
     }
 
@@ -774,7 +809,7 @@ public final class FfmpegMedia implements AutoCloseable {
     public boolean isOpen() {
         lock.readLock().lock();
         try {
-            return handle != 0;
+            return !closed;
         } finally {
             lock.readLock().unlock();
         }
@@ -784,12 +819,27 @@ public final class FfmpegMedia implements AutoCloseable {
     //
     // Every native call in this module goes through one of these. The read lock is shared, so a
     // decode that takes ten milliseconds does not delay the picture being released beside it; the
-    // write lock is close()'s alone, so nothing is inside libavcodec when the handle is freed.
+    // write lock is close()'s and the last release's, so nothing is inside libavcodec when the
+    // handle is freed.
+    //
+    // Two tests, and which one a call makes is the point. `closed` is what a reader is answered
+    // by: reads, seeks and selections see the container as gone from the moment it is closed.
+    // `handle` is whether the memory is still there: the calls on a picture already handed out,
+    // its planes, its read-back and its release, keep working until the last of them comes home.
 
     int readVideo(long[] out) {
         lock.readLock().lock();
         try {
-            return handle == 0 ? FfmpegNative.READ_END : FfmpegNative.readVideo(handle, out);
+            if (closed) {
+                return FfmpegNative.READ_END;
+            }
+            int slot = FfmpegNative.readVideo(handle, out);
+            if (slot >= 0) {
+                // Under the read lock, so a close cannot fall between the shim marking the slot
+                // busy and this count saying so.
+                picturesOut.incrementAndGet();
+            }
+            return slot;
         } finally {
             lock.readLock().unlock();
         }
@@ -799,7 +849,8 @@ public final class FfmpegMedia implements AutoCloseable {
         lock.readLock().lock();
         try {
             if (handle == 0) {
-                throw new FfmpegException("the container was closed while a picture was in flight");
+                throw new FfmpegException(
+                        "the container is closed and this picture was already released");
             }
             return FfmpegNative.planeBuffer(handle, slot, plane);
         } finally {
@@ -808,16 +859,19 @@ public final class FfmpegMedia implements AutoCloseable {
     }
 
     /**
-     * Answered rather than punished on a closed container is <em>not</em> right here, unlike the
-     * reads: a download that quietly did nothing would leave the frame handle-backed and
+     * Works on a closed container for as long as the picture is held, since the decoder is kept
+     * for it. The refusal below is for a picture used after its release, which has nothing left
+     * to read back: answered rather than punished is <em>not</em> right for that, unlike the
+     * reads, because a download that quietly did nothing would leave the frame handle-backed and
      * {@code VideoFrame.toPlanar()} would report that its producer produced no planes, which names
-     * the wrong problem. A container closed under a picture still in flight is worth saying.
+     * the wrong problem.
      */
     void downloadVideo(int slot, long[] out) {
         lock.readLock().lock();
         try {
             if (handle == 0) {
-                throw new FfmpegException("the container was closed while a picture was in flight");
+                throw new FfmpegException(
+                        "the container is closed and this picture was already released");
             }
             FfmpegNative.downloadVideo(handle, slot, out);
         } finally {
@@ -826,13 +880,26 @@ public final class FfmpegMedia implements AutoCloseable {
     }
 
     void releaseVideo(int slot) {
+        boolean last;
         lock.readLock().lock();
         try {
             if (handle != 0) {
                 FfmpegNative.releaseVideo(handle, slot);
             }
+            last = picturesOut.decrementAndGet() == 0 && closed;
         } finally {
             lock.readLock().unlock();
+        }
+        if (last) {
+            // The last picture of a closed container: free what the close could not. A read lock
+            // cannot be raised to the write lock, so it is let go and the write lock taken, and
+            // freeIfDrained asks again under it, since a second release may have got there first.
+            lock.writeLock().lock();
+            try {
+                freeIfDrained();
+            } finally {
+                lock.writeLock().unlock();
+            }
         }
     }
 
@@ -864,7 +931,7 @@ public final class FfmpegMedia implements AutoCloseable {
     void seekAudio(long micros, long generation) {
         lock.readLock().lock();
         try {
-            if (handle != 0) {
+            if (!closed) {
                 FfmpegNative.seekAudio(handle, micros, generation);
             }
         } finally {
@@ -875,7 +942,7 @@ public final class FfmpegMedia implements AutoCloseable {
     int readAudio(ByteBuffer out, int maxFrames, long generation) {
         lock.readLock().lock();
         try {
-            return handle == 0 ? 0 : FfmpegNative.readAudio(handle, out, maxFrames, generation);
+            return closed ? 0 : FfmpegNative.readAudio(handle, out, maxFrames, generation);
         } finally {
             lock.readLock().unlock();
         }
@@ -889,7 +956,7 @@ public final class FfmpegMedia implements AutoCloseable {
     String readCue(long[] out) {
         lock.readLock().lock();
         try {
-            if (handle == 0) {
+            if (closed) {
                 out[FfmpegNative.C_STATUS] = FfmpegNative.CUE_NONE;
                 return null;
             }
@@ -902,7 +969,7 @@ public final class FfmpegMedia implements AutoCloseable {
     void resetAudio(long generation) {
         lock.readLock().lock();
         try {
-            if (handle != 0) {
+            if (!closed) {
                 FfmpegNative.resetAudio(handle, generation);
             }
         } finally {
@@ -913,7 +980,7 @@ public final class FfmpegMedia implements AutoCloseable {
     void releaseAudio(long generation) {
         lock.readLock().lock();
         try {
-            if (handle != 0) {
+            if (!closed) {
                 FfmpegNative.releaseAudio(handle, generation);
             }
         } finally {
@@ -1158,7 +1225,7 @@ public final class FfmpegMedia implements AutoCloseable {
      * four of them, which each wrote it.
      */
     private void requireOpen() {
-        if (handle == 0) {
+        if (closed) {
             throw new FfmpegException("the container is closed");
         }
     }
