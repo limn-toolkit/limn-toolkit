@@ -59,13 +59,16 @@ import java.util.function.Predicate;
  * caret moving between them on Tab, the clipboard works, and a screen reader walks a subtree that
  * was already described. The picker paints one box around them so it reads as one control.
  *
- * <p><b>The popup never takes focus in a window of its own</b>, which is the toolkit's popup
+ * <p><b>The popup takes no focus in a window of its own</b>, which is the toolkit's popup
  * contract and not this widget's choice: the field keeps the keyboard, and the navigation keys are
  * forwarded to the grid while it is open, so Up, Down, PageUp, PageDown and Enter drive the
  * calendar and the digits still reach the segments. In the in-scene presentation the overlay holds
  * the focus instead and forwards every key and every character the same way, so the two
  * presentations type alike. At an hour granularity or finer the popup carries a time row under the
- * grid, and Tab cycles the keyboard between the grid, its header and that row.
+ * grid, and Tab walks the card from top to bottom, the header, the grid and that row. A pointer
+ * click in the popup's window makes it the desktop's key window; the keys it then receives are
+ * handed on exactly as the field's would be, and closing the popup gives the owner window the
+ * keyboard back.
  *
  * <p>The presentation follows {@link DisplayMode}: a window of its own where the platform can place
  * one, an overlay inside the owner window where it cannot &mdash; and an application that documents

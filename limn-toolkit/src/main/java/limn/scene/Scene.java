@@ -665,9 +665,12 @@ public final class Scene {
      * window's tree while the popup is open; the list's cursor is this tree's own, and the popup's
      * window publishes nothing of its own.
      *
-     * <p>Call it before {@code popup} is bound to its window, and only for a popup whose window
-     * never takes the keyboard: the field keeps it and drives the popup, so the focused node stays
-     * in this tree. The popup's root names its opener with
+     * <p>Call it before {@code popup} is bound to its window, and only for a popup whose keyboard is
+     * its opener's: the field keeps it and drives the popup, so the focused node stays in this
+     * tree. A pointer click in the popup's window makes it the desktop's key window; such a popup
+     * hands every key that reaches that window on to its opener, and gives this window the
+     * keyboard back when it closes while holding it, as the combo box's list and the date
+     * picker's calendar do. The popup's root names its opener with
      * {@link Widget#setInheritanceHost}; its nodes are published under the opener's, in this
      * window's coordinates, while its window is visible, and leave the tree when that window
      * closes. What a reader performs on them is performed in the popup's scene.

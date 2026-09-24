@@ -62,7 +62,8 @@ Linux (AT-SPI).
 **Languages.**
 - `PluralString` and `PluralRules` write a counted sentence with one key per grammatical form.
   The rules are transcribed from CLDR and checked against it in the build.
-- `ChartFormats` is now `limn.i18n.NumberFormats`, for any number, and gains currency formats.
+- `ChartFormats` is now `limn.i18n.NumberFormats`, for any number, and gains currency formats
+  and `number(maxDecimals)` for values closer together than a hundredth.
 
 **Tests.** The new `limn-test` module tests a UI with no display. `SceneDriver.drive(scene)`
 clicks, types, presses keys and delivers any raw window input. With it come a headless runtime
@@ -81,6 +82,24 @@ toolkit's own widgets are held to. A widget can carry an id: `setId("save")`, th
   opened or closed.
 
 **Fixed.**
+- Setting a window's title, size or position after the user closed it, as work that completes
+  late does, is ignored; it used to abort the process.
+- Closing an FFmpeg stream while a `VideoView` still shows one of its pictures no longer crashes
+  the JVM: the decoder is freed when the last picture it handed out is released.
+- A `Display` whose monitor was unplugged answers what it last read instead of reading freed
+  memory.
+- A 3D material rebuilt every frame compiles its shader once, not once a frame.
+- A `MediaPlayer` seeked away from its end, or from a read that failed, no longer ends or reports
+  that stale failure afterwards.
+- A transport bar's heartbeat and a paused video's poll stop when their window closes.
+- A chart's default tick labels have as many decimals as the tick spacing needs: ticks a thousandth
+  apart used to read "0, 0, 0, 0".
+- A chart's bars and lines stay inside its plot, an infinite value is a gap instead of breaking the
+  whole chart, and a single pinned axis end stays where it was pinned.
+- An SVG icon the rasterizer refuses draws nothing, logged once, instead of failing every paint
+  until the window stopped repainting.
+- Moving the pointer over a menu row whose submenu is open leaves the columns beyond it as they
+  are; the smallest jitter used to close them.
 - An image whose header claims more than 2^28 pixels is refused before it is decoded, instead of
   asking for gigabytes.
 - A glTF model whose nodes are not trees, or sit deeper than 1024, is refused, and one load
@@ -112,7 +131,7 @@ One breaking round, taken before 1.0.
 | `slider.onChange(Consumer<Float>)`, `spinner.onChange(Consumer<Double>)`, `splitPane.onRatioChange(Consumer<Float>)` | `FloatConsumer` and `DoubleConsumer`; a lambda is unchanged |
 | `new WindowConfig("Title", 480, 320, …)` | `WindowConfig.of("Title", 480, 320)`, then withers: `.resizable(false)`, `.visible(false)`, `.transparent(true)` … |
 | `Theme.current().background` (a field) | `Theme.of(widget).background()` in a widget, `theme.background()` elsewhere; `dark` is `isDark()` |
-| `Theme.setCurrent(t)` plus a relayout | `t.apply(scene)` switches the palette, applies its font and repaints |
+| `Theme.setCurrent(t)` plus a relayout | `t.apply(scene)` switches the palette, applies its font, clears an opaque scene to the palette's background and repaints |
 | `anyWidget.add(child)` | only a `Container` (`Column`, `Row`, `Stack`, your own layout) adds and removes children in public |
 | `class MyButton extends Button` | concrete widgets are `final`; extend `Widget`, or compose; `TextField` is sealed |
 | `class MyWidget extends Widget`, `Widget w`, `List<Widget>` | `class MyWidget extends Widget<MyWidget>`, `Widget<?> w`, `List<Widget<?>>`; every setter now chains (`new Button("OK").setEnabled(false)` is a `Button`) |
@@ -129,6 +148,8 @@ One breaking round, taken before 1.0.
 | `FrameInfo` without a buffer age | `bufferAge`, 0 when unknown |
 
 **Behaviour.**
+- `ChartSeries.value(i)` answers `NaN`, a gap, for an infinite value as for an explicit `NaN`;
+  `values()` still hands back what was set.
 - Partial rendering is on by default. A widget of your own that changes what it draws without
   calling `invalidate()` now leaves stale pixels where it used to be repainted with the rest of
   the frame: call `invalidate()` when its picture changes, or `scene.setPartialRendering(false)`
