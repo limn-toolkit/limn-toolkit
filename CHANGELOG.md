@@ -88,6 +88,8 @@ toolkit's own widgets are held to. A widget can carry an id: `setId("save")`, th
   creates at most 2^26 array elements.
 - Stopping a streamed track and starting another no longer frees the first one's decoder while
   the audio thread is still reading it.
+- A click on a date picker's time row puts the keyboard there, and a click in the calendar's own
+  window no longer leaves the keys going nowhere.
 
 ### Breaking, and how to move
 
