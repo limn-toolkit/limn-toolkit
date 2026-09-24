@@ -175,6 +175,36 @@ subprojects {
             dependsOn(tasks.named("javadoc"))
         }
 
+        // A named module's jar documents the packages it exports to everyone, and no others. The
+        // jar Central publishes is what javadoc.io renders, and it carried fifty pages of `internal`
+        // packages and the backend's screen-reader bridges, which no module exports and whose
+        // comments speak this repository's working language.
+        //
+        // javadoc knows the rule (`--show-packages exported`, its default for a module) but only
+        // applies it to a module it is asked to document by name; handed the source FILES, as
+        // Gradle hands them, it documents every one. Excluding the internal files instead does not
+        // build: the exported classes import them. So the task is given the one file Gradle needs
+        // to see a module and to put the dependencies on the module path, javadoc reads the rest
+        // through --module-source-path, and every source is still an input, or an edited class
+        // would leave the last build's pages in the jar. /api/ leaves out the same packages.
+        tasks.named<Javadoc>("javadoc") {
+            val main = project.extensions.getByType<SourceSetContainer>()["main"]
+            val moduleInfo = main.java.srcDirs.map { it.resolve("module-info.java") }.firstOrNull { it.isFile }
+            if (moduleInfo != null) {
+                val moduleName = Regex("\\bmodule\\s+([\\w.]+)\\s*\\{").find(moduleInfo.readText())
+                    ?.groupValues?.get(1)
+                    ?: throw GradleException("no module declaration in $moduleInfo")
+                inputs.files(main.allJava).withPropertyName("moduleSources")
+                    .withPathSensitivity(PathSensitivity.RELATIVE)
+                setSource(project.fileTree(moduleInfo.parentFile) { include("module-info.java") })
+                (options as StandardJavadocDocletOptions).apply {
+                    addStringOption("-module-source-path", "$moduleName=${moduleInfo.parentFile}")
+                    addStringOption("-module", moduleName)
+                    addStringOption("-show-packages", "exported")
+                }
+            }
+        }
+
         tasks.withType<Test>().configureEach {
             useJUnitPlatform()
             // A failing test has to name itself in the CONSOLE, because on CI the console is the
@@ -662,11 +692,13 @@ val aggregateJavadoc = tasks.register<Javadoc>("aggregateJavadoc") {
     setDestinationDir(layout.buildDirectory.dir("docs/aggregate-javadoc").get().asFile)
     title = "Limn UI ${project.version}"
     // Without the module declarations, which one javadoc run cannot take several of, and without the
-    // internal packages, which are not API and which /api/ therefore does not show (ADR 046 §1).
+    // packages no module exports to everyone, which are not API and which /api/ therefore does not
+    // show (ADR 046 §1): the internal ones, and the backend's screen-reader bridges.
     source(documented.map {
         it.extensions.getByType<SourceSetContainer>()["main"].allJava.matching {
             exclude("module-info.java")
             exclude("**/internal/**")
+            exclude("limn/backend/lwjgl/a11y/**") // exported by no module, like the internal ones
         }
     })
     classpath = files(documented.map {
