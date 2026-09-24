@@ -253,6 +253,34 @@ class AxTableSceneTest {
         assertNotEquals(0, grid.cellAt(tableNode, 0, 3), "and the cells are still found");
     }
 
+    /**
+     * Only a table whose rows are its selection reports the table as VoiceOver's focus. A grid that
+     * selects its cells keeps the cell: a calendar's day, and its month chooser, whose selection
+     * shape was read as rows by default when no member was published, so that the chooser was
+     * reported as its table and VoiceOver said nothing of the climb (graft-datepicker-1, 2026-09-24).
+     */
+    @Test
+    void aCalendarsDaysAndItsMonthChooserKeepTheirCellFocused() {
+        CalendarView calendar = new CalendarView()
+                .setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-09-16T12:00:00Z"),
+                        java.time.ZoneOffset.UTC));
+        calendar.setVisibleMonth(LocalDate.of(2026, 9, 9));
+        bind(calendar);
+        bridge.entered();
+        scene.requestFocus(calendar);
+        scene.renderFrame(new NoopCanvas(480, 400));
+        long day = bridge.tree().effectiveFocus();
+        assertEquals(Accessible.Role.CELL, bridge.tree().find(day).role(), "the cursor is a day");
+        assertEquals(bridge.elementFor(day), bridge.focusedElement(), "and VoiceOver's focus is the day");
+
+        press(Keys.UP, limn.components.Accelerator.commandModifier());
+        long month = bridge.tree().effectiveFocus();
+        assertNotEquals(day, month, "the climb moved the cursor to a month");
+        assertEquals(Accessible.Role.CELL, bridge.tree().find(month).role());
+        assertEquals(bridge.elementFor(month), bridge.focusedElement(),
+                "and VoiceOver's focus is the month, not the chooser's table");
+    }
+
     @Test
     void aCalendarsDayIsFoundAtItsColumnAndWeekAndEachWeekIsNumberedByItsDays() {
         CalendarView calendar = new CalendarView()

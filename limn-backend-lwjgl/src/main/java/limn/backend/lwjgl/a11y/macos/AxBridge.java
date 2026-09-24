@@ -627,19 +627,27 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         return table == null ? effective : table.id();
     }
 
-    /** @return the table of rows a data cell (or a widget in one) belongs to, or {@code null} */
+    /**
+     * @return the table a data cell (or a widget in one) belongs to when the cell's row is a member of
+     *         that table's selection, as an NSTableView's rows are; {@code null} otherwise. A grid
+     *         whose cells are what it selects -- a calendar's days, a month chooser -- keeps its cell
+     *         focused: its shape was read as rows by default when no member was published, and the
+     *         month chooser, reported as its table, was not read at all (graft-datepicker-1).
+     */
     private AccessibleNode tableOfDataCell(AccessibleTree tree, long nodeId) {
         if (nodeId == 0) return null;
         int at = tree.indexOf(nodeId);
         if (at < 0) return null;
         AccessibleNode node = tree.node(at);
         if (node.cell() == null || node.cell().row() < 0) return null;
+        int row = AccessibleNode.NONE;
         for (int p = node.parent(); p != AccessibleNode.NONE; p = tree.node(p).parent()) {
             AccessibleNode up = tree.node(p);
             if (up.table() != null) {
-                return up.selection() != null && grid.selectionShape(up) == AxGrid.SelectionShape.ROWS
-                        ? up : null;
+                return up.selection() != null && row != AccessibleNode.NONE
+                        && tree.node(row).selectionContainer() == p ? up : null;
             }
+            if (row == AccessibleNode.NONE && grid.isRow(up)) row = p;
         }
         return null;
     }
