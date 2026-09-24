@@ -376,8 +376,8 @@ public final class DateField extends Widget<DateField> {
      * {@code null} while the date is incomplete.
      */
     LocalDate periodBound(boolean last) {
-        if (dateValue == null) {
-            return null;
+        if (dateValue == null || granularity.holds(Granularity.DAY)) {
+            return dateValue;
         }
         LocalDate bound = buildDate(year, month, day, last);
         return bound == null ? dateValue : bound;
@@ -681,7 +681,8 @@ public final class DateField extends Widget<DateField> {
 
     /**
      * The earliest acceptable date. A typed date before it is held and published invalid, never
-     * snapped.
+     * snapped. A field coarser than a day names a month or a year, which is acceptable when any
+     * day of it is: a month field bounded at 15 September accepts September.
      *
      * @param date the bound, or {@code null} for none
      * @return this
@@ -777,8 +778,12 @@ public final class DateField extends Widget<DateField> {
             return DateStrings.INVALID_INCOMPLETE;
         }
         if (dateValue != null) {
-            if (minDate != null && dateValue.isBefore(minDate)
-                    || maxDate != null && dateValue.isAfter(maxDate)) {
+            // The bounds are days and a month or a year field names a whole period of them: the
+            // period is in range when a day of it is, which is the rule the calendar's choosers
+            // offer a cell by. Held against the value alone, a month field whose minimum fell on
+            // the 15th refused the very month its picker had just offered and taken.
+            if (minDate != null && periodBound(true).isBefore(minDate)
+                    || maxDate != null && periodBound(false).isAfter(maxDate)) {
                 return DateStrings.INVALID_OUT_OF_RANGE;
             }
             if (dateFilter != null && !dateFilter.test(dateValue)) {
