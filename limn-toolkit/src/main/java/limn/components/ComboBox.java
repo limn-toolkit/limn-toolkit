@@ -400,6 +400,13 @@ public final class ComboBox extends Widget<ComboBox> {
             popupPanel = null;
             popupStep = null;
             NativeWindow parent = scene() != null ? scene().window() : null;
+            if (closingScene != null && closingScene.isWindowFocused()
+                    && parent != null && !parent.isClosed()) {
+                // A click in the list made its window the key one, and a destroyed key window
+                // hands the keyboard to nobody on macOS: the owner's came back only when it was
+                // clicked, so a Tab after choosing a row by pointer went nowhere.
+                parent.focus();
+            }
             Runnable destroy = () -> {
                 if (parent != null && !parent.isClosed()) {
                     parent.unregisterChildPopup(closing);
@@ -1595,6 +1602,32 @@ public final class ComboBox extends Widget<ComboBox> {
                 case PRESS -> event.consume();
                 default -> {
                 }
+            }
+        }
+
+        /**
+         * The keys that reach the list's own window, which the desktop makes the key window on a
+         * click in it that chooses nothing: on the scrollbar, or on the padding round the rows.
+         * Nothing in this scene is focusable, so they arrive here and go where they would have
+         * gone from the field. Tab, which the field would have passed on, closes the list and
+         * gives the field its window's keyboard back. In the scene the overlay above takes them.
+         */
+        @Override
+        protected void onKeyEvent(KeyEvent event) {
+            if (scenePopup != null) {
+                return;
+            }
+            ComboBox.this.onKeyEvent(event);
+            if (!event.isConsumed() && event.isPressed() && event.key() == Keys.TAB && open) {
+                close(Change.Origin.USER);
+                event.consume();
+            }
+        }
+
+        @Override
+        protected void onCharTyped(limn.scene.event.CharEvent event) {
+            if (scenePopup == null) {
+                ComboBox.this.onCharTyped(event);
             }
         }
 

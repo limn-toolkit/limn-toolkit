@@ -126,6 +126,57 @@ class NativePopupCursorTest {
         assertEquals(field.id(), closed.effectiveFocus(), "and the cursor is still the field");
     }
 
+    /**
+     * A click in the list's window that chooses nothing -- on its scrollbar, or on the padding
+     * round the rows -- makes that window the desktop's key one, and its keys then went to a scene
+     * nothing in which takes them: the arrows stopped moving the highlight. They reach the combo
+     * from there, and a list that closes while holding the keyboard gives it back to the field's
+     * window, which on macOS otherwise got it only when it was clicked.
+     */
+    @Test
+    void aClickInTheListThatChoosesNothingLeavesTheKeysWorkingThere() {
+        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        combo.setSelectedIndex(1);
+        HeadlessWindow host = show(combo);
+        combo.requestFocus();
+        combo.open();
+        HeadlessWindow popup = popupWindow();
+        settle(host, popup);
+        int asked = host.focusRequests();
+
+        host.desktopFocus(false);
+        popup.desktopFocus(true);
+        // The padding under the last row: the one above the first counts as the first row.
+        limn.testing.SceneDriver.drive(popup.scene()).click(4, popup.logicalHeight() - 1);
+        settle(host, popup);
+        assertTrue(combo.isOpen(), "a click that chooses nothing leaves the list open");
+        assertEquals(asked, host.focusRequests(), "and the keyboard where the click put it");
+
+        popup.key(Keys.DOWN);
+        assertEquals(2, combo.highlightedIndex(), "an arrow in the list's window moves the highlight");
+        limn.testing.SceneDriver.drive(popup.scene()).type("o");
+        assertEquals(0, combo.highlightedIndex(), "and a letter finds its option");
+        popup.key(Keys.ENTER);
+        assertFalse(combo.isOpen());
+        assertEquals(0, combo.selectedIndex(), "Enter chooses it");
+        assertTrue(host.focusRequests() > asked, "and the field's window has the keyboard back");
+        host.desktopFocus(true);
+        popup.desktopFocus(false);
+        settle(host, popup);
+
+        combo.open();
+        runtime.drain();
+        popup = backend.windows().get(backend.windows().size() - 1); // the closed one stays listed
+        settle(host, popup);
+        asked = host.focusRequests();
+        host.desktopFocus(false);
+        popup.desktopFocus(true);
+        limn.testing.SceneDriver.drive(popup.scene()).click(4, popup.logicalHeight() - 1);
+        popup.key(Keys.TAB);
+        assertFalse(combo.isOpen(), "Tab from the list's window closes it");
+        assertTrue(host.focusRequests() > asked, "and gives the field's window the keyboard");
+    }
+
     private HeadlessWindow show(limn.scene.Widget<?> content) {
         Column root = new Column();
         root.add(content);
