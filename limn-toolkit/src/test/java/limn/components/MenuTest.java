@@ -168,6 +168,43 @@ class MenuTest extends ComponentTestBase {
         assertFalse(popup.isOpen());
     }
 
+    /**
+     * TR-5 of the 2026-09-24 review: every pointer move over a row rebuilt that row's submenu, so
+     * with the submenu open, its highlight moved by the keyboard and a third column open from it,
+     * a 1 pt twitch of the mouse inside the parent row closed the third column and sent the
+     * highlight back to the submenu's first row. Hovering the row whose submenu is open changes
+     * nothing.
+     */
+    @Test
+    void pointerJitterOverTheRowWhoseSubmenuIsOpenLeavesTheCascadeAsItIs() {
+        Menu deeper = new Menu().addItem("Deep", () -> { });
+        Menu sub = new Menu().addItem("S1", () -> { }).addItem("S2", () -> { })
+                .addItem("S3", () -> { }).addSubmenu("More", deeper);
+        Menu menu = new Menu().addItem("A", () -> { }).addSubmenu("Export", sub)
+                .addItem("B", () -> { });
+        PopupMenu popup = show(menu, 600, 400, 20, 20);
+        float[] r = popup.columnRectForTest(0);
+        float exportY = r[1] + itemCentre(tokens(popup), 1);
+        popup.moveForTest(r[0] + 20, exportY);
+        assertEquals(2, popup.columnCountForTest(), "hovering Export opens its submenu");
+        assertEquals(0, popup.highlightForTest(1));
+        popup.keyForTest(Keys.DOWN);
+        popup.keyForTest(Keys.DOWN);
+        popup.keyForTest(Keys.DOWN); // onto "More"
+        popup.keyForTest(Keys.RIGHT); // and open it
+        assertEquals(3, popup.columnCountForTest());
+        assertEquals(3, popup.highlightForTest(1));
+
+        popup.moveForTest(r[0] + 21, exportY + 1); // the pointer twitches inside Export's row
+        assertEquals(3, popup.columnCountForTest(), "the third column stays open");
+        assertEquals(3, popup.highlightForTest(1), "and the submenu's highlight stays on More");
+        assertEquals(1, popup.highlightForTest(0));
+
+        popup.moveForTest(r[0] + 20, r[1] + itemCentre(tokens(popup), 2)); // onto B
+        assertEquals(1, popup.columnCountForTest(), "another row still closes the submenu");
+        assertEquals(2, popup.highlightForTest(0));
+    }
+
     // ------------------------------------------------------------- size step
 
     @Test

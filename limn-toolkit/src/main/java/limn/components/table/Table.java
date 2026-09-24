@@ -1922,7 +1922,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /**
      * Resolves which columns are shown and how wide each is for a viewport of {@code viewW}:
-     * every column its own width, then the leftover shared by weight.
+     * every column its own width, then the leftover shared by weight among the columns whose
+     * width was not dragged.
      */
     private void resolveColumns(float viewW) {
         lastViewportWidth = viewW;
@@ -1952,13 +1953,13 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             shownIndex[at] = i;
             colW[at] = column.width();
             total += colW[at];
-            weights += column.weight();
+            weights += column.leftoverWeight();
             at++;
         }
         float leftover = viewW - total;
         if (leftover > 0 && weights > 0) {
             for (int s = 0; s < n; s++) {
-                float weight = columns.get(shownIndex[s]).weight();
+                float weight = columns.get(shownIndex[s]).leftoverWeight();
                 if (weight > 0) {
                     colW[s] += leftover * weight / weights;
                 }

@@ -422,6 +422,21 @@ mark may change. `Table.isHeaderFocused()` and `headerColumn()` answer the state
 `TableTest.theHeaderIsAFocusStopOfItsOwnAndTheKeyboardSortsFromIt`; what a reader is told is in
 §7's amendment of the same date.
 
+**Amended 2026-09-24 (FN-3 and FN-11 of the 2026-09-24 review).** The default comparator held
+for a column of one kind and broke for a column of two: a number met a string through both
+formatted texts, so a column holding 5, 20 and "3" ordered them 5 < 20 < "3" < 5, the sort threw
+"Comparison method violates its general contract", and every `refresh` threw again while the
+header showed the sort. And "`Number`s numerically" was through `double`, so two ids past 2^53
+sorted as equal. The derived order is one total order now: values of different kinds compare by
+kind — numbers, then text, then `Comparable`s, then anything else by its formatted text — and
+`Comparable`s of different classes by the class's name, an enum constant with a body counting as
+its enum. Numbers compare exactly: whole numbers, `BigInteger` and `BigDecimal` by value, a double
+against them by its exact value, and doubles among themselves by `Double.compare`, negative zero
+and NaN included. A column of one kind sorts as it did. Pinned by
+`TableTest.aColumnMixingNumbersAndTextSortsTheNumbersFirstAndThenTheText` and by
+`ColumnSortKeyTest.theDerivedOrderIsATotalOrderOverValuesOfEveryKind` and
+`longsBigIntegersAndBigDecimalsCompareExactly`.
+
 ---
 
 ## 5. Columns have widths and weights, and the header resizes them
@@ -484,6 +499,17 @@ longer holds its record or its own column is hidden. Its widgets are the ones bu
 its value cells are re-read. Pinned by
 `TableTest.aRefreshOrASortKeepsTheWidgetCellThatHoldsTheKeyboardWhileItsRecordStays` and the tail
 of `aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre`.
+
+**Amended 2026-09-24 (FN-10 of the 2026-09-24 review).** "Distributes what is left of the viewport
+among the weighted columns" held a column's weight through a drag of its divider. The drag starts
+from the width on screen, share included, and the dragged width then took a share again, so the
+divider ran ahead of the pointer: between two weighted columns a 1 pt drag moved it 35.5 pt, and a
+column alone in its weight snapped back wherever it was dropped. A column whose width the user
+dragged now takes no share of the leftover until `Column.resetWidth()`: the divider follows the
+pointer point for point, the other weighted columns take up the difference, and where no weighted
+column is left the leftover stays empty after the last column, as it does in a table without
+weights. Pinned by `TableTest.theDividerBetweenTwoWeightedColumnsFollowsThePointerPointForPoint`
+and the drag half of `weightsShareTheLeftoverAndADragOverridesIt`.
 
 **The footer is a summary row**, pinned under the rows the way the header is pinned over them,
 and it exists as soon as one column has something for it: a fixed text, one of the aggregates a

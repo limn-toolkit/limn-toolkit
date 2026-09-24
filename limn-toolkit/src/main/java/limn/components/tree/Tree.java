@@ -556,7 +556,10 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      */
     private void setExpanded(T node, boolean open, Change.Origin origin) {
         Objects.requireNonNull(node, "node");
-        if (open == expanded.contains(node) || model.isLeaf(node)) {
+        // A leaf never opens, but one that is open closes: a row opened while it had children
+        // and emptied since is a leaf and still open, and refusing it too left Left and
+        // collapse() dead on it, and Left never stepping out to its parent.
+        if (open == expanded.contains(node) || open && model.isLeaf(node)) {
             return;
         }
         if (open) {
@@ -574,12 +577,24 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         }
         toggled = node;
         T wasCursor = cursor;
+        // Whether the cursor stands under the row that closes, asked before the rows change: a
+        // cursor that is a row now is under it exactly when the collapse hides it, and one that
+        // is not a row now — waiting for its parent's reload — is under it when its recorded
+        // path runs through the row. Asking only "is the cursor a row afterwards" took a cursor
+        // hidden by a reload elsewhere for one this collapse hid, and put it on an unrelated
+        // branch, which Enter then opened.
+        boolean cursorShown = cursor != null && rowNodes.contains(cursor);
+        boolean cursorUnder = false;
+        if (!open && cursor != null && !cursorShown && !cursor.equals(node)) {
+            List<T> path = hiddenPaths.get(cursor);
+            cursorUnder = path != null && path.contains(node);
+        }
         if (!open) {
             recordPathsUnder(node); // the rows about to be hidden, and where they stand
         }
         respliceSubtree(node);
         forgetRevealedPaths();
-        if (!open && cursor != null && indexOf(cursor) < 0) {
+        if (!open && cursor != null && (cursorShown ? !rowNodes.contains(cursor) : cursorUnder)) {
             // The collapse hid the row the cursor was on: the cursor climbs to the row that
             // closed, which is where Explorer, Finder and GTK put it, and the selection stays
             // where it is in every mode (decision 21 of 2026-09-14; ADR 044 §6). Announced with

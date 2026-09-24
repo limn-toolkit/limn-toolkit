@@ -271,6 +271,59 @@ class TreeTest extends ComponentTestBase {
     }
 
     /**
+     * TR-2 of the 2026-09-24 review: an open row whose children the application then removed is
+     * a leaf and still open, and the one seam that closes a row refused every leaf, so Left and
+     * {@code collapse()} did nothing on it and Left never stepped out to the parent either. A leaf
+     * still never opens; an open one closes.
+     */
+    @Test
+    void anOpenRowThatBecameALeafClosesAndLeftThenStepsOut() {
+        Node parent = Node.leaf("parent");
+        Node folder = Node.leaf("folder");
+        Map<String, List<Node>> kids = new java.util.HashMap<>(
+                Map.of("parent", List.of(folder), "folder", List.of(Node.leaf("file"))));
+        Tree<Node> tree = mount(new Tree.Model<>() {
+            @Override
+            public List<Node> roots() {
+                return List.of(parent);
+            }
+
+            @Override
+            public List<Node> children(Node node) {
+                return kids.getOrDefault(node.name(), List.of());
+            }
+
+            @Override
+            public Widget<?> cellFor(Node node) {
+                return new Label(node.name());
+            }
+        });
+        tree.expand(parent).expand(folder);
+        scene.layoutPass(220, 200);
+        scene.requestFocus(tree);
+        tree.setSelected(folder);
+        kids.put("folder", List.of()); // the application empties the folder
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertTrue(tree.isExpanded(folder), "a leaf now, and still open");
+
+        press(Keys.LEFT);
+        assertFalse(tree.isExpanded(folder), "Left closes it");
+        assertEquals(folder, tree.cursorNode(), "and stays on it, as on any open row");
+        press(Keys.LEFT);
+        assertEquals(parent, tree.cursorNode(), "the next Left steps out to the parent");
+        tree.expand(folder);
+        assertFalse(tree.isExpanded(folder), "a leaf still does not open");
+
+        kids.put("folder", List.of(Node.leaf("file")));
+        tree.expand(folder);
+        kids.put("folder", List.of());
+        tree.refresh();
+        tree.collapse(folder);
+        assertFalse(tree.isExpanded(folder), "and collapse() from code closes one too");
+    }
+
+    /**
      * The three handlers hear the user's gesture and never the caller's verb (ADR 040):
      * Right and Left reach {@code onExpand} and {@code onCollapse} with the row they opened or
      * closed, Enter reaches {@code onActivate} with the cursor row, and {@code expand()},
@@ -794,6 +847,70 @@ class TreeTest extends ComponentTestBase {
         tree.collapse(root);
         scene.layoutPass(220, 200);
         assertEquals(root, tree.cursorNode(), "a collapse from code moves it the same way");
+    }
+
+    /**
+     * TR-1 of the 2026-09-24 review: the cursor climbed onto whatever row closed while its own row
+     * was not a row, so with its row hidden by a reload, closing an unrelated branch put the cursor
+     * on that branch, and Enter opened it. A collapse moves the cursor only when the cursor was
+     * under the row that closed.
+     */
+    @Test
+    void closingAnotherBranchWhileTheCursorsRowReloadsLeavesTheCursorOnIt() {
+        Node remote = new Node("remote", List.of());
+        Node one = Node.leaf("one");
+        Node local = Node.of("local", Node.leaf("notes"));
+        CountingModel model = new CountingModel(List.of(remote, local),
+                Map.of("remote", List.of(one, Node.leaf("two"))));
+        Tree<Node> tree = mount(model);
+        List<Node> activated = new ArrayList<>();
+        tree.onActivate(activated::add);
+        scene.requestFocus(tree);
+        tree.expand(remote);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        tree.expand(local);
+        scene.layoutPass(220, 200);
+        tree.setSelected(one);
+
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        assertEquals(one, tree.cursorNode(), "kept while its row's children are on their way");
+        pressTriangle(tree, "local");
+        assertFalse(tree.isExpanded(local), "the triangle closed local: " + drawn(tree));
+        assertEquals(one, tree.cursorNode(), "and the cursor was not under it, so it stayed");
+        press(Keys.ENTER);
+        assertFalse(activated.contains(local), "Enter did not open the branch that closed");
+
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        scene.layoutPass(220, 200);
+        assertEquals(one, tree.cursorNode(), "and it is on its row again once the reload lands");
+
+        tree.collapse(remote);
+        assertEquals(remote, tree.cursorNode(), "a collapse over the cursor still climbs to it");
+    }
+
+    /**
+     * The same rule for a cursor hidden under the row that closes: a row whose reload is still out
+     * and is closed takes the cursor, which would otherwise wait under a closed row for a load the
+     * collapse cancelled.
+     */
+    @Test
+    void closingTheBranchWhoseReloadHidesTheCursorPutsTheCursorOnTheBranch() {
+        Node remote = new Node("remote", List.of());
+        Node one = Node.leaf("one");
+        CountingModel model = new CountingModel(List.of(remote, Node.leaf("b")),
+                Map.of("remote", List.of(one, Node.leaf("two"))));
+        Tree<Node> tree = mount(model);
+        scene.requestFocus(tree);
+        tree.expand(remote);
+        ui.pumpUntil(() -> tree.visibleRowCount() == 4);
+        scene.layoutPass(220, 200);
+        tree.setSelected(one);
+
+        tree.refresh();
+        scene.layoutPass(220, 200);
+        tree.collapse(remote);
+        assertEquals(remote, tree.cursorNode(), "the cursor was under remote, so it climbs to it");
     }
 
     /**

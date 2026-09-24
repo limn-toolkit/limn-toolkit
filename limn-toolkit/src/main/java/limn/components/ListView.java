@@ -672,7 +672,12 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             return;
         }
         selected.set(0, count);
-        lead = count - 1;
+        // The lead stays where it was, and with none it is the first row, as Table and Tree have
+        // it: moving it to the last row changed what selectedIndex() and selectedItem() answer
+        // under a keyboard that had not moved.
+        if (lead < 0) {
+            lead = 0;
+        }
         invalidate(); // every realized row's highlight
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }

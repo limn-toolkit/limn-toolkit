@@ -170,6 +170,29 @@ class ListViewSelectionTest extends ComponentTestBase {
         assertArrayEquals(new int[]{5}, list.selectedIndices(), "a plain arrow selects one row");
     }
 
+    /**
+     * TR-3 of the 2026-09-24 review: select-all made the last row the lead, so after Ctrl+A with
+     * the keyboard on "date" the list reported "honeydew" as {@code selectedIndex()} and
+     * {@code selectedItem()}, where {@code Table} and {@code Tree} keep the lead where it was. The
+     * lead stays; with none, it is the first row, as theirs is.
+     */
+    @Test
+    void selectAllKeepsTheLeadWhereItWas() {
+        mount(SelectionMode.MULTI);
+        click(3, 0);
+        drive(scene).press(Keys.A, Accelerator.commandModifier());
+        assertEquals(FRUIT.size(), list.selectedIndices().length);
+        assertEquals(3, list.selectedIndex(), "the lead stays on date");
+        assertEquals("date", list.selectedItem());
+        assertEquals(3, list.cursorIndex());
+
+        list.clearSelection();
+        list.selectAll();
+        assertEquals(FRUIT.size(), list.selectedIndices().length);
+        assertEquals(0, list.selectedIndex(), "with no lead, the first row leads");
+        assertEquals(3, list.cursorIndex(), "and the cursor stays where the keyboard left it");
+    }
+
     @Test
     void narrowingTheModeKeepsWhatTheNewModeCanHold() {
         mount(SelectionMode.MULTI);

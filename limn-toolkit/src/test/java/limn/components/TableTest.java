@@ -230,6 +230,52 @@ class TableTest extends ComponentTestBase {
         assertEquals(SortOrder.ASCENDING, table.sortOrder(), "but the header shows the order");
     }
 
+    /**
+     * FN-3 of the 2026-09-24 review: a number met a string through both formatted texts, so in a
+     * column holding 5, 20 and "3" the order was a cycle, 5 &lt; 20 &lt; "3" &lt; 5. The sort threw
+     * "Comparison method violates its general contract" on the 21st of these lists, and every
+     * refresh threw again while the header showed the sort. The numbers come first now, by value,
+     * then the text.
+     */
+    @Test
+    void aColumnMixingNumbersAndTextSortsTheNumbersFirstAndThenTheText() {
+        Column<Object> value = Column.of("Value", (Object o) -> o,
+                (Object v, java.util.Locale l) -> String.valueOf(v));
+        java.util.Random random = new java.util.Random(1);
+        List<List<Object>> lists = new ArrayList<>();
+        List<Table<Object>> tables = new ArrayList<>();
+        for (int list = 0; list < 40; list++) {
+            List<Object> rows = new ArrayList<>();
+            int n = 64 + random.nextInt(2000);
+            for (int i = 0; i < n; i++) {
+                int k = random.nextInt(1000);
+                rows.add(random.nextBoolean() ? (Object) k : (Object) Integer.toString(k));
+            }
+            Table<Object> table = new Table<>(List.of(value));
+            table.setRows(rows);
+            table.setSort(value, SortOrder.ASCENDING);
+            table.refresh();
+            lists.add(rows);
+            tables.add(table);
+        }
+        for (int list = 0; list < lists.size(); list++) {
+            List<Object> rows = lists.get(list);
+            Table<Object> table = tables.get(list);
+            Object previous = rows.get(table.viewToModel(0));
+            for (int v = 1; v < rows.size(); v++) {
+                Object current = rows.get(table.viewToModel(v));
+                String where = "list " + list + ", row " + v + ": " + previous + " then " + current;
+                if (current instanceof Integer c) {
+                    assertTrue(previous instanceof Integer p && p <= c, where);
+                } else if (previous instanceof String p) {
+                    // Strings of digits alone collate as they compare by char.
+                    assertTrue(p.compareTo((String) current) <= 0, where);
+                }
+                previous = current;
+            }
+        }
+    }
+
     @Test
     void theKeyboardMovesTheFocusCellAndTheSelectionWithIt() {
         Table<Person> table = new Table<>(List.of(nameColumn(), ageColumn()));
@@ -554,8 +600,8 @@ class TableTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
         assertEquals(200, name.width(), EPS, "the dragged width is held on the column");
         scene.renderFrame(canvas);
-        assertEquals(240, table.widthOf(name), EPS,
-                "and the weight still fills the leftover from the dragged width");
+        assertEquals(200, table.widthOf(name), EPS,
+                "and laid out as dragged: a dragged column takes no share of the leftover");
         name.weight(0);
         table.refresh();
         scene.renderFrame(canvas);
@@ -564,6 +610,48 @@ class TableTest extends ComponentTestBase {
         table.refresh();
         scene.renderFrame(canvas);
         assertEquals(0, table.widthOf(age), "a hidden column has no width");
+    }
+
+    /**
+     * FN-10 of the 2026-09-24 review: the dragged column kept its weight, so it took a share of
+     * the leftover on top of the width the pointer gave it, and between two weighted columns a
+     * 1 pt drag moved the divider 35.5 pt. The divider follows the pointer point for point now,
+     * the neighbour's weight absorbing the difference, and stays there after the release until
+     * the width is reset.
+     */
+    @Test
+    void theDividerBetweenTwoWeightedColumnsFollowsThePointerPointForPoint() {
+        Column<Person> name = nameColumn().weight(1);
+        Column<Person> age = ageColumn().weight(1);
+        Table<Person> table = new Table<>(List.of(name, age));
+        table.setRows(people(3));
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        assertEquals(170, table.widthOf(name), EPS, "100 and half of the 140 left over");
+        assertEquals(130, table.widthOf(age), EPS, "60 and the other half");
+        float y = headerHeight(table) / 2;
+        drive(scene).mouseMoved(170, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 170, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(171, y);
+        drive(scene).inputBatchEnded();
+        scene.renderFrame(canvas);
+        assertEquals(171, table.widthOf(name), EPS, "a 1 pt drag moves the divider 1 pt");
+        assertEquals(129, table.widthOf(age), EPS, "and the neighbour's weight gives it up");
+        drive(scene).mouseMoved(181, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 181, y);
+        drive(scene).inputBatchEnded();
+        scene.renderFrame(canvas);
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertEquals(181, table.widthOf(name), EPS, "where the release left it, through a refresh");
+        assertEquals(119, table.widthOf(age), EPS);
+        name.resetWidth();
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertEquals(170, table.widthOf(name), EPS, "a reset width takes its share again");
     }
 
     @Test
@@ -613,6 +701,26 @@ class TableTest extends ComponentTestBase {
         plainScene.renderFrame(canvas);
         assertTrue(table.firstVisibleRow() > plain.firstVisibleRow(),
                 "with a footer the last row sits higher, so the first shown row is later");
+    }
+
+    /**
+     * FN-9 of the 2026-09-24 review: the footer's documentation asks a numeric column for "a
+     * number", and its formatter cast what came back to {@code Double}, so the natural
+     * {@code mapToInt(...).sum()} threw a ClassCastException out of {@code setRows}. Any
+     * {@code Number} is written by the column's format now.
+     */
+    @Test
+    void aNumericColumnsFooterFunctionMayAnswerAnyNumber() {
+        Column<Person> sum = ageColumn().footer(all -> all.stream().mapToInt(Person::age).sum());
+        Column<Person> max = ageColumn().footer(
+                all -> all.stream().mapToLong(Person::age).max().orElse(0));
+        Column<Person> exact = ageColumn().footer(all -> new java.math.BigDecimal("2.5"));
+        Table<Person> table = new Table<>(List.of(nameColumn(), sum, max, exact));
+        table.setRows(List.of(new Person("A", 2), new Person("B", 3)));
+        assertEquals("5", table.footerTextOf(sum), "an int");
+        assertEquals("3", table.footerTextOf(max), "a long");
+        assertTrue(table.footerTextOf(exact).matches("2[.,]5"),
+                "a BigDecimal: " + table.footerTextOf(exact));
     }
 
     @Test
