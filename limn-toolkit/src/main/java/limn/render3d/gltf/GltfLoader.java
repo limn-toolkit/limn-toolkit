@@ -42,6 +42,16 @@ public final class GltfLoader {
     private static final int CHUNK_JSON = 0x4E4F534A;   // "JSON"
     private static final int CHUNK_BIN = 0x004E4942;    // "BIN\0"
 
+    /**
+     * The most array elements one load creates, over every accessor, index list, converted
+     * strip and generated normal together: 2<sup>26</sup>, a quarter of a gigabyte of floats,
+     * which still holds a model of millions of vertices with their normals. Each
+     * accessor is bounded by the bytes behind it, but primitives may name the same accessor
+     * again and again: a 168 KB file whose two thousand strips all reused one 64 KB buffer
+     * asked for more than two gigabytes.
+     */
+    static final long MAX_ELEMENTS = 1L << 26;
+
     /** What the synchronous entry points hand the parser: never cancelled, nobody listening. */
     private static final Progress NO_PROGRESS = new Progress() {
         @Override
@@ -177,6 +187,14 @@ public final class GltfLoader {
      * production callers that pass a real one.
      */
     static GltfModel load(byte[] data, Progress progress) {
+        return load(data, progress, MAX_ELEMENTS);
+    }
+
+    /**
+     * With a budget of array elements other than {@link #MAX_ELEMENTS}: package-private so a
+     * test can prove the refusal without building half a gigabyte of arrays first.
+     */
+    static GltfModel load(byte[] data, Progress progress, long elementBudget) {
         String json;
         byte[] glbBin = null;
         if (isGlb(data)) {
@@ -211,7 +229,7 @@ public final class GltfLoader {
         }
         Map<String, Object> document = obj(Json.parse(json));
         progress.report(JSON_DONE);
-        return new Parser(document, glbBin).parse(progress);
+        return new Parser(document, glbBin, elementBudget).parse(progress);
     }
 
     private static boolean isGlb(byte[] d) {
@@ -221,12 +239,28 @@ public final class GltfLoader {
     /** One parse pass over the JSON object graph, resolving binary data as it goes. */
     private static final class Parser {
 
+
+        /** What this load may create, {@link GltfLoader#MAX_ELEMENTS} but for a test's smaller one. */
+        private final long budget;
+
+        /** What this load has created so far, against {@link #budget}. */
+        private long spent;
+
+        private void spend(long elements, String what) {
+            spent += elements;
+            if (spent > budget) {
+                throw new IllegalArgumentException("glTF " + what + " takes the model past "
+                        + budget + " elements, the most one load creates");
+            }
+        }
+
         private final Map<String, Object> root;
         private final List<byte[]> buffers = new ArrayList<>();
         private final List<Object> bufferViews;
         private final List<Object> accessors;
 
-        Parser(Map<String, Object> root, byte[] glbBin) {
+        Parser(Map<String, Object> root, byte[] glbBin, long budget) {
+            this.budget = budget;
             this.root = root;
             this.bufferViews = arr(root.get("bufferViews"));
             this.accessors = arr(root.get("accessors"));
@@ -280,8 +314,10 @@ public final class GltfLoader {
             for (Object n : arr(root.get("nodes"))) {
                 nodes.add(parseNode(obj(n)));
             }
+            int[] roots = sceneRoots(nodes.size());
+            checkForest(nodes, roots);
             GltfModel model = new GltfModel(meshes, materials, textures, samplers, images, nodes,
-                    sceneRoots(nodes.size()));
+                    roots);
             progress.report(1);
             return model;
         }
@@ -304,12 +340,18 @@ public final class GltfLoader {
                     data.put(VertexAttribute.UV0,
                             readFloats(intOf(attrs.get("TEXCOORD_0")), 2, "TEXCOORD_0"));
                 }
+                if (!prim.containsKey("indices")) {
+                    spend(data.vertexCount(), "sequential indices");
+                }
                 int[] indices = prim.containsKey("indices")
                         ? readIndices(intOf(prim.get("indices")), data.vertexCount())
                         : sequential(data.vertexCount());
                 // glTF primitive modes: 4 = TRIANGLES (native); strips/fans are
                 // converted to lists at load; points/lines have no pipeline here.
                 int mode = intOr(prim, "mode", 4);
+                if (mode == 5 || mode == 6) {
+                    spend(3L * Math.max(0, indices.length - 2), "a strip or fan made a list");
+                }
                 data.indices(switch (mode) {
                     case 4 -> indices;
                     case 5 -> stripToTriangles(indices);
@@ -318,6 +360,8 @@ public final class GltfLoader {
                             "unsupported glTF primitive mode " + mode + " (points/lines/loops)");
                 });
                 if (data.has(VertexAttribute.POSITION) && !data.has(VertexAttribute.NORMAL)) {
+                    spend((long) data.indices().length * (data.has(VertexAttribute.UV0) ? 8 : 6),
+                            "flat normals");
                     data = withFlatNormals(data);
                 }
                 prims.add(new GltfModel.Primitive(data, intOr(prim, "material", -1)));
@@ -458,6 +502,60 @@ public final class GltfLoader {
                     intArray(node.get("children")), strOr(node, "name", ""));
         }
 
+        /** The deepest a node may sit below its scene's root; the scene is built and drawn by recursion. */
+        static final int MAX_DEPTH = 1024;
+
+        /**
+         * The nodes form trees, as the spec requires: every child names a node, no node has two
+         * parents, a scene's roots name nodes that have none, and no tree is deeper than
+         * {@link #MAX_DEPTH}. The scene is built by walking children from the roots, so a node
+         * named twice was built twice for each time its parent was: a 609-byte file of nodes each
+         * naming the next one twice asked for 2<sup>28</sup> of them, and a node naming itself
+         * recursed until the stack ran out.
+         */
+        private static void checkForest(List<GltfModel.NodeDef> nodes, int[] roots) {
+            int count = nodes.size();
+            int[] parent = new int[count];
+            java.util.Arrays.fill(parent, -1);
+            for (int i = 0; i < count; i++) {
+                for (int child : nodes.get(i).children()) {
+                    if (child < 0 || child >= count) {
+                        throw new IllegalArgumentException("glTF node " + i + " names child "
+                                + child + ", and there are " + count + " nodes");
+                    }
+                    if (parent[child] >= 0 || child == i) {
+                        throw new IllegalArgumentException("glTF node " + child + " has more than"
+                                + " one parent (" + (child == i ? "itself" : parent[child] + " and "
+                                + i) + "): the nodes of a glTF form trees");
+                    }
+                    parent[child] = i;
+                }
+            }
+            int[] depth = new int[count];
+            int[] stack = new int[count];
+            for (int root : roots) {
+                if (root < 0 || root >= count || parent[root] >= 0) {
+                    throw new IllegalArgumentException("glTF scene root " + root
+                            + " is not a node without a parent");
+                }
+                int top = 0;
+                stack[top++] = root;
+                depth[root] = 0;
+                while (top > 0) {
+                    int at = stack[--top];
+                    for (int child : nodes.get(at).children()) {
+                        depth[child] = depth[at] + 1;
+                        if (depth[child] > MAX_DEPTH) {
+                            throw new IllegalArgumentException("glTF node " + child + " sits "
+                                    + depth[child] + " levels deep, past the " + MAX_DEPTH
+                                    + " a scene is built to");
+                        }
+                        stack[top++] = child;
+                    }
+                }
+            }
+        }
+
         private int[] sceneRoots(int nodeCount) {
             List<Object> scenes = arr(root.get("scenes"));
             if (scenes.isEmpty()) {
@@ -572,9 +670,15 @@ public final class GltfLoader {
             int stride = intOr(bv, "byteStride", 0);
             if (stride == 0) {
                 stride = components * componentSize;
+            } else if (stride < components * componentSize) {
+                // The spec's own rule, and the one that bounds a count by the bytes: elements that
+                // overlap let a short buffer declare as many as it has bytes.
+                throw new IllegalArgumentException("glTF " + what + " declares a byteStride of "
+                        + stride + ", shorter than its " + components * componentSize + "-byte element");
             }
             int count = intOr(acc, "count", 0);
             checkFits(count, base, stride, components * componentSize, limitOf(bv, buffer), what);
+            spend((long) count * components, what);
             ByteBuffer bb = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN);
             float[] out = new float[count * components];
             for (int e = 0; e < count; e++) {
@@ -627,6 +731,7 @@ public final class GltfLoader {
                         "unsupported index componentType " + componentType);
             };
             checkFits(count, base, indexSize, indexSize, limitOf(bv, buffer), "indices");
+            spend(count, "indices");
             ByteBuffer bb = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN);
             int[] out = new int[count];
             for (int i = 0; i < count; i++) {
