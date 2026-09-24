@@ -178,6 +178,25 @@ class DateFieldTest extends ComponentTestBase {
         assertEquals(LocalDate.of(2026, 3, 15), field.date());
     }
 
+    /**
+     * On a twelve-hour clock the empty hour's first step is the clock's own hour, afternoon and
+     * all: the hour took the morning, so a first Up at 21:40 said 9:40 AM, and "1230" typed at
+     * noon was half past midnight.
+     */
+    @Test
+    void anEmptyHoursFirstStepOnATwelveHourClockKeepsTheClocksHalfOfTheDay() {
+        build(DateField.ofTime().setClock(
+                Clock.fixed(Instant.parse("2026-09-09T21:40:00Z"), ZoneOffset.UTC)), EN_US);
+        key(Keys.UP);    // the hour
+        key(Keys.RIGHT);
+        key(Keys.UP);    // the minute
+        assertEquals(LocalTime.of(21, 40), field.time(), field.text());
+
+        build(timeField(), EN_US);  // noon
+        type("1230");
+        assertEquals(LocalTime.of(12, 30), field.time(), field.text());
+    }
+
     @Test
     void theArrowsStepTheFocusedSegmentAndRollOverIt() {
         build(dateField(), PT_BR);

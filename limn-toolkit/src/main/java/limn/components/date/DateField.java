@@ -1153,7 +1153,10 @@ public final class DateField extends Widget<DateField> {
             case DAY -> day = value;
             case HOUR24 -> hour = value;
             case HOUR12 -> {
-                int half = hour == UNSET ? 0 : hour / 12;
+                // An empty hour takes its half of the day from the clock, as the day period's own
+                // first step does: a first Up at 21:40 is 9 PM, and "12" typed at noon is noon.
+                // It took the morning, so both landed twelve hours early.
+                int half = hour == UNSET ? defaultFor(DatePattern.Field.DAY_PERIOD) : hour / 12;
                 hour = half * 12 + value % 12;
             }
             case MINUTE -> minute = value;
