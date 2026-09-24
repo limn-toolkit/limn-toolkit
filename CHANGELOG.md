@@ -78,6 +78,17 @@ toolkit's own widgets are held to. A widget can carry an id: `setId("save")`, th
 - A table sorts a text column from keys extracted once, and a tree splices only the block that
   opened or closed.
 
+**Fixed.**
+- Typing 29 February into a `DateField` keeps it; each year digit used to cut the day to 28.
+- `Table.refresh()` after rows were removed keeps the cursor on its record, so Enter opens the
+  row the user was on.
+- An image whose header claims more than 2^28 pixels is refused before it is decoded, instead of
+  asking for gigabytes.
+- A glTF model whose nodes are not trees, or sit deeper than 1024, is refused, and one load
+  creates at most 2^26 array elements.
+- Stopping a streamed track and starting another no longer frees the first one's decoder while
+  the audio thread is still reading it.
+
 ### Breaking, and how to move
 
 One breaking round, taken before 1.0.
