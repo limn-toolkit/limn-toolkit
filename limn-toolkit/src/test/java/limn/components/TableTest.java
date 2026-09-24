@@ -600,8 +600,8 @@ class TableTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
         assertEquals(200, name.width(), EPS, "the dragged width is held on the column");
         scene.renderFrame(canvas);
-        assertEquals(240, table.widthOf(name), EPS,
-                "and the weight still fills the leftover from the dragged width");
+        assertEquals(200, table.widthOf(name), EPS,
+                "and laid out as dragged: a dragged column takes no share of the leftover");
         name.weight(0);
         table.refresh();
         scene.renderFrame(canvas);
@@ -610,6 +610,48 @@ class TableTest extends ComponentTestBase {
         table.refresh();
         scene.renderFrame(canvas);
         assertEquals(0, table.widthOf(age), "a hidden column has no width");
+    }
+
+    /**
+     * FN-10 of the 2026-09-24 review: the dragged column kept its weight, so it took a share of
+     * the leftover on top of the width the pointer gave it, and between two weighted columns a
+     * 1 pt drag moved the divider 35.5 pt. The divider follows the pointer point for point now,
+     * the neighbour's weight absorbing the difference, and stays there after the release until
+     * the width is reset.
+     */
+    @Test
+    void theDividerBetweenTwoWeightedColumnsFollowsThePointerPointForPoint() {
+        Column<Person> name = nameColumn().weight(1);
+        Column<Person> age = ageColumn().weight(1);
+        Table<Person> table = new Table<>(List.of(name, age));
+        table.setRows(people(3));
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        assertEquals(170, table.widthOf(name), EPS, "100 and half of the 140 left over");
+        assertEquals(130, table.widthOf(age), EPS, "60 and the other half");
+        float y = headerHeight(table) / 2;
+        drive(scene).mouseMoved(170, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 170, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseMoved(171, y);
+        drive(scene).inputBatchEnded();
+        scene.renderFrame(canvas);
+        assertEquals(171, table.widthOf(name), EPS, "a 1 pt drag moves the divider 1 pt");
+        assertEquals(129, table.widthOf(age), EPS, "and the neighbour's weight gives it up");
+        drive(scene).mouseMoved(181, y);
+        drive(scene).inputBatchEnded();
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 181, y);
+        drive(scene).inputBatchEnded();
+        scene.renderFrame(canvas);
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertEquals(181, table.widthOf(name), EPS, "where the release left it, through a refresh");
+        assertEquals(119, table.widthOf(age), EPS);
+        name.resetWidth();
+        table.refresh();
+        scene.renderFrame(canvas);
+        assertEquals(170, table.widthOf(name), EPS, "a reset width takes its share again");
     }
 
     @Test

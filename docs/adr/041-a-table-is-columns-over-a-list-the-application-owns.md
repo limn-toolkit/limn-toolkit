@@ -500,6 +500,17 @@ its value cells are re-read. Pinned by
 `TableTest.aRefreshOrASortKeepsTheWidgetCellThatHoldsTheKeyboardWhileItsRecordStays` and the tail
 of `aColumnShownOrHiddenLeavesEveryOtherWidgetCellAndTheKeyboardWhereTheyAre`.
 
+**Amended 2026-09-24 (FN-10 of the 2026-09-24 review).** "Distributes what is left of the viewport
+among the weighted columns" held a column's weight through a drag of its divider. The drag starts
+from the width on screen, share included, and the dragged width then took a share again, so the
+divider ran ahead of the pointer: between two weighted columns a 1 pt drag moved it 35.5 pt, and a
+column alone in its weight snapped back wherever it was dropped. A column whose width the user
+dragged now takes no share of the leftover until `Column.resetWidth()`: the divider follows the
+pointer point for point, the other weighted columns take up the difference, and where no weighted
+column is left the leftover stays empty after the last column, as it does in a table without
+weights. Pinned by `TableTest.theDividerBetweenTwoWeightedColumnsFollowsThePointerPointForPoint`
+and the drag half of `weightsShareTheLeftoverAndADragOverridesIt`.
+
 **The footer is a summary row**, pinned under the rows the way the header is pinned over them,
 and it exists as soon as one column has something for it: a fixed text, one of the aggregates a
 numeric column offers (sum, average, min, max), the row count any column may carry, or a value the

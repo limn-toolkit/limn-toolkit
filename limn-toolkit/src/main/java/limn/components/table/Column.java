@@ -31,7 +31,9 @@ import java.util.function.ToDoubleFunction;
  * column its preferred width and then shares what is left of the viewport among the weighted
  * ones, as {@code Expanded} shares a row's leftover; a table whose preferred widths exceed the
  * viewport scrolls sideways rather than crushing anything below its minimum. A width the user
- * dragged is held here, so it survives a {@link Table#refresh()}.
+ * dragged is held here, so it survives a {@link Table#refresh()}, and is held as dragged: the
+ * column takes no share of the leftover until {@link #resetWidth()}, so the divider stays where
+ * the pointer left it and the other weighted columns take up the difference.
  *
  * <p><b>Sorting.</b> A header click sorts through {@link #compare}: a comparator the application
  * named, else the values themselves &mdash; numbers numerically, strings through the language's
@@ -355,7 +357,8 @@ public final class Column<T> {
     /**
      * Sets this column's share of the viewport width left over once every column has its
      * preferred width (default 0: keep the preferred width). A weight of 1 on one column makes
-     * it take all of the leftover; equal weights on two share it equally.
+     * it take all of the leftover; equal weights on two share it equally. A column whose width
+     * the user dragged takes no share until {@link #resetWidth()}.
      *
      * @param weight the share; zero or more
      * @return this column
@@ -556,7 +559,10 @@ public final class Column<T> {
         return v == null ? "" : footerFormat.apply(v, locale);
     }
 
-    /** Forgets a width the user dragged, so layout starts from the preferred width again. */
+    /**
+     * Forgets a width the user dragged, so layout starts from the preferred width again and the
+     * column's weight takes its share of the leftover again.
+     */
     public void resetWidth() {
         Ui.checkUiThread();
         draggedWidth = -1;
@@ -584,6 +590,16 @@ public final class Column<T> {
     /** Records a width the user dragged the header to, floored at the minimum. */
     void dragTo(float points) {
         draggedWidth = Math.max(minWidth, points);
+    }
+
+    /**
+     * The weight layout shares the leftover by: none while the width is one the user dragged.
+     * A drag starts from the width on screen, share included, so a dragged column that took a
+     * share again ran ahead of the pointer by it: between two weighted columns a 1 pt drag moved
+     * the divider 35.5 pt, and a column alone in its weight could not be dragged at all.
+     */
+    float leftoverWeight() {
+        return draggedWidth >= 0 ? 0 : weight;
     }
 
     /** The text of {@code row}'s cell under {@code locale}; empty for a widget column. */
