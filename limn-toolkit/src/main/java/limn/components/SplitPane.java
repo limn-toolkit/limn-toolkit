@@ -114,11 +114,45 @@ public final class SplitPane extends Widget<SplitPane> {
         this.firstPane = new Pane(Objects.requireNonNull(first, "first"));
         this.secondPane = new Pane(Objects.requireNonNull(second, "second"));
         this.divider = new Divider(); // after `orientation`: it reads it for its cursor
+        // Between the panes, where it is on screen, so Tab and a reader meet it there: added
+        // last it came after the second pane's whole subtree, and in a split inside a split the
+        // outer divider was the last stop, behind the inner one. The hit test and the paint
+        // still put it on top; see hitTest and paintChildren.
         add(firstPane);
-        add(secondPane);
-        // Last, so it wins the hit test where its grab band overlaps the panes:
-        // children are tested in reverse order, and the overlap is the whole point.
         add(divider);
+        add(secondPane);
+    }
+
+    /**
+     * The divider first, so it wins where its grab band overlaps the panes, which is the whole
+     * point of the band; everywhere else the panes as ever.
+     */
+    @Override
+    public Widget<?> hitTest(float localX, float localY) {
+        Widget<?> hit = super.hitTest(localX, localY);
+        if (hit == null) {
+            return null;
+        }
+        Widget<?> onDivider = divider.hitTest(localX - divider.x(), localY - divider.y());
+        return onDivider != null ? onDivider : hit;
+    }
+
+    /** The panes and then the divider, so its line is drawn over a ring that reaches the gutter. */
+    @Override
+    protected void paintChildren(Canvas canvas) {
+        paintChild(canvas, firstPane);
+        paintChild(canvas, secondPane);
+        paintChild(canvas, divider);
+    }
+
+    private static void paintChild(Canvas canvas, Widget<?> child) {
+        canvas.save();
+        try {
+            canvas.translate(child.x(), child.y());
+            child.paintWidget(canvas);
+        } finally {
+            canvas.restore(); // for Widget#paintChildren's reason: a throw must not leak state
+        }
     }
 
     /**

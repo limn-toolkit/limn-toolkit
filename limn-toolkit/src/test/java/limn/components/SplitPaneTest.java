@@ -47,6 +47,42 @@ class SplitPaneTest extends ComponentTestBase {
         scene.layoutPass(400, 200);
     }
 
+    /**
+     * Tab meets a divider between its two panes, where it is on screen. It came after the second
+     * pane's whole subtree, so in a split inside a split the outer divider was the last stop.
+     */
+    @Test
+    void tabMeetsTheDividerBetweenThePanes() {
+        Button a = new Button("a");
+        Button b = new Button("b");
+        Button c = new Button("c");
+        SplitPane inner = SplitPane.vertical(b, c).setDividerFocusable(true);
+        SplitPane outer = SplitPane.horizontal(a, inner).setDividerFocusable(true);
+        Scene nested = new Scene(outer);
+        nested.setTextRuler(RULER);
+        nested.layoutPass(400, 200);
+        List<Widget<?>> order = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            nested.focusTraverse(false);
+            order.add(nested.focusedWidget());
+        }
+        assertEquals(a, order.get(0));
+        assertEquals(outer, order.get(1).parent(), "then the divider between a and the rest");
+        assertEquals(b, order.get(2));
+        assertEquals(inner, order.get(3).parent(), "then the divider between b and c");
+        assertEquals(c, order.get(4));
+    }
+
+    /** The grab band still wins where it overlaps a pane, now that the second pane is added last. */
+    @Test
+    void theGrabBandOverThePaneIsTheDividers() {
+        float x = right.localToSceneX() + 1; // inside the right pane, inside the band
+        Widget<?> hit = split.hitTest(x, 100);
+        assertNotNull(hit);
+        assertEquals(split, hit.parent(), "the divider, not the pane under it: " + hit);
+        assertEquals("Divider", hit.getClass().getSimpleName());
+    }
+
     @Test
     void theRatioSharesTheSpace() {
         assertEquals(left.width(), right.width(), 0.01f, "the default split is even");

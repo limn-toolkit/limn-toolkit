@@ -94,6 +94,8 @@ toolkit's own widgets are held to. A widget can carry an id: `setId("save")`, th
   title or day clicked.
 - Tab in a date picker's popup follows the card from top to bottom, header, days, then the time
   row; the row used to come between the header and the days.
+- A focusable `SplitPane` divider is met by Tab, and by a screen reader, between its two panes;
+  it came after the second pane's whole subtree.
 - A drag on a combo box's scrollbar no longer leaves the arrows dead in its list, and a row chosen
   by pointer gives the keyboard back to the field's window.
 - A key a widget acts on ends the wheel scrolling still arriving, so a trackpad's inertia no

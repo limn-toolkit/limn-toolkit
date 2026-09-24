@@ -142,7 +142,7 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
 
     /** The trailing pane's extent along the same axis. */
     private float secondExtent() {
-        return split.children().get(1).width();
+        return split.children().get(2).width(); // the divider sits between the panes
     }
 
     /** The divider's node in the tree the bridge is holding. */
@@ -181,11 +181,12 @@ class SplitPaneAccessibilityTest extends AccessibleComponentTestBase {
 
         List<AccessibleNode> children = childrenOf(container);
         assertEquals(List.of("first", "second"),
-                List.of(children.get(0).name(), children.get(1).name()),
+                List.of(children.get(0).name(), children.get(2).name()),
                 "tree order is the widget tree's order" + describe(tree()));
-        assertEquals(Accessible.Role.SPLITTER, children.get(2).role(),
-                "and the divider is last, because the constructor adds it last so that it wins the "
-                        + "hit test where its grab band overlaps the panes");
+        assertEquals(Accessible.Role.SPLITTER, children.get(1).role(),
+                "and the divider is between the panes, where it is on screen: the split's own hit "
+                        + "test, not the order of its children, lets it win where its grab band "
+                        + "overlaps them");
         assertEquals(3, children.size(), describe(tree()));
     }
 
