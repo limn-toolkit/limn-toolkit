@@ -179,9 +179,48 @@ class AxDisclosureTest {
                 .map(line -> line.substring("posted ".length())).toList();
         assertEquals(List.of("NSAccessibilityRowExpandedNotification",
                         "NSAccessibilityRowCollapsedNotification",
-                        "NSAccessibilityValueChangedNotification",
                         "NSAccessibilityRowCountChangedNotification"), posted,
-                "each row on itself, the outline's count once for the frame, and a combo box's open "
-                        + "state still a value change: " + trace);
+                "each row on itself and the outline's count once for the frame; a combo box's open "
+                        + "state is no value change since 2026-09-23, because AXValue does not carry "
+                        + "it and VoiceOver read the post as typed text: " + trace);
+    }
+
+    /**
+     * 2026-09-23: an outline whose row opened, and whose structure changed with it, is told its rows
+     * changed and not its layout: a native outline posts AXRowCountChanged and AXRowExpanded and
+     * nothing else, and with a layout change beside them VoiceOver re-synced its cursor and read
+     * another row ("Trash, reduzido" for Reports) where over an NSOutlineView it says "linha 2
+     * expandida".
+     */
+    @Test
+    void anOutlineToldItsRowsChangedIsNotAlsoToldItsLayoutChanged() {
+        Fixture f = over(anOutline(0, 1, 2, 3, 4, 5));
+        List<String> trace = new ArrayList<>();
+        f.bridge().trace(trace::add);
+        f.grid().rows(f.tree().find(1001));
+        f.bridge().emit(AccessibleEvent.state(1014, Accessible.State.EXPANDED, true));
+        f.bridge().emit(AccessibleEvent.of(AccessibleEvent.Type.STRUCTURE_CHANGED, 1001));
+        f.bridge().frameEnded();
+        List<String> posted = trace.stream().filter(line -> line.startsWith("posted "))
+                .map(line -> line.substring("posted ".length())).toList();
+        assertEquals(List.of("NSAccessibilityRowExpandedNotification",
+                "NSAccessibilityRowCountChangedNotification"), posted, trace.toString());
+    }
+
+    /**
+     * 2026-09-23: rows realized or dropped as a container scrolls change its structure and not its
+     * row count, and a native table posts nothing for that; with a layout change VoiceOver wrote
+     * AXFocused on the table and stopped following the cell.
+     */
+    @Test
+    void aRowContainerWhoseRowsOnlyScrolledIsToldNothing() {
+        Fixture f = over(anOutline(0, 1, 2, 3, 4, 5));
+        List<String> trace = new ArrayList<>();
+        f.bridge().trace(trace::add);
+        f.grid().rows(f.tree().find(1001));
+        f.bridge().emit(AccessibleEvent.of(AccessibleEvent.Type.STRUCTURE_CHANGED, 1001));
+        f.bridge().frameEnded();
+        assertEquals(List.of(), trace.stream().filter(line -> line.startsWith("posted ")).toList(),
+                trace.toString());
     }
 }

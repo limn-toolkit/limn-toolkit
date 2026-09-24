@@ -391,33 +391,60 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     }
 
     /**
-     * Whether a client's {@code SELECT} on {@code nodeId} is VoiceOver writing its own stale cursor
-     * back as a selection: the node is a member of the same selection container as
-     * the row the user is in, it is not that row, and the application changed its tree — the cursor,
-     * the focus, a state, the structure — less than {@link #STALE_SELECT_NANOS} ago.
+     * Why a client's {@code SELECT} on {@code nodeId} is VoiceOver writing its own cursor sync back as
+     * a selection, or {@code null} when it is not: the application changed its tree — the cursor,
+     * the focus, a state, the structure — less than {@link #STALE_SELECT_NANOS} ago, and the node is
+     * a member of the same selection container as the row the user is in, and either
+     * <ul>
+     * <li>it is another row than the user's, or</li>
+     * <li>it is the user's own row, already selected with others.</li>
+     * </ul>
      *
      * <p>Why here and not in the model. The write is VoiceOver's cursor sync, which mirrors a
-     * cursor that did not follow ours into the selection through {@code setAccessibilitySelected:}
-     * on a row — "Himalayas" on a table whose cursor was on Caucasus, "Documents 2" eight times on a
-     * tree whose cursor had moved on — and neither NVDA nor Orca writes anything of the kind, so a
+     * cursor that did not follow ours into the selection — "Himalayas" on a table whose cursor was on
+     * Caucasus, "Documents 2" eight times on a tree whose cursor had moved on. It arrives as
+     * {@code setAccessibilitySelectedRows:} with one row on a table or an outline, and as
+     * {@code setAccessibilitySelected:} on a row where the container was published as a list
+     * (the write trace names the selector, 2026-09-23); both post {@code SELECT}, which is why the
+     * refusal is here. Neither NVDA nor Orca writes anything of the kind, so a
      * rule in the model would refuse a fast client on two platforms to cure a reader on the third.
      * Once a client's {@code SELECT} stopped moving the cursor, such a write still selected a row
      * nobody chose: the highlight jumped, and the next SPACE left two rows selected.
+     *
+     * <p><b>The user's own row, when a range is selected.</b> The same sync writes {@code AXSelected}
+     * YES on the row the keyboard has just landed on, 5 ms after VoiceOver asks for the focused
+     * element and is told that row. A select replaces the selection — so does a native row's
+     * {@code AXSelected} YES ({@code readings/macos-selection-writes-probe.txt}, step 1) — and on a
+     * list in {@code MULTI} every Shift+arrow range collapsed to the row it reached
+     * ({@code readings/list-multi-macos}, 2026-09-23). A native multi-select table under the same
+     * steps and the same VoiceOver receives no such write at all, and keeps its range
+     * ({@code scripts/a11y/macos/multi-list-probe.swift}, 2026-09-23), so refusing it is what AppKit's
+     * user already gets. A lone selected row is not refused: there the select changes nothing, and
+     * the cursor's row in {@code SINGLE} stays a select a reader can always make.
      */
-    private boolean refusesAStaleSelect(long nodeId) {
-        if (clock.getAsLong() - cursorMovedNanos >= STALE_SELECT_NANOS) return false;
+    private String staleSelect(long nodeId) {
+        if (clock.getAsLong() - cursorMovedNanos >= STALE_SELECT_NANOS) return null;
         AccessibleTree tree = tree();
         int at = tree.indexOf(nodeId);
         int focus = tree.indexOf(tree.effectiveFocus());
-        if (at < 0 || focus < 0) return false;
+        if (at < 0 || focus < 0) return null;
         AccessibleNode row = tree.node(at);
-        if (row.selectionItem() == null) return false;
+        if (row.selectionItem() == null) return null;
         // The member the user is in: the effective focus itself, or the nearest ancestor of it that
         // is a member — a widget cell's row.
         int member = focus;
         while (member >= 0 && tree.node(member).selectionItem() == null) member = tree.node(member).parent();
-        if (member < 0 || member == at) return false;
-        return tree.node(member).selectionContainer() == row.selectionContainer();
+        if (member < 0 || tree.node(member).selectionContainer() != row.selectionContainer()) return null;
+        if (member != at) return "another row of the container the user is in";
+        if (!row.has(Accessible.State.SELECTED)) return null;
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            AccessibleNode other = tree.node(i);
+            if (i != at && other.selectionItem() != null && other.has(Accessible.State.SELECTED)
+                    && other.selectionContainer() == row.selectionContainer()) {
+                return "the user's own row, already selected with others: a select would collapse the range";
+            }
+        }
+        return null;
     }
 
     @Override
@@ -470,6 +497,23 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         listening = true;
     }
 
+    /**
+     * <p>One trace line per write, naming the selector and whether the node was selected and was the
+     * user's own row when it arrived: what a reader writes is read off these, and a write that
+     * restates the selection is a different finding from one that changes it.
+     */
+    @Override
+    public void wrote(String selector, long nodeId, String written) {
+        Consumer<String> to = trace;
+        if (to == null) return;
+        AccessibleTree tree = tree();
+        AccessibleNode node = tree.find(nodeId);
+        to.accept("client wrote " + selector + " " + written + " on " + nodeId
+                + (node == null ? "" : "=" + node.role() + (node.name() == null ? "" : " '" + node.name() + "'")
+                        + (node.has(Accessible.State.SELECTED) ? " selected" : " unselected"))
+                + (nodeId == tree.effectiveFocus() ? " (the effective focus)" : ""));
+    }
+
     @Override
     public boolean perform(long nodeId, Accessible.Action action) {
         return perform(nodeId, action, Accessible.Argument.NONE);
@@ -478,10 +522,11 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
     @Override
     public boolean perform(long nodeId, Accessible.Action action, Accessible.Argument argument) {
         Host current = host();
-        if (action == Accessible.Action.SELECT && refusesAStaleSelect(nodeId)) {
+        String stale = action == Accessible.Action.SELECT ? staleSelect(nodeId) : null;
+        if (stale != null) {
             Consumer<String> to = trace;
             if (to != null) {
-                to.accept("refused SELECT on " + nodeId + ": another row of the container the user is in, "
+                to.accept("refused SELECT on " + nodeId + ": " + stale + ", "
                         + "within " + STALE_SELECT_NANOS / 1_000_000 + " ms of the application's own change");
             }
             return false;
@@ -530,6 +575,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             effective = 0;
         }
         if (effective == 0) effective = cursorFromAnotherWindow();
+        effective = reportedFocus(tree, effective);
         AccessibleNode node = effective == 0 ? null : tree.find(effective);
         if (node == null) {
             if (to != null) to.accept("focused none");
@@ -554,7 +600,117 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         // client walks, and a linear search of the tree here — and of another window's — made reading
         // a large table cost the product of its elements and its nodes.
         long id = node.id();
-        return tree().effectiveFocus() == id || cursorFromAnotherWindow() == id;
+        AccessibleTree tree = tree();
+        return reportedFocus(tree, tree.effectiveFocus()) == id || cursorFromAnotherWindow() == id;
+    }
+
+    /** The data cell the cursor was on when the table kept the focus last, or {@code 0}. */
+    private long lastTableCell;
+
+    /**
+     * The node VoiceOver is told the user is on: the effective focus, except a data cell of a table
+     * whose members are rows, for which it is the table itself, as a native NSTableView answers
+     * (scripts/a11y/macos/table-steps-probe.swift, 2026-09-23: the focused element is always the
+     * table; VoiceOver reads the whole row when the selection moves, says "Nenhuma linha
+     * selecionada" and the row count, and writes nothing). With the cell focused VoiceOver followed
+     * the cell and was silent at a deselection, at a jump to the last row and at select-all, and
+     * wrote its stale rows back as the selection. A header cell keeps the focus, as does a calendar
+     * day, whose grid selects cells and whose cursor is apart from the selection: there the cell is
+     * what the user moves through.
+     *
+     * @param tree      the published tree
+     * @param effective the effective focus, or {@code 0}
+     * @return the node to report, or {@code 0}
+     */
+    private long reportedFocus(AccessibleTree tree, long effective) {
+        AccessibleNode table = tableOfDataCell(tree, effective);
+        return table == null ? effective : table.id();
+    }
+
+    /**
+     * @return the table a data cell (or a widget in one) belongs to when the cell's row is a member of
+     *         that table's selection, as an NSTableView's rows are; {@code null} otherwise. A grid
+     *         whose cells are what it selects -- a calendar's days, a month chooser -- keeps its cell
+     *         focused: its shape was read as rows by default when no member was published, and the
+     *         month chooser, reported as its table, was not read at all (graft-datepicker-1).
+     */
+    private AccessibleNode tableOfDataCell(AccessibleTree tree, long nodeId) {
+        if (nodeId == 0) return null;
+        int at = tree.indexOf(nodeId);
+        if (at < 0) return null;
+        AccessibleNode node = tree.node(at);
+        if (node.cell() == null || node.cell().row() < 0) return null;
+        int row = AccessibleNode.NONE;
+        for (int p = node.parent(); p != AccessibleNode.NONE; p = tree.node(p).parent()) {
+            AccessibleNode up = tree.node(p);
+            if (up.table() != null) {
+                return up.selection() != null && row != AccessibleNode.NONE
+                        && tree.node(row).selectionContainer() == p ? up : null;
+            }
+            if (row == AccessibleNode.NONE && grid.isRow(up)) row = p;
+        }
+        return null;
+    }
+
+    /** @return the data cell under the reported focus when the table holds it, or {@code 0} */
+    private long cellUnderReportedFocus() {
+        AccessibleTree tree = tree();
+        long effective = tree.effectiveFocus();
+        return tableOfDataCell(tree, effective) == null ? 0 : effective;
+    }
+
+    private boolean sameRow(long cell, long other) {
+        if (other == 0) return false;
+        AccessibleTree tree = tree();
+        AccessibleNode a = tree.find(cell);
+        AccessibleNode b = tree.find(other);
+        return a != null && b != null && a.cell() != null && b.cell() != null
+                && a.cell().row() == b.cell().row() && a.parent() == b.parent()
+                && tableOfDataCell(tree, cell) == tableOfDataCell(tree, other);
+    }
+
+    /**
+     * Says the cell the cursor moved onto along its row, while the table keeps the focus: its name,
+     * a toggle's state in the catalogue's word, and its column's header, as one assertive announcement.
+     *
+     * @return whether it was posted
+     */
+    private boolean announceCell(long cellId) {
+        AccessibleTree tree = tree();
+        AccessibleNode cell = tree.find(cellId);
+        AccessibleNode table = tableOfDataCell(tree, cellId);
+        if (cell == null || table == null) return false;
+        StringBuilder text = new StringBuilder(cell.name() == null ? "" : cell.name());
+        if (cell.toggle() != null) {
+            if (text.length() > 0) text.append(", ");
+            text.append(limn.accessibility.StateNames.ofToggle(cell.toggle().state(),
+                    cell.role() == Accessible.Role.SWITCH, cell.locale()));
+        }
+        String header = headerNameOf(tree, table, cell.cell().column());
+        if (header != null && !header.isEmpty() && !header.equals(cell.name())) {
+            if (text.length() > 0) text.append(", ");
+            text.append(header);
+        }
+        if (text.length() == 0) return false;
+        // Assertive: it answers the key the user just pressed (and on this platform both are posted high).
+        return announce(AccessibleEvent.announcement(text.toString(), Accessible.Politeness.ASSERTIVE));
+    }
+
+    private static String headerNameOf(AccessibleTree tree, AccessibleNode table, int column) {
+        int at = tree.indexOf(table.id());
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
+            AccessibleNode node = tree.node(i);
+            int p = node.parent();
+            boolean inside = false;
+            for (int q = p; q != AccessibleNode.NONE; q = tree.node(q).parent()) {
+                if (q == at) { inside = true; break; }
+            }
+            if (!inside) break;
+            if (node.cell() != null && node.cell().row() < 0 && node.cell().column() == column) {
+                return node.name();
+            }
+        }
+        return null;
     }
 
     // ---- the process's open windows (decision 5) ----------------------------------------------
@@ -676,7 +832,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         AccessibleTree tree = tree();
         long effective = tree.effectiveFocus();
         if (effective != 0) {
-            if (tree.indexOf(effective) >= 0) return new Announced(this, effective);
+            if (tree.indexOf(effective) >= 0) return new Announced(this, reportedFocus(tree, effective));
             AxBridge holder = openBridgeHolding(effective);
             return holder == null ? null : new Announced(holder, effective);
         }
@@ -698,13 +854,38 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             if (to != null) to.accept("no focus to announce");
             return false;
         }
+        long cell = cellUnderReportedFocus();
         if (!reannouncement && now.equals(ANNOUNCED.get())) {
             if (to != null) to.accept("focus on node " + now.nodeId() + " already announced");
-            return false;
+            // The table keeps the focus while the cursor walks its cells: a move along the row is said
+            // as the cell, and a move to another row is said by the selection change.
+            boolean said = cell != 0 && cell != lastTableCell && sameRow(cell, lastTableCell)
+                    && announceCell(cell);
+            lastTableCell = cell;
+            return said;
         }
+        // From the table's own header back to its rows the focus climbs to an element that already
+        // holds VoiceOver's cursor, and VoiceOver says nothing of it (hyb-table-2, step 5): say the cell.
+        Announced before = ANNOUNCED.get();
+        boolean fromInside = cell != 0 && before != null && before.bridge() == this
+                && before.nodeId() != now.nodeId() && isWithin(before.nodeId(), now.nodeId());
+        lastTableCell = cell;
         ANNOUNCED.set(now);
         post(applicationElement(), FOCUS_POSTING);
+        if (fromInside) announceCell(cell);
         return true;
+    }
+
+    /** @return whether the node is published beneath the ancestor, in this bridge's tree */
+    private boolean isWithin(long nodeId, long ancestorId) {
+        AccessibleTree tree = tree();
+        int at = tree.indexOf(nodeId);
+        int ancestor = tree.indexOf(ancestorId);
+        if (at < 0 || ancestor < 0) return false;
+        for (int p = tree.node(at).parent(); p != AccessibleNode.NONE; p = tree.node(p).parent()) {
+            if (p == ancestor) return true;
+        }
+        return false;
     }
 
     /** @return another open bridge whose published tree holds the node, or {@code null} */
@@ -978,12 +1159,21 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         boolean swept = collapsing;
         boolean focusOwed = false;
         List<AccessibleEvent> drained = events.drain();
+        boolean focusTold = false;
         for (int i = 0; i < drained.size(); i++) {
             AccessibleEvent event = drained.get(i);
             if (event.type() == AccessibleEvent.Type.SELECTION_CHANGED && elements.holds(event.nodeId())) {
                 toldSelections.add(event.nodeId());
             }
+            focusTold |= event.type() == AccessibleEvent.Type.FOCUS_CHANGED
+                    || event.type() == AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED;
         }
+        // The node this frame's focus change will name, when it names a new one: its reading carries
+        // its value, and a value change posted beside it is what VoiceOver reads instead -- a combo
+        // whose list closed on a new choice was said as "Atlas, texto inserido" and not as the combo.
+        Announced arriving = focusTold ? effectiveFocusNow() : null;
+        long refocused = arriving != null && arriving.bridge() == this && !arriving.equals(ANNOUNCED.get())
+                ? arriving.nodeId() : 0;
         for (AccessibleEvent event : drained) {
             if (event.type() == AccessibleEvent.Type.INVALIDATED) swept = true;
             if (event.type() == AccessibleEvent.Type.NODE_DESTROYED) {
@@ -1009,9 +1199,29 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
                 posting = AxNotifications.disclosure(Boolean.TRUE.equals(event.newValue()));
                 AccessibleNode outline = tree().node(opened.selectionContainer());
                 if (!recountedContainers.contains(outline.id())) recountedContainers.add(outline.id());
+            } else if (!AxNotifications.toldAsAValueChange(event)) {
+                continue;
+            } else if (refocused != 0 && event.nodeId() == refocused
+                    && (event.type() == AccessibleEvent.Type.VALUE_CHANGED
+                    || event.type() == AccessibleEvent.Type.TEXT_CHANGED)) {
+                continue;
             }
             if (posting.subject() == AxNotifications.Subject.APPLICATION) {
                 focusOwed = true;
+                continue;
+            }
+            if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED && isRowContainer(event.nodeId())) {
+                // A row container is never told its layout changed: its rows are told as rows. A
+                // native outline posts AXRowCountChanged on itself and AXRowExpanded on the row when
+                // one opens, and a native table posts nothing as it scrolls rows into view. With a
+                // layout change beside them VoiceOver re-synced its cursor to the container: it wrote
+                // a stale row back as the selection, wrote AXFocused on the table and stopped
+                // following the cell, or after an opening scrolled to another row and read it
+                // ("Trash, reduzido" for Reports). Without it the tree says "linha 2 expandida" as an
+                // NSOutlineView does and the table follows the cell down its rows
+                // (readings/list-multi-macos, ntree-1, texp-tree-1, texp-tab-1, 2026-09-23;
+                // scripts/a11y/macos/outline-steps-probe.swift). A row count that changed is told at
+                // the frame's end, whichever event carried it.
                 continue;
             }
             if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED && tree().nodeCount() > 0
@@ -1108,6 +1318,12 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * closing; emptied by the drain that posts them.
      */
     private final List<Long> recountedContainers = new ArrayList<>();
+
+    /** @return whether the node is a table, an outline or a list of rows in the published tree */
+    private boolean isRowContainer(long nodeId) {
+        AccessibleNode node = tree().find(nodeId);
+        return node != null && grid.isRowContainer(node);
+    }
 
     /**
      * Queues a row-count change for every held table, outline or list whose row count differs
@@ -1273,6 +1489,13 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         if (to != null) {
             to.accept("posted " + posting.notificationSymbol()
                     + (posting.subject() == AxNotifications.Subject.WINDOW ? " on the window" : ""));
+            // Which node it landed on, as a line of its own so that "posted X" stays the symbol:
+            // a reader's answer to a post is read against the element it was posted on.
+            AccessibleNode on = posting.subject() == AxNotifications.Subject.NODE ? nodeFor(subject) : null;
+            if (on != null) {
+                to.accept("posted-on " + on.id() + "=" + on.role()
+                        + (on.name() == null ? "" : " '" + on.name() + "'"));
+            }
         }
         if (objc != null) {
             objc.post(subject, posting.literal()

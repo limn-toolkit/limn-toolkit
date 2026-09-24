@@ -569,9 +569,18 @@ public final class AccessibilityGallery {
                 new Entry("Combo box, open", List.of(ComboBox.class),
                         List.of(Role.COMBO_BOX, Role.LIST, Role.LIST_ITEM),
                         () -> comboBox(true)),
+                // The combo's open list had no reader script on any platform; this is the one its
+                // runs drive (2026-09-23), in the entry's own presentation.
+                new Entry("Combo box, driven", List.of(ComboBox.class), List.of(Role.COMBO_BOX),
+                        AccessibilityGallery::comboDriven, ReaderScripts.COMBO),
                 new Entry("List view with rows", List.of(ListView.class, ScrollBar.class),
                         List.of(Role.LIST, Role.LIST_ITEM, Role.SCROLL_BAR),
                         AccessibilityGallery::listView),
+                // The list's MULTI mode (decision 136) had a headless contract and no scene a
+                // reader could be pointed at; this is the one its reader run drives.
+                new Entry("List view, several selected", List.of(ListView.class),
+                        List.of(Role.LIST, Role.LIST_ITEM),
+                        AccessibilityGallery::listViewMulti, ReaderScripts.LIST_MULTI),
                 new Entry("Table with a header and rows", List.of(Table.class),
                         List.of(Role.TABLE, Role.COLUMN_HEADER, Role.ROW, Role.CELL,
                                 Role.SWITCH),
@@ -898,6 +907,20 @@ public final class AccessibilityGallery {
         return new Built(page, open ? combo::open : () -> { });
     }
 
+    /**
+     * A combo a reader run opens, walks, commits and dismisses: six of the gallery's ranges, Andes
+     * selected, under the translated caption, so a pt-BR pass hears no English but the ranges'
+     * own names, which are data.
+     */
+    private static Built comboDriven() {
+        Column page = page();
+        ComboBox combo = new ComboBox(List.of(
+                "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas"));
+        combo.setSelectedIndex(1);
+        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
+        return Built.focusing(page, combo);
+    }
+
     private static Built listView() {
         Column page = page();
         ListView<Item> list = rows(
@@ -906,6 +929,24 @@ public final class AccessibilityGallery {
         list.setSelectedIndex(2);
         page.add(Labelled.above("Mountain ranges", list, new SizedBox(SizedBox.UNSET, 160, list)));
         return new Built(page);
+    }
+
+    /**
+     * The same ranges in {@code MULTI}, where the keyboard cursor is apart from the selection:
+     * Space takes the cursor row out of the selection and leaves the cursor on it, Shift extends a
+     * range and the command modifier with A takes every row. Its caption is the run's language,
+     * as every entry a reader is driven over.
+     */
+    private static Built listViewMulti() {
+        Column page = page();
+        ListView<Item> list = rows(
+                "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas", "Pyrenees",
+                "Rockies", "Urals", "Zagros");
+        list.setSelectionMode(SelectionMode.MULTI);
+        list.setSelectedIndex(2);
+        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, list,
+                new SizedBox(SizedBox.UNSET, 300, list)));
+        return Built.focusing(page, list);
     }
 
     /**

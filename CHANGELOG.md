@@ -39,6 +39,23 @@ held by a test to what its gestures repaint.
   (`Label.setDescriptionFor`) and a busy state.
 - A new widget of a known shape (a toggle, a list of rows, a grid, a menu and six more) needs a
   host, a describe call and a contract test, and no bridge code.
+- On macOS a list, a `ListView` or a combo box's open list, is published as a table, as AppKit's
+  own lists are. VoiceOver says "table" for it and now speaks its selection.
+- On macOS VoiceOver is told a table is focused, as AppKit's own tables are, so it reads the row
+  the selection moves to, says when the selection empties and counts a select-all. A move along a
+  row is said as the cell and its column.
+- On macOS a polite announcement is posted at VoiceOver's high priority, because at a lower one
+  VoiceOver held it back behind its own hint and stopped reading the focus for several seconds, as
+  a tree's branch finished loading. It now interrupts what VoiceOver is saying.
+- A combo box's list and a date picker's calendar that open in a window of their own are read by a
+  screen reader as part of the window that opened them, under their field, as a native drop-down
+  list is. NVDA and VoiceOver no longer announce a popup window when one opens, nor the main
+  window again when it closes. A popup of your own whose window never takes the keyboard does the
+  same with `Scene.graftPopup`, called before its scene is bound.
+- A popup that belongs to a control (your own, like a combo's list, a menu or a calendar) opens with
+  `Scene.pushPopup` instead of `pushOverlay`: the page beneath it then stays enabled for a screen
+  reader, as a native drop-down leaves its field, where a dialog disables what is behind it. An
+  open combo list's selection is its highlight, and its layer is named by the field's caption.
 
 **Languages.**
 - `PluralString` and `PluralRules` write a counted sentence with one key per grammatical form.
@@ -108,9 +125,11 @@ how an application module lets the toolkit read its own resources.
 
 ### Known, and left for later
 
-- NVDA says nothing at a select-all or a deselect in a table; VoiceOver and Orca do.
+- NVDA says nothing at a select-all, as it says nothing at one in Windows' own lists; VoiceOver
+  and Orca do. It says nothing either when Space takes a table's row out of the selection while the
+  cursor is on one of the row's cells, as it says nothing in a WPF DataGrid.
 - VoiceOver is given a sorted header's direction and does not read it out.
 - A date picker's year chooser keys its cells by position, so paging a block of years may make a
   reader speak a stale year first.
-- On Windows, rows are published as not keyboard-focusable, so a UI Automation client's
-  `SetFocus` on a row is refused; the container's is accepted.
+- On Windows, a UI Automation client's `SetFocus` on a column header, or on a row of a list or a
+  tree in `SINGLE` (where the cursor is the selection), is refused; the container's is accepted.

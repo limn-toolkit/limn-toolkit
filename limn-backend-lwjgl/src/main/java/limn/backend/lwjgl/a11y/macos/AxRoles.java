@@ -127,8 +127,17 @@ final class AxRoles {
                 "NSAccessibilitySearchFieldSubrole");
 
         map(Accessible.Role.COMBO_BOX, "NSAccessibilityComboBoxRole");
-        map(Accessible.Role.LIST, "NSAccessibilityListRole");
-        map(Accessible.Role.LIST_ITEM, "NSAccessibilityRowRole");
+        // A list is a table here, as AppKit's own lists are: an NSTableView of one column, AXTable
+        // with rows of the table-row subrole, whose selection is told as AXSelectedRowsChanged
+        // (readings/macos-list-probe.txt). The notification was taken from that reading and the role
+        // was not, and the mix exists nowhere natively: the same native table answering AXList went
+        // silent under VoiceOver, row names and selection alike, where as AXTable it said "adicionado
+        // a seleção, 2 linhas selecionadas" at each Shift+arrow (readings/list-multi-macos, nv-list and
+        // nv-native, 2026-09-23). A Limn list as AXList had VoiceOver speak each row and never its
+        // selection, and write AXSelected on every row it landed on, collapsing a Shift range; as
+        // AXTable it speaks the selection and writes nothing (mexp-table-role-1).
+        map(Accessible.Role.LIST, "NSAccessibilityTableRole");
+        map(Accessible.Role.LIST_ITEM, "NSAccessibilityRowRole", "NSAccessibilityTableRowSubrole");
         map(Accessible.Role.TAB_LIST, "NSAccessibilityTabGroupRole");
         // A tab is a radio button with the tab-button subrole here, not a control type of its own:
         // that is what AppKit's own NSTabView vends, and matching it is what makes VoiceOver

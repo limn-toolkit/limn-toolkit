@@ -561,6 +561,36 @@ class AxBridgeTest {
         assertFalse(bridge.obligationsDeferred(), "and pays the re-push and the boxes there too");
     }
 
+    /**
+     * The node a frame's focus change moves onto is not also told its value changed in that frame:
+     * its reading carries the value, and VoiceOver read the value change instead, so a combo whose
+     * list closed on a new choice was said "Atlas, texto inserido" rather than as the combo
+     * (graft-combo-1, 2026-09-24). A node that keeps the focus is told its value as before.
+     */
+    @Test
+    void aValueChangeOnTheNodeTheFocusArrivesOnIsLeftToTheFocusReading() {
+        AxBridge bridge = PlatformFreeBridges.make();
+        List<String> trace = traced(bridge);
+        bridge.publish(aNestedWindowWithFocus(1001), false);
+        bridge.childElementsOf(bridge.tree().find(1001)); // the button's element, as a client's walk mints it
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1001));
+        bridge.frameEnded();
+        trace.clear();
+
+        bridge.publish(aNestedWindowWithFocus(1002), false);
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, 1002));
+        bridge.frameEnded();
+        assertEquals(List.of("NSAccessibilityFocusedUIElementChangedNotification"), posted(trace),
+                "the focus arriving is posted, and the value it carries is read with it");
+
+        trace.clear();
+        bridge.emit(AccessibleEvent.of(AccessibleEvent.Type.VALUE_CHANGED, 1002));
+        bridge.frameEnded();
+        assertEquals(List.of("NSAccessibilityValueChangedNotification"), posted(trace),
+                "a node that keeps the focus is told its value changed");
+    }
+
     @Test
     void theFrameAfterAReentrantPublishPushesTheRootItDeferred() {
         AxBridge bridge = PlatformFreeBridges.make();
@@ -655,7 +685,7 @@ class AxBridgeTest {
         bridge.frameEnded();
         assertEquals(List.of(
                         "NSAccessibilityAnnouncementRequestedNotification on the window 'Saved' priority 90",
-                        "NSAccessibilityAnnouncementRequestedNotification on the window 'Still saving' priority 10"),
+                        "NSAccessibilityAnnouncementRequestedNotification on the window 'Still saving' priority 90"),
                 posted(trace), "each announcement, in order, on the window, carrying its text and priority");
     }
 

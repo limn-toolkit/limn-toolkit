@@ -266,7 +266,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     @Test
-    void theActiveDescendantIsTheCursorAndNotTheSelection() {
+    void theActiveDescendantIsTheHighlightAndTheValueWaitsForEnter() {
         bindCombo(4);
         combo.setSelectedIndex(1);
         openList();
@@ -280,9 +280,12 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
                         + "tree's cursor, resolved below the layer that holds the keyboard and "
                         + "not per container (ADR 039 §1.10, amended 2026-09-14)"
                         + describe(tree()));
-        assertTrue(options.get(1).selectionItem().selected(),
-                "and the selection has not moved: in this widget the two are separate fields "
-                        + "moved by separate paths, and only Enter commits" + describe(tree()));
+        assertTrue(options.get(2).selectionItem().selected(),
+                "the list's selection is the highlight, as a native drop-down list's is"
+                        + describe(tree()));
+        assertFalse(options.get(1).selectionItem().selected(), describe(tree()));
+        assertEquals(1, combo.selectedIndex(),
+                "and the combo's value has not moved: only Enter commits");
         List<AccessibleEvent> moved = bridge.eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
         assertEquals(1, moved.size(),
                 "without this a reader can enumerate the options and never learn which one the "
@@ -293,29 +296,38 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * Decision 11's positive half (2026-09-15): the highlight and the selection are separate
-     * fields here, so every option publishes {@code FOCUS}, and performing it moves the highlight
-     * the way the arrows do and commits nothing.
+     * The open list's selection is its highlight (2026-09-23, as a native drop-down list's is):
+     * {@code SELECT} moves it the way the arrows do and commits nothing, and {@code FOCUS} is
+     * neither published nor performed, because the cursor is the selection (decision 11). Until
+     * that day the list's selection was the combo's value and the highlight a cursor apart from
+     * it, and NVDA and Orca said "not selected" of every option the arrows reached.
      */
     @Test
-    void focusMovesTheHighlightAndChoosesNothing() throws Exception {
+    void selectMovesTheHighlightAndChoosesNothing() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         bindCombo(4);
         combo.setSelectedIndex(1);
         combo.onSelect(index -> calls.incrementAndGet());
         openList();
         for (AccessibleNode option : options()) {
-            assertTrue(option.actions().actions().contains(Accessible.Action.FOCUS),
+            assertFalse(option.actions().actions().contains(Accessible.Action.FOCUS),
                     describe(tree()));
         }
+        perform(options().get(2).id(), Accessible.Action.FOCUS, Accessible.Argument.NONE);
+        frame();
+        assertEquals(1, combo.highlightedIndex(),
+                "FOCUS is posted, as any verb on a resolving identifier is, and the hook refuses it "
+                        + "where the cursor is the selection");
         bridge.events.clear();
 
-        assertTrue(perform(options().get(3).id(), Accessible.Action.FOCUS,
+        assertTrue(perform(options().get(3).id(), Accessible.Action.SELECT,
                 Accessible.Argument.NONE));
         frame();
 
         assertEquals(3, combo.highlightedIndex(), "the highlight moved");
-        assertEquals(1, combo.selectedIndex(), "and the selection did not");
+        assertTrue(options().get(3).selectionItem().selected(),
+                "and with it the list's selection" + describe(tree()));
+        assertEquals(1, combo.selectedIndex(), "and the combo's value did not");
         assertTrue(combo.isOpen(), "a cursor move closes nothing");
         assertEquals(0, calls.get(), "and tells the application nothing");
         assertEquals(options().get(3).id(), tree().activeDescendant(), describe(tree()));
@@ -489,7 +501,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         });
         openList();
 
-        assertTrue(perform(options().get(2).id(), Accessible.Action.SELECT,
+        assertTrue(perform(options().get(2).id(), Accessible.Action.PRESS,
                 Accessible.Argument.NONE), "accepted, which is not the same as done");
         frame();
 
@@ -511,7 +523,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         frame();
 
         assertEquals(3, combo.selectedIndex(),
-                "choosing an option in a combo is one gesture, so both verbs reach commit");
+                "PRESS chooses the option: it is the verb that reaches commit");
         assertEquals(1, bridge.countOf(AccessibleEvent.Type.INVOKED),
                 "which the scene raises for PRESS only: " + bridge.events);
     }
@@ -524,7 +536,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         combo.onSelect(index -> calls.incrementAndGet());
         openList();
 
-        assertTrue(perform(options().get(1).id(), Accessible.Action.SELECT,
+        assertTrue(perform(options().get(1).id(), Accessible.Action.PRESS,
                 Accessible.Argument.NONE));
         frame();
 
@@ -580,8 +592,8 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         openList();
         settleAnimations(null); // faded in, so the fade out has somewhere to start from
         for (AccessibleNode option : options()) {
-            assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.PRESS,
-                    Accessible.Action.FOCUS), option.actions().actions(), describe(tree()));
+            assertEquals(java.util.Set.of(Accessible.Action.SELECT, Accessible.Action.PRESS),
+                    option.actions().actions(), describe(tree()));
         }
         int highlight = combo.highlightedIndex();
 

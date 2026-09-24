@@ -513,6 +513,25 @@ final class LwjglWindow implements NativeWindow {
     /**
      * {@inheritDoc}
      *
+     * <p>No bridge, and on macOS the {@code NSWindow} is no accessibility element: AppKit tells a
+     * client about every window that is one as it appears, and nothing of ours stands for this one.
+     */
+    @Override
+    public void publishAccessibilityElsewhere() {
+        backend.uiRuntime().checkUiThread();
+        accessibility = limn.backend.AccessibilityBridge.NONE;
+        if (!MACOS) {
+            return;
+        }
+        long nsWindow = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle);
+        if (nsWindow != NULL) {
+            ObjC.msgVoid(nsWindow, "setAccessibilityElement:", 0L); // BOOL NO, in the pointer slot
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
      * <p><b>Opened here, on the first ask, rather than by the application.</b> The platform bridges
      * live in this backend now, so there is nothing for an application to add and nothing for it to
      * forget: a scene binding to this window gets whatever this machine has. Phase 6 found the

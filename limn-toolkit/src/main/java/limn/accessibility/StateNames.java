@@ -55,6 +55,33 @@ public final class StateNames {
         say(Accessible.State.EXPANDABLE, "expandable");
     }
 
+    private static final I18nString ON = new I18nString("limn.state.toggle.on", "on");
+    private static final I18nString OFF = new I18nString("limn.state.toggle.off", "off");
+    private static final I18nString CHECKED = new I18nString("limn.state.toggle.checked", "checked");
+    private static final I18nString UNCHECKED =
+            new I18nString("limn.state.toggle.unchecked", "not checked");
+    private static final I18nString MIXED = new I18nString("limn.state.toggle.mixed", "mixed");
+
+    /**
+     * The word a toggle's state is spoken as, where a bridge has to say it in a sentence of its own:
+     * a switch is on or off, anything else that toggles is checked, not checked or mixed. VoiceOver
+     * says it itself for a focused toggle; this is for the one sentence the macOS bridge speaks for
+     * a table cell the user moved onto while the table keeps the focus, as a native table does.
+     *
+     * @param toggle   the toggle's state
+     * @param isSwitch whether the node is a switch, which is on or off rather than checked
+     * @param locale   the node's own locale
+     * @return the word, or the English when nothing translates it
+     */
+    public static String ofToggle(ToggleFacet.State toggle, boolean isSwitch, Locale locale) {
+        I18nString phrase = switch (toggle) {
+            case ON -> isSwitch ? ON : CHECKED;
+            case OFF -> isSwitch ? OFF : UNCHECKED;
+            default -> MIXED;
+        };
+        return I18n.resolve(phrase.key(), phrase.english(), locale);
+    }
+
     /**
      * @param state a state
      * @return the key its phrase lives under, {@code limn.state.<lower-case-name>}

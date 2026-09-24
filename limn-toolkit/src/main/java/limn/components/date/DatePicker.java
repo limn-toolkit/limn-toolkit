@@ -174,9 +174,9 @@ public final class DatePicker extends Widget<DatePicker> {
         // because there it IS the control and an application names it. A reader is still told
         // where the cursor is (decision 5, 2026-09-14): the grid publishes its cursor ACTIVE
         // while this picker drives it, and the tree's effective focus resolves to it -- under
-        // the overlay in the scene presentation, and across the popup relation into the
-        // popup window's tree in the native one, where the field keeps the focus and its
-        // caret yields (DateField.popupHoldsKeyboard).
+        // the overlay in the scene presentation, and under the field in the native one, whose
+        // popup window is grafted into the field's tree, where the field keeps the focus and
+        // its caret yields (DateField.popupHoldsKeyboard).
         calendar.setFocusable(false);
         // The grid inherits the picker's step, direction and language through the tree in the
         // in-scene presentation and through the host link in the other; the link is set when the
@@ -941,8 +941,9 @@ public final class DatePicker extends Widget<DatePicker> {
         // 2026-09-14): the host is also the opener the walk names in the popup's POPUP_FOR and
         // mirrors as CONTROLLER_FOR, and the node a reader is at is the field -- a single
         // picker's own group is no node at all. Every inherited axis resolves through the field
-        // to this picker exactly as it did, and decision 5's cursor lookup starts from the
-        // focused node, which in a window of its own is the field.
+        // to this picker exactly as it did, and in a window of its own the calendar is grafted
+        // into this tree under the field, the focused node, whose first ACTIVE descendant is then
+        // the calendar's cursor.
         popupPanel.setInheritanceHost(filling());
         scenePopup = new ScenePopup(popupPanel);
         // The link goes on the OVERLAY as well, and it is the overlay's that does the work: a host
@@ -957,7 +958,7 @@ public final class DatePicker extends Widget<DatePicker> {
         // it does not treat the loss of focus as somebody moving on (a half-typed year is not
         // resolved by the popup opening).
         filling().setKeyboardActive(true);
-        owner.pushOverlay(scenePopup);
+        owner.pushPopup(scenePopup);
         if (animate) {
             ScenePopup fading = scenePopup;
             owner.addRealTimeTicker(dt -> {
@@ -1008,6 +1009,9 @@ public final class DatePicker extends Widget<DatePicker> {
         // (Scene#clock).
         popupScene = new Scene(popupPanel, scene.clock());
         popupScene.inheritRenderingFlags(scene);
+        // Published by this window's tree, under the field, as a native picker's calendar is: a
+        // reader never leaves this window while the calendar is open.
+        scene.graftPopup(popupScene);
         popupScene.bind(popupWindow);
         popupBlurHandle = popupScene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
         popupScene.setBackground(Color.TRANSPARENT);

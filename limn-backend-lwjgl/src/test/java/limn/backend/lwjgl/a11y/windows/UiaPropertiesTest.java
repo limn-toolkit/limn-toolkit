@@ -118,6 +118,42 @@ class UiaPropertiesTest {
     }
 
     /**
+     * An item the cursor can be put on is keyboard-focusable where its SetFocus is accepted, which
+     * is where it publishes FOCUS: a row of a MULTI list, which is not FOCUSABLE itself. NVDA says
+     * "not selected" of the focus only when it is also focusable, and a managed client refuses
+     * SetFocus without asking when this says false (P5W-5).
+     */
+    @Test
+    void anItemThatTakesTheCursorIsKeyboardFocusableAndOneThatDoesNotIsNot() {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        a.begin(1001, 0, Locale.ENGLISH, 10, 20, 160, 40);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.name(I18nString.literal("Himalayas"), Accessible.NameFrom.CONTENT);
+        a.selectionItem(true, 6, 10);
+        a.action(Accessible.Action.FOCUS);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.begin(1002, 0, Locale.ENGLISH, 10, 60, 160, 40);
+        a.role(Accessible.Role.LIST_ITEM);
+        a.name(I18nString.literal("Zagros"), Accessible.NameFrom.CONTENT);
+        a.selectionItem(false, 10, 10);
+        a.inherited(true, true, true, false, false);
+        a.end();
+        a.end();
+        AccessibleTree tree = a.publish(0, 0, 0, 1f, true);
+        assertEquals(Boolean.TRUE,
+                UiaProperties.valueOf(tree.node(tree.indexOf(1001)), UiaIds.IS_KEYBOARD_FOCUSABLE),
+                "FOCUS published, so SetFocus is accepted, so the item says it takes the keyboard");
+        assertEquals(Boolean.FALSE,
+                UiaProperties.valueOf(tree.node(tree.indexOf(1002)), UiaIds.IS_KEYBOARD_FOCUSABLE),
+                "no FOCUS and not FOCUSABLE: SetFocus is refused, and this says so first");
+    }
+
+    /**
      * The inversion worth a case of its own: the platform's word is the negative of the toolkit's,
      * and answering it from {@code VISIBLE} instead would call every scrolled-away row on screen.
      */

@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -566,6 +567,68 @@ class AxOutlineSceneTest {
         frame();
         assertEquals(List.of(documents), tree.selectedNodes());
         assertEquals(reports, tree.cursorNode(), "and, as since decision 79, it moves no cursor");
+    }
+
+    /**
+     * 2026-09-23, the MULTI list's reader run: VoiceOver writes {@code AXSelected} YES on the row the
+     * keyboard has just landed on, 5 ms after it is told that row is the focused element, and a
+     * select replaces the selection — every Shift+arrow range collapsed to its last row. A native
+     * multi-select table gets no such write under the same steps. So within the second after the
+     * application's own change, a select on the user's own row, already selected with others, is
+     * refused like decision 112's select on another row; a lone selected row's is still taken, and
+     * so is the same write once the second has passed.
+     */
+    @Test
+    void aSelectOnTheUsersOwnRowRightAfterTheCursorMovedIsRefusedWhileARangeIsSelected() {
+        ListView<Integer> list = IndexedRows.list(new IndexedRows() {
+            @Override public int rowCount() {
+                return 5;
+            }
+
+            @Override public Widget<?> rowAt(int index) {
+                return new SizedBox(200, 24, new Label("Row " + index));
+            }
+        });
+        list.setSelectionMode(SelectionMode.MULTI);
+        list.setSelectedIndex(1);
+        bind(list);
+        bridge.clock(nanos::get);
+        scene.requestFocus(list);
+        frame();
+        AxGrid grid = new AxGrid(bridge);
+        long[] rows = grid.rows(only(Accessible.Role.LIST));
+        nanos.addAndGet(AxBridge.STALE_SELECT_NANOS);
+        assertTrue(perform(rows[2], Accessible.Action.ADD_TO_SELECTION), "a reader's own add, later on");
+        assertTrue(perform(grid.rows(only(Accessible.Role.LIST))[2], Accessible.Action.FOCUS),
+                "the cursor moves onto it, as Shift+Down moves it");
+        assertArrayEquals(new int[] {1, 2}, list.selectedIndices(), "the fixture: a range of two");
+        assertEquals(2, list.cursorIndex(), "with the cursor on its second row");
+
+        long own = bridge.nodeFor(grid.rows(only(Accessible.Role.LIST))[2]).id();
+        trace.clear();
+        assertTrue(!bridge.perform(own, Accessible.Action.SELECT),
+                "the user's own row, 0 ms after the cursor move, with another row selected: refused");
+        ui.runtime().drain();
+        frame();
+        assertArrayEquals(new int[] {1, 2}, list.selectedIndices(), "and the range is whole");
+        assertTrue(trace.stream().anyMatch(line -> line.startsWith("refused SELECT on " + own
+                        + ": the user's own row, already selected with others")),
+                "the trace says why: " + trace);
+
+        nanos.addAndGet(AxBridge.STALE_SELECT_NANOS);
+        assertTrue(bridge.perform(own, Accessible.Action.SELECT),
+                "a second later the same write is a reader's own, and taken");
+        ui.runtime().drain();
+        frame();
+        assertArrayEquals(new int[] {2}, list.selectedIndices(), "and replaces the range, as a click does");
+
+        assertTrue(perform(grid.rows(only(Accessible.Role.LIST))[3], Accessible.Action.SELECT),
+                "a select moves the selection on");
+        assertTrue(perform(grid.rows(only(Accessible.Role.LIST))[3], Accessible.Action.FOCUS),
+                "and the cursor with it");
+        assertTrue(bridge.perform(bridge.nodeFor(grid.rows(only(Accessible.Role.LIST))[3]).id(),
+                        Accessible.Action.SELECT),
+                "a lone selected row's select right after the move changes nothing, and is taken");
     }
 
     @Test

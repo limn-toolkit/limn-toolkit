@@ -1786,7 +1786,18 @@ public final class UiaBridge extends PlatformBridge {
             // it the cache kept a pointer to the root, and the popup's close crashed the process
             // in a freed trampoline some 240 ms after the objects below were freed, with every
             // object disconnected (readings/p5w3-windows/date-picker-native-fix-1).
-            withdrawTheWindowsProvider();
+            //
+            // Only for a window that answered with a provider: there is nothing in the cache
+            // otherwise, and the call is not free. UiaReturnRawElementProvider pumps the thread's
+            // sent messages, so at the first bind -- where this runs before the scene has
+            // published the window's node -- every WM_GETOBJECT a reader had sent since the
+            // window appeared was dispatched from inside this call and answered "no provider".
+            // Measured 2026-09-23 with the Java stack of each such answer in the trace, in every
+            // run of every script; NVDA then read the window by MSAA and never subscribed to
+            // focus in 3 runs of 4 (readings of 2026-09-23, list-multi-windows).
+            if (rootProviderForDisconnect != 0) {
+                withdrawTheWindowsProvider();
+            }
             // Then, while every closure the platform may call back through is still there.
             long root = rootProviderForDisconnect;
             disconnected = disconnectRootProvider();

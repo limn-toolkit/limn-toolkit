@@ -209,9 +209,12 @@ Objective-C classes: one class answers per element, exactly as a native `NSOutli
 and a branch differently from its one row class.
 
 Two consequences a widget author feels. A focused list, table or tree keeps its cursor row realized
-even when a scroll takes it off screen, so the descendant never resolves to nothing; and where the
-cursor is inside a native popup window, it is resolved across the opener's relation into that
-window's tree, which is why node ids are process-wide.
+even when a scroll takes it off screen, so the descendant never resolves to nothing. A combo's list
+or a date picker's calendar in a window of its own is grafted into the opener's tree
+(`Scene#graftPopup`), so its cursor is the field's own descendant there; where the cursor is inside a
+popup window that still publishes its own tree (a menu, whose window takes the keyboard), it is
+resolved across the opener's relation into that window's tree, which is why node ids are
+process-wide.
 
 ## Identity
 
@@ -314,8 +317,9 @@ diverge, that section is where it goes — an exception nobody wrote down is a b
 
 **Linux is one application per process; the other two are per window.** AT-SPI2 has one application
 object per connection, so `AtspiApplication` owns the one connection and every window's
-`AtspiBridge` is a facade that registers its tree as a frame beneath it — a native popup included,
-which is how its `POPUP_FOR` reaches the field in the other window. The application is named by
+`AtspiBridge` is a facade that registers its tree as a frame beneath it — a native menu included,
+which is how its `POPUP_FOR` reaches the field in the other window (a combo's list and a calendar are
+grafted into the opener's frame instead). The application is named by
 `Backend#setApplicationName`, or the first window's title; a window's own title never renames it.
 
 **Relations cross to every platform in that platform's own form.** A node's relations are the
@@ -512,6 +516,6 @@ without the other would be a distinction the widget does not have. Activation st
 container in all three: `PRESS` is published where there is a cursor and acts on the cursor row, so
 a reader opens the row it is standing on and not an arbitrary one. No data table behind a chart; no
 occlusion model, so a scrim hand-rolled
-inside a `Stack` is not modal to a reader where `pushOverlay` and `Dialog` are; no MSAA; and the
+inside a `Stack` is not modal to a reader where `pushOverlay`, `pushPopup` and `Dialog` are; no MSAA; and the
 system accessibility *settings* — high contrast, reduced motion, a system text scale — which are a
 different decision with a different shape and would tangle a tree with a theme.

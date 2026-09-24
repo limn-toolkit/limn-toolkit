@@ -540,6 +540,49 @@ class AtspiEventsTest {
         assertEquals("/org/a11y/atspi/accessible/5", gone.path());
     }
 
+    /**
+     * 2026-09-23: a node that left inside a subtree that left with it is also taken out of the
+     * client's cache, because nothing else names it: the subtree's root goes with its parent's
+     * {@code ChildrenChanged remove}, and a descendant libatspi kept with its cached name read as
+     * alive and orphaned to Orca 50.2, which then spoke the window's name when focus came back from
+     * a closed in-scene list. A node whose parent survives is left to that parent's structure change.
+     */
+    @Test
+    void aNodeGoneWithItsParentLeavesTheCacheAndOneWhoseParentStaysDoesNot() {
+        AccessibleTree before = windowPanelItem(true);
+        AccessibleTree after = windowPanelItem(false);
+        List<AtspiEvents.Signal> item = AtspiEvents.of(
+                AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, 3), over(after, before));
+        assertEquals(2, item.size(), item.toString());
+        assertEquals("defunct", item.get(0).detail(), "defunct from its own path first");
+        assertEquals("RemoveAccessible", item.get(1).member(), "then out of the cache");
+        List<AtspiEvents.Signal> panel = AtspiEvents.of(
+                AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, 2), over(after, before));
+        assertEquals(1, panel.size(),
+                "the panel's parent survives, and its ChildrenChanged remove takes it out: " + panel);
+    }
+
+    /** A window, and under it a panel holding an item, or the window alone. */
+    private static AccessibleTree windowPanelItem(boolean withPanel) {
+        limn.accessibility.Accessibility a = new limn.accessibility.Accessibility();
+        a.beginWalk(400, 300, java.util.Locale.ENGLISH);
+        a.begin(1, limn.accessibility.AccessibleNode.NONE, java.util.Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        if (withPanel) {
+            a.begin(2, 0, java.util.Locale.ENGLISH, 0, 0, 100, 100);
+            a.role(Accessible.Role.GROUP);
+            a.inherited(true, true, true, false, false);
+            a.begin(3, 1, java.util.Locale.ENGLISH, 0, 0, 100, 20);
+            a.role(Accessible.Role.LIST_ITEM);
+            a.inherited(true, true, true, false, false);
+            a.end();
+            a.end();
+        }
+        a.end();
+        return a.publish(0, 0, 0, 1f, true);
+    }
+
     @Test
     void theBodyCarriesTheApplicationItCameFrom() {
         AtspiEvents.Signal signal = one(AccessibleEvent.state(7, Accessible.State.FOCUSED, true));

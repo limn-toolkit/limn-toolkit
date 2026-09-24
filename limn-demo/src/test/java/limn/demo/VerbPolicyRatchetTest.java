@@ -749,6 +749,9 @@ class VerbPolicyRatchetTest {
         boolean anyModal = false;
         StringBuilder all = new StringBuilder();
         for (HeadlessWindow window : windows) {
+            if (!window.publishesAccessibility()) {
+                continue; // a popup grafted into its opener's tree, checked there
+            }
             AccessibleTree tree = window.bridge().tree();
             anyModal |= modalOf(tree) >= 0;
             all.append(Transcript.of(tree));
@@ -908,6 +911,14 @@ class VerbPolicyRatchetTest {
                     surface.add(tree.node(i));
                 }
             }
+            // A popup in a window of its own is published in the first window's tree, under the
+            // field that opened it (Scene#graftPopup): its subtree there is the closing surface.
+            AccessibleTree host = now.get(0).bridge().tree();
+            for (int i = 0; i < host.nodeCount(); i++) {
+                if (isInAPopup(host, i)) {
+                    surface.add(host.node(i));
+                }
+            }
         }
         // Still drawn when anything of it is still published: the layer's own MODAL node, or a
         // node other than a window's own in a window that was there at rest.
@@ -919,7 +930,9 @@ class VerbPolicyRatchetTest {
             return false;
         }
         for (HeadlessWindow window : now) {
-            trees.add(window.bridge().tree());
+            if (window.publishesAccessibility()) {
+                trees.add(window.bridge().tree());
+            }
         }
         List<String> violations = new ArrayList<>();
         for (AccessibleNode node : surface) {
@@ -952,6 +965,17 @@ class VerbPolicyRatchetTest {
             checkNothingOutsideTheInputLayerIsOperable(entry, inScene, tree);
         }
         return true;
+    }
+
+    private static boolean isInAPopup(AccessibleTree tree, int index) {
+        for (int at = index; at != AccessibleNode.NONE; at = tree.node(at).parent()) {
+            for (limn.accessibility.AccessibleRelation relation : tree.node(at).relations()) {
+                if (relation.kind() == Accessible.Relation.POPUP_FOR) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean isWithin(AccessibleTree tree, int index, int ancestor) {

@@ -428,6 +428,19 @@ public interface NativeWindow extends AutoCloseable {
     }
 
     /**
+     * Says this window's contents are published in another window's accessible tree: a popup the
+     * scene that opened it grafted into its own tree, as a native drop-down list is its field's
+     * child. The window then opens no bridge of its own, and where the platform would tell an
+     * assistive technology that a window appeared, it is kept out of that too: VoiceOver said "has
+     * a new window" a few seconds after every opening of a combo's list. Called before the window is
+     * shown.
+     *
+     * <p>{@code default} and doing nothing, which is right for a window with no accessibility.
+     */
+    default void publishAccessibilityElsewhere() {
+    }
+
+    /**
      * This window's handle in the platform's own terms: an {@code HWND} on Windows, an
      * {@code NSWindow} on macOS, an {@code xcb_window_t} or {@code wl_surface} on Linux.
      *

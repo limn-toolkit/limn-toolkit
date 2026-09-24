@@ -407,6 +407,46 @@ class UiaBridgeTest {
         }
     }
 
+    @Test
+    void aWindowThatNeverHandedOverItsRootWithdrawsNothingWhenAttached() {
+        // The withdraw is UiaReturnRawElementProvider with NULL, and that call pumps the thread's
+        // sent messages: at the first bind it ran before the window's node was published and let
+        // in every WM_GETOBJECT a reader had sent, each answered "no provider", and NVDA then read
+        // the window by MSAA in 3 runs of 4 (2026-09-23). Nothing is cached for a window that
+        // never answered with a provider, so nothing is withdrawn there -- and still is for one
+        // that did, which the test above holds.
+        UiaBridge bridge = UiaBridge.withoutTheGate(0x1234);
+        java.util.List<String> trace = new java.util.ArrayList<>();
+        java.util.function.Consumer<String> before = UiaWindow.trace;
+        UiaWindow.trace = trace::add;
+        try {
+            bridge.attach(new NoHost());
+            bridge.publish(aWindowWith(Accessible.Role.BUTTON, true), false);
+            bridge.attach(new NoHost());
+            assertFalse(trace.contains("withdrew the window's provider"),
+                    "a bind, and a rebind of a window nobody asked, withdrew a provider UI "
+                            + "Automation was never handed: " + trace);
+            bridge.answerGetObject(0, 0);
+            bridge.attach(new NoHost());
+            assertTrue(trace.contains("withdrew the window's provider"),
+                    "a rebind after the root was handed over withdraws it: " + trace);
+        } finally {
+            UiaWindow.trace = before;
+            bridge.detach();
+        }
+    }
+
+    /** A scene half that asks for nothing and answers nothing. */
+    private static final class NoHost implements AccessibilityBridge.Host {
+        @Override public void requestRepublish() { }
+        @Override public void requestRestamp() { }
+        @Override public AccessibleTree republishNow() { return AccessibleTree.EMPTY; }
+        @Override public boolean perform(long nodeId, Accessible.Action action,
+                                         Accessible.Argument arg) {
+            return false;
+        }
+    }
+
     /** Waits up to two seconds for a trace line that satisfies {@code what}. */
     private static String awaitTrace(java.util.List<String> trace,
                                      java.util.function.Predicate<String> what) {

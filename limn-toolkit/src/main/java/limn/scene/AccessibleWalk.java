@@ -248,6 +248,7 @@ final class AccessibleWalk {
             builder.foreignActiveDescendant(0);
             return;
         }
+        beneathOnlyPopups = layer != null && layer != root && scene.onlyPopupsAbove(-1);
         walkWidget(scene, root, null, 0, -1, 0, 0, true, true, layer == root);
         List<Widget<?>> overlays = scene.overlays();
         for (int i = 0; i < overlays.size(); i++) {
@@ -263,6 +264,7 @@ final class AccessibleWalk {
             // popup that must go inert with its opener says so itself (a combo narrows its
             // options while it is disabled) or closes; the inheritance host stays what it is for
             // the other axes, and the relation.
+            beneathOnlyPopups = layer != null && overlay != layer && scene.onlyPopupsAbove(i);
             walkWidget(scene, overlay, null, 0, -1, 0, 0, true, true, overlay == layer);
         }
         builder.end();
@@ -460,7 +462,14 @@ final class AccessibleWalk {
         if (widget.isAccessibleIgnored()) {
             return;
         }
-        boolean ownEnabled = enabled && widget.isEnabled() && reachable;
+        // §1.13, amended 2026-09-23: outside the layer that owns input nothing is operable, and
+        // it is published not ENABLED only when a modal layer is what shadows it. Beneath popups
+        // alone -- a combo's list, a menu, a calendar opened from a field -- it keeps its ENABLED
+        // bit and loses its verbs, as a native drop-down list leaves its field enabled while a
+        // native modal disables the window behind it. Published not enabled, the field under its
+        // own list was announced "unavailable" by NVDA on every opening.
+        boolean ownEnabled = enabled && widget.isEnabled() && (reachable || beneathOnlyPopups);
+        boolean operable = ownEnabled && reachable;
         boolean ownVisible = visible && widget.isVisible();
 
         // Identity first, before either describe hook runs (ADR 039 §1.3, rule 1, amended
@@ -515,8 +524,8 @@ final class AccessibleWalk {
         }
         long ownScope = keyed ? id : scope;
         int under = host >= 0 ? host : into;
-        int slot = builder.begin(id, under, widget.locale(),
-                widget.localToSceneX(), widget.localToSceneY(), widget.width(), widget.height());
+        int slot = builder.begin(id, under, widget.locale(), widget.localToSceneX() + graftDx,
+                widget.localToSceneY() + graftDy, widget.width(), widget.height());
         if (host >= 0) {
             builder.markHosted();
         }
@@ -549,6 +558,15 @@ final class AccessibleWalk {
         } else {
             label = redirectedLabelFor(widget);
         }
+        if (label == null && widget.parent() == null && widget.inheritanceHost() != null
+                && (scene.isPopup(widget) || scene.isGraftedPopupRoot(widget))) {
+            // A popup is named by the caption that names the field it opened from (2026-09-23): a
+            // reader entering a combo's list heard "Options, group", where Windows' own drop-down
+            // list says "Cordilheiras, list". The relation it gets is the truth too: the caption
+            // labels this layer as much as the field. A popup whose field has no caption keeps
+            // the name its own hook gave it.
+            label = captionOf(widget.inheritanceHost());
+        }
         // Under the widget's own language, as the two hooks above were: the node records that
         // language and the model re-resolves a name when it moves, so a string the walk hands
         // over on the widget's behalf -- the application's override, a bound label's caption,
@@ -578,13 +596,16 @@ final class AccessibleWalk {
             }
             return;              // ignored: no node, and no children either
         }
-        boolean focusable = widget.isFocusable() && ownEnabled && ownVisible;
+        // Operable and not merely enabled: what is published focusable is what the keyboard can
+        // reach, and beneath a popup it reaches nothing.
+        boolean focusable = widget.isFocusable() && operable && ownVisible;
         if (builder.declaresNothing() && !focusable && !builder.hasChildren()) {
             warnIfItPaints(widget);
             builder.drop();
             // Hoisted under whatever this one hangs under; a keyed transparent container still
             // scopes what is inside it, because its identifier is what its key decided.
             walkChildren(scene, widget, under, -1, id, ownScope, ownEnabled, ownVisible, reachable);
+            walkGraftsOf(widget, under, -1, id, ownScope);
             if (redirected) {
                 redirectCount--;
             }
@@ -601,7 +622,7 @@ final class AccessibleWalk {
         keys[slot] = childKey;
         delegated[slot] = builder.delegatedVerbsAt(slot);
         delegates[slot] = delegated[slot] == 0 ? null : parent;
-        if (!ownEnabled || !ownVisible) {
+        if (!operable || !ownVisible) {
             // A node that is not ENABLED is one the scene refuses every verb on (§1.9), so nothing
             // there is published operable (semantics 5; §1.5 and §1.13, amended 2026-09-15): no
             // verb the widget or its container declared. Its setters need no withdrawal and get
@@ -639,9 +660,10 @@ final class AccessibleWalk {
             // thing a widget paints is not a tab stop and never holds the keyboard.
             builder.inheritedAt(i, ownEnabled, ownVisible, showing);
             if (clipped) {
-                builder.clipShowingAt(i, clip[0], clip[1], clip[2], clip[3]);
+                builder.clipShowingAt(i, clip[0] + graftDx, clip[1] + graftDy,
+                        clip[2] + graftDx, clip[3] + graftDy);
             }
-            if (!builder.isEnabledAt(i) || !ownVisible) {
+            if (!builder.isEnabledAt(i) || !ownVisible || !reachable) {
                 // The same rule, read off the bit just published: a synthetic child is refused
                 // with its owner, and so is one its owner narrowed (a refused day, decision 30)
                 // or one under such a child. Visibility is read from the owner rather than from
@@ -652,7 +674,9 @@ final class AccessibleWalk {
                 builder.inoperableAt(i);
             }
         }
-        boolean focused = scene.focusedWidget() == widget;
+        // A grafted popup's window never takes the keyboard (Scene#graftPopup): the field that
+        // opened it keeps the focus, and one focused node per tree is the rule a reader relies on.
+        boolean focused = scene == this.scene && scene.focusedWidget() == widget;
         if (focused) {
             focusedId = id;
         }
@@ -666,9 +690,48 @@ final class AccessibleWalk {
         }
 
         walkChildren(scene, widget, slot, slot, id, ownScope, ownEnabled, ownVisible, reachable);
+        walkGraftsOf(widget, slot, slot, id, ownScope);
         builder.end();
         if (redirected) {
             redirectCount--;
+        }
+    }
+
+    /**
+     * The popups grafted into this walk's scene whose opener is {@code opener}, each walked as a
+     * last child of the opener's node, in this scene's coordinates (Scene#graftPopup), from the
+     * moment its scene is bound until its window closes: what its own tree published over the same
+     * span when it had one.
+     */
+    private void walkGraftsOf(Widget<?> opener, int into, int ownSlot, long ownId, long scope) {
+        List<Scene> grafts = this.scene.graftedPopups();
+        if (grafts.isEmpty()) {
+            return;
+        }
+        limn.backend.NativeWindow home = this.scene.window();
+        for (int i = 0; i < grafts.size(); i++) {
+            Scene popup = grafts.get(i);
+            Widget<?> root = popup.root();
+            limn.backend.NativeWindow window = popup.window();
+            if (root.inheritanceHost() != opener || window == null || home == null) {
+                continue;
+            }
+            float factor = home.logicalToScreenFactor();
+            float dx = graftDx;
+            float dy = graftDy;
+            boolean beneath = beneathOnlyPopups;
+            graftDx = (window.screenX() - home.screenX()) / factor;
+            graftDy = (window.screenY() - home.screenY()) / factor;
+            beneathOnlyPopups = false;
+            try {
+                // Its own layer, in a window of its own: enabled, visible and reachable by its own
+                // widgets' flags, as an overlay is, and never shadowed by this scene's layers.
+                walkWidget(popup, root, null, into, ownSlot, ownId, scope, true, true, true);
+            } finally {
+                graftDx = dx;
+                graftDy = dy;
+                beneathOnlyPopups = beneath;
+            }
         }
     }
 
@@ -720,6 +783,28 @@ final class AccessibleWalk {
     }
 
     /** The caption an ancestor sent down to {@code widget}, or {@code null}; nearest sender wins. */
+    /**
+     * The caption that names {@code widget}: its own binding, or one a composite above it redirects
+     * to it (a date picker's caption names the field inside it), read off the widget tree and not
+     * off the walk's redirect stack, which a popup walked after the tree no longer holds.
+     *
+     * @param widget the field a popup opened from
+     * @return its caption, or {@code null} when nothing names it
+     */
+    private static Widget<?> captionOf(Widget<?> widget) {
+        Widget<?> own = widget.accessibleLabelledBy();
+        if (own != null) {
+            return own;
+        }
+        for (Widget<?> at = widget.parent(); at != null; at = at.parent()) {
+            Widget<?> label = at.accessibleLabelledBy();
+            if (label != null && labelTargetOf(at) == widget) {
+                return label;
+            }
+        }
+        return null;
+    }
+
     private Widget<?> redirectedLabelFor(Widget<?> widget) {
         for (int i = redirectCount - 1; i >= 0; i--) {
             if (redirectTargets[i] == widget) {
@@ -728,6 +813,20 @@ final class AccessibleWalk {
         }
         return null;
     }
+
+    /**
+     * Whether the subtree being walked lies beneath popups alone (§1.13, amended 2026-09-23): set
+     * before each root of the walk, the tree and every overlay, and read by every widget under it.
+     */
+    private boolean beneathOnlyPopups;
+
+    /**
+     * Where a grafted popup's scene lies in this one's, in this scene's points: added to every box
+     * the popup's widgets report in their own scene's coordinates while its subtree is walked, and
+     * zero everywhere else.
+     */
+    private float graftDx;
+    private float graftDy;
 
     private void walkChildren(Scene scene, Widget<?> widget, int into, int ownSlot, long ownId,
                               long scope, boolean enabled, boolean visible, boolean reachable) {
@@ -932,7 +1031,7 @@ final class AccessibleWalk {
             // Identifiers are process-wide (Accessibility#mint), so the answer names the node
             // wherever it is published, and the bridge tells the two trees apart by the number.
             Scene home = at.scene();
-            if (home != null && home != scene) {
+            if (home != null && home != scene && !scene.isGraftedPopup(home)) {
                 long id = home.accessibleIdOf(at);
                 if (id != 0) {
                     return id;

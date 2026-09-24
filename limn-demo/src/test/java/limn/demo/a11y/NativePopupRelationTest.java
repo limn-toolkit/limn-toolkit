@@ -30,20 +30,21 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * A popup that is a window of its own still says who opened it, and the opener says which window
- * it opened: the pair ADR 039 §1.11 and §5.4 promise for the native mounting, which the
- * 2026-09-13 audit found published in neither direction (CRIT-2).
+ * A popup that is a window of its own says who opened it, and the opener says which popup it
+ * opened: the pair ADR 039 §1.11 and §5.4 promise, which the 2026-09-13 audit found published in
+ * neither direction (CRIT-2). Since 2026-09-24 the popup is grafted into the opener's tree
+ * (Scene#graftPopup), as a native drop-down list is its field's child, so both ends of the pair are
+ * in one tree and its window publishes nothing of its own.
  *
  * <p>Here rather than in the toolkit's own tests because the toolkit's stub window cannot open a
  * second window, while {@link HeadlessBackend} opens a real {@link HeadlessWindow} for a popup
- * exactly as the desktop backends do, and each window publishes its own tree through its own
- * bridge. The two trees are read the way a screen reader reads them: the popup's root names a
- * node it does not hold, and the number alone says which window's tree holds it.
+ * exactly as the desktop backends do.
  */
 class NativePopupRelationTest {
 
@@ -86,9 +87,11 @@ class NativePopupRelationTest {
         HeadlessWindow popup = popupWindow();
         settle(host, popup);
 
-        AccessibleNode list = only(popup.bridge().tree(), Accessible.Role.LIST);
-        AccessibleNode field = only(host.bridge().tree(), Accessible.Role.COMBO_BOX);
-        assertLinked(host.bridge().tree(), field, popup.bridge().tree(), list);
+        AccessibleTree tree = host.bridge().tree();
+        AccessibleNode list = only(tree, Accessible.Role.LIST);
+        AccessibleNode field = only(tree, Accessible.Role.COMBO_BOX);
+        assertLinked(tree, field, list);
+        assertFalse(popup.publishesAccessibility(), "the list's window publishes nothing of its own");
     }
 
     @Test
@@ -102,19 +105,18 @@ class NativePopupRelationTest {
         HeadlessWindow popup = popupWindow();
         settle(host, popup);
 
-        AccessibleNode calendar = only(popup.bridge().tree(), Accessible.Role.TABLE);
-        AccessibleTree popupTree = popup.bridge().tree();
-        AccessibleNode panel = popupTree.node(popupTree.root().firstChild());
+        AccessibleTree tree = host.bridge().tree();
+        AccessibleNode calendar = only(tree, Accessible.Role.TABLE);
+        AccessibleNode panel = popupRootOf(tree);
         assertEquals(Accessible.Role.GROUP, panel.role(), "the card the grid sits on");
-        assertNotNull(calendar, "the grid is in the popup's own tree");
-        AccessibleNode field = pickerNode(host.bridge().tree());
-        assertLinked(host.bridge().tree(), field, popupTree, panel);
+        assertTrue(isBelow(tree, calendar, panel), "and the grid is on it: " + Transcript.of(tree));
+        assertLinked(tree, pickerNode(tree), panel);
+        assertFalse(popup.publishesAccessibility(), "the calendar's window publishes nothing of its own");
     }
 
     /**
-     * The mirror leaves with the popup: once its window closes, the host's next publish carries
-     * no {@code CONTROLLER_FOR}, rather than naming a window that is gone until something
-     * unrelated moves in the host.
+     * The link leaves with the popup: once its window closes, the host's next publish carries
+     * no {@code CONTROLLER_FOR} and none of the popup's nodes.
      */
     @Test
     void closingTheNativePopupWithdrawsTheMirrorFromTheOpener() {
@@ -135,8 +137,12 @@ class NativePopupRelationTest {
         settle(host);
 
         assertFalse(has(pickerNode(host.bridge().tree()), Accessible.Relation.CONTROLLER_FOR),
-                "the opener no longer names a window that is gone: "
+                "the opener no longer names a popup that is gone: "
                         + Transcript.of(host.bridge().tree()));
+        for (int i = 0; i < host.bridge().tree().nodeCount(); i++) {
+            assertNotEquals(Accessible.Role.TABLE, host.bridge().tree().node(i).role(),
+                    "and the calendar left the tree with its window");
+        }
     }
 
     private HeadlessWindow show(limn.scene.Widget<?> content) {
@@ -209,20 +215,34 @@ class NativePopupRelationTest {
     }
 
     /**
-     * The popup's root names the opener across windows, the opener names the popup's root back,
-     * and each target is held by the other window's tree and not by the tree that names it.
+     * The popup's root is the opener's child in the one tree, names the opener, and is named back.
      */
-    private static void assertLinked(AccessibleTree hostTree, AccessibleNode opener,
-                                     AccessibleTree popupTree, AccessibleNode popupRoot) {
+    private static void assertLinked(AccessibleTree tree, AccessibleNode opener, AccessibleNode popupRoot) {
+        assertEquals(tree.indexOf(opener.id()), popupRoot.parent(),
+                "the popup hangs under its opener: " + Transcript.of(tree));
         long back = targetOf(popupRoot, Accessible.Relation.POPUP_FOR, "the popup root");
-        assertEquals(opener.id(), back, "POPUP_FOR names the opener in the host window");
-        assertTrue(hostTree.holds(back), "the number says the host's tree holds it");
-        assertFalse(popupTree.holds(back), "and not the popup's own");
-        assertNotNull(hostTree.find(back));
-
+        assertEquals(opener.id(), back, "POPUP_FOR names the opener");
         long forth = targetOf(opener, Accessible.Relation.CONTROLLER_FOR, "the opener");
         assertEquals(popupRoot.id(), forth, "CONTROLLER_FOR names the popup's root");
-        assertTrue(popupTree.holds(forth));
-        assertNotNull(popupTree.find(forth));
+        assertTrue(tree.holds(back) && tree.holds(forth), "and both are this tree's own");
+    }
+
+    private static AccessibleNode popupRootOf(AccessibleTree tree) {
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            if (has(tree.node(i), Accessible.Relation.POPUP_FOR)) {
+                return tree.node(i);
+            }
+        }
+        throw new AssertionError("no popup root in " + Transcript.of(tree));
+    }
+
+    private static boolean isBelow(AccessibleTree tree, AccessibleNode node, AccessibleNode ancestor) {
+        int target = tree.indexOf(ancestor.id());
+        for (int at = node.parent(); at != AccessibleNode.NONE; at = tree.node(at).parent()) {
+            if (at == target) {
+                return true;
+            }
+        }
+        return false;
     }
 }

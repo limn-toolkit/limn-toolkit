@@ -58,6 +58,7 @@ public final class AccessibleNode {
     private final int nextSibling;
     private final int previousSibling;
     private final int selectionContainer;
+    private final boolean inert;
 
     AccessibleNode(long id, Accessible.Role role, String name, Accessible.NameFrom nameFrom,
                    String description, Locale locale, long states,
@@ -68,7 +69,7 @@ public final class AccessibleNode {
                    ScrollFacet scroll, WindowFacet window, TableFacet table, CellFacet cell,
                    HierarchyFacet hierarchy, ActionFacet actions,
                    int parent, int firstChild, int lastChild,
-                   int nextSibling, int previousSibling, int selectionContainer) {
+                   int nextSibling, int previousSibling, int selectionContainer, boolean inert) {
         this.id = id;
         this.role = role;
         this.name = name;
@@ -99,6 +100,7 @@ public final class AccessibleNode {
         this.nextSibling = nextSibling;
         this.previousSibling = previousSibling;
         this.selectionContainer = selectionContainer;
+        this.inert = inert;
     }
 
     /**
@@ -312,10 +314,12 @@ public final class AccessibleNode {
     /**
      * The one fact {@link #accepts} and the scene's gate read: whether this node is one the scene
      * will operate at all. Private because it is the inside of {@code accepts} and not a second
-     * question a bridge should learn to ask; the two states it reads are published.
+     * question a bridge should learn to ask. The two states it reads are published; the third,
+     * that the walk found the node outside the layer that owns input, is not a state, because a
+     * node beneath a popup is enabled and merely not operable while the popup is open.
      */
     private boolean isOperable() {
-        return has(Accessible.State.ENABLED) && has(Accessible.State.VISIBLE);
+        return !inert && has(Accessible.State.ENABLED) && has(Accessible.State.VISIBLE);
     }
 
     /** @return the index of this node's parent, or {@link #NONE} at a root */

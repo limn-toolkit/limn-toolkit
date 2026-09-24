@@ -36,7 +36,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The options' verbs are published and performed on one condition, the list being open
  * (fdd9533), but a window's fade moves only the window's opacity and damages nothing in the panel,
  * so nothing asked the popup's scene to walk again and its tree kept publishing {@code SELECT},
- * {@code PRESS} and {@code FOCUS} for the whole fade. Here rather than in the toolkit's own tests
+ * {@code PRESS} and {@code FOCUS} for the whole fade. The list is published in the host's tree,
+ * under the combo, since the popup was grafted there (2026-09-24), and the rule holds there. Here rather than in the toolkit's own tests
  * for {@link NativePopupCursorTest}'s reason: the toolkit's stub window cannot open a second window.
  *
  * <p>Deterministic although the popup's scene runs on the wall clock: a fade registered on a scene
@@ -87,10 +88,10 @@ class NativePopupFadeOutTest {
         assertEquals(2, backend.windows().size(), "the host and the popup");
         HeadlessWindow popup = backend.windows().get(1);
         settle(host, popup);
-        for (AccessibleNode option : options(popup.bridge().tree())) {
+        for (AccessibleNode option : options(host.bridge().tree())) {
             assertTrue(option.actions() != null
                             && option.actions().has(Accessible.Action.SELECT),
-                    "open, an option offers its verbs: " + Transcript.of(popup.bridge().tree()));
+                    "open, an option offers its verbs: " + Transcript.of(host.bridge().tree()));
         }
 
         combo.close();
@@ -99,12 +100,12 @@ class NativePopupFadeOutTest {
 
         assertFalse(combo.isOpen());
         assertEquals(2, backend.windows().size(), "the popup is still fading out");
-        List<AccessibleNode> fading = options(popup.bridge().tree());
+        List<AccessibleNode> fading = options(host.bridge().tree());
         assertEquals(3, fading.size(), "and its list is still drawn and published: "
-                + Transcript.of(popup.bridge().tree()));
+                + Transcript.of(host.bridge().tree()));
         for (AccessibleNode option : fading) {
             assertNull(option.actions(), "a fading option offers no verb, because the hook "
-                    + "performs none of them: " + Transcript.of(popup.bridge().tree()));
+                    + "performs none of them: " + Transcript.of(host.bridge().tree()));
         }
     }
 

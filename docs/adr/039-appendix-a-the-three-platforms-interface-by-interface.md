@@ -866,6 +866,33 @@ each of two runs, accepted none, and read every row in order with no stray "Docu
 (`readings/d112-macos/summary.txt`). It is §4.2's Exception 3. Decision 110, which removed the
 container's setter on the earlier suspicion, was built, measured to change nothing, and reverted.
 
+**Amended 2026-09-23: on a table of rows the element VoiceOver is told is focused is the table, and a
+move along a row is announced.** Measured first on the guest (macOS 26.6.2) against a native
+`NSTableView` of the gallery table's four columns, driven through the table script's row steps
+(`scripts/a11y/macos/table-steps-probe.swift`): NSApp's focused element is the table at every step;
+VoiceOver reads the whole row when the selection moves, says "Nenhuma linha selecionada" when it
+empties and the count at a select-all, and writes nothing. Limn told VoiceOver that the cell under the
+cursor was focused, as the rows above decided, and VoiceOver was silent at the deselection, at the
+jump to the last row and at select-all, and wrote `AXFocused` on the table at each of those steps
+(`readings/list-multi-macos`, `final-table-1`). The bridge now reports the table wherever the
+effective focus is a data cell — a cell with a row, or the widget in one — of a table whose selection
+members are rows: `accessibilityFocusedUIElement`, `isAccessibilityFocused` and the focus change all
+name the table, and the cell keeps its own element for VoiceOver's cursor to reach. A native table's
+cursor is a row and has no column; to keep Limn's, a move to another cell of the same row, which
+changes no selection and so no focus, is said as one announcement carrying the cell's name, a
+toggle's state in the catalogue's word (`StateNames#ofToggle`) and its column's header. So is the cell
+the keyboard lands on when it comes back from the table's own header: the focus then climbs onto an
+element that already holds VoiceOver's cursor, and VoiceOver says nothing of that move. The
+announcement is assertive, because it answers the key just pressed and VoiceOver spoke only the first
+of the polite ones it was posted as (`hyb-table-1` against `hyb-table-2`). A header cell keeps the
+focus, and so does a calendar day, whose grid selects cells and whose cursor is apart from the
+selection. Heard the same day (`hyb-table-3`): all thirteen steps of the script are spoken —
+"Caucasus, Cordilheira" back from the header, "Europe, Continente", "5.642, Cume", "Visitada,
+desativado", "Nenhuma linha selecionada", the rows in full, "5 linhas selecionadas" — and the one
+client write left is `AXFocused` on the table after the sort, the element already focused. macOS only:
+NVDA and Orca follow the cell, and nothing measured on Windows or Linux asks otherwise. Pinned by
+`AxTableSceneTest`.
+
 ### 2.3 Linux: AT-SPI2
 
 We own a socket and a reader thread; there is no vtable and no callback. The bridge serves D-Bus
@@ -1854,6 +1881,24 @@ returns: neither is an accessibility callback, so no pool of AppKit's is on the 
 `-XstartOnFirstThread` main thread what they autoreleased was never freed — an announcement's objects
 were still alive 120 polled frames later, about five blocks a frame, and none with the pool (read on the
 macOS 26.6.2 guest, 25G83, 2026-09-15, `scripts/a11y/macos/AutoreleaseProbe.java`; the macos-C review).
+
+**Amended 2026-09-23: a polite announcement is posted at the high priority too, because VoiceOver has
+no priority that waits.** "10 polite, 90 assertive" above assumed low meant "spoken when whatever is
+being read finishes". Measured with the gallery's loading tree (`--reader tree-loading`, macOS 26.6.2):
+"Remote, 3 itens", posted low when Remote's fetched children arrive, reached VoiceOver while it was
+still saying "linha 7 expandida"; VoiceOver queued it, moved its own cursor to the outline — a native
+`NSOutlineView` makes it do the same (`scripts/a11y/macos/outline-steps-probe.swift`, `lazy`) — and
+spoke its hint for the outline, about eight seconds long. Until the hint ended no focus change in the
+tree was spoken, and the queued announcement came out at the script's step 17: steps 15 to 17 silent in
+seven runs of seven, at low and at medium (50). Taking `AXElementBusyChanged` away, posting
+`RowExpanded` again as the native outline does when its children arrive, and posting the focus change
+again after the recount changed nothing; posting the announcement high did — all twenty-one steps spoken
+in two runs of two (`readings/list-multi-macos`, `hyb-tree-1`, `hyb-tree-2`, `texp-*`). It surfaced
+when a row container stopped being told `LayoutChanged` (ADR 045 §8), which had made VoiceOver re-read
+and drop the queued announcement unsaid. The cost is that a polite announcement now interrupts what
+VoiceOver is saying: "Carregando Remote" and "Remote, 3 itens" take the place of "linha 7 expandida",
+and an application's polite announcement can cut a reading short. NVDA and Orca keep their polite
+level, which waits and was heard waiting.
 
 **Amendment, 2026-09-15 (semantics 4, one shape on all three bridges): the macOS bridge keeps the
 memory too.** Phase 3 left three readings of "each bridge remembers the last effective focus it

@@ -113,6 +113,31 @@ class ComboBoxScenePopupAccessibilityTest extends AccessibleComponentTestBase {
 
     // ------------------------------------------------------------------- the shape of the node
 
+    /**
+     * 2026-09-23: the layer is named by the caption that names the field, because a reader entering
+     * the list heard "Options, group" where Windows' own drop-down list says "Cordilheiras, list";
+     * a field with no caption keeps the toolkit's own word, which the other cases here rely on.
+     */
+    @Test
+    void theLayerIsNamedByTheFieldsCaptionWhenItHasOne() {
+        combo = new ComboBox(List.of("One", "Two", "Three"));
+        combo.setDisplayMode(DisplayMode.IN_SCENE);
+        Label caption = new Label("Language").setLabelFor(combo);
+        Column root = new Column();
+        root.add(caption);
+        root.add(combo);
+        bind(root);
+        scene.setTextRuler(RULER);
+        frame();
+        openList();
+
+        AccessibleNode layer = nodesWith(Accessible.State.MODAL).get(0);
+        assertEquals("Language", layer.name(), describe(tree()));
+        assertEquals(Accessible.NameFrom.LABEL, layer.nameFrom(),
+                "the caption's, read at publish, so a caption that changes renames the layer too");
+        assertFalse(overlayIsPublished(), "and the toolkit's own word is not published beside it");
+    }
+
     @Test
     void theOverlayIsANodeThatSaysWhatItIsAndNamesItself() {
         bindCombo();

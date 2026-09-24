@@ -160,6 +160,9 @@ class AccessibleGalleryTest {
             List<String> violations = new ArrayList<>();
             StringBuilder transcript = new StringBuilder();
             for (HeadlessWindow window : windows) {
+                if (!window.publishesAccessibility()) {
+                    continue; // a popup grafted into its opener's tree, checked there
+                }
                 AccessibleTree tree = window.bridge().tree();
                 violations.addAll(violations(window.title(), tree));
                 transcript.append("== window \"").append(window.title()).append("\" ==\n")
@@ -182,6 +185,9 @@ class AccessibleGalleryTest {
             StringBuilder transcript = new StringBuilder();
             Set<Accessible.Role> published = new TreeSet<>();
             for (HeadlessWindow window : windows) {
+                if (!window.publishesAccessibility()) {
+                    continue; // a popup grafted into its opener's tree, checked there
+                }
                 AccessibleTree tree = window.bridge().tree();
                 violations.addAll(violations(window.title(), tree));
                 for (int i = 0; i < tree.nodeCount(); i++) {

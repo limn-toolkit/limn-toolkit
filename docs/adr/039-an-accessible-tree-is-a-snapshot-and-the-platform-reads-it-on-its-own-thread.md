@@ -122,7 +122,8 @@ amended; where this summary and a section disagree, the section is right and thi
 - §11's verbless list row is reversed (decision 7); on `Tree` and `Table` a reader's `SELECT` leaves
   the cursor and a row's `PRESS` opens that row (decisions 79, 80; appendix A §2.2).
 - Windows is answered by a window node published at the bind, not by a publish inside
-  `WM_GETOBJECT` (§3.1, §5.2; 2026-09-16), and the seam gained `frameEnded` (§5.3; 2026-09-15).
+  `WM_GETOBJECT` (§3.1, §5.2; 2026-09-16), and nothing at the bind pumps the reader's asks in before
+  it (§3.1; 2026-09-23); the seam gained `frameEnded` (§5.3; 2026-09-15).
 - ADR 041 filled §4.1's table gap and ADR 044 added the tree: six roles, three facets. Since ADR 045
   (decision 93) §7's survey is historic and a widget is one of ten shapes `Shape.of` derives.
 
@@ -2249,6 +2250,54 @@ object stands for, so there is no element of ours for a client to ask it on. A r
 from the opener outwards only. Nothing is lost that this platform ever had, and §13.27's probe is
 still what would decide whether AppKit can be made to carry the other direction.
 
+**Amendment, 2026-09-24: a popup whose window never takes the keyboard is described in the tree of
+the window that opened it.** The rule above -- a popup's contents described where they live -- was
+right about the pixels and wrong about the reader. A native drop-down list is its field's child in
+UI Automation, AppKit and AT-SPI alike, and the focus never leaves the field's window while it is
+open; a Limn combo's list in a window of its own published that window's tree, so NVDA said "popup,
+janela" on every opening and "Limn accessibility gallery, janela" on every closing, as its focus
+went into the other window's tree and came back, and VoiceOver did the same (readings 2026-09-23,
+`combo-windows/fix-combo-native-1`, `combo-macos/fix-combo-native-1`). An unnamed pane at the popup
+window's root took the opening's words away and left the closing's (`exp-pane-combo-1`). The owner
+decided: graft the popup into the opener's tree, in the model rather than per bridge.
+
+`Scene#graftPopup(popup)`, called on the opener's scene before the popup's scene binds, publishes
+the popup's widgets under the node of the widget its root names as inheritance host, as the last
+children of that node, in the opener's window's coordinates (the popup window's screen offset, in
+the opener's points). The popup's scene never asks its window for a bridge; the window is told why,
+`NativeWindow#publishAccessibilityElsewhere`, and on macOS makes its `NSWindow` no accessibility
+element, because VoiceOver otherwise said the application "has a new window" a few seconds after
+each opening (`graft-combo-1`, gone in `graft-combo-2`). The popup's scene forwards what it would have
+walked: a node change invalidates the opener's scene at once, an announcement is said by it, and the
+opener lays the popup out before walking it, since the popup's own frame may not have run. A verb on
+a popup node is performed in the popup's scene, gated by that scene's own input layer. The nodes
+leave the tree when the popup's window closes. Identifiers are the opener's, so a popup node is
+this tree's own and the cursor is a local active descendant -- the first `ACTIVE` node below the
+focused field -- with no foreign fallback. `POPUP_FOR` and `CONTROLLER_FOR` stay, now inside one
+tree. `ComboBox` and `DatePicker` graft their popup windows.
+
+It is only for a popup whose window never takes the keyboard -- the field keeps it and drives the
+popup -- because one focused node per tree is what a reader relies on, and a grafted widget is never
+published `FOCUSED`. A `PopupMenu` window takes the keyboard, so a menu still publishes its own tree,
+and the cross-window machinery above (the foreign active descendant, the `CONTROLLER_FOR` mirror
+across scenes, a bridge's routing to the window holding a node) stays for it and for dialogs; it is
+retired only if menus are grafted too, which needs the menu to leave the keyboard in its owner.
+
+What it cost elsewhere, found by the same runs. A combo's options published `ACTIVE` through the
+list's fade-out, which in the opener's tree kept the reader on an option of a closed list until its
+window was gone: the option is the cursor only while the list is open. The gallery's invariants
+check a popup's nodes against the popup's root rather than the field it hangs under, because a
+drop-down list lies below its field. Heard 2026-09-24: NVDA reads the native combo as "expandido,
+Cordilheiras, lista, Andes, 2 de 6" and its closing as the combo alone, and the native date picker
+without the window's announcement at either end (`combo-windows/graft-combo-1`,
+`graft-datepicker-1`); VoiceOver reads the combo as the in-scene list reads (`combo-macos/
+graft-combo-2`) and every step of the date picker (`graft-datepicker-2`), after the two macOS rules
+the runs asked for: a value change is left to the focus reading when the focus arrives on the node
+in the same frame, and a table is reported focused only where the cell's row is a selection member.
+Orca was not heard: Wayland keeps these popups in the scene, and the demo under XWayland on the
+Fedora KDE guest stalled after GLFW started. Pinned by `GraftedPopupTest`, `NativePopupCursorTest`,
+`NativePopupRelationTest` and `DatePickerNativePopupTest`.
+
 ### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
 
 ```
@@ -2387,6 +2436,21 @@ verbs from a node published without `VISIBLE` through the same `Accessibility#in
 revealed by the gate before it is performed. Ratcheted over the gallery by
 `VerbPolicyRatchetTest.everyPublishedVerbMovesSomething`.
 
+**Amended 2026-09-23: a popup shadows, a dialog disables.** "Every `Scene` overlay is modal by
+construction" stays true of input and stops being the whole of what is published. A combo's list, a
+menu and a date picker's calendar are pushed with `Scene#pushPopup`, and beneath popups alone a node
+keeps `ENABLED` while it loses `FOCUSABLE`, every verb and every setter its facets imply
+(`AccessibleNode#accepts` reads an inert bit `inoperableAt` sets, which is no published state). Beneath
+a dialog, or beneath a popup opened over a dialog, nothing changes. The two are what the platforms do:
+a native modal disables the window behind it, and a native drop-down list leaves the field it opened
+from enabled. Published not enabled, the combo under its own in-scene list was announced
+"indisponível" by NVDA on every opening, which a WinForms drop-down list under the same reader never
+is (`.claude/pending/2026-09-23/readings/combo-windows`). The same round names a popup's layer by the
+caption that names its field, when there is one, instead of the toolkit's "Options": the reader
+entering the list heard "Opções, grupo" where Windows' own says "Cordilheiras, lista". Pinned by
+`AccessibleModalTest.beneathAPopupAloneTheNodeStaysEnabledAndIsNotOperable` and
+`ComboBoxScenePopupAccessibilityTest.theLayerIsNamedByTheFieldsCaptionWhenItHasOne`.
+
 ---
 
 ## 2. The three platforms, interface by interface
@@ -2472,6 +2536,24 @@ under it — role, title, the size the window already has, all true before any l
 identifier every later walk reuses — for a bridge that answers
 `AccessibilityBridge#needsRootBeforeTheFirstFrame()`, which is this platform and no other (§5.2).
 Evidence: `.claude/pending/2026-09-13/readings/phase5-windows-diagnosis/evidence-table.txt`.
+
+**Amended 2026-09-23: the bind itself let the asks in, and "two `0`s, silent" is not the rule.** The
+MULTI list's first reader round was silent under NVDA three times in three, and every run of every
+script since 2026-09-22 carried one to three `0` answers again — the table's control run too. A
+sent message reaches a thread only while it waits or makes a call that pumps, so the trace now
+records the Java stack of every `0` answer, and each one named the same call:
+`UiaReturnRawElementProvider(hwnd, 0, 0, NULL)`, the provider withdrawal the P5W-3 teardown added
+to `invalidateEverythingVended`, which `attach` runs at the first bind — after the window procedure
+is replaced and before the window's node is published. It pumped the reader's pending asks into the
+gap this amendment's predecessor had closed. The withdrawal is for a window whose provider UI
+Automation holds, so it now runs only where a root was handed over: a rebind or a detach after an
+answer, never the first bind. After it: six runs (four of the list, two of the table), no `0`
+answer, the focus subscription in each, and both scripts heard. And the count of `0`s does not decide
+alone: a diagnostic run with two `0`s spoke, and what separated the silent runs was that NVDA then
+read the window through MSAA (`WM_GETOBJECT` for `-5`, `-6`, `-2`, `-3`) and never asked UI
+Automation to advise it of focus. A `0` is a coin the reader may or may not keep; the rule is to
+never give one. Evidence: `.claude/pending/2026-09-23/readings/list-multi-windows/` (`list-multi-*`
+silent, `diag-*` with the stacks, `fix-*` after).
 
 **What the snapshot costs.** One allocation per publish, sized to the node count, on frames where the
 tree was dirty **and** a client is listening. Idle frames publish nothing. The arrays are never reused

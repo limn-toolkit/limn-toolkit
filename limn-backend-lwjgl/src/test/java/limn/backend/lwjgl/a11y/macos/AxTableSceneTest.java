@@ -8,6 +8,7 @@ import limn.components.Checkbox;
 import limn.components.date.CalendarView;
 import limn.components.table.Column;
 import limn.components.table.Table;
+import limn.input.Keys;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.SizedBox;
@@ -20,9 +21,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static limn.testing.SceneDriver.drive;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -123,6 +126,105 @@ class AxTableSceneTest {
         assertEquals(table.id(), grid.tableOfColumn(columns[1]).id());
     }
 
+    /**
+     * 2026-09-23, the hybrid idiom: while the cursor is on a data cell, the element VoiceOver is told
+     * is focused is the table, as a native NSTableView's is, so a row move is read by the selection
+     * change and nothing is written back; a move along the row is said as one announcement naming the
+     * cell, a toggle's state and the column.
+     */
+    @Test
+    void theTableIsFocusedWhileTheCursorWalksItsCellsAndAMoveAlongTheRowIsSaid() {
+        Table<Chore> table = choresTable();
+        bind(table);
+        List<String> trace = new ArrayList<>();
+        bridge.trace(trace::add);
+        bridge.entered();
+        scene.requestFocus(table);
+        scene.renderFrame(new NoopCanvas(480, 400));
+        AccessibleTree tree = bridge.tree();
+        AccessibleNode tableNode = first(Accessible.Role.TABLE);
+        AccessibleNode nameCell = null;
+        AccessibleNode doneCell = null;
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            AccessibleNode node = tree.node(i);
+            if (node.cell() != null && node.cell().row() == 1) {
+                if (node.cell().column() == 0) nameCell = node;
+                if (node.cell().column() == 1) doneCell = node;
+            }
+        }
+        assertTrue(nameCell != null && doneCell != null, "row 1's two cells are published");
+        assertTrue(bridge.host().perform(nameCell.id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        ui.runtime().drain();
+        scene.renderFrame(new NoopCanvas(480, 400));
+        assertEquals(nameCell.id(), bridge.tree().effectiveFocus(), "the cursor is on the name cell");
+        assertEquals(bridge.elementFor(tableNode.id()), bridge.focusedElement(),
+                "and VoiceOver is told the table is focused, as a native table answers");
+        assertTrue(bridge.isFocused(tableNode));
+        assertFalse(bridge.isFocused(bridge.tree().find(nameCell.id())), "the cell does not say it is");
+
+        trace.clear();
+        assertTrue(bridge.host().perform(doneCell.id(), Accessible.Action.FOCUS, Accessible.Argument.NONE));
+        ui.runtime().drain();
+        scene.renderFrame(new NoopCanvas(480, 400));
+        String said = trace.stream().filter(line -> line.startsWith(
+                "posted NSAccessibilityAnnouncementRequestedNotification")).findFirst().orElse(null);
+        String off = limn.accessibility.StateNames.ofToggle(limn.accessibility.ToggleFacet.State.OFF,
+                true, bridge.tree().find(doneCell.id()).locale());
+        assertTrue(said != null && said.contains("'Chore 1, " + off + ", Done'"),
+                "the move along the row is said: name, the switch's state, the column: " + trace);
+        assertFalse(trace.stream().anyMatch(line -> line.startsWith(
+                        "posted NSAccessibilityFocusedUIElementChangedNotification")),
+                "and the focus is not re-announced, because it is still the table: " + trace);
+    }
+
+    /**
+     * The same idiom, from the header back to the rows: the focus climbs from a header cell to the
+     * table that holds it, VoiceOver says nothing of a move onto an element its cursor is already
+     * inside, so the cell the keyboard lands on is said.
+     */
+    @Test
+    void comingBackFromTheHeaderSaysTheCellTheKeyboardLandsOn() {
+        List<Chore> chores = new ArrayList<>();
+        for (int i = 0; i < 4; i++) chores.add(new Chore("Chore " + i, i % 2 == 0));
+        // A sortable column, because the header is a keyboard stop only when a click on it would sort.
+        Table<Chore> table = new Table<>(List.of(
+                Column.text("Name", Chore::name).width(160).comparator(Comparator.comparing(Chore::name))));
+        table.setRows(chores);
+        bind(table);
+        List<String> trace = new ArrayList<>();
+        bridge.trace(trace::add);
+        bridge.entered();
+        scene.requestFocus(table);
+        scene.renderFrame(new NoopCanvas(480, 400));
+        AccessibleNode tableNode = first(Accessible.Role.TABLE);
+        press(Keys.DOWN, 0); // a cursor row to come back to, as the gallery's script has
+        press(Keys.TAB, Keys.MOD_SHIFT);
+        AccessibleNode header = bridge.tree().find(bridge.tree().effectiveFocus());
+        assertTrue(header != null && header.cell() != null && header.cell().row() < 0,
+                "Shift+Tab put the cursor in the header: " + header);
+        assertEquals(bridge.elementFor(header.id()), bridge.focusedElement(), "a header cell keeps the focus");
+
+        trace.clear();
+        press(Keys.TAB, 0);
+        AccessibleNode cell = bridge.tree().find(bridge.tree().effectiveFocus());
+        assertTrue(cell != null && cell.cell() != null && cell.cell().row() >= 0, "Tab went back to the rows");
+        assertEquals(bridge.elementFor(tableNode.id()), bridge.focusedElement());
+        assertTrue(trace.stream().anyMatch(line -> line.startsWith(
+                        "posted NSAccessibilityFocusedUIElementChangedNotification")),
+                "the focus change is posted: " + trace);
+        assertTrue(trace.stream().anyMatch(line -> line.startsWith(
+                        "posted NSAccessibilityAnnouncementRequestedNotification")
+                        && line.contains("'" + cell.name() + ", Name'")),
+                "and the cell is said with its column: " + trace);
+    }
+
+    private void press(int key, int modifiers) {
+        drive(scene).keyEvent(key, true, false, modifiers);
+        drive(scene).inputBatchEnded();
+        ui.runtime().drain();
+        scene.renderFrame(new NoopCanvas(480, 400));
+    }
+
     @Test
     void aTableWithItsHeaderHiddenAndAFooterShownAnswersNoHeaderAnywhere() {
         Table<Chore> table = choresTable();
@@ -149,6 +251,34 @@ class AxTableSceneTest {
             }
         }
         assertNotEquals(0, grid.cellAt(tableNode, 0, 3), "and the cells are still found");
+    }
+
+    /**
+     * Only a table whose rows are its selection reports the table as VoiceOver's focus. A grid that
+     * selects its cells keeps the cell: a calendar's day, and its month chooser, whose selection
+     * shape was read as rows by default when no member was published, so that the chooser was
+     * reported as its table and VoiceOver said nothing of the climb (graft-datepicker-1, 2026-09-24).
+     */
+    @Test
+    void aCalendarsDaysAndItsMonthChooserKeepTheirCellFocused() {
+        CalendarView calendar = new CalendarView()
+                .setClock(java.time.Clock.fixed(java.time.Instant.parse("2026-09-16T12:00:00Z"),
+                        java.time.ZoneOffset.UTC));
+        calendar.setVisibleMonth(LocalDate.of(2026, 9, 9));
+        bind(calendar);
+        bridge.entered();
+        scene.requestFocus(calendar);
+        scene.renderFrame(new NoopCanvas(480, 400));
+        long day = bridge.tree().effectiveFocus();
+        assertEquals(Accessible.Role.CELL, bridge.tree().find(day).role(), "the cursor is a day");
+        assertEquals(bridge.elementFor(day), bridge.focusedElement(), "and VoiceOver's focus is the day");
+
+        press(Keys.UP, limn.components.Accelerator.commandModifier());
+        long month = bridge.tree().effectiveFocus();
+        assertNotEquals(day, month, "the climb moved the cursor to a month");
+        assertEquals(Accessible.Role.CELL, bridge.tree().find(month).role());
+        assertEquals(bridge.elementFor(month), bridge.focusedElement(),
+                "and VoiceOver's focus is the month, not the chooser's table");
     }
 
     @Test

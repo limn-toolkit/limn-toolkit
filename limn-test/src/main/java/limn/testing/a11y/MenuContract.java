@@ -160,14 +160,17 @@ public final class MenuContract {
         check(b.harness.tree().nodeCount() > nodes, b, "and something appeared: " + nodes
                 + " nodes before, " + b.harness.tree().nodeCount() + " after");
         AccessibleNode open = b.member(row);
-        if (!open.has(State.ENABLED)) {
-            // A bar's dropdown opened in the scene is a modal layer above the bar, and the walk
-            // withdraws every verb from what a modal shadows (ADR 039 §1.9): the open title
-            // carries none, COLLAPSE included, until the dropdown closes. That is the harness's
-            // window, which cannot host a window of its own; the case ends here for such a
-            // subject, with the title's state checked and nothing driven through it.
+        if (shadowedByALayer(b, open)) {
+            // A bar's dropdown opened in the scene is a layer above the bar that owns input, and
+            // the walk withdraws every verb from what lies beneath it: the open title carries
+            // none, COLLAPSE included, until the dropdown closes, and stays enabled, because a
+            // popup does not disable the control it opened from. That is the harness's window,
+            // which cannot host a window of its own; the case ends here for such a subject, with
+            // the title's state checked and nothing driven through it.
             check(open.actions() == null || open.actions().actions().isEmpty(), b,
                     "a row shadowed by the popup it opened carries no verb at all");
+            check(open.has(State.ENABLED), b,
+                    "and is still enabled: a popup shadows the row, it does not disable it");
             check(subject.chosen().isEmpty(), b, "opening chose nothing");
             return;
         }
@@ -255,6 +258,31 @@ public final class MenuContract {
     }
 
     // ---------------------------------------------------------------------------- the reading
+
+    /**
+     * @return whether a modal layer of the scene's own, other than a window, lies above the row:
+     *         one the row is not inside, so it is what owns input and the row is beneath it
+     */
+    private static boolean shadowedByALayer(Bound b, AccessibleNode row) {
+        limn.accessibility.AccessibleTree tree = b.harness.tree();
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            AccessibleNode node = tree.node(i);
+            if (!node.has(State.MODAL) || node.role() == limn.accessibility.Accessible.Role.WINDOW) {
+                continue;
+            }
+            boolean inside = false;
+            for (int at = tree.indexOf(row.id()); at != AccessibleNode.NONE; at = tree.node(at).parent()) {
+                if (at == i) {
+                    inside = true;
+                    break;
+                }
+            }
+            if (!inside) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     private static boolean offers(AccessibleNode node, Action verb) {
         return node.actions() != null && node.actions().has(verb);

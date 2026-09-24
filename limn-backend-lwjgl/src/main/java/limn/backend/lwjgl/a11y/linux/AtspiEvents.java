@@ -2,6 +2,7 @@ package limn.backend.lwjgl.a11y.linux;
 
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
+import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 
 import java.util.List;
@@ -130,6 +131,9 @@ final class AtspiEvents {
         if (event.type() == AccessibleEvent.Type.STRUCTURE_CHANGED) {
             return structureChanged(event, context, path);
         }
+        if (event.type() == AccessibleEvent.Type.NODE_DESTROYED) {
+            return destroyed(event, context, path);
+        }
         if (event.type() == AccessibleEvent.Type.VALUE_CHANGED) {
             return valueChanged(event, context, path);
         }
@@ -159,8 +163,6 @@ final class AtspiEvents {
                     "accessible-description", 0, 0,
                     new DBus.Variant("s", string(event.newValue())));
             case BOUNDS_CHANGED -> boundsChanged(event, context, path);
-            case NODE_DESTROYED -> event(context, path, I_EVENT_OBJECT, "StateChanged", "defunct",
-                    1, 0, new DBus.Variant("i", 0));
             case SELECTION_CHANGED -> event(context, path, I_EVENT_OBJECT, "SelectionChanged", "",
                     0, 0, new DBus.Variant("i", 0));
             case ACTIVE_DESCENDANT_CHANGED -> activeDescendantChanged(event, context, path);
@@ -316,6 +318,36 @@ final class AtspiEvents {
         Object[] item = context.cacheItem(event.nodeId());
         return item == null ? null : new Signal(Atspi.PATH_CACHE, I_CACHE, "AddAccessible",
                 Atspi.CACHE_ITEM, new Object[] {item});
+    }
+
+    /**
+     * A node gone: {@code StateChanged defunct} from its own path, and, for a node that left inside
+     * a subtree that left with it, {@code Cache.RemoveAccessible} too.
+     *
+     * <p>The subtree's root is taken out of the client's cache by its parent's
+     * {@code ChildrenChanged remove} ({@link #structureChanged}); nothing named its descendants,
+     * and libatspi kept each of them with its cached name. Orca 50.2 tells a dead object by
+     * reading its name ({@code AXObject.is_dead}), so a list item that had left with its popup read
+     * as alive and orphaned: when the in-scene combo list closed, the prior focus had no common
+     * ancestor with the field and Orca spoke the window's name before the field
+     * (readings/combo-fedora, fix-realkeys-combo-2, 2026-09-23). GTK 4.22.4 takes every context of a
+     * closed popover out of the cache. A node whose parent survives is left to the parent's
+     * structure change, which still names it.
+     */
+    private static List<Signal> destroyed(AccessibleEvent event, Context context, String path) {
+        Signal defunct = event(context, path, I_EVENT_OBJECT, "StateChanged", "defunct",
+                1, 0, new DBus.Variant("i", 0));
+        AccessibleTree before = context.previousTree();
+        int at = before.indexOf(event.nodeId());
+        if (at < 0) {
+            return List.of(defunct);
+        }
+        int parent = before.node(at).parent();
+        if (parent == AccessibleNode.NONE || context.tree().indexOf(before.node(parent).id()) >= 0) {
+            return List.of(defunct);
+        }
+        return List.of(defunct, new Signal(Atspi.PATH_CACHE, I_CACHE, "RemoveAccessible", "(so)",
+                new Object[] {context.refOf(event.nodeId()).toStruct()}));
     }
 
     /**

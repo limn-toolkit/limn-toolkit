@@ -182,6 +182,10 @@ public final class Scene {
     private Widget<?> focused;
 
     private final List<Widget<?>> overlays = new ArrayList<>();
+
+    /** The overlays pushed as popups rather than as modal layers of their own, by identity. */
+    private final java.util.Set<Widget<?>> popupOverlays =
+            java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
     // Widget that held focus when each overlay was pushed, restored on removal
     // (parallel to overlays), so closing a modal returns focus to its trigger.
     private final List<Widget<?>> overlayFocusReturn = new ArrayList<>();
@@ -357,7 +361,13 @@ public final class Scene {
     /** Wires this scene into a window: input, frame rendering, invalidation, clipboard. */
     public void bind(NativeWindow window) {
         this.window = window;
-        limn.backend.AccessibilityBridge attached = window.accessibility();
+        // A grafted popup is published by the scene it was grafted into, so its window is never
+        // asked for a bridge (asking is what opens one) and is told why.
+        if (graftedInto != null) {
+            window.publishAccessibilityElsewhere();
+        }
+        limn.backend.AccessibilityBridge attached = graftedInto != null
+                ? limn.backend.AccessibilityBridge.NONE : window.accessibility();
         this.bridge = attached != null ? attached : limn.backend.AccessibilityBridge.NONE;
         // Asked once, remembered, and never asked again: only the scene needs to know that it owes
         // a first tree to a bridge whose own gate cannot open until it has one.
@@ -622,6 +632,99 @@ public final class Scene {
         requestRender();
     }
 
+    /**
+     * Pushes {@code popup} as {@link #pushOverlay} does — it captures all input and confines
+     * focus — for a surface that opens from a control and belongs to it: a combo's list, a menu,
+     * a date picker's calendar. What differs is what an assistive technology is told about the
+     * page beneath: under a modal overlay it is published not enabled, because a dialog blocks
+     * its owner as a native modal disables the window behind it; under a popup it stays enabled
+     * and merely offers no verb, because a native drop-down list does not disable the field it
+     * opened from. Closed with {@link #removeOverlay}.
+     *
+     * @param popup the popup's root widget
+     */
+    public void pushPopup(Widget<?> popup) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(popup, "popup");
+        pushOverlay(popup);
+        popupOverlays.add(popup);
+    }
+
+    /**
+     * @param overlay an overlay of this scene
+     * @return whether it was pushed with {@link #pushPopup}
+     */
+    boolean isPopup(Widget<?> overlay) {
+        return popupOverlays.contains(overlay);
+    }
+
+    /**
+     * Publishes a popup that draws in a window of its own as part of this scene's accessible tree,
+     * under the widget that opened it, the way a native drop-down list is a child of its field: a
+     * combo's list, a date picker's calendar. An assistive technology then never leaves this
+     * window's tree while the popup is open; the list's cursor is this tree's own, and the popup's
+     * window publishes nothing of its own.
+     *
+     * <p>Call it before {@code popup} is bound to its window, and only for a popup whose window
+     * never takes the keyboard: the field keeps it and drives the popup, so the focused node stays
+     * in this tree. The popup's root names its opener with
+     * {@link Widget#setInheritanceHost}; its nodes are published under the opener's, in this
+     * window's coordinates, while its window is visible, and leave the tree when that window
+     * closes. What a reader performs on them is performed in the popup's scene.
+     *
+     * @param popup the popup's scene, not yet bound
+     * @throws IllegalArgumentException if the popup's root names no opener
+     * @throws IllegalStateException    if the popup is already bound, or grafted elsewhere
+     */
+    public void graftPopup(Scene popup) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(popup, "popup");
+        if (popup == this || popup.window != null || popup.graftedInto != null) {
+            throw new IllegalStateException("a popup is grafted once, into another scene, before it is bound");
+        }
+        if (popup.root.inheritanceHost() == null) {
+            throw new IllegalArgumentException("a grafted popup's root names the widget that opened it "
+                    + "with setInheritanceHost");
+        }
+        popup.graftedInto = this;
+        graftedPopups.add(popup);
+        invalidateAccessible();
+    }
+
+    /** The popups grafted into this scene's tree, for the walk: the widget each hangs under is its root's host. */
+    List<Scene> graftedPopups() {
+        return graftedPopups;
+    }
+
+    /** @return whether {@code other} is a popup grafted into this scene's tree */
+    boolean isGraftedPopup(Scene other) {
+        return other != null && other.graftedInto == this;
+    }
+
+    /** @return whether {@code widget} is the root of a popup scene grafted into another's tree */
+    boolean isGraftedPopupRoot(Widget<?> widget) {
+        return graftedInto != null && widget == root;
+    }
+
+    /**
+     * Whether every overlay above the one at {@code index} was pushed as a popup, so what lies
+     * at {@code index} is beneath popups alone and is published enabled.
+     *
+     * @param index an overlay's position in the stack, or {@code -1} for the root
+     * @return true when at least one overlay lies above and every one of them is a popup
+     */
+    boolean onlyPopupsAbove(int index) {
+        if (index + 1 >= overlays.size()) {
+            return false;
+        }
+        for (int i = index + 1; i < overlays.size(); i++) {
+            if (!popupOverlays.contains(overlays.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** Removes a modal overlay and restores focus to whatever it took it from. */
     public void removeOverlay(Widget<?> overlay) {
         Ui.checkUiThread();
@@ -629,6 +732,7 @@ public final class Scene {
         if (index < 0) {
             return;
         }
+        popupOverlays.remove(overlay);
         boolean wasTop = index == overlays.size() - 1;
         overlays.remove(index);
         Widget<?> restore = overlayFocusReturn.remove(index);
@@ -845,7 +949,7 @@ public final class Scene {
     public void requestRender() {
         Ui.checkUiThread();
         fullDamagePending = true;
-        accessibleNodesDirty = true;
+        markAccessibleNodesDirty();
         renderRequester.run();
     }
 
@@ -872,8 +976,23 @@ public final class Scene {
      * {@link Widget#invalidateAccessible()}: sets the node flag whatever is listening, and buys
      * the frame that reads it only when something is.
      */
+    /**
+     * Sets the node flag, and for a grafted popup tells the scene that publishes its nodes at once
+     * rather than at this scene's next frame, which that scene's walk does not wait for.
+     */
+    private void markAccessibleNodesDirty() {
+        accessibleNodesDirty = true;
+        if (graftedInto != null) {
+            graftedInto.invalidateAccessible();
+        }
+    }
+
     void invalidateAccessible() {
         accessibleNodesDirty = true;
+        if (graftedInto != null) {
+            graftedInto.invalidateAccessible();
+            return;
+        }
         if (accessibilityLive()) {
             scheduleFrame();
         }
@@ -920,6 +1039,10 @@ public final class Scene {
         Ui.checkUiThread();
         Objects.requireNonNull(text, "text");
         Objects.requireNonNull(politeness, "politeness");
+        if (graftedInto != null) {
+            graftedInto.announce(text, politeness); // said by the window that publishes it
+            return;
+        }
         if (announcements.size() >= MAX_ANNOUNCEMENTS) {
             // An application announcing once per frame is a defect the slow-task budget already
             // catches; dropping the oldest keeps this bounded without hiding the newest.
@@ -947,6 +1070,10 @@ public final class Scene {
     private limn.backend.AccessibilityBridge bridge = limn.backend.AccessibilityBridge.NONE;
     private limn.backend.AccessibilityBridge.Host accessibilityHost;
     private AccessibleWalk accessibleWalk;
+    /** The popups in windows of their own this scene's tree publishes ({@link #graftPopup}). */
+    private final List<Scene> graftedPopups = new ArrayList<>(1);
+    /** The scene whose tree publishes this one, when this is a grafted popup; else {@code null}. */
+    private Scene graftedInto;
 
     /**
      * The tree a reader on any thread answers from.
@@ -996,6 +1123,9 @@ public final class Scene {
      *         published none for it or no walk has run
      */
     long accessibleIdOf(Widget<?> widget) {
+        if (graftedInto != null) {
+            return graftedInto.accessibleIdOf(widget); // published by the tree it is grafted into
+        }
         return accessibleWalk == null ? 0 : accessibleWalk.idOfWidget(widget);
     }
 
@@ -1081,7 +1211,10 @@ public final class Scene {
             return;
         }
         Widget<?> owner = accessibleWalk.ownerOf(nodeId);
-        if (owner == null || owner.scene() != this) {
+        // A node of a popup grafted into this tree is its own scene's widget: performed there, and
+        // gated by that scene's layer rather than this one's.
+        Scene home = owner == null ? null : owner.scene();
+        if (owner == null || (home != this && !isGraftedPopup(home))) {
             return;
         }
         boolean synthetic = accessibleWalk.isSynthetic(nodeId);
@@ -1142,7 +1275,7 @@ public final class Scene {
         // construction, so gating on it alone would invoke a button underneath an open dialog;
         // and a snapshot can predate the modal, so the layer that owns input has to be re-checked
         // here whatever the tree said.
-        Widget<?> layer = accessibleInputLayer();
+        Widget<?> layer = home.accessibleInputLayer();
         if (layer == null || !isInSubtree(owner, layer)) {
             return;
         }
@@ -1174,7 +1307,7 @@ public final class Scene {
         }
         boolean done;
         if (free) {
-            done = performFreeVerb(owner, action);
+            done = home.performFreeVerb(owner, action);
         } else if (synthetic) {
             done = owner.performSyntheticAction(accessibleWalk.keyOf(nodeId), action, arg);
         } else if (delegated) {
@@ -1269,6 +1402,16 @@ public final class Scene {
      * so the frame is the flush point and no new scheduling is invented.
      */
     private void accessibilityStep(boolean rePresent) {
+        if (graftedInto != null) {
+            // Its boxes moved or its nodes changed in this frame (damage, layout, a first frame
+            // after the window was shown): the scene that publishes them walks again.
+            if (!rePresent && (accessibleNodesDirty || accessibleHeaderDirty)) {
+                accessibleNodesDirty = false;
+                accessibleHeaderDirty = false;
+                graftedInto.invalidateAccessible();
+            }
+            return;
+        }
         publishStep(rePresent);
         // Every frame ends, whichever way the step above returned: announcements drained without
         // a walk, a re-present, a clean tree after a reentrant publish already took the walk. A
@@ -1375,6 +1518,11 @@ public final class Scene {
      */
     private void publishAccessibleTree(boolean reentrant) {
         accessibleWalk();
+        for (int i = 0; i < graftedPopups.size(); i++) {
+            // A popup's boxes are laid out in its own frame, which may not have run since it
+            // changed; its nodes are published here, against boxes that have to be true now.
+            graftedPopups.get(i).layOutForTheSceneThatPublishesIt();
+        }
         try {
             accessibleWalk.walk(this, width, height);
         } catch (limn.backend.Crashes.ShutdownRequested shutdown) {
@@ -1473,7 +1621,7 @@ public final class Scene {
      */
     public void damage(Rect region) {
         addDamage(region.x(), region.y(), region.width(), region.height());
-        accessibleNodesDirty = true;
+        markAccessibleNodesDirty();
         scheduleFrame();
     }
 
@@ -1482,7 +1630,7 @@ public final class Scene {
         if (partialRendering || damageDebug) {
             addClippedDamage(widget, x - 1, y - 1, w + 2, h + 2);
         }
-        accessibleNodesDirty = true;
+        markAccessibleNodesDirty();
         scheduleFrame();
     }
 
@@ -1496,7 +1644,7 @@ public final class Scene {
             addClippedDamage(widget, -outset, -outset,
                     widget.width() + 2 * outset, widget.height() + 2 * outset);
         }
-        accessibleNodesDirty = true;
+        markAccessibleNodesDirty();
         scheduleFrame();
     }
 
@@ -1744,7 +1892,7 @@ public final class Scene {
         if (!visibilityChanges.contains(widget)) {
             visibilityChanges.add(widget);
         }
-        accessibleNodesDirty = true;
+        markAccessibleNodesDirty();
         scheduleFrame();
     }
 
@@ -1752,7 +1900,7 @@ public final class Scene {
         if (!containedLayouts.contains(widget)) {
             containedLayouts.add(widget);
         }
-        accessibleNodesDirty = true;
+        markAccessibleNodesDirty();
         // scheduleFrame, NOT requestRender: the latter declares the whole scene damaged, which
         // is exactly the frame this request exists to avoid. The damage is the widget's, and the
         // pass adds it once the layout is known to have stayed inside the box.
@@ -1922,7 +2070,7 @@ public final class Scene {
             } else {
                 damageInParent(parent, widget, wx - o, wy - o, ww + 2 * o, wh + 2 * o);
             }
-            accessibleNodesDirty = true;
+            markAccessibleNodesDirty();
         }
     }
 
@@ -3908,6 +4056,12 @@ public final class Scene {
             // native popup's owner) is told to stop naming it.
             accessibleWalk.close();
         }
+        if (graftedInto != null) {
+            // Its nodes leave the tree that published them, on that tree's next walk.
+            graftedInto.graftedPopups.remove(this);
+            graftedInto.invalidateAccessible();
+            graftedInto = null;
+        }
         bridge = limn.backend.AccessibilityBridge.NONE;
         publishedTree = limn.accessibility.AccessibleTree.EMPTY;
         metricsListener.release();
@@ -3963,6 +4117,12 @@ public final class Scene {
         return once(() -> windowCloseObservers = Listeners.removed(windowCloseObservers, observer));
     }
 
+    private void layOutForTheSceneThatPublishesIt() {
+        if (window != null) {
+            layoutPass(window.logicalWidth(), window.logicalHeight());
+        }
+    }
+
     /** Runs measure/layout when dirty or resized (public for headless tests/embedding). */
     public void layoutPass(float newWidth, float newHeight) {
         if (!layoutDirty && newWidth == width && newHeight == height) {
@@ -3985,7 +4145,7 @@ public final class Scene {
         // dirty and schedules a frame without declaring damage, because a layout frame damages
         // everything structurally -- and this method called directly by a headless embedder with
         // a new size. Both moved every node a reader was holding and published nothing.
-        accessibleNodesDirty = true;
+        markAccessibleNodesDirty();
         width = newWidth;
         height = newHeight;
         root.measure(Constraints.tight(newWidth, newHeight));

@@ -115,8 +115,16 @@ final class UiaProperties {
 
             case UiaIds.IS_ENABLED:
                 return node.has(Accessible.State.ENABLED);
+            // Where SetFocus is accepted, and not only where a widget of its own takes the keyboard:
+            // an item the cursor can be put on publishes FOCUS without being FOCUSABLE (the list
+            // is), and SetFocus posts FOCUS. Answering the state alone made every row, header item
+            // and group say false while its SetFocus worked, so a managed client refused the call
+            // before asking; and NVDA says "not selected" of the focus only when it is FOCUSABLE,
+            // so taking a row out of a MULTI selection was silent
+            // (readings/nvda-2024.4.2-negative-states.txt, 2026-09-23).
             case UiaIds.IS_KEYBOARD_FOCUSABLE:
-                return node.has(Accessible.State.FOCUSABLE);
+                return node.has(Accessible.State.FOCUSABLE)
+                        || node.accepts(Accessible.Action.FOCUS);
             // HAS_KEYBOARD_FOCUS is not answered here: since 2026-09-15 it is where the user is,
             // the tree's effective focus (semantics 4), which a node alone cannot say -- the
             // focused table is FOCUSED and does not have it, its ACTIVE cell does. The provider

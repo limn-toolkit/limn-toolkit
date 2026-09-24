@@ -140,6 +140,20 @@ final class AxElementClass {
          * here and no registry to consult.
          */
         void entered();
+
+        /**
+         * A client wrote through one of the setters, before whatever verb it means is posted: the
+         * selector and what it wrote, for the write trace. Two setters can post the same verb on
+         * the same row -- {@code setAccessibilitySelected:} on it, and
+         * {@code setAccessibilitySelectedRows:} with it alone on its container -- and a finding
+         * about a reader's writes is only as good as knowing which it sent (2026-09-23).
+         *
+         * @param selector the setter's selector
+         * @param nodeId   the node written to
+         * @param written  what was written, as the trace spells it
+         */
+        default void wrote(String selector, long nodeId, String written) {
+        }
     }
 
     private final AxObjC objc;
@@ -751,6 +765,7 @@ final class AxElementClass {
                     source.entered();
                     AccessibleNode node = source.nodeFor(self);
                     if (node == null) return;
+                    source.wrote(selector, node.id(), on ? "YES" : "NO");
                     AxSetters.Setting setting = AxSetters.forBool(grid, node, selector, on);
                     if (setting != null) source.perform(node.id(), setting.action(), setting.argument());
                 }
@@ -788,9 +803,13 @@ final class AxElementClass {
                 if (node == null || written == NULL || !isKindOf(written, "NSArray")) return;
                 long count = ObjC.msg(written, "count");
                 List<AccessibleNode> rows = new ArrayList<>();
+                StringBuilder spelled = new StringBuilder("[");
                 for (long i = 0; i < count; i++) {
-                    rows.add(source.nodeFor(ObjC.msg(written, "objectAtIndex:", i)));
+                    AccessibleNode row = source.nodeFor(ObjC.msg(written, "objectAtIndex:", i));
+                    rows.add(row);
+                    spelled.append(i == 0 ? "" : ", ").append(row == null ? "?" : Long.toString(row.id()));
                 }
+                source.wrote("setAccessibilitySelectedRows:", node.id(), spelled.append(']').toString());
                 List<AxSetters.RowSetting> settings = AxSetters.forSelectedRows(grid, node, rows);
                 if (settings == null) return;
                 for (AxSetters.RowSetting setting : settings) source.perform(setting.nodeId(), setting.action());
