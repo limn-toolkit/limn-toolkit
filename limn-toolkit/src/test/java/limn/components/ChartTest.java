@@ -134,6 +134,58 @@ class ChartTest extends ComponentTestBase {
                 "and the scale must span to it, not stop at the data: " + canvas.texts);
     }
 
+    @Test
+    void ticksCloserThanAHundredthApartAreEachWrittenApart() {
+        // The default format wrote two decimals whatever the spacing, so a scale of thousandths
+        // read "0, 0, 0, 0, 0" and one of half-hundredths wrote every other tick twice.
+        BarChart thousandths = new BarChart();
+        thousandths.setLocale(java.util.Locale.ENGLISH);
+        thousandths.setAnimationDuration(0);
+        thousandths.setLabels("a", "b", "c", "d");
+        thousandths.addSeries(ChartSeries.of("v", 0.001, 0.002, 0.003, 0.004));
+        RecordingCanvas canvas = new RecordingCanvas(400, 300);
+        sceneOf(thousandths, canvas);
+        assertTrue(canvas.texts.containsAll(List.of("0", "0.001", "0.002", "0.003", "0.004")),
+                "ticks a thousandth apart must read as thousandths: " + canvas.texts);
+
+        LineChart halfHundredths = new LineChart();
+        halfHundredths.setLocale(java.util.Locale.ENGLISH);
+        halfHundredths.setAnimationDuration(0);
+        halfHundredths.setLabels("a", "b");
+        halfHundredths.addSeries(ChartSeries.of("v", 0.1, 0.12));
+        canvas = new RecordingCanvas(400, 300);
+        Scene lines = sceneOf(halfHundredths, canvas);
+        assertTrue(canvas.texts.containsAll(List.of("0.1", "0.105", "0.11", "0.115", "0.12")),
+                "ticks 0.005 apart, with no trailing zeros and no noise: " + canvas.texts);
+
+        // Still written the way the language writes a number.
+        halfHundredths.setLocale(java.util.Locale.forLanguageTag("pt-BR"));
+        canvas.reset();
+        lines.renderFrame(canvas);
+        assertTrue(canvas.texts.containsAll(List.of("0,1", "0,105", "0,11", "0,115", "0,12")),
+                "the wider precision must stay localized: " + canvas.texts);
+    }
+
+    @Test
+    void aFormatTheAxisIsGivenIsUsedAsItIs() {
+        BarChart chart = new BarChart();
+        chart.setLocale(java.util.Locale.ENGLISH);
+        chart.setAnimationDuration(0);
+        chart.setLabels("a");
+        chart.addSeries(ChartSeries.of("v", 0.004));
+        // Its own default handed back is still the default, precision and all.
+        chart.valueAxis().setFormat(chart.valueAxis().format());
+        RecordingCanvas canvas = new RecordingCanvas(400, 300);
+        Scene scene = sceneOf(chart, canvas);
+        assertTrue(canvas.texts.contains("0.001"), "the default lost its precision: " + canvas.texts);
+
+        chart.valueAxis().setFormat(limn.i18n.NumberFormats.number());
+        canvas.reset();
+        scene.renderFrame(canvas);
+        assertFalse(canvas.texts.contains("0.001"),
+                "a two-decimal format set by the application must not be widened: " + canvas.texts);
+    }
+
     // ------------------------------------------------------------------- bars
 
     @Test

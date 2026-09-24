@@ -24,6 +24,13 @@ import java.util.function.DoubleFunction;
  */
 public final class ChartAxis {
 
+    /**
+     * The format every axis starts with. Held once so that {@link #tickFormat} can tell an axis
+     * still on it from one given a format, by identity: handing an axis its own {@link #format()}
+     * back keeps the precision that follows the tick spacing.
+     */
+    private static final DoubleFunction<String> DEFAULT_FORMAT = NumberFormats.number();
+
     /** Set by the chart that owns this axis, so a setter can repaint it. */
     Chart<?> owner;
 
@@ -31,7 +38,7 @@ public final class ChartAxis {
     private Double max;
     private boolean beginAtZero;
     private int tickCount = 5;
-    private DoubleFunction<String> format = NumberFormats.number();
+    private DoubleFunction<String> format = DEFAULT_FORMAT;
     private boolean grid = true;
     private boolean visible = true;
     private String title;
@@ -102,15 +109,20 @@ public final class ChartAxis {
         return this;
     }
 
-    /** How tick values are turned into text. */
+    /**
+     * How tick values are turned into text: the format set, or the default, which the ticks
+     * write with more decimals when their spacing needs them (see {@link #setFormat}).
+     */
     public DoubleFunction<String> format() {
         return format;
     }
 
     /**
-     * Sets the tick text format. Defaults to {@link NumberFormats#number()}; the chart's
-     * own {@link Chart#setValueFormat(DoubleFunction)} does not reach here, so an axis and
-     * its tooltips can read differently (compact ticks, exact tooltips).
+     * Sets the tick text format. Defaults to {@link NumberFormats#number()}, written with as
+     * many more decimals as the tick spacing needs: ticks a thousandth apart read
+     * {@code 0.001, 0.002, 0.003} rather than four zeros. A format set here is used as it is.
+     * The chart's own {@link Chart#setValueFormat(DoubleFunction)} does not reach here, so an
+     * axis and its tooltips can read differently (compact ticks, exact tooltips).
      */
     public ChartAxis setFormat(DoubleFunction<String> value) {
         Ui.checkUiThread();
@@ -167,6 +179,20 @@ public final class ChartAxis {
         }
     }
 
+    /**
+     * The format the ticks of {@code scale} are written with: the one set, or, while the axis
+     * is still on its default, that default with enough decimals to tell one tick from the
+     * next. Two decimals stay the floor, which is what the default always wrote, so only an
+     * axis whose ticks sit closer than a hundredth apart reads any differently.
+     */
+    DoubleFunction<String> tickFormat(Scale scale) {
+        if (format != DEFAULT_FORMAT) {
+            return format;
+        }
+        int decimals = scale.decimals();
+        return decimals <= 2 ? DEFAULT_FORMAT : NumberFormats.number(decimals);
+    }
+
     // --------------------------------------------------------------- the scale
 
     /**
@@ -179,6 +205,29 @@ public final class ChartAxis {
         /** How many ticks fall on this scale, first and last included. */
         int tickCount() {
             return (int) Math.floor((max - min) / step + 1e-6) + 1;
+        }
+
+        /**
+         * How many decimals it takes to write every tick of this scale apart from the next:
+         * those of the step, found as the first power of ten that makes it a whole number.
+         * Read off the step and never off a tick, because a tick is {@code min + i * step} and
+         * carries that arithmetic's noise ({@code 0.30000000000000004}) in its last digits.
+         */
+        int decimals() {
+            if (!(step > 0) || !Double.isFinite(step)) {
+                return 0;
+            }
+            // Where the step's first significant digit lies; a 1, 2 or 5 step is whole there.
+            int least = Math.max(0, (int) -Math.floor(Math.log10(step)));
+            for (int d = least; d < least + 3; d++) {
+                double scaled = step * Math.pow(10, d);
+                if (Math.abs(scaled - Math.rint(scaled)) <= scaled * 1e-9) {
+                    return d;
+                }
+            }
+            // A step no power of ten makes whole, which only a scale whose round step failed
+            // has: its first three significant digits tell its ticks apart.
+            return least + 2;
         }
 
         /** The value of tick {@code i}, counted from {@link #min()}. */

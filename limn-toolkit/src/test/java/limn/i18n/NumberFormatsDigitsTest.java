@@ -61,6 +61,18 @@ class NumberFormatsDigitsTest {
     }
 
     @Test
+    void aWiderPrecisionStillTrimsGroupsAndLocalizes() {
+        assertEquals("0.105", NumberFormats.number(3).apply(0.105));
+        assertEquals("0.11", NumberFormats.number(3).apply(0.11), "no trailing zero");
+        assertEquals("0.115", NumberFormats.number(3).apply(0.1 + 0.005 * 3),
+                "the arithmetic's noise past the precision is not written");
+        assertEquals("1,234.5", NumberFormats.number(4).apply(1234.5));
+        assertEquals("1,235", NumberFormats.number(0).apply(1234.5), "none at all rounds");
+        I18n.setLocale(Locale.forLanguageTag("ar-EG"));
+        assertEquals("٠٫٠٠١", NumberFormats.number(3).apply(0.001));
+    }
+
+    @Test
     void aFormatFollowsTheLocaleInScopeSeparatorsAndDigitsAlike() {
         // ADR 035: a chart inside an ar-locale subtree formats under that subtree, because
         // its passes hold the effective locale in scope and every format here reads

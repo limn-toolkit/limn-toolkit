@@ -457,8 +457,9 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
         scale = valueAxis.resolve(min, max);
         tickLabels = new String[scale.tickCount()];
         tickLabelWidth = 0;
+        java.util.function.DoubleFunction<String> format = valueAxis.tickFormat(scale);
         for (int i = 0; i < tickLabels.length; i++) {
-            tickLabels[i] = valueAxis.format().apply(scale.tick(i));
+            tickLabels[i] = format.apply(scale.tick(i));
             tickLabelWidth = Math.max(tickLabelWidth, labelWidth(tickLabels[i], labelFont));
         }
     }
