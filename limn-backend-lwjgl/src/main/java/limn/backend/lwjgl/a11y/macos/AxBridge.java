@@ -575,6 +575,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             effective = 0;
         }
         if (effective == 0) effective = cursorFromAnotherWindow();
+        effective = reportedFocus(tree, effective);
         AccessibleNode node = effective == 0 ? null : tree.find(effective);
         if (node == null) {
             if (to != null) to.accept("focused none");
@@ -599,7 +600,110 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         // client walks, and a linear search of the tree here — and of another window's — made reading
         // a large table cost the product of its elements and its nodes.
         long id = node.id();
-        return tree().effectiveFocus() == id || cursorFromAnotherWindow() == id;
+        AccessibleTree tree = tree();
+        return reportedFocus(tree, tree.effectiveFocus()) == id || cursorFromAnotherWindow() == id;
+    }
+
+    /** The data cell the cursor was on when the table kept the focus last, or {@code 0}. */
+    private long lastTableCell;
+
+    /**
+     * The node VoiceOver is told the user is on: the effective focus, except a data cell of a table
+     * whose members are rows, for which it is the table itself, as a native NSTableView answers
+     * (scripts/a11y/macos/table-steps-probe.swift, 2026-09-23: the focused element is always the
+     * table; VoiceOver reads the whole row when the selection moves, says "Nenhuma linha
+     * selecionada" and the row count, and writes nothing). With the cell focused VoiceOver followed
+     * the cell and was silent at a deselection, at a jump to the last row and at select-all, and
+     * wrote its stale rows back as the selection. A header cell keeps the focus, as does a calendar
+     * day, whose grid selects cells and whose cursor is apart from the selection: there the cell is
+     * what the user moves through.
+     *
+     * @param tree      the published tree
+     * @param effective the effective focus, or {@code 0}
+     * @return the node to report, or {@code 0}
+     */
+    private long reportedFocus(AccessibleTree tree, long effective) {
+        AccessibleNode table = tableOfDataCell(tree, effective);
+        return table == null ? effective : table.id();
+    }
+
+    /** @return the table of rows a data cell (or a widget in one) belongs to, or {@code null} */
+    private AccessibleNode tableOfDataCell(AccessibleTree tree, long nodeId) {
+        if (nodeId == 0) return null;
+        int at = tree.indexOf(nodeId);
+        if (at < 0) return null;
+        AccessibleNode node = tree.node(at);
+        if (node.cell() == null || node.cell().row() < 0) return null;
+        for (int p = node.parent(); p != AccessibleNode.NONE; p = tree.node(p).parent()) {
+            AccessibleNode up = tree.node(p);
+            if (up.table() != null) {
+                return up.selection() != null && grid.selectionShape(up) == AxGrid.SelectionShape.ROWS
+                        ? up : null;
+            }
+        }
+        return null;
+    }
+
+    /** @return the data cell under the reported focus when the table holds it, or {@code 0} */
+    private long cellUnderReportedFocus() {
+        AccessibleTree tree = tree();
+        long effective = tree.effectiveFocus();
+        return tableOfDataCell(tree, effective) == null ? 0 : effective;
+    }
+
+    private boolean sameRow(long cell, long other) {
+        if (other == 0) return false;
+        AccessibleTree tree = tree();
+        AccessibleNode a = tree.find(cell);
+        AccessibleNode b = tree.find(other);
+        return a != null && b != null && a.cell() != null && b.cell() != null
+                && a.cell().row() == b.cell().row() && a.parent() == b.parent()
+                && tableOfDataCell(tree, cell) == tableOfDataCell(tree, other);
+    }
+
+    /**
+     * Says the cell the cursor moved onto along its row, while the table keeps the focus: its name,
+     * a toggle's state in the catalogue's word, and its column's header, as one assertive announcement.
+     *
+     * @return whether it was posted
+     */
+    private boolean announceCell(long cellId) {
+        AccessibleTree tree = tree();
+        AccessibleNode cell = tree.find(cellId);
+        AccessibleNode table = tableOfDataCell(tree, cellId);
+        if (cell == null || table == null) return false;
+        StringBuilder text = new StringBuilder(cell.name() == null ? "" : cell.name());
+        if (cell.toggle() != null) {
+            if (text.length() > 0) text.append(", ");
+            text.append(limn.accessibility.StateNames.ofToggle(cell.toggle().state(),
+                    cell.role() == Accessible.Role.SWITCH, cell.locale()));
+        }
+        String header = headerNameOf(tree, table, cell.cell().column());
+        if (header != null && !header.isEmpty() && !header.equals(cell.name())) {
+            if (text.length() > 0) text.append(", ");
+            text.append(header);
+        }
+        if (text.length() == 0) return false;
+        // Assertive: it answers the key the user just pressed, and VoiceOver spoke only the first of the
+        // polite ones this was posted as (readings list-multi-macos, hyb-table-1 against hyb-table-2).
+        return announce(AccessibleEvent.announcement(text.toString(), Accessible.Politeness.ASSERTIVE));
+    }
+
+    private static String headerNameOf(AccessibleTree tree, AccessibleNode table, int column) {
+        int at = tree.indexOf(table.id());
+        for (int i = at + 1; i < tree.nodeCount(); i++) {
+            AccessibleNode node = tree.node(i);
+            int p = node.parent();
+            boolean inside = false;
+            for (int q = p; q != AccessibleNode.NONE; q = tree.node(q).parent()) {
+                if (q == at) { inside = true; break; }
+            }
+            if (!inside) break;
+            if (node.cell() != null && node.cell().row() < 0 && node.cell().column() == column) {
+                return node.name();
+            }
+        }
+        return null;
     }
 
     // ---- the process's open windows (decision 5) ----------------------------------------------
@@ -721,7 +825,7 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
         AccessibleTree tree = tree();
         long effective = tree.effectiveFocus();
         if (effective != 0) {
-            if (tree.indexOf(effective) >= 0) return new Announced(this, effective);
+            if (tree.indexOf(effective) >= 0) return new Announced(this, reportedFocus(tree, effective));
             AxBridge holder = openBridgeHolding(effective);
             return holder == null ? null : new Announced(holder, effective);
         }
@@ -743,13 +847,38 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             if (to != null) to.accept("no focus to announce");
             return false;
         }
+        long cell = cellUnderReportedFocus();
         if (!reannouncement && now.equals(ANNOUNCED.get())) {
             if (to != null) to.accept("focus on node " + now.nodeId() + " already announced");
-            return false;
+            // The table keeps the focus while the cursor walks its cells: a move along the row is said
+            // as the cell, and a move to another row is said by the selection change.
+            boolean said = cell != 0 && cell != lastTableCell && sameRow(cell, lastTableCell)
+                    && announceCell(cell);
+            lastTableCell = cell;
+            return said;
         }
+        // From the table's own header back to its rows the focus climbs to an element that already
+        // holds VoiceOver's cursor, and VoiceOver says nothing of it (hyb-table-2, step 5): say the cell.
+        Announced before = ANNOUNCED.get();
+        boolean fromInside = cell != 0 && before != null && before.bridge() == this
+                && before.nodeId() != now.nodeId() && isWithin(before.nodeId(), now.nodeId());
+        lastTableCell = cell;
         ANNOUNCED.set(now);
         post(applicationElement(), FOCUS_POSTING);
+        if (fromInside) announceCell(cell);
         return true;
+    }
+
+    /** @return whether the node is published beneath the ancestor, in this bridge's tree */
+    private boolean isWithin(long nodeId, long ancestorId) {
+        AccessibleTree tree = tree();
+        int at = tree.indexOf(nodeId);
+        int ancestor = tree.indexOf(ancestorId);
+        if (at < 0 || ancestor < 0) return false;
+        for (int p = tree.node(at).parent(); p != AccessibleNode.NONE; p = tree.node(p).parent()) {
+            if (p == ancestor) return true;
+        }
+        return false;
     }
 
     /** @return another open bridge whose published tree holds the node, or {@code null} */

@@ -41,6 +41,9 @@ held by a test to what its gestures repaint.
   host, a describe call and a contract test, and no bridge code.
 - On macOS a list, a `ListView` or a combo box's open list, is published as a table, as AppKit's
   own lists are. VoiceOver says "table" for it and now speaks its selection.
+- On macOS VoiceOver is told a table is focused, as AppKit's own tables are, so it reads the row
+  the selection moves to, says when the selection empties and counts a select-all. A move along a
+  row is said as the cell and its column.
 - A popup that belongs to a control (your own, like a combo's list, a menu or a calendar) opens with
   `Scene.pushPopup` instead of `pushOverlay`: the page beneath it then stays enabled for a screen
   reader, as a native drop-down leaves its field, where a dialog disables what is behind it. An
