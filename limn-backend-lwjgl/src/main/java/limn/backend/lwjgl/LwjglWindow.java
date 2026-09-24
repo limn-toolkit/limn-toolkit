@@ -143,6 +143,11 @@ final class LwjglWindow implements NativeWindow {
     // them on macOS). Non-NULL means GLFW owns no context for this window, so
     // make-current, swap and swap-interval go through the ObjC object instead.
     private final long nsglContext;
+    /**
+     * The content view whose input method {@link MacInputContextGate} switches, on macOS; {@code NULL}
+     * elsewhere, or where the gate could not be made.
+     */
+    private long imeGatedView = NULL;
     private final GLCapabilities glCapabilities;
     private final GlRenderer renderer;
     private final limn.backend.Clipboard clipboard;
@@ -410,6 +415,12 @@ final class LwjglWindow implements NativeWindow {
                 frameRequested = true;
             }
         });
+        if (MACOS) {
+            long view = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaView(handle);
+            if (MacInputContextGate.install(view)) {
+                imeGatedView = view;
+            }
+        }
         glfwSetCursorEnterCallback(handle, (win, entered) -> {
             if (input != null && !inputBlocked()) {
                 input.pointerEntered(entered);
@@ -928,6 +939,9 @@ final class LwjglWindow implements NativeWindow {
             preeditCallback.free();
         }
         Callbacks.glfwFreeCallbacks(handle);
+        if (imeGatedView != NULL) {
+            MacInputContextGate.forget(imeGatedView);
+        }
         glfwDestroyWindow(handle);
     }
 
@@ -1269,6 +1283,14 @@ final class LwjglWindow implements NativeWindow {
     public void setImeEnabled(boolean enabled) {
         backend.uiRuntime().checkUiThread();
         if (destroyed) {
+            return;
+        }
+        if (MACOS) {
+            // Never GLFW's switch here, which selects another input source for the whole system;
+            // see MacInputContextGate. Without the gate the input method simply stays on.
+            if (imeGatedView != NULL) {
+                MacInputContextGate.setEnabled(imeGatedView, enabled);
+            }
             return;
         }
         glfwSetInputMode(handle, GLFW_IME, enabled ? GLFW_TRUE : GLFW_FALSE);

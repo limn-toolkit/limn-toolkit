@@ -82,6 +82,11 @@ toolkit's own widgets are held to. A widget can carry an id: `setId("save")`, th
   opened or closed.
 
 **Fixed.**
+- On macOS a window no longer changes the system's keyboard input source. Turning the input
+  method off whenever the focus left a text field selected a Latin layout for the whole system,
+  and turning it on did not bring back Japanese, Chinese or Korean, so their typists chose their
+  input method again after every click on a button, in every application. A control that takes
+  no text now simply has no input context, as a native one does.
 - Setting a window's title, size or position after the user closed it, as work that completes
   late does, is ignored; it used to abort the process.
 - Closing an FFmpeg stream while a `VideoView` still shows one of its pictures no longer crashes
