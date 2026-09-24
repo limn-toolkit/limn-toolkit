@@ -221,8 +221,16 @@ public final class CalendarView extends Widget<CalendarView> {
         NEXT
     }
 
-    /** The order Tab walks: the grid first, because it is what the widget is for. */
+    /** The order Tab walks a calendar on its own: the grid first, because it is what it is for. */
     private static final Part[] TAB_ORDER = {Part.GRID, Part.PREVIOUS, Part.TITLE, Part.NEXT};
+
+    /**
+     * The order Tab walks while a picker drives the calendar: the card from top to bottom, the
+     * header and then the grid, so that a time row under the grid comes last. With the grid first
+     * the row sat between the header and the days, and a Tab from the last arrow skipped to the
+     * row. The popup still opens on the grid, and without a row the cycle is the same one.
+     */
+    private static final Part[] POPUP_TAB_ORDER = {Part.PREVIOUS, Part.TITLE, Part.NEXT, Part.GRID};
 
     private Part part = Part.GRID;
 
@@ -399,12 +407,21 @@ public final class CalendarView extends Widget<CalendarView> {
 
     /**
      * The picker's: the keyboard arrives from the thing after this grid in the popup's Tab cycle,
-     * walking backwards, so it lands on the last header control rather than on the grid.
+     * walking backwards, so it lands on the grid, the last part of the popup's walk.
      */
     void enterFromEnd() {
         setKeyboardActive(true);
+        notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+    }
+
+    /**
+     * The picker's: the keyboard comes round the popup's Tab cycle from the time row, so it lands
+     * on the first part of the walk, the arrow that pages back.
+     */
+    void enterFromStart() {
+        setKeyboardActive(true);
         Part from = part;
-        part = Part.NEXT;
+        part = Part.PREVIOUS;
         damagePartChange(from, part);
         notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
     }
@@ -2394,22 +2411,24 @@ public final class CalendarView extends Widget<CalendarView> {
     }
 
     /**
-     * Moves the roving focus one step along {@link #TAB_ORDER}.
+     * Moves the roving focus one step along {@link #TAB_ORDER}, or {@link #POPUP_TAB_ORDER} while
+     * a picker drives the calendar.
      *
      * @param delta +1 forwards, -1 backwards
      * @return whether the calendar kept the key; {@code false} means the walk ran off an end and
      *         the key belongs to whatever encloses this widget
      */
     private boolean movePart(int delta) {
+        Part[] order = keyboardActive ? POPUP_TAB_ORDER : TAB_ORDER;
         int at = 0;
-        for (int i = 0; i < TAB_ORDER.length; i++) {
-            if (TAB_ORDER[i] == part) {
+        for (int i = 0; i < order.length; i++) {
+            if (order[i] == part) {
                 at = i;
                 break;
             }
         }
         int next = at + delta;
-        if (next < 0 || next >= TAB_ORDER.length) {
+        if (next < 0 || next >= order.length) {
             // Inside a popup the walk WRAPS, and outside one it runs off the end.
             //
             // A popup is a place you are in until you leave it deliberately, and Escape is how
@@ -2422,10 +2441,10 @@ public final class CalendarView extends Widget<CalendarView> {
             if (!keyboardActive || tabLeavesAtEnds) {
                 return false;
             }
-            next = Math.floorMod(next, TAB_ORDER.length);
+            next = Math.floorMod(next, order.length);
         }
         Part from = part;
-        part = TAB_ORDER[next];
+        part = order[next];
         enterPart();
         damagePartChange(from, part);
         notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));

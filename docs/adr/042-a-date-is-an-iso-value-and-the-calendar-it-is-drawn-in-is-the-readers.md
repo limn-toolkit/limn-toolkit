@@ -212,7 +212,7 @@ with the literal that joined them (`DatePattern.without`: `dd/MM/y` → `MM/y`, 
 | `YEAR` | the year alone | the year chooser is terminal: a pick there is the selection | 1 January of the first year to 31 December of the last, in the drawn calendar |
 | `MONTH` | month and year | the month chooser is terminal (decision 48: its cells carry a real selection) | the 1st of the first month to the last day (28/29/30/31) of the last |
 | `DAY` | the default | the day grid | the two days |
-| `HOUR` | plus the hour | the day grid **and a time row under it**; Tab cycles grid → header → row (decision 19) | the start at hh:00:00, the end at hh:59:59 |
+| `HOUR` | plus the hour | the day grid **and a time row under it**; Tab cycles header → grid → row, the popup opening on the grid (decision 19, order amended 2026-09-24) | the start at hh:00:00, the end at hh:59:59 |
 | `MINUTE` | plus the minute (`ofTime()`'s default) | as `HOUR` | the end at :59 seconds |
 | `SECOND` | plus the second | as `HOUR` | the two instants |
 
@@ -843,7 +843,11 @@ worse than one that never made it.
   characters too. A picker at `HOUR` or finer has a time row under the grid: a real `DateField`
   that never takes the focus, driven exactly as the grid is (the keys and the digits are handed to
   it while Tab has put the keyboard on it), and Tab cycles grid → paging arrows and title → time
-  row → grid in both presentations. What it types goes into the field through the row's own
+  row → grid in both presentations. **Amended 2026-09-24:** the cycle follows the card from top
+  to bottom, paging arrows and title → grid → time row → paging arrows, and the popup still opens
+  on the grid, so its first Tab reaches the row. The grid first put the row between the header and
+  the days: from the last arrow a Tab skipped to the row, which the owner reported as the row
+  taking the days' place at the end. Without a row the cycle is the same one as before. What it types goes into the field through the row's own
   origin, so the application's handler runs as if the person had typed into the field. The
   in-scene presentation, where the overlay holds the focus, forwards every key and character it
   does not answer to the field whose caret is showing, which is what a day typed over an open

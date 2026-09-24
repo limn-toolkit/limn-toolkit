@@ -205,8 +205,10 @@ class DatePickerTest extends ComponentTestBase {
 
     /**
      * Decisions 12 and 19: a picker down to the minute types its time in the field and, with the
-     * popup open, in a time row under the grid that Tab reaches after the header. The row never
-     * takes the focus; the keys and the digits are handed to it the way they are to the grid.
+     * popup open, in a time row under the grid. The row never takes the focus; the keys and the
+     * digits are handed to it the way they are to the grid. Tab walks the card top to bottom,
+     * header, grid, row, and round again (2026-09-24: the grid came first, which put the row
+     * between the header and the days).
      */
     @Test
     void aPickerDownToTheMinuteCarriesATimeRowInItsPopupAndTabCyclesThroughIt() {
@@ -220,9 +222,7 @@ class DatePickerTest extends ComponentTestBase {
         List<LocalDateTime> handled = new ArrayList<>();
         picker.onSelect(() -> handled.add(picker.dateTime()));
         picker.open();
-        for (int i = 0; i < 4; i++) {
-            key(Keys.TAB, 0);   // grid, previous, title, next, and on to the time row
-        }
+        key(Keys.TAB, 0);   // from the grid the popup opens on to the row, the card's last stop
         assertTrue(picker.isOpen(), "the walk did not fall out of the popup");
         type("0905");
         assertEquals(LocalTime.of(9, 5), picker.time(), "the digits went into the time row");
@@ -232,27 +232,34 @@ class DatePickerTest extends ComponentTestBase {
                 "and the handler reads the time it moved, which a handler handed a date could not");
         assertTrue(picker.isOpen());
 
-        key(Keys.TAB, 0);       // round to the grid again
+        key(Keys.TAB, Keys.MOD_SHIFT);   // back up to the grid
         key(Keys.RIGHT, 0);
         assertEquals(ANCHOR.plusDays(1), picker.calendar().focusedDate(),
-                "Tab off the row lands on the grid, whose arrows move the day");
-        key(Keys.TAB, Keys.MOD_SHIFT);   // back to the row, whose caret is still on the minute
+                "Shift+Tab off the row lands on the grid, whose arrows move the day");
+        key(Keys.TAB, 0);   // down to the row again, whose caret is still on the minute
         key(Keys.UP, 0);
         assertEquals(LocalTime.of(9, 6), picker.time(), "Up in the row steps the segment its caret is in");
-        key(Keys.TAB, Keys.MOD_SHIFT);   // and back onto the header's last control
+        key(Keys.TAB, 0);   // and round to the top of the card
         key(Keys.ENTER, 0);
-        assertEquals(LocalDate.of(2026, 10, 1), picker.calendar().visibleMonth(),
-                "Shift+Tab off the row lands on the arrow that pages on");
+        assertEquals(LocalDate.of(2026, 8, 1), picker.calendar().visibleMonth(),
+                "Tab off the row lands on the arrow that pages back");
+        for (int i = 0; i < 3; i++) {
+            key(Keys.TAB, 0);   // title, the arrow that pages on, the grid
+        }
+        key(Keys.TAB, 0);
+        type("1");
+        assertEquals(LocalTime.of(9, 1), picker.time(),
+                "the header and the grid lead to the row, its caret still on the minute");
         key(Keys.ESCAPE, 0);
         assertFalse(picker.isOpen());
-        assertEquals(LocalDateTime.of(2026, 9, 9, 9, 6), picker.dateTime());
+        assertEquals(LocalDateTime.of(2026, 9, 9, 9, 1), picker.dateTime());
     }
 
     /**
      * The same cycle in the scene presentation, where the overlay holds the focus and hands
      * every key to the picker first (ADR 042 §11's amendment says "in both presentations", and
      * until 2026-09-14 only the windowless path pinned it): Tab reaches the row through the
-     * overlay, the digits go into the row, Shift+Tab climbs back to the header, Escape closes.
+     * overlay, the digits go into the row, Tab carries on to the header, Escape closes.
      */
     @Test
     void theInSceneCalendarTabsThroughItsTimeRowTheSameWay() {
@@ -261,29 +268,27 @@ class DatePickerTest extends ComponentTestBase {
         picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
         picker.open();
         assertFalse(picker.field().isFocused(), "the overlay took the focus");
-        for (int i = 0; i < 4; i++) {
-            key(Keys.TAB, 0);   // grid, previous, title, next, and on to the time row
-        }
+        key(Keys.TAB, 0);   // from the grid the popup opens on to the row, the card's last stop
         assertTrue(picker.isOpen(), "the walk did not fall out of the popup");
         type("0905");
         assertEquals(LocalTime.of(9, 5), picker.time(), "the digits went into the time row");
         assertEquals(ANCHOR, picker.date(), "and the date is untouched");
 
-        key(Keys.TAB, 0);       // round to the grid again
+        key(Keys.TAB, Keys.MOD_SHIFT);   // back up to the grid
         key(Keys.RIGHT, 0);
         assertEquals(ANCHOR.plusDays(1), picker.calendar().focusedDate(),
-                "Tab off the row lands on the grid, whose arrows move the day");
+                "Shift+Tab off the row lands on the grid, whose arrows move the day");
         type("15");
         assertEquals(LocalDate.of(2026, 9, 15), picker.date(),
                 "and a digit typed there reaches the field again, not the row");
         assertEquals(LocalTime.of(9, 5), picker.time());
-        key(Keys.TAB, Keys.MOD_SHIFT);   // back to the row
+        key(Keys.TAB, 0);   // down to the row
         key(Keys.UP, 0);
         assertEquals(LocalTime.of(9, 6), picker.time(), "Up in the row steps the segment its caret is in");
-        key(Keys.TAB, Keys.MOD_SHIFT);   // and back onto the header's last control
+        key(Keys.TAB, 0);   // and round to the top of the card
         key(Keys.ENTER, 0);
-        assertEquals(LocalDate.of(2026, 10, 1), picker.calendar().visibleMonth(),
-                "Shift+Tab off the row lands on the arrow that pages on");
+        assertEquals(LocalDate.of(2026, 8, 1), picker.calendar().visibleMonth(),
+                "Tab off the row lands on the arrow that pages back");
         key(Keys.ESCAPE, 0);
         assertFalse(picker.isOpen());
         assertEquals(LocalDateTime.of(2026, 9, 15, 9, 6), picker.dateTime());
@@ -392,9 +397,7 @@ class DatePickerTest extends ComponentTestBase {
         assertTrue(picker.isOpen());
         assertEquals(2, picker.calendar().parent().children().size(),
                 "a row again, on the card that is showing");
-        for (int i = 0; i < 4; i++) {
-            key(Keys.TAB, 0);
-        }
+        key(Keys.TAB, 0);
         type("0905");
         assertEquals(LocalTime.of(9, 5), picker.time(), "and it is the row the keyboard reaches");
     }

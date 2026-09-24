@@ -779,9 +779,10 @@ public final class DatePicker extends Widget<DatePicker> {
 
     /**
      * The keyboard while it is on the popup's time row: the row's own segments take the arrows,
-     * the digits and the two deleting keys exactly as a focused field would; Tab and Shift+Tab
-     * carry on round the cycle to the grid and its header; Enter and Escape close the popup, the
-     * time already written into the field as it was typed.
+     * the digits and the two deleting keys exactly as a focused field would; the row is the last
+     * stop of the card's cycle, so Tab carries on round to the header and Shift+Tab back to the
+     * grid; Enter and Escape close the popup, the time already written into the field as it was
+     * typed.
      */
     private void timeRowKey(KeyEvent event) {
         switch (event.key()) {
@@ -791,7 +792,7 @@ public final class DatePicker extends Widget<DatePicker> {
                 if (shift) {
                     calendar.enterFromEnd();
                 } else {
-                    calendar.setKeyboardActive(true);
+                    calendar.enterFromStart();
                 }
                 event.consume();
                 repaintPopup();
