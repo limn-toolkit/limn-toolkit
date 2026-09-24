@@ -163,10 +163,15 @@ an option is performed in the popup's scene. Until 2026-09-24 the popup's window
 of its own: NVDA announced "popup, window" on every opening and the main window again on every
 closing, and VoiceOver did the same.
 
-It is only for a popup whose window never takes the keyboard, which is what keeps one focused node
-in one tree. A popup menu's window does take it, so a menu still publishes a tree of its own; a
-popup of an application's own that never takes the keyboard calls `graftPopup` before binding its
-scene, with its root's inheritance host naming the widget that opened it.
+It is for a popup whose keyboard is its opener's, which is what keeps one focused node in one
+tree. A pointer click in the popup's window makes it the desktop's key window on macOS, Windows and
+X11 alike, so the combo's list and the calendar hand every key that reaches their window on to the
+control that opened them, and give the owner window the keyboard back when they close while
+holding it (2026-09-24: handing it back on the click instead closed the popup under the pointer,
+because the owner's focus event arrived after the popup's blur had been checked). A popup menu's
+window takes the keyboard for itself, so a menu still publishes a tree of its own; a popup of an
+application's own whose keys go on to its opener in the same way calls `graftPopup` before binding
+its scene, with its root's inheritance host naming the widget that opened it.
 
 ## One size step for the whole cascade
 

@@ -73,7 +73,8 @@ is that field with a calendar behind a button, and either of them carries a cloc
 `DAY`, `HOUR`, `MINUTE`, `SECOND` — and the field drops or grows the segments it lost or gained,
 separators included. `MONTH` makes the picker's popup a month chooser and `YEAR` a year chooser,
 each terminal: a pick there *is* the value. A picker at `HOUR` or finer puts a time row under the
-grid, and Tab cycles the grid, the header and that row. `CalendarView` takes its own level as a
+grid, and Tab walks the card from top to bottom, the header, the grid and that row, and round
+again; the popup opens on the grid, so its first Tab reaches the row. `CalendarView` takes its own level as a
 `CalendarView.View`, since a grid of months is still a grid and a grid of hours is not a thing.
 
 {% shot dates "The four shapes, a period, and the grid on its own." %}

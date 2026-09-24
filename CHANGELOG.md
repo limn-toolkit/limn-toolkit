@@ -33,25 +33,27 @@ registrar hands back a `Subscription`.
 **Partial rendering is the default.** A frame repaints what changed, and every public widget is
 held by a test to what its gestures repaint.
 
-**Screen readers.**
+**Screen readers.** New in this release, on Windows (UI Automation), macOS (NSAccessibility) and
+Linux (AT-SPI).
 - The three platform bridges publish the platform's focus idiom, selection and cursor events,
   structure changes, editable text on Linux, announcements (`Scene#announce`), descriptions
   (`Label.setDescriptionFor`) and a busy state.
 - A new widget of a known shape (a toggle, a list of rows, a grid, a menu and six more) needs a
   host, a describe call and a contract test, and no bridge code.
 - On macOS a list, a `ListView` or a combo box's open list, is published as a table, as AppKit's
-  own lists are. VoiceOver says "table" for it and now speaks its selection.
+  own lists are: VoiceOver says "table" for it and speaks its selection.
 - On macOS VoiceOver is told a table is focused, as AppKit's own tables are, so it reads the row
   the selection moves to, says when the selection empties and counts a select-all. A move along a
   row is said as the cell and its column.
 - On macOS a polite announcement is posted at VoiceOver's high priority, because at a lower one
-  VoiceOver held it back behind its own hint and stopped reading the focus for several seconds, as
-  a tree's branch finished loading. It now interrupts what VoiceOver is saying.
+  VoiceOver holds it back behind its own hint for several seconds, as when a tree's branch
+  finishes loading. It interrupts what VoiceOver is saying.
 - A combo box's list and a date picker's calendar that open in a window of their own are read by a
   screen reader as part of the window that opened them, under their field, as a native drop-down
-  list is. NVDA and VoiceOver no longer announce a popup window when one opens, nor the main
-  window again when it closes. A popup of your own whose window never takes the keyboard does the
-  same with `Scene.graftPopup`, called before its scene is bound.
+  list is: no popup window is announced when one opens, nor the main window again when it closes.
+  A popup of your own does the same with `Scene.graftPopup`, called before its scene is bound, as
+  long as the keys its window receives go on to the control that opened it. A click can make that
+  window the key one; the combo's list and the calendar hand those keys on.
 - A popup that belongs to a control (your own, like a combo's list, a menu or a calendar) opens with
   `Scene.pushPopup` instead of `pushOverlay`: the page beneath it then stays enabled for a screen
   reader, as a native drop-down leaves its field, where a dialog disables what is behind it. An
@@ -60,7 +62,7 @@ held by a test to what its gestures repaint.
 **Languages.**
 - `PluralString` and `PluralRules` write a counted sentence with one key per grammatical form.
   The rules are transcribed from CLDR and checked against it in the build.
-- `NumberFormats` gains compact and currency formats.
+- `ChartFormats` is now `limn.i18n.NumberFormats`, for any number, and gains currency formats.
 
 **Tests.** The new `limn-test` module tests a UI with no display. `SceneDriver.drive(scene)`
 clicks, types, presses keys and delivers any raw window input. With it come a headless runtime
@@ -79,23 +81,12 @@ toolkit's own widgets are held to. A widget can carry an id: `setId("save")`, th
   opened or closed.
 
 **Fixed.**
-- Typing 29 February into a `DateField` keeps it; each year digit used to cut the day to 28.
-- `Table.refresh()` after rows were removed keeps the cursor on its record, so Enter opens the
-  row the user was on.
 - An image whose header claims more than 2^28 pixels is refused before it is decoded, instead of
   asking for gigabytes.
 - A glTF model whose nodes are not trees, or sit deeper than 1024, is refused, and one load
   creates at most 2^26 array elements.
 - Stopping a streamed track and starting another no longer frees the first one's decoder while
   the audio thread is still reading it.
-- A click on a date picker's time row puts the keyboard there, and a click in the calendar's own
-  window no longer leaves the keys going nowhere.
-- A click on a date picker's calendar takes the keyboard back from its time row, onto the arrow,
-  title or day clicked.
-- Tab in a date picker's popup follows the card from top to bottom, header, days, then the time
-  row; the row used to come between the header and the days.
-- A calendar draws one focus ring: on a header arrow or the title, the day's ring used to stay
-  drawn beside it.
 - A focusable `SplitPane` divider is met by Tab, and by a screen reader, between its two panes;
   it came after the second pane's whole subtree.
 - A drag on a combo box's scrollbar no longer leaves the arrows dead in its list, and a row chosen
@@ -114,6 +105,10 @@ One breaking round, taken before 1.0.
 | `I18n`, `Fonts`, `ControlSize` or `LayoutDirection` `.addChangeListener(r)` / `.removeChangeListener(r)` | `.observeChanges(r)`, which returns a `Subscription`; `cancel()` it to stop. `Theme` has one too |
 | `viewport.onDispose(r)` | `viewport.observeDispose(r)` |
 | `mediaControls.setOnRefresh(r)` | `mediaControls.observeRefresh(r)` |
+| `popupMenu.onClose(r)` | `popupMenu.observeClose(r)`, which returns a `Subscription` |
+| `Runnable stop = scene.observePresses(…)`, and `observeWindowBlur`, `observeWindowClosed`, `addShortcutHandler`; then `stop.run()` | each returns a `Subscription`; `cancel()` it |
+| `onSelect(Consumer<Integer>)` on `ButtonGroup`, `ComboBox`, `SegmentedControl` and `TabbedPane` | `IntConsumer`; a lambda is unchanged |
+| `ChartFormats.number()`, `.compact()`, `.percent(…)` … in `limn.components.chart` | `NumberFormats.number()`, `.compact()`, `.percent(…)` … in `limn.i18n` |
 | `slider.onChange(Consumer<Float>)`, `spinner.onChange(Consumer<Double>)`, `splitPane.onRatioChange(Consumer<Float>)` | `FloatConsumer` and `DoubleConsumer`; a lambda is unchanged |
 | `new WindowConfig("Title", 480, 320, …)` | `WindowConfig.of("Title", 480, 320)`, then withers: `.resizable(false)`, `.visible(false)`, `.transparent(true)` … |
 | `Theme.current().background` (a field) | `Theme.of(widget).background()` in a widget, `theme.background()` elsewhere; `dark` is `isDark()` |
@@ -127,26 +122,27 @@ One breaking round, taken before 1.0.
 | `textArea.softWrap()`, `spinner.snapsToStep()` | `isSoftWrap()`, `isSnapToStep()` |
 | `new ListView(new ListView.Adapter() { rowCount / rowAt / recycle / rowName })` | `new ListView<>(item -> cell)` with `setItems(list)`, or `ListView.pooled(create, bind)`, or `new ListView<>(cellFor, recycle)`; `setItemName(item -> name)` |
 | `listView.onSelect(index -> …)` | `listView.onSelect(() -> … listView.selectedIndex())`; `MULTI` through `setSelectionMode` |
-| `Table.SelectionMode`, `Tree.SelectionMode` | `limn.components.SelectionMode`, shared by `Table`, `Tree` and `ListView` |
-| `tree.scrollBy(dy)`, `tree.scrollHorizontallyBy(dx)` | `tree.scrollBy(dx, dy)` |
-| `datePicker.onSelect(date -> …)`, `calendar.onSelectRange(range -> …)`, `dateField.onTimeChange(time -> …)` | `onSelect(() -> …)` or `onChange(() -> …)`, reading `date()`, `range()` or `dateTime()` |
 | `scene.keyEvent(…)`, `scene.mouseButton(…)`, `scene.inputBatchEnded()` … in a test | `SceneDriver.drive(scene).press(Keys.ENTER)`, `.click(widget)`, `.type("…")`, or the raw calls on the driver (`limn-test`) |
-| `limn.lang.Checks`, `limn.concurrent.Listeners` … | moved to packages named `internal`, which no module exports; not API |
 | a `Graphics3D.Provider` implementing `renderDemoScene`, or `Graphics3D.renderDemoScene(…)` | gone: a `Viewport3D` with no renderer draws its cube through the public renderer, so a provider owes targets, meshes, textures and passes only |
 | a backend filling the toolkit's static slots | `new BackendServices(…).install()`; `Canvas.drawSurface`, the close-request handler, the IME calls and `supportsAbsolutePositioning` must be implemented |
 | `WindowInput.mouseButton(…)` with no count | a click count; `MouseEvent.clickCount()`; the platform's own double-click interval |
 | `FrameInfo` without a buffer age | `bufferAge`, 0 when unknown |
 
 **Behaviour.**
+- Partial rendering is on by default. A widget of your own that changes what it draws without
+  calling `invalidate()` now leaves stale pixels where it used to be repainted with the rest of
+  the frame: call `invalidate()` when its picture changes, or `scene.setPartialRendering(false)`
+  to go back to whole frames.
 - A plain `ar` locale now writes Latin digits, as native applications do. The regions that use
   Arabic-Indic digits (`ar-EG` and 22 others) keep them.
 - Every public mutator of a widget, a layout or the scene now checks that it runs on the UI
   thread. A write from a worker, which was a silent race, now throws.
 
 **The module path.** `limn.toolkit`, `limn.backend.lwjgl`, `limn.video.ffmpeg` and `limn.test`
-are named modules, and `limn.themeeditor` is an automatic one. The font jars, the FFmpeg native
-jars, jlayer and LWJGL's native jars stay on the class path. The Packaging guide says why, and
-how an application module lets the toolkit read its own resources.
+are named modules, and `limn.themeeditor` is an automatic one. The font jars and the FFmpeg native
+jars name themselves as modules, which the backend and the video decoder require. LWJGL's native
+jars and jlayer need a word each, and the Packaging guide gives it, with how an application module
+lets the toolkit read its own resources.
 
 ### Known, and left for later
 

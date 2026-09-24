@@ -98,15 +98,19 @@ reader is told which window is the modal. A native dialog blocks its owner the s
 
 A popup — a combo box's list, a context menu, a menu bar's menu — is described where it
 actually lives: a translucent window of its own where the platform has one, and inside the
-scene where it does not. A window of its own is not a tree of its own as far as the reader is
-concerned: the control that opened it points at it, and the cursor crosses into the popup's
-items, so arrowing through a combo's list is read item by item without leaving the field.
+scene where it does not. A combo's list in a window of its own is not a tree of its own as far as
+the reader is concerned: it is published under the field that opened it, and the cursor crosses
+into its items, so arrowing through the list is read item by item without leaving the field. A
+menu is different, because its window takes the keyboard while it is open: it is a tree of its
+own, as a native menu is, and the reader follows the focus into it and back out.
 
 A date picker's calendar crosses the same way. The field and the calendar in its popup point at
 each other, so a reader announces the popup, follows the cursor through the grid and the month
 chooser, and is back on the field's day segment when it closes. The keyboard stays with the
-field throughout. Where the platform has no second window, as in a Wayland session, the picker
-draws in the scene instead, and there is nothing to cross.
+field throughout; a pointer click in the calendar's window makes it the key window, and the
+picker hands every key that reaches it on to the field, so the keys do what they did before the
+click. Where the platform has no second window, as in a Wayland session, the picker draws in the
+scene instead, and there is nothing to cross.
 
 A list publishes its true row count and the rows it has realized, which is what makes a
 million-row list cost what twenty do under a screen reader as well as on screen. The row the
@@ -145,8 +149,8 @@ publishes the same facts on all three platforms, so a screen should not depend o
 
 - **A row.** NVDA speaks the level, the name, the state and the position, and in a grid the
   column. Orca speaks the name and the level, and reads a table row out as its cells in order.
-  VoiceOver speaks the row, its state and how many rows it holds, and in a table the cell alone,
-  with no column.
+  VoiceOver speaks the row, its state and how many rows it holds, and in a table the cell and,
+  as the cursor moves along a row, its column.
 - **A position in a set.** Published everywhere. NVDA speaks it unasked. Orca speaks it only
   when the user has turned on its own position option, which is off by default. VoiceOver never
   speaks it. Where a row's place carries meaning, draw it as well.
