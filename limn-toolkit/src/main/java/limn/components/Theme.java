@@ -472,6 +472,10 @@ public final class Theme {
      * repaint and never a re-measure; the font, when it changes, relayouts through its own axis.
      * The call a theme picker or a settings screen makes. UI thread.
      *
+     * <p>Each scene given also clears to this palette's {@link #background()} from its next
+     * frame on, unless its background is translucent: a scene that clears to transparent does
+     * so to let the desktop through, which is not a palette's decision to overrule.
+     *
      * <pre>{@code Theme.limnLight().apply(scene);}</pre>
      *
      * @param scenes the live scenes to repaint, usually every window's
@@ -481,6 +485,12 @@ public final class Theme {
         setCurrent(this);
         applyFontFamily();
         for (Scene scene : scenes) {
+            // The clear colour is the one thing a widget does not read from the palette as it
+            // paints: it was copied into the scene when the scene was built, so without this a
+            // light palette drew its dark ink on the previous palette's dark canvas.
+            if (scene.background().a() >= 1f) {
+                scene.setBackground(background);
+            }
             if (scene.root() != null) {
                 scene.root().invalidate();
             }
