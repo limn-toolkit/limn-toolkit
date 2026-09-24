@@ -43,10 +43,13 @@ import java.util.function.IntConsumer;
  * overflow the parent window like a native menu.
  *
  * <p>Keyboard: Space/Enter/Down opens; Up/Down move the highlight; Enter
- * commits; Esc closes. The popup never takes focus; the combo keeps it, so
- * clicking anywhere else in the parent window closes the popup via focus
- * loss. Headless scenes (tests) keep the same open/highlight/commit state
- * machine without a native window.
+ * commits; Esc closes. The popup takes no focus when it opens; the combo keeps
+ * it, so clicking anywhere else in the parent window closes the popup via
+ * focus loss. A click in the list that chooses nothing, on its scroll bar or
+ * its padding, makes the list's window the desktop's key window; the keys it
+ * then receives are handed to the combo, and closing the list gives the
+ * parent window the keyboard back. Headless scenes (tests) keep the same
+ * open/highlight/commit state machine without a native window.
  *
  * <p><b>In-scene fallback.</b> Where the window reports no
  * {@link limn.backend.NativeWindow#supportsAbsolutePositioning()} (Wayland), a list in a window
