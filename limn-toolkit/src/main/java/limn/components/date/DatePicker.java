@@ -178,6 +178,7 @@ public final class DatePicker extends Widget<DatePicker> {
         // popup window is grafted into the field's tree, where the field keeps the focus and
         // its caret yields (DateField.popupHoldsKeyboard).
         calendar.setFocusable(false);
+        calendar.setPointerHook(this::aimAtCalendar);
         // The grid inherits the picker's step, direction and language through the tree in the
         // in-scene presentation and through the host link in the other; the link is set when the
         // popup is built, which is the only moment the panel has no parent.
@@ -825,6 +826,16 @@ public final class DatePicker extends Widget<DatePicker> {
         timeRow.setKeyboardActive(true);
         // The caret is not drawn in the field while the row has it: one caret at a time.
         filling().setKeyboardActive(false);
+        repaintPopup();
+    }
+
+    /** The keyboard back onto the grid from the time row, by a click on the grid. */
+    private void aimAtCalendar() {
+        if (!open || !timeRowActive) {
+            return;
+        }
+        leaveTimeRow();
+        calendar.setKeyboardActive(true);
         repaintPopup();
     }
 

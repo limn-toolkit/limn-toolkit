@@ -365,6 +365,33 @@ public final class CalendarView extends Widget<CalendarView> {
         invalidate();
     }
 
+    /**
+     * What a picker runs when this grid is clicked, before the click acts: in a popup the grid is
+     * not focusable, and a click on it while the time row held the keyboard paged the month and
+     * left the arrows editing the hour. {@code DateField}'s hook of the same name, the other way.
+     */
+    private Runnable pointerHook;
+
+    void setPointerHook(Runnable hook) {
+        pointerHook = hook;
+    }
+
+    /**
+     * The roving focus onto the control a click landed on, so the keys carry on from there: Enter
+     * on an arrow just clicked pages again, and the arrows walk the header from it. Only while the
+     * keys are this grid's; a click on an arrow does not take the focus, so an unfocused grid's
+     * cursor stays where the keyboard left it.
+     */
+    private void pointTo(Part to) {
+        if (part == to || !(keyboardActive || isFocused())) {
+            return;
+        }
+        Part from = part;
+        part = to;
+        damagePartChange(from, to);
+        notifyChange(Change.of(Change.Aspect.ACTIVE, Change.Origin.USER));
+    }
+
     /** The picker's: see {@link #tabLeavesAtEnds}. */
     void setTabLeavesAtEnds(boolean leaves) {
         tabLeavesAtEnds = leaves;
@@ -2170,13 +2197,18 @@ public final class CalendarView extends Widget<CalendarView> {
                     return;
                 }
                 event.consume();
+                if (pointerHook != null) {
+                    pointerHook.run();
+                }
                 int paging = pagingAt(lx, ly, rtl);
                 if (paging != 0) {
+                    pointTo(paging < 0 ? Part.PREVIOUS : Part.NEXT);
                     page(paging);
                     return;
                 }
                 if (onTitle(lx, ly)) {
                     requestFocus();
+                    pointTo(Part.TITLE);
                     climb();
                     return;
                 }
@@ -2185,6 +2217,7 @@ public final class CalendarView extends Widget<CalendarView> {
                     return;
                 }
                 requestFocus();
+                pointTo(Part.GRID);
                 if (view == View.DAYS) {
                     pick(dayAt(cell), Change.Origin.USER);
                 } else {

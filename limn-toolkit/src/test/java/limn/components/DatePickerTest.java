@@ -315,6 +315,42 @@ class DatePickerTest extends ComponentTestBase {
         assertEquals(LocalTime.of(9, 6), picker.time(), "and so do the arrows");
     }
 
+    /**
+     * A click on the calendar takes the keyboard back from the time row, onto what was clicked:
+     * the month paged and the arrows went on editing the hour. Enter on the arrow just clicked
+     * pages again, as it would on an arrow reached by Tab.
+     */
+    @Test
+    void aClickOnTheCalendarAfterTheTimeRowTakesTheKeyboardToWhatWasClicked() {
+        build(datePicker().setGranularity(DateField.Granularity.MINUTE));
+        picker.setDisplayMode(limn.components.DisplayMode.IN_SCENE);
+        picker.setDateTime(LocalDateTime.of(2026, 9, 9, 18, 30));
+        picker.open();
+        scene.renderFrame(new limn.testing.NoopCanvas(600, 600));
+        DateField row = timeRowOf(picker);
+        clickAt(row.localToSceneX() + 4, row.localToSceneY() + row.height() / 2);
+
+        CalendarView calendar = picker.calendar();
+        SizeTokens t = Theme.of(calendar).tokensFor(calendar);
+        LocalDate shown = calendar.visibleMonth();
+        clickAt(calendar.localToSceneX() + calendar.width() - t.spacingSmall() - t.calendarCell() / 2,
+                calendar.localToSceneY() + t.spacingSmall() + 4); // the arrow that pages on
+        assertEquals(shown.plusMonths(1), calendar.visibleMonth(), "the arrow paged");
+        key(Keys.UP, 0);
+        assertEquals(LocalTime.of(18, 30), picker.time(), "and the arrows left the time row");
+        key(Keys.ENTER, 0);
+        assertEquals(shown.plusMonths(2), calendar.visibleMonth(),
+                "Enter on the arrow just clicked pages again");
+        assertTrue(picker.isOpen());
+    }
+
+    private void clickAt(float x, float y) {
+        drive(scene).mouseMoved(x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, y);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, x, y);
+        drive(scene).inputBatchEnded();
+    }
+
     /** The popup's time row: the date field beside the calendar on the popup's card. */
     private static DateField timeRowOf(DatePicker picker) {
         java.util.ArrayDeque<limn.scene.Widget<?>> todo = new java.util.ArrayDeque<>();
