@@ -112,11 +112,12 @@ class DatePickerNativePopupTest {
 
     /**
      * Decision 5 and semantics 4 in the same presentation: the field keeps the focus while the
-     * calendar is a window of its own, and the tree's effective focus falls through to the
-     * cursor in the popup's tree only when the focused node's own subtree holds no
-     * {@code ACTIVE} node. Until 2026-09-14 the field's caret segment stayed {@code ACTIVE}
-     * for as long as the field was focused, so the cross-window fallback could never fire for
-     * a date picker: a reader arrowing across the month was told the field's day segment.
+     * calendar is a window of its own, and the tree's effective focus is the calendar's cursor.
+     * Since 2026-09-24 the calendar is grafted into the host's tree under the field
+     * (Scene#graftPopup), so the cursor is simply the first {@code ACTIVE} node below the focused
+     * field, as a native picker's is; until then it was read across the windows off the popup's
+     * own tree. The field's caret segment gives up {@code ACTIVE} while the calendar is open
+     * (2026-09-14), or a reader arrowing across the month would be told the field's day segment.
      */
     @Test
     void whileTheCalendarWindowHoldsTheKeyboardTheEffectiveFocusIsItsCursorNotTheFieldsCaret() {
@@ -134,37 +135,35 @@ class DatePickerNativePopupTest {
         HeadlessWindow popup = popupWindow();
         settle(host, popup);
         assertTrue(picker.field().isFocused(), "the field keeps the focus");
+        assertFalse(popup.publishesAccessibility(), "the calendar's window publishes nothing of its own");
         tree = host.bridge().tree();
         field = fieldNode(tree);
-        assertEquals(0, tree.firstActiveBelow(tree.indexOf(field.id())),
-                "open: the field's subtree claims no ACTIVE node " + Transcript.of(tree));
-        AccessibleTree popupTree = popup.bridge().tree();
-        long cursor = popupTree.firstActiveBelow(0);
-        assertTrue(cursor != 0, "the popup's tree holds the cursor " + Transcript.of(popupTree));
-        assertEquals(cursor, tree.effectiveFocus(),
-                "and the host tree's effective focus is that cursor, read across the windows");
-        AccessibleNode day = popupTree.node(popupTree.indexOf(cursor));
+        long cursor = tree.firstActiveBelow(tree.indexOf(field.id()));
+        assertTrue(cursor != 0 && cursor != caret,
+                "open: the field's subtree holds the calendar's cursor, not the caret " + Transcript.of(tree));
+        assertEquals(cursor, tree.effectiveFocus(), "and the effective focus is that cursor");
+        AccessibleNode day = tree.find(cursor);
         assertEquals(Accessible.Role.CELL, day.role(),
-                "the cursor is a day of the calendar, not a header control " + Transcript.of(popupTree));
+                "the cursor is a day of the calendar, not a header control " + Transcript.of(tree));
         assertTrue(day.name().startsWith("September 9, 2026"),
                 "the day the field holds: " + day.name());
         assertEquals(field.id(), tree.focused(), "while the focused node is still the field");
 
         picker.close();
-        settle(host, popup);
+        popup.close(); // the fade's end, as the desktop backend closes it
+        settle(host);
         tree = host.bridge().tree();
         field = fieldNode(tree);
         assertEquals(caret, tree.firstActiveBelow(tree.indexOf(field.id())),
-                "closed again, the caret segment is active once more");
+                "closed again, the caret segment is active once more " + Transcript.of(tree));
         assertEquals(caret, tree.effectiveFocus());
     }
 
     /**
      * GALLERY-NEW-2, 2026-09-15, in the presentation the recipes run in: Ctrl (or Cmd) and Up
      * climb out of the days and the month on show is the cursor at once, so the host tree's
-     * effective focus — read across the two windows, because the field keeps the focus and the
-     * calendar is a window of its own — lands on a month rather than on nothing. The other
-     * presentation's half is the toolkit's
+     * effective focus lands on a month rather than on nothing. The other presentation's half is
+     * the toolkit's
      * {@code DatePickerAccessibilityTest.aClimbToTheMonthsInTheSceneLandsTheEffectiveFocusOnTheMonthOnShow}.
      */
     @Test
@@ -183,16 +182,13 @@ class DatePickerNativePopupTest {
         drive(hostScene).inputBatchEnded();
         settle(host, popup);
 
-        AccessibleTree popupTree = popup.bridge().tree();
-        long cursor = popupTree.firstActiveBelow(0);
-        assertTrue(cursor != 0, "a chooser cell is the cursor " + Transcript.of(popupTree));
-        AccessibleNode month = popupTree.node(popupTree.indexOf(cursor));
-        assertEquals(Accessible.Role.CELL, month.role(), Transcript.of(popupTree));
+        AccessibleTree tree = host.bridge().tree();
+        long cursor = tree.effectiveFocus();
+        AccessibleNode month = tree.find(cursor);
+        assertEquals(Accessible.Role.CELL, month.role(), Transcript.of(tree));
         assertEquals("Sep, on show", month.name(),
                 "the month the calendar was showing, not cell zero and not nothing "
-                        + Transcript.of(popupTree));
-        assertEquals(cursor, host.bridge().tree().effectiveFocus(),
-                "and the host tree answers it, across the windows " + Transcript.of(popupTree));
+                        + Transcript.of(tree));
     }
 
     private Scene hostScene;

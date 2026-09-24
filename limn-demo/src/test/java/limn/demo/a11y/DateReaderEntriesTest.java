@@ -82,7 +82,10 @@ class DateReaderEntriesTest {
         assertSegmentsSpeakTheReadersLanguage(tree);
     }
 
-    /** The closed entry opens natively by default, so its calendar is read in its own window. */
+    /**
+     * The closed entry opens natively by default: its calendar is a window of its own, published in
+     * the host's tree under the field.
+     */
     @Test
     void theClosedPickerEntryOpensOnThePinnedDayInTheReadersLanguage() {
         HeadlessWindow host = show("Date picker, closed");
@@ -102,10 +105,9 @@ class DateReaderEntriesTest {
         settle();
         assertEquals(2, backend.windows().size(), "the calendar opened in a window of its own "
                 + Transcript.of(host.bridge().tree()));
-        HeadlessWindow popup = backend.windows().get(1);
         settle();
-        AccessibleTree popupTree = popup.bridge().tree();
-        assertEquals(List.of(PINNED_TODAY), todayCells(popupTree), Transcript.of(popupTree));
+        AccessibleTree opened = host.bridge().tree(); // the calendar is grafted under the field
+        assertEquals(List.of(PINNED_TODAY), todayCells(opened), Transcript.of(opened));
     }
 
     @Test

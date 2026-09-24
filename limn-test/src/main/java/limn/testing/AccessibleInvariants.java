@@ -13,8 +13,11 @@ import java.util.Map;
  * The four invariants every published tree holds, whatever is in it:
  * no node has role {@code UNKNOWN}; a focusable node has a name; no two nodes share an id; and a
  * node that says it is showing has a box, lies inside the scene, and overlaps every showing
- * ancestor. "Inside" cannot mean wholly inside, because a row scrolled half off the top of a list
- * is published where it is, with {@code SHOWING} saying how much of it is on screen.
+ * ancestor up to the root of the popup it is in, if any. "Inside" cannot mean wholly inside,
+ * because a row scrolled half off the top of a list is published where it is, with
+ * {@code SHOWING} saying how much of it is on screen; and a popup's root (a node that is
+ * {@code POPUP_FOR} its opener) starts a box of its own, because a drop-down list opens below its
+ * field and is published as the field's child, as a native one is.
  *
  * <p>Written once here so that the gallery test in {@code limn-demo} and the per-shape contracts
  * in this package hold the same tree to the same rules; before, the gallery had its own copy.
@@ -22,6 +25,15 @@ import java.util.Map;
 public final class AccessibleInvariants {
 
     private AccessibleInvariants() {
+    }
+
+    private static boolean isPopupRoot(AccessibleNode node) {
+        for (limn.accessibility.AccessibleRelation relation : node.relations()) {
+            if (relation.kind() == Accessible.Relation.POPUP_FOR) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -59,8 +71,9 @@ public final class AccessibleInvariants {
                     out.add(where + ": is showing and lies wholly outside the scene ("
                             + tree.sceneWidth() + "x" + tree.sceneHeight() + ")");
                 } else {
-                    for (int up = node.parent(); up != AccessibleNode.NONE;
-                         up = tree.node(up).parent()) {
+                    for (int up = isPopupRoot(node) ? AccessibleNode.NONE : node.parent();
+                         up != AccessibleNode.NONE;
+                         up = isPopupRoot(tree.node(up)) ? AccessibleNode.NONE : tree.node(up).parent()) {
                         AccessibleNode ancestor = tree.node(up);
                         if (ancestor.has(Accessible.State.SHOWING)
                                 && ancestor.width() > 0 && ancestor.height() > 0

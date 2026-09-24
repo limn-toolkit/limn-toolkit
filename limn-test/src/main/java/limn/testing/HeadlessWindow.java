@@ -119,6 +119,7 @@ public final class HeadlessWindow implements NativeWindow {
     private WindowInput input;
     private boolean visible;
     private boolean closed;
+    private boolean bridgeAsked;
     boolean modal;
     boolean modalBlocked;
 
@@ -196,6 +197,16 @@ public final class HeadlessWindow implements NativeWindow {
     }
 
     /**
+     * Whether a scene asked this window for its bridge, which is what opens one on a real backend: a
+     * popup grafted into its opener's tree never does, and publishes nothing of its own.
+     *
+     * @return whether this window has a tree of its own to check
+     */
+    public boolean publishesAccessibility() {
+        return bridgeAsked;
+    }
+
+    /**
      * A display exactly the size of this window, at scale one. A native popup menu refuses to
      * open on a window with no display at all, since its work area is what the cascade is kept
      * inside; a combo's popup and a dialog tolerate its absence. So the display is answered, and
@@ -214,7 +225,10 @@ public final class HeadlessWindow implements NativeWindow {
         @Override public float contentScale() { return 1; }
     };
 
-    @Override public AccessibilityBridge accessibility() { return bridge; }
+    @Override public AccessibilityBridge accessibility() {
+        bridgeAsked = true;
+        return bridge;
+    }
     @Override public Display display() { return display; }
     @Override public String title() { return title; }
     @Override public void setTitle(String newTitle) { }

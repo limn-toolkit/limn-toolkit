@@ -31,11 +31,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The cursor follows the user across windows (decision 5; ADR 039 §1.10, amended 2026-09-14):
- * a combo box whose list is a window of its own keeps the keyboard in the host, and the host's
- * tree answers its effective focus with the highlighted option in the popup's tree, read across
- * the {@code CONTROLLER_FOR} relation; each arrow key is one cursor event on the combo in the
- * host, naming the popup's option.
+ * A combo box whose list is a window of its own publishes that list in its own window's tree, as the
+ * combo's child, the way a native drop-down list is its field's child (Scene#graftPopup, 2026-09-24):
+ * the keyboard stays in the host, the host's cursor is the highlighted option there, each arrow key
+ * is one cursor event on the combo, and the list's window publishes nothing of its own. Until then
+ * the list was the popup window's own tree and the host read its cursor across the relation, and a
+ * reader followed the focus into that window and back on every opening.
  *
  * <p>Here rather than in the toolkit's own tests for {@link NativePopupRelationTest}'s reason:
  * the toolkit's stub window cannot open a second window, and this is the two-window case.
@@ -67,7 +68,7 @@ class NativePopupCursorTest {
     }
 
     @Test
-    void theHostsEffectiveFocusIsTheNativePopupsHighlightedOptionAndAnArrowKeyMovesItOnce() {
+    void theListIsTheFieldsChildInTheHostsTreeAndAnArrowKeyMovesItsCursorOnce() {
         ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
         combo.setSelectedIndex(1);
         HeadlessWindow host = show(combo);
@@ -81,31 +82,27 @@ class NativePopupCursorTest {
         settle(host, popup);
 
         AccessibleTree hostTree = host.bridge().tree();
-        AccessibleTree popupTree = popup.bridge().tree();
         AccessibleNode field = only(hostTree, Accessible.Role.COMBO_BOX);
+        AccessibleNode list = only(hostTree, Accessible.Role.LIST);
         assertEquals(field.id(), hostTree.focused(), "the keyboard stays in the host");
-        assertEquals(0, popupTree.focused(), "and the popup window focuses nothing of its own");
-        AccessibleNode highlighted = activeOption(popupTree);
+        assertEquals(hostTree.indexOf(field.id()), list.parent(),
+                "and the list is the field's child in the host's tree: " + Transcript.of(hostTree));
+        assertFalse(popup.publishesAccessibility(), "the list's window opens no bridge of its own");
+        assertEquals(0, popup.bridge().tree().nodeCount());
+        AccessibleNode highlighted = activeOption(hostTree);
         assertEquals("Two", highlighted.name(), "the list opens on the selection");
-
         assertEquals(highlighted.id(), hostTree.activeDescendant(),
-                "the host's cursor is read across the relation, off the popup's tree: "
-                        + Transcript.of(hostTree) + Transcript.of(popupTree));
+                "the host's cursor is its own option: " + Transcript.of(hostTree));
         assertEquals(highlighted.id(), hostTree.effectiveFocus());
-        assertFalse(hostTree.holds(hostTree.activeDescendant()),
-                "and the number says it is the other window's");
-        assertTrue(popupTree.holds(hostTree.activeDescendant()));
-        assertEquals(0, popupTree.activeDescendant(),
-                "the popup's own tree has no focused node, so no cursor of its own");
 
         host.bridge().events.clear();
         host.key(Keys.DOWN);
         settle(host, popup);
 
-        AccessibleNode moved = activeOption(popup.bridge().tree());
-        assertEquals("Three", moved.name(), "Down moved the highlight in the popup");
-        assertEquals(moved.id(), host.bridge().tree().activeDescendant(),
-                "and the host's tree followed it: " + Transcript.of(host.bridge().tree()));
+        AccessibleTree after = host.bridge().tree();
+        AccessibleNode moved = activeOption(after);
+        assertEquals("Three", moved.name(), "Down moved the highlight: " + Transcript.of(after));
+        assertEquals(moved.id(), after.activeDescendant());
         List<AccessibleEvent> cursor =
                 host.bridge().eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
         assertEquals(1, cursor.size(),
@@ -113,9 +110,20 @@ class NativePopupCursorTest {
         assertEquals(field.id(), cursor.get(0).nodeId());
         assertEquals(highlighted.id(), cursor.get(0).oldValue());
         assertEquals(moved.id(), cursor.get(0).newValue());
-        assertTrue(popup.bridge().eventsOf(AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED).isEmpty(),
-                "the popup, focusing nothing, announces no cursor of its own: "
-                        + popup.bridge().events);
+
+        host.key(Keys.ESCAPE);
+        settle(host, popup);
+        AccessibleTree fading = host.bridge().tree();
+        assertFalse(combo.isOpen());
+        assertEquals(field.id(), fading.effectiveFocus(),
+                "closed, the cursor is the field at once, while the list's window still fades out: "
+                        + Transcript.of(fading));
+        popup.close(); // the fade's end, as the desktop backend closes the window
+        settle(host);
+        AccessibleTree closed = host.bridge().tree();
+        assertTrue(closed.indexOf(list.id()) < 0 && closed.indexOf(moved.id()) < 0,
+                "a closed window's list leaves the host's tree: " + Transcript.of(closed));
+        assertEquals(field.id(), closed.effectiveFocus(), "and the cursor is still the field");
     }
 
     private HeadlessWindow show(limn.scene.Widget<?> content) {

@@ -47,6 +47,11 @@ held by a test to what its gestures repaint.
 - On macOS a polite announcement is posted at VoiceOver's high priority, because at a lower one
   VoiceOver held it back behind its own hint and stopped reading the focus for several seconds, as
   a tree's branch finished loading. It now interrupts what VoiceOver is saying.
+- A combo box's list and a date picker's calendar that open in a window of their own are read by a
+  screen reader as part of the window that opened them, under their field, as a native drop-down
+  list is. NVDA and VoiceOver no longer announce a popup window when one opens, nor the main
+  window again when it closes. A popup of your own whose window never takes the keyboard does the
+  same with `Scene.graftPopup`, called before its scene is bound.
 - A popup that belongs to a control (your own, like a combo's list, a menu or a calendar) opens with
   `Scene.pushPopup` instead of `pushOverlay`: the page beneath it then stays enabled for a screen
   reader, as a native drop-down leaves its field, where a dialog disables what is behind it. An

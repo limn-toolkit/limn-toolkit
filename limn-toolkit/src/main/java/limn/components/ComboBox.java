@@ -584,6 +584,9 @@ public final class ComboBox extends Widget<ComboBox> {
         // (Scene#clock).
         popupScene = new Scene(popupPanel, scene().clock());
         popupScene.inheritRenderingFlags(scene()); // partial/debug follow the owner window
+        // Published by this window's tree, under the combo, as a native drop-down list is a child
+        // of its field: a reader never leaves this window while the list is open.
+        scene().graftPopup(popupScene);
         popupScene.bind(popupWindow);
         // Clicking the list may hand OS focus to the popup window itself; when
         // THAT later blurs, the same dismiss rule applies.
@@ -1000,8 +1003,8 @@ public final class ComboBox extends Widget<ComboBox> {
         // No CONTROLLER_FOR. In the scene presentation the overlay is the popup's parentless root
         // and carries the field as its inheritance host, so the walk publishes POPUP_FOR there and
         // this mirror here; declaring it again would put two of the same relation on this node. In
-        // a window of its own the list is in another tree, where neither end can resolve the
-        // other, and a relation naming a node this tree does not contain is worse than none.
+        // a window of its own the list is grafted into this tree under this node
+        // (Scene#graftPopup), and the walk links the two the same way.
     }
 
     /**
@@ -1662,8 +1665,9 @@ public final class ComboBox extends Widget<ComboBox> {
             // A combo disabled under its open list: the options say so themselves. The walk no
             // longer reads a parentless overlay's enabled axis off its inheritance host, because
             // the keyboard and the pointer never did (ADR 039 §1.9, amended 2026-09-15), and a
-            // list in a window of its own was never walked through the field at all, so this is
-            // the one place both mountings learn it. Narrowing takes every verb off the row too.
+            // list in a window of its own is walked as the root of a scene of its own, grafted
+            // under the field, so this is the one place both mountings learn it. Narrowing takes
+            // every verb off the row too.
             boolean inert = !ComboBox.this.isEnabled();
             for (int i = 0; i < items.size(); i++) {
                 float top = rowTop(i, t);
@@ -1692,10 +1696,14 @@ public final class ComboBox extends Widget<ComboBox> {
                 // Not the hover either, which is a pointer affordance and would republish the tree
                 // on every mouse move. A narrowed row carries no verb, as below.
                 boolean verbs = !inert && operable;
+                // The cursor only while the list is open, for the verbs' reason: a list closing
+                // through its fade is published under the focused combo in a window of its own
+                // (Scene#graftPopup), and an option still ACTIVE there kept the reader's cursor on
+                // it until the window was gone, and then moved it back to the combo.
                 RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
                         verbs ? RowsAccessibility.Selection.SINGLE : RowsAccessibility.Selection.NONE,
                         i == highlightedIndex, i + 1, items.size(), false, false,
-                        i == highlightedIndex, verbs, false, false);
+                        operable && i == highlightedIndex, verbs, false, false);
                 // The negation of the paint loop's own skip test, so the tree and the pixels agree
                 // by construction rather than by two people remembering the same rule. Every
                 // option is still published, because the count and each option's position in it

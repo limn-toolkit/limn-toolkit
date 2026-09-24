@@ -2250,6 +2250,54 @@ object stands for, so there is no element of ours for a client to ask it on. A r
 from the opener outwards only. Nothing is lost that this platform ever had, and §13.27's probe is
 still what would decide whether AppKit can be made to carry the other direction.
 
+**Amendment, 2026-09-24: a popup whose window never takes the keyboard is described in the tree of
+the window that opened it.** The rule above -- a popup's contents described where they live -- was
+right about the pixels and wrong about the reader. A native drop-down list is its field's child in
+UI Automation, AppKit and AT-SPI alike, and the focus never leaves the field's window while it is
+open; a Limn combo's list in a window of its own published that window's tree, so NVDA said "popup,
+janela" on every opening and "Limn accessibility gallery, janela" on every closing, as its focus
+went into the other window's tree and came back, and VoiceOver did the same (readings 2026-09-23,
+`combo-windows/fix-combo-native-1`, `combo-macos/fix-combo-native-1`). An unnamed pane at the popup
+window's root took the opening's words away and left the closing's (`exp-pane-combo-1`). The owner
+decided: graft the popup into the opener's tree, in the model rather than per bridge.
+
+`Scene#graftPopup(popup)`, called on the opener's scene before the popup's scene binds, publishes
+the popup's widgets under the node of the widget its root names as inheritance host, as the last
+children of that node, in the opener's window's coordinates (the popup window's screen offset, in
+the opener's points). The popup's scene never asks its window for a bridge; the window is told why,
+`NativeWindow#publishAccessibilityElsewhere`, and on macOS makes its `NSWindow` no accessibility
+element, because VoiceOver otherwise said the application "has a new window" a few seconds after
+each opening (`graft-combo-1`, gone in `graft-combo-2`). The popup's scene forwards what it would have
+walked: a node change invalidates the opener's scene at once, an announcement is said by it, and the
+opener lays the popup out before walking it, since the popup's own frame may not have run. A verb on
+a popup node is performed in the popup's scene, gated by that scene's own input layer. The nodes
+leave the tree when the popup's window closes. Identifiers are the opener's, so a popup node is
+this tree's own and the cursor is a local active descendant -- the first `ACTIVE` node below the
+focused field -- with no foreign fallback. `POPUP_FOR` and `CONTROLLER_FOR` stay, now inside one
+tree. `ComboBox` and `DatePicker` graft their popup windows.
+
+It is only for a popup whose window never takes the keyboard -- the field keeps it and drives the
+popup -- because one focused node per tree is what a reader relies on, and a grafted widget is never
+published `FOCUSED`. A `PopupMenu` window takes the keyboard, so a menu still publishes its own tree,
+and the cross-window machinery above (the foreign active descendant, the `CONTROLLER_FOR` mirror
+across scenes, a bridge's routing to the window holding a node) stays for it and for dialogs; it is
+retired only if menus are grafted too, which needs the menu to leave the keyboard in its owner.
+
+What it cost elsewhere, found by the same runs. A combo's options published `ACTIVE` through the
+list's fade-out, which in the opener's tree kept the reader on an option of a closed list until its
+window was gone: the option is the cursor only while the list is open. The gallery's invariants
+check a popup's nodes against the popup's root rather than the field it hangs under, because a
+drop-down list lies below its field. Heard 2026-09-24: NVDA reads the native combo as "expandido,
+Cordilheiras, lista, Andes, 2 de 6" and its closing as the combo alone, and the native date picker
+without the window's announcement at either end (`combo-windows/graft-combo-1`,
+`graft-datepicker-1`); VoiceOver reads the combo as the in-scene list reads (`combo-macos/
+graft-combo-2`) and every step of the date picker (`graft-datepicker-2`), after the two macOS rules
+the runs asked for: a value change is left to the focus reading when the focus arrives on the node
+in the same frame, and a table is reported focused only where the cell's row is a selection member.
+Orca was not heard: Wayland keeps these popups in the scene, and the demo under XWayland on the
+Fedora KDE guest stalled after GLFW started. Pinned by `GraftedPopupTest`, `NativePopupCursorTest`,
+`NativePopupRelationTest` and `DatePickerNativePopupTest`.
+
 ### 1.12 The role enum is closed, and a role may not be added without a truthful mapping in all three tables
 
 ```

@@ -150,6 +150,24 @@ The panel also **paints opaque in the scene** where the window paints at 0.94 al
 translucency composites over the desktop and reads as frosted glass; over the owner's own
 content it reads as a list you can see the page through.
 
+## What a screen reader is told about a popup in a window of its own
+
+A native drop-down list is its field's child to a screen reader, and the focus never leaves the
+field's window while it is open. A combo's list and a date picker's calendar in a window of their
+own are published the same way: the scene that opens them grafts the popup's scene into its own
+accessible tree (`Scene#graftPopup`), under the field, in the field's window's coordinates, and the
+popup's window opens no bridge (`NativeWindow#publishAccessibilityElsewhere`; on macOS its
+`NSWindow` is not an accessibility element either, or VoiceOver says the application "has a new
+window"). The list's cursor is then the field's own active descendant, and a verb a reader sends to
+an option is performed in the popup's scene. Until 2026-09-24 the popup's window published a tree
+of its own: NVDA announced "popup, window" on every opening and the main window again on every
+closing, and VoiceOver did the same.
+
+It is only for a popup whose window never takes the keyboard, which is what keeps one focused node
+in one tree. A popup menu's window does take it, so a menu still publishes a tree of its own; a
+popup of an application's own that never takes the keyboard calls `graftPopup` before binding its
+scene, with its root's inheritance host naming the widget that opened it.
+
 ## One size step for the whole cascade
 
 The step is resolved once when the menu opens, from an explicit `setControlSize`, else
