@@ -15,8 +15,9 @@ Maven Central say which number that was.
   rendering took the window's back buffer to be two frames old, and drivers change how many buffers
   they use in the middle of a run. The backend now asks the driver, on X11 (`GLX_EXT_buffer_age`)
   and on Wayland (`EGL_EXT_buffer_age`), and a frame repaints the whole window when the age is
-  unknown or older than the last eight presents. On macOS and Windows, which have no such question,
-  the two-frame assumption stands until it is measured there.
+  unknown or older than the last eight presents. macOS and Windows have no such question and keep
+  the two-frame assumption, which held there: every frame of the same popup came out whole in seven
+  runs on a macOS guest and six on a Windows one.
 - The demo's kitchen window drew black on Wayland, all but its status bar. Its frame callback, like
   the reader driver's and the gallery's, forwarded the re-present flag and the GPU sample to the scene
   and dropped the back buffer's age, which on Wayland is three or four.

@@ -195,7 +195,9 @@ scenes of their own. About 1,400 call sites in 140 test files moved from `scene.
   alternating 1 and 3; popups in windows of their own came up with only their highlighted row. The
   backend now reads the age from the driver where it can (`GLX_EXT_buffer_age`, `EGL_EXT_buffer_age`,
   the latter through `lwjgl-egl`) and keeps the assumption only where no driver answers (macOS,
-  Windows, until measured). The scene records what each of the last eight *presents* changed — a
+  Windows). Measured the same day with per-frame back-buffer dumps of the combo-overflow popup, the
+  assumption held on both: 7 of 7 runs whole on the macOS 27 guest (its software OpenGL path; the
+  accelerated path was only exercised in screenshot mode) and 6 of 6 on the Windows 11 guest. The scene records what each of the last eight *presents* changed — a
   re-present is a present that changed nothing, which is how a backend counts the age — and repaints
   the whole window for an age of 0 or one older than that history.
   The same day, the demo's own frame callbacks turned out to call an overload that took the re-present
