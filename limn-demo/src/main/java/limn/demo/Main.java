@@ -538,11 +538,10 @@ public final class Main {
             }
             window.setFrameCallback((renderer, frame) -> {
                 if (boundScene != null) {
-                    // Forward rePresent AND the GPU-time sample: the backend's
-                    // anti-flicker double-present must repaint the SAME frame, and
-                    // dropping gpuFrameMs here would starve the GPU gauge (Scene.bind
-                    // wires both; this replacement callback has to preserve them).
-                    boundScene.renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs());
+                    // The whole FrameInfo, as Scene.bind forwards it: the re-present flag,
+                    // the GPU-time sample and the back buffer's age. Forwarding the fields one by
+                    // one is how the age was dropped here, and the window drew black on Wayland.
+                    boundScene.renderFrame(renderer.canvas(), frame);
                 } else if (scene.equals("text")) {
                     TextScene.paint(renderer.canvas());
                 } else {

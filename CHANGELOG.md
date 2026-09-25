@@ -17,9 +17,15 @@ Maven Central say which number that was.
   and on Wayland (`EGL_EXT_buffer_age`), and a frame repaints the whole window when the age is
   unknown or older than the last eight presents. On macOS and Windows, which have no such question,
   the two-frame assumption stands until it is measured there.
+- The demo's kitchen window drew black on Wayland, all but its status bar. Its frame callback, like
+  the reader driver's and the gallery's, forwarded the re-present flag and the GPU sample to the scene
+  and dropped the back buffer's age, which on Wayland is three or four.
 
 ### Changed
 
+- `Scene.renderFrame(Canvas, boolean, float)` is gone. A frame callback of your own passes the
+  backend's `FrameInfo` whole, `scene.renderFrame(renderer.canvas(), frame)`, so a field the backend
+  adds later cannot be left behind; the overload that is gone is the one that dropped the age.
 - `limn-backend-lwjgl` depends on `lwjgl-egl` as well, at the same LWJGL version. It is classes
   only: it binds the system's EGL library and adds no natives jar.
 

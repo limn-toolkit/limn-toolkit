@@ -198,6 +198,9 @@ scenes of their own. About 1,400 call sites in 140 test files moved from `scene.
   Windows, until measured). The scene records what each of the last eight *presents* changed — a
   re-present is a present that changed nothing, which is how a backend counts the age — and repaints
   the whole window for an age of 0 or one older than that history.
+  The same day, the demo's own frame callbacks turned out to call an overload that took the re-present
+  flag and the GPU sample and assumed the age, and the kitchen drew black on Wayland; that overload is
+  replaced by `Scene.renderFrame(Canvas, FrameInfo)`, which a callback forwards whole.
 - `WindowInput.mouseButton` gains a click count. The backend counts, with the platform's own
   double-click interval (`[NSEvent doubleClickInterval]` on macOS, `GetDoubleClickTime` on Windows, 500
   ms elsewhere, GLFW having none), and `Table` and `Tree` read the count instead of timing 400 ms

@@ -55,7 +55,7 @@ public final class LiveProbe {
             Scene scene = new Scene(probe.root());
             scene.bind(window);
             window.setFrameCallback((renderer, frame) ->
-                    scene.renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs()));
+                    scene.renderFrame(renderer.canvas(), frame));
 
             int tickMs = Integer.getInteger("probe.tickMs", 4_000);
             Runnable[] tick = new Runnable[1];

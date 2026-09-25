@@ -671,6 +671,31 @@ class PartialRenderingTest extends SceneTestBase {
         assertRectEquals(expectedDamage(bottom), canvas.lastClip);
     }
 
+    /**
+     * A frame callback of an application's own forwards the backend's FrameInfo whole, and the age
+     * in it reaches the repaint decision. The demo's callbacks forwarded the flag and the GPU sample
+     * through an overload that assumed the age, and the kitchen drew black on Wayland, where the
+     * backend said three.
+     */
+    @Test
+    void aForwardedFrameInfoCarriesTheBufferAgeToTheRepaint() {
+        scene.setPartialRendering(true);
+        frame();
+        frame(); // history settled
+        top.invalidate();
+        canvas.reset();
+        scene.renderFrame(canvas, new limn.backend.FrameInfo(400, 300, 1f, false, Float.NaN, 1));
+        bottom.invalidate();
+        canvas.reset();
+        scene.renderFrame(canvas, new limn.backend.FrameInfo(400, 300, 1f, false, Float.NaN, 3));
+        assertTrue(coveredBy(canvas.clips, expectedDamage(top)) && coveredBy(canvas.clips, expectedDamage(bottom)),
+                "age 3 from the FrameInfo repaints two presents back: " + canvas.clips);
+        bottom.invalidate();
+        canvas.reset();
+        scene.renderFrame(canvas, new limn.backend.FrameInfo(400, 300, 1f, false, Float.NaN, 0));
+        assertTrue(canvas.fullFramePainted(), "age 0 from the FrameInfo repaints the window");
+    }
+
     private static boolean coveredBy(List<Rect> clips, Rect r) {
         for (Rect c : clips) {
             if (c.x() <= r.x() + EPS && c.y() <= r.y() + EPS

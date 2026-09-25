@@ -127,7 +127,7 @@ public final class LiveProbe {
             Scene scene = new Scene(probe.root());
             scene.bind(window);
             window.setFrameCallback((renderer, frame) ->
-                    scene.renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs()));
+                    scene.renderFrame(renderer.canvas(), frame));
 
             // Something moves every few seconds, so that a reader has events to hear and a person
             // has something to watch; each is a real focus move or a real toggle rather than a tree

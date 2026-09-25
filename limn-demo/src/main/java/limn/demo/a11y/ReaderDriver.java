@@ -271,7 +271,7 @@ public final class ReaderDriver {
                                                  Consumer<String> out) {
         boolean[] placed = {false};
         window.setFrameCallback((renderer, frame) -> {
-            scene.renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs());
+            scene.renderFrame(renderer.canvas(), frame);
             if (placed[0]) {
                 return;
             }

@@ -378,8 +378,7 @@ public final class Scene {
         this.bridge.attach(accessibilityHost());
         window.setInput(input);
         this.renderRequester = window::requestFrame;
-        window.setFrameCallback((renderer, frame) ->
-                renderFrame(renderer.canvas(), frame.rePresent(), frame.gpuFrameMs(), frame.bufferAge()));
+        window.setFrameCallback((renderer, frame) -> renderFrame(renderer.canvas(), frame));
         // Last, and after the two calls that make this window usable. It walks and publishes, which
         // is more than the rest of this method does, and a bind that threw here would leave the
         // window holding neither input nor a frame callback — a window that is up, attached and
@@ -3401,19 +3400,31 @@ public final class Scene {
      *                  only frames rendered for content.
      */
     public void renderFrame(Canvas canvas, boolean rePresent) {
-        renderFrame(canvas, rePresent, Float.NaN);
+        renderFrame(canvas, rePresent, Float.NaN, 2);
+    }
+
+    /**
+     * Renders the frame a window's backend asked for, with everything the backend said about it:
+     * the re-present flag, the GPU-time sample and the back buffer's age. A frame callback of an
+     * application's own, one that does something before or after the scene paints, forwards the
+     * {@link limn.backend.FrameInfo} whole through here.
+     *
+     * <p>It replaced an overload that took the flag and the sample and assumed the age, which every
+     * such callback in the demo called: when the backend began reading the age from the driver,
+     * those callbacks went on dropping it, and on Wayland, where the age is three or four, the
+     * kitchen window drew black but for the status bar that changes every frame (2026-09-25).
+     *
+     * @param canvas the backend's canvas for this frame
+     * @param frame  what the backend passed to the frame callback
+     */
+    public void renderFrame(Canvas canvas, limn.backend.FrameInfo frame) {
+        renderFrame(canvas, frame.rePresent(), frame.gpuFrameMs(), frame.bufferAge());
     }
 
     /**
      * @param gpuFrameMs backend-measured GPU time of a recently completed frame
      *                   in ms ({@link Float#NaN} = no new sample); recorded into
      *                   {@link #metrics()} alongside this frame's CPU numbers
-     */
-    public void renderFrame(Canvas canvas, boolean rePresent, float gpuFrameMs) {
-        renderFrame(canvas, rePresent, gpuFrameMs, 2);
-    }
-
-    /**
      * @param bufferAge how many presents old the canvas's contents are ({@link
      *                  limn.backend.FrameInfo#bufferAge}): 0 repaints the whole frame, 1 what changed
      *                  since the last frame, 2 that plus the frame before, and so on. The overloads

@@ -101,16 +101,16 @@ class FrameMetricsTest extends SceneTestBase {
         Scene scene = new Scene(new FixedBox(10, 10));
         NoopCanvas canvas = new NoopCanvas(100, 100);
 
-        scene.renderFrame(canvas, false, Float.NaN); // no sample delivered
+        scene.renderFrame(canvas, false, Float.NaN, 2); // no sample delivered
         assertEquals(0, scene.metrics().gpuTime().count());
 
-        scene.renderFrame(canvas, false, 2.5f);
+        scene.renderFrame(canvas, false, 2.5f, 2);
         assertEquals(1, scene.metrics().gpuTime().count());
         assertEquals(2.5f, scene.metrics().gpuTime().last(), 1e-6f);
 
         // A sample always measures a content frame; the re-present frame is
         // just the courier (with sparse rendering it usually is), so it is recorded.
-        scene.renderFrame(canvas, true, 9f);
+        scene.renderFrame(canvas, true, 9f, 2);
         assertEquals(2, scene.metrics().gpuTime().count());
         assertEquals(9f, scene.metrics().gpuTime().last(), 1e-6f);
     }

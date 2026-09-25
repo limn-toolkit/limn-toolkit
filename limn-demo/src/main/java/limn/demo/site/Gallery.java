@@ -883,8 +883,7 @@ public final class Gallery {
                                 return;
                             }
                         }
-                        scene.renderFrame(renderer.canvas(), frame.rePresent(),
-                                frame.gpuFrameMs());
+                        scene.renderFrame(renderer.canvas(), frame);
                     }
                     if (scene != null && film != null) {
                         // A filmed frame: this one is already on screen with its pointer in it.
