@@ -1,0 +1,44 @@
+---
+/**
+ * A command to run, per operating system: Windows and Linux share one, and macOS carries the flag
+ * the JVM needs there inside the command rather than in a sentence beside it, because a sentence
+ * that says "add this on macOS" is one a reader on macOS pastes past. A Mac reader's groups open
+ * on macOS (src/lib/tabs-script.mjs).
+ */
+import CodeTabs from "./CodeTabs.astro";
+import { messages } from "../i18n";
+import type { Locale } from "../lib/i18n";
+
+interface Props {
+  locale: Locale;
+  /** Unique on the page. */
+  name: string;
+  /** The command block, given the JVM options to put before the alias ("" off macOS). */
+  commands: (flag: string) => string;
+}
+
+const { locale, name, commands } = Astro.props;
+const msg = messages(locale);
+---
+
+<CodeTabs
+  name={name}
+  sync="os"
+  label={msg("home.try.osLabel")}
+  tabs={[
+    {
+      id: "windows-linux",
+      label: `${msg("home.try.windows")} / ${msg("home.try.linux")}`,
+      code: commands(""),
+      language: "bash",
+    },
+    {
+      id: "macos",
+      label: msg("home.try.macos"),
+      code: commands("--java-options=-XstartOnFirstThread "),
+      language: "bash",
+    },
+  ]}
+  copyLabel={msg("codeBlock.copy")}
+  copiedLabel={msg("codeBlock.copied")}
+/>

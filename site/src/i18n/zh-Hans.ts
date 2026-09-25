@@ -67,7 +67,7 @@ export const zhHans: Catalog = {
 
   "home.try.heading": "立刻试试",
   "home.try.body":
-    "演示与主题编辑器，直接来自 Maven Central。无需克隆；没有 JDK 时 jbang 会自动获取。JBang 只解析一次最新版本并保留下来：要获取更新的版本，请加上 --fresh。",
+    "演示与主题编辑器，直接来自 Maven Central。无需克隆；没有 JDK 时 jbang 会自动获取。JBang 只解析一次最新版本并保留下来：要获取更新的版本，请加上 <code>--fresh</code>。",
   "home.try.osLabel": "操作系统",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -128,6 +128,12 @@ export const zhHans: Catalog = {
   "home.themes.link": "主题是怎么工作的",
   "home.themes.caption":
     "同一个界面，七套主题。每一条背后的代码完全相同。",
+  "home.themes.explore": "比较主题",
+  "home.themes.dialogTitle": "同样的组件，七种主题",
+  "home.themes.hintHover": "把指针移到某一列上，就能看到该主题铺满整个界面。",
+  "home.themes.hintTouch": "点按某一列查看该主题，左右滑动即可切换。",
+  "home.themes.close": "关闭",
+  "home.themes.column": "主题 {n}/{total}",
   "home.themes.alt":
     "同一个控件密集的界面并排渲染七次，每一条都用不同的配色、尺寸档位和字体。",
 

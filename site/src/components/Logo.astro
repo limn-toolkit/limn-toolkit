@@ -78,7 +78,12 @@ const RULE_OPACITY = { light: "0.8", dark: "0.75" };
 </span>
 
 <style>
+  /* Left to right whatever the page reads. The wordmark is SVG text, and SVG text takes its
+     direction from the document: on the Arabic pages x="76" became where "limn" ENDS, and the
+     word was drawn leftward over the mark. The artwork is a picture, not a sentence; the bar
+     still moves it to the page's start edge. */
   .logo {
+    direction: ltr;
     display: inline-flex;
     flex: none;
     inline-size: var(--logo-w);

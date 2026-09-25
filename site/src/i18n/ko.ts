@@ -69,7 +69,7 @@ export const ko: Catalog = {
 
   "home.try.heading": "지금 실행해 보기",
   "home.try.body":
-    "데모와 테마 편집기를 Maven Central에서 바로. 클론할 것 없이, JDK가 없으면 jbang이 받아 옵니다. JBang은 최신 릴리스를 한 번만 확인하고 그대로 유지합니다. 더 새 릴리스를 받으려면 --fresh를 붙이세요.",
+    "데모와 테마 편집기를 Maven Central에서 바로. 클론할 것 없이, JDK가 없으면 jbang이 받아 옵니다. JBang은 최신 릴리스를 한 번만 확인하고 그대로 유지합니다. 더 새 릴리스를 받으려면 <code>--fresh</code>를 붙이세요.",
   "home.try.osLabel": "운영 체제",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -130,6 +130,12 @@ export const ko: Catalog = {
   "home.themes.link": "테마가 동작하는 방식",
   "home.themes.caption":
     "화면 하나, 테마 일곱 개. 각 띠 뒤의 코드는 동일합니다.",
+  "home.themes.explore": "테마 비교하기",
+  "home.themes.dialogTitle": "같은 컴포넌트, 일곱 가지 테마",
+  "home.themes.hintHover": "열에 포인터를 올리면 그 테마가 화면 전체에 펼쳐집니다.",
+  "home.themes.hintTouch": "열을 탭하면 그 테마가 보이고, 옆으로 밀면 바뀝니다.",
+  "home.themes.close": "닫기",
+  "home.themes.column": "테마 {n}/{total}",
   "home.themes.alt":
     "컨트롤이 빽빽한 같은 화면을 일곱 번 나란히 렌더링한 모습으로, 띠마다 팔레트와 크기 단계와 서체가 다릅니다.",
 

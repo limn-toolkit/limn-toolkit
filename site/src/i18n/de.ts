@@ -69,7 +69,7 @@ export const de: Catalog = {
 
   "home.try.heading": "Jetzt ausprobieren",
   "home.try.body":
-    "Die Demo und der Theme-Editor, direkt aus Maven Central. Nichts zu klonen; jbang lädt ein JDK, falls keines da ist. JBang ermittelt die neueste Version einmal und behält sie: Fügen Sie --fresh hinzu, um eine neuere zu holen.",
+    "Die Demo und der Theme-Editor, direkt aus Maven Central. Nichts zu klonen; jbang lädt ein JDK, falls keines da ist. JBang ermittelt die neueste Version einmal und behält sie: Fügen Sie <code>--fresh</code> hinzu, um eine neuere zu holen.",
   "home.try.osLabel": "Betriebssystem",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -131,6 +131,12 @@ export const de: Catalog = {
   "home.themes.link": "So funktioniert das Theming",
   "home.themes.caption":
     "Ein Bildschirm, sieben Themes. Der Code hinter jedem Streifen ist identisch.",
+  "home.themes.explore": "Themes vergleichen",
+  "home.themes.dialogTitle": "Dieselben Komponenten, sieben Themes",
+  "home.themes.hintHover": "Zeigen Sie auf eine Spalte, um ihr Theme auf dem ganzen Bildschirm zu sehen.",
+  "home.themes.hintTouch": "Tippen Sie auf eine Spalte, um ihr Theme zu sehen; wischen Sie zur Seite, um zu wechseln.",
+  "home.themes.close": "Schließen",
+  "home.themes.column": "Theme {n} von {total}",
   "home.themes.alt":
     "Derselbe dichte Bildschirm mit Steuerelementen, siebenmal nebeneinander gerendert, jeder Streifen in einer anderen Palette, Größenstufe und Schrift.",
 

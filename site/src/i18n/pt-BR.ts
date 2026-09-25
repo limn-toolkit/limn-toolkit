@@ -69,7 +69,7 @@ export const ptBR: Catalog = {
 
   "home.try.heading": "Teste agora",
   "home.try.body":
-    "A vitrine e o editor de temas, direto do Maven Central. Nada para clonar; o jbang baixa uma JDK se você não tiver nenhuma. O JBang resolve a versão mais nova uma vez e a guarda: acrescente --fresh para pegar uma mais nova.",
+    "A vitrine e o editor de temas, direto do Maven Central. Nada para clonar; o jbang baixa uma JDK se você não tiver nenhuma. O JBang resolve a versão mais nova uma vez e a guarda: acrescente <code>--fresh</code> para pegar uma mais nova.",
   "home.try.osLabel": "Sistema operacional",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -130,6 +130,12 @@ export const ptBR: Catalog = {
   "home.themes.link": "Como funciona a temização",
   "home.themes.caption":
     "Uma tela, sete temas. O código por trás de cada faixa é idêntico.",
+  "home.themes.explore": "Comparar temas",
+  "home.themes.dialogTitle": "Os mesmos componentes, sete temas",
+  "home.themes.hintHover": "Passe o mouse sobre uma coluna para ver aquele tema na tela inteira.",
+  "home.themes.hintTouch": "Toque numa coluna para ver aquele tema; deslize para o lado para trocar.",
+  "home.themes.close": "Fechar",
+  "home.themes.column": "Tema {n} de {total}",
   "home.themes.alt":
     "A mesma tela densa de controles renderizada sete vezes lado a lado, cada faixa em uma paleta, um passo de tamanho e uma tipografia diferentes.",
 

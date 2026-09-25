@@ -69,7 +69,7 @@ export const fr: Catalog = {
 
   "home.try.heading": "Essayez tout de suite",
   "home.try.body":
-    "La démo et l’éditeur de thèmes, directement depuis Maven Central. Rien à cloner ; jbang télécharge un JDK si vous n’en avez pas. JBang résout la version la plus récente une seule fois et la conserve : ajoutez --fresh pour en prendre une plus récente.",
+    "La démo et l’éditeur de thèmes, directement depuis Maven Central. Rien à cloner ; jbang télécharge un JDK si vous n’en avez pas. JBang résout la version la plus récente une seule fois et la conserve : ajoutez <code>--fresh</code> pour en prendre une plus récente.",
   "home.try.osLabel": "Système d’exploitation",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -131,6 +131,12 @@ export const fr: Catalog = {
   "home.themes.link": "Comment fonctionne la thématisation",
   "home.themes.caption":
     "Un écran, sept thèmes. Le code derrière chaque bande est identique.",
+  "home.themes.explore": "Comparer les thèmes",
+  "home.themes.dialogTitle": "Les mêmes composants, sept thèmes",
+  "home.themes.hintHover": "Survolez une colonne pour voir son thème sur tout l’écran.",
+  "home.themes.hintTouch": "Touchez une colonne pour voir son thème ; balayez de côté pour changer.",
+  "home.themes.close": "Fermer",
+  "home.themes.column": "Thème {n} sur {total}",
   "home.themes.alt":
     "Le même écran dense de contrôles rendu sept fois côte à côte, chaque bande dans une palette, un pas de taille et une police différents.",
 

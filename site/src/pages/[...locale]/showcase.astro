@@ -5,6 +5,9 @@
  */
 import Page from "../../layouts/Page.astro";
 import Figure from "../../components/Figure.astro";
+import CodeBlock from "../../components/CodeBlock.astro";
+import RunCommand from "../../components/RunCommand.astro";
+import { snippet } from "../../lib/snippets";
 import { localeRoutes, messages } from "../../i18n";
 import type { Locale } from "../../lib/i18n";
 import showcase from "../../generated/showcase.json";
@@ -16,21 +19,62 @@ const msg = messages(locale);
 const base = import.meta.env.BASE_URL;
 
 const byId = new Map(showcase.entries.map((entry) => [entry.id, entry]));
+
+// The two programs a reader can open from here, by alias, in RunCommand's per-system tabs.
+const run = (alias: string) => (flag: string) => `jbang ${flag}${alias}@limn-toolkit/limn-toolkit`;
+
+// The source of a screen that is an example rather than a program: the marked regions of the
+// class that drew the capture, the scene first and then what it calls, so a reader who scrolls
+// down meets each name after its use. The regions are the same compiled code the guides quote.
+const source = (...regions: string[]) => regions.map(snippet).join("\n\n");
+
 const plates = [
-  { key: "kitchen", id: "kitchen" },
+  { key: "kitchen", id: "kitchen", command: run("demo") },
   // Straight after the window it mirrors, so the two read as one before/after pair. The
   // capture is the whole window on purpose: mirroring is a property of the window, and a
   // crop of it would show a right-aligned form, not a mirrored screen.
   { key: "rtl", id: "kitchen-ar" },
-  { key: "forms", id: "form" },
-  { key: "layout", id: "layout" },
+  {
+    key: "forms",
+    id: "form",
+    code: source(
+      "showcase:form-scene",
+      "guide:form",
+      "guide:form-field",
+      "guide:form-counter",
+      "guide:form-validation",
+      "guide:form-actions",
+    ),
+  },
+  {
+    key: "layout",
+    id: "layout",
+    code: source(
+      "showcase:layout-scene",
+      "guide:layout-shell",
+      "showcase:layout-collections",
+      "showcase:layout-library",
+      "showcase:layout-tile",
+      "showcase:layout-swatch",
+      "showcase:layout-data",
+      "guide:layout-column",
+      "guide:layout-row",
+      "guide:layout-stack",
+      "guide:layout-grid",
+    ),
+  },
   { key: "density", id: "control-size" },
   { key: "threeD", id: "viewport-3d" },
-  // Last, and the only filmed one: it is the module an application opts into rather than part
-  // of the toolkit, and what it claims (a window re-skinning as you drag) is the one thing on
-  // this page a still cannot carry. Screenshot draws the play control when the entry has frames.
-  { key: "editor", id: "theme-editor" },
-] as const;
+  // Last, and the only filmed one: it is a program of its own rather than part of the toolkit,
+  // and what it claims (a window re-skinning as you drag) is the one thing on this page a still
+  // cannot carry. Screenshot draws the play control when the entry has frames.
+  { key: "editor", id: "theme-editor", command: run("theme-editor") },
+] as const satisfies ReadonlyArray<{
+  key: string;
+  id: string;
+  command?: (flag: string) => string;
+  code?: string;
+}>;
 
 ---
 
@@ -48,14 +92,17 @@ const plates = [
 
       <div class="plates">
         {
-          plates.map(({ key, id }) => {
-            const entry = byId.get(id)!;
+          plates.map((plate) => {
+            const entry = byId.get(plate.id)!;
+            const command = "command" in plate ? plate.command : undefined;
+            const code = "code" in plate ? plate.code : undefined;
             return (
               <section class="item">
                 <div class="item__copy">
-                  <h2>{msg(`showcase.${key}.heading` as never)}</h2>
-                  <p>{msg(`showcase.${key}.body` as never)}</p>
+                  <h2>{msg(`showcase.${plate.key}.heading` as never)}</h2>
+                  <p>{msg(`showcase.${plate.key}.body` as never)}</p>
                 </div>
+                {command && <RunCommand locale={locale} name={`run-${plate.key}`} commands={command} />}
                 <Figure
                   images={entry.images}
                   alt={entry.title}
@@ -63,6 +110,17 @@ const plates = [
                   playLabel={msg("components.play")}
                   stopLabel={msg("components.stop")}
                 />
+                {code && (
+                  <details class="code-disclosure">
+                    <summary>{msg("components.showCode")}</summary>
+                    <CodeBlock
+                      code={code}
+                      language="java"
+                      label={msg("codeBlock.copy")}
+                      copiedLabel={msg("codeBlock.copied")}
+                    />
+                  </details>
+                )}
               </section>
             );
           })

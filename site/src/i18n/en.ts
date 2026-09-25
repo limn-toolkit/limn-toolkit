@@ -49,7 +49,7 @@ export const en = {
   // system. `note` carries {{version}}, filled in at build time like the guides are.
   "home.try.heading": "Try it now",
   "home.try.body":
-    "The demo and the theme editor, straight from Maven Central. Nothing to clone; jbang fetches a JDK if you have none. JBang resolves the newest release once and keeps it: add --fresh to take a newer one.",
+    "The demo and the theme editor, straight from Maven Central. Nothing to clone; jbang fetches a JDK if you have none. JBang resolves the newest release once and keeps it: add <code>--fresh</code> to take a newer one.",
   "home.try.osLabel": "Operating system",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -110,6 +110,12 @@ export const en = {
   "home.themes.link": "How theming works",
   "home.themes.caption":
     "One screen, seven themes. The code behind every strip is identical.",
+  "home.themes.explore": "Compare the themes",
+  "home.themes.dialogTitle": "The same components, seven themes",
+  "home.themes.hintHover": "Point at a column to see its theme across the whole screen.",
+  "home.themes.hintTouch": "Tap a column to see its theme; swipe sideways to change.",
+  "home.themes.close": "Close",
+  "home.themes.column": "Theme {n} of {total}",
   "home.themes.alt":
     "The same dense screen of controls rendered seven times side by side, each strip in a different palette, size step and typeface.",
 

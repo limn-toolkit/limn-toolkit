@@ -68,7 +68,7 @@ export const ja: Catalog = {
 
   "home.try.heading": "今すぐ試す",
   "home.try.body":
-    "デモとテーマエディターを、Maven Central から直接。クローン不要。JDK がなければ jbang が取得します。JBang は最新リリースを一度だけ解決して保持します。より新しいリリースを取得するには --fresh を付けてください。",
+    "デモとテーマエディターを、Maven Central から直接。クローン不要。JDK がなければ jbang が取得します。JBang は最新リリースを一度だけ解決して保持します。より新しいリリースを取得するには <code>--fresh</code> を付けてください。",
   "home.try.osLabel": "オペレーティングシステム",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -129,6 +129,12 @@ export const ja: Catalog = {
   "home.themes.link": "テーマの仕組み",
   "home.themes.caption":
     "一つの画面、七つのテーマ。どの帯も背後のコードは同一です。",
+  "home.themes.explore": "テーマを比べる",
+  "home.themes.dialogTitle": "同じコンポーネント、7 つのテーマ",
+  "home.themes.hintHover": "列にポインターを合わせると、そのテーマが画面全体に広がります。",
+  "home.themes.hintTouch": "列をタップするとそのテーマが表示され、横にスワイプすると切り替わります。",
+  "home.themes.close": "閉じる",
+  "home.themes.column": "テーマ {n} / {total}",
   "home.themes.alt":
     "コントロールが密に並ぶ同じ画面を七回横並びに描画したもの。帯ごとにパレット、サイズ段階、書体が異なります。",
 

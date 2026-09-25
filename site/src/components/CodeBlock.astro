@@ -29,7 +29,11 @@ const html = highlight(code, language);
 </div>
 
 <style>
+  /* Left to right as a whole, not only its <pre> (app.css): on an Arabic page the copy button,
+     placed at the block's inline end, sat on the left over the start of the first line, while
+     the gutter kept free for it was on the <pre>'s inline end, the right. */
   .code {
+    direction: ltr;
     position: relative;
     border: 1px solid var(--rule);
     border-radius: 12px;

@@ -89,7 +89,7 @@ const filmed = Object.values(images).some((image) => image.animation);
   </div>
   <div class="card__foot">
     <h2>{title}</h2>
-    <details class="card__code">
+    <details class="card__code code-disclosure">
       <summary>{showCodeLabel}</summary>
       <CodeBlock code={snippet} language="java" label={copyLabel} copiedLabel={copiedLabel} />
       {note && <p class="card__note" set:html={note} />}
@@ -191,36 +191,6 @@ const filmed = Object.values(images).some((image) => image.animation);
     font-size: var(--text-base);
     font-weight: 620;
     letter-spacing: -0.01em;
-  }
-
-  /* `list-item`, never an inline display: any author `display` that is not a list-item
-     removes the disclosure triangle in Chromium, and the triangle is the only sign the
-     snippet exists. The marker's type stays with the user agent so it still flips between
-     closed and open. The padding lifts a single 12px line of text to a hit target that
-     clears the 24px floor. */
-  .card__code summary {
-    display: list-item;
-    list-style-position: inside;
-    margin-block-start: 0.45rem;
-    padding-block: 0.3rem;
-    color: var(--limn-text-muted);
-    font-family: var(--mono);
-    font-size: var(--text-xs);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    cursor: pointer;
-  }
-
-  .card__code summary:hover {
-    color: var(--limn-primary);
-  }
-
-  .card__code[open] summary {
-    color: var(--limn-primary);
-  }
-
-  .card__code :global(.code) {
-    margin-block-start: 0.75rem;
   }
 
   .card__note {

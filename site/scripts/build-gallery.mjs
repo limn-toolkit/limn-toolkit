@@ -636,6 +636,10 @@ async function composeMosaic(showcase) {
   const rows = spans(MOSAIC_HEIGHT * SCALE, MOSAIC_ROWS);
 
   const layers = [];
+  // Where each slat came from, in the page's CSS pixels: the home page's theme comparison stacks
+  // the whole captures and clips each one to its column, which reproduces this picture exactly
+  // only if it uses these numbers rather than a transcription of them.
+  const geometry = [];
   for (const [index, tile] of MOSAIC_TILES.entries()) {
     const entry = byId.get(tile.id);
     if (!entry) {
@@ -669,6 +673,17 @@ async function composeMosaic(showcase) {
       input: await sharp(source).extract(crop).png().toBuffer(),
       left: column.start,
       top: row.start,
+    });
+    geometry.push({
+      id: tile.id,
+      // The whole capture, placed so that its crop lands on its column…
+      left: (column.start - crop.left) / SCALE,
+      top: (row.start - crop.top) / SCALE,
+      width: captured.width / SCALE,
+      height: captured.height / SCALE,
+      // …and the column it shows through.
+      clipStart: column.start / SCALE,
+      clipWidth: column.size / SCALE,
     });
   }
 
@@ -727,7 +742,14 @@ async function composeMosaic(showcase) {
     outputs.set(name, await sharp(published)[ext](options).toBuffer());
     images[ext] = name;
   }
-  return { width: shown.width, height: shown.height, tiles: MOSAIC_TILES.length, images };
+  return {
+    width: shown.width,
+    height: shown.height,
+    tiles: MOSAIC_TILES.length,
+    images,
+    canvas: { width: MOSAIC_WIDTH, height: MOSAIC_HEIGHT },
+    layers: geometry,
+  };
 }
 
 /**

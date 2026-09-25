@@ -41,6 +41,7 @@ public final class LayoutExample {
     private LayoutExample() {
     }
 
+    // #region showcase:layout-data
     private static final List<String> COLLECTIONS =
             List.of("All assets", "Textures", "Models", "HDRIs", "Fonts", "Archive");
 
@@ -57,6 +58,7 @@ public final class LayoutExample {
             // picture on the guide page shows what a short line does to the tile width.
             {"Sea ice", "4096 × 4096", "21.0 MB", "081A22", "6FBFD6"},
     };
+    // #endregion
 
     /**
      * A column stacks its children top to bottom with one gutter between them. STRETCH is the
@@ -164,6 +166,7 @@ public final class LayoutExample {
     // #endregion
 
     /** The sidebar: a list whose rows are ordinary widgets, supplied on demand. */
+    // #region showcase:layout-collections
     private static Widget<?> collections() {
         ListView<String> list = new ListView<>(
                 name -> new Padding(Insets.symmetric(9, 14), new Label(name)));
@@ -173,11 +176,13 @@ public final class LayoutExample {
         list.setAccessibleName("Collections");
         return list;
     }
+    // #endregion
 
     /**
      * The pane that grows: a header row, then the grid taking whatever height is left. The
      * grid scrolls rather than being clipped, so a narrow window loses nothing.
      */
+    // #region showcase:layout-library
     private static Widget<?> library() {
         SearchField search = new SearchField();
         SegmentedControl view = new SegmentedControl(List.of("Grid", "List"));
@@ -198,8 +203,10 @@ public final class LayoutExample {
                 spread(new Label("Textures").setRole(Label.Role.TITLE), tools),
                 Expanded.of(new ScrollView(grid(3, tiles)), 1)));
     }
+    // #endregion
 
     /** One tile: a swatch with its resolution over it, then the name and the size. */
+    // #region showcase:layout-tile
     private static Widget<?> tile(String[] asset) {
         Label badge = new Label(asset[1]);
         badge.setColor(Color.WHITE).setStrong(true);
@@ -208,6 +215,7 @@ public final class LayoutExample {
                 new Label(asset[0]).setStrong(true),
                 new Label(asset[2]).setMuted(true));
     }
+    // #endregion
 
     /**
      * A generated ramp rather than a file: the capture must not depend on an asset a
@@ -215,6 +223,7 @@ public final class LayoutExample {
      * an image measures to {@code min(preferred, available)}, so an oversized one fills its
      * tile instead of sitting in the middle of it, and {@code COVER} crops the overflow.
      */
+    // #region showcase:layout-swatch
     private static Widget<?> swatch(String from, String to) {
         int width = 96;
         int height = 64;
@@ -236,12 +245,15 @@ public final class LayoutExample {
                 .setFit(ImageView.Fit.COVER)
                 .setPreferredSize(600, 86);
     }
+    // #endregion
 
 
     /** The shell on a canvas, for the capture the guide page shows. */
+    // #region showcase:layout-scene
     public static Scene scene() {
         Scene scene = new Scene(shell());
         scene.setBackground(Theme.current().background());
         return scene;
     }
+    // #endregion
 }

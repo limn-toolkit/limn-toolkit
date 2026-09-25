@@ -12,12 +12,14 @@ import Figure from "../../components/Figure.astro";
 import Screenshot from "../../components/Screenshot.astro";
 import { limnVersion } from "../../lib/version.mjs";
 import CodeBlock from "../../components/CodeBlock.astro";
+import RunCommand from "../../components/RunCommand.astro";
+import CodeTabs from "../../components/CodeTabs.astro";
+import ThemeMosaic from "../../components/ThemeMosaic.astro";
 import { localeRoutes, messages } from "../../i18n";
 import { localePath, type Locale } from "../../lib/i18n";
 import { snippet } from "../../lib/snippets";
 import showcase from "../../generated/showcase.json";
 import gallery from "../../generated/gallery.json";
-import mosaic from "../../generated/mosaic.json";
 import languages from "../../generated/languages.json";
 
 export const getStaticPaths = localeRoutes;
@@ -25,13 +27,6 @@ export const getStaticPaths = localeRoutes;
 const { locale } = Astro.props as { locale: Locale };
 const msg = messages(locale);
 const base = import.meta.env.BASE_URL;
-
-/**
- * The mosaic is ONE file and it is theme-independent, so it does not go through `Screenshot`:
- * that component publishes a light and a dark variant and swaps them in CSS, and here both
- * would be the same bytes fetched twice.
- */
-const asset = (file: string) => `${base}gallery/${file}`;
 
 const shot = (id: string) => showcase.entries.find((entry) => entry.id === id)!;
 const component = (id: string) => gallery.entries.find((entry) => entry.id === id)!;
@@ -46,22 +41,27 @@ const repo = process.env.REPO_SLUG ?? "limn-ui/limn";
 const gradle = `dependencies {
     implementation("io.github.limn-toolkit:limn-backend-lwjgl:${limnVersion()}")
 }`;
+// The same one dependency for a Maven build, in a tab beside it: every dependency block on the
+// site is written for both tools, and a reader's choice holds for the whole page.
+const maven = `<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-backend-lwjgl</artifactId>
+  <version>${limnVersion()}</version>
+</dependency>`;
 
-// The two programs, runnable by alias: one tab for Windows and Linux, whose commands are the same
-// and which open by default, and one for macOS. The macOS tab carries the flag inside the command
-// rather than in a sentence beside it, because a sentence that says "add this on macOS" is one a
-// reader on macOS pastes past. The aliases resolve the newest
+// The two programs, runnable by alias, in RunCommand's two tabs: Windows and Linux, whose commands
+// are the same, and macOS, whose carry the JVM flag. The aliases resolve the newest
 // release from Maven Central, so nothing here carries a version; the note beside them does,
-// filled in at build time like every {{version}} in the guides.
+// filled in at build time like every {{version}} in the guides. Each comment sits on its own line
+// above its command rather than trailing it: trailing, it made the macOS lines 95 characters
+// wide, and the block took the section's width from the copy beside it.
 const aliases = (flag: string) =>
   [
-    `jbang ${flag}demo@limn-toolkit/limn-toolkit  # ${msg("home.try.demoComment")}`,
-    `jbang ${flag}theme-editor@limn-toolkit/limn-toolkit  # ${msg("home.try.editorComment")}`,
+    `# ${msg("home.try.demoComment")}`,
+    `jbang ${flag}demo@limn-toolkit/limn-toolkit`,
+    `# ${msg("home.try.editorComment")}`,
+    `jbang ${flag}theme-editor@limn-toolkit/limn-toolkit`,
   ].join("\n");
-const systems = [
-  { id: "windows-linux", label: `${msg("home.try.windows")} / ${msg("home.try.linux")}`, code: aliases("") },
-  { id: "macos", label: msg("home.try.macos"), code: aliases("--java-options=-XstartOnFirstThread ") },
-] as const;
 
 // The components row shows a handful of widgets rather than one, because "a set" is the
 // claim it is making. Picked for variety of shape, not for importance.
@@ -167,45 +167,16 @@ if (reader.length === 0) {
     </div>
 
     {/* Under the headline and before the install: what it takes to SEE the toolkit is one
-        command, and that answer belongs above the one that takes a build file. A radio group
-        rather than buttons, so it is a choice from the keyboard and works with scripting off;
-        the script below only pre-selects the reader's own system. */}
-    <div class="wrap try" data-try>
+        command, and that answer belongs above the one that takes a build file. */}
+    <div class="wrap try">
       <div class="try__copy">
         <h2>{msg("home.try.heading")}</h2>
-        <p>{msg("home.try.body")}</p>
+        <p set:html={msg("home.try.body")} />
         <aside class="note">
           <Fragment set:html={msg("home.try.macosNote")} />
         </aside>
       </div>
-      <div class="try__tabs" role="group" aria-label={msg("home.try.osLabel")}>
-        {
-          systems.map((system, index) => (
-            <Fragment>
-              <input
-                type="radio"
-                name="try-system"
-                id={`try-${system.id}`}
-                value={system.id}
-                checked={index === 0}
-              />
-              <label for={`try-${system.id}`}>{system.label}</label>
-            </Fragment>
-          ))
-        }
-        {
-          systems.map((system) => (
-            <div class="try__panel" data-system={system.id}>
-              <CodeBlock
-                code={system.code}
-                language="bash"
-                label={msg("codeBlock.copy")}
-                copiedLabel={msg("codeBlock.copied")}
-              />
-            </div>
-          ))
-        }
-      </div>
+      <RunCommand locale={locale} name="try-system" commands={aliases} />
     </div>
   </section>
 
@@ -219,11 +190,15 @@ if (reader.length === 0) {
           <a class="arrow" href={`${base}docs/install/`}>{msg("home.install.more")}</a>
         </div>
         <div class="install__code">
-          <CodeBlock
-            code={gradle}
-            language="kotlin"
-            file={msg("home.install.gradleLabel")}
-            label={msg("codeBlock.copy")}
+          <CodeTabs
+            name="install-build"
+            sync="build"
+            label={msg("codeTabs.buildTool")}
+            tabs={[
+              { id: "gradle", label: "Gradle", code: gradle, language: "kotlin", file: msg("home.install.gradleLabel") },
+              { id: "maven", label: "Maven", code: maven, language: "xml", file: msg("home.install.mavenLabel") },
+            ]}
+            copyLabel={msg("codeBlock.copy")}
             copiedLabel={msg("codeBlock.copied")}
           />
           <CodeBlock
@@ -351,17 +326,7 @@ if (reader.length === 0) {
         </div>
         <figure class="figure">
           <div class="plate">
-            <picture>
-              <source type="image/avif" srcset={asset(mosaic.images.avif)} />
-              <img
-                src={asset(mosaic.images.webp)}
-                width={mosaic.width}
-                height={mosaic.height}
-                loading="lazy"
-                decoding="async"
-                alt={msg("home.themes.alt")}
-              />
-            </picture>
+            <ThemeMosaic locale={locale} alt={msg("home.themes.alt")} />
           </div>
           <figcaption class="plate__caption">{msg("home.themes.caption")}</figcaption>
         </figure>
@@ -477,14 +442,14 @@ if (reader.length === 0) {
     border-block-start: 1px solid var(--rule);
   }
 
-  /* The same split as the install below it, and for the same reason: two commands with a
-     comment each are the widest thing in this section, and they get the wide column. */
+  /* The same split as the install below it, and for the same reason: the commands are the
+     widest thing in this section, and they get the wide column. Not the width their longest
+     line asks for: a max-content column took 953px of a 1280px window and left the copy at its
+     192px floor, 588px tall beside an 86px block. A line longer than its column scrolls inside
+     the block, as every code block's does. */
   @media (min-width: 62rem) {
-    /* The commands take the width their longest line needs where there is room for it, and
-       shrink into a scroll where there is not: the macOS one is about 880px, and a column that
-       insisted on it pushed a 1000px window 100px wide and left the copy 140px. */
     .try {
-      grid-template-columns: minmax(12rem, 1fr) minmax(0, max-content);
+      grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
     }
   }
 
@@ -496,63 +461,6 @@ if (reader.length === 0) {
     margin-block-start: 0.75rem;
     max-inline-size: 46ch;
     color: var(--limn-text-muted);
-  }
-
-  .try__tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-
-  /* The radios stay in the document for the keyboard and the screen reader; only their
-     boxes are hidden, and the label wearing the focus ring is what a keyboard user sees. */
-  .try__tabs input {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .try__tabs label {
-    padding: 0.35rem 0.9rem;
-    border: 1px solid var(--rule);
-    border-radius: 999px;
-    color: var(--limn-text-muted);
-    font-family: var(--mono);
-    font-size: var(--text-xs);
-    letter-spacing: 0.02em;
-    cursor: pointer;
-  }
-
-  .try__tabs label:hover {
-    color: var(--limn-text);
-    border-color: var(--limn-primary);
-  }
-
-  .try__tabs input:checked + label {
-    color: var(--limn-text);
-    border-color: var(--limn-primary);
-    background-color: var(--tint);
-  }
-
-  .try__tabs input:focus-visible + label {
-    outline: 2px solid var(--limn-primary);
-    outline-offset: 2px;
-  }
-
-  /* One panel per system, and only the checked system's is laid out. General siblings rather
-     than a script, so the tabs work before any JavaScript runs and without it. */
-  .try__panel {
-    display: none;
-    flex-basis: 100%;
-    min-inline-size: 0;
-    margin-block-start: 0.5rem;
-  }
-
-  #try-windows-linux:checked ~ [data-system="windows-linux"],
-  #try-macos:checked ~ [data-system="macos"] {
-    display: block;
   }
 
   /* --------------------------------------------------------------- install */
@@ -583,6 +491,7 @@ if (reader.length === 0) {
 
   /* A callout is a border and a tint, never a glow, because it has to survive greyscale. */
   .note {
+    margin-block-start: 1.25rem;
     padding: 1rem 1.15rem;
     border-inline-start: 2px solid var(--limn-primary);
     /* Square where the accent border sits, rounded on the far side, whichever side that is. */
@@ -592,6 +501,12 @@ if (reader.length === 0) {
     color: var(--limn-text-muted);
     font-size: var(--text-sm);
     line-height: 1.65;
+  }
+
+  /* A flag is one word: broken at its hyphen, "-XstartOnFirstThread" ended a line on a bare
+     "–" that read as a dash, and the flag below it lost the sign a reader has to type. */
+  .note :global(code) {
+    white-space: nowrap;
   }
 
   .arrow {
@@ -757,15 +672,3 @@ if (reader.length === 0) {
     justify-content: center;
   }
 </style>
-
-<script>
-  // Windows and Linux open by default; a reader on a Mac is moved to the macOS tab, whose command
-  // carries the flag the JVM needs there. The tabs are radios and work without this. The user
-  // agent is the only signal a static page has, and a wrong guess costs a click.
-  for (const group of document.querySelectorAll<HTMLElement>("[data-try]")) {
-    const system = /Mac/.test(navigator.userAgent) ? "macos" : null;
-    if (!system) continue;
-    const input = group.querySelector<HTMLInputElement>(`input[value="${system}"]`);
-    if (input) input.checked = true;
-  }
-</script>

@@ -194,6 +194,7 @@ public final class FormExample {
     // #endregion
 
     /** The form centred on a canvas, for the capture the guide page shows. */
+    // #region showcase:form-scene
     public static Scene scene() {
         Row centred = new Row();
         centred.mainAlignment(Flex.MainAlignment.CENTER)
@@ -203,4 +204,5 @@ public final class FormExample {
         scene.setBackground(Theme.current().background());
         return scene;
     }
+    // #endregion
 }

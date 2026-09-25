@@ -12,6 +12,8 @@
 @import "./tokens.generated.css";
 /* The top bar's one stylesheet, shared with the guide and with the API reference. */
 @import "./bar.css";
+/* Tabs of code, shared with the guide the same way. */
+@import "./tabs.css";
 
 /* --------------------------------------------------------------- the reset */
 
@@ -59,6 +61,23 @@ textarea {
   color: inherit;
 }
 
+/* Arabic letters in the monospace face come from the system's own Arabic face, and only
+   Arabic letters: the unicode-range keeps every Latin glyph on the monospace fonts after it.
+   Without it the fallback reached Menlo, whose Arabic is monospaced, each letter stretched
+   to one cell and the joins pulled apart, in every overline, caption and label of the Arabic
+   pages. local() fetches nothing; the first face the machine has wins (Windows, macOS, then
+   Linux), and a machine with none of them falls through to the stack as before. */
+@font-face {
+  font-family: "Limn Arabic";
+  src:
+    local("Segoe UI"), local("SegoeUI"),
+    local("Geeza Pro Regular"), local("GeezaPro"),
+    local("Noto Sans Arabic Regular"), local("NotoSansArabic-Regular"),
+    local("DejaVu Sans"), local("DejaVuSans"),
+    local("Tahoma"), local("Arial"), local("ArialMT");
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-08FF, U+FB50-FDFF, U+FE70-FEFF;
+}
+
 /* ------------------------------------------------------------- the measures */
 
 :root {
@@ -84,7 +103,7 @@ textarea {
   --rule-soft: color-mix(in srgb, var(--limn-outline) 26%, transparent);
   --tint: color-mix(in srgb, var(--limn-primary) 6%, var(--limn-background));
 
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --mono: "Limn Arabic", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
 
   --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
@@ -190,11 +209,20 @@ pre {
 
 /* A code block is a left-to-right island whatever the page reads: source order is source
    order, and a mirrored page must not reorder `;` and `}` around it. The same call the
-   toolkit's ADR 032 makes for an LTR code pane inside an RTL window. Inline `code` needs
-   nothing: a Latin token in an Arabic sentence is the bidi algorithm's ordinary day. */
+   toolkit's ADR 032 makes for an LTR code pane inside an RTL window. */
 pre {
   direction: ltr;
   text-align: left;
+}
+
+/* Inline code is an island too, a small one. A Latin token in an Arabic sentence is the bidi
+   algorithm's ordinary day only while it starts and ends with a letter: the punctuation at
+   either end takes the sentence's direction, so the Arabic pages showed "XstartOnFirstThread-"
+   and "ga_" for the flag and the cookie a reader has to recognise. Isolated, the token keeps
+   its own order and the sentence around it is untouched. */
+:where(:not(pre) > :is(code, kbd, samp)) {
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 :where(p, li) > code {
@@ -281,6 +309,40 @@ pre {
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+
+/* A code sample kept closed until asked for: a gallery card's snippet, a showcase screen's
+   source. `list-item`, never an inline display: any author `display` that is not a list-item
+   removes the disclosure triangle in Chromium, and the triangle is the only sign the code
+   exists. The marker's type stays with the user agent so it still flips between closed and
+   open. The padding lifts a single 12px line of text to a hit target that clears the 24px
+   floor. */
+.code-disclosure > summary {
+  display: list-item;
+  list-style-position: inside;
+  margin-block-start: 0.45rem;
+  padding-block: 0.3rem;
+  color: var(--limn-text-muted);
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.code-disclosure > summary:hover,
+.code-disclosure[open] > summary {
+  color: var(--limn-primary);
+}
+
+.code-disclosure > .code {
+  margin-block-start: 0.75rem;
+}
+
+/* Arabic is joined writing, and tracking pulls the joins apart: the spacing that makes a Latin
+   overline read as one did the opposite in Arabic, where each letter stood alone. */
+:lang(ar) :is(.eyebrow, .code-disclosure > summary) {
+  letter-spacing: 0;
 }
 
 /* A corner tick, which is the motif this file already declares above: hairlines, corner

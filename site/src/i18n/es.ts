@@ -69,7 +69,7 @@ export const es: Catalog = {
 
   "home.try.heading": "Pruébalo ahora",
   "home.try.body":
-    "La demo y el editor de temas, directo desde Maven Central. Nada que clonar; jbang descarga un JDK si no tienes ninguno. JBang resuelve la versión más reciente una sola vez y la conserva: añade --fresh para obtener una más nueva.",
+    "La demo y el editor de temas, directo desde Maven Central. Nada que clonar; jbang descarga un JDK si no tienes ninguno. JBang resuelve la versión más reciente una sola vez y la conserva: añade <code>--fresh</code> para obtener una más nueva.",
   "home.try.osLabel": "Sistema operativo",
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
@@ -131,6 +131,12 @@ export const es: Catalog = {
   "home.themes.link": "Cómo funcionan los temas",
   "home.themes.caption":
     "Una pantalla, siete temas. El código detrás de cada franja es idéntico.",
+  "home.themes.explore": "Comparar los temas",
+  "home.themes.dialogTitle": "Los mismos componentes, siete temas",
+  "home.themes.hintHover": "Pasa el puntero sobre una columna para ver ese tema en toda la pantalla.",
+  "home.themes.hintTouch": "Toca una columna para ver ese tema; desliza hacia un lado para cambiar.",
+  "home.themes.close": "Cerrar",
+  "home.themes.column": "Tema {n} de {total}",
   "home.themes.alt":
     "La misma pantalla densa de controles renderizada siete veces en paralelo, cada franja con una paleta, un paso de tamaño y una tipografía distintos.",
 

@@ -1,0 +1,450 @@
+---
+/**
+ * The home page's mosaic, and a closer look at it on request.
+ *
+ * The page shows the one quilted file, as it always has: one request, one decode, whatever the
+ * reader does next. A button over it opens a modal dialog that rebuilds the same picture out of
+ * the seven whole captures, stacked, each clipped to the column its slat was cut from, with the
+ * geometry the build used to cut them (mosaic.json), so the two agree to the pixel. Pointing at a
+ * column, focusing it or tapping it opens that capture across the whole screen; a swipe moves to
+ * the next. The captures are fetched when the dialog first opens, never before.
+ *
+ * The columns are numbered, not named: several of these dressings lean on faces a reader's
+ * machine may not have, and none of them is a theme the toolkit ships under a name.
+ *
+ * Without JavaScript the button stays hidden, because a button that opens nothing is worse than
+ * no button, and the picture is the same one it always was.
+ */
+import { messages } from "../i18n";
+import type { Locale } from "../lib/i18n";
+import mosaic from "../generated/mosaic.json";
+import showcase from "../generated/showcase.json";
+
+interface Props {
+  locale: Locale;
+  alt: string;
+}
+
+const { locale, alt } = Astro.props;
+const msg = messages(locale);
+const base = import.meta.env.BASE_URL;
+// The mosaic is ONE file and it is theme-independent, so it does not go through `Screenshot`:
+// that component publishes a light and a dark variant and swaps them in CSS, and here both
+// would be the same bytes fetched twice. The same holds for each capture in the dialog.
+const asset = (file: string) => `${base}gallery/${file}`;
+
+const { width: W, height: H } = mosaic.canvas;
+const pct = (value: number, of: number) => `${((value / of) * 100).toFixed(4)}%`;
+const byId = new Map(showcase.entries.map((entry) => [entry.id, entry]));
+const layers = mosaic.layers.map((layer, index) => {
+  const entry = byId.get(layer.id);
+  if (!entry) throw new Error(`ThemeMosaic: mosaic.json names '${layer.id}', which showcase.json lacks`);
+  // A mosaic capture pins its own theme, so both palette keys name the same file.
+  const images = entry.images.light;
+  return {
+    index,
+    avif: asset(images.avif),
+    webp: asset(images.webp),
+    style: [
+      `--clip-start:${pct(layer.clipStart, W)}`,
+      `--clip-end:${pct(W - layer.clipStart - layer.clipWidth, W)}`,
+      `--left:${pct(layer.left, W)}`,
+      `--top:${pct(layer.top, H)}`,
+      `--width:${pct(layer.width, W)}`,
+      `--height:${pct(layer.height, H)}`,
+    ].join(";"),
+    zone: `--zone-start:${pct(layer.clipStart, W)};--zone-width:${pct(layer.clipWidth, W)}`,
+    label: msg("home.themes.column")
+      .replace("{n}", String(index + 1))
+      .replace("{total}", String(mosaic.layers.length)),
+  };
+});
+---
+
+<div class="theme-mosaic" data-theme-mosaic>
+  <picture>
+    <source type="image/avif" srcset={asset(mosaic.images.avif)} />
+    <img
+      src={asset(mosaic.images.webp)}
+      width={mosaic.width}
+      height={mosaic.height}
+      loading="lazy"
+      decoding="async"
+      alt={alt}
+    />
+  </picture>
+  <button type="button" class="theme-mosaic__open" data-open hidden>
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        d="M4 5h4v14H4zM10 5h4v14h-4zM16 5h4v14h-4z"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linejoin="round"></path>
+    </svg>
+    {msg("home.themes.explore")}
+  </button>
+
+  <dialog class="theme-mosaic__dialog" aria-labelledby="theme-mosaic-title" data-dialog>
+    <div class="theme-mosaic__head">
+      <h2 id="theme-mosaic-title">{msg("home.themes.dialogTitle")}</h2>
+      <button type="button" class="theme-mosaic__close" data-close aria-label={msg("home.themes.close")}>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+        </svg>
+      </button>
+    </div>
+    <p class="theme-mosaic__hint">
+      <span class="theme-mosaic__hint-hover">{msg("home.themes.hintHover")}</span>
+      <span class="theme-mosaic__hint-touch">{msg("home.themes.hintTouch")}</span>
+    </p>
+    <div class="theme-mosaic__stage" style={`aspect-ratio:${W}/${H};--ratio:${W / H}`} data-stage>
+      {
+        layers.map((layer) => (
+          <div class="theme-mosaic__layer" style={layer.style} data-layer={layer.index}>
+            <picture>
+              <source type="image/avif" srcset={layer.avif} />
+              <img src={layer.webp} alt="" loading="lazy" decoding="async" />
+            </picture>
+          </div>
+        ))
+      }
+      <div class="theme-mosaic__zones">
+        {
+          layers.map((layer) => (
+            <button
+              type="button"
+              class="theme-mosaic__zone"
+              style={layer.zone}
+              aria-label={layer.label}
+              aria-pressed="false"
+              data-zone={layer.index}
+            />
+          ))
+        }
+      </div>
+    </div>
+  </dialog>
+</div>
+
+<style>
+  .theme-mosaic {
+    position: relative;
+  }
+
+  .theme-mosaic > picture img {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+  }
+
+  /* Floating on the picture, in its far corner, and quiet until pointed at: the picture is the
+     point of the section and the button is a way into it. */
+  .theme-mosaic__open {
+    position: absolute;
+    inset-block-end: 0.75rem;
+    inset-inline-end: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.9rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background-color: color-mix(in srgb, var(--limn-background) 88%, transparent);
+    backdrop-filter: blur(6px);
+    color: var(--limn-text);
+    font-size: var(--text-sm);
+    font-weight: 560;
+    box-shadow: 0 6px 20px color-mix(in srgb, #000 18%, transparent);
+    cursor: pointer;
+  }
+
+  .theme-mosaic__open[hidden] {
+    display: none;
+  }
+
+  .theme-mosaic__open:hover {
+    border-color: var(--limn-primary);
+    color: var(--limn-primary);
+  }
+
+  .theme-mosaic__open:focus-visible,
+  .theme-mosaic__close:focus-visible {
+    outline: 2px solid var(--limn-primary);
+    outline-offset: 2px;
+  }
+
+  .theme-mosaic__dialog {
+    inline-size: min(72rem, 100vw - 2rem);
+    max-block-size: calc(100dvh - 2rem);
+    padding: clamp(1rem, 2.5vw, 1.5rem);
+    border: 1px solid var(--rule);
+    border-radius: 16px;
+    background-color: var(--limn-background);
+    color: var(--limn-text);
+  }
+
+  .theme-mosaic__dialog::backdrop {
+    background-color: color-mix(in srgb, #000 62%, transparent);
+  }
+
+  .theme-mosaic__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .theme-mosaic__head h2 {
+    font-size: var(--text-xl);
+  }
+
+  .theme-mosaic__close {
+    display: grid;
+    place-items: center;
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+    flex: none;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: none;
+    color: var(--limn-text-muted);
+    cursor: pointer;
+  }
+
+  .theme-mosaic__close:hover {
+    color: var(--limn-text);
+    border-color: var(--limn-primary);
+  }
+
+  .theme-mosaic__hint {
+    margin-block: 0.35rem 1rem;
+    color: var(--limn-text-muted);
+    font-size: var(--text-sm);
+  }
+
+  /* One hint per kind of pointer, chosen by the device rather than guessed from the width. */
+  .theme-mosaic__hint-touch {
+    display: none;
+  }
+  @media (hover: none) {
+    .theme-mosaic__hint-hover {
+      display: none;
+    }
+    .theme-mosaic__hint-touch {
+      display: inline;
+    }
+  }
+
+  /* The picture's own coordinates, whatever the page's direction: a column is a place in an
+     image, and mirroring the page does not move it. */
+  .theme-mosaic__stage {
+    position: relative;
+    direction: ltr;
+    /* As wide as the dialog, and no wider than the height left under the heading allows: the
+       picture never scrolls inside its own dialog. */
+    inline-size: min(100%, calc((100dvh - 12rem) * var(--ratio)));
+    margin-inline: auto;
+    overflow: hidden;
+    border-radius: 10px;
+    background-color: #000;
+    touch-action: pan-y;
+  }
+
+  .theme-mosaic__layer {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    clip-path: inset(0 var(--clip-end) 0 var(--clip-start));
+    transition: clip-path 420ms var(--ease);
+    pointer-events: none;
+  }
+
+  .theme-mosaic__layer img {
+    position: absolute;
+    inset-inline-start: var(--left);
+    inset-block-start: var(--top);
+    inline-size: var(--width);
+    block-size: var(--height);
+    max-inline-size: none;
+    transition: inset-inline-start 420ms var(--ease);
+  }
+
+  /* The open capture on top of the rest and across all of it. Its picture slides the few pixels
+     its crop was offset by, so the whole capture sits flush with the frame. */
+  .theme-mosaic__layer.is-open {
+    z-index: 3;
+    clip-path: inset(0 0 0 0);
+  }
+  .theme-mosaic__layer.is-open img {
+    inset-inline-start: 0;
+  }
+
+  /* The one that just closed stays above the slats until it has shrunk back into its column. */
+  .theme-mosaic__layer.is-closing {
+    z-index: 2;
+  }
+
+  /* The hit targets are separate from the pictures: an open capture covers every column, and the
+     reader must still be able to point at another one. */
+  .theme-mosaic__zones {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+  }
+
+  .theme-mosaic__zone {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: var(--zone-start);
+    inline-size: var(--zone-width);
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+  }
+
+  .theme-mosaic__zone:focus-visible {
+    outline: 2px solid var(--limn-primary);
+    outline-offset: -4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .theme-mosaic__layer,
+    .theme-mosaic__layer img {
+      transition: none;
+    }
+  }
+
+  /* A phone gets the whole screen, and a taller picture than the mosaic's shape. The whole
+     1024-point board across a phone's width is a thumbnail, and an opened theme then shows
+     nothing a reader can read; so here every capture is scaled to the stage's height and centred,
+     and a column or an opened theme shows its controls at a size they were meant to be read at.
+     The boards repeat their controls, so a crop of one loses nothing the whole of it says. */
+  @media (max-width: 40rem) {
+    .theme-mosaic__stage {
+      inline-size: 100%;
+      aspect-ratio: auto !important;
+      block-size: min(70dvh, 40rem);
+    }
+
+    .theme-mosaic__layer img,
+    .theme-mosaic__layer.is-open img {
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      object-fit: cover;
+      object-position: center;
+      transition: none;
+    }
+
+    .theme-mosaic__dialog {
+      inline-size: 100vw;
+      max-inline-size: 100vw;
+      block-size: 100dvh;
+      max-block-size: 100dvh;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+    }
+
+    .theme-mosaic__dialog[open] {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .theme-mosaic__head {
+      position: absolute;
+      inset-block-start: 1rem;
+      inset-inline: 1rem;
+    }
+
+    .theme-mosaic__stage {
+      border-radius: 6px;
+    }
+  }
+</style>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>("[data-theme-mosaic]")) {
+    const openButton = root.querySelector<HTMLButtonElement>("[data-open]")!;
+    const dialog = root.querySelector<HTMLDialogElement>("[data-dialog]")!;
+    const stage = root.querySelector<HTMLElement>("[data-stage]")!;
+    const layers = [...root.querySelectorAll<HTMLElement>("[data-layer]")];
+    const zones = [...root.querySelectorAll<HTMLButtonElement>("[data-zone]")];
+    if (typeof dialog.showModal !== "function") continue;
+    openButton.hidden = false;
+
+    let open: number | null = null;
+    let pointerType = "mouse";
+    let swiped = false;
+
+    const show = (index: number | null) => {
+      if (index === open) return;
+      if (open !== null) {
+        const closing = layers[open];
+        closing.classList.remove("is-open");
+        closing.classList.add("is-closing");
+        closing.addEventListener("transitionend", () => closing.classList.remove("is-closing"), {
+          once: true,
+        });
+        zones[open].setAttribute("aria-pressed", "false");
+      }
+      open = index;
+      if (open !== null) {
+        layers[open].classList.remove("is-closing");
+        layers[open].classList.add("is-open");
+        zones[open].setAttribute("aria-pressed", "true");
+      }
+    };
+
+    openButton.addEventListener("click", () => dialog.showModal());
+    root.querySelector("[data-close]")!.addEventListener("click", () => dialog.close());
+    // A click on the backdrop lands on the dialog element itself, never on its content.
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+    dialog.addEventListener("close", () => show(null));
+
+    zones.forEach((zone, index) => {
+      zone.addEventListener("pointerenter", (event) => {
+        if (event.pointerType === "mouse") show(index);
+      });
+      zone.addEventListener("pointerdown", (event) => {
+        pointerType = event.pointerType;
+      });
+      // A tap, a pen or a key toggles; a mouse already opened it by pointing, and a click only
+      // makes sure. A click that ends a swipe is the swipe's, not a tap.
+      zone.addEventListener("click", (event) => {
+        if (swiped) {
+          swiped = false;
+          return;
+        }
+        const keyboard = event.detail === 0;
+        show(keyboard || pointerType !== "mouse" ? (open === index ? null : index) : index);
+      });
+      zone.addEventListener("focus", () => {
+        if (zone.matches(":focus-visible")) show(index);
+      });
+    });
+    stage.addEventListener("pointerleave", (event) => {
+      if (event.pointerType === "mouse") show(null);
+    });
+
+    // A sideways swipe moves to the neighbouring capture, once one is open.
+    let startX: number | null = null;
+    stage.addEventListener("pointerdown", (event) => {
+      if (event.pointerType !== "mouse") startX = event.clientX;
+    });
+    stage.addEventListener("pointerup", (event) => {
+      if (startX === null) return;
+      const dx = event.clientX - startX;
+      startX = null;
+      if (open === null || Math.abs(dx) < 40) return;
+      swiped = true;
+      setTimeout(() => (swiped = false), 400);
+      show(Math.min(layers.length - 1, Math.max(0, open + (dx < 0 ? 1 : -1))));
+    });
+  }
+</script>
