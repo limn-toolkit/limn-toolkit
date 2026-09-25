@@ -291,14 +291,32 @@ tu aplicación.
 
 ## Los módulos
 
-| | |
-| --- | --- |
-| `limn-toolkit` | el conjunto de widgets, la disposición, el grafo de escena, las SPI del backend y los decodificadores de vídeo en Java puro; no depende de nada |
-| `limn-backend-lwjgl` | GLFW, OpenGL y stb detrás de esas SPI |
-| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 y AAC/Opus/Vorbis mediante FFmpeg; la carga es `limn-ffmpeg-natives`, que cambia de versión con FFmpeg, un clasificador por destino de escritorio |
-| `limn-icons-tabler` | el paquete de iconos Tabler, si lo quieres — ahora un artefacto propio, que cambia de versión con Tabler (`3.46.0.x` es Tabler 3.46.0) |
-| `limn-test` | probar tu interfaz sin pantalla: un controlador que hace clic, escribe y pulsa teclas en una escena, un runtime y un backend sin pantalla, y los contratos de accesibilidad que cumplen los widgets |
-| `limn-fonts-all` | las tipografías pan-CJK y de emojis a color (26 MB que una aplicación que nunca las dibuja no debería cargar), más el resto de los respaldos, en las versiones con las que se probó esta publicación — cada tipografía es un artefacto propio que cambia de versión con la fuente |
+<table>
+  <tr>
+    <td nowrap><code>limn-toolkit</code></td>
+    <td>el conjunto de widgets, la disposición, el grafo de escena, las SPI del backend y los decodificadores de vídeo en Java puro; no depende de nada</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td>GLFW, OpenGL y stb detrás de esas SPI</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td>H.264/HEVC/VP9/VP8 y AAC/Opus/Vorbis mediante FFmpeg; la carga es <code>limn-ffmpeg-natives</code>, que cambia de versión con FFmpeg, un clasificador por destino de escritorio</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-icons-tabler</code></td>
+    <td>el paquete de iconos Tabler, si lo quieres — ahora un artefacto propio, que cambia de versión con Tabler (<code>3.46.0.x</code> es Tabler 3.46.0)</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-test</code></td>
+    <td>probar tu interfaz sin pantalla: un controlador que hace clic, escribe y pulsa teclas en una escena, un runtime y un backend sin pantalla, y los contratos de accesibilidad que cumplen los widgets</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-fonts-all</code></td>
+    <td>las tipografías pan-CJK y de emojis a color (26 MB que una aplicación que nunca las dibuja no debería cargar), más el resto de los respaldos, en las versiones con las que se probó esta publicación — cada tipografía es un artefacto propio que cambia de versión con la fuente</td>
+  </tr>
+</table>
 
 ## Documentación
 

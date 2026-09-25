@@ -235,14 +235,32 @@ macOS 的開關和上面一樣。它存下來的是一個 `.limntheme` 檔案，
 
 ## 模組
 
-| | |
-| --- | --- |
-| `limn-toolkit` | 元件集、版面、場景圖、後端 SPI 與純 Java 影片解碼器；不依賴任何東西 |
-| `limn-backend-lwjgl` | 那些 SPI 背後的 GLFW、OpenGL 與 stb |
-| `limn-video-ffmpeg` | 透過 FFmpeg 支援 H.264/HEVC/VP9/VP8 與 AAC/Opus/Vorbis；負載是 `limn-ffmpeg-natives`，版本跟著 FFmpeg 走，每個桌面目標各一個 classifier |
-| `limn-icons-tabler` | Tabler 圖示包，需要就用——如今是獨立的一個成品，版本跟著 Tabler 走（`3.46.0.x` 即 Tabler 3.46.0）|
-| `limn-test` | 不需顯示器即可測試你的介面：在場景中點擊、輸入和按鍵的驅動器，無顯示的執行環境與後端，以及元件所遵守的無障礙契約 |
-| `limn-fonts-all` | 泛中日韓字體與彩色表情符號字體（一個從不繪製它們的應用程式不該背負的 26 MB），加上其餘的遞補字體，各自固定在這次發布測試過的版本——每個字體都是獨立的一個成品，版本跟著字型走 |
+<table>
+  <tr>
+    <td nowrap><code>limn-toolkit</code></td>
+    <td>元件集、版面、場景圖、後端 SPI 與純 Java 影片解碼器；不依賴任何東西</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td>那些 SPI 背後的 GLFW、OpenGL 與 stb</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td>透過 FFmpeg 支援 H.264/HEVC/VP9/VP8 與 AAC/Opus/Vorbis；負載是 <code>limn-ffmpeg-natives</code>，版本跟著 FFmpeg 走，每個桌面目標各一個 classifier</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-icons-tabler</code></td>
+    <td>Tabler 圖示包，需要就用——如今是獨立的一個成品，版本跟著 Tabler 走（<code>3.46.0.x</code> 即 Tabler 3.46.0）</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-test</code></td>
+    <td>不需顯示器即可測試你的介面：在場景中點擊、輸入和按鍵的驅動器，無顯示的執行環境與後端，以及元件所遵守的無障礙契約</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-fonts-all</code></td>
+    <td>泛中日韓字體與彩色表情符號字體（一個從不繪製它們的應用程式不該背負的 26 MB），加上其餘的遞補字體，各自固定在這次發布測試過的版本——每個字體都是獨立的一個成品，版本跟著字型走</td>
+  </tr>
+</table>
 
 ## 文件
 

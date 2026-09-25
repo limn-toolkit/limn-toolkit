@@ -294,14 +294,32 @@ jamais une dépendance de votre application.
 
 ## Les modules
 
-| | |
-| --- | --- |
-| `limn-toolkit` | l’ensemble de widgets, la mise en page, le graphe de scène, les SPI des backends et les décodeurs vidéo en Java pur ; ne dépend de rien |
-| `limn-backend-lwjgl` | GLFW, OpenGL et stb derrière ces SPI |
-| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 et AAC/Opus/Vorbis via FFmpeg ; la charge est `limn-ffmpeg-natives`, versionné avec FFmpeg, un classifier par cible de bureau |
-| `limn-icons-tabler` | le jeu d’icônes Tabler, si vous le voulez — désormais un artefact à part entière, versionné avec Tabler (`3.46.0.x` est Tabler 3.46.0) |
-| `limn-test` | tester votre interface sans écran : un pilote qui clique, saisit du texte et appuie sur des touches dans une scène, un runtime et un backend sans affichage, et les contrats d’accessibilité que respectent les widgets |
-| `limn-fonts-all` | les fontes pan-CJC et emoji couleur (26 Mo qu’une application qui ne les dessine jamais ne devrait pas porter), plus le reste des replis, dans les versions avec lesquelles cette publication a été testée — chaque fonte est un artefact à part entière, versionné avec la fonte |
+<table>
+  <tr>
+    <td nowrap><code>limn-toolkit</code></td>
+    <td>l’ensemble de widgets, la mise en page, le graphe de scène, les SPI des backends et les décodeurs vidéo en Java pur ; ne dépend de rien</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td>GLFW, OpenGL et stb derrière ces SPI</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td>H.264/HEVC/VP9/VP8 et AAC/Opus/Vorbis via FFmpeg ; la charge est <code>limn-ffmpeg-natives</code>, versionné avec FFmpeg, un classifier par cible de bureau</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-icons-tabler</code></td>
+    <td>le jeu d’icônes Tabler, si vous le voulez — désormais un artefact à part entière, versionné avec Tabler (<code>3.46.0.x</code> est Tabler 3.46.0)</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-test</code></td>
+    <td>tester votre interface sans écran : un pilote qui clique, saisit du texte et appuie sur des touches dans une scène, un runtime et un backend sans affichage, et les contrats d’accessibilité que respectent les widgets</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-fonts-all</code></td>
+    <td>les fontes pan-CJC et emoji couleur (26 Mo qu’une application qui ne les dessine jamais ne devrait pas porter), plus le reste des replis, dans les versions avec lesquelles cette publication a été testée — chaque fonte est un artefact à part entière, versionné avec la fonte</td>
+  </tr>
+</table>
 
 ## Documentation
 

@@ -235,14 +235,32 @@ macOS のフラグは上と同じです。保存されるのは `.limntheme` フ
 
 ## モジュール
 
-| | |
-| --- | --- |
-| `limn-toolkit` | ウィジェット一式、レイアウト、シーングラフ、バックエンドの SPI、そして純 Java の動画デコーダー。何にも依存しません |
-| `limn-backend-lwjgl` | その SPI の背後にある GLFW、OpenGL、stb |
-| `limn-video-ffmpeg` | FFmpeg 経由の H.264/HEVC/VP9/VP8 と AAC/Opus/Vorbis。ペイロードは `limn-ffmpeg-natives` で、FFmpeg と一緒に版が進みます。デスクトップ対象ごとに 1 つの classifier |
-| `limn-icons-tabler` | 必要なら使える Tabler のアイコンパック——今では独立した成果物として、Tabler と一緒に版が進みます（`3.46.0.x` は Tabler 3.46.0）|
-| `limn-test` | 画面なしで UI をテストするためのもの。シーンでクリック・入力・キー操作を行うドライバ、画面を持たないランタイムとバックエンド、ウィジェットが満たすアクセシビリティ契約 |
-| `limn-fonts-all` | 汎 CJK 書体とカラー絵文字書体（それらを描かないアプリが背負うべきではない 26 メガバイト）に、残りのフォールバックを加えたもの。届くのはこのリリースでテストした版で、各書体はそれ自体が独立した成果物として、フォントと一緒に版が進みます |
+<table>
+  <tr>
+    <td nowrap><code>limn-toolkit</code></td>
+    <td>ウィジェット一式、レイアウト、シーングラフ、バックエンドの SPI、そして純 Java の動画デコーダー。何にも依存しません</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td>その SPI の背後にある GLFW、OpenGL、stb</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td>FFmpeg 経由の H.264/HEVC/VP9/VP8 と AAC/Opus/Vorbis。ペイロードは <code>limn-ffmpeg-natives</code> で、FFmpeg と一緒に版が進みます。デスクトップ対象ごとに 1 つの classifier</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-icons-tabler</code></td>
+    <td>必要なら使える Tabler のアイコンパック——今では独立した成果物として、Tabler と一緒に版が進みます（<code>3.46.0.x</code> は Tabler 3.46.0）</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-test</code></td>
+    <td>画面なしで UI をテストするためのもの。シーンでクリック・入力・キー操作を行うドライバ、画面を持たないランタイムとバックエンド、ウィジェットが満たすアクセシビリティ契約</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-fonts-all</code></td>
+    <td>汎 CJK 書体とカラー絵文字書体（それらを描かないアプリが背負うべきではない 26 メガバイト）に、残りのフォールバックを加えたもの。届くのはこのリリースでテストした版で、各書体はそれ自体が独立した成果物として、フォントと一緒に版が進みます</td>
+  </tr>
+</table>
 
 ## ドキュメント
 

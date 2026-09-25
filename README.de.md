@@ -293,14 +293,32 @@ Abhängigkeit Ihrer Anwendung.
 
 ## Die Module
 
-| | |
-| --- | --- |
-| `limn-toolkit` | der Widget-Satz, Layout, der Szenengraph, die Backend-SPIs und die reinen Java-Video-Decoder; ohne jede Abhängigkeit |
-| `limn-backend-lwjgl` | GLFW, OpenGL und stb hinter diesen SPIs |
-| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 und AAC/Opus/Vorbis über FFmpeg; die Nutzlast ist `limn-ffmpeg-natives`, dessen Version FFmpeg folgt, ein Classifier je Desktop-Ziel |
-| `limn-icons-tabler` | das Tabler-Icon-Paket, falls Sie es wollen — inzwischen ein eigenes Artefakt, dessen Version Tabler folgt (`3.46.0.x` ist Tabler 3.46.0) |
-| `limn-test` | Tests Ihrer Oberfläche ohne Bildschirm: ein Treiber, der in einer Szene klickt, tippt und Tasten drückt, eine Laufzeit und ein Backend ohne Anzeige, und die Barrierefreiheitsverträge, an denen die Widgets gemessen werden |
-| `limn-fonts-all` | die Pan-CJK- und Farb-Emoji-Schriften (26 MB, die eine Anwendung, die sie nie zeichnet, nicht tragen sollte), dazu die übrigen Fallbacks, in den Versionen, mit denen dieses Release getestet wurde — jede Schrift ein eigenes Artefakt, dessen Version der Schrift folgt |
+<table>
+  <tr>
+    <td nowrap><code>limn-toolkit</code></td>
+    <td>der Widget-Satz, Layout, der Szenengraph, die Backend-SPIs und die reinen Java-Video-Decoder; ohne jede Abhängigkeit</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td>GLFW, OpenGL und stb hinter diesen SPIs</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td>H.264/HEVC/VP9/VP8 und AAC/Opus/Vorbis über FFmpeg; die Nutzlast ist <code>limn-ffmpeg-natives</code>, dessen Version FFmpeg folgt, ein Classifier je Desktop-Ziel</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-icons-tabler</code></td>
+    <td>das Tabler-Icon-Paket, falls Sie es wollen — inzwischen ein eigenes Artefakt, dessen Version Tabler folgt (<code>3.46.0.x</code> ist Tabler 3.46.0)</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-test</code></td>
+    <td>Tests Ihrer Oberfläche ohne Bildschirm: ein Treiber, der in einer Szene klickt, tippt und Tasten drückt, eine Laufzeit und ein Backend ohne Anzeige, und die Barrierefreiheitsverträge, an denen die Widgets gemessen werden</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-fonts-all</code></td>
+    <td>die Pan-CJK- und Farb-Emoji-Schriften (26 MB, die eine Anwendung, die sie nie zeichnet, nicht tragen sollte), dazu die übrigen Fallbacks, in den Versionen, mit denen dieses Release getestet wurde — jede Schrift ein eigenes Artefakt, dessen Version der Schrift folgt</td>
+  </tr>
+</table>
 
 ## Dokumentation
 

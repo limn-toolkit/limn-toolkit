@@ -283,14 +283,32 @@ application.
 
 ## The modules
 
-| | |
-| --- | --- |
-| `limn-toolkit` | the widget set, layout, the scene graph, the backend SPIs and the pure-Java video decoders; depends on nothing |
-| `limn-backend-lwjgl` | GLFW, OpenGL and stb behind those SPIs |
-| `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis via FFmpeg; the payload is `limn-ffmpeg-natives`, versioned with FFmpeg, one classifier per desktop target |
-| `limn-icons-tabler` | the Tabler icon pack, if you want it — an artifact of its own now, versioned with Tabler (`3.46.0.x` is Tabler 3.46.0) |
-| `limn-test` | testing your UI with no display: a driver that clicks, types and presses keys in a scene, a headless runtime and backend, and the accessibility contracts the widgets are held to |
-| `limn-fonts-all` | the pan-CJK and colour-emoji faces (26 MB an app that never draws them should not carry), plus the rest of the fallbacks, at the versions this release was tested with — each face an artifact of its own that versions with the font |
+<table>
+  <tr>
+    <td nowrap><code>limn-toolkit</code></td>
+    <td>the widget set, layout, the scene graph, the backend SPIs and the pure-Java video decoders; depends on nothing</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td>GLFW, OpenGL and stb behind those SPIs</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td>H.264/HEVC/VP9/VP8 and AAC/Opus/Vorbis via FFmpeg; the payload is <code>limn-ffmpeg-natives</code>, versioned with FFmpeg, one classifier per desktop target</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-icons-tabler</code></td>
+    <td>the Tabler icon pack, if you want it — an artifact of its own now, versioned with Tabler (<code>3.46.0.x</code> is Tabler 3.46.0)</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-test</code></td>
+    <td>testing your UI with no display: a driver that clicks, types and presses keys in a scene, a headless runtime and backend, and the accessibility contracts the widgets are held to</td>
+  </tr>
+  <tr>
+    <td nowrap><code>limn-fonts-all</code></td>
+    <td>the pan-CJK and colour-emoji faces (26 MB an app that never draws them should not carry), plus the rest of the fallbacks, at the versions this release was tested with — each face an artifact of its own that versions with the font</td>
+  </tr>
+</table>
 
 ## Documentation
 
