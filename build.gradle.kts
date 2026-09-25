@@ -41,12 +41,13 @@ allprojects {
 
 // What is published, and what a one-line description of it says in the POM.
 //
-// Everything here is something an application legitimately puts on its classpath — including
-// the theme editor, which it OPTS IN to, a module precisely so that choice exists — with one
-// exception that is published for the opposite reason. limn-demo is not a library and no
-// application should depend on it; it is published so that a stranger can RUN it, from its
-// coordinate, with nothing cloned: `jbang io.github.limn-toolkit:limn-demo:<version>`. Its POM
-// is shaped for that reader (see hostNativesModules below) and its description says so.
+// Everything here is something an application legitimately puts on its classpath, with two
+// exceptions published for the opposite reason. limn-demo and limn-theme-editor are programs, not
+// libraries, and no application should depend on either; they are published so that a stranger
+// can RUN them, from their coordinates, with nothing cloned:
+// `jbang io.github.limn-toolkit:limn-demo:<version>`. Their POMs are shaped for that reader (see
+// hostNativesModules below) and their descriptions say so. What an application shares with the
+// theme editor is the value it writes, a Theme in ThemeFormat's text, which limn-toolkit reads.
 val publishedModules = mapOf(
     "limn-toolkit" to
             "The widget set, layout, the scene graph, the backend SPIs and the pure-Java video " +
@@ -57,9 +58,10 @@ val publishedModules = mapOf(
             "fixed text rulers and the accessibility contracts the toolkit's own widgets are " +
             "held to. Depends on limn-toolkit only, and on no test framework.",
     "limn-theme-editor" to
-            "The screen that authors a Theme; an application opts in. Also a program: the jar " +
-            "names ThemeEditorApp as its Main-Class and the POM brings a backend and every " +
-            "fallback face, so `jbang io.github.limn-toolkit:limn-theme-editor:<version>` opens it.",
+            "The program that authors a Theme and saves it as a .limntheme file, which an " +
+            "application loads with ThemeFormat from limn-toolkit; not a library. The jar names " +
+            "ThemeEditorApp as its Main-Class and the POM brings a backend and every fallback " +
+            "face, so `jbang io.github.limn-toolkit:limn-theme-editor:<version>` opens it.",
     "limn-demo" to
             "The kitchen sink: every widget, the charts, the media player and the 3D viewport in " +
             "one window. An application, not a library — nothing should depend on it. Published " +
@@ -91,9 +93,9 @@ val publishedModules = mapOf(
 // ADR 046 §1: limn-toolkit, limn-test, limn-video-ffmpeg and limn-backend-lwjgl carry a
 // module-info. These two name themselves in the manifest instead, so an application on the module
 // path requires a name that will not change with a file name:
-//   limn-theme-editor   its program, ThemeEditorApp, compiles against the backend, which an
-//                       embedding application brings itself; a module-info would have to require
-//                       it, and the published POM names the backend for running only.
+//   limn-theme-editor   a program, like the demo: ThemeEditorApp compiles against the backend,
+//                       which a module-info would have to require, and the published POM names
+//                       the backend for running only.
 //   limn-demo           an application, run from the class path.
 // An automatic module reads everything and exports everything, which for these two is what the
 // class path already gives them; the toolkit's internal packages are still exported to them alone.
@@ -354,8 +356,8 @@ subprojects {
 //
 // Gradle cannot read a profile, and Gradle is not the reader this is for. The module metadata
 // stays published beside the POM and still says what it always did — the backend, with every
-// platform — so an application that takes limn-theme-editor from a Gradle build gets the
-// classpath it got before. Two answers, one per reader, each the right one for what that reader
+// platform — so a Gradle build that resolves one of these two gets the classpath it got
+// before. Two answers, one per reader, each the right one for what that reader
 // can do with it; the sibling aggregator POMs switch their metadata off for the opposite reason,
 // because there the two readers can do the same thing and must be told the same list.
 val hostNativesModules = setOf("limn-demo", "limn-theme-editor")
@@ -681,8 +683,12 @@ val aggregateJavadoc = tasks.register<Javadoc>("aggregateJavadoc") {
     // it, and Gradle refuses to resolve another project's configuration from a task that is
     // already running ("without an exclusive lock"). The six that do compile were resolved by
     // their own compileJava long before this.
+    // And not the two programs, the demo and the theme editor: published to be run, never depended
+    // on, so nothing in them is API, and /api/ listed their four packages beside the toolkit's as
+    // if they were. Their classes are public only so the demo can show the editor as a screen.
     val documented = subprojects.filter { sub ->
         sub.plugins.hasPlugin("java") &&
+                sub.name !in setOf("limn-demo", "limn-theme-editor") &&
                 !sub.extensions.getByType<SourceSetContainer>()["main"].allJava.isEmpty
     }
     dependsOn(documented.map { "${it.path}:classes" })
@@ -701,8 +707,13 @@ val aggregateJavadoc = tasks.register<Javadoc>("aggregateJavadoc") {
             exclude("limn/backend/lwjgl/a11y/**") // exported by no module, like the internal ones
         }
     })
+    // Each module's own classes beside what it compiles against: an exported class may import its
+    // module's internal package, which the sources above leave out, and nothing else supplies the
+    // backend's once the two programs are not documented; they used to, since both compile
+    // against the backend.
     classpath = files(documented.map {
-        it.extensions.getByType<SourceSetContainer>()["main"].compileClasspath
+        val main = it.extensions.getByType<SourceSetContainer>()["main"]
+        main.compileClasspath + main.output
     })
     (options as StandardJavadocDocletOptions).apply {
         encoding = "UTF-8"

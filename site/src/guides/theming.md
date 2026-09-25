@@ -102,19 +102,23 @@ Theme loaded = ThemeFormat.load(file);
 The extension is `.limntheme` (`ThemeFormat.EXTENSION`). Loading is one line and needs
 nothing but `limn-toolkit`, which is the point of the split below.
 
-## Letting your users build one
+## Building one in the theme editor
 
-`limn-theme-editor` is an optional module containing `ThemeEditor`, the screen that authors
-a palette, with a live preview and a contrast audit beside it. Add it if your application
-wants a theme editor in it; leave it out and you pay nothing, because **nothing in the
-toolkit depends on it**.
+The theme editor is a program, not a dependency: it authors a palette with a live preview and
+a contrast audit beside it, and saves it as a `.limntheme` file.
 
-```kotlin
-implementation("io.github.limn-toolkit:limn-theme-editor:{{version}}")
+{% tabs os "Windows / Linux" macOS %}
+```bash
+jbang theme-editor@limn-toolkit/limn-toolkit
 ```
+```bash
+jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
+```
+{% endtabs %}
 
-The dependency points one way only: the editor reads `Theme` and `Theme.Builder`, and no
-part of the widget set reads the editor. So a palette your designer saves from the editor
+[Install](/docs/install/) says why macOS needs its flag. Your application ships the file and loads it with `ThemeFormat`, which
+is in `limn-toolkit`; nothing of the editor goes with it. What the two share is the value, a
+`Theme` and the text `ThemeFormat` writes it as, so a palette your designer saves in the editor
 loads in an application that has never heard of it.
 
 ## What is in a palette

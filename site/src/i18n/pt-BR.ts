@@ -208,9 +208,9 @@ export const ptBR: Catalog = {
   "showcase.threeD.body":
     "Materiais fisicamente corretos sob três luzes, renderizados em um alvo linear de alta faixa dinâmica e compostos como uma camada 2D. Uma scroll view o recorta como recortaria qualquer outro widget. Arraste para orbitar, role para dar zoom.",
 
-  "showcase.editor.heading": "O editor de tema, como um widget que você pode embarcar",
+  "showcase.editor.heading": "O editor de tema, um programa que grava um arquivo",
   "showcase.editor.body":
-    "Uma paleta é dado, então editá-la é uma tela; esta é um módulo que sua aplicação pode embutir, não uma ferramenta que vive no nosso repositório. Arraste o slider de cantos e a janela se re-veste no mesmo frame: cada campo, botão e poço da imagem. O relatório ao lado mede cada tinta contra toda superfície onde ela pode cair, então uma paleta que falha em contraste falha à vista.",
+    "Uma paleta é dado, então editá-la é uma tela; esta é um programa que você roda, não uma dependência que sua aplicação carrega. Ele salva um arquivo de tema, que sua aplicação lê com o ThemeFormat, só com o limn-toolkit. Arraste o slider de cantos e a janela se re-veste no mesmo frame: cada campo, botão e poço da imagem. O relatório ao lado mede cada tinta contra toda superfície onde ela pode cair, então uma paleta que falha em contraste falha à vista.",
   "showcase.density.heading": "Todos os passos de tamanho",
   "showcase.density.body":
     "Os mesmos cinco controles, cinco vezes, do XSMALL no topo até o XLARGE embaixo. Nenhum deles recebe largura, fonte ou padding: cada linha recebe um tamanho de controle e nada mais, e o padding, a tipografia, os raios de canto e as áreas de toque se movem juntos.",

@@ -1,19 +1,20 @@
-// limn-theme-editor: the screen an application embeds so its users can build a palette.
+// limn-theme-editor: the program that authors a palette and saves it as a .limntheme file.
 //
-// It sits where the icon pack sat before it moved out (ADR 038): it is built on a vocabulary the widget set
-// publishes (limn.components.Theme, and the Theme.Builder that opened it up) and NOTHING
-// depends on it, so an application that only wears a theme never ships the screen that
-// authors one. The dependency can only point this way (see settings.gradle.kts).
+// A program, not a library: no application depends on it. What comes out of the editor is a
+// Theme, and ThemeFormat (in limn-toolkit) is what writes one down, so an application loads a
+// palette its designer saved without this module anywhere near its build. The classes here are
+// public because the demo shows the editor as one of its screens, not because they are API, and
+// /api/ leaves the package out.
 //
-// What comes out of the editor is a Theme, and ThemeFormat (in limn-toolkit) is what
-// writes one down. That split is the reason an application can load a palette its designer
-// saved without this module anywhere near the build.
+// It sits where the icon pack sat before it moved out (ADR 038): it is built on a vocabulary the
+// widget set publishes (limn.components.Theme, and the Theme.Builder that opened it up) and
+// nothing in the toolkit or the backend depends on it. The dependency can only point this way
+// (see settings.gradle.kts).
 
 plugins {
     `java-library`
-    // The editor is also a program: `./gradlew :limn-theme-editor:run` opens it in a window,
-    // so a designer can build a palette without writing an application first. That does not
-    // make this module an application; see the dependency note below.
+    // `./gradlew :limn-theme-editor:run` opens the editor in a window. java-library beside it
+    // because the demo takes the editor as a project dependency, to show it as a screen.
     application
 }
 
@@ -21,21 +22,18 @@ dependencies {
     api(project(":limn-toolkit"))
 
     // The backend is for ThemeEditorApp, and for nothing else in this module. compileOnly plus
-    // runtimeOnly rather than implementation, so an application that embeds ThemeEditor compiles
-    // against limn-toolkit alone and never sees the backend's API: the published POM names the
-    // backend at runtime scope, which is what lets `jbang` run the editor from its coordinate, and
-    // an embedding application that brings its own excludes it by name. The consequence is
-    // deliberate and small: ThemeEditorApp is a class that will not load without a backend on
-    // the classpath, which is exactly what running it means.
+    // runtimeOnly rather than implementation: the published POM names the backend at runtime
+    // scope, which is what lets `jbang` run the editor from its coordinate, and the demo, which
+    // shows the editor as a screen, brings its own. ThemeEditorApp is a class that will not load
+    // without a backend on the classpath, which is exactly what running it means.
     compileOnly(project(":limn-backend-lwjgl"))
     runtimeOnly(project(":limn-backend-lwjgl"))
 
-    // The two opt-in faces, so the artifact is COMPLETE when it is run rather than embedded:
-    // the family picker in this screen lists every face the machine has and previews the palette
-    // in it, and a theme editor that draws Chinese, Japanese, Korean or an emoji as an empty box
-    // is not previewing anything. Runtime only, and an application that embeds the editor and
-    // never draws those scripts excludes the two by name; the backend's own note on them
-    // (limn-backend-lwjgl/build.gradle.kts) says what each weighs.
+    // The two opt-in faces, so the program is COMPLETE: the family picker in this screen lists
+    // every face the machine has and previews the palette in it, and a theme editor that draws
+    // Chinese, Japanese, Korean or an emoji as an empty box is not previewing anything. Runtime
+    // only; the backend's own note on them (limn-backend-lwjgl/build.gradle.kts) says what each
+    // weighs.
     runtimeOnly(libs.limn.fonts.noto.cjk)
     runtimeOnly(libs.limn.fonts.noto.emoji)
 
@@ -55,8 +53,7 @@ application {
 // `jbang io.github.limn-toolkit:limn-theme-editor:<version>` opens the editor, with no --main to
 // remember and nothing cloned. The POM that jar ships with names a backend for the machine
 // resolving it and every fallback face (see the root build's host-natives note), which is what
-// makes the coordinate runnable rather than merely resolvable. A Main-Class costs an embedding
-// application nothing: the attribute is read only by a launcher handed the jar itself.
+// makes the coordinate runnable rather than merely resolvable.
 tasks.named<Jar>("jar") {
     manifest {
         attributes(

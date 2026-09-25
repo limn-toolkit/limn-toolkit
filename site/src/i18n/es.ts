@@ -210,9 +210,9 @@ export const es: Catalog = {
   "showcase.threeD.body":
     "Materiales físicamente realistas bajo tres luces, renderizados en un destino lineal de alto rango dinámico y compuestos como una capa 2D. Una vista con desplazamiento la recorta igual que a cualquier otro widget. Arrastra para orbitar, desplaza para acercar.",
 
-  "showcase.editor.heading": "El editor de temas, como un widget que puedes distribuir",
+  "showcase.editor.heading": "El editor de temas, un programa que escribe un archivo",
   "showcase.editor.body":
-    "Una paleta son datos, así que editarla es una pantalla; esta es un módulo que tu aplicación puede incorporar, no una herramienta que vive en nuestro repositorio. Arrastra el control de esquinas y la ventana se re-viste en el mismo fotograma: cada campo, botón y pocillo de la imagen. El informe contiguo mide cada tinta contra toda superficie donde puede caer, así que una paleta que falla en contraste falla a la vista.",
+    "Una paleta son datos, así que editarla es una pantalla; esta es un programa que ejecutas, no una dependencia que carga tu aplicación. Guarda un archivo de tema, que tu aplicación lee con ThemeFormat usando solo limn-toolkit. Arrastra el control de esquinas y la ventana se re-viste en el mismo fotograma: cada campo, botón y pocillo de la imagen. El informe contiguo mide cada tinta contra toda superficie donde puede caer, así que una paleta que falla en contraste falla a la vista.",
   "showcase.density.heading": "Todos los pasos de tamaño",
   "showcase.density.body":
     "Los mismos cinco controles, cinco veces, de XSMALL arriba a XLARGE abajo. A ninguno se le da ancho, tipografía ni relleno: cada fila recibe un tamaño de control y nada más, y el relleno, la tipografía, los radios de esquina y las zonas de pulsación se mueven juntos.",

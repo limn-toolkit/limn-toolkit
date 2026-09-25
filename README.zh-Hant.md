@@ -225,13 +225,13 @@ public static void main(String[] args) {
 
 ## 讓它長成你的樣子
 
-每一種顏色、每一個圓角、每一級尺寸都來自主題，而 `limn-theme-editor` 就是寫主題的那塊畫面。把它嵌進你自己的設定頁，或者直接跑起來：
+每一種顏色、每一個圓角、每一級尺寸都來自主題，而 `limn-theme-editor` 就是寫主題的那個程式。直接跑起來：
 
 ```bash
 jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
-macOS 的開關和上面一樣。它存下來的是純資料，你的應用用 `ThemeFormat` 讀回去。
+macOS 的開關和上面一樣。它存下來的是一個 `.limntheme` 檔案，純資料，你的應用程式用 `limn-toolkit` 裡的 `ThemeFormat` 讀回去。編輯器本身永遠不是你的應用程式的相依項。
 
 ## 模組
 
@@ -241,7 +241,6 @@ macOS 的開關和上面一樣。它存下來的是純資料，你的應用用 `
 | `limn-backend-lwjgl` | 那些 SPI 背後的 GLFW、OpenGL 與 stb |
 | `limn-video-ffmpeg` | 透過 FFmpeg 支援 H.264/HEVC/VP9/VP8 與 AAC/Opus/Vorbis；負載是 `limn-ffmpeg-natives`，版本跟著 FFmpeg 走，每個桌面目標各一個 classifier |
 | `limn-icons-tabler` | Tabler 圖示包，需要就用——如今是獨立的一個成品，版本跟著 Tabler 走（`3.46.0.x` 即 Tabler 3.46.0）|
-| `limn-theme-editor` | 編寫主題的畫面，可嵌入你的應用程式 |
 | `limn-test` | 不需顯示器即可測試你的介面：在場景中點擊、輸入和按鍵的驅動器，無顯示的執行環境與後端，以及元件所遵守的無障礙契約 |
 | `limn-fonts-all` | 泛中日韓字體與彩色表情符號字體（一個從不繪製它們的應用程式不該背負的 26 MB），加上其餘的遞補字體，各自固定在這次發布測試過的版本——每個字體都是獨立的一個成品，版本跟著字型走 |
 

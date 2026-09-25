@@ -210,9 +210,9 @@ export const fr: Catalog = {
   "showcase.threeD.body":
     "Des matériaux physiquement réalistes sous trois lumières, rendus dans une cible linéaire à grande plage dynamique et composés comme une couche 2D. Une vue défilante la rogne comme n’importe quel autre widget. Faites glisser pour orbiter, faites défiler pour zoomer.",
 
-  "showcase.editor.heading": "L'éditeur de thème, comme un widget que vous pouvez livrer",
+  "showcase.editor.heading": "L'éditeur de thème, un programme qui écrit un fichier",
   "showcase.editor.body":
-    "Une palette est une donnée : l'éditer est donc un écran, et celui-ci est un module que votre application peut intégrer, pas un outil qui vit dans notre dépôt. Faites glisser le curseur des angles et la fenêtre se rhabille dans la même image : chaque champ, chaque bouton, chaque puits. Le rapport à côté mesure chaque encre contre toutes les surfaces où elle peut se poser, donc une palette qui échoue au contraste échoue visiblement.",
+    "Une palette est une donnée : l'éditer est donc un écran, et celui-ci est un programme que vous lancez, pas une dépendance que votre application embarque. Il enregistre un fichier de thème, que votre application lit avec ThemeFormat, avec limn-toolkit seul. Faites glisser le curseur des angles et la fenêtre se rhabille dans la même image : chaque champ, chaque bouton, chaque puits. Le rapport à côté mesure chaque encre contre toutes les surfaces où elle peut se poser, donc une palette qui échoue au contraste échoue visiblement.",
   "showcase.density.heading": "Chaque palier de taille",
   "showcase.density.body":
     "Les mêmes cinq contrôles, cinq fois, de XSMALL en haut à XLARGE en bas. Aucun ne reçoit de largeur, de police ni de marge intérieure : chaque rangée reçoit une taille de contrôle et rien d’autre, et les marges, la typographie, les rayons d’angle et les zones de contact bougent ensemble.",

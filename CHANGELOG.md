@@ -6,6 +6,15 @@ Each section is named after the release it follows. It is complete on the day th
 tagged, and no release has to edit this file to rename it; the release on GitHub and the version on
 Maven Central say which number that was.
 
+## After 0.8.0
+
+### Changed
+
+- `limn-theme-editor` is a program, not a library. Run it
+  (`jbang theme-editor@limn-toolkit/limn-toolkit`), save a `.limntheme` file, and load that file
+  with `ThemeFormat`, from `limn-toolkit`; no application depends on the editor. Its package is out
+  of the API reference, and the guides no longer show it as a dependency.
+
 ## After 0.7.0
 
 ### New

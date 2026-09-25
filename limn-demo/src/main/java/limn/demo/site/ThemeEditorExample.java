@@ -19,12 +19,11 @@ import limn.themeeditor.ThemeEditorFiles;
 import java.nio.file.Path;
 
 /**
- * The theme editor as the site captures it: the module's own screen, and nothing this file adds.
+ * The theme editor as the site captures it: the program's own screen, and nothing this file adds.
  *
- * <p>The point of publishing it is that {@code limn-theme-editor} is a <em>module an application
- * opts into</em>, not a program shipped with the toolkit, so the picture has to be the widget an
- * application would embed, arranged the way that application would arrange it, rather than a demo
- * built around it.
+ * <p>The picture is the editor as {@code ThemeEditorApp} opens it, the widget under a title and the
+ * file row, rather than a demo built around it: what the site shows is the program a designer runs
+ * to write a palette file.
  *
  * <p>No explanatory text. The demo's own editor scene carries a paragraph describing what the
  * editor does, which belongs there; on the site that sentence is the page's job, in the page's

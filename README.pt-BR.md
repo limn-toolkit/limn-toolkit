@@ -277,15 +277,15 @@ participam do layout como um rótulo participa.
 ## Deixe com a sua cara
 
 É de um tema que vem cada cor, cada raio de canto e cada passo de tamanho, e o
-`limn-theme-editor` é a tela que escreve um. Embuta na sua própria tela de preferências, ou
-simplesmente rode:
+`limn-theme-editor` é o programa que escreve um. Rode:
 
 ```bash
 jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
-Mesma flag do macOS de cima. O que ele salva é dado puro, que a sua aplicação carrega com
-`ThemeFormat`.
+Mesma flag do macOS de cima. O que ele salva é um arquivo `.limntheme`, dado puro que a sua
+aplicação carrega com o `ThemeFormat` do `limn-toolkit`. O editor em si nunca é dependência da sua
+aplicação.
 
 ## Os módulos
 
@@ -295,7 +295,6 @@ Mesma flag do macOS de cima. O que ele salva é dado puro, que a sua aplicação
 | `limn-backend-lwjgl` | GLFW, OpenGL e stb por trás dessas SPIs |
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 e AAC/Opus/Vorbis via FFmpeg; o payload é `limn-ffmpeg-natives`, que muda de versão junto com o FFmpeg, um classifier por alvo de desktop |
 | `limn-icons-tabler` | o pacote de ícones Tabler, se você quiser — agora um artefato próprio, que muda de versão junto com o Tabler (`3.46.0.x` é Tabler 3.46.0) |
-| `limn-theme-editor` | a tela que cria um tema, embutível na sua aplicação |
 | `limn-test` | testar sua interface sem tela: um driver que clica, digita e pressiona teclas numa cena, um runtime e um backend sem tela, e os contratos de acessibilidade que os widgets cumprem |
 | `limn-fonts-all` | as tipografias pan-CJK e de emoji colorido (26 MB que uma aplicação que nunca as desenha não deveria carregar), mais o resto dos fallbacks, nas versões com que este release foi testado — cada tipografia é um artefato próprio, que muda de versão junto com a fonte |
 

@@ -42,9 +42,11 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
- * The screen an application embeds so that its users can build a palette of their own:
- * every tone of a {@link Theme} on a colour well, a preview that shows all of them at once,
- * and a legibility report that names the unreadable pair before anyone ships it.
+ * The theme editor's screen: every tone of a {@link Theme} on a colour well, a preview that shows
+ * all of them at once, and a legibility report that names the unreadable pair before anyone ships
+ * it. {@link ThemeEditorApp} puts it in a window of its own, and the demo shows it as one of its
+ * screens; no application depends on it. What an application takes from the editor is the value
+ * it writes, a {@link Theme} in {@link ThemeFormat}'s text, which {@code limn-toolkit} reads.
  *
  * <pre>{@code
  * ThemeEditor editor = new ThemeEditor(Theme.current());
@@ -52,19 +54,18 @@ import java.util.function.Consumer;
  * }</pre>
  *
  * <p><b>It applies what it edits, by default.</b> The palette is process-wide, so the
- * honest preview of a change is the application wearing it, including this editor, which
- * re-skins under the user's hands. {@link #setApplyLive} turns that off for an application
- * that cannot afford it; the {@link ThemePreview} beside the tones shows the edited palette
+ * honest preview of a change is the window wearing it, including this editor, which
+ * re-skins under the user's hands. {@link #setApplyLive} turns that off for a screen that
+ * cannot afford it, as the demo's; the {@link ThemePreview} beside the tones shows the edited palette
  * either way, because it paints from the value rather than from {@link Theme#current()}.
  *
  * <p><b>What it does not decide is where a palette lives.</b> Copy and Paste move one
  * through the clipboard as {@link ThemeFormat} text and need nothing from the platform; a
- * file is an application's business, and {@link ThemeEditorFiles} is the optional half that
- * opens a chooser for one.
+ * file goes through {@link ThemeEditorFiles}, the half that opens a chooser for one.
  *
  * <p><b>In another language.</b> The editor ships its captions in English only. Every one is a
- * key that starts with {@code limn.themeEditor.}, and an application translates them in any
- * bundle it registers, the way it translates its own strings:
+ * key that starts with {@code limn.themeEditor.}, so a translation is a bundle registered the
+ * way any other is:
  *
  * <pre>{@code
  * I18n.addBundle(PropertyBundle.family("/com/example/i18n/theme-editor"));

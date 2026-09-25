@@ -282,15 +282,15 @@ dessine par-dessus, et ils participent à la mise en page comme un libellé.
 ## À votre image
 
 C’est d’un thème que viennent chaque couleur, chaque rayon d’angle et chaque pas de taille, et
-`limn-theme-editor` est l’écran qui en écrit un. Intégrez-le à votre propre écran de réglages, ou
-lancez-le tel quel :
+`limn-theme-editor` est le programme qui en écrit un. Lancez-le :
 
 ```bash
 jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
-La même option macOS que ci-dessus. Ce qu’il enregistre est une donnée simple, que votre
-application charge avec `ThemeFormat`.
+La même option macOS que ci-dessus. Ce qu’il enregistre est un fichier `.limntheme`, une donnée
+simple que votre application charge avec `ThemeFormat`, de `limn-toolkit`. L’éditeur lui-même n’est
+jamais une dépendance de votre application.
 
 ## Les modules
 
@@ -300,7 +300,6 @@ application charge avec `ThemeFormat`.
 | `limn-backend-lwjgl` | GLFW, OpenGL et stb derrière ces SPI |
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 et AAC/Opus/Vorbis via FFmpeg ; la charge est `limn-ffmpeg-natives`, versionné avec FFmpeg, un classifier par cible de bureau |
 | `limn-icons-tabler` | le jeu d’icônes Tabler, si vous le voulez — désormais un artefact à part entière, versionné avec Tabler (`3.46.0.x` est Tabler 3.46.0) |
-| `limn-theme-editor` | l’écran qui compose un thème, intégrable dans votre application |
 | `limn-test` | tester votre interface sans écran : un pilote qui clique, saisit du texte et appuie sur des touches dans une scène, un runtime et un backend sans affichage, et les contrats d’accessibilité que respectent les widgets |
 | `limn-fonts-all` | les fontes pan-CJC et emoji couleur (26 Mo qu’une application qui ne les dessine jamais ne devrait pas porter), plus le reste des replis, dans les versions avec lesquelles cette publication a été testée — chaque fonte est un artefact à part entière, versionné avec la fonte |
 

@@ -281,15 +281,15 @@ darüber, und sie nehmen am Layout teil wie eine Beschriftung.
 ## Machen Sie es zu Ihrem
 
 Aus einem Theme kommt jede Farbe, jeder Eckenradius und jede Größenstufe, und
-`limn-theme-editor` ist der Bildschirm, der eines schreibt. Betten Sie ihn in Ihren eigenen
-Einstellungsbildschirm ein, oder starten Sie ihn einfach:
+`limn-theme-editor` ist das Programm, das eines schreibt. Starten Sie es:
 
 ```bash
 jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
-Dieselbe macOS-Option wie oben. Was er speichert, sind schlichte Daten, die Ihre Anwendung mit
-`ThemeFormat` lädt.
+Dieselbe macOS-Option wie oben. Was es speichert, ist eine `.limntheme`-Datei, schlichte Daten, die
+Ihre Anwendung mit `ThemeFormat` aus `limn-toolkit` lädt. Der Editor selbst ist nie eine
+Abhängigkeit Ihrer Anwendung.
 
 ## Die Module
 
@@ -299,7 +299,6 @@ Dieselbe macOS-Option wie oben. Was er speichert, sind schlichte Daten, die Ihre
 | `limn-backend-lwjgl` | GLFW, OpenGL und stb hinter diesen SPIs |
 | `limn-video-ffmpeg` | H.264/HEVC/VP9/VP8 und AAC/Opus/Vorbis über FFmpeg; die Nutzlast ist `limn-ffmpeg-natives`, dessen Version FFmpeg folgt, ein Classifier je Desktop-Ziel |
 | `limn-icons-tabler` | das Tabler-Icon-Paket, falls Sie es wollen — inzwischen ein eigenes Artefakt, dessen Version Tabler folgt (`3.46.0.x` ist Tabler 3.46.0) |
-| `limn-theme-editor` | der Bildschirm, der ein Theme erstellt, einbettbar in Ihre Anwendung |
 | `limn-test` | Tests Ihrer Oberfläche ohne Bildschirm: ein Treiber, der in einer Szene klickt, tippt und Tasten drückt, eine Laufzeit und ein Backend ohne Anzeige, und die Barrierefreiheitsverträge, an denen die Widgets gemessen werden |
 | `limn-fonts-all` | die Pan-CJK- und Farb-Emoji-Schriften (26 MB, die eine Anwendung, die sie nie zeichnet, nicht tragen sollte), dazu die übrigen Fallbacks, in den Versionen, mit denen dieses Release getestet wurde — jede Schrift ein eigenes Artefakt, dessen Version der Schrift folgt |
 

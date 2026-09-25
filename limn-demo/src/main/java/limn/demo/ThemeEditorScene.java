@@ -15,8 +15,8 @@ import limn.themeeditor.ThemeEditor;
 import limn.themeeditor.ThemeEditorFiles;
 
 /**
- * The theme editor, wired the way an application would wire it: the widget, plus the file
- * buttons the module deliberately leaves out of it.
+ * The theme editor as one of the demo's screens: the widget, plus the file row from
+ * {@code ThemeEditorFiles}, as the program itself shows them.
  *
  * <p>It applies what it edits, which is the point: the window this scene is in re-skins
  * under the pointer, editor included, because a palette is process-wide and every widget

@@ -2,6 +2,10 @@
 
 - **Status:** Accepted, 2026-08-10. Implemented as `Theme.Builder`, `Theme.Token` and the
   `limn-theme-editor` module.
+- **Amended** 2026-09-24, by the owner's decision: the editor is a program, not a library an
+  application embeds. No application depends on `limn-theme-editor`; it writes a `.limntheme` file,
+  and the API reference leaves `limn.themeeditor` out. What this record says about the boundary
+  stands, and is now the whole of it: the palette is a value, and the value is what crosses.
 - **Date:** 2026-08-10
 
 ## Context

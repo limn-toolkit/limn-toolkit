@@ -305,7 +305,7 @@ jobs:
           That one line brings \`limn-toolkit\` with it — and the fonts a UI cannot do
           without (Roboto and the complex-script faces, from their own artifacts). Also
           published: \`limn-test\` (drives a UI in a test, with no display),
-          \`limn-theme-editor\`, \`limn-fonts-all\` (opts
+          \`limn-fonts-all\` (opts
           into the pan-CJK and colour-emoji faces at the versions this release was tested
           with), and \`limn-video-ffmpeg\`, whose FFmpeg payload is the separately versioned
           \`limn-ffmpeg-natives\` artifact: add one of its \`natives-<os>-<arch>\` classifiers

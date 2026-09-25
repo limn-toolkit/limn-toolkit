@@ -74,7 +74,6 @@ module com.example.app {
 | `limn.backend.lwjgl` | the LWJGL backend |
 | `limn.video.ffmpeg` | the FFmpeg video decoder |
 | `limn.test` | the test driver and headless doubles |
-| `limn.themeeditor` | the theme editor, as an automatic module |
 
 Packages with `internal` in their name are shared between these modules and are not
 exported to yours. Only the packages a module exports are yours, and only they are in the API

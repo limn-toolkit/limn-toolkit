@@ -268,14 +268,15 @@ NSAccessibility에, Linux에서는 AT-SPI2에 자신을 공개합니다. 그래�
 ## 당신의 것으로
 
 색도, 모서리 반경도, 크기 단계도 모두 테마에서 옵니다. `limn-theme-editor`는 그 테마를 쓰는
-화면입니다. 당신의 설정 화면에 끼워 넣어도 되고, 그냥 실행해도 됩니다.
+프로그램입니다. 실행하기만 하면 됩니다.
 
 ```bash
 jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
-macOS 플래그는 위와 같습니다. 저장되는 것은 평범한 데이터이고, 애플리케이션은 `ThemeFormat`으로
-읽어 들입니다.
+macOS 플래그는 위와 같습니다. 저장되는 것은 `.limntheme` 파일, 즉 평범한 데이터이고, 애플리케이션은
+`limn-toolkit`의 `ThemeFormat`으로 읽어 들입니다. 편집기 자체가 애플리케이션의 의존성이 되는 일은
+없습니다.
 
 ## 모듈
 
@@ -285,7 +286,6 @@ macOS 플래그는 위와 같습니다. 저장되는 것은 평범한 데이터�
 | `limn-backend-lwjgl` | 그 SPI 뒤의 GLFW, OpenGL, stb |
 | `limn-video-ffmpeg` | FFmpeg을 통한 H.264/HEVC/VP9/VP8과 AAC/Opus/Vorbis. 페이로드는 FFmpeg과 함께 버전이 오르는 `limn-ffmpeg-natives`이며, 데스크톱 대상마다 classifier 하나씩 |
 | `limn-icons-tabler` | 원한다면 쓸 수 있는 Tabler 아이콘 팩 — 이제는 Tabler와 함께 버전이 오르는 독립 아티팩트(`3.46.0.x`는 Tabler 3.46.0) |
-| `limn-theme-editor` | 테마를 만드는 화면, 애플리케이션에 넣을 수 있음 |
 | `limn-test` | 화면 없이 UI를 테스트: 씬에서 클릭하고 입력하고 키를 누르는 드라이버, 화면 없는 런타임과 백엔드, 위젯이 지키는 접근성 계약 |
 | `limn-fonts-all` | 범 CJK 서체와 컬러 이모지 서체(그릴 일 없는 앱이 짊어질 이유가 없는 26메가바이트), 거기에 나머지 대체 글꼴까지, 이 릴리스가 테스트된 버전 그대로 — 서체 하나하나가 폰트와 함께 버전이 오르는 독립 아티팩트 |
 

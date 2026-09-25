@@ -456,10 +456,18 @@ async function* htmlFiles(dir) {
  * rather than kept as a list here, because a list would go quietly wrong the day a module is
  * added or renamed, which is exactly the day the staleness check matters most.
  */
+/**
+ * The two programs, whose sources the reference does not document: `documented` in the root
+ * build.gradle.kts leaves the same two out of aggregateJavadoc. Counted here, an edit to the demo
+ * raised the alarm below and the remedy it prints could never clear it, because Gradle rightly
+ * found the tree up to date.
+ */
+const UNDOCUMENTED_MODULES = new Set(["limn-demo", "limn-theme-editor"]);
+
 async function moduleSourceRoots() {
   const roots = [];
   for (const entry of await readdir(REPO_DIR, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
+    if (!entry.isDirectory() || UNDOCUMENTED_MODULES.has(entry.name)) continue;
     const root = path.join(REPO_DIR, entry.name, "src", "main", "java");
     if (existsSync(root)) roots.push(root);
   }

@@ -190,9 +190,9 @@ export const en = {
   "showcase.threeD.body":
     "Physically-based materials under three lights, rendered to a linear high-dynamic-range target and composited as a 2D layer. A scroll view clips it like any other widget. Drag to orbit it, scroll to zoom.",
 
-  "showcase.editor.heading": "The theme editor, as a widget you can ship",
+  "showcase.editor.heading": "The theme editor, a program that writes a file",
   "showcase.editor.body":
-    "A palette is data, so editing one is a screen; this one is a module your application can embed, not a tool that lives in our repository. Drag the corner slider and the window re-skins in the same frame: every field, button and well in the picture. The report beside it measures each ink against every surface it can land on, so a palette that fails contrast fails visibly.",
+    "A palette is data, so editing one is a screen; this one is a program you run, not a dependency your application carries. It saves a theme file, which your application loads with ThemeFormat from limn-toolkit alone. Drag the corner slider and the window re-skins in the same frame: every field, button and well in the picture. The report beside it measures each ink against every surface it can land on, so a palette that fails contrast fails visibly.",
   "showcase.density.heading": "Every size step",
   "showcase.density.body":
     "The same five controls, five times, from XSMALL at the top down to XLARGE at the bottom. Not one of them is given a width, a font or a padding: each row is told a control size and nothing else, and the padding, the type, the corner radii and the hit targets all move together.",

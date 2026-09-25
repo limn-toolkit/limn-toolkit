@@ -210,9 +210,9 @@ export const de: Catalog = {
   "showcase.threeD.body":
     "Physikalisch basierte Materialien unter drei Lichtern, in ein lineares HDR-Ziel gerendert und als 2D-Ebene zusammengesetzt. Eine Scroll-Ansicht beschneidet ihn wie jedes andere Widget. Ziehen zum Kreisen, scrollen zum Zoomen.",
 
-  "showcase.editor.heading": "Der Theme-Editor, als Widget zum Mitliefern",
+  "showcase.editor.heading": "Der Theme-Editor, ein Programm, das eine Datei schreibt",
   "showcase.editor.body":
-    "Eine Palette sind Daten, also ist ihre Bearbeitung ein Bildschirm; dieser ist ein Modul, das Ihre Anwendung einbetten kann, kein Werkzeug, das in unserem Repository lebt. Ziehen Sie den Ecken-Regler, und das Fenster kleidet sich im selben Bild neu ein: jedes Feld, jeder Knopf, jedes Farbfeld. Der Bericht daneben misst jede Tinte gegen jede Fläche, auf der sie landen kann, sodass eine Palette mit zu wenig Kontrast sichtbar scheitert.",
+    "Eine Palette sind Daten, also ist ihre Bearbeitung ein Bildschirm; dieser ist ein Programm, das Sie starten, keine Abhängigkeit, die Ihre Anwendung mitträgt. Er speichert eine Theme-Datei, die Ihre Anwendung mit ThemeFormat liest, allein mit limn-toolkit. Ziehen Sie den Ecken-Regler, und das Fenster kleidet sich im selben Bild neu ein: jedes Feld, jeder Knopf, jedes Farbfeld. Der Bericht daneben misst jede Tinte gegen jede Fläche, auf der sie landen kann, sodass eine Palette mit zu wenig Kontrast sichtbar scheitert.",
   "showcase.density.heading": "Jede Größenstufe",
   "showcase.density.body":
     "Dieselben fünf Bedienelemente, fünfmal, von XSMALL oben bis XLARGE unten. Keinem davon wird eine Breite, eine Schrift oder ein Innenabstand gegeben: jede Zeile bekommt eine Steuergröße und sonst nichts, und Innenabstand, Typografie, Eckradien und Trefferflächen bewegen sich gemeinsam.",

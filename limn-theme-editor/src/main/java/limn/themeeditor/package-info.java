@@ -1,14 +1,14 @@
 /**
- * A screen for authoring a {@link limn.components.Theme}, so that an application's users
- * can build a palette instead of choosing from the fifteen that ship.
+ * The theme editor, a program for authoring a {@link limn.components.Theme} instead of choosing
+ * from the fifteen that ship, and saving it as a {@code .limntheme} file. Not API: no application
+ * depends on this package, and the site's API reference leaves it out.
  *
- * <p>{@link limn.themeeditor.ThemeEditor} is the whole of it for most callers: hand it a
- * palette, embed it, and listen for what comes out. Beside it sit the three pieces it is
- * made of, each usable on its own: {@link limn.themeeditor.ThemePreview}, which paints a
- * palette that is not the process-wide one; {@link limn.themeeditor.ThemeAudit}, which
- * measures a palette against WCAG rather than judging it; and
- * {@link limn.themeeditor.ThemeEditorFiles}, the optional half that opens the platform's
- * file chooser.
+ * <p>{@link limn.themeeditor.ThemeEditorApp} is the program, and
+ * {@link limn.themeeditor.ThemeEditor} its screen, made of three pieces:
+ * {@link limn.themeeditor.ThemePreview}, which paints a palette that is not the process-wide one;
+ * {@link limn.themeeditor.ThemeAudit}, which measures a palette against WCAG rather than judging
+ * it; and {@link limn.themeeditor.ThemeEditorFiles}, which opens the platform's file chooser. The
+ * classes are public so the demo can show the editor as one of its screens.
  *
  * <p><b>Nothing depends on this module, and nothing may.</b> Authoring a palette and
  * wearing one are different jobs: an application ships a {@code Theme}, and the screen that

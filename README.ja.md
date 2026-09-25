@@ -225,13 +225,13 @@ public static void main(String[] args) {
 
 ## 自分の見た目にする
 
-色も角丸もサイズの刻みも、すべてテーマから来ます。`limn-theme-editor` はそれを書くための画面です。自分の設定画面に埋め込んでもいいですし、そのまま起動しても構いません。
+色も角丸もサイズの刻みも、すべてテーマから来ます。`limn-theme-editor` はそれを書くためのプログラムです。起動するだけです。
 
 ```bash
 jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-editor:x.y.z
 ```
 
-macOS のフラグは上と同じです。保存されるのはただのデータで、アプリケーションは `ThemeFormat` で読み込みます。
+macOS のフラグは上と同じです。保存されるのは `.limntheme` ファイル、つまりただのデータで、アプリケーションは `limn-toolkit` の `ThemeFormat` で読み込みます。エディター自体がアプリケーションの依存関係になることはありません。
 
 ## モジュール
 
@@ -241,7 +241,6 @@ macOS のフラグは上と同じです。保存されるのはただのデー�
 | `limn-backend-lwjgl` | その SPI の背後にある GLFW、OpenGL、stb |
 | `limn-video-ffmpeg` | FFmpeg 経由の H.264/HEVC/VP9/VP8 と AAC/Opus/Vorbis。ペイロードは `limn-ffmpeg-natives` で、FFmpeg と一緒に版が進みます。デスクトップ対象ごとに 1 つの classifier |
 | `limn-icons-tabler` | 必要なら使える Tabler のアイコンパック——今では独立した成果物として、Tabler と一緒に版が進みます（`3.46.0.x` は Tabler 3.46.0）|
-| `limn-theme-editor` | テーマを作る画面。あなたのアプリケーションに組み込めます |
 | `limn-test` | 画面なしで UI をテストするためのもの。シーンでクリック・入力・キー操作を行うドライバ、画面を持たないランタイムとバックエンド、ウィジェットが満たすアクセシビリティ契約 |
 | `limn-fonts-all` | 汎 CJK 書体とカラー絵文字書体（それらを描かないアプリが背負うべきではない 26 メガバイト）に、残りのフォールバックを加えたもの。届くのはこのリリースでテストした版で、各書体はそれ自体が独立した成果物として、フォントと一緒に版が進みます |
 

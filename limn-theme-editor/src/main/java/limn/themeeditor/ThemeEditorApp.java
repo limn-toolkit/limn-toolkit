@@ -19,28 +19,23 @@ import limn.scene.layout.Padding;
 import java.nio.file.Path;
 
 /**
- * The theme editor as a program you run, rather than a screen you embed.
- *
- * <p>{@link ThemeEditor} is a widget, and that is the module's whole point: an application drops
- * it into a settings screen and gets palette authoring. But a designer who wants to build a
- * palette should not have to write an application first, so this is the same widget in a window
- * of its own, with nothing around it that the embeddable version does not also offer.
+ * The theme editor, the program: {@link ThemeEditor} in a window of its own, so a designer builds
+ * a palette and saves it as a {@code .limntheme} file without writing an application first. The
+ * application that wears the palette loads that file with {@link limn.components.ThemeFormat} and
+ * never depends on this module.
  *
  * <pre>{@code
  * ./gradlew :limn-theme-editor:run
  * ./gradlew :limn-theme-editor:run --args="brand.limntheme"
  * }</pre>
  *
- * <p><b>The backend is not a dependency of this module's library half.</b> It is
- * {@code compileOnly} plus {@code runtimeOnly}, so this class compiles and runs while the
- * published jar still declares only {@code limn-toolkit}. An application that embeds
- * {@link ThemeEditor} therefore does not inherit a window toolkit it already has, and the module
- * keeps the property its build file opens with: nothing depends on it, and it depends on as
- * little as it can.
+ * <p><b>The backend is this class's alone.</b> It is {@code compileOnly} plus
+ * {@code runtimeOnly}: the published POM names it at runtime scope, which is what lets
+ * {@code jbang} run the editor from its coordinate, and the demo, which shows the editor as one of
+ * its screens, brings its own.
  *
- * <p>Everything here is a call an embedding application would also make. The editor applies what
- * it edits as it is edited, so the window re-skins under the user's hands, which is the honest
- * preview and needs no wiring from this file.
+ * <p>The editor applies what it edits as it is edited, so the window re-skins under the user's
+ * hands, which is the honest preview and needs no wiring from this file.
  */
 public final class ThemeEditorApp {
 
@@ -79,8 +74,8 @@ public final class ThemeEditorApp {
             heading.crossAlignment(Flex.CrossAlignment.CENTER);
             heading.add(Expanded.of(
                     new Label("Theme editor").setRole(Label.Role.TITLE).setStrong(true), 1));
-            // The file row comes from the module rather than from here, because opening and
-            // saving is exactly the part an embedding application is expected to own.
+            // The file row comes from ThemeEditorFiles rather than from here, so the demo's
+            // screen and this window open and save the same way.
             heading.add(ThemeEditorFiles.buttons(editor));
 
             TokenColumn column = new TokenColumn(Tokens.Role.MEDIUM);

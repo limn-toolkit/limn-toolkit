@@ -223,4 +223,4 @@ component chrome and this is the first place the toolkit itself has had to suppl
 translation, unlike every other module. That is a decision with a reason attached in that
 file: what the editor names are the tokens of a design system, and a palette author who
 reads `surfaceRaised` in the API is not helped by a screen that calls it something else.
-Every string is still a key, so an application that disagrees can translate all of them.
+Every string is still a key, so a translation can still cover all of them.
