@@ -8,7 +8,20 @@ Maven Central say which number that was.
 
 ## After 0.8.0
 
+### Fixed
+
+- On Linux, a combo box's list, a menu or any other popup in a window of its own could come up empty
+  but for its highlighted row, and flicker between black and transparent on Wayland. Partial
+  rendering took the window's back buffer to be two frames old, and drivers change how many buffers
+  they use in the middle of a run. The backend now asks the driver, on X11 (`GLX_EXT_buffer_age`)
+  and on Wayland (`EGL_EXT_buffer_age`), and a frame repaints the whole window when the age is
+  unknown or older than the last eight presents. On macOS and Windows, which have no such question,
+  the two-frame assumption stands until it is measured there.
+
 ### Changed
+
+- `limn-backend-lwjgl` depends on `lwjgl-egl` as well, at the same LWJGL version. It is classes
+  only: it binds the system's EGL library and adds no natives jar.
 
 - `limn-theme-editor` is a program, not a library. Run it
   (`jbang theme-editor@limn-toolkit/limn-toolkit`), save a `.limntheme` file, and load that file

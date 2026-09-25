@@ -905,11 +905,17 @@ public final class Scene {
     // is what null meant before: a first frame has no history and repaints everything.
     private final DamageRects pendingDamage = new DamageRects(MAX_DAMAGE_RECTS, false);
     private final DamageRects freshDamage = new DamageRects(MAX_DAMAGE_RECTS, false);
-    private final DamageRects frameDamage1 = new DamageRects(MAX_DAMAGE_RECTS, true); // previous frame's fresh damage
-    private final DamageRects frameDamage2 = new DamageRects(MAX_DAMAGE_RECTS, true); // and the one before it
-    private final DamageRects olderDamage = new DamageRects(MAX_DAMAGE_RECTS, true); // scratch: the two unioned
     private final DamageRects repaintRegion = new DamageRects(MAX_DAMAGE_RECTS, false);
-    private final DamageRects lastRepaintRegion = new DamageRects(MAX_DAMAGE_RECTS, true); // what it repainted
+    // What each of the last PRESENT_HISTORY presents changed, newest at presentHead - 1. Counted in
+    // presents rather than in content frames, because a back buffer's age is: a re-present is a
+    // present that changed nothing, and leaving it out of the history made an age of 2 reach one
+    // content frame too far back (the popups that came up empty on Linux, 2026-09-25).
+    private static final int PRESENT_HISTORY = 8;
+    private final DamageRects[] presentChanges = newPresentHistory();
+    private int presentHead;
+    private int presentsRecorded;
+    private final DamageRects presentChange = new DamageRects(MAX_DAMAGE_RECTS, false); // scratch: this present's
+    private final DamageRects unionScratch = new DamageRects(MAX_DAMAGE_RECTS, false);
     /** Scratch for the clip walk, so damaging a widget makes no object. UI thread only. */
     private final float[] clipScratch = new float[4];
     private final float[] backdropScratch = new float[4];
@@ -917,9 +923,9 @@ public final class Scene {
 
     // Damage-debug flashes: each fresh damage region stays highlighted for
     // DAMAGE_FLASH_SECONDS, fading out. A fading flash changes pixels every
-    // frame, so its rect joins the repaint region while alive, and for two
-    // more frames after it goes (flashPrev1/2), because the double buffers
-    // are two presents apart and both still hold the old highlight.
+    // frame, so its rect is part of what a present changes while alive, and
+    // once more when it goes (flashPrev1: the frame that erases it changed that
+    // area too); the present history then carries it to the older buffers.
     private static final double DAMAGE_FLASH_SECONDS = 1.0;
     private static final long DAMAGE_FLASH_FRAME_MS = 100; // fade heartbeat (~10 fps, debug only)
     private static final int MAX_DAMAGE_FLASHES = 64;
@@ -939,7 +945,6 @@ public final class Scene {
 
     private final List<DamageFlash> damageFlashes = new ArrayList<>();
     private List<Rect> flashPrev1 = List.of(); // flash rects painted on the previous content frame
-    private List<Rect> flashPrev2 = List.of(); // and on the frame before that
 
     /**
      * Enables partial rendering: frames repaint only the damaged region
@@ -979,7 +984,6 @@ public final class Scene {
             if (!enabled) {
                 damageFlashes.clear();
                 flashPrev1 = List.of();
-                flashPrev2 = List.of();
             }
             requestRender(); // full frame: wipes any highlight from both buffers
         }
@@ -3510,50 +3514,47 @@ public final class Scene {
         }
         accessibilityStep(rePresent);
         DamageRects repaint = repaintRegion; // whole = the whole frame, empty = nothing
+        // What this present changes: nothing for a re-present, which draws the same frame again
+        // into whichever buffer the backend hands over; the fresh damage, widened, for a content
+        // frame.
+        DamageRects change = presentChange;
         if (rePresent) {
-            // Identical frame into the other buffer: repaint exactly what the
-            // last content frame painted, so both double buffers converge.
-            if (partialRendering) {
-                repaint.copyFrom(lastRepaintRegion);
-            } else {
-                repaint.setWhole();
-            }
+            change.clear();
         } else {
             DamageRects fresh = freshDamage;
             consumeFreshDamage(canvas, fresh);
-            // Widened BEFORE it is stored as this frame's damage, so the next frame's union
-            // carries the backdrop rects too: the other buffer needs them for the same reason
-            // this one does.
+            // Widened BEFORE it is recorded as this present's change, so the older buffers repaint
+            // the backdrop rects too, for the same reason this one does.
             withBackdropDependants(fresh);
-            // The back buffer holds the frame from bufferAge presents ago, so the damage of every
-            // frame since repaints too (ADR 046 §5): the previous frame's for double buffering,
-            // two frames' for triple, nothing extra for a buffer that keeps its contents, and the
-            // whole frame for a backend that does not know.
-            if (bufferAge <= 1) {
-                repaint.copyFrom(fresh);
-            } else if (bufferAge == 2) {
-                repaint.unionOf(fresh, frameDamage1);
-            } else {
-                olderDamage.unionOf(frameDamage1, frameDamage2);
-                repaint.unionOf(fresh, olderDamage);
-            }
-            frameDamage2.copyFrom(frameDamage1);
-            frameDamage1.copyFrom(fresh);
+            change.copyFrom(fresh);
             if (damageDebug) {
                 List<Rect> flashNow = updateDamageFlashes(fresh.isWhole() ? null : fresh.toList(),
                         canvas);
-                repaint.unionWith(flashNow);
-                repaint.unionWith(flashPrev1);
-                repaint.unionWith(flashPrev2);
-                flashPrev2 = flashPrev1;
+                change.unionWith(flashNow);
+                change.unionWith(flashPrev1); // the frame that erases a flash changes its area
                 flashPrev1 = flashNow;
             }
-            if (!partialRendering || bufferAge <= 0
-                    || repaint.coversWhole(canvas.width(), canvas.height())) {
-                repaint.setWhole();
-            }
-            lastRepaintRegion.copyFrom(repaint);
         }
+        // The back buffer holds the frame from bufferAge presents ago, so this present's change
+        // repaints together with what every present since then changed (ADR 046 §5): nothing more
+        // for a buffer that keeps its contents (1), the last present's for double buffering (2),
+        // two for triple (3), and the whole frame for an age the backend does not know (0) or one
+        // older than the history reaches. A driver may hand over a buffer it has not presented
+        // for twenty frames, and one mid-run switch from one buffer to three is what emptied the
+        // popups on Linux.
+        repaint.copyFrom(change);
+        boolean whole = !partialRendering || bufferAge <= 0 || bufferAge - 1 > PRESENT_HISTORY
+                || bufferAge - 1 > presentsRecorded;
+        for (int k = 0; !whole && k < bufferAge - 1; k++) {
+            unionScratch.unionOf(repaint, presentChanges[Math.floorMod(presentHead - 1 - k, PRESENT_HISTORY)]);
+            repaint.copyFrom(unionScratch);
+        }
+        if (whole || repaint.coversWhole(canvas.width(), canvas.height())) {
+            repaint.setWhole();
+        }
+        presentChanges[presentHead].copyFrom(change);
+        presentHead = (presentHead + 1) % PRESENT_HISTORY;
+        presentsRecorded++;
         if (!rePresent) {
             // Animation state advances once per frame; the per-pass paints
             // below must be pure (a pass per damage rect would double-advance).
@@ -3641,6 +3642,14 @@ public final class Scene {
      * {@code out}: whole = the whole scene, empty = nothing. Rects are clamped and
      * snapped outward to whole logical pixels.
      */
+    private static DamageRects[] newPresentHistory() {
+        DamageRects[] history = new DamageRects[PRESENT_HISTORY];
+        for (int i = 0; i < history.length; i++) {
+            history[i] = new DamageRects(MAX_DAMAGE_RECTS, true); // no history yet: whole
+        }
+        return history;
+    }
+
     private void consumeFreshDamage(Canvas canvas, DamageRects out) {
         float scrimTarget = window != null && window.isModalBlocked() ? SCRIM_MAX_ALPHA : 0f;
         boolean full = fullDamagePending

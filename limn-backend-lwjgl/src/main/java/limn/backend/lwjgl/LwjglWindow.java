@@ -179,12 +179,19 @@ final class LwjglWindow implements NativeWindow {
     private int presentedWidth = -1;
     private int presentedHeight = -1;
 
+    /** Reads the back buffer's age from the driver, on X11 and Wayland; see {@link #bufferAge}. */
+    private final BufferAgeQuery bufferAgeQuery;
+
     /**
-     * How old the back buffer's contents are, for partial rendering. GLFW's contexts
-     * are double buffered and no call here reads the age back, so this says what double buffering
-     * guarantees and nothing more: 2 once two frames of this size have been presented, and 0 — the
-     * whole window — before that, which covers the first frames and every resize, where the back
-     * buffer's contents are undefined.
+     * How old the back buffer's contents are, for partial rendering: what the driver says where it
+     * can ({@link BufferAgeQuery}), and where it cannot, what double buffering guarantees and nothing
+     * more — 2 once two frames of this size have been presented, and 0, the whole window, before
+     * that, which covers the first frames and every resize, where the contents are undefined.
+     *
+     * <p>The driver's word wins because the assumption was measured wrong on Linux: a driver that
+     * answered 1 for twenty frames then switched to three buffers mid-run, and a popup that went on
+     * assuming 2 came up with only its highlighted row drawn. Where no driver answers (macOS,
+     * Windows) the assumption stands until it is measured there.
      */
     private int bufferAge() {
         if (framebufferWidth != presentedWidth || framebufferHeight != presentedHeight) {
@@ -192,9 +199,10 @@ final class LwjglWindow implements NativeWindow {
             presentedHeight = framebufferHeight;
             presentsAtSize = 0;
         }
-        int age = presentsAtSize >= 2 ? 2 : 0;
+        int assumed = presentsAtSize >= 2 ? 2 : 0;
         presentsAtSize++;
-        return age;
+        int told = bufferAgeQuery.age();
+        return told == BufferAgeQuery.UNKNOWN ? assumed : told;
     }
     private boolean rendering;
     private boolean destroyed;
@@ -313,6 +321,8 @@ final class LwjglWindow implements NativeWindow {
         nsglContext = softwareContext;
         makeContextCurrent();
         glCapabilities = GL.createCapabilities();
+        // With the context current, as the query needs; the software macOS context has none to ask.
+        bufferAgeQuery = BufferAgeQuery.forWindow(handle);
         setSwapInterval(1); // vsync
 
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -840,11 +850,12 @@ final class LwjglWindow implements NativeWindow {
             frameRequested = false; // callback may re-request for the next frame
             float scale = effectiveScale();
             presentedOnce = true;
+            int age = bufferAge(); // asked before anything is drawn into the frame
             renderer.beginFrame(framebufferWidth, framebufferHeight, scale, rePresent);
             try {
                 frameCallback.onFrame(renderer,
                         new FrameInfo(framebufferWidth, framebufferHeight, scale, rePresent,
-                                renderer.takeGpuFrameMs(), bufferAge()));
+                                renderer.takeGpuFrameMs(), age));
             } finally {
                 // User code may have switched GL contexts (posting is the
                 // sanctioned path for window creation, but stay safe).

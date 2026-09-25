@@ -22,4 +22,12 @@ class NativesMissingTest {
         assertFalse(error.getMessage().contains("--add-modules"), error.getMessage());
         assertSame(missing, error.getCause());
     }
+
+    /** EGL ships as classes alone; advising an org.lwjgl.egl.natives module would be a second error. */
+    @Test
+    void theModulePathAdviceNamesNoNativesForAModuleThatHasNone() {
+        String line = LwjglBackend.nativesModules(java.util.List.of("limn.toolkit", "org.lwjgl.glfw",
+                "org.lwjgl.egl", "org.lwjgl"));
+        assertTrue(line.equals("org.lwjgl.natives,org.lwjgl.glfw.natives"), line);
+    }
 }

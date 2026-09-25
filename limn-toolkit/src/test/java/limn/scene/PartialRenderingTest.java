@@ -603,6 +603,74 @@ class PartialRenderingTest extends SceneTestBase {
         assertTrue(canvas.fullFramePainted(), "an unknown age repaints the whole window");
     }
 
+    /**
+     * An age older than the history the scene keeps repaints the whole window. A driver on the
+     * Linux guests handed over a buffer it had not presented for twenty frames; treating that age as
+     * three repainted three frames of damage over a buffer that held none of them.
+     */
+    @Test
+    void anAgeOlderThanTheHistoryRepaintsTheWholeWindow() {
+        scene.setPartialRendering(true);
+        frame();
+        frame(); // history settled
+        for (int i = 0; i < 20; i++) {
+            canvas.reset();
+            scene.renderFrame(canvas, false, Float.NaN, 1);
+        }
+        top.invalidate();
+        canvas.reset();
+        scene.renderFrame(canvas, false, Float.NaN, 21);
+        assertTrue(canvas.fullFramePainted(), "a buffer 21 presents old: " + canvas.log);
+    }
+
+    /**
+     * A re-present is a present: the age a backend gives counts it, so the history does too. With
+     * three buffers, a re-present after two content frames has to repaint what both of them changed;
+     * copying the last content frame's region, as double buffering allowed, left the older frame's
+     * change out, and that is how the popups' rows went missing.
+     */
+    @Test
+    void aRePresentRepaintsWhatThePresentsItsBufferMissedChanged() {
+        scene.setPartialRendering(true);
+        frame();
+        frame(); // history settled
+        bottom.invalidate();
+        canvas.reset();
+        scene.renderFrame(canvas, false, Float.NaN, 1);
+        top.invalidate();
+        canvas.reset();
+        scene.renderFrame(canvas, false, Float.NaN, 1); // repaints top alone: a buffer that keeps its contents
+        canvas.reset();
+        scene.renderFrame(canvas, true, Float.NaN, 3); // the backend now hands over a buffer three presents old
+        assertTrue(canvas.partialFramePainted(), canvas.log.toString());
+        assertTrue(coveredBy(canvas.clips, expectedDamage(top)) && coveredBy(canvas.clips, expectedDamage(bottom)),
+                "both content frames' changes: " + canvas.clips);
+    }
+
+    /**
+     * And the history counts re-presents as presents that changed nothing: with double buffering a
+     * content frame after a re-present repaints only its own damage and the re-present's (none),
+     * not the content frame before the re-present, whose buffer already caught up.
+     */
+    @Test
+    void aRePresentCountsAsAPresentThatChangedNothing() {
+        scene.setPartialRendering(true);
+        frame();
+        frame(); // history settled
+        top.invalidate();
+        canvas.reset();
+        scene.renderFrame(canvas, false, Float.NaN, 2);
+        canvas.reset();
+        scene.renderFrame(canvas, true, Float.NaN, 2); // converges the other buffer
+        assertTrue(coveredBy(canvas.clips, expectedDamage(top)), canvas.clips.toString());
+        bottom.invalidate();
+        canvas.reset();
+        scene.renderFrame(canvas, false, Float.NaN, 2);
+        assertTrue(canvas.partialFramePainted(), canvas.log.toString());
+        assertEquals(1, canvas.clips.size(), canvas.clips.toString());
+        assertRectEquals(expectedDamage(bottom), canvas.lastClip);
+    }
+
     private static boolean coveredBy(List<Rect> clips, Rect r) {
         for (Rect c : clips) {
             if (c.x() <= r.x() + EPS && c.y() <= r.y() + EPS

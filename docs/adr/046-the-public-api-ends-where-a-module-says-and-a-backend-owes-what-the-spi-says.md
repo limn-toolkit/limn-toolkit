@@ -189,6 +189,15 @@ scenes of their own. About 1,400 call sites in 140 test files moved from `scene.
 - `FrameInfo` gains `bufferAge`: how many frames old the back buffer's contents are, 0 when unknown.
   Partial rendering repaints what changed across that many frames and the whole window at 0, instead of
   assuming two buffers.
+  *Amended 2026-09-25:* the LWJGL backend then reported a fixed 2, and the scene kept two content
+  frames of history and treated any age from 3 up as 3. Measured on the Linux guests, a driver answered
+  1 for twenty frames, handed over a buffer it had not presented since the first one, and went on
+  alternating 1 and 3; popups in windows of their own came up with only their highlighted row. The
+  backend now reads the age from the driver where it can (`GLX_EXT_buffer_age`, `EGL_EXT_buffer_age`,
+  the latter through `lwjgl-egl`) and keeps the assumption only where no driver answers (macOS,
+  Windows, until measured). The scene records what each of the last eight *presents* changed — a
+  re-present is a present that changed nothing, which is how a backend counts the age — and repaints
+  the whole window for an age of 0 or one older than that history.
 - `WindowInput.mouseButton` gains a click count. The backend counts, with the platform's own
   double-click interval (`[NSEvent doubleClickInterval]` on macOS, `GetDoubleClickTime` on Windows, 500
   ms elsewhere, GLFW having none), and `Table` and `Tree` read the count instead of timing 400 ms

@@ -16,12 +16,13 @@ import limn.internal.lang.Checks;
  *                          by the backend's timer queries; {@link Float#NaN} when
  *                          no new sample is available (results arrive a few frames
  *                          late, and not every backend can measure)
- * @param bufferAge         how many presents old the back buffer's contents are: 1 when it holds the
- *                          previous frame, 2 for ordinary double buffering once two frames of this
- *                          size have been presented, 0 when the backend does not know (the first
- *                          frames, a resize), which repaints the whole window. Partial rendering
- *                          repaints what changed over that many frames instead of
- *                          assuming two buffers everywhere, as it did until 2026-09-22.
+ * @param bufferAge         how many presents old the back buffer's contents are, counting
+ *                          re-presents: 1 when it holds the previous frame, 2 for double buffering,
+ *                          3 for triple, 0 when the backend does not know (the first frames, a
+ *                          resize), which repaints the whole window. A backend reads it from the
+ *                          driver where the platform can say, because drivers change the number of
+ *                          buffers mid-run; partial rendering repaints what changed over that many
+ *                          presents, and the whole window for an age older than the eight it keeps.
  */
 public record FrameInfo(int framebufferWidth, int framebufferHeight, float contentScale,
                         boolean rePresent, float gpuFrameMs, int bufferAge) {

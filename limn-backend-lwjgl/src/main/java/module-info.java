@@ -11,6 +11,7 @@ module limn.backend.lwjgl {
     requires transitive limn.toolkit;
     requires org.lwjgl;
     requires org.lwjgl.glfw;
+    requires org.lwjgl.egl;
     requires org.lwjgl.opengl;
     requires org.lwjgl.openal;
     requires org.lwjgl.stb;

@@ -61,6 +61,10 @@ dependencies {
     implementation(libs.lwjgl.harfbuzz)
     implementation(libs.lwjgl.nanovg) // NanoSVG (rasterizes SVG icons → RGBA, no AWT)
     implementation(libs.lwjgl.tinyfd) // native open/save/folder dialogs (no AWT)
+    // EGL, for one question GLFW does not ask on Wayland: how old the back buffer is
+    // (EGL_EXT_buffer_age). Classes only: it binds the system's libEGL, which the Wayland session
+    // already has, so it adds no natives and is absent from the classifier list below.
+    implementation(libs.lwjgl.egl)
     // MP3 decoding: JLayer is pure Java (no natives), the classic javazoom
     // decoder. NOTE: LGPL-licensed, kept as an isolated jar dependency.
     implementation(libs.jlayer)

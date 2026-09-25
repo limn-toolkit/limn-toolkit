@@ -113,18 +113,32 @@ public final class LwjglBackend implements Backend {
             return new IllegalStateException("LWJGL's native libraries did not load: "
                     + missing.getMessage(), missing);
         }
-        String natives = self.getDescriptor().requires().stream()
-                .map(java.lang.module.ModuleDescriptor.Requires::name)
-                .filter(name -> name.startsWith("org.lwjgl"))
-                .sorted()
-                .map(name -> name + ".natives")
-                .collect(java.util.stream.Collectors.joining(","));
+        String natives = nativesModules(self.getDescriptor().requires().stream()
+                .map(java.lang.module.ModuleDescriptor.Requires::name).toList());
         return new IllegalStateException("LWJGL's native libraries did not load ("
                 + missing.getMessage() + "). limn.backend.lwjgl is running from the module path, "
                 + "where LWJGL's lwjgl-*-natives-<platform> jars are modules that nothing requires "
                 + "and so are never loaded. Put the jars for this platform on the class path, or "
                 + "keep them on the module path and add: --add-modules " + natives, missing);
     }
+
+    /**
+     * The natives modules for a list of required module names: each LWJGL module's name with
+     * {@code .natives} after it, except the ones LWJGL ships as classes alone. EGL is one: it binds
+     * the system's libEGL, and naming a {@code org.lwjgl.egl.natives} that does not exist would turn
+     * the advice into a second error.
+     */
+    static String nativesModules(java.util.List<String> requires) {
+        return requires.stream()
+                .filter(name -> name.startsWith("org.lwjgl"))
+                .filter(name -> !CLASSES_ONLY.contains(name))
+                .sorted()
+                .map(name -> name + ".natives")
+                .collect(java.util.stream.Collectors.joining(","));
+    }
+
+    /** LWJGL modules that ship no natives jar. */
+    private static final java.util.Set<String> CLASSES_ONLY = java.util.Set.of("org.lwjgl.egl");
 
     /**
      * Starts the backend on the calling thread, which becomes the UI thread: loads the native

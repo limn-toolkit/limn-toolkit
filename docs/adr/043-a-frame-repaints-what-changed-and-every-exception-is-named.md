@@ -85,6 +85,9 @@ Stated here because the decision rests on it, and it is spread across `Scene` to
   own box.
 - A frame repaints the union of **this frame's damage and the previous frame's**, because under
   double buffering the back buffer holds the frame from two presents ago.
+  *Superseded in part by [ADR 046](046-the-public-api-ends-where-a-module-says-and-a-backend-owes-what-the-spi-says.md)
+  §5 and its 2026-09-25 amendment:* the backend says how many presents old the buffer is, reading it
+  from the driver where it can, and the repaint covers that many presents, not two.
 - `requestRender()` and every layout, overlay and tooltip path stay full-frame: anything not routed
   through `invalidate()` is conservatively everything.
 
