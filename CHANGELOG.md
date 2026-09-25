@@ -18,6 +18,10 @@ Maven Central say which number that was.
   unknown or older than the last eight presents. macOS and Windows have no such question and keep
   the two-frame assumption, which held there: every frame of the same popup came out whole in seven
   runs on a macOS guest and six on a Windows one.
+- On a Mac without an accelerated OpenGL renderer (a virtual machine, a CI runner), an application
+  aborted every time it ended. The software OpenGL context kept a closed window's view alive until
+  the process ended, and the view still answered input-method questions through a closure into a
+  Java runtime that was shutting down. The view gets its own class back when its window closes.
 - The demo's kitchen window drew black on Wayland, all but its status bar. Its frame callback, like
   the reader driver's and the gallery's, forwarded the re-present flag and the GPU sample to the scene
   and dropped the back buffer's age, which on Wayland is three or four.

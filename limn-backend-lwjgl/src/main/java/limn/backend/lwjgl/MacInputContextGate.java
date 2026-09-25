@@ -109,9 +109,22 @@ final class MacInputContextGate {
         }
     }
 
-    /** Forgets a view whose window is being destroyed. */
+    /**
+     * Gives a view whose window is being destroyed its own class back, and forgets it.
+     *
+     * <p>The class is given back and not merely forgotten because a view outlives its window's
+     * destruction for as long as something holds it: the software OpenGL context of
+     * {@link MacSoftwareGl} does, until an autorelease pool drains at the end of the process. AppKit
+     * then asks the dying view for its {@code -inputContext}, and on this class that is a closure
+     * calling into a Java runtime already shutting down: the process aborted on every exit of a Mac
+     * without an accelerated renderer (2026-09-25, the macOS guest and a host forced onto software).
+     * The accessibility bridge restores the view it swizzles for the same reason.
+     */
     static void forget(long view) {
         off.remove(view);
+        if (view != NULL && gatedClass != NULL && ObjCRuntime.object_getClass(view) == gatedClass) {
+            ObjCRuntime.object_setClass(view, glfwClass);
+        }
     }
 
     private static boolean makeClass(long viewClass) {
