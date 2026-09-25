@@ -2,7 +2,8 @@
  * A small build-time syntax highlighter for the code on the marketing pages.
  *
  * Deliberately tiny and deliberately not a parser. It runs once, at build time, over
- * samples this repository wrote (Java, Kotlin build files and shell), so the failure mode
+ * samples this repository wrote (Java, Kotlin build files, Maven POM fragments and shell), so
+ * the failure mode
  * that rules regex highlighting out for a general-purpose editor (a construct it mis-reads)
  * is a construct we can simply not write. It buys the pages colour without a runtime, a
  * dependency, or a stylesheet with two hundred token classes in it.
@@ -11,7 +12,7 @@
  * highlighter, and /docs/ uses that one.
  */
 
-export type Language = "java" | "kotlin" | "bash" | "text";
+export type Language = "java" | "kotlin" | "xml" | "bash" | "text";
 
 const JAVA_KEYWORDS = new Set([
   "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class",
@@ -55,6 +56,7 @@ function span(kind: string, text: string): string {
  */
 export function highlight(code: string, language: Language): string {
   if (language === "text") return escape(code);
+  if (language === "xml") return highlightXml(code);
   const keywords =
     language === "kotlin" ? KOTLIN_KEYWORDS : language === "java" ? JAVA_KEYWORDS : new Set<string>();
 
@@ -88,6 +90,24 @@ export function highlight(code: string, language: Language): string {
         out += escape(word);
       }
     }
+  }
+  return out + escape(code.slice(last));
+}
+
+/**
+ * A POM fragment: comments recede and tag names take the type colour, the way a declaration's
+ * type does in the Java above it. Only the markup these pages write: no attributes, no CDATA.
+ */
+const XML_PATTERN = /(?<comment><!--[\s\S]*?-->)|(?<tag><\/?[\w.-]+>?|\/?>)/g;
+
+function highlightXml(code: string): string {
+  let out = "";
+  let last = 0;
+  XML_PATTERN.lastIndex = 0;
+  for (let match = XML_PATTERN.exec(code); match !== null; match = XML_PATTERN.exec(code)) {
+    out += escape(code.slice(last, match.index));
+    last = match.index + match[0].length;
+    out += span(match.groups!.comment !== undefined ? "comment" : "type", match[0]);
   }
   return out + escape(code.slice(last));
 }

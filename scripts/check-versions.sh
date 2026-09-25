@@ -15,7 +15,8 @@
 #      literal <version>;
 #   2. every coordinate of an artifact that versions on its OWN cadence (the fonts, the FFmpeg
 #      payload, the icon pack — literals by design, they are pins) says what the version catalog
-#      says, so a catalog bump cannot leave a guide naming yesterday's payload.
+#      says, in a Gradle coordinate or a Maven <artifactId>/<version> pair alike, so a catalog bump
+#      cannot leave a guide naming yesterday's payload.
 #
 # The publish workflow's verify job runs this before anything is built; so does tag-releases.
 set -euo pipefail
@@ -56,7 +57,10 @@ while IFS= read -r file; do
     echo "✗ $file names a literal toolkit version in a Maven <version> (use x.y.z or {{version}})" >&2
     status=1
   fi
-  # 2. Pins must agree with the catalog.
+  # 2. Pins must agree with the catalog, in a Gradle coordinate or in a Maven artifactId and
+  #    version pair, which perl reads back into the coordinate shape so one loop checks both.
+  #    (No comment inside the substitution below: bash 3.2, the one macOS ships, misreads an
+  #    apostrophe in a comment there and the whole check silently passes.)
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
     artifact="${hit#"$GROUP":}"; artifact="${artifact%%:*}"
@@ -68,7 +72,10 @@ while IFS= read -r file; do
       echo "✗ $file names $artifact:$version but gradle/libs.versions.toml pins $expected" >&2
       status=1
     fi
-  done < <(grep -oE "$GROUP:limn-(fonts-[a-z-]+|ffmpeg-natives|icons-tabler):[0-9][0-9.]*[0-9]" "$file" | sort -u)
+  done < <({
+    grep -oE "$GROUP:limn-(fonts-[a-z-]+|ffmpeg-natives|icons-tabler):[0-9][0-9.]*[0-9]" "$file"
+    perl -0777 -ne 'while (/<artifactId>(limn-(?:fonts-[a-z-]+|ffmpeg-natives|icons-tabler))<\/artifactId>\s*<version>([^<]+)<\/version>/g) { print "io.github.limn-toolkit:$1:$2\n" }' "$file"
+  } | sort -u)
 done < <(git ls-files -- '*.md' '*.astro' '*.ts' '*.mdx' | grep -v '^site/src/content/docs/')
 
 if [ "$status" -ne 0 ]; then

@@ -62,6 +62,8 @@ export const en = {
   "home.install.body":
     "No markup language, no annotation processor, no build plugin. Add the backend, which brings the toolkit with it, write plain Java, and you have a window.",
   "home.install.gradleLabel": "build.gradle.kts",
+  "home.install.mavenLabel": "pom.xml",
+  "codeTabs.buildTool": "Build tool",
   "home.install.helloLabel": "Main.java",
   "home.try.macosNote":
     "On macOS the JVM needs <code>-XstartOnFirstThread</code>. It is the one platform quirk you will meet on day one, so it is here rather than three clicks deep.",

@@ -127,6 +127,26 @@ dependencies {
 }
 ```
 
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg</artifactId>
+  <version>x.y.z</version>
+</dependency>
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-ffmpeg-natives</artifactId>
+  <version>7.1.5.1</version>
+  <classifier>natives-macos-aarch64</classifier>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
+
 첫 줄은 자바 코드와, 그와 함께 모든 플랫폼용 JNI 연결 계층을 가져옵니다. 둘째 줄은 FFmpeg
 라이브러리를 가져오는데 — 툴킷이 아니라 FFmpeg과 함께 버전이 오르는 아티팩트인
 `limn-ffmpeg-natives`에서 오므로, Limn을 올려도 캐시에 그대로 남습니다 — 대상마다 classifier
@@ -145,6 +165,21 @@ POM이며, 이 릴리스가 테스트된 페이로드 버전으로 여섯 개를
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
+
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg-natives-all</artifactId>
+  <version>x.y.z</version>
+  <type>pom</type>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
 
 classifier를 빼도 툴킷은 그대로 빌드되고 실행됩니다. 디코더가 어떤 플랫폼을 찾았는지 밝히며
 자신을 쓸 수 없다고 알리고, FFmpeg이 아닌 것은 모두 그대로 동작합니다. 이 FFmpeg 빌드는

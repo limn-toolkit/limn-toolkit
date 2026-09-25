@@ -1,0 +1,75 @@
+/* ==========================================================================
+   Tabs of code: one command per operating system, one dependency block per build tool.
+
+   Shared by the site's own pages (CodeTabs.astro) and the guide (the `{% tabs %}` marker in
+   scripts/sync-docs.mjs), which is why every value here falls back to one the guide defines:
+   the guide runs Starlight's stylesheet, not app.css.
+
+   Radios rather than buttons, so a group is a choice from the keyboard and works with scripting
+   off; src/lib/tabs-script.mjs only keeps groups with the same `data-tabs` key in step. The
+   children are radio, label, radio, label, … then one panel per radio, in the same order, and
+   only the checked radio's panel is laid out, so a Copy copies the chosen block and nothing else.
+   ========================================================================== */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-inline-size: 0;
+}
+
+/* The radios stay in the document for the keyboard and the screen reader; only their boxes are
+   hidden, and the label wearing the focus ring is what a keyboard user sees. */
+.tabs > input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tabs > label {
+  margin: 0;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--rule, color-mix(in srgb, var(--limn-outline) 48%, transparent));
+  border-radius: 999px;
+  color: var(--limn-text-muted);
+  font-family: var(--mono, var(--sl-font-mono));
+  font-size: var(--text-xs, 0.75rem);
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.tabs > label:hover {
+  color: var(--limn-text);
+  border-color: var(--limn-primary);
+}
+
+.tabs > input:checked + label {
+  color: var(--limn-text);
+  border-color: var(--limn-primary);
+  background-color: var(--tint, color-mix(in srgb, var(--limn-primary) 6%, var(--limn-background)));
+}
+
+.tabs > input:focus-visible + label {
+  outline: 2px solid var(--limn-primary);
+  outline-offset: 2px;
+}
+
+.tabs > .tabs__panel {
+  display: none;
+  flex-basis: 100%;
+  min-inline-size: 0;
+  margin: 0.5rem 0 0;
+}
+
+/* The n-th radio shows the n-th panel. Position rather than value, so a group of any two to four
+   choices needs no rule of its own; panels are the only divs among the children, which is what
+   makes nth-of-type count them alone. */
+.tabs > input:nth-of-type(1):checked ~ .tabs__panel:nth-of-type(1),
+.tabs > input:nth-of-type(2):checked ~ .tabs__panel:nth-of-type(2),
+.tabs > input:nth-of-type(3):checked ~ .tabs__panel:nth-of-type(3),
+.tabs > input:nth-of-type(4):checked ~ .tabs__panel:nth-of-type(4) {
+  display: block;
+}

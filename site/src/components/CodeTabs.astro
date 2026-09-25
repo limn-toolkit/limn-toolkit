@@ -1,0 +1,50 @@
+---
+/**
+ * A code sample in two to four forms, one shown at a time: a command per operating system, a
+ * dependency block per build tool. The look and the switching are src/styles/tabs.css, shared
+ * with the guide's `{% tabs %}` marker, and every group with the same `sync` key moves together
+ * (src/lib/tabs-script.mjs).
+ *
+ * Each instance on a page needs its own `name`: it names the radio group and prefixes the ids.
+ */
+import CodeBlock from "./CodeBlock.astro";
+import type { Language } from "../lib/highlight";
+
+interface Props {
+  /** Unique on the page. */
+  name: string;
+  /** Groups with the same key follow each other's choice: "os", "build". */
+  sync: string;
+  /** What the choice is, for a screen reader: "Operating system", "Build tool". */
+  label: string;
+  tabs: ReadonlyArray<{ id: string; label: string; code: string; language: Language; file?: string }>;
+  copyLabel: string;
+  copiedLabel: string;
+}
+
+const { name, sync, label, tabs, copyLabel, copiedLabel } = Astro.props;
+---
+
+<div class="tabs" role="group" aria-label={label} data-tabs={sync}>
+  {
+    tabs.map((tab, index) => (
+      <Fragment>
+        <input type="radio" name={name} id={`${name}-${tab.id}`} value={tab.id} checked={index === 0} />
+        <label for={`${name}-${tab.id}`}>{tab.label}</label>
+      </Fragment>
+    ))
+  }
+  {
+    tabs.map((tab) => (
+      <div class="tabs__panel">
+        <CodeBlock
+          code={tab.code}
+          language={tab.language}
+          file={tab.file}
+          label={copyLabel}
+          copiedLabel={copiedLabel}
+        />
+      </div>
+    ))
+  }
+</div>

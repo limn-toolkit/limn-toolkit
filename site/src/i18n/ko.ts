@@ -82,6 +82,8 @@ export const ko: Catalog = {
   "home.install.body":
     "마크업 언어도, 애너테이션 프로세서도, 빌드 플러그인도 없습니다. 툴킷을 함께 가져오는 백엔드를 추가하고 평범한 자바를 쓰면 창이 생깁니다.",
   "home.install.gradleLabel": "build.gradle.kts",
+  "home.install.mavenLabel": "pom.xml",
+  "codeTabs.buildTool": "빌드 도구",
   "home.install.helloLabel": "Main.java",
   "home.try.macosNote":
     "macOS에서는 JVM에 <code>-XstartOnFirstThread</code>가 필요합니다. 첫날 반드시 만나게 되는 유일한 플랫폼 특이사항이라, 세 번 클릭해야 나오는 곳이 아니라 여기에 적어 두었습니다.",

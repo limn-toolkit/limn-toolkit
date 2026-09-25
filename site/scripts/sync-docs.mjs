@@ -14,6 +14,11 @@
  *    build**, so a renamed method is caught here rather than shipped as an empty block.
  *  - **Screenshots come from the capture run.** `{% shot form %}` expands to the picture the
  *    toolkit rendered of that example, in both palettes, swapped with the theme.
+ *  - **One sample in several forms is one block with tabs.** `{% tabs build Gradle Maven %}`
+ *    (a label with a space in it quoted, as in `{% tabs os "Windows / Linux" macOS %}`),
+ *    then one code fence per label, then `{% endtabs %}`, becomes the same radio tabs the site's
+ *    own pages draw (src/styles/tabs.css), and every group with the same key on a page moves
+ *    together. The fences stay markdown, so the guide's highlighter still colours them.
  *
  * Run: `pnpm sync:docs`, and after `pnpm build:gallery`, which is what writes the snippet
  * and screenshot manifests this reads.
@@ -57,7 +62,7 @@ async function main() {
     // a guide never carries the number, so a release never has to rewrite one.
     const source = fillVersion(await readFile(path.join(GUIDE_DIR, name), "utf8"), version);
     const route = name === "index.md" ? "index" : name.replace(/\.md$/, "");
-    const body = expand(source, name, snippets, shots, problems);
+    const body = expand(tabGroups(source, name, problems), name, snippets, shots, problems);
     await writeFile(path.join(OUT_DIR, `${route}.md`), body, "utf8");
   }
 
@@ -74,6 +79,83 @@ async function readJson(file, what) {
     fail(`no ${what} at ${file}\n  run: pnpm build:gallery`);
   }
   return JSON.parse(await readFile(file, "utf8"));
+}
+
+/** What each tab key chooses, for a screen reader; the guide is written in English only. */
+const TAB_CHOICES = { build: "Build tool", os: "Operating system" };
+
+/**
+ * `{% tabs <key> <Label> <Label>… %}` … `{% endtabs %}`: each code fence between the two becomes
+ * a panel, in the order of the labels. Raw HTML around untouched fences, with a blank line on
+ * either side of each fence so markdown still reads it as code; an indented marker (a group
+ * inside a list item) indents the HTML it writes the same way.
+ */
+function tabGroups(source, file, problems) {
+  const out = [];
+  let group = null;
+  let inFence = false;
+  let count = 0;
+  for (const line of source.split("\n")) {
+    const fence = /^\s*```/.test(line);
+    if (!group) {
+      if (fence) inFence = !inFence;
+      const open = !inFence && !fence && line.match(/^(\s*)\{%\s*tabs\s+(\S+)((?:\s+\S+)+?)\s*%\}\s*$/);
+      if (!open) {
+        out.push(line);
+        continue;
+      }
+      count += 1;
+      const [, indent, key, rest] = open;
+      // A label with a space in it is quoted: {% tabs os "Windows / Linux" macOS %}.
+      const labels = [...rest.matchAll(/"([^"]+)"|(\S+)/g)].map((match) => match[1] ?? match[2]);
+      const choice = TAB_CHOICES[key];
+      if (!choice) problems.push(`${file}: {% tabs ${key} %} is not a key the site knows`);
+      group = { indent, key, labels, panels: 0 };
+      const name = `tabs-${count}`;
+      out.push("", `${indent}<div class="tabs not-content" role="group" aria-label="${choice ?? key}" data-tabs="${key}">`);
+      labels.forEach((label, index) => {
+        // The site's own pages use the same values ("gradle", "windows-linux", "macos"), which
+        // is what the Mac pre-selection in tabs-script.mjs looks for.
+        const value = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        out.push(
+          `${indent}<input type="radio" name="${name}" id="${name}-${value}" value="${value}"` +
+            `${index === 0 ? " checked" : ""}><label for="${name}-${value}">${label}</label>`,
+        );
+      });
+      continue;
+    }
+    if (!inFence && /^\s*\{%\s*endtabs\s*%\}\s*$/.test(line)) {
+      if (group.panels !== group.labels.length) {
+        problems.push(
+          `${file}: {% tabs ${group.key} %} names ${group.labels.length} tab(s) and holds ` +
+            `${group.panels} code block(s)`,
+        );
+      }
+      out.push(`${group.indent}</div>`, "");
+      group = null;
+      continue;
+    }
+    if (fence && !inFence) {
+      inFence = true;
+      out.push(`${group.indent}<div class="tabs__panel">`, "", line);
+      continue;
+    }
+    if (fence) {
+      inFence = false;
+      group.panels += 1;
+      out.push(line, "", `${group.indent}</div>`);
+      continue;
+    }
+    if (inFence) {
+      out.push(line);
+      continue;
+    }
+    if (line.trim() !== "") {
+      problems.push(`${file}: only code blocks go inside {% tabs %}; found "${line.trim()}"`);
+    }
+  }
+  if (group) problems.push(`${file}: {% tabs ${group.key} %} is never closed`);
+  return out.join("\n");
 }
 
 /**

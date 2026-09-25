@@ -80,6 +80,8 @@ export const zhHant: Catalog = {
   "home.install.body":
     "沒有標記語言，沒有註解處理器，沒有建置外掛。加上後端，它會把工具組一起帶來，寫普通的 Java，你就有了一個視窗。",
   "home.install.gradleLabel": "build.gradle.kts",
+  "home.install.mavenLabel": "pom.xml",
+  "codeTabs.buildTool": "建置工具",
   "home.install.helloLabel": "Main.java",
   "home.try.macosNote":
     "在 macOS 上，JVM 需要 <code>-XstartOnFirstThread</code>。這是你第一天就會遇到的唯一平台怪癖，所以它寫在這裡，而不是三次點擊之外。",

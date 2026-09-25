@@ -112,6 +112,26 @@ dependencies {
 }
 ```
 
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg</artifactId>
+  <version>x.y.z</version>
+</dependency>
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-ffmpeg-natives</artifactId>
+  <version>7.1.5.1</version>
+  <classifier>natives-macos-aarch64</classifier>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
+
 1 行目は Java と、それに伴ってすべてのプラットフォーム向けの JNI シムを持ってきます。2 行目は FFmpeg のライブラリを持ってきます——`limn-ffmpeg-natives` という、ツールキットではなく FFmpeg と一緒に版が進む成果物からで、Limn をアップグレードしてもキャッシュに残り続けます——対象ごとに 1 つの classifier なので、1 台のマシンがダウンロードするのは 6 つすべてではなく 2 メガバイトほどで済みます。
 
 ```
@@ -124,6 +144,21 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
+
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg-natives-all</artifactId>
+  <version>x.y.z</version>
+  <type>pom</type>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
 
 classifier を書かないままでも、ツールキットはビルドも実行もできます。デコーダーは、探したプラットフォームの名を挙げて自身が利用できないことを報告し、FFmpeg でないものはすべてそのまま動きます。FFmpeg のビルドは LGPL-2.1-or-later で、動的リンクで差し替え可能であり、ライセンス本文をそれを収める jar の中に併せて運びます。
 

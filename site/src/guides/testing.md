@@ -8,11 +8,21 @@ A Limn screen can be tested the way a user uses it, with no window, no GPU and n
 lands where the layout put the widget, text arrives one character at a time, and Enter is a
 key. What the test then checks is what a user would see.
 
-```kotlin
+{% tabs build Gradle Maven %}
+```kotlin title="build.gradle.kts"
 dependencies {
     testImplementation("io.github.limn-toolkit:limn-test:{{version}}")
 }
 ```
+```xml title="pom.xml"
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-test</artifactId>
+  <version>{{version}}</version>
+  <scope>test</scope>
+</dependency>
+```
+{% endtabs %}
 
 It depends on `limn-toolkit` and on nothing else. It brings no test framework, so it works
 under JUnit, TestNG or a `main` method alike.

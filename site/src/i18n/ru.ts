@@ -82,6 +82,8 @@ export const ru: Catalog = {
   "home.install.body":
     "Никакого языка разметки, никакого обработчика аннотаций, никакого плагина сборки. Добавьте бэкенд, который тянет тулкит за собой, напишите обычный Java-код, и у вас есть окно.",
   "home.install.gradleLabel": "build.gradle.kts",
+  "home.install.mavenLabel": "pom.xml",
+  "codeTabs.buildTool": "Система сборки",
   "home.install.helloLabel": "Main.java",
   "home.try.macosNote":
     "На macOS JVM требуется <code>-XstartOnFirstThread</code>. Это единственная особенность платформы, с которой вы столкнётесь в первый же день, поэтому она здесь, а не в трёх кликах отсюда.",

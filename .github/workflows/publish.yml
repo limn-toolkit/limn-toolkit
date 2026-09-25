@@ -289,6 +289,19 @@ jobs:
           }
           \`\`\`
 
+          <details>
+          <summary>Maven</summary>
+
+          \`\`\`xml
+          <dependency>
+            <groupId>io.github.limn-toolkit</groupId>
+            <artifactId>limn-backend-lwjgl</artifactId>
+            <version>$VERSION</version>
+          </dependency>
+          \`\`\`
+
+          </details>
+
           That one line brings \`limn-toolkit\` with it — and the fonts a UI cannot do
           without (Roboto and the complex-script faces, from their own artifacts). Also
           published: \`limn-test\` (drives a UI in a test, with no display),

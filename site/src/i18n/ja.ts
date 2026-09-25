@@ -81,6 +81,8 @@ export const ja: Catalog = {
   "home.install.body":
     "マークアップ言語も、アノテーションプロセッサーも、ビルドプラグインもありません。ツールキットを連れてくるバックエンドを追加して素の Java を書けば、ウィンドウができます。",
   "home.install.gradleLabel": "build.gradle.kts",
+  "home.install.mavenLabel": "pom.xml",
+  "codeTabs.buildTool": "ビルドツール",
   "home.install.helloLabel": "Main.java",
   "home.try.macosNote":
     "macOS では JVM に <code>-XstartOnFirstThread</code> が必要です。初日に必ず出会う唯一のプラットフォーム固有の癖なので、3 クリック先ではなくここに書いてあります。",

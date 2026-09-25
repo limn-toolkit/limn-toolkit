@@ -82,6 +82,8 @@ export const fr: Catalog = {
   "home.install.body":
     "Pas de langage de balisage, pas de processeur d’annotations, pas de greffon de build. Ajoutez le backend, qui apporte la boîte à outils avec lui, écrivez du Java ordinaire, et vous avez une fenêtre.",
   "home.install.gradleLabel": "build.gradle.kts",
+  "home.install.mavenLabel": "pom.xml",
+  "codeTabs.buildTool": "Outil de build",
   "home.install.helloLabel": "Main.java",
   "home.try.macosNote":
     "Sur macOS, la JVM a besoin de <code>-XstartOnFirstThread</code>. C’est la seule particularité de plateforme que vous rencontrerez dès le premier jour : elle est donc ici, et non à trois clics de profondeur.",

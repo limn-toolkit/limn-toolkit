@@ -112,6 +112,26 @@ dependencies {
 }
 ```
 
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg</artifactId>
+  <version>x.y.z</version>
+</dependency>
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-ffmpeg-natives</artifactId>
+  <version>7.1.5.1</version>
+  <classifier>natives-macos-aarch64</classifier>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
+
 第一行帶來 Java 的部分，連同每個平台的 JNI 墊片。第二行帶來 FFmpeg 的原生庫——來自 `limn-ffmpeg-natives`，一個版本跟著 FFmpeg 而不是跟著工具組走的成品，所以 Limn 升級時它仍留在你的快取裡——每個目標各一個 classifier，所以一台機器下載的大約是兩 MB，而不是全部六份：
 
 ```
@@ -124,6 +144,21 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
+
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg-natives-all</artifactId>
+  <version>x.y.z</version>
+  <type>pom</type>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
 
 把 classifier 留空，工具組照樣建置、照樣執行：解碼器會回報自己不可用，並說出它找過的平台，而所有不屬於 FFmpeg 的東西都繼續運作。這份 FFmpeg 建置採用 LGPL-2.1-或更高版本，動態連結且可替換，並在裝著它的 jar 裡帶著授權條款全文。
 

@@ -129,6 +129,26 @@ dependencies {
 }
 ```
 
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg</artifactId>
+  <version>x.y.z</version>
+</dependency>
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-ffmpeg-natives</artifactId>
+  <version>7.1.5.1</version>
+  <classifier>natives-macos-aarch64</classifier>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
+
 The first line brings the Java and, with it, the JNI shim for every platform. The second brings
 the FFmpeg libraries — from `limn-ffmpeg-natives`, an artifact that versions with FFmpeg rather
 than with the toolkit, so it stays in your cache across Limn upgrades — one classifier per target,
@@ -147,6 +167,21 @@ you naming several classifiers, either — a bundle for two targets takes two.
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
+
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg-natives-all</artifactId>
+  <version>x.y.z</version>
+  <type>pom</type>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
 
 Leave the classifier out and the toolkit still builds and runs: the decoder reports itself
 unavailable, naming the platform it looked for, and everything that is not FFmpeg keeps working.

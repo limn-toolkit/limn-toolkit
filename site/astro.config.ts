@@ -3,6 +3,7 @@ import starlight from "@astrojs/starlight";
 import sitemap from "@astrojs/sitemap";
 import { DEFAULT_LOCALE } from "./src/lib/i18n";
 import { THEME_COLOR_SCRIPT } from "./src/lib/theme-script.mjs";
+import { TABS_SCRIPT } from "./src/lib/tabs-script.mjs";
 import { apiSitemapUrls } from "./scripts/api-sitemap.mjs";
 
 // `site` and `base` come from the environment and from nowhere else. On
@@ -61,7 +62,11 @@ export default defineConfig({
       // The guide runs Starlight's own layout, not this site's, so the browser-chrome tint has to
       // be injected here as well, using the same one definition, not a second copy. Starlight already
       // stamps `data-theme` from the same storage key, which is what the script watches.
-      head: [{ tag: "script", content: THEME_COLOR_SCRIPT }],
+      head: [
+        { tag: "script", content: THEME_COLOR_SCRIPT },
+        // The tab groups the `{% tabs %}` marker writes: the same script as the site's own pages.
+        { tag: "script", content: TABS_SCRIPT },
+      ],
       // The guide keeps Starlight's frame (sidebar, table of contents, search) and gets
       // the site's own bar in place of the default one, so that /docs/ is the same product
       // as the page it was linked from rather than a documentation theme beside it. The

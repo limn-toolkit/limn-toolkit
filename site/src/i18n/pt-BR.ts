@@ -82,6 +82,8 @@ export const ptBR: Catalog = {
   "home.install.body":
     "Sem linguagem de marcação, sem processador de anotações, sem plugin de build. Adicione o backend, que traz o toolkit junto, escreva Java puro e você tem uma janela.",
   "home.install.gradleLabel": "build.gradle.kts",
+  "home.install.mavenLabel": "pom.xml",
+  "codeTabs.buildTool": "Ferramenta de build",
   "home.install.helloLabel": "Main.java",
   "home.try.macosNote":
     "No macOS a JVM precisa de <code>-XstartOnFirstThread</code>. É a única peculiaridade de plataforma que você encontra no primeiro dia, então ela está aqui e não a três cliques de distância.",

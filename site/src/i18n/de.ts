@@ -82,6 +82,8 @@ export const de: Catalog = {
   "home.install.body":
     "Keine Auszeichnungssprache, kein Annotation Processor, kein Build-Plugin. Das Backend hinzufügen, das das Toolkit mitbringt, einfaches Java schreiben, und Sie haben ein Fenster.",
   "home.install.gradleLabel": "build.gradle.kts",
+  "home.install.mavenLabel": "pom.xml",
+  "codeTabs.buildTool": "Build-Werkzeug",
   "home.install.helloLabel": "Main.java",
   "home.try.macosNote":
     "Unter macOS braucht die JVM <code>-XstartOnFirstThread</code>. Das ist die eine Plattform-Eigenheit, die Ihnen am ersten Tag begegnet; deshalb steht sie hier und nicht drei Klicks tiefer.",

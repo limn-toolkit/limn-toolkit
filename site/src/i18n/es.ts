@@ -82,6 +82,8 @@ export const es: Catalog = {
   "home.install.body":
     "Sin lenguaje de marcado, sin procesador de anotaciones, sin complemento de compilación. Añade el backend, que trae el kit consigo, escribe Java normal y ya tienes una ventana.",
   "home.install.gradleLabel": "build.gradle.kts",
+  "home.install.mavenLabel": "pom.xml",
+  "codeTabs.buildTool": "Herramienta de compilación",
   "home.install.helloLabel": "Main.java",
   "home.try.macosNote":
     "En macOS la JVM necesita <code>-XstartOnFirstThread</code>. Es la única peculiaridad de plataforma con la que te toparás el primer día, así que está aquí y no a tres clics de distancia.",

@@ -130,6 +130,26 @@ dependencies {
 }
 ```
 
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg</artifactId>
+  <version>x.y.z</version>
+</dependency>
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-ffmpeg-natives</artifactId>
+  <version>7.1.5.1</version>
+  <classifier>natives-macos-aarch64</classifier>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
+
 السطر الأول يجلب شيفرة Java، ومعها طبقة JNI الوسيطة لكل منصة. والثاني يجلب مكتبات FFmpeg — من
 `limn-ffmpeg-natives`، وهي أداة تتبع إصداراتها FFmpeg لا الطقم، فتبقى في ذاكرتك المؤقتة عبر
 ترقيات Limn — بمصنِّف واحد لكل هدف، فينزّل الجهاز نحو ميغابايتين بدلًا من الستة
@@ -148,6 +168,21 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
+
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg-natives-all</artifactId>
+  <version>x.y.z</version>
+  <type>pom</type>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
 
 اترك المصنِّف خارجًا ويبقى الطقم يُبنى ويعمل: يعلن مفكك الترميز أنه غير متاح، مسمّيًا المنصة
 التي بحث عنها، ويبقى كل ما ليس FFmpeg يعمل. نسخة FFmpeg المبنية مرخّصة بـ LGPL-2.1-or-later،

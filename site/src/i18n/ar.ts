@@ -83,6 +83,8 @@ export const ar: Catalog = {
   "home.install.body":
     "لا لغة ترميز، ولا معالج تعليقات توضيحية، ولا إضافة بناء. أضف الخلفية، وهي تجلب الطقم معها، واكتب Java عادية، وستحصل على نافذة.",
   "home.install.gradleLabel": "build.gradle.kts",
+  "home.install.mavenLabel": "pom.xml",
+  "codeTabs.buildTool": "أداة البناء",
   "home.install.helloLabel": "Main.java",
   "home.try.macosNote":
     "على macOS تحتاج آلة JVM إلى <code>-XstartOnFirstThread</code>. هذه هي غرابة المنصة الوحيدة التي ستقابلها في يومك الأول، ولذلك هي هنا لا على بُعد ثلاث نقرات.",

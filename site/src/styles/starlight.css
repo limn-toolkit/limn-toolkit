@@ -6,6 +6,7 @@
 /* The top bar's one stylesheet: the guide renders the same bar as the marketing pages and
    as the API reference, and this is where that look is written. */
 @import "./bar.css";
+@import "./tabs.css";
 
 :root,
 :root[data-theme="dark"],

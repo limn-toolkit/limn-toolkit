@@ -131,6 +131,26 @@ dependencies {
 }
 ```
 
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg</artifactId>
+  <version>x.y.z</version>
+</dependency>
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-ffmpeg-natives</artifactId>
+  <version>7.1.5.1</version>
+  <classifier>natives-macos-aarch64</classifier>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
+
 La primera línea trae el Java y, con él, la capa JNI para todas las plataformas. La segunda trae
 las bibliotecas de FFmpeg — de `limn-ffmpeg-natives`, un artefacto que cambia de versión con FFmpeg
 y no con el kit, de modo que sigue en tu caché de una actualización de Limn a otra — con un
@@ -150,6 +170,21 @@ lleva dos.
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
+
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg-natives-all</artifactId>
+  <version>x.y.z</version>
+  <type>pom</type>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
 
 Omite el clasificador y el kit sigue compilando y ejecutándose: el decodificador se declara no
 disponible, nombrando la plataforma que buscó, y todo lo que no es FFmpeg sigue funcionando. La

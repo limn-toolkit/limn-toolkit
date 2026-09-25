@@ -131,6 +131,26 @@ dependencies {
 }
 ```
 
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg</artifactId>
+  <version>x.y.z</version>
+</dependency>
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-ffmpeg-natives</artifactId>
+  <version>7.1.5.1</version>
+  <classifier>natives-macos-aarch64</classifier>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
+
 Первая строка приносит Java-код и вместе с ним JNI-прослойку для всех платформ. Вторая приносит
 библиотеки FFmpeg — из `limn-ffmpeg-natives`, артефакта, версия которого идёт вместе с FFmpeg, а не
 с тулкитом, поэтому он остаётся в вашем кэше при обновлениях Limn — по одному классификатору на
@@ -150,6 +170,21 @@ natives-linux-aarch64    natives-macos-aarch64    natives-windows-aarch64
 ```kotlin
 runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:x.y.z")
 ```
+
+<details>
+<summary>Maven</summary>
+
+```xml
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-video-ffmpeg-natives-all</artifactId>
+  <version>x.y.z</version>
+  <type>pom</type>
+  <scope>runtime</scope>
+</dependency>
+```
+
+</details>
 
 Не указывайте классификатор вовсе — тулкит всё равно соберётся и запустится: декодер сообщит, что
 недоступен, и назовёт платформу, которую искал, а всё, что не FFmpeg, продолжит работать. Сборка

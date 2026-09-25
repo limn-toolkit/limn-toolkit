@@ -39,9 +39,18 @@ own — one enum constant per icon, drawn through the same `SvgIcon`. It is vers
 rather than with the toolkit (`3.46.0.x` is Tabler 3.46.0), so it stays in your cache across
 Limn upgrades:
 
-```kotlin
+{% tabs build Gradle Maven %}
+```kotlin title="build.gradle.kts"
 implementation("io.github.limn-toolkit:limn-icons-tabler:3.46.0.0")
 ```
+```xml title="pom.xml"
+<dependency>
+  <groupId>io.github.limn-toolkit</groupId>
+  <artifactId>limn-icons-tabler</artifactId>
+  <version>3.46.0.0</version>
+</dependency>
+```
+{% endtabs %}
 
 ## Sound
 
@@ -87,13 +96,38 @@ part in layout like a label does. The decoder behind it is a separate concern:
   keeps working. They are LGPL (version 2.1 or later) and each jar carries the licence text and
   notice alongside them; [Packaging](/docs/packaging/) has what shipping them means.
 
-  ```kotlin
+  {% tabs build Gradle Maven %}
+  ```kotlin title="build.gradle.kts"
   implementation("io.github.limn-toolkit:limn-video-ffmpeg:{{version}}")
   // A build for one known machine takes the payload's classifier for it:
   runtimeOnly("io.github.limn-toolkit:limn-ffmpeg-natives:7.1.5.1:natives-macos-aarch64")
   // A bundle that ships everywhere takes the POM that names all six:
   runtimeOnly("io.github.limn-toolkit:limn-video-ffmpeg-natives-all:{{version}}")
   ```
+  ```xml title="pom.xml"
+  <dependency>
+    <groupId>io.github.limn-toolkit</groupId>
+    <artifactId>limn-video-ffmpeg</artifactId>
+    <version>{{version}}</version>
+  </dependency>
+  <!-- A build for one known machine takes the payload's classifier for it: -->
+  <dependency>
+    <groupId>io.github.limn-toolkit</groupId>
+    <artifactId>limn-ffmpeg-natives</artifactId>
+    <version>7.1.5.1</version>
+    <classifier>natives-macos-aarch64</classifier>
+    <scope>runtime</scope>
+  </dependency>
+  <!-- A bundle that ships everywhere takes the POM that names all six: -->
+  <dependency>
+    <groupId>io.github.limn-toolkit</groupId>
+    <artifactId>limn-video-ffmpeg-natives-all</artifactId>
+    <version>{{version}}</version>
+    <type>pom</type>
+    <scope>runtime</scope>
+  </dependency>
+  ```
+  {% endtabs %}
 
 Subtitles ride along with the video's own container: select the track before you start
 reading, and the player hands you timed text to draw however your design wants it.
