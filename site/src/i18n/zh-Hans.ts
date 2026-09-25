@@ -60,6 +60,9 @@ export const zhHans: Catalog = {
   "home.hero.cta": "开始使用",
   "home.hero.secondary": "浏览组件",
   "home.hero.meta": "JDK 17 · Windows、macOS、Linux · Apache-2.0",
+  "home.hero.built":
+    "用 Claude Code 公开地做出来：代码由 Claude 编写，由人来把握方向、做验证。造它的代价已经付过了，你不必再付一次。",
+  "home.hero.builtLink": "Limn 是怎么做出来的",
   "home.hero.caption": "本次构建期间由 Limn 渲染的演示应用。",
 
   "home.try.heading": "立刻试试",
@@ -143,6 +146,16 @@ export const zhHans: Catalog = {
   "home.accessibility.link": "阅读无障碍指南",
   "home.accessibility.caption":
     "上面的表单，正如屏幕阅读器被告知的那样，在本次构建中捕获。",
+
+  "home.built.eyebrow": "公开",
+  "home.built.heading": "Limn 是怎么做出来的",
+  "home.built.intro":
+    "Limn 的代码由 Anthropic 的模型 Claude 在 Claude Code 中编写，由人来把握方向并加以验证。我们一开始就说明这一点，因为你会想知道。",
+  "home.built.method":
+    "把握方向，指的是每一项设计决定都先在 <code>docs/adr</code> 里写成文字、经过论证并被接受，然后才有代码。加以验证，指的是每一次改动都要跑过比代码本身还庞大的测试套件；无障碍不靠假设，而是真的去听——让 NVDA、VoiceOver 和 Orca 在 Windows、macOS 和 Linux 上朗读真实的窗口；代码也经过了多轮关于正确性、性能和 API 设计的审查。",
+  "home.built.cost":
+    "走到这一步，用了成千上万次模型调用和数以百万计的生成 token。按 COCOMO II 估算模型，不算测试，这十余万行代码相当于一支约二十人的团队两年多的工作量。这份工作已经做完了。你可以在它之上构建，而不必重做一遍。",
+  "home.built.link": "阅读设计记录",
 
   "home.closing.heading": "五分钟，让窗口出现在屏幕上",
   "home.closing.body":

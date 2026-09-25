@@ -62,6 +62,9 @@ export const ptBR: Catalog = {
   "home.hero.cta": "Começar",
   "home.hero.secondary": "Ver os componentes",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
+  "home.hero.built":
+    "Feito às claras com o Claude Code: o Claude escreveu, pessoas dirigiram e verificaram. O que custou para construir já está pago, então você não precisa pagar de novo.",
+  "home.hero.builtLink": "Como o Limn é feito",
   "home.hero.caption": "A aplicação de demonstração, renderizada pelo Limn durante este build.",
 
   "home.try.heading": "Teste agora",
@@ -145,6 +148,16 @@ export const ptBR: Catalog = {
   "home.accessibility.link": "Leia o guia de acessibilidade",
   "home.accessibility.caption":
     "O formulário acima, como um leitor de tela o ouve, capturado durante este build.",
+
+  "home.built.eyebrow": "Às claras",
+  "home.built.heading": "Como o Limn é feito",
+  "home.built.intro":
+    "O código do Limn é escrito pelo Claude, o modelo da Anthropic, no Claude Code, e dirigido e verificado por pessoas. Dizemos isso logo de cara porque você ia querer saber.",
+  "home.built.method":
+    "Dirigido quer dizer que cada decisão de design é um registro escrito em <code>docs/adr</code>, discutido e aceito antes do código. Verificado quer dizer que toda mudança roda contra uma suíte de testes maior que o próprio código; que a acessibilidade foi ouvida, não presumida, com NVDA, VoiceOver e Orca lendo janelas reais no Windows, no macOS e no Linux; e que o código passou por auditorias repetidas de correção, desempenho e design de API.",
+  "home.built.cost":
+    "Chegar até aqui levou milhares de chamadas ao modelo e milhões de tokens gerados. Pelo modelo de estimativa COCOMO II, as mais de cem mil linhas de código, sem contar os testes, equivalem ao trabalho de uma equipe de cerca de vinte pessoas por mais de dois anos. Esse trabalho está feito. Você pode construir em cima dele em vez de refazê-lo.",
+  "home.built.link": "Leia os registros de design",
 
   "home.closing.heading": "Uma janela na tela em cinco minutos",
   "home.closing.body":

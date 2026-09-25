@@ -40,6 +40,9 @@ export const en = {
   "home.hero.cta": "Get started",
   "home.hero.secondary": "Browse the components",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
+  "home.hero.built":
+    "Built in the open with Claude Code: Claude wrote it, people directed and verified it. What it cost to build is already paid, so you don't have to pay it again.",
+  "home.hero.builtLink": "How Limn is built",
   "home.hero.caption": "The demo application, rendered by Limn during this build.",
 
   // The block under the hero: the two programs, runnable by alias, one tab per operating
@@ -125,6 +128,18 @@ export const en = {
   "home.accessibility.link": "Read the accessibility guide",
   "home.accessibility.caption":
     "The form above, as a screen reader is told about it, captured during this build.",
+
+  // How the toolkit is made, said on the home page rather than left for a reader to find:
+  // `method` carries markup (the path in <code>), so the page renders it with set:html.
+  "home.built.eyebrow": "In the open",
+  "home.built.heading": "How Limn is built",
+  "home.built.intro":
+    "Limn's code is written by Claude, Anthropic's model, in Claude Code, and directed and verified by people. We say so up front because you would want to know.",
+  "home.built.method":
+    "Directed means every design decision is a written record in <code>docs/adr</code>, argued and accepted before the code. Verified means every change runs against a test suite larger than the code it tests; accessibility is heard rather than assumed, with NVDA, VoiceOver and Orca reading real windows on Windows, macOS and Linux; and the code has been through repeated audits of correctness, performance and API design.",
+  "home.built.cost":
+    "Getting here took many thousands of model calls and millions of generated tokens. By the COCOMO II cost model, its more than a hundred thousand lines of code, tests not counted, are the work of a team of about twenty people for over two years. That work is done. You can build on it instead of redoing it.",
+  "home.built.link": "Read the design records",
 
   "home.closing.heading": "A window on screen in five minutes",
   "home.closing.body":

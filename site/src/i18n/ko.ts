@@ -62,6 +62,9 @@ export const ko: Catalog = {
   "home.hero.cta": "시작하기",
   "home.hero.secondary": "컴포넌트 둘러보기",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
+  "home.hero.built":
+    "Claude Code로, 숨김없이 만들었습니다. 코드는 Claude가 썼고, 방향을 정하고 검증한 것은 사람들입니다. 만드는 데 든 비용은 이미 치렀으니, 여러분이 다시 치를 필요가 없습니다.",
+  "home.hero.builtLink": "Limn은 어떻게 만들어지는가",
   "home.hero.caption": "이번 빌드 중에 Limn이 그린 데모 애플리케이션.",
 
   "home.try.heading": "지금 실행해 보기",
@@ -145,6 +148,16 @@ export const ko: Catalog = {
   "home.accessibility.link": "접근성 가이드 읽기",
   "home.accessibility.caption":
     "위의 폼을 화면 낭독기가 전달받는 그대로, 이 빌드 중에 캡처했습니다.",
+
+  "home.built.eyebrow": "숨김없이",
+  "home.built.heading": "Limn은 어떻게 만들어지는가",
+  "home.built.intro":
+    "Limn의 코드는 Anthropic의 모델인 Claude가 Claude Code 안에서 쓰고, 사람들이 방향을 정하고 검증합니다. 알고 싶으실 테니 처음부터 밝혀 둡니다.",
+  "home.built.method":
+    "방향을 정한다는 것은 모든 설계 결정을 코드보다 먼저 <code>docs/adr</code>에 글로 남기고, 논의하고, 승인한다는 뜻입니다. 검증한다는 것은 모든 변경을 코드 자체보다 큰 테스트 스위트에 돌리고, 접근성을 짐작하지 않고 직접 들어 보고(NVDA·VoiceOver·Orca가 Windows, macOS, Linux의 실제 창을 읽게 해서), 정확성과 성능과 API 설계를 거듭 감사한다는 뜻입니다.",
+  "home.built.cost":
+    "여기까지 오는 데 수천 번의 모델 호출과 수백만 개의 생성 토큰이 들었습니다. 추정 모델 COCOMO II에 따르면, 테스트를 빼고도 10만 줄이 넘는 코드는 약 20명의 팀이 2년 넘게 해야 할 일에 해당합니다. 그 일은 끝났습니다. 다시 하는 대신 그 위에 만들 수 있습니다.",
+  "home.built.link": "설계 기록 읽기",
 
   "home.closing.heading": "5분이면 화면에 창 하나",
   "home.closing.body":

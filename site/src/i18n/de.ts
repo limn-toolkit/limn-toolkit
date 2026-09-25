@@ -62,6 +62,9 @@ export const de: Catalog = {
   "home.hero.cta": "Loslegen",
   "home.hero.secondary": "Komponenten ansehen",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
+  "home.hero.built":
+    "Offen gebaut mit Claude Code: Claude hat es geschrieben, Menschen haben es gesteuert und geprüft. Was der Bau gekostet hat, ist schon bezahlt, und Sie müssen es nicht noch einmal bezahlen.",
+  "home.hero.builtLink": "Wie Limn entsteht",
   "home.hero.caption": "Die Demo-Anwendung, von Limn während dieses Builds gerendert.",
 
   "home.try.heading": "Jetzt ausprobieren",
@@ -147,6 +150,16 @@ export const de: Catalog = {
   "home.accessibility.link": "Zum Leitfaden zur Barrierefreiheit",
   "home.accessibility.caption":
     "Das Formular oben, so wie es einem Screenreader mitgeteilt wird, aufgenommen während dieses Builds.",
+
+  "home.built.eyebrow": "Offen gelegt",
+  "home.built.heading": "Wie Limn entsteht",
+  "home.built.intro":
+    "Der Code von Limn wird von Claude, dem Modell von Anthropic, in Claude Code geschrieben und von Menschen gesteuert und geprüft. Wir sagen das gleich vorweg, weil Sie es wissen wollen würden.",
+  "home.built.method":
+    "Gesteuert heißt: Jede Entwurfsentscheidung ist ein schriftlicher Beschluss in <code>docs/adr</code>, begründet und angenommen, bevor der Code entsteht. Geprüft heißt: Jede Änderung läuft gegen eine Testsuite, die umfangreicher ist als der Code selbst; die Barrierefreiheit wurde angehört statt angenommen, mit NVDA, VoiceOver und Orca, die echte Fenster unter Windows, macOS und Linux vorlesen; und der Code ist durch wiederholte Audits zu Korrektheit, Leistung und API-Design gegangen.",
+  "home.built.cost":
+    "Bis hierher waren viele tausend Modellaufrufe und Millionen erzeugter Tokens nötig. Nach dem Schätzmodell COCOMO II entsprechen die über hunderttausend Codezeilen, Tests nicht mitgezählt, der Arbeit eines Teams von etwa zwanzig Personen über mehr als zwei Jahre. Diese Arbeit ist getan. Sie können darauf aufbauen, statt sie zu wiederholen.",
+  "home.built.link": "Die Entwurfsentscheidungen lesen",
 
   "home.closing.heading": "In fünf Minuten ein Fenster auf dem Bildschirm",
   "home.closing.body":

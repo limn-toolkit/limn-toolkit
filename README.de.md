@@ -46,6 +46,10 @@
 Limn zeichnet seine Pixel selbst. Widgets, Layout, Text, Diagramme, Medien und ein 3D-Viewport, in
 einer Abhängigkeit, **ohne Swing, ohne JavaFX und ohne natives Toolkit darunter**.
 
+**Offen gebaut mit Claude Code:** Claude hat es geschrieben, Menschen haben es gesteuert und
+geprüft. Was der Bau gekostet hat, ist schon bezahlt, und Sie müssen es nicht noch einmal bezahlen.
+[Wie Limn entsteht](#wie-limn-entsteht)
+
 ## Jetzt ausprobieren
 
 Die ganze Auslage — jedes Widget, die Diagramme, der Mediaplayer, der 3D-Viewport — in einem
@@ -275,6 +279,23 @@ während dieses Builds vom Toolkit gerendert wurde, und die vollständige
 
 Entwurfsentscheidungen stehen in [`docs/adr/`](docs/adr/), und wie ein Release entsteht, in
 [`RELEASING.md`](RELEASING.md).
+
+## Wie Limn entsteht
+
+Der Code von Limn wird von Claude, dem Modell von Anthropic, in Claude Code geschrieben und von
+Menschen gesteuert und geprüft. Wir sagen das gleich vorweg, weil Sie es wissen wollen würden.
+
+Gesteuert heißt: Jede Entwurfsentscheidung ist ein schriftlicher Beschluss in
+[`docs/adr`](docs/adr), begründet und angenommen, bevor der Code entsteht. Geprüft heißt: Jede
+Änderung läuft gegen eine Testsuite, die umfangreicher ist als der Code selbst; die Barrierefreiheit
+wurde angehört statt angenommen, mit NVDA, VoiceOver und Orca, die echte Fenster unter Windows,
+macOS und Linux vorlesen; und der Code ist durch wiederholte Audits zu Korrektheit, Leistung und
+API-Design gegangen.
+
+Bis hierher waren viele tausend Modellaufrufe und Millionen erzeugter Tokens nötig. Nach dem
+Schätzmodell COCOMO II entsprechen die über hunderttausend Codezeilen, Tests nicht mitgezählt, der
+Arbeit eines Teams von etwa zwanzig Personen über mehr als zwei Jahre. Diese Arbeit ist getan. Sie
+können darauf aufbauen, statt sie zu wiederholen.
 
 ## Aus dem Quelltext bauen
 

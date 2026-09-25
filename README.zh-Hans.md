@@ -45,6 +45,8 @@
 
 Limn 自己绘制每一个像素。组件、布局、文本、图表、媒体与 3D 视口，只需一个依赖，**没有 Swing，没有 JavaFX，底下也没有原生工具包**。
 
+**用 Claude Code 公开地做出来：**代码由 Claude 编写，由人来把握方向、做验证。造它的代价已经付过了，你不必再付一次。[Limn 是怎么做出来的](#limn-是怎么做出来的)
+
 ## 立刻试试
 
 整个陈列——每一个控件、图表、媒体播放器、3D 视口——一条命令就跑起来，主题编辑器再一条。没有什么要克隆，也没有什么要装，除了 [jbang](https://www.jbang.dev/download/)；你要是没有 JDK，它连 JDK 一起取来。两者都以精简构件的形式来自 Maven Central：到手的是工具包、字体，以及你这台机器的原生库——另外五个平台的不会下载。
@@ -213,6 +215,14 @@ macOS 的开关和上面一样。它存下来的是纯数据，你的应用用 `
 [网站](https://limn-toolkit.github.io/limn-toolkit)就是文档：一份以能跑起来的程序收尾的[安装指南](https://limn-toolkit.github.io/limn-toolkit/docs/install/)，一个[组件画廊](https://limn-toolkit.github.io/limn-toolkit/components/)——里面每一张图都是那次构建期间由工具包渲染的——以及完整的 [API 参考](https://limn-toolkit.github.io/limn-toolkit/api/)。
 
 设计决策记录在 [`docs/adr/`](docs/adr/) 里，发布的做法写在 [`RELEASING.md`](RELEASING.md) 里。
+
+## Limn 是怎么做出来的
+
+Limn 的代码由 Anthropic 的模型 Claude 在 Claude Code 中编写，由人来把握方向并加以验证。我们一开始就说明这一点，因为你会想知道。
+
+把握方向，指的是每一项设计决定都先在 [`docs/adr`](docs/adr) 里写成文字、经过论证并被接受，然后才有代码。加以验证，指的是每一次改动都要跑过比代码本身还庞大的测试套件；无障碍不靠假设，而是真的去听——让 NVDA、VoiceOver 和 Orca 在 Windows、macOS 和 Linux 上朗读真实的窗口；代码也经过了多轮关于正确性、性能和 API 设计的审查。
+
+走到这一步，用了成千上万次模型调用和数以百万计的生成 token。按 COCOMO II 估算模型，不算测试，这十余万行代码相当于一支约二十人的团队两年多的工作量。这份工作已经做完了。你可以在它之上构建，而不必重做一遍。
 
 ## 从源码构建
 

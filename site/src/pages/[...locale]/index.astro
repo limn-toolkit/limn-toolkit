@@ -38,6 +38,9 @@ const component = (id: string) => gallery.entries.find((entry) => entry.id === i
 
 const hero = shot("kitchen");
 
+// The same repository the footer links to, for the design records the "built" section cites.
+const repo = process.env.REPO_SLUG ?? "limn-ui/limn";
+
 // The version is filled in at build time (src/lib/version.mjs): no source file carries it, so a
 // release never has to rewrite this page — see scripts/check-versions.sh at the root.
 const gradle = `dependencies {
@@ -146,6 +149,12 @@ if (reader.length === 0) {
           </a>
         </div>
         <p class="hero__meta">{msg("home.hero.meta")}</p>
+        {/* Said above the fold on purpose: a reader deciding whether to trust the toolkit
+            should not learn how it was made from somewhere else. The section it links to is
+            the long form, near the end of the page. */}
+        <p class="hero__built">
+          {msg("home.hero.built")} <a href="#built">{msg("home.hero.builtLink")}</a>
+        </p>
       </div>
 
       <Figure
@@ -361,6 +370,21 @@ if (reader.length === 0) {
   </section>
 
 
+  <section class="section" id="built">
+    <div class="wrap">
+      <div class="built">
+        <p class="eyebrow">{msg("home.built.eyebrow")}</p>
+        <h2>{msg("home.built.heading")}</h2>
+        <p>{msg("home.built.intro")}</p>
+        <p><Fragment set:html={msg("home.built.method")} /></p>
+        <p>{msg("home.built.cost")}</p>
+        <a class="arrow" href={`https://github.com/${repo}/tree/main/docs/adr`}>
+          {msg("home.built.link")}
+        </a>
+      </div>
+    </div>
+  </section>
+
   <section class="section">
     <div class="wrap">
       <div class="closing">
@@ -409,6 +433,34 @@ if (reader.length === 0) {
     font-family: var(--mono);
     font-size: var(--text-xs);
     letter-spacing: 0.02em;
+  }
+
+  .hero__built {
+    margin-block-start: 0.75rem;
+    max-inline-size: 52ch;
+    color: var(--limn-text-muted);
+    font-size: var(--text-sm);
+  }
+
+  /* ----------------------------------------------------------------- built */
+
+  /* The hero links here, and the sticky bar would otherwise land over the eyebrow. */
+  #built {
+    scroll-margin-block-start: var(--limn-bar-height);
+  }
+
+  .built {
+    max-inline-size: 68ch;
+  }
+
+  .built p:not(.eyebrow) {
+    margin-block: 1rem 0;
+    color: var(--limn-text-muted);
+  }
+
+  .built .arrow {
+    display: inline-block;
+    margin-block-start: 1.5rem;
   }
 
   /* ------------------------------------------------------------------- try */

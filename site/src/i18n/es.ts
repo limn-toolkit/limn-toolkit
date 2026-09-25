@@ -62,6 +62,9 @@ export const es: Catalog = {
   "home.hero.cta": "Empezar",
   "home.hero.secondary": "Ver los componentes",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
+  "home.hero.built":
+    "Hecho a la vista con Claude Code: Claude lo escribió; personas lo dirigieron y lo verificaron. Lo que costó construirlo ya está pagado, así que no tienes que volver a pagarlo.",
+  "home.hero.builtLink": "Cómo se hace Limn",
   "home.hero.caption": "La aplicación de demostración, renderizada por Limn durante esta compilación.",
 
   "home.try.heading": "Pruébalo ahora",
@@ -147,6 +150,16 @@ export const es: Catalog = {
   "home.accessibility.link": "Lee la guía de accesibilidad",
   "home.accessibility.caption":
     "El formulario de arriba, tal como se lo cuentan a un lector de pantalla, capturado durante esta compilación.",
+
+  "home.built.eyebrow": "A la vista",
+  "home.built.heading": "Cómo se hace Limn",
+  "home.built.intro":
+    "El código de Limn lo escribe Claude, el modelo de Anthropic, en Claude Code, y lo dirigen y verifican personas. Lo decimos de entrada porque querrías saberlo.",
+  "home.built.method":
+    "Dirigido significa que cada decisión de diseño es un registro escrito en <code>docs/adr</code>, argumentado y aceptado antes del código. Verificado significa que cada cambio pasa por una batería de pruebas más extensa que el propio código; que la accesibilidad se escuchó en lugar de suponerse, con NVDA, VoiceOver y Orca leyendo ventanas reales en Windows, macOS y Linux; y que el código ha pasado por auditorías repetidas de corrección, rendimiento y diseño de API.",
+  "home.built.cost":
+    "Llegar hasta aquí llevó miles de llamadas al modelo y millones de tokens generados. Según el modelo de estimación COCOMO II, sus más de cien mil líneas de código, sin contar las pruebas, equivalen al trabajo de un equipo de unas veinte personas durante más de dos años. Ese trabajo está hecho. Puedes construir sobre él en lugar de rehacerlo.",
+  "home.built.link": "Lee los registros de diseño",
 
   "home.closing.heading": "Una ventana en pantalla en cinco minutos",
   "home.closing.body":

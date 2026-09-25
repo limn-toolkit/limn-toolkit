@@ -46,6 +46,10 @@
 Limn dessine ses propres pixels. Widgets, mise en page, texte, graphiques, médias et une vue 3D,
 en une dépendance, **sans Swing, sans JavaFX et sans boîte à outils native en dessous**.
 
+**Construit au grand jour avec Claude Code :** Claude l’a écrit, des personnes l’ont dirigé et
+vérifié. Ce qu’il a coûté à construire est déjà payé : vous n’avez pas à le payer une seconde fois.
+[Comment Limn est fait](#comment-limn-est-fait)
+
 ## Essayez tout de suite
 
 La vitrine entière — chaque widget, les graphiques, le lecteur, la vue 3D — en une commande, et
@@ -276,6 +280,22 @@ par un programme qui tourne, une
 
 Les décisions de conception vivent dans [`docs/adr/`](docs/adr/), et la façon dont une version est
 publiée dans [`RELEASING.md`](RELEASING.md).
+
+## Comment Limn est fait
+
+Le code de Limn est écrit par Claude, le modèle d’Anthropic, dans Claude Code, et il est dirigé et
+vérifié par des personnes. Nous le disons d’emblée parce que vous voudriez le savoir.
+
+Dirigé signifie que chaque décision de conception est un document écrit dans [`docs/adr`](docs/adr),
+argumenté et accepté avant le code. Vérifié signifie que chaque modification passe une suite de
+tests plus volumineuse que le code lui-même ; que l’accessibilité a été écoutée plutôt que supposée,
+avec NVDA, VoiceOver et Orca lisant de vraies fenêtres sous Windows, macOS et Linux ; et que le code
+a traversé des audits répétés de justesse, de performance et de conception d’API.
+
+Arriver jusqu’ici a demandé des milliers d’appels au modèle et des millions de jetons générés. Selon
+le modèle d’estimation COCOMO II, ses plus de cent mille lignes de code, tests non compris,
+représentent le travail d’une équipe d’environ vingt personnes pendant plus de deux ans. Ce travail
+est fait. Vous pouvez bâtir dessus au lieu de le refaire.
 
 ## Compiler depuis les sources
 

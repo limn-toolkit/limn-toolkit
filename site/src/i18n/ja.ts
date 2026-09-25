@@ -61,6 +61,9 @@ export const ja: Catalog = {
   "home.hero.cta": "はじめる",
   "home.hero.secondary": "コンポーネントを見る",
   "home.hero.meta": "JDK 17 · Windows, macOS, Linux · Apache-2.0",
+  "home.hero.built":
+    "Claude Code で、隠さずに作っています。コードを書いたのは Claude、方向を決めて検証したのは人間です。作るためのコストはもう支払われているので、あなたがもう一度支払う必要はありません。",
+  "home.hero.builtLink": "Limn の作り方",
   "home.hero.caption": "このビルド中に Limn が描画したデモアプリケーション。",
 
   "home.try.heading": "今すぐ試す",
@@ -144,6 +147,16 @@ export const ja: Catalog = {
   "home.accessibility.link": "アクセシビリティガイドを読む",
   "home.accessibility.caption":
     "上のフォームを、スクリーンリーダーに伝えられるとおりに。このビルド中に取得。",
+
+  "home.built.eyebrow": "隠さずに",
+  "home.built.heading": "Limn の作り方",
+  "home.built.intro":
+    "Limn のコードは、Anthropic のモデルである Claude が Claude Code の中で書き、人間が方向を決めて検証しています。知っておきたいはずのことなので、最初にお伝えします。",
+  "home.built.method":
+    "方向を決めるとは、設計上の決定をすべてコードより先に <code>docs/adr</code> の文書として書き、議論し、承認することです。検証するとは、すべての変更を、コード本体より大きなテストスイートにかけること、アクセシビリティを推測ではなく実際に聞いて確かめること（NVDA・VoiceOver・Orca に Windows・macOS・Linux 上の実際のウィンドウを読ませて）、そして正しさ・性能・API 設計について監査を繰り返すことです。",
+  "home.built.cost":
+    "ここまでに、何千回ものモデル呼び出しと何百万もの生成トークンを費やしました。見積もりモデル COCOMO II によれば、テストを除いても 10 万行を超えるコードは、約 20 人のチームが 2 年以上かけて行う仕事に相当します。その仕事はもう済んでいます。やり直す代わりに、その上に作ることができます。",
+  "home.built.link": "設計記録を読む",
 
   "home.closing.heading": "5 分で画面にウィンドウを",
   "home.closing.body":

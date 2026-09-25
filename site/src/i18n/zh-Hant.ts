@@ -60,6 +60,9 @@ export const zhHant: Catalog = {
   "home.hero.cta": "開始使用",
   "home.hero.secondary": "瀏覽元件",
   "home.hero.meta": "JDK 17 · Windows、macOS、Linux · Apache-2.0",
+  "home.hero.built":
+    "用 Claude Code 公開地做出來：程式碼由 Claude 撰寫，由人來掌握方向、做驗證。打造它的代價已經付過了，你不必再付一次。",
+  "home.hero.builtLink": "Limn 是怎麼做出來的",
   "home.hero.caption": "本次建置期間由 Limn 繪製的示範應用程式。",
 
   "home.try.heading": "立刻試試",
@@ -143,6 +146,16 @@ export const zhHant: Catalog = {
   "home.accessibility.link": "閱讀無障礙指南",
   "home.accessibility.caption":
     "上面的表單，正如螢幕閱讀器被告知的那樣，在本次建置中擷取。",
+
+  "home.built.eyebrow": "公開",
+  "home.built.heading": "Limn 是怎麼做出來的",
+  "home.built.intro":
+    "Limn 的程式碼由 Anthropic 的模型 Claude 在 Claude Code 中撰寫，由人來掌握方向並加以驗證。我們一開始就說明這一點，因為你會想知道。",
+  "home.built.method":
+    "掌握方向，指的是每一項設計決定都先在 <code>docs/adr</code> 裡寫成文字、經過論證並被接受，然後才有程式碼。加以驗證，指的是每一次變更都要跑過比程式碼本身還龐大的測試套件；無障礙不靠假設，而是真的去聽——讓 NVDA、VoiceOver 和 Orca 在 Windows、macOS 和 Linux 上朗讀真實的視窗；程式碼也經過多輪關於正確性、效能與 API 設計的稽核。",
+  "home.built.cost":
+    "走到這一步，用了成千上萬次模型呼叫和數以百萬計的生成 token。依 COCOMO II 估算模型，不計測試，這十餘萬行程式碼相當於一支約二十人的團隊兩年多的工作量。這份工作已經做完了。你可以在它之上建構，而不必重做一遍。",
+  "home.built.link": "閱讀設計紀錄",
 
   "home.closing.heading": "五分鐘，讓視窗出現在畫面上",
   "home.closing.body":

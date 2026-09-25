@@ -46,6 +46,10 @@
 Limn draws its own pixels. Widgets, layout, text, charts, media and a 3D viewport, in one
 dependency, with **no Swing, no JavaFX and no native toolkit underneath**.
 
+**Built in the open with Claude Code:** Claude wrote it, people directed and verified it. What it
+cost to build is already paid, so you don't have to pay it again. [How Limn is
+built](#how-limn-is-built)
+
 ## Try it now
 
 The kitchen sink — every widget, the charts, the media player, the 3D viewport — in one command,
@@ -264,6 +268,22 @@ where every image was rendered by the toolkit during that build, and the full
 
 Design decisions live in [`docs/adr/`](docs/adr/), and how a release is made in
 [`RELEASING.md`](RELEASING.md).
+
+## How Limn is built
+
+Limn's code is written by Claude, Anthropic's model, in Claude Code, and directed and verified by
+people. We say so up front because you would want to know.
+
+Directed means every design decision is a written record in [`docs/adr`](docs/adr), argued and
+accepted before the code. Verified means every change runs against a test suite larger than the code
+it tests; accessibility is heard rather than assumed, with NVDA, VoiceOver and Orca reading real
+windows on Windows, macOS and Linux; and the code has been through repeated audits of correctness,
+performance and API design.
+
+Getting here took many thousands of model calls and millions of generated tokens. By the COCOMO II
+cost model, its more than a hundred thousand lines of code, tests not counted, are the work of a
+team of about twenty people for over two years. That work is done. You can build on it instead of
+redoing it.
 
 ## Building from source
 
