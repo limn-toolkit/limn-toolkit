@@ -296,27 +296,27 @@ jamais une dépendance de votre application.
 
 <table>
   <tr>
-    <td nowrap><code>limn-toolkit</code></td>
+    <td nowrap><samp>limn-toolkit</samp></td>
     <td>l’ensemble de widgets, la mise en page, le graphe de scène, les SPI des backends et les décodeurs vidéo en Java pur ; ne dépend de rien</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td nowrap><samp>limn-backend-lwjgl</samp></td>
     <td>GLFW, OpenGL et stb derrière ces SPI</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td nowrap><samp>limn-video-ffmpeg</samp></td>
     <td>H.264/HEVC/VP9/VP8 et AAC/Opus/Vorbis via FFmpeg ; la charge est <code>limn-ffmpeg-natives</code>, versionné avec FFmpeg, un classifier par cible de bureau</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-icons-tabler</code></td>
+    <td nowrap><samp>limn-icons-tabler</samp></td>
     <td>le jeu d’icônes Tabler, si vous le voulez — désormais un artefact à part entière, versionné avec Tabler (<code>3.46.0.x</code> est Tabler 3.46.0)</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-test</code></td>
+    <td nowrap><samp>limn-test</samp></td>
     <td>tester votre interface sans écran : un pilote qui clique, saisit du texte et appuie sur des touches dans une scène, un runtime et un backend sans affichage, et les contrats d’accessibilité que respectent les widgets</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-fonts-all</code></td>
+    <td nowrap><samp>limn-fonts-all</samp></td>
     <td>les fontes pan-CJC et emoji couleur (26 Mo qu’une application qui ne les dessine jamais ne devrait pas porter), plus le reste des replis, dans les versions avec lesquelles cette publication a été testée — chaque fonte est un artefact à part entière, versionné avec la fonte</td>
   </tr>
 </table>

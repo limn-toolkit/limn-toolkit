@@ -237,27 +237,27 @@ macOS のフラグは上と同じです。保存されるのは `.limntheme` フ
 
 <table>
   <tr>
-    <td nowrap><code>limn-toolkit</code></td>
+    <td nowrap><samp>limn-toolkit</samp></td>
     <td>ウィジェット一式、レイアウト、シーングラフ、バックエンドの SPI、そして純 Java の動画デコーダー。何にも依存しません</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td nowrap><samp>limn-backend-lwjgl</samp></td>
     <td>その SPI の背後にある GLFW、OpenGL、stb</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td nowrap><samp>limn-video-ffmpeg</samp></td>
     <td>FFmpeg 経由の H.264/HEVC/VP9/VP8 と AAC/Opus/Vorbis。ペイロードは <code>limn-ffmpeg-natives</code> で、FFmpeg と一緒に版が進みます。デスクトップ対象ごとに 1 つの classifier</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-icons-tabler</code></td>
+    <td nowrap><samp>limn-icons-tabler</samp></td>
     <td>必要なら使える Tabler のアイコンパック——今では独立した成果物として、Tabler と一緒に版が進みます（<code>3.46.0.x</code> は Tabler 3.46.0）</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-test</code></td>
+    <td nowrap><samp>limn-test</samp></td>
     <td>画面なしで UI をテストするためのもの。シーンでクリック・入力・キー操作を行うドライバ、画面を持たないランタイムとバックエンド、ウィジェットが満たすアクセシビリティ契約</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-fonts-all</code></td>
+    <td nowrap><samp>limn-fonts-all</samp></td>
     <td>汎 CJK 書体とカラー絵文字書体（それらを描かないアプリが背負うべきではない 26 メガバイト）に、残りのフォールバックを加えたもの。届くのはこのリリースでテストした版で、各書体はそれ自体が独立した成果物として、フォントと一緒に版が進みます</td>
   </tr>
 </table>

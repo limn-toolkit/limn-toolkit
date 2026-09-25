@@ -293,27 +293,27 @@ tu aplicación.
 
 <table>
   <tr>
-    <td nowrap><code>limn-toolkit</code></td>
+    <td nowrap><samp>limn-toolkit</samp></td>
     <td>el conjunto de widgets, la disposición, el grafo de escena, las SPI del backend y los decodificadores de vídeo en Java puro; no depende de nada</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td nowrap><samp>limn-backend-lwjgl</samp></td>
     <td>GLFW, OpenGL y stb detrás de esas SPI</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td nowrap><samp>limn-video-ffmpeg</samp></td>
     <td>H.264/HEVC/VP9/VP8 y AAC/Opus/Vorbis mediante FFmpeg; la carga es <code>limn-ffmpeg-natives</code>, que cambia de versión con FFmpeg, un clasificador por destino de escritorio</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-icons-tabler</code></td>
+    <td nowrap><samp>limn-icons-tabler</samp></td>
     <td>el paquete de iconos Tabler, si lo quieres — ahora un artefacto propio, que cambia de versión con Tabler (<code>3.46.0.x</code> es Tabler 3.46.0)</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-test</code></td>
+    <td nowrap><samp>limn-test</samp></td>
     <td>probar tu interfaz sin pantalla: un controlador que hace clic, escribe y pulsa teclas en una escena, un runtime y un backend sin pantalla, y los contratos de accesibilidad que cumplen los widgets</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-fonts-all</code></td>
+    <td nowrap><samp>limn-fonts-all</samp></td>
     <td>las tipografías pan-CJK y de emojis a color (26 MB que una aplicación que nunca las dibuja no debería cargar), más el resto de los respaldos, en las versiones con las que se probó esta publicación — cada tipografía es un artefacto propio que cambia de versión con la fuente</td>
   </tr>
 </table>

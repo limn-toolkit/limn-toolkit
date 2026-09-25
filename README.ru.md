@@ -293,27 +293,27 @@ jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-e
 
 <table>
   <tr>
-    <td nowrap><code>limn-toolkit</code></td>
+    <td nowrap><samp>limn-toolkit</samp></td>
     <td>виджеты, компоновка, граф сцены, SPI бэкендов и видеодекодеры на чистой Java; не зависит ни от чего</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td nowrap><samp>limn-backend-lwjgl</samp></td>
     <td>GLFW, OpenGL и stb за этими SPI</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td nowrap><samp>limn-video-ffmpeg</samp></td>
     <td>H.264/HEVC/VP9/VP8 и AAC/Opus/Vorbis через FFmpeg; нагрузка — <code>limn-ffmpeg-natives</code>, версия которого идёт вместе с FFmpeg, по одному классификатору на настольную цель</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-icons-tabler</code></td>
+    <td nowrap><samp>limn-icons-tabler</samp></td>
     <td>набор иконок Tabler, если он вам нужен — теперь сам по себе артефакт, версия которого идёт вместе с Tabler (<code>3.46.0.x</code> — это Tabler 3.46.0)</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-test</code></td>
+    <td nowrap><samp>limn-test</samp></td>
     <td>тестирование интерфейса без экрана: драйвер, который щёлкает, печатает и нажимает клавиши в сцене, среда выполнения и бэкенд без дисплея и контракты доступности, которым подчиняются виджеты</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-fonts-all</code></td>
+    <td nowrap><samp>limn-fonts-all</samp></td>
     <td>пан-CJK и цветные эмодзи-начертания (26 мегабайт, которые приложение, никогда их не рисующее, носить не должно), плюс остальные подстановочные шрифты, в тех версиях, с которыми тестировался этот релиз — каждое начертание само по себе артефакт, версия которого идёт вместе со шрифтом</td>
   </tr>
 </table>

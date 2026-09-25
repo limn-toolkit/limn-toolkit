@@ -237,27 +237,27 @@ macOS 的开关和上面一样。它存下来的是一个 `.limntheme` 文件，
 
 <table>
   <tr>
-    <td nowrap><code>limn-toolkit</code></td>
+    <td nowrap><samp>limn-toolkit</samp></td>
     <td>组件集、布局、场景图、后端 SPI 与纯 Java 视频解码器；不依赖任何东西</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td nowrap><samp>limn-backend-lwjgl</samp></td>
     <td>这些 SPI 背后的 GLFW、OpenGL 与 stb</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td nowrap><samp>limn-video-ffmpeg</samp></td>
     <td>通过 FFmpeg 支持 H.264/HEVC/VP9/VP8 与 AAC/Opus/Vorbis；载荷是 <code>limn-ffmpeg-natives</code>，版本跟着 FFmpeg 走，每个桌面目标一个 classifier</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-icons-tabler</code></td>
+    <td nowrap><samp>limn-icons-tabler</samp></td>
     <td>Tabler 图标包，如果你需要的话——如今是独立的一个构件，版本跟着 Tabler 走（<code>3.46.0.x</code> 即 Tabler 3.46.0）</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-test</code></td>
+    <td nowrap><samp>limn-test</samp></td>
     <td>无需显示器测试你的界面：在场景中点击、输入和按键的驱动器，无显示的运行时和后端，以及控件所遵循的无障碍契约</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-fonts-all</code></td>
+    <td nowrap><samp>limn-fonts-all</samp></td>
     <td>泛中日韩字体与彩色表情符号字体（一个从不绘制它们的应用不该背上的 26 兆字节），加上其余的回退字体，各自固定在本次发布测试过的版本——每个字体都是独立的一个构件，版本跟着字体走</td>
   </tr>
 </table>

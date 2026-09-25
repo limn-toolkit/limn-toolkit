@@ -284,27 +284,27 @@ jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-e
 
 <table>
   <tr>
-    <td nowrap><code>limn-toolkit</code></td>
+    <td nowrap><samp>limn-toolkit</samp></td>
     <td>مجموعة عناصر الواجهة، والتخطيط، ومخطط المشهد، وواجهات SPI للخلفية، ومفككات ترميز الفيديو المكتوبة بـ Java وحدها؛ لا يعتمد على شيء</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-backend-lwjgl</code></td>
+    <td nowrap><samp>limn-backend-lwjgl</samp></td>
     <td>GLFW وOpenGL وstb خلف واجهات SPI تلك</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-video-ffmpeg</code></td>
+    <td nowrap><samp>limn-video-ffmpeg</samp></td>
     <td>H.264/HEVC/VP9/VP8 وAAC/Opus/Vorbis عبر FFmpeg؛ الحمولة هي <code>limn-ffmpeg-natives</code>، تتبع إصداراتها FFmpeg، بمصنِّف واحد لكل هدف سطح مكتب</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-icons-tabler</code></td>
+    <td nowrap><samp>limn-icons-tabler</samp></td>
     <td>حزمة أيقونات Tabler، إن أردتها — أداة مستقلة بذاتها الآن، تتبع إصداراتها Tabler (<code>3.46.0.x</code> هو Tabler 3.46.0)</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-test</code></td>
+    <td nowrap><samp>limn-test</samp></td>
     <td>اختبار واجهتك بلا شاشة عرض: أداة قيادة تنقر وتكتب وتضغط المفاتيح في مشهد، وبيئة تشغيل وخلفية بلا شاشة، وعقود إمكانية الوصول التي تُلزَم بها عناصر الواجهة</td>
   </tr>
   <tr>
-    <td nowrap><code>limn-fonts-all</code></td>
+    <td nowrap><samp>limn-fonts-all</samp></td>
     <td>أوجه الخطوط الشاملة للصينية-اليابانية-الكورية والرموز التعبيرية الملوّنة (26 ميغابايت لا ينبغي أن يحملها تطبيق لا يرسمها أبدًا)، إضافة إلى بقية الخطوط الاحتياطية، بالإصدارات التي اختُبر بها هذا الإصدار — كل وجه أداة مستقلة بذاتها تتبع إصداراتها الخط</td>
   </tr>
 </table>
