@@ -64,7 +64,7 @@ tasks.named<Jar>("jar") {
     }
 }
 
-val hostIsMacOs: Boolean by rootProject.extra
+val hostIsMacOs = rootProject.extra["hostIsMacOs"] as Boolean
 tasks.named<JavaExec>("run") {
     // GLFW and Cocoa need the event loop on the process's first thread.
     if (hostIsMacOs) {

@@ -107,7 +107,7 @@ tasks.named<Javadoc>("javadoc") {
     (options as StandardJavadocDocletOptions).addStringOption("-add-reads", "limn.backend.lwjgl=ALL-UNNAMED")
 }
 
-val hostIsMacOs: Boolean by rootProject.extra
+val hostIsMacOs = rootProject.extra["hostIsMacOs"] as Boolean
 tasks.withType<Test>().configureEach {
     if (hostIsMacOs) {
         jvmArgs("-XstartOnFirstThread")
