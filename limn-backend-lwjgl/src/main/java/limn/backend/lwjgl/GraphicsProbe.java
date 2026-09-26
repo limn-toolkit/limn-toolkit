@@ -141,11 +141,7 @@ final class GraphicsProbe {
      * @param code the GLFW error code of the failed window creation
      */
     static String contextAdvice(limn.backend.Platform.Os os, int code) {
-        if (os != limn.backend.Platform.Os.WINDOWS) {
-            return "";
-        }
-        if (code != GLFW_API_UNAVAILABLE && code != GLFW_VERSION_UNAVAILABLE
-                && code != GLFW_FORMAT_UNAVAILABLE) {
+        if (!lacksDriver(os, code)) {
             return "";
         }
         return "; this Windows machine has no OpenGL 3.3 driver. Install or update the graphics "
@@ -154,6 +150,20 @@ final class GraphicsProbe {
                 + "free \"OpenCL, OpenGL, and Vulkan Compatibility Pack\" (Microsoft Store "
                 + COMPATIBILITY_PACK_STORE_ID + ", or: winget install "
                 + COMPATIBILITY_PACK_WINGET_ID + "), which provides OpenGL 3.3 over Direct3D 12";
+    }
+
+    /**
+     * Whether a failed window creation means this machine has no OpenGL 3.3 driver: Windows, and
+     * one of the three refusals {@link #contextAdvice} answers. The same test decides whether a
+     * person who launched the application from its icon is shown {@link WindowsDriverDialog}.
+     *
+     * @param os   the platform, a parameter so that every branch can be tested anywhere
+     * @param code the GLFW error code of the failed window creation
+     */
+    static boolean lacksDriver(limn.backend.Platform.Os os, int code) {
+        return os == limn.backend.Platform.Os.WINDOWS
+                && (code == GLFW_API_UNAVAILABLE || code == GLFW_VERSION_UNAVAILABLE
+                        || code == GLFW_FORMAT_UNAVAILABLE);
     }
 
     /** The Compatibility Pack's Microsoft Store product ID. */

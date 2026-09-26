@@ -37,6 +37,13 @@ Maven Central say which number that was.
   "OpenCL, OpenGL, and Vulkan Compatibility Pack" (`winget install
   Microsoft.OpenCLGLVulkanCompatibilityPack`), which provides OpenGL over Direct3D 12 and is used
   only where no other driver is present.
+- An application opened from its icon on such a machine (`javaw.exe`, a jpackage launcher, a
+  shortcut) now shows Windows' own error dialog before that error, in the language of the process,
+  because it has no console and the message reached nobody. Its buttons open the Compatibility Pack
+  in the Microsoft Store and, where winget is installed, run the winget command in a command window
+  the person can watch. The error is thrown afterwards as before, whatever is clicked. It appears
+  once per process and never in a process with a console; `-Dlimn.backend.errorDialog=false` turns
+  it off, and the build sets that for its own tests.
 - `Scene.renderFrame(Canvas, boolean, float)` is gone. A frame callback of your own passes the
   backend's `FrameInfo` whole, `scene.renderFrame(renderer.canvas(), frame)`, so a field the backend
   adds later cannot be left behind; the overload that is gone is the one that dropped the age.

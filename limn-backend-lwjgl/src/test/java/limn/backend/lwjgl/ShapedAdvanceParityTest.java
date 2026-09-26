@@ -76,7 +76,8 @@ class ShapedAdvanceParityTest {
 
     /** Every bundle family the toolkit and this backend ship, across both resource roots. */
     private static final String[] BUNDLES = {"/limn/i18n/components", "/limn/i18n/theme",
-            "/limn/i18n/colorpicker", "/limn/backend/lwjgl/i18n/display"};
+            "/limn/i18n/colorpicker", "/limn/backend/lwjgl/i18n/display",
+            "/limn/backend/lwjgl/i18n/driverhelp"};
 
     /**
      * Greek, which there is no bundle to draw on for, and the ADR's own eight rows so the corpus

@@ -13,7 +13,9 @@ description: "The JDK you need, the two dependencies, the one macOS flag, and a 
   OpenGL driver (a virtual machine, a remote-desktop session) gets one from Microsoft's free
   [OpenCL, OpenGL, and Vulkan Compatibility Pack](https://apps.microsoft.com/detail/9NQPSL29BFFF),
   or `winget install Microsoft.OpenCLGLVulkanCompatibilityPack`; the error Limn stops with says
-  so.
+  so. An application opened from its icon has no console to show that error, so it first shows
+  Windows' own error dialog, with buttons that open the pack in the Store or install it with
+  winget; `-Dlimn.backend.errorDialog=false` turns the dialog off.
 
 ## Try it before you install anything
 

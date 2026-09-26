@@ -233,6 +233,10 @@ subprojects {
             if (System.getProperty("limnAudibleTests") != "true") {
                 environment("ALSOFT_DRIVERS", "null")
             }
+            // A Windows machine with no OpenGL driver shows a modal dialog before the window error
+            // when the process has no console, and a test worker has none: a test that meets that
+            // failure must fail, not wait on a window nobody will close (WindowsDriverDialog).
+            systemProperty("limn.backend.errorDialog", "false")
             // Opt-in properties reach the DAEMON when a developer passes -D on the command line,
             // and the tests run in a JVM of their own, so a documented escape hatch that nobody
             // forwarded is a test that can never run, which is what limn.video.test.clips was.

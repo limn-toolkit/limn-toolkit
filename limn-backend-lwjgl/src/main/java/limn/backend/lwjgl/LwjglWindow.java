@@ -298,10 +298,16 @@ final class LwjglWindow implements NativeWindow {
             // specific ("WGL: Failed to create OpenGL context"), and naming the
             // windowing platform matters because it is picked at run time: the
             // same binary reaches X11 or Wayland depending on the session.
-            throw new IllegalStateException("glfwCreateWindow failed on the "
+            String message = "glfwCreateWindow failed on the "
                     + GraphicsProbe.platformName() + " platform: " + failure
                     + "; Limn needs an OpenGL 3.3 core context"
-                    + GraphicsProbe.contextAdvice(Platform.current().os(), failure.code()));
+                    + GraphicsProbe.contextAdvice(Platform.current().os(), failure.code());
+            if (GraphicsProbe.lacksDriver(Platform.current().os(), failure.code())) {
+                // Launched from an icon, this process has no console and the message would
+                // reach nobody; Windows' own dialog says it first. It returns in every case.
+                WindowsDriverDialog.offer(config.title(), message);
+            }
+            throw new IllegalStateException(message);
         }
         long softwareContext = NULL;
         if (softwareGl) {

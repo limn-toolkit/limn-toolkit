@@ -609,6 +609,27 @@ to ship neither and to point at the machine's own fix instead.
 - *What Limn does:* when a Windows window cannot get its context for want of a driver
   (`GLFW_API_UNAVAILABLE`, `GLFW_VERSION_UNAVAILABLE`, `GLFW_FORMAT_UNAVAILABLE`), the startup error
   and `--gl-info` name the vendor driver and the Compatibility Pack, with both identifiers.
+- *Where nobody reads the error* (added 2026-09-26): a process with no console — `javaw.exe`, a
+  jpackage launcher, anything opened from an icon — first shows a task dialog (`WindowsDriverDialog`)
+  with the same advice in the process's language, a command link that opens the pack in the Store
+  (the web page where the Store is absent) and, where winget is present, one that runs the winget
+  command in a visible `cmd /k`. Once per process; skipped with a console, on an invisible window
+  station and under `-Dlimn.backend.errorDialog=false`; the exception follows unchanged. Measured on
+  the Windows 11 guest with `DriverDialogProbe`: `javaw.exe` and a jpackage launcher both carry
+  common controls 6 in their manifests and take `TaskDialogIndirect` directly; the same launcher with
+  its manifest resource removed took it through an activation context built from a temporary
+  manifest; the `MessageBoxW` fallback, which no Windows 10 or 11 launcher reaches, was shown
+  directly. `java.exe` has a console and showed nothing. Arabic mirrors the dialog
+  (`TDF_RTL_LAYOUT`), and the renderer does not support bidi isolates, so no string may use them.
+  Winget's app execution alias is visible to `Files.exists(…, NOFOLLOW_LINKS)` only; `File.exists`
+  answered false there and the first dialog offered no winget link. Automation note: UIA's Invoke
+  does nothing on the dialog's DirectUI buttons; `TDM_CLICK_BUTTON` does.
+  The real case, same day: with the guest's 3D acceleration off and the pack uninstalled, the
+  unmodified demo under `javaw -jar` showed the dialog in the process's language (pt-BR), Close
+  ended the process, and the winget link ran `cmd /k winget install …`, which installed the pack
+  with the window left open; opening the demo again drew. The winget source carries an older build
+  of the pack than the Store (1.2404.1.0 against 1.2608.3.0 that day) and it drew all the same; the
+  command stays on the winget source because winget matters most where there is no Store.
 
 ---
 
