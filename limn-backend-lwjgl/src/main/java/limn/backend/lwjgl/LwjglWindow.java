@@ -304,7 +304,8 @@ final class LwjglWindow implements NativeWindow {
         }
         long softwareContext = NULL;
         if (softwareGl) {
-            softwareContext = MacSoftwareGl.createContext(handle, config.transparent());
+            softwareContext = MacSoftwareGl.createContext(handle, config.transparent(),
+                    MacSoftwareGl.forced());
             if (softwareContext == NULL) {
                 glfwDestroyWindow(handle);
                 throw new IllegalStateException("this Mac offers no OpenGL 3.2 core pixel format "
@@ -312,9 +313,10 @@ final class LwjglWindow implements NativeWindow {
             }
             if (!macSoftwareGl) {
                 LOG.log(Level.INFO, "OpenGL context: macOS software fallback ({0}); built as an "
-                        + "NSOpenGLContext without NSOpenGLPFAAccelerated, and taken by every "
-                        + "window from here on; force it anywhere with -D{1}=true",
+                        + "NSOpenGLContext without NSOpenGLPFAAccelerated{1}, and taken by every "
+                        + "window from here on; force it anywhere with -D{2}=true",
                         MacSoftwareGl.forced() ? "requested" : "GLFW found no accelerated pixel format",
+                        MacSoftwareGl.forced() ? " and on Apple Software Renderer by name" : "",
                         MacSoftwareGl.PROPERTY);
                 macSoftwareGl = true;
             }

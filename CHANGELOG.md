@@ -22,6 +22,9 @@ Maven Central say which number that was.
   aborted every time it ended. The software OpenGL context kept a closed window's view alive until
   the process ended, and the view still answered input-method questions through a closure into a
   Java runtime that was shutting down. The view gets its own class back when its window closes.
+- `-Dlimn.backend.macSoftwareGl=true`, which forces the macOS software OpenGL path, now runs it on
+  Apple's software renderer. On a Mac with a GPU it used to build that path's context on the GPU,
+  so what it showed of speed and correctness was not what a virtual machine gets.
 - The demo's kitchen window drew black on Wayland, all but its status bar. Its frame callback, like
   the reader driver's and the gallery's, forwarded the re-present flag and the GPU sample to the scene
   and dropped the back buffer's age, which on Wayland is three or four.

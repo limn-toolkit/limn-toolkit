@@ -473,6 +473,14 @@ Startup order, first that yields a context wins:
    at `:213`), because a menu that reopens a hundred times must not spend a hundred failed
    creations. `limn.backend.macSoftwareGl` forces the path on hardware that works, so it is not
    code nobody can look at until it is the only thing between a user and a window.
+   *Amended 2026-09-25:* until that day the forced path ran on the GPU. Leaving out
+   `NSOpenGLPFAAccelerated` only stops demanding acceleration, and a Mac with a GPU matches it
+   anyway: forced on an M5 Max, the context reported `Apple M5 Max` while the log said "software
+   fallback". Forced, the context now names `kCGLRendererGenericFloatID` and reports `Apple Software
+   Renderer`; the natural path, on a Mac that has only that renderer, is unchanged. What the
+   software renderer costs was measured the same day with the heavy-screen benchmark on the macOS
+   guest (2× drawable, 4 cores): animation at 54 frames a second, scrolling a full window at 1.97,
+   one core saturated — rasterising 3.5 million pixels a frame on one thread, not a pacing stall.
 
    Short of patching GLFW there was nothing else (§2.2), and all three values of
    `GLFW_CONTEXT_CREATION_API` fail on such a Mac — NSGL finds no format, and EGL and OSMesa report

@@ -28,6 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * closure calling into a Java runtime that is shutting down. {@link MacInputContextGate#forget} now
  * gives the view its own class back.
  *
+ * <p>It also checks that the forced path runs on {@code Apple Software Renderer}, which it did not
+ * on a Mac with a GPU until the same day ({@link MacSoftwareGl#PROPERTY}).
+ *
  * <p>In a JVM of its own, as {@link ClosedWindowTest} explains: the defect is the process ending,
  * which is a thing a test has to watch from outside. macOS only; the fallback exists nowhere else.
  */
@@ -61,6 +64,10 @@ class SoftwareGlExitTest {
         Assumptions.assumeFalse(child.exitValue() == NO_DISPLAY,
                 () -> "no window can be opened here:\n" + output);
         assertTrue(output.contains("software fallback"), "the child was not on software GL:\n" + output);
+        // The renderer, not the log line: on a Mac with a GPU the forced path used to build its
+        // context on the GPU while saying "software fallback".
+        assertTrue(output.contains("renderer=Apple Software Renderer"),
+                "the forced path is not on Apple's software renderer:\n" + output);
         assertTrue(output.contains("loop ended"), output);
         assertEquals(0, child.exitValue(), "the process did not end cleanly:\n" + output);
     }
@@ -80,6 +87,7 @@ class SoftwareGlExitTest {
             try (backend) {
                 NativeWindow main = backend.createWindow(WindowConfig.of("main", 200, 120));
                 NativeWindow popup = backend.createWindow(WindowConfig.popup(120, 80));
+                System.out.println("renderer=" + backend.graphicsInfo().renderer());
                 main.show();
                 popup.show();
                 Ui.postDelayed(popup::requestClose, 100);

@@ -44,6 +44,12 @@ final class MacSoftwareGl {
      * GLFW could have built a context. The path is otherwise unreachable on hardware that works,
      * which would make it code nobody can look at until it is the only thing standing between a
      * user and a window.
+     *
+     * <p>Forced, the context also names {@code Apple Software Renderer} by its renderer ID. Leaving
+     * out {@code NSOpenGLPFAAccelerated} alone only stops <em>demanding</em> acceleration, and a Mac
+     * with a GPU then hands back the GPU anyway: until 2026-09-25 the property built this path's
+     * context on an {@code Apple M5 Max} while the log said "software fallback", so the renderer a
+     * virtual machine really gets — and its speed — was never what the property exercised.
      */
     static final String PROPERTY = "limn.backend.macSoftwareGl";
 
@@ -53,10 +59,13 @@ final class MacSoftwareGl {
     private static final int PFA_ALPHA_SIZE = 11;
     private static final int PFA_DEPTH_SIZE = 12;
     private static final int PFA_STENCIL_SIZE = 13;
+    private static final int PFA_RENDERER_ID = 70;
     private static final int PFA_CLOSEST_POLICY = 74;
     private static final int PFA_OPENGL_PROFILE = 99;
     /** The newest profile NSGL names. It is what yields the 4.1 context; there is no "3.3". */
     private static final int PROFILE_3_2_CORE = 0x3200;
+    /** {@code kCGLRendererGenericFloatID}, "Apple Software Renderer", from CGLRenderers.h. */
+    private static final int RENDERER_APPLE_SOFTWARE = 0x00020400;
     private static final int CP_SWAP_INTERVAL = 222;
     private static final int CP_SURFACE_OPACITY = 236;
 
@@ -75,10 +84,13 @@ final class MacSoftwareGl {
      * @param window      the GLFW window, which must have no client API of its own
      * @param transparent whether the framebuffer's alpha should composite over what is behind,
      *                    which is a context parameter here and a window hint everywhere else
+     * @param software    whether to name Apple's software renderer rather than accept whichever
+     *                    renderer matches, which is what {@link #forced()} needs on a Mac whose GPU
+     *                    would otherwise match
      * @return the {@code NSOpenGLContext}, or {@link org.lwjgl.system.MemoryUtil#NULL} if even the
      *         unaccelerated format has no match — a machine with no usable OpenGL at all
      */
-    static long createContext(long window, boolean transparent) {
+    static long createContext(long window, boolean transparent, boolean software) {
         long view = GLFWNativeCocoa.glfwGetCocoaView(window);
         if (view == NULL) {
             return NULL;
@@ -87,7 +99,7 @@ final class MacSoftwareGl {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             // GLFW's own request, minus NSOpenGLPFAAccelerated. The array is not flat: the
             // attributes above take a following value word, the two below stand alone, and a
-            // zero ends it.
+            // zero ends it; the renderer ID, when asked for, takes the place of that zero.
             IntBuffer attributes = stack.ints(
                     PFA_OPENGL_PROFILE, PROFILE_3_2_CORE,
                     PFA_COLOR_SIZE, 24,
@@ -96,6 +108,7 @@ final class MacSoftwareGl {
                     PFA_STENCIL_SIZE, 8,
                     PFA_DOUBLE_BUFFER,
                     PFA_CLOSEST_POLICY,
+                    software ? PFA_RENDERER_ID : 0, software ? RENDERER_APPLE_SOFTWARE : 0,
                     0);
             pixelFormat = ObjC.msg(ObjC.msg(ObjC.cls("NSOpenGLPixelFormat"), "alloc"),
                     "initWithAttributes:", memAddress(attributes));
