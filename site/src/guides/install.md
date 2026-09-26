@@ -87,7 +87,7 @@ dependencies {
     runtimeOnly("io.github.limn-toolkit:limn-fonts-all:{{version}}")
     // …or the two heavyweights by name, pinned to the FONT's own version:
     // runtimeOnly("io.github.limn-toolkit:limn-fonts-noto-cjk:2.004.2")
-    // runtimeOnly("io.github.limn-toolkit:limn-fonts-noto-emoji:2.051.2")
+    // runtimeOnly("io.github.limn-toolkit:limn-fonts-noto-emoji:2.057.0")
 }
 ```
 ```xml title="pom.xml"
@@ -109,7 +109,7 @@ dependencies {
 <dependency>
   <groupId>io.github.limn-toolkit</groupId>
   <artifactId>limn-fonts-noto-emoji</artifactId>
-  <version>2.051.2</version>
+  <version>2.057.0</version>
   <scope>runtime</scope>
 </dependency>
 -->

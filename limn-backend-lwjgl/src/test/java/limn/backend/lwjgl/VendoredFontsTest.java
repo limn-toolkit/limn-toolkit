@@ -33,13 +33,13 @@ class VendoredFontsTest {
         assertPinned("NotoSansCJK-Regular.otf",
                 "68a3fc98800b2a27b371f2fb79991daf3633bd89309d4ffaa6946fd587f375b5");
         assertPinned("NotoColorEmoji.ttf",
-                "72a635cb3d2f3524c51620cdde406b217204e8a6a06c6a096ff8ed4b5fd6e27b");
+                "15671215ab769fdc7162a045d56fd7d7e477c51b04e6b3c761d914d8fdd6cc44");
         assertPinned("NotoSansArabic-Regular.ttf",
                 "bdff3e5659d67e67def05b33f749683b9376ae819d65d3dd62ac4640b3aaef48");
         assertPinned("NotoSansHebrew-Regular.ttf",
                 "cdefaf8efd47045f6820928eba84db5bed7557539328952b5f828315485e02ee");
         assertPinned("NotoSansDevanagari-Regular.ttf",
-                "306b53ecfb182a504dd8a7446093c316387d2fd8dc350d0792ed1753fe0996cd");
+                "4e3c66638958c3e2ab5d37f47a8deb89fffeb7be9985c665a519bbc7ba762313");
         assertPinned("NotoSansThai-Regular.ttf",
                 "61cf814eec46b294d6ea4401ac295d0cecd5207bd2331dcc5a15e7301d30ee44");
         assertPinned("NotoSansArabic-Bold.ttf",
@@ -47,7 +47,7 @@ class VendoredFontsTest {
         assertPinned("NotoSansHebrew-Bold.ttf",
                 "da9226e886c245a7e11673c24dec82bded64d8574c1e1f03983bf89297d2aaa8");
         assertPinned("NotoSansDevanagari-Bold.ttf",
-                "3ad8362a06271814869838dcc3d161b13c9fb97681b627af1f7f283ea9387d56");
+                "6a09c8d797cfc803d32cdc731e809424d74cbaff59f503de34ade421a08e5bc2");
         assertPinned("NotoSansThai-Bold.ttf",
                 "2ac6c6e8a478e23b15f76e4894af1fa2210f8f350e4e6e54aad530bec03efbfb");
     }
