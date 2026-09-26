@@ -350,9 +350,9 @@
 349     label "TablerSystem.SEARCH" [disabled, hidden, offscreen]
 350     search field "Search…" (placeholder) [disabled, hidden, offscreen, editable] text="" caret=0
 351       button "Clear" [disabled, hidden, offscreen]
-352     label "5130 icons · tinted from the theme, so they follow light and dark" [disabled, hidden, offscreen]
+352     label "5166 icons · tinted from the theme, so they follow light and dark" [disabled, hidden, offscreen]
 353     list "" [disabled, hidden, offscreen] selection=single scroll v=0% view 0%
-354       scroll bar "" [disabled, hidden, offscreen, vertical] value=0 [0..246240]
+354       scroll bar "" [disabled, hidden, offscreen, vertical] value=0 [0..247968]
 355     label "Click a row for its constant." [disabled, hidden, offscreen]
 356   tab panel "Files" (label) [disabled, hidden, offscreen] | labelled by #28 "Files"
 357     scroll pane "" [disabled, hidden, offscreen] scroll none

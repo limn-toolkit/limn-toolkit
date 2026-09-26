@@ -21,7 +21,7 @@ limn-ffmpeg-natives = "9.0.2.0"
 # the first three components are the Tabler release inside, the fourth that repository's own.
 # Compiled against the published toolkit as compileOnly, so it names no toolkit version and
 # nothing here depends on it but the demo — an application, which is the shape a pack is for.
-limn-icons-tabler = "3.46.0.0"
+limn-icons-tabler = "3.48.0.0"
 
 [libraries]
 lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
