@@ -258,8 +258,9 @@ loader extracts it, nothing more.
 
 ## Sources
 
-- `libavcodec/av1dec.c` in the ffmpeg-7.1.5 source tree the build script pins: the refusal quoted
-  in finding 2 is from that file
+- `libavcodec/av1dec.c` in the ffmpeg-7.1.5 source tree the build script pinned: the refusal quoted
+  in finding 2 is from that file. Re-read in ffmpeg-9.0.2 on 2026-09-26, when the pin moved: the
+  same refusal, word for word, and `opus_decoder_deps="swresample"` unchanged
 - `configure` in the same tree: `opus_decoder_deps="swresample"`, which is §5's whole reason
 - The payload table in §2 was produced by configuring and building each row separately; the method
   is the same one `scripts/build-ffmpeg.sh` uses, with one flag added per build

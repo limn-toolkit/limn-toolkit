@@ -121,7 +121,7 @@ both without spending a version number.
 Nowhere in this repository (ADR 037). `limn-video-ffmpeg` is Java; its FFmpeg libraries and the
 JNI shim in front of them are the `limn-ffmpeg-natives` artifact, built and released from
 <https://github.com/limn-toolkit/limn-ffmpeg-natives> on FFmpeg's schedule and versioned after
-it (`7.1.5.0` is FFmpeg 7.1.5). This repository pins the version it was tested with in
+it (`9.0.2.0` is FFmpeg 9.0.2). This repository pins the version it was tested with in
 `gradle/libs.versions.toml`, and three things follow from that one line: `limn-video-ffmpeg`'s
 runtime dependency on the shim jar, the six classifiers `limn-video-ffmpeg-natives-all` names,
 and the payload the tests run against. A release of Limn builds no native and uploads none.

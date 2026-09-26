@@ -31,6 +31,13 @@ Maven Central say which number that was.
 
 ### Changed
 
+- Video plays on FFmpeg 9.0.2, up from 7.1.5: `limn-ffmpeg-natives` 9.0.2.0. An application that
+  names a `natives-<os>-<arch>` classifier itself changes its version to `9.0.2.0`;
+  `limn-video-ffmpeg-natives-all` moves on its own. Nothing else changes, and nothing in the
+  shim did: the same codecs and containers, no GPL component (FFmpeg 8.0 removed libpostproc),
+  the same tests passing. On Linux the payload is about 0.5 MB bigger in the jar and software
+  decoding about 4.5% faster, because FFmpeg now lets GCC vectorize; macOS and Windows grew by
+  a few percent at most.
 - On a Windows machine with no OpenGL 3.3 driver (a virtual machine, a remote-desktop session, a GPU
   whose driver is Direct3D only), the error an application gets at its first window, and the
   demo's `--gl-info`, now say what to install: the GPU maker's driver, or Microsoft's free

@@ -31,7 +31,8 @@ splits one interface into two halves that release apart.
 **The payload lives in its own repository, as one artifact, `limn-ffmpeg-natives`, versioned
 after the FFmpeg it carries.** The first three components *are* the FFmpeg version and the
 build refuses any other (`7.1.5.0` is FFmpeg 7.1.5 as first packaged; `7.1.5.1` the same FFmpeg
-with a newer shim; `7.1.6.0` the next FFmpeg). Its main jar carries the shim for every platform
+with a newer shim; `7.1.6.0` the next FFmpeg). The first move of the FFmpeg inside was to
+`9.0.2.0`, on 2026-09-26: two majors on, with the shim and its ABI number unchanged. Its main jar carries the shim for every platform
 and the FFmpeg licence and notice; six `natives-<os>-<arch>` classifiers carry each platform's
 libraries and the manifest the loader reads — exactly what `limn-video-ffmpeg` published before,
 under a version that now means something. The build script, the six-slice workflow and the C

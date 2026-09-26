@@ -16,7 +16,7 @@ limn-fonts-noto-scripts = "1.0.2"
 # limn-video-ffmpeg depends on its main jar (the JNI shim); the six natives-<os>-<arch>
 # classifiers are an application's choice, and limn-video-ffmpeg-natives-all names them at this
 # exact version. The shim's ABI number is checked at load time (FfmpegLibrary.EXPECTED_ABI).
-limn-ffmpeg-natives = "7.1.5.1"
+limn-ffmpeg-natives = "9.0.2.0"
 # The Tabler icon pack, from the limn-icons-tabler repository, versioned with Tabler (ADR 038):
 # the first three components are the Tabler release inside, the fourth that repository's own.
 # Compiled against the published toolkit as compileOnly, so it names no toolkit version and

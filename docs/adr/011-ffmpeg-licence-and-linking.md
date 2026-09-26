@@ -32,12 +32,15 @@
 ## 2. Which components force which licence, checked rather than recalled
 
 FFmpeg is LGPL-2.1-or-later, and the parts that are not are enumerated in the source tree's own
-`LICENSE.md` rather than being a matter of interpretation. Checked against ffmpeg-7.1.5:
+`LICENSE.md` rather than being a matter of interpretation. Checked against ffmpeg-7.1.5, and again
+against ffmpeg-9.0.2 on 2026-09-26, when the payload moved to it: the file had lost libpostproc
+and `vf_pp.c` (FFmpeg 8.0 removed libpostproc from the tree, and with it `--disable-postproc`)
+and gained nothing, so every other row below stands.
 
 | | Licence | In this build |
 |---|---|---|
 | libavcodec, libavformat, libavutil | LGPL-2.1+ | yes |
-| libpostproc | **GPL-2+** | no: `--disable-postproc` |
+| libpostproc | **GPL-2+** | no: `--disable-postproc` through FFmpeg 7.1; gone from FFmpeg since 8.0 |
 | `libavcodec/x86/flac_dsp_gpl.asm`, `x86/idct_mmx.c`, `libavfilter/x86/vf_removegrain.asm` | **GPL-2+** | no: reachable only with `--enable-gpl` |
 | ~30 filters (`vf_blackframe.c`, `vf_boxblur.c`, `signature_lookup.c`, …) | **GPL-2+** | no: `--disable-avfilter` |
 | libx264, libx265, libxvid, avisynth, frei0r, libcdio | **GPL-2+**, external | no |
@@ -174,7 +177,8 @@ honest gap:
 ## Sources
 
 - FFmpeg, *License and Legal Considerations*: <https://www.ffmpeg.org/legal.html>
-- `LICENSE.md` in the ffmpeg-7.1.5 source tree: the enumeration in §2 is from this file
+- `LICENSE.md` in the ffmpeg-7.1.5 source tree: the enumeration in §2 is from this file; the
+  ffmpeg-9.0.2 one differs from it only by the two removals §2 names
 - Via Licensing Alliance, AVC/H.264 programme: <https://www.via-la.com/licensing-programs/avc-h-264/>
 - *Last MPEG-4 Visual Patent Expires Today*, 2026-07-19:
   <https://www.techtimes.com/articles/320983/20260719/last-mpeg-4-visual-patent-expires-today-freeing-divx-xvid-globally.htm>

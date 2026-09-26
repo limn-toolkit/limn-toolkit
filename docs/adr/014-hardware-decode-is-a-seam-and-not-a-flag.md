@@ -330,8 +330,10 @@ that absence produced, and the reason the probe exists.
 ## Sources
 
 - `libavcodec/videotoolbox.c`, `libavcodec/d3d11va.c`, `libavcodec/vaapi_decode.c` in the
-  ffmpeg-7.1.5 tree the build script pins: the three handle types in §0 are the ones those files
-  hand back
+  ffmpeg-7.1.5 tree the build script pinned: the three handle types in §0 are the ones those files
+  hand back. Re-read in ffmpeg-9.0.2 on 2026-09-26, when the pin moved: unchanged (a
+  `CVPixelBufferRef` in `data[3]`, an `ID3D11Texture2D` in `data[0]` with its index in `data[1]`,
+  a `VASurfaceID` in `data[3]`)
 - ADR 003 §3, §4.3 and §7, for the context-selection order §6 argues with
 - ADR 007 §1 and §7, for the sentence route B amended and the texture-lifetime rule §8 extends
 - ADR 011 §5, for the patent argument that makes an operating system's decoder worth having

@@ -213,6 +213,12 @@ on this path; `AVSubtitle`, `AVSubtitleRect` and `avsubtitle_free` are undecorat
 `decode_*` calls has no subtitle counterpart in this tree, so the old-looking entry point is the
 current one and no migration is pending.
 
+*Re-read in ffmpeg-9.0.2 on 2026-09-26, when the pin moved:* still undeprecated and undecorated,
+and still no successor in `doc/APIchanges`. The two markers named above are gone because what they
+marked was removed (`ticks_per_frame` and `avcodec_close`); the only `attribute_deprecated` left in
+`avcodec.h` is `intra_dc_precision`, an encoder field. The two `*_filter_deps` lines of §0 are
+unchanged in that tree's `configure`.
+
 ## 7. What this costs, stated rather than discovered
 
 - **A fourth mutex in the shim**, and one more entry in the lock order: the subtitle side may take

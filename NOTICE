@@ -141,7 +141,7 @@ FFmpeg: libavcodec, libavformat, libavutil, libswresample
   or limn-video-ffmpeg-natives-all (published from here) for all six.
 
   Built WITHOUT --enable-gpl and WITHOUT --enable-nonfree, so no GPL component
-  (libpostproc, the three GPL x86 optimisation files, the GPL filters) and no
+  (the three GPL x86 optimisation files, the GPL filters) and no
   nonfree component (Fraunhofer FDK AAC, OpenSSL) is present. x264 and x265 are
   not linked. A test here reads the licence and the configure line back out of
   the linked library, so this paragraph cannot quietly stop being true.
