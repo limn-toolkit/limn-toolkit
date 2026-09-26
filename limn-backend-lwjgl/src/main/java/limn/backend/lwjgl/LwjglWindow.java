@@ -300,7 +300,8 @@ final class LwjglWindow implements NativeWindow {
             // same binary reaches X11 or Wayland depending on the session.
             throw new IllegalStateException("glfwCreateWindow failed on the "
                     + GraphicsProbe.platformName() + " platform: " + failure
-                    + "; Limn needs an OpenGL 3.3 core context");
+                    + "; Limn needs an OpenGL 3.3 core context"
+                    + GraphicsProbe.contextAdvice(Platform.current().os(), failure.code()));
         }
         long softwareContext = NULL;
         if (softwareGl) {

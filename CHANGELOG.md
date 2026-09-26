@@ -31,6 +31,12 @@ Maven Central say which number that was.
 
 ### Changed
 
+- On a Windows machine with no OpenGL 3.3 driver (a virtual machine, a remote-desktop session, a GPU
+  whose driver is Direct3D only), the error an application gets at its first window, and the
+  demo's `--gl-info`, now say what to install: the GPU maker's driver, or Microsoft's free
+  "OpenCL, OpenGL, and Vulkan Compatibility Pack" (`winget install
+  Microsoft.OpenCLGLVulkanCompatibilityPack`), which provides OpenGL over Direct3D 12 and is used
+  only where no other driver is present.
 - `Scene.renderFrame(Canvas, boolean, float)` is gone. A frame callback of your own passes the
   backend's `FrameInfo` whole, `scene.renderFrame(renderer.canvas(), frame)`, so a field the backend
   adds later cannot be left behind; the overload that is gone is the one that dropped the age.

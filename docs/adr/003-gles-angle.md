@@ -394,6 +394,9 @@ Ranked, so implementation order can follow value rather than curiosity:
    that also has a working ICD; that a machine with only generic formats leaves `usableCount == 0`
    and raises "WGL: The driver does not appear to support OpenGL" is read from GLFW's source, not
    run.
+   *Measured 2026-09-25:* it does. The Windows guest's SSH session (session 0, which gets no
+   display driver) is such a box, and there `glfwCreateWindow` raised exactly that, as
+   `GLFW_API_UNAVAILABLE`. The startup error now says what to do about it (§5).
 2. **macOS after Apple removes GL**: ANGLE over Metal. Insurance with a real expiry risk. This item
    used to be read as covering any Mac whose GL was unusable, which folded two propositions into
    one. They are separate now, because the nearer one is closed:
@@ -584,6 +587,28 @@ driver — which makes it a fix nobody can apply until after the failure — and
 it is reasoned from GLFW's source and from what a Mesa Windows build is, not run. Weigh it against
 ANGLE before Phase 3, because if it suffices, most of this record is unnecessary for the population
 that motivates it.
+
+**Measured and decided, 2026-09-25.** A proof of concept tried both halves; the owner then chose
+to ship neither and to point at the machine's own fix instead.
+
+- *Shipping Mesa:* not taken. Mesa 26.2.1's Windows build (pal1000/mesa-dist-win) is 62.8 MB for
+  the x64 OpenGL files alone, 23.4 MB compressed, because `libgallium_wgl.dll` carries llvmpipe with
+  LLVM, D3D12 and zink in one 59 MB library. Loading it by full path before GLFW works — GLFW's
+  `LoadLibrary("opengl32.dll")` then resolves to the module already loaded, so it needs no launcher
+  directory — but on the ARM64 guest's emulated x64 JVM both of its drivers died (D3D12 in the
+  first swap, llvmpipe on an AVX instruction the emulator lacks), so it was never seen drawing.
+- *The machine's own fix:* Microsoft's "OpenCL, OpenGL, and Vulkan Compatibility Pack" (Store
+  9NQPSL29BFFF, winget `Microsoft.OpenCLGLVulkanCompatibilityPack`) installs the same Mesa D3D12
+  driver as an OpenGL implementation Windows uses only where no vendor driver is present. Measured
+  on the guest: with it installed the desktop session kept the Parallels driver; with the VM's 3D
+  acceleration off, the unmodified toolkit ran on `D3D12 (Microsoft Basic Render Driver)`, OpenGL
+  4.6 core, and the heavy-screen benchmark drew correctly at 48 frames a second animating and 12
+  scrolling a full window, on WARP, from an emulated JVM. Drawing in session 0 still crashes, in
+  `OpenGLOn12.dll`'s make-current; session 0 has no desktop to draw to and is not a place an
+  application runs.
+- *What Limn does:* when a Windows window cannot get its context for want of a driver
+  (`GLFW_API_UNAVAILABLE`, `GLFW_VERSION_UNAVAILABLE`, `GLFW_FORMAT_UNAVAILABLE`), the startup error
+  and `--gl-info` name the vendor driver and the Compatibility Pack, with both identifiers.
 
 ---
 

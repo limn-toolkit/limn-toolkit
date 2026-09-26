@@ -11,11 +11,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.lwjgl.glfw.GLFW.GLFW_API_UNAVAILABLE;
 import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_CREATION_API;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MAJOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MINOR;
 import static org.lwjgl.glfw.GLFW.GLFW_EGL_CONTEXT_API;
+import static org.lwjgl.glfw.GLFW.GLFW_FORMAT_UNAVAILABLE;
 import static org.lwjgl.glfw.GLFW.GLFW_NATIVE_CONTEXT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_NO_API;
 import static org.lwjgl.glfw.GLFW.GLFW_NO_ERROR;
@@ -30,6 +32,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_PLATFORM_NULL;
 import static org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WAYLAND;
 import static org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WIN32;
 import static org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11;
+import static org.lwjgl.glfw.GLFW.GLFW_VERSION_UNAVAILABLE;
 import static org.lwjgl.glfw.GLFW.glfwGetError;
 import static org.lwjgl.glfw.GLFW.glfwGetPlatform;
 import static org.lwjgl.glfw.GLFW.glfwGetVersionString;
@@ -116,6 +119,47 @@ final class GraphicsProbe {
             return new Failure(code, text == NULL ? "unnamed error" : MemoryUtil.memUTF8(text));
         }
     }
+
+    /**
+     * What to do about a window whose OpenGL 3.3 core context could not be had, appended to GLFW's
+     * own description of the refusal; empty where there is nothing better to say than that.
+     *
+     * <p>Only Windows has an answer. There the OpenGL a machine has is whatever its GPU's driver
+     * installed, and without one it is Microsoft's GDI Generic, OpenGL 1.1, which GLFW refuses (ADR
+     * 003 §3): a virtual machine, a remote-desktop session, a GPU whose driver is Direct3D only.
+     * Microsoft's Compatibility Pack is the fix that reaches all three. It installs OpenGL over
+     * Direct3D 12 (Mesa's D3D12 driver), which Windows uses only where no other OpenGL driver is
+     * present, so it cannot shadow a working one. Limn does not ship it or anything like it: Mesa's
+     * Windows build is 62.8 MB for the x64 OpenGL files alone (measured 2026-09-25), and a driver the
+     * machine should have belongs to the machine.
+     *
+     * <p>Decided by the error's code, not its text. The three are the ones GLFW's WGL path raises
+     * when there is no usable driver ("The driver does not appear to support OpenGL"), when the
+     * driver is older than 3.3 or lacks the core profile, and when no pixel format qualifies.
+     *
+     * @param os   the platform, a parameter so that every branch can be tested anywhere
+     * @param code the GLFW error code of the failed window creation
+     */
+    static String contextAdvice(limn.backend.Platform.Os os, int code) {
+        if (os != limn.backend.Platform.Os.WINDOWS) {
+            return "";
+        }
+        if (code != GLFW_API_UNAVAILABLE && code != GLFW_VERSION_UNAVAILABLE
+                && code != GLFW_FORMAT_UNAVAILABLE) {
+            return "";
+        }
+        return "; this Windows machine has no OpenGL 3.3 driver. Install or update the graphics "
+                + "driver from the GPU's maker; where none offers OpenGL 3.3 (a virtual machine, a "
+                + "remote-desktop session, a GPU with a Direct3D-only driver), install Microsoft's "
+                + "free \"OpenCL, OpenGL, and Vulkan Compatibility Pack\" (Microsoft Store "
+                + COMPATIBILITY_PACK_STORE_ID + ", or: winget install "
+                + COMPATIBILITY_PACK_WINGET_ID + "), which provides OpenGL 3.3 over Direct3D 12";
+    }
+
+    /** The Compatibility Pack's Microsoft Store product ID. */
+    static final String COMPATIBILITY_PACK_STORE_ID = "9NQPSL29BFFF";
+    /** The Compatibility Pack's winget package identifier. */
+    static final String COMPATIBILITY_PACK_WINGET_ID = "Microsoft.OpenCLGLVulkanCompatibilityPack";
 
     /** A GLFW error code and the description GLFW gave with it. */
     record Failure(int code, String description) {

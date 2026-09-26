@@ -7,8 +7,13 @@ description: "The JDK you need, the two dependencies, the one macOS flag, and a 
 
 - **JDK 17 or newer.** Nothing in the toolkit needs a preview feature.
 - **A GPU with OpenGL 3.3.** Anything from the last decade qualifies. macOS runs it through
-  Apple's 4.1 compatibility layer; a machine with no GPU at all can fall back to Mesa's
-  software rasteriser, which is how the screenshots on this site are taken.
+  Apple's 4.1 compatibility layer, or its software renderer on a Mac with no GPU driver (a
+  virtual machine). A Linux machine with no GPU at all can fall back to Mesa's software
+  rasteriser, which is how the screenshots on this site are taken. A Windows machine with no
+  OpenGL driver (a virtual machine, a remote-desktop session) gets one from Microsoft's free
+  [OpenCL, OpenGL, and Vulkan Compatibility Pack](https://apps.microsoft.com/detail/9NQPSL29BFFF),
+  or `winget install Microsoft.OpenCLGLVulkanCompatibilityPack`; the error Limn stops with says
+  so.
 
 ## Try it before you install anything
 

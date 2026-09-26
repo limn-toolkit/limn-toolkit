@@ -1,6 +1,7 @@
 package limn.backend.lwjgl;
 
 import limn.backend.GraphicsInfo;
+import limn.backend.Platform;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -8,6 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.lwjgl.glfw.GLFW.GLFW_API_UNAVAILABLE;
+import static org.lwjgl.glfw.GLFW.GLFW_FORMAT_UNAVAILABLE;
+import static org.lwjgl.glfw.GLFW.GLFW_OUT_OF_MEMORY;
+import static org.lwjgl.glfw.GLFW.GLFW_PLATFORM_ERROR;
+import static org.lwjgl.glfw.GLFW.GLFW_VERSION_UNAVAILABLE;
 
 /**
  * The report is only worth printing if it is populated: a probe that asks the
@@ -99,5 +105,35 @@ class GraphicsProbeTest {
         assertEquals("", info.renderer());
         assertEquals(0, info.maxSamples());
         assertTrue(info.extensions().isEmpty());
+    }
+
+    /**
+     * A Windows machine with no OpenGL 3.3 driver is told where one comes from, whichever of the
+     * three refusals GLFW's WGL path raises for it; the Compatibility Pack is named by both of the
+     * identifiers a person can install it with.
+     */
+    @Test
+    void aWindowsContextRefusalNamesTheDriverAndTheCompatibilityPack() {
+        for (int code : new int[] {GLFW_API_UNAVAILABLE, GLFW_VERSION_UNAVAILABLE, GLFW_FORMAT_UNAVAILABLE}) {
+            String advice = GraphicsProbe.contextAdvice(Platform.Os.WINDOWS, code);
+            assertTrue(advice.startsWith("; this Windows machine has no OpenGL 3.3 driver"), advice);
+            assertTrue(advice.contains(GraphicsProbe.COMPATIBILITY_PACK_STORE_ID), advice);
+            assertTrue(advice.contains("winget install " + GraphicsProbe.COMPATIBILITY_PACK_WINGET_ID), advice);
+        }
+    }
+
+    /**
+     * Nothing is advised where the advice would be wrong: another kind of failure on Windows, or a
+     * refusal anywhere else, where the Compatibility Pack does not exist and the fixes differ.
+     */
+    @Test
+    void noAdviceForOtherFailuresOrOtherPlatforms() {
+        assertEquals("", GraphicsProbe.contextAdvice(Platform.Os.WINDOWS, GLFW_PLATFORM_ERROR));
+        assertEquals("", GraphicsProbe.contextAdvice(Platform.Os.WINDOWS, GLFW_OUT_OF_MEMORY));
+        for (Platform.Os os : Platform.Os.values()) {
+            if (os != Platform.Os.WINDOWS) {
+                assertEquals("", GraphicsProbe.contextAdvice(os, GLFW_VERSION_UNAVAILABLE), os.name());
+            }
+        }
     }
 }
