@@ -17,6 +17,11 @@ Maven Central say which number that was.
 - Editable text reads a lone carriage return, the classic Mac OS line break, as a line break;
   it was deleted, joining the lines around it.
 - A chart whose values reach near the largest double no longer throws on every frame.
+- A chart whose value-axis labels are wider than the chart itself (values past about 1e20 written
+  out in full, or a long custom format) draws: the labels are cut with an ellipsis, upright to at
+  most 35% of the chart's width, as a sideways chart's category labels already were, and sideways
+  also to the room between two ticks. The chart used to give that width to the labels and draw
+  nothing at all.
 - A glTF texture or material that names an image or texture the file does not have is refused
   with an `IllegalArgumentException` when the file is read, rather than failing later in the
   texture decode; a texture with no image at all, which glTF allows, loads as no texture.

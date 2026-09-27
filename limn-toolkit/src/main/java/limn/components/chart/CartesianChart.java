@@ -42,6 +42,13 @@ import java.util.List;
  */
 public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<W> {
 
+    /**
+     * The most of the chart's width an axis gutter takes, labels and all; a label longer than that
+     * is cut with an ellipsis. A third and a little more leaves the plot most of the chart even
+     * when every label is long.
+     */
+    private static final float GUTTER_SHARE = 0.35f;
+
     private final ChartAxis valueAxis;
     private final ChartAxis categoryAxis = new ChartAxis(false, false);
     private boolean stacked;
@@ -75,6 +82,8 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
     private Font scaleFont;
     private boolean scaleRtl;
     private float tickLabelWidth;
+    /** The widest a value-axis label is drawn, set by the layout; a longer one is cut to it. */
+    private float valueLabelRoom;
     private int categoryScanGeneration = -1;
     private long categoryScanEpoch = -1;
     private java.util.Locale categoryScanLocale;
@@ -572,9 +581,13 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
         float gap = t.spacingSmall();
         float lineHeight = measure("X", font).lineHeight();
 
+        // A tick label is cut to this, as a sideways category label is to its gutter: a label
+        // wider than the chart (1e300 written out grouped is 401 characters) took the whole width,
+        // left the plot a point wide and the chart drew nothing at all.
+        valueLabelRoom = Math.min(tickLabelWidth, w * GUTTER_SHARE);
         float valueGutter = 0;
         if (valueAxis.isVisible()) {
-            valueGutter = horizontal ? lineHeight + gap : tickLabelWidth + gap;
+            valueGutter = horizontal ? lineHeight + gap : valueLabelRoom + gap;
         }
         if (valueAxis.title() != null) {
             valueGutter += lineHeight;
@@ -583,7 +596,7 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
         float categoryGutter = 0;
         if (categoryAxis.isVisible() && categoryCount() > 0) {
             if (horizontal) {
-                categoryGutter = Math.min(widestCategoryLabel(font), w * 0.35f) + gap;
+                categoryGutter = Math.min(widestCategoryLabel(font), w * GUTTER_SHARE) + gap;
             } else {
                 categoryGutter = lineHeight + gap;
             }
@@ -603,8 +616,8 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
         // on the high end of the scale. That end is where the value axis finishes reading, so
         // the reserve is a trailing one and follows the scale to the other side.
         float trailing = valueAxis.isVisible() && horizontal
-                ? labelWidth(tickLabels.length > 0 ? tickLabels[tickLabels.length - 1] : "", font)
-                / 2 : 0;
+                ? Math.min(labelWidth(tickLabels.length > 0 ? tickLabels[tickLabels.length - 1] : "",
+                        font), valueLabelRoom) / 2 : 0;
 
         // The one place the two magnitudes are assigned to physical sides. Everything above is a
         // distance from an edge that has no side yet, which is what lets each of them stay one
@@ -710,8 +723,19 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
         Font font = t.label();
         float gap = t.spacingSmall();
         if (valueAxis.isVisible()) {
+            // Upright the labels stack in the gutter and only its width bounds them. Sideways they
+            // share one row under the plot, each centred on its tick, so each must also fit the
+            // distance to the next one or they run into a smear of digits.
+            float room = valueLabelRoom;
+            if (horizontal && tickLabels.length > 1) {
+                float spacing = Math.abs(valuePosition(scale.tick(1)) - valuePosition(scale.tick(0)));
+                room = Math.min(room, Math.max(0, spacing - gap));
+            }
             for (int i = 0; i < tickLabels.length; i++) {
                 ShapedText line = shapeLabel(tickLabels[i], font);
+                if (line.metrics().width() > room + 0.01f) {
+                    line = shapeLabel(ellipsize(tickLabels[i], font, room), font);
+                }
                 TextMetrics m = line.metrics();
                 float p = valuePosition(scale.tick(i));
                 if (horizontal) {

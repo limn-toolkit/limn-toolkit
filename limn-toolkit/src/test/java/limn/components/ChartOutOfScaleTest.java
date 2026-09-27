@@ -40,6 +40,8 @@ class ChartOutOfScaleTest extends ComponentTestBase {
         final List<float[]> strokes = new ArrayList<>();
         final List<Float> horizontalLines = new ArrayList<>();
         final List<String> texts = new ArrayList<>();
+        /** Each shaped label's left and right edge, in scene coordinates. */
+        final List<float[]> labelSpans = new ArrayList<>();
         int nonFinite;
         private float tx;
         private float ty;
@@ -156,6 +158,7 @@ class ChartOutOfScaleTest extends ComponentTestBase {
         @Override
         public void drawText(ShapedText line, float x, float y, Paint paint) {
             texts.add(line.text());
+            labelSpans.add(new float[] {x + tx, x + tx + line.metrics().width()});
         }
 
         @Override
@@ -283,6 +286,47 @@ class ChartOutOfScaleTest extends ComponentTestBase {
             }
         } finally {
             limn.backend.Crashes.uninstall(handler);
+        }
+    }
+
+    /**
+     * A tick label wider than the chart took the whole width for its gutter, left the plot a
+     * point wide, and the chart drew nothing at all, labels included: 1e300 written out grouped is
+     * 401 characters. The gutter now stops at a share of the width and a label past it is cut
+     * with an ellipsis, upright and sideways alike.
+     */
+    @Test
+    void tickLabelsWiderThanTheChartAreCutAndTheChartStillDraws() {
+        for (boolean sideways : new boolean[] {false, true}) {
+            BarChart chart = BarChart.of(List.of("a", "b", "c"),
+                    ChartSeries.of("v", 1e300, 5e299, 2e299));
+            chart.setLocale(java.util.Locale.ENGLISH);
+            chart.setHorizontal(sideways);
+            InkCanvas canvas = frame(sceneOf(chart));
+            String which = sideways ? "sideways" : "upright";
+            assertEquals(3, canvas.bars.size(), "every bar is drawn " + which);
+            assertInside(chart, canvas.bars, "a bar " + which);
+            assertTrue(canvas.texts.stream().anyMatch(text -> text.endsWith("\u2026")),
+                    "a label too long for the gutter is cut, not dropped, " + which + ": "
+                            + canvas.texts);
+            float left = chart.localToSceneX();
+            float right = left + chart.width();
+            for (float[] span : canvas.labelSpans) {
+                assertTrue(span[0] >= left - 0.01f && span[1] <= right + 0.01f,
+                        "a label " + which + " spills out of the chart: " + span[0] + ".." + span[1]
+                                + " in " + left + ".." + right);
+            }
+            if (sideways) {
+                // Sideways the tick labels share one row under the plot: cut to the gutter's
+                // share alone they still ran into each other, a smear of digits.
+                List<float[]> row = new ArrayList<>(canvas.labelSpans.subList(0, 6));
+                row.sort((p, q) -> Float.compare(p[0], q[0]));
+                for (int i = 1; i < row.size(); i++) {
+                    assertTrue(row.get(i)[0] >= row.get(i - 1)[1] - 0.01f,
+                            "tick labels overlap sideways: " + row.get(i - 1)[1] + " > "
+                                    + row.get(i)[0] + " " + canvas.texts);
+                }
+            }
         }
     }
 
