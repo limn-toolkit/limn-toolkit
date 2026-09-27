@@ -1,15 +1,16 @@
 ---
 title: "Layout"
-description: "Columns, rows, stacks and the one marker that decides where leftover space goes, with a complete window built out of them."
+description: "Columns, rows, wraps, stacks and the one marker that decides where leftover space goes, with a complete window built out of them."
 ---
 
-Limn has four layout widgets and one marker. That is the whole vocabulary, and it is enough
+Limn has five layout widgets and one marker. That is the whole vocabulary, and it is enough
 to build the window at the bottom of this page.
 
 | | |
 | --- | --- |
 | `Column` | stacks children top to bottom |
 | `Row` | places children left to right |
+| `Wrap` | places children left to right, and starts a new line when the width runs out |
 | `Stack` | draws children on top of each other |
 | `Padding` | insets one child |
 | `Expanded` | marks the child that absorbs leftover space |
@@ -54,6 +55,27 @@ along the row or column, and `atMost(320)` never more: the row freezes a child a
 shares what is left among the others, floors first. When every flexible child is held at its
 ceiling, what remains is placed by the row's main alignment, as if none of them were flexible.
 
+## Lines that wrap
+
+A row that holds more than fits runs off its edge. When the number or the length of the
+children is not yours to decide (tags, filters, the chips a user adds, buttons whose labels
+are translated), use a `Wrap`: it places children along a line exactly as a row would, and
+when the next child does not fit in what is left of the width, it starts a new line below.
+
+{% snippet guide:layout-wrap %}
+
+`gap` is the gutter between neighbours on a line, the same one a row has, and `runGap` the
+space between lines. `mainAlignment` places each line on its own, so `END` packs every line
+to the trailing edge and `SPACE_BETWEEN` spreads every line, the last one included; in a
+right-to-left subtree each line starts at the right edge. `crossAlignment` places a child
+within the height of its line, which is the height of the line's tallest child.
+
+A wrap is as wide as its longest line and as tall as its lines. With nothing bounding the
+width, which is what `scene.pack()` measures with, everything is one line, so to pack a window
+around a wrap of a few lines, give the wrap a maximum width. A child wider than the wrap gets
+a line of its own, at the wrap's width. There is no leftover space on a line to share, so
+`Expanded` has no meaning in a wrap and is refused when added.
+
 ## Overlays
 
 `Stack` draws its children in order against one shared box, which is what an overlay is:
@@ -68,7 +90,8 @@ Every child takes the stack's alignment, so to nudge one off a corner, wrap it i
 
 There is no grid layout, and there does not need to be one: a grid is rows of `Expanded`
 children, and writing it yourself takes ten lines and leaves you in charge of what a short
-last line does.
+last line does. (When the tiles should keep their own width and flow onto as many lines as
+the window allows, rather than fill a fixed number of columns, that is a `Wrap`.)
 
 {% snippet guide:layout-grid %}
 
@@ -91,8 +114,8 @@ the panes grow.
 {% shot layout "The window that code produces, rendered by Limn." %}
 
 Everything on that screen is on this page. The tiles are the grid above; each one is a
-column of a stacked swatch-and-badge and two labels; the header row and the status line are
-both `spread`. The sidebar is a `ListView` and the divider is a `SplitPane`, both of which
+column of a stacked swatch-and-badge and two labels; the filters under the header are the
+`tags` wrap; the header row and the status line are both `spread`. The sidebar is a `ListView` and the divider is a `SplitPane`, both of which
 are covered in [Lists and scrolling](/docs/lists-and-scrolling/).
 
 :::tip[Why the last row's tiles are not wider]

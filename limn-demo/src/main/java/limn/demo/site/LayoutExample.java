@@ -13,6 +13,7 @@ import limn.components.Theme;
 import limn.components.ToolBar;
 import limn.graphics.Color;
 import limn.graphics.Image;
+import limn.scene.ControlSize;
 import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -23,14 +24,15 @@ import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 import limn.scene.layout.Stack;
+import limn.scene.layout.Wrap;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * The worked window the guide's Layout page is built from: an asset library with a toolbar,
- * a sidebar, a tile grid and a status bar, assembled out of the primitives that page
- * teaches, and nothing else.
+ * a sidebar, a set of filters, a tile grid and a status bar, assembled out of the primitives
+ * that page teaches, and nothing else.
  *
  * <p>Every region marked here becomes a code block on that page, and this file is compiled
  * by {@code ./gradlew check}. Each helper is used by {@link #shell()}, so the screenshot on
@@ -44,6 +46,10 @@ public final class LayoutExample {
     // #region showcase:layout-data
     private static final List<String> COLLECTIONS =
             List.of("All assets", "Textures", "Models", "HDRIs", "Fonts", "Archive");
+
+    /** The library's filters, as many and as long as a real collection's would be. */
+    private static final List<String> TAGS = List.of("Tileable", "PBR", "4K", "Outdoor",
+            "Brushed metal", "Wood", "Stone", "Organic", "Seamless", "Hand-painted", "Sci-fi panels");
 
     /** name · overlay badge · size on disk · the two ends of the swatch's ramp. */
     private static final String[][] ASSETS = {
@@ -109,6 +115,24 @@ public final class LayoutExample {
         stack.add(content);
         stack.add(on);
         return stack;
+    }
+    // #endregion
+
+    /**
+     * A wrap places its children along a line and starts a new line below when the next one
+     * does not fit, so a set of tags whose number and length nobody knows in advance never runs
+     * off the edge of the pane: a narrower window gives it more lines rather than a clipped row.
+     * The gap is the one a row has; the run gap is the one between lines.
+     */
+    // #region guide:layout-wrap
+    static Wrap tags(List<String> names) {
+        Wrap tags = new Wrap();
+        tags.gap(8).runGap(8);
+        tags.setControlSize(ControlSize.SMALL);
+        for (String name : names) {
+            tags.add(new Button(name).setSecondary(true));
+        }
+        return tags;
     }
     // #endregion
 
@@ -201,6 +225,7 @@ public final class LayoutExample {
 
         return new Padding(Insets.all(20), column(18,
                 spread(new Label("Textures").setRole(Label.Role.TITLE), tools),
+                tags(TAGS),
                 Expanded.of(new ScrollView(grid(3, tiles)), 1)));
     }
     // #endregion
