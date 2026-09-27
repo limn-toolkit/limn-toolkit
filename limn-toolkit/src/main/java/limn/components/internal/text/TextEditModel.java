@@ -201,9 +201,14 @@ public final class TextEditModel {
         lastEdit = EditKind.OTHER;
     }
 
+    /**
+     * Every line break as a line feed: CR LF is one break and a lone CR, the classic Mac OS break
+     * that old files and some clipboards still carry, is one too. A one-line model makes each a
+     * space.
+     */
     private String sanitize(String raw) {
-        String value = raw == null ? "" : raw;
-        return singleLine ? value.replace("\r", "").replace("\n", " ") : value.replace("\r", "");
+        String value = raw == null ? "" : raw.replace("\r\n", "\n").replace('\r', '\n');
+        return singleLine ? value.replace('\n', ' ') : value;
     }
 
     /** Inserts at the cursor, replacing any selection. */

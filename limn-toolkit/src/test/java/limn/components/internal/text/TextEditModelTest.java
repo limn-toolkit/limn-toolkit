@@ -45,6 +45,22 @@ class TextEditModelTest {
         assertEquals("a b c", m.text());
     }
 
+    /**
+     * A lone carriage return is a line break, the classic Mac OS one that old files and some
+     * clipboards still carry: it became nothing, so "one\rtwo" pasted as "onetwo". Windows' CR LF
+     * stays one break, not two.
+     */
+    @Test
+    void aLoneCarriageReturnIsALineBreak() {
+        TextEditModel multi = new TextEditModel(false);
+        multi.insert("one\rtwo\r\nthree\nfour");
+        assertEquals("one\ntwo\nthree\nfour", multi.text());
+
+        TextEditModel single = new TextEditModel(true);
+        single.insert("one\rtwo");
+        assertEquals("one two", single.text(), "a break in a one-line field is a space, as \\n is");
+    }
+
     @Test
     void horizontalMovesStepByCodePoints() {
         TextEditModel m = new TextEditModel(true);
