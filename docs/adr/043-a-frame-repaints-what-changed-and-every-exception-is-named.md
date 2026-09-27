@@ -171,6 +171,10 @@ by default from the theme as what the focus ring needs, adjustable by the develo
   by default, since its clip bounds its children.
 - **Constant per layout, never summed from the children**, because a pass asks it of every widget it
   considers: a child that paints farther than its layouts declare is declared on each of them.
+  The colour picker's two private containers are gone again for that reason: its cursor's 8 points
+  are declared with `paintOverflow` on the plain `Column`, `TokenBox`, `Row` and `Expanded` it was
+  built from, pixel for pixel the picker it was, and `ColorPickerCursorDamageTest` probes bands six
+  points out, where the focus ring's default no longer reaches.
 
 What it costs is the band: a layout's own `invalidate()` now repaints its box grown by 4 points
 rather than 1, and a pass paints a layout it would have skipped when it lands within 4 points of it.

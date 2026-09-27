@@ -311,7 +311,7 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         + "and its controls are all deleted, and the three parts it draws have "
                         + "each taken their own step: the saturation/value plane is the CANVAS at "
                         + "the head of this list and the hue ramp the SLIDER beside it, because "
-                        + "the field row is the first thing in the column and they are the two "
+                        + "the ramps row is the first thing in the column and they are the two "
                         + "things in that row, and the swatch is the IMAGE after them, because it "
                         + "is the first thing in the identity row. What each says is pinned by "
                         + "limn.components.ColorPickerSaturationValueFieldAccessibilityTest, "
@@ -331,16 +331,17 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
-     * What the picker's own two containers leave behind once the predicate has deleted them: the
-     * column and the row holding the plane and the hue ramp publish nothing, and the boxes they
-     * gave the two are exactly what a row of an expanded plane and a ramp of its own width would
-     * have given. One field-height tall at the top of the picker, the ramp at its token width on
-     * the trailing edge, the plane taking what the ramp and one gap leave; reading right to left
-     * the ramp changes sides and the tree order does not.
+     * What the layouts between the picker and its plane leave behind once the predicate has
+     * deleted them: the column, the box that gives the row its height, the row holding the plane
+     * and the hue ramp and the plane's expanded share publish nothing, and the boxes they gave the
+     * two are what a row of an expanded plane and a ramp of its own width gives. One field-height
+     * tall at the top of the picker, the ramp at its token width on the trailing edge, the plane
+     * taking what the ramp and one gap leave; reading right to left the ramp changes sides and the
+     * tree order does not.
      *
-     * <p>Pinned because the two containers are hand-written and not a row: they exist so that
-     * each can declare how far the plane's cursor paints past it, which a final wrapper could not,
-     * and the arithmetic they replaced is the one a reader is told the plane's box by.
+     * <p>Pinned because each of those layouts declares how far the plane's cursor paints past it,
+     * which is the one thing about them that is the picker's own, and that declaration must move
+     * nothing a reader is told the plane's box by.
      */
     @Test
     void thePlaneAndTheRampKeepTheBoxesARowGaveThemInBothDirections() {

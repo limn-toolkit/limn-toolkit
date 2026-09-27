@@ -434,36 +434,7 @@ class AccessibleCoverageTest {
             // Flex above it staying hookless: the transparency check walks the ancestry, so a hook
             // on either would fail this name and would silently describe Row, Column and TokenRow
             // at once. Pinned by limn.components.TokenColumnAccessibilityTest.
-            "limn.components.TokenColumn",
-            // The colour picker's own column: a Column whose one addition is a paintOutset, so
-            // nothing in the chain declares a role, name, description, action or state, overrides
-            // onPaint, clips, sets a tooltip or is focusable of its own accord, and the predicate
-            // deletes it and hoists the picker's rows into the chooser, in children() order. It
-            // exists because a repaint pass skips a subtree whose box plus its declared reach
-            // misses the pass, and the plane's cursor ring, centred on the exact colour, hangs
-            // past the picker's top corners, which are this column's; a plain column there was
-            // skipped by a pass landing only in that band and the ring was wiped. What the deletion
-            // leaves behind is Column's geometry, inherited untouched and pinned on the
-            // superclass. Private and final, built once by the picker and reachable by nothing it
-            // exposes, so no naming hatch exists and transparency is per class. The entry stands
-            // on Column and abstract Flex above it staying hookless. Pinned by
-            // limn.components.ColorPickerAccessibilityTest, whose shape test finds the picker's
-            // controls directly under the chooser.
-            "limn.components.ColorPicker$PickerColumn",
-            // The row holding the colour picker's saturation/value plane and hue ramp, laid out by
-            // hand where a Row of an Expanded plane and a TokenBox ramp inside a second TokenBox
-            // used to be: it declares no role, name, description, action or state, no onPaint,
-            // no clip and no tooltip and is never focusable, so the predicate deletes it and
-            // hoists the plane and the ramp into the chooser, plane first. It exists for the same
-            // reach as the column above: the ring hangs past the plane's top, bottom and leading
-            // edges, which are this row's, and the two final wrappers it replaced declared no
-            // reach and could not be made to. What the deletion leaves behind is a row's
-            // arithmetic kept exact, the plane's share after the ramp's token width and one gap,
-            // the ramp on the trailing edge and on the left reading right to left while the order
-            // stays plane then ramp. Private and final, so transparency is per class, and its
-            // ancestry is Widget alone. Pinned by limn.components.ColorPickerAccessibilityTest,
-            // which reads both boxes in both directions.
-            "limn.components.ColorPicker$FieldRow"
+            "limn.components.TokenColumn"
     ));
 
     @Test
