@@ -126,9 +126,21 @@ public final class FrameMetrics {
     private static final java.util.List<java.lang.ref.WeakReference<FrameMetrics>> INSTANCES =
             java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
-    /** An empty set of counters, reset each frame. */
+    /**
+     * An empty set of counters, reset each frame. Registering prunes the entries whose scene is
+     * gone, because every popup brings a scene of its own and only a perf HUD ever asks for
+     * {@link #processInstances()}: without it the list grew by one entry per popup for good.
+     */
     public FrameMetrics() {
-        INSTANCES.add(new java.lang.ref.WeakReference<>(this));
+        synchronized (INSTANCES) {
+            INSTANCES.removeIf(ref -> ref.get() == null);
+            INSTANCES.add(new java.lang.ref.WeakReference<>(this));
+        }
+    }
+
+    /** How many entries the process list holds, live or not yet pruned; for tests. */
+    static int registeredCount() {
+        return INSTANCES.size();
     }
 
     /** @return every live scene's metrics in this process (dead entries pruned) */

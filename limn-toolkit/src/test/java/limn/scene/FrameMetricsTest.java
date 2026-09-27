@@ -26,6 +26,29 @@ class FrameMetricsTest extends SceneTestBase {
         assertEquals(0, b.totalFrames());
     }
 
+    /**
+     * The process-wide list forgets the scenes that are gone without a perf HUD asking: every
+     * popup brings a scene of its own, and the list used to keep one entry per popup for good.
+     */
+    @Test
+    void aNewSceneForgetsTheMetricsOfScenesThatAreGone() throws InterruptedException {
+        int before = FrameMetrics.registeredCount();
+        for (int i = 0; i < 1000; i++) {
+            new FrameMetrics();
+        }
+        java.lang.ref.WeakReference<Object> sentinel = new java.lang.ref.WeakReference<>(new Object());
+        for (int i = 0; i < 50 && sentinel.get() != null; i++) {
+            System.gc();
+            Thread.sleep(10);
+        }
+        assertTrue(sentinel.get() == null, "the collector did not run; nothing to measure");
+        FrameMetrics kept = new FrameMetrics();
+        int after = FrameMetrics.registeredCount();
+        assertTrue(after <= before + 1,
+                "the thousand dead entries are pruned: " + before + " before, " + after + " after");
+        assertTrue(FrameMetrics.processInstances().contains(kept));
+    }
+
     @Test
     void emptyMetricReadsZero() {
         FrameMetrics.Metric m = new FrameMetrics().fps();
