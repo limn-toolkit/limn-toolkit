@@ -804,6 +804,40 @@ class TableTest extends ComponentTestBase {
     }
 
     /**
+     * A text sort is the language's order, so a new language re-sorts: German puts "ä" with the
+     * a, before "z", and Swedish after it. The texts were re-read and the order kept, until a
+     * refresh. The cursor goes with its record, as it does through any sort.
+     */
+    @Test
+    void aNewLanguageReSortsATextSort() {
+        Column<Person> name = nameColumn();
+        Table<Person> table = new Table<>(List.of(name, ageColumn()));
+        table.setRows(List.of(new Person("z", 1), new Person("\u00e4", 2), new Person("b", 3)));
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        scene.setLocale(java.util.Locale.GERMAN);
+        table.setSort(name, SortOrder.ASCENDING);
+        table.setSelectedRow(0);
+        scene.renderFrame(canvas);
+        assertEquals(List.of(1, 2, 0), viewOrder(table), "German: \u00e4, b, z");
+        assertEquals(2, table.focusRow(), "z is last");
+
+        scene.setLocale(java.util.Locale.forLanguageTag("sv"));
+        scene.renderFrame(canvas);
+        assertEquals(List.of(2, 0, 1), viewOrder(table), "Swedish: b, z, \u00e4");
+        assertEquals(1, table.focusRow(), "the cursor stays on z");
+        assertEquals(0, table.selectedRow(), "and the selection with it");
+    }
+
+    private static List<Integer> viewOrder(Table<?> table) {
+        List<Integer> order = new ArrayList<>();
+        for (int v = 0; v < table.rowCount(); v++) {
+            order.add(table.viewToModel(v));
+        }
+        return order;
+    }
+
+    /**
      * TABLE-NEW-3 (decision 23 of 2026-09-14): the documented {@code onSortRequest} recipe —
      * reorder the list, call {@code refresh()} — kept the selection by row number, so it moved
      * onto whatever records the application's sort had put at those numbers. A row is its

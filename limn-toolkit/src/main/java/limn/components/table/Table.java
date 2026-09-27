@@ -1490,6 +1490,24 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * shows.
      */
     private void permute(Change.Origin origin) {
+        int wasFocusRow = reorder();
+        // Contained: a sort moves rows inside a box whose size it cannot change. A full layout
+        // here made every sort — a header click, Space on the header, setSort — a whole-window
+        // repaint (found putting decision 36's Space under the damage contract, 2026-09-15).
+        markNeedsContainedLayout();
+        invalidate();
+        announceFocusCell(wasFocusRow, Change.Origin.ADJUSTMENT);
+        notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
+    }
+
+    /**
+     * Rebuilds the permutation and carries the focus cell, the range anchor and a focused widget
+     * cell to their records, leaving the rows to the next placement and the focus row to be
+     * revealed by it.
+     *
+     * @return the focus row before, for the announcement of its move
+     */
+    private int reorder() {
         int count = rows.size();
         int focusModel = focusRow >= 0 && focusRow < count ? modelOf(focusRow) : -1;
         int anchorModel = rangeAnchor >= 0 && rangeAnchor < count ? modelOf(rangeAnchor) : -1;
@@ -1504,18 +1522,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             rangeAnchor = viewOf(anchorModel);
         }
         unmountAllKeeping(keep, keepModel);
-        // Contained: a sort moves rows inside a box whose size it cannot change. A full layout
-        // here made every sort — a header click, Space on the header, setSort — a whole-window
-        // repaint (found putting decision 36's Space under the damage contract, 2026-09-15).
-        markNeedsContainedLayout();
-        invalidate();
         if (focusRow >= 0) {
             // Deferred to the layout that re-places the rows: nothing is realized now, so the
             // reveal could only put the row at the top, and the least scroll needs the run.
             pendingEnsureVisible = focusRow;
         }
-        announceFocusCell(wasFocusRow, Change.Origin.ADJUSTMENT);
-        notifyChange(Change.of(Change.Aspect.CHILDREN, origin));
+        return wasFocusRow;
     }
 
     /** @return the column the rows are ordered on, or {@code null} in the model's order */
@@ -2138,6 +2150,16 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         SizeTokens t = tokens();
         if (language.moved()) {
             textEpoch++;
+            if (onSortRequest == null && sortColumn != null && sortOrder != SortOrder.NONE) {
+                // A text sort is the language's order: German puts "ä" before "z", Swedish
+                // after it. Placed by this same pass, so announced but not laid out again.
+                int[] was = view;
+                int wasFocusRow = reorder();
+                if (!Arrays.equals(was, view)) {
+                    announceFocusCell(wasFocusRow, Change.Origin.ADJUSTMENT);
+                    notifyChange(Change.of(Change.Aspect.CHILDREN, Change.Origin.ADJUSTMENT));
+                }
+            }
             for (int i = 0; i < mountedCount; i++) {
                 rebind(mountedSlots[i]);
             }
