@@ -2041,6 +2041,22 @@ public final class TextArea extends Widget<TextArea> {
 
     @Override
     protected void onKeyEvent(KeyEvent event) {
+        if (event.isPressed() && !preedit.isEmpty()) {
+            // A key pressed while the input method is composing belongs to the input method,
+            // which is steering the composition with it: Return accepts, Escape abandons,
+            // Backspace and the arrows edit the composition, Space converts it. So the area
+            // neither acts on it nor lets it go on up, or Return inserts a newline beside the
+            // composition, Escape cancels the dialog around the area, Tab leaves it and drops the
+            // composition, and a menu accelerator runs under the candidate list. macOS reports no
+            // key at all while marked text exists, Command chords included, and Windows drops the
+            // keys the IME took before they reach the toolkit, but X11 reports a key even when the
+            // input method's filter consumed it; this is what makes X11 behave like the other
+            // two, the way a browser marks the same events as composing for a page to ignore.
+            // Every press and every auto-repeat, whatever the key and whatever the modifiers. A
+            // release acts on nothing here, and its press has already been swallowed.
+            event.consume();
+            return;
+        }
         long text = model.textVersion();
         int start = model.selectionStart();
         int end = model.selectionEnd();
@@ -2071,9 +2087,10 @@ public final class TextArea extends Widget<TextArea> {
         boolean altGr = ctrl && (mods & Keys.MOD_ALT) != 0;
         boolean shortcut = cmd || (ctrl && !altGr);
         boolean handled = true;
-        // Where the caret was, when this key can only move it: see the end of this method.
+        // Where the caret was, when this key can only move it: see the end of this method. Nothing
+        // is being composed here, because onKeyEvent swallows every press while something is.
         Rect caretWas = !shift && isCaretMoveKey(event.key()) && !model.hasSelection()
-                && preedit.isEmpty() ? caretRect() : null;
+                ? caretRect() : null;
         float scrollXWas = scrollX;
         float scrollYWas = scrollY;
         switch (event.key()) {
@@ -2106,7 +2123,7 @@ public final class TextArea extends Widget<TextArea> {
             case Keys.UP -> {
                 if (cmd) {
                     model.moveDocumentStart(shift);
-                } else if (softWrap && preedit.isEmpty()) {
+                } else if (softWrap) {
                     moveCaretVertically(-1, shift);
                 } else {
                     model.moveUp(shift);
@@ -2115,7 +2132,7 @@ public final class TextArea extends Widget<TextArea> {
             case Keys.DOWN -> {
                 if (cmd) {
                     model.moveDocumentEnd(shift);
-                } else if (softWrap && preedit.isEmpty()) {
+                } else if (softWrap) {
                     moveCaretVertically(1, shift);
                 } else {
                     model.moveDown(shift);
@@ -2185,7 +2202,7 @@ public final class TextArea extends Widget<TextArea> {
             }
             ensureCursorVisible();
             resetBlink(); // damages the caret where it now is
-            if (caretWas != null && !model.hasSelection() && preedit.isEmpty()
+            if (caretWas != null && !model.hasSelection()
                     && scrollX == scrollXWas && scrollY == scrollYWas) {
                 // A caret that moved and nothing else: the one mark it draws, where it was and
                 // where it is. Every arrow key used to repaint the whole area -- every line of it
