@@ -5,7 +5,6 @@ import limn.accessibility.AccessibleNode;
 import limn.accessibility.RoleNames;
 import limn.backend.lwjgl.internal.ObjC;
 import limn.backend.lwjgl.a11y.ClosureArgs;
-import limn.backend.lwjgl.a11y.PointLookup;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Callback;
 import org.lwjgl.system.CallbackI;
@@ -939,19 +938,15 @@ final class AxElementClass {
     }
 
     private long descend(long element, AccessibleNode node, double x, double y) {
-        // First to last, as the children are pushed, but a splitter before them all: its grab
-        // band reaches over the first pane's edge as well as the second's (see PointLookup).
         long[] children = source.childElementsOf(node);
-        for (int i : PointLookup.tryOrder(children.length, k -> source.nodeFor(children[k]), false)) {
-            long child = children[i];
-            double[] frame = objc.msgGetRect(child, "accessibilityFrame");
-            if (x >= frame[0] && x < frame[0] + frame[2]
-                    && y >= frame[1] && y < frame[1] + frame[3]) {
-                AccessibleNode childNode = source.nodeFor(child);
-                return childNode == null ? child : descend(child, childNode, x, y);
-            }
+        int i = AxHitTest.childAt(children.length, k -> source.nodeFor(children[k]),
+                k -> objc.msgGetRect(children[k], "accessibilityFrame"), x, y);
+        if (i < 0) {
+            return element;
         }
-        return element;
+        long child = children[i];
+        AccessibleNode childNode = source.nodeFor(child);
+        return childNode == null ? child : descend(child, childNode, x, y);
     }
 
     /**

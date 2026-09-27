@@ -1229,6 +1229,10 @@ lookups now try a `SPLITTER` before its siblings and keep their own order for th
 the band (`SplitPaneAccessibilityTest` pins it as the target a user aims at), and nothing new is
 published.
 
+*2026-09-27:* the macOS walk now tries the later sibling first as well, and skips a child that is
+not `SHOWING`, as the other two do. First to last, it answered the sibling painted underneath
+wherever two overlapped; the choice is `AxHitTest`, testable without AppKit.
+
 #### Amendment 2026-09-15 (review of the interfaces item) — `GetPosition` and `GetSize` are two out arguments
 
 **What was wrong.** The `Component.GetExtents`, `GetPosition`, `GetSize` row was answered with one

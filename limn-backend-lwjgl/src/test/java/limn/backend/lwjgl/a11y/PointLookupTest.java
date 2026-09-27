@@ -13,9 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 /**
  * The order the point lookups try siblings in, which is the whole of what the three bridges share
- * about a point. Windows and AT-SPI are asserted through their own lookups as well; macOS asks
- * AppKit for every frame, which no test here can, so its order is pinned here: first to last, as
- * its children are pushed, with the splitter before them all.
+ * about a point: last to first, the later sibling being painted over the earlier, with a splitter
+ * before them all. Each bridge's own lookup is asserted as well, macOS's through {@code AxHitTest}.
  */
 class PointLookupTest {
 
@@ -47,18 +46,16 @@ class PointLookupTest {
     void theSplitterComesFirstAndTheRestKeepThePlatformsOrder() {
         List<AccessibleNode> kids = splitChildren();
 
-        assertArrayEquals(new int[] {2, 3, 1, 0}, PointLookup.tryOrder(kids.size(), kids::get, true),
-                "last to first, as Windows and AT-SPI try siblings, after the splitter");
-        assertArrayEquals(new int[] {2, 0, 1, 3}, PointLookup.tryOrder(kids.size(), kids::get, false),
-                "first to last, as macOS tries them, after the splitter");
+        assertArrayEquals(new int[] {2, 3, 1, 0}, PointLookup.tryOrder(kids.size(), kids::get),
+                "last to first, after the splitter");
     }
 
     @Test
     void aSiblingTheBridgeHasNoNodeForKeepsItsPlace() {
         List<AccessibleNode> kids = splitChildren();
 
-        assertArrayEquals(new int[] {2, 0, 1, 3},
-                PointLookup.tryOrder(kids.size(), i -> i == 1 ? null : kids.get(i), false));
-        assertArrayEquals(new int[0], PointLookup.tryOrder(0, i -> null, true));
+        assertArrayEquals(new int[] {2, 3, 1, 0},
+                PointLookup.tryOrder(kids.size(), i -> i == 1 ? null : kids.get(i)));
+        assertArrayEquals(new int[0], PointLookup.tryOrder(0, i -> null));
     }
 }

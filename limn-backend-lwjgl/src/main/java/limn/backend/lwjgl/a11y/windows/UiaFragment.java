@@ -286,7 +286,7 @@ final class UiaFragment {
             descended = false;
             // Last-to-first, the later sibling being the one painted on top, and a splitter first.
             List<AccessibleNode> children = tree.children(tree.node(at));
-            for (int i : PointLookup.tryOrder(children.size(), children::get, true)) {
+            for (int i : PointLookup.tryOrder(children.size(), children::get)) {
                 AccessibleNode candidate = children.get(i);
                 if (candidate.has(Accessible.State.SHOWING) && contains(tree, candidate, x, y)) {
                     at = tree.indexOf(candidate.id());

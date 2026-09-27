@@ -1045,7 +1045,7 @@ final class AtspiTree {
         for (AccessibleNode at = node; ; ) {
             AccessibleNode next = null;
             List<AccessibleNode> kids = tree.children(at);
-            for (int i : PointLookup.tryOrder(kids.size(), kids::get, true)) {
+            for (int i : PointLookup.tryOrder(kids.size(), kids::get)) {
                 AccessibleNode kid = kids.get(i);
                 if (!kid.has(Accessible.State.SHOWING)) {
                     continue;
