@@ -1921,16 +1921,7 @@ public final class DateField extends Widget<DateField> {
         TextMetrics fm = ruler.measure("Hg", font);
         float baseline = (height() - fm.height()) / 2 + fm.ascent();
         ShapedText.Direction neutral = neutralBase();
-
-        // The run is composed left to right from the widths of its own pieces and then placed as a
-        // whole: a date is a run of numbers and keeps its internal order in both directions, so
-        // only its ORIGIN mirrors. The same reading Spinner's clock documents.
-        float runWidth = 0;
-        for (DatePattern.Part part : parts) {
-            runWidth += pieceWidth(ruler, font, neutral, part);
-        }
-        float pad = t.fieldPadH();
-        float x = isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
+        float x = runStart(t, ruler, font, neutral);
         int slot = 0;
         Color ink = enabled ? theme.text() : theme.disabledText();
         for (DatePattern.Part part : parts) {
@@ -1955,6 +1946,27 @@ public final class DateField extends Widget<DateField> {
                     part instanceof DatePattern.Literal || placeholder ? theme.textMuted() : ink);
             x += pieceWidth;
         }
+    }
+
+    /**
+     * Where the run of pieces starts, in this field's own coordinates: at the leading pad, or
+     * reading right to left, as far toward the trailing pad as the run's width allows. The run is
+     * composed left to right from the widths of its own pieces and then placed as a whole: a date
+     * is a run of numbers and keeps its internal order in both directions, so only its origin
+     * mirrors, the same reading Spinner's clock documents.
+     *
+     * <p>The one origin the paint, a click, the accessible tree and the input method's anchor all
+     * walk from, so the segment drawn, the one a click lands in, the box a reader is given and the
+     * box a candidate window goes under cannot drift apart.
+     */
+    private float runStart(SizeTokens t, TextRuler ruler, Font font,
+                           ShapedText.Direction neutral) {
+        float runWidth = 0;
+        for (DatePattern.Part part : parts) {
+            runWidth += pieceWidth(ruler, font, neutral, part);
+        }
+        float pad = t.fieldPadH();
+        return isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
     }
 
     private float pieceWidth(TextRuler ruler, Font font, ShapedText.Direction neutral,
@@ -2026,12 +2038,7 @@ public final class DateField extends Widget<DateField> {
         TextRuler ruler = textRuler();
         Font font = t.body();
         ShapedText.Direction neutral = neutralBase();
-        float runWidth = 0;
-        for (DatePattern.Part part : parts) {
-            runWidth += pieceWidth(ruler, font, neutral, part);
-        }
-        float pad = t.fieldPadH();
-        float x = isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
+        float x = runStart(t, ruler, font, neutral);
         int slot = 0;
         for (DatePattern.Part part : parts) {
             float pieceWidth = pieceWidth(ruler, font, neutral, part);
@@ -2098,12 +2105,7 @@ public final class DateField extends Widget<DateField> {
         TextRuler ruler = textRuler();
         Font font = t.body();
         ShapedText.Direction neutral = neutralBase();
-        float runWidth = 0;
-        for (DatePattern.Part part : parts) {
-            runWidth += pieceWidth(ruler, font, neutral, part);
-        }
-        float pad = t.fieldPadH();
-        float x = isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
+        float x = runStart(t, ruler, font, neutral);
         int slot = 0;
         int last = -1;
         for (DatePattern.Part part : parts) {
@@ -2380,12 +2382,7 @@ public final class DateField extends Widget<DateField> {
         TextRuler ruler = textRuler();
         Font font = t.body();
         ShapedText.Direction neutral = neutralBase();
-        float runWidth = 0;
-        for (DatePattern.Part part : parts) {
-            runWidth += pieceWidth(ruler, font, neutral, part);
-        }
-        float pad = t.fieldPadH();
-        float x = isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
+        float x = runStart(t, ruler, font, neutral);
         // Verbs only where they can be performed (2026-09-15, semantics 5 and decision 30): on a
         // disabled field a segment publishes no verb, as a refused calendar day does, since the
         // scene would drop every one, and beneath an in-scene popup likewise. Both are the walk's,
