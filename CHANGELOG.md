@@ -63,6 +63,10 @@ Maven Central say which number that was.
 
 ### New
 
+- `Wrap`, a layout that places its children along a run in reading order and starts a new run
+  below when the next one does not fit: tags, filters, a toolbar that must not overflow. It takes
+  `Row`'s `gap`, `mainAlignment` and `crossAlignment`, adds `runGap` between runs, mirrors in a
+  right-to-left subtree, and refuses an `Expanded`, which means nothing there.
 - `I18n.observeUnresolvedKeys` tells an application which keys no bundle translates, so a typo or a
   file that fell behind stops showing its English silently. Each key is reported once per
   language, as an `UnresolvedKey`; with no listener, each is logged once. English locales, and a
@@ -77,6 +81,12 @@ Maven Central say which number that was.
 
 ### Changed
 
+- A `Spinner` writes and reads its number in the language in effect: German shows `0,50`,
+  Swedish a true minus sign (`−1,5`), Arabic and Persian their own separator, never grouped.
+  What a user types is read the same way, with the old tolerances kept (a leading `+`, the hyphen
+  for a minus, a comma or, where the language does not group with points, a point for the
+  separator). German `1.234` is refused instead of read as a little over one, and a refused
+  number now flashes the field's border in the danger colour before the value reverts.
 - An hour typed or stepped into an empty twelve-hour `DateField` takes the half of the day nearest
   to now: at 9 AM "1230" is half past noon, and at 1 AM "1130" is the evening just gone. It used to
   take the clock's own half, which made that 9 AM entry half past midnight.
