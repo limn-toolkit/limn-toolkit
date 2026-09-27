@@ -15,6 +15,19 @@ package limn.scene;
  * nothing here and keep their handler slots; a radio group's change is fully recoverable from the
  * two radio buttons, which are widgets.
  *
+ * <p><b>What this channel does not say</b>, by design and as part of the 1.0 contract:
+ * <ul>
+ *   <li>A menu's highlighted item, a check item's state and whether a popup menu or dialog is open
+ *       reach no watcher. What does arrive is coarse: opening or closing a popup is a
+ *       {@code CHILDREN} change on the overlay root of the scene that hosts it, and a
+ *       {@code MenuBar} announces its own {@code EXPANDED}. The accessibility tree carries all of
+ *       it, through synthetic children the owning widget declares.</li>
+ *   <li>A subtree's {@code setLocale} or {@code setInheritanceHost} changes every name, description
+ *       and formatted value under it and announces only {@code LAYOUT}. A watcher that follows text
+ *       re-reads it after either, and after {@code I18n.observeChanges} fires for the process's
+ *       language.</li>
+ * </ul>
+ *
  * <p>A watcher may read the widget, and may mutate anything: a nested change is announced
  * synchronously, in full, before the outer dispatch continues. What it must not assume is a
  * frame — a notification is delivered before any layout or paint the mutation asked for, so a

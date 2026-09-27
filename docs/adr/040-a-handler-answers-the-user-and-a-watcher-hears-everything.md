@@ -110,11 +110,13 @@ amended; where this summary and a section disagree, the section is right and thi
   and `TextField` sealed, and gave `TextField` the `onSubmit` handler; the channels stand (046 §9).
 
 **Open.**
-- `Menu`, `MenuItem`, `PopupMenu` and `Dialog` announce nothing on this channel (§6.1); nothing lets
-  a third party find a window's scenes or learn that one was replaced (§6.4).
+- `Menu`, `MenuItem`, `PopupMenu` and `Dialog` announce nothing on this channel (§6.1, declared a
+  limit of the 1.0 contract on 2026-09-26); nothing lets a third party find a window's scenes or
+  learn that one was replaced (§6.4).
 - Announcements from inside a layout pass, and per-cell `CHILDREN` churn while a list scrolls;
   whether to hold them to the pass's end waits on a measurement (§6.5, §6.6, §4).
-- A subtree's `setLocale` or `setInheritanceHost` announces no name change (§6.16; kept, §7.3).
+- A subtree's `setLocale` or `setInheritanceHost` announces no name change (§6.16; kept, §7.3, and
+  declared a limit of the 1.0 contract on 2026-09-26).
 - No became-shown hook (§6.13); no media-player notifications (§6.7); no commit on `Spinner` (§6.8).
 - Recorded costs: origin labels and `handleUserChange`'s `super` call are held by tests, not types
   (§6.9, §6.11); composed text damage is unexercised (§6.12); §3.6's survey is approximate (§6.14).
@@ -2535,6 +2537,14 @@ an appeal to a suite this record replaces would have been no evidence at all.
    It takes an `Origin` instead, and its three callers pass `USER` (§1.3, §1.5, §3.1), and §3.5
    asserts that a click, an Enter and an accelerator each still run the item. What these four cannot
    be *read* from is this channel; whether they still work is not in question.
+
+   **Declared, 2026-09-26: a limit of the 1.0 contract, not a defect to close before it.** Closing
+   it would change the channel's shape, either a widget-backed representation for the four types
+   or a second kind of source beside `Widget`, and the one consumer that needs what they carry,
+   the screen-reader bridge, already reads it from ADR 039's synthetic children. The owner chose to
+   declare it: `ChangeObserver`'s javadoc names what the channel does not say about the four, and
+   the 1.0 contract record will list it. Closing it later is additive only if it arrives as a new
+   kind of source, which is the form to keep in mind.
 2. **~~An assistive technology cannot set a value as the user.~~ Closed, and it closed the other
    way round from how this item expected.** ADR 039's action set had landed before this record was
    implemented: twenty-two components override `onAccessibilityAction` or `onSyntheticAction`,
@@ -2723,6 +2733,11 @@ an appeal to a suite this record replaces would have been no evidence at all.
     a move in either re-resolves every name in the tree (039 §1.7). Like §6.1, this is a hole in
     this channel and not in that tree, and what it costs is a two-way binding, an inspector or an
     application watcher that follows a widget's text.
+
+    **Declared, 2026-09-26, with §6.1: a limit of the 1.0 contract.** §7.3 already kept the setters
+    silent with the owner; this makes the silence part of the contract rather than an open item.
+    `ChangeObserver`'s javadoc tells a watcher to observe `I18n` and re-read names itself when a
+    subtree's locale or inheritance host moves.
 
 ---
 

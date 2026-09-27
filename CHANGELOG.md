@@ -8,7 +8,22 @@ Maven Central say which number that was.
 
 ## After 0.9.0
 
+### New
+
+- `I18n.observeUnresolvedKeys` tells an application which keys no bundle translates, so a typo or a
+  file that fell behind stops showing its English silently. Each key is reported once per
+  language, as an `UnresolvedKey`; with no listener, each is logged once. English locales, and a
+  plural form the language covers with its own `other`, report nothing.
+- `GltfLoader.setElementBudget` moves the ceiling on what one glTF load may allocate, for the whole
+  process. The default stays 2^26 elements (`GltfLoader.DEFAULT_ELEMENT_BUDGET`), which refuses a
+  mesh without normals of about 2.8 million triangles; the ceiling is the defence against a small
+  hostile file asking for gigabytes, so raise it for models you trust.
+
 ### Changed
+
+- An hour typed or stepped into an empty twelve-hour `DateField` takes the half of the day nearest
+  to now: at 9 AM "1230" is half past noon, and at 1 AM "1130" is the evening just gone. It used to
+  take the clock's own half, which made that 9 AM entry half past midnight.
 
 - `limn-fonts-all` names Noto Color Emoji 2.057.0 and the Noto Sans script faces 1.0.3. The emoji
   cover Unicode 18.0; of the four script families only Devanagari moved (2.006 to 2.007, the same

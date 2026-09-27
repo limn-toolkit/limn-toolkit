@@ -395,7 +395,7 @@ public final class I18n {
      * <p>With no listener, a miss is logged once through {@link System.Logger}: at {@code INFO} for
      * an application's keys, and at {@code DEBUG} for the toolkit's own ({@code limn.*}), because
      * several of those fall back on purpose, the colour picker's notations outside French and most
-     * theme names among them (docs/design/i18n.md).
+     * theme names among them.
      *
      * <p>A listener runs on the thread that resolved the key, which is usually the UI thread and is
      * not always: an accessibility bridge resolves on the platform's thread. Keep it short and
