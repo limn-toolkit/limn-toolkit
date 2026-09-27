@@ -142,6 +142,25 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
                 "restoring the default must actually restore it");
     }
 
+    /** The date picker's calendar hangs from its field the way a combo's list does, and falls back alike. */
+    @Test
+    void aDatePickerOnSuchAWindowDrawsItsCalendarInScene() {
+        limn.components.date.DatePicker picker = new limn.components.date.DatePicker().setClock(
+                java.time.Clock.fixed(java.time.Instant.parse("2026-09-16T12:00:00Z"), java.time.ZoneOffset.UTC));
+        Scene scene = new Scene(picker);
+        scene.setTextRuler(RULER);
+        scene.bind(new StubWindow(false));
+        scene.layoutPass(400, 320);
+        scene.renderFrame(new FakeCanvas(400, 320));
+
+        picker.open();
+        scene.layoutPass(400, 320);
+
+        assertTrue(picker.isOpen());
+        assertEquals(DisplayMode.IN_SCENE, picker.displayMode(),
+                "a calendar window would have opened away from the field");
+    }
+
     @Test
     void aComboAskedForInSceneKeepsItsListInTheWindow() {
         ComboBox combo = new ComboBox(List.of("One", "Two", "Three"))

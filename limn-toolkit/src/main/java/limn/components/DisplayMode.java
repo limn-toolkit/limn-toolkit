@@ -1,25 +1,40 @@
 package limn.components;
 
+import limn.backend.NativeWindow;
+
 /**
  * Where a surface that floats above the page is actually drawn: in a window of its own, or as an
- * overlay inside the window that owns it. {@link Dialog}, {@link PopupMenu}, {@link ComboBox} and
- * {@link ColorPickerButton} all answer this question, and they answer it the same way.
+ * overlay inside the window that owns it. {@link Dialog}, {@link PopupMenu}, {@link ComboBox},
+ * {@link ColorPickerButton} and {@link limn.components.date.DatePicker} all answer this question,
+ * and they answer it by the same rules.
  *
- * <p><b>It is a preference, never a guarantee.</b> Two platforms cannot hold one of these in a
- * window of its own, and on them {@link #NATIVE_WINDOW} is not available at all:
+ * <p><b>It is a preference, never a guarantee.</b> Two kinds of window cannot hold one of these
+ * in a window of its own, and over them {@link #NATIVE_WINDOW} is not available at all:
  *
  * <ul>
- *   <li><b>Wayland</b>, where a client cannot place a toplevel at an anchor. A menu window would
- *       open near the middle of the display wearing whatever frame the compositor puts on
- *       toplevels, which is worse than any overlay.</li>
- *   <li><b>macOS exclusive fullscreen</b>, where a second window taking focus minimizes the
- *       fullscreen owner.</li>
+ *   <li><b>A {@linkplain NativeWindow#isFullscreen() fullscreen} window</b>, of either kind. On a
+ *       monitor a fullscreen window is minimized when another window takes the focus, and macOS
+ *       native fullscreen is a Space of its own that a new window opens outside of, so a second
+ *       window would take the person away from the one they were using. Every one of these
+ *       surfaces is drawn in scene there, with one exception: a <b>non-modal</b> dialog stays a
+ *       window, because an overlay captures its window's input and a non-modal dialog exists so
+ *       that the window behind it stays usable, which leaves it no in-scene form to fall back
+ *       to.</li>
+ *   <li><b>Wayland</b>, or any window that cannot be
+ *       {@linkplain NativeWindow#supportsAbsolutePositioning() positioned}, where a client cannot
+ *       place a toplevel at an anchor. A menu window would open near the middle of the display
+ *       wearing whatever frame the compositor puts on toplevels, which is worse than any overlay.
+ *       This one holds only for the surfaces anchored inside their owner: a menu, a drop-down
+ *       list, a calendar hanging from its field. A dialog, including the colour picker's, has no
+ *       anchor to line up with, so it stays a window there and the compositor places it, which is
+ *       where a dialog belongs.</li>
  * </ul>
  *
- * <p>So a surface asked for {@code NATIVE_WINDOW} may be drawn in-scene anyway, and each of the
- * four types has a {@code displayMode()} that answers what actually happened rather than what was
- * requested. Code that branches on presentation must read that one; code that reads back the
- * setter is reading its own wish.
+ * <p>So a surface asked for {@code NATIVE_WINDOW} may be drawn in-scene anyway, and each of these
+ * types answers what actually happened rather than what was requested: {@code displayMode()} on
+ * each, and {@link ColorPickerButton#pickerDisplayMode()} on the colour button. Code that branches
+ * on presentation must read that one; code that reads back the setter is reading its own wish.
+ * The choice is made each time a surface opens, over the window as it is then.
  *
  * <p><b>Why it is worth choosing rather than inheriting.</b> An in-scene surface is contained by
  * the window: it cannot extend past the edge, it composites with what is behind it, and a
@@ -40,7 +55,8 @@ public enum DisplayMode {
 
     /**
      * An overlay drawn inside the owner's window. Always available, on every platform, and the
-     * only presentation on the two that cannot position a window at an anchor.
+     * only presentation over a fullscreen window and on a platform that cannot position a window
+     * at an anchor.
      */
     IN_SCENE
 }

@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.internal.FloatingSurfaces;
 import limn.components.internal.a11y.PopupOwnerAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
@@ -53,8 +54,10 @@ import java.util.function.IntConsumer;
  *
  * <p><b>In-scene fallback.</b> Where the window reports no
  * {@link limn.backend.NativeWindow#supportsAbsolutePositioning()} (Wayland), a list in a window
- * of its own would open somewhere other than under the field, so the list is drawn as an overlay
- * inside the owner window instead. Same rows, same keys, same type-ahead; the difference is that
+ * of its own would open somewhere other than under the field, and over a
+ * {@linkplain limn.backend.NativeWindow#isFullscreen() fullscreen} window it would minimize the
+ * owner or open outside its Space, so in both the list is drawn as an overlay inside the owner
+ * window instead. Same rows, same keys, same type-ahead; the difference is that
  * it is clamped to that window rather than to the display, so a combo near the bottom edge shows
  * fewer rows and scrolls sooner. Chosen by the platform, not by the application, and
  * {@link #popupWindow()} is {@code null} throughout.
@@ -299,8 +302,11 @@ public final class ComboBox extends Widget<ComboBox> {
         // instead, or the always-on-top popup floats over foreign applications indefinitely.
         // In-scene the same rule reads as "the application went away", which closes it too.
         blurHandle = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
-        if (requested == DisplayMode.IN_SCENE
-                || (scene.window() != null && !scene.window().supportsAbsolutePositioning())) {
+        // A fullscreen owner has no room for a list window (it would minimize the owner, or open
+        // outside its Space), and one that cannot be positioned would put the list away from the
+        // field: both draw it in scene, whatever was asked.
+        if (requested == DisplayMode.IN_SCENE || (scene.window() != null
+                && !FloatingSurfaces.anchoredWindowAvailable(scene.window()))) {
             presentInScene();
             return;
         }
@@ -334,7 +340,8 @@ public final class ComboBox extends Widget<ComboBox> {
      * a platform combo's does.
      *
      * <p><b>A preference, not a guarantee.</b> A list asked for {@code NATIVE_WINDOW} is still
-     * drawn in scene on a window that cannot be positioned at an anchor (Wayland). {@code IN_SCENE}
+     * drawn in scene on a window that cannot be positioned at an anchor (Wayland), and over a
+     * fullscreen window, which has no room for a second one. {@code IN_SCENE}
      * is always honoured, and it is the choice to make when the window has to contain everything
      * it shows: a screenshot, a recording or a screen share of the owner window captures an
      * in-scene list and never a native one.
@@ -349,7 +356,9 @@ public final class ComboBox extends Widget<ComboBox> {
 
     /**
      * @return how the list is presented: while it is open, what it actually chose, including a
-     *         platform forcing {@code IN_SCENE}. While it is closed, what was last asked for.
+     *         fullscreen owner or a platform forcing {@code IN_SCENE} over a request for a
+     *         window. While it is closed, what was last asked for, since the next open decides
+     *         afresh over the window as it is then.
      */
     public DisplayMode displayMode() {
         return scenePopup != null ? DisplayMode.IN_SCENE : requested;

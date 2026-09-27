@@ -310,6 +310,10 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
      * anything that captures the owner window, which is why the toolkit's own gallery raises this
      * one in scene.
      *
+     * <p><b>A preference, not a guarantee</b>, and the dialog's own: over a fullscreen window the
+     * picker is drawn in scene whatever was asked, since a second window there would minimize the
+     * owner or open outside its Space. {@link #pickerDisplayMode()} answers what happened.
+     *
      * <p>Takes effect on the next {@link #openPicker()}; a picker already up is not moved.
      *
      * @see Dialog#setDisplayMode
@@ -320,9 +324,14 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
         return this;
     }
 
-    /** @return the presentation the next picker will be asked for. */
+    /**
+     * @return how the picker is presented: while it is up, what its dialog actually chose,
+     *         including a fullscreen owner forcing {@code IN_SCENE} over a request for a window.
+     *         While it is not, what the next one will be asked for, since the next
+     *         {@link #openPicker()} decides afresh over the window as it is then.
+     */
     public DisplayMode pickerDisplayMode() {
-        return pickerDisplayMode;
+        return open != null ? open.displayMode() : pickerDisplayMode;
     }
 
     /** The user moved the picker, or cancelled the dialog: the same seam, as the user's. */

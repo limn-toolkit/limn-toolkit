@@ -3,6 +3,7 @@ package limn.components;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.accessibility.ToggleFacet;
+import limn.components.internal.FloatingSurfaces;
 import limn.components.internal.a11y.MenuAccessibility;
 import limn.backend.CrashPhase;
 import limn.backend.NativeWindow;
@@ -377,8 +378,7 @@ public final class PopupMenu {
         // Wayland has no way to put one where the anchor is: the cascade would open near the
         // middle of the display, wearing whatever frame the compositor decorates toplevels with.
         // Both fall back to an in-scene overlay drawn inside the owner window.
-        if (requested == DisplayMode.IN_SCENE
-                || win.isFullscreen() || !win.supportsAbsolutePositioning()) {
+        if (requested == DisplayMode.IN_SCENE || !FloatingSurfaces.anchoredWindowAvailable(win)) {
             presentInScene(ax, ay, aw, ah);
         } else {
             presentNative(ax, ay, aw, ah);
