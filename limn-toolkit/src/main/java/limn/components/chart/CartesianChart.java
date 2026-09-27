@@ -182,7 +182,16 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
      */
     protected final float valuePosition(double value) {
         double span = scale.max() - scale.min();
-        double t = span == 0 ? 0 : (value - scale.min()) / span;
+        double offset = value - scale.min();
+        double t;
+        if (Double.isFinite(span) && Double.isFinite(offset)) {
+            t = span == 0 ? 0 : offset / span;
+        } else {
+            // A scale or a value past the largest double's reach: the same ratio from halves,
+            // which cannot overflow. Only that case pays for it, so every ordinary chart keeps
+            // its arithmetic to the last bit.
+            t = (value / 2 - scale.min() / 2) / (scale.max() / 2 - scale.min() / 2);
+        }
         if (!horizontal) {
             return (float) (plotY + plotHeight - t * plotHeight);
         }

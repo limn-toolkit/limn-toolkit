@@ -252,6 +252,40 @@ class ChartOutOfScaleTest extends ComponentTestBase {
         assertTrue(canvas.bars.isEmpty(), "every value lies below the scale, so no bar shows");
     }
 
+    /**
+     * Finite values whose spread is not: the scale's span overflowed to infinity, its tick count
+     * wrapped negative, and every frame threw from allocating the labels. The scene contains a
+     * painting widget's throw and the chart simply goes blank, so the assertion is on what the
+     * scene contained, not on what was drawn.
+     */
+    @Test
+    void valuesNearTheLargestDoubleDoNotThrowEveryFrame() {
+        double[][] cases = {
+                {-Double.MAX_VALUE, Double.MAX_VALUE, 0},
+                {0, Double.MAX_VALUE, Double.MAX_VALUE / 2},
+                {Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE},
+        };
+        List<Throwable> contained = new ArrayList<>();
+        limn.backend.CrashHandler handler = (phase, error) -> {
+            contained.add(error);
+            return true;
+        };
+        limn.backend.Crashes.install(handler);
+        try {
+            for (double[] values : cases) {
+                BarChart chart = BarChart.of(List.of("a", "b", "c"),
+                        ChartSeries.of("v", values[0], values[1], values[2]));
+                Scene scene = sceneOf(chart);
+                frame(scene);
+                frame(scene);
+                assertEquals(List.of(), contained,
+                        "painting " + java.util.Arrays.toString(values) + " contained a throw");
+            }
+        } finally {
+            limn.backend.Crashes.uninstall(handler);
+        }
+    }
+
     // --------------------------------------------------------------------- infinities
 
     @Test

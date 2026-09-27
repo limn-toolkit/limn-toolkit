@@ -202,10 +202,19 @@ public final class ChartAxis {
      */
     record Scale(double min, double max, double step) {
 
-        /** How many ticks fall on this scale, first and last included. */
+        /**
+         * How many ticks fall on this scale, first and last included. Divided before it is
+         * subtracted, because {@code max - min} overflows for a scale that spans more than the
+         * largest double, and its infinity wrapped the count negative; and never more than
+         * {@value #MOST_TICKS}, which no asked-for count reaches.
+         */
         int tickCount() {
-            return (int) Math.floor((max - min) / step + 1e-6) + 1;
+            double count = Math.floor(max / step - min / step + 1e-6) + 1;
+            return count >= 1 ? (int) Math.min(count, MOST_TICKS) : 1;
         }
+
+        /** Five times the most ticks an axis may ask for, so only a degenerate scale meets it. */
+        static final int MOST_TICKS = 100;
 
         /**
          * How many decimals it takes to write every tick of this scale apart from the next:
@@ -287,12 +296,23 @@ public final class ChartAxis {
                 hi = lo + 1; // both ends pinned to the same number
             }
         }
-        double step = niceNum((hi - lo) / Math.max(1, tickCount - 1), true);
+        // Divided before it is subtracted: values near the largest double span more than it holds,
+        // and hi - lo was infinity, which made the step 1 and the count of ticks wrap negative.
+        int intervals = Math.max(1, tickCount - 1);
+        double raw = hi / intervals - lo / intervals;
+        double step = niceNum(raw, true);
         if (!(step > 0) || !Double.isFinite(step)) {
-            step = (hi - lo) / Math.max(1, tickCount - 1);
+            step = raw;
         }
         double niceLo = min != null ? lo : Math.floor(lo / step) * step;
         double niceHi = max != null ? hi : Math.ceil(hi / step) * step;
+        // Rounding out past the largest double keeps the data's own end instead.
+        if (!Double.isFinite(niceLo)) {
+            niceLo = lo;
+        }
+        if (!Double.isFinite(niceHi)) {
+            niceHi = hi;
+        }
         if (niceHi - niceLo < step) {
             niceHi = niceLo + step;
         }
