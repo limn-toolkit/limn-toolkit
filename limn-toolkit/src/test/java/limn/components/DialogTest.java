@@ -399,6 +399,75 @@ class DialogTest extends ComponentTestBase {
         assertNull(dialog.modalWindow(), "nothing to stack over: no reason to spend a window");
     }
 
+    // ------------------------------------------------------- over a fullscreen owner
+
+    /**
+     * The one dialog a fullscreen owner does not turn into an overlay. An overlay captures its
+     * scene's input, and a non-modal dialog exists so that the owner stays usable beside it, so
+     * there is no in-scene form of it to fall back to: it stays a window, as it was asked.
+     */
+    @Test
+    void aNonModalDialogOverAFullscreenWindowStaysAWindow() {
+        BlockedWindow window = new BlockedWindow(false);
+        window.fullscreen = true;
+        Scene host = new Scene(new Label("background"));
+        host.setTextRuler(RULER);
+        host.bind(window);
+
+        Dialog dialog = new Dialog("Find", "")
+                .addButton("Close", "close")
+                .setCancelResult("close");
+        dialog.showNonModal(host);
+
+        assertNotNull(dialog.modalWindow(), "a non-modal dialog has no overlay form");
+        assertEquals(DisplayMode.NATIVE_WINDOW, dialog.displayMode());
+    }
+
+    /**
+     * The promotion out of an overlay is for a host a modal has already locked, and it rests on a
+     * native window stacking over the dialog already there. A fullscreen owner is the one case
+     * where a new window does not stack over anything: it minimizes the owner, or opens outside
+     * its Space. So there the platform's rule wins, and the dialog stays in scene.
+     */
+    @Test
+    void aFullscreenOwnerIsNotPromotedOutOfItsOverlay() {
+        BlockedWindow window = new BlockedWindow(true);
+        window.fullscreen = true;
+        Scene host = new Scene(new Label("background"));
+        host.setTextRuler(RULER);
+        host.bind(window);
+
+        Dialog dialog = new Dialog("Unsaved changes", "Save first?")
+                .addPrimaryButton("Save", "save")
+                .setCancelResult("cancel");
+        dialog.show(host);
+
+        assertNull(dialog.modalWindow(), "a window here would minimize the owner it was raised over");
+        assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
+    }
+
+    /**
+     * A dialog is a window in its own right, with no anchor inside its owner to line up with, so a
+     * window that cannot be positioned is no reason to draw it in scene: the compositor places it,
+     * which is where a dialog belongs. Only the surfaces anchored inside the owner fall back there.
+     */
+    @Test
+    void aDialogOverAWindowThatCannotBePositionedIsStillAWindow() {
+        BlockedWindow window = new BlockedWindow(false);
+        window.canPosition = false;
+        Scene host = new Scene(new Label("background"));
+        host.setTextRuler(RULER);
+        host.bind(window);
+
+        Dialog dialog = new Dialog("Confirm", "Proceed?")
+                .addPrimaryButton("OK", "ok")
+                .setCancelResult("cancel");
+        dialog.show(host);
+
+        assertNotNull(dialog.modalWindow());
+        assertEquals(DisplayMode.NATIVE_WINDOW, dialog.displayMode());
+    }
+
     @Test
     void aDialogNobodyAnsweredStillResolvesWhenItsWindowDies() {
         // Not the mid-fade case above: here NOTHING was chosen and the window is
@@ -978,7 +1047,11 @@ class DialogTest extends ComponentTestBase {
      */
     private static final class BlockedWindow implements limn.backend.NativeWindow, limn.backend.Backend {
         // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
-        @Override public boolean supportsAbsolutePositioning() { return true; }
+        @Override public boolean supportsAbsolutePositioning() { return canPosition; }
+        /** What {@link #supportsAbsolutePositioning()} answers; {@code false} reproduces Wayland. */
+        boolean canPosition = true;
+        /** What {@link #isFullscreen()} answers. */
+        boolean fullscreen;
         @Override public void setCloseRequestHandler(java.util.function.BooleanSupplier handler) { }
         @Override public void setImeEnabled(boolean enabled) { }
         @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
@@ -1115,7 +1188,7 @@ class DialogTest extends ComponentTestBase {
         @Override public void exitFullscreen() { }
 
         @Override public boolean isFullscreen() {
-            return false;
+            return fullscreen;
         }
 
         @Override public void registerChildPopup(limn.backend.NativeWindow child, PopupKind kind) {

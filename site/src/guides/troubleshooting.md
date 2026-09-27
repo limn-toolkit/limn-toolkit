@@ -90,6 +90,9 @@ lists, menus and date pickers draw inside the owner window there instead. It is 
 with the same keys, clamped to the window rather than to the screen. The same program under X11
 gets real popup windows.
 
+On any platform, a fullscreen window draws its popups and its modal dialogs inside itself too,
+because a second window would minimize it or take the person to another Space.
+
 ## Video or sound is unavailable
 
 `FfmpegVideoDecoder.isAvailable()` is false when the FFmpeg native library did not load, and

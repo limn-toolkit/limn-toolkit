@@ -133,6 +133,12 @@ forward by raising its host, which would hide the dialog already floating there.
 before styling or positioning the card on the assumption that it is an overlay;
 `keepInScene()` insists on the overlay and accepts the stacking that comes with it.
 
+A window is not a guarantee either. Over a fullscreen window a modal dialog draws in scene
+whatever it was asked, because a second window there would minimize its owner, or on macOS open
+outside the owner's Space; menus, combo box lists and date pickers do the same. A non-modal
+dialog is the one exception and stays a window, since an overlay would lock the very window it
+is meant to leave usable.
+
 Either way, clicking outside a modal dialog is ignored and beeps, exactly as the platform
 does. `setDismissOnScrim(true)` turns the in-scene form into a light dismissable overlay
 instead.

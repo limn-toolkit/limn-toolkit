@@ -39,7 +39,8 @@ import java.util.concurrent.CompletionStage;
  *   <li>{@link DisplayMode#NATIVE_WINDOW} (default): a separate floating
  *       native window centered over the owner, with a {@link WindowStyle} and
  *       optional {@linkplain #setAlwaysOnTop always-on-top}. Modality is
- *       enforced by the backend (locked windows dim and ignore input).</li>
+ *       enforced by the backend (locked windows dim and ignore input). Not
+ *       available to a modal dialog over a fullscreen owner; see below.</li>
  *   <li>{@link DisplayMode#IN_SCENE}: an <b>internal</b> overlay drawn inside
  *       the owner window: a scrim that dims/blocks the content behind plus a
  *       centered card that fades in. No extra OS window; modality is scoped to
@@ -61,6 +62,15 @@ import java.util.concurrent.CompletionStage;
  * popups, {@code showToolkitModal} locks every window. {@code showNonModal} is
  * unsupported in-scene (use a native window for a non-modal dialog).
  *
+ * <p><b>Over a fullscreen owner a modal dialog is drawn in scene</b>, whatever was asked,
+ * because a second window there would minimize the owner, or on macOS open outside the Space
+ * the owner has to itself. Its scope is kept: {@code showToolkitModal} still locks every other
+ * window. A <b>non-modal</b> dialog is the exception, and stays a window even there: an overlay
+ * captures its window's input, and a non-modal dialog exists so that the owner stays usable,
+ * which leaves it no in-scene form to fall back to. A window that cannot be positioned
+ * (Wayland) changes nothing: a dialog has no anchor to line up with, so the compositor placing
+ * it is where it belongs. {@link #displayMode()} answers what was chosen.
+ *
  * <h2>Stacking</h2>
  * Dialogs stack in either mode and in any combination: the newest is the one the user
  * answers, everything under it is frozen until it closes, and answering the top one
@@ -70,7 +80,8 @@ import java.util.concurrent.CompletionStage;
  * over a window that a modal has <b>already</b> locked is presented as a native window
  * instead, with a warning naming the dialog. An overlay is drawn inside its host window,
  * so it can only come forward by bringing that window forward, which would hide the
- * dialog already floating over it. {@link #keepInScene()} declines the promotion.
+ * dialog already floating over it. {@link #keepInScene()} declines the promotion, and a
+ * fullscreen owner never makes it, since a window there does not stack over anything.
  *
  * <h2>Size</h2>
  * A dialog is a container of sized components rather than a sized component: it has no
@@ -369,10 +380,13 @@ public final class Dialog {
      * Selects native-window vs. internal (in-scene) presentation (default
      * {@link DisplayMode#NATIVE_WINDOW}).
      *
-     * <p><b>A preference, not a guarantee.</b> An {@code IN_SCENE} dialog raised while a modal
-     * is already open over its window is presented as a native one instead; an overlay can only
-     * be brought to the front by raising its host, which would hide the dialog already there.
-     * {@link #displayMode()} answers what actually happened; {@code keepInScene()} insists.
+     * <p><b>A preference, not a guarantee</b>, in both directions. An {@code IN_SCENE} dialog
+     * raised while a modal is already open over its window is presented as a native one instead;
+     * an overlay can only be brought to the front by raising its host, which would hide the dialog
+     * already there. And a modal {@code NATIVE_WINDOW} dialog over a fullscreen window is drawn in
+     * scene, since a second window there would minimize the owner or open outside its Space; a
+     * non-modal one stays a window, having no in-scene form. {@link #displayMode()} answers what
+     * actually happened; {@code keepInScene()} insists on the overlay.
      *
      * @param mode the presentation asked for
      * @return this dialog
@@ -388,9 +402,11 @@ public final class Dialog {
      * decides otherwise, and the effective one afterwards.
      *
      * <p>Worth asking after {@code show} by anything that styles or positions the card on the
-     * assumption that it is an overlay: a promoted dialog is a real window, so {@code setStyle}
-     * starts meaning something and an in-scene drag affordance stops. Until this existed the
-     * promotion was announced only in a log line, which no application reads.
+     * assumption that it is one or the other: a promoted dialog is a real window, so
+     * {@code setStyle} starts meaning something and an in-scene drag affordance stops, and a modal
+     * dialog raised over a fullscreen window is an overlay whatever was asked, so the reverse.
+     * Until this existed the promotion was announced only in a log line, which no application
+     * reads.
      */
     public DisplayMode displayMode() {
         return displayMode;
@@ -495,7 +511,8 @@ public final class Dialog {
 
     /**
      * Shows the dialog window-modal over {@code owner} (locks only its window),
-     * or, in {@link DisplayMode#IN_SCENE}, a scene-modal internal overlay.
+     * or, in {@link DisplayMode#IN_SCENE} and over a fullscreen owner, a scene-modal
+     * internal overlay.
      *
      * @param owner the scene the dialog is modal over
      * @return a stage that completes with the result when the dialog closes
@@ -503,15 +520,15 @@ public final class Dialog {
      */
     public CompletionStage<String> show(Scene owner) {
         Ui.checkUiThread();
-        return displayMode == DisplayMode.IN_SCENE
+        return presentsModalInScene(owner)
                 ? presentInScene(owner, false)
                 : presentNative(owner, true, owner.window());
     }
 
     /**
      * Shows the dialog toolkit-modal over {@code owner} (locks every window). In
-     * {@link DisplayMode#IN_SCENE} an overlay cannot lock other native windows,
-     * so it presents the same scene-modal internal overlay as {@link #show}.
+     * {@link DisplayMode#IN_SCENE}, and over a fullscreen owner, it presents the same
+     * scene-modal internal overlay as {@link #show}, which still locks every other window.
      *
      * @param owner the scene the dialog opens over
      * @return a stage that completes with the result when the dialog closes
@@ -519,7 +536,7 @@ public final class Dialog {
      */
     public CompletionStage<String> showToolkitModal(Scene owner) {
         Ui.checkUiThread();
-        return displayMode == DisplayMode.IN_SCENE
+        return presentsModalInScene(owner)
                 ? presentInScene(owner, true)
                 : presentNative(owner, true, null);
     }
@@ -528,7 +545,11 @@ public final class Dialog {
      * Shows the dialog <b>non-modal</b> over {@code owner}: a floating window
      * that locks nothing, so the owner (and every other window) stays fully
      * interactive. Only valid in {@link DisplayMode#NATIVE_WINDOW}; an in-scene
-     * overlay always captures its scene's input.
+     * overlay always captures its scene's input. For the same reason it stays a window
+     * even over a fullscreen owner, where every other floating surface is drawn in scene,
+     * and there it pays what a second window costs: on a monitor the owner is minimized
+     * when the dialog takes the focus, and on macOS the dialog opens outside the Space the
+     * owner has to itself.
      *
      * @param owner the scene the dialog opens over
      * @return a stage that completes with the result when the dialog closes
@@ -558,7 +579,7 @@ public final class Dialog {
     public CompletionStage<String> show(Widget<?> owner) {
         Ui.checkUiThread();
         Scene scene = adoptSizeHost(owner);
-        return displayMode == DisplayMode.IN_SCENE
+        return presentsModalInScene(scene)
                 ? presentInScene(scene, false)
                 : presentNative(scene, true, scene.window());
     }
@@ -572,7 +593,7 @@ public final class Dialog {
     public CompletionStage<String> showToolkitModal(Widget<?> owner) {
         Ui.checkUiThread();
         Scene scene = adoptSizeHost(owner);
-        return displayMode == DisplayMode.IN_SCENE
+        return presentsModalInScene(scene)
                 ? presentInScene(scene, true)
                 : presentNative(scene, true, null);
     }
@@ -604,6 +625,22 @@ public final class Dialog {
         }
         inheritanceHost = owner;
         return scene;
+    }
+
+    /**
+     * Whether a modal presentation over {@code owner} is an overlay: when one was asked for, and
+     * over a fullscreen window whatever was asked, because a dialog window there would minimize
+     * the owner or open outside its Space, taking the person away from the very thing the dialog
+     * is asking about.
+     *
+     * <p>Fullscreen only. A window that cannot be positioned keeps its dialogs as windows: a dialog
+     * has no anchor inside its owner to line up with, so the compositor placing it is where it
+     * belongs rather than a fallback.
+     */
+    private boolean presentsModalInScene(Scene owner) {
+        Objects.requireNonNull(owner, "owner");
+        NativeWindow window = owner.window();
+        return displayMode == DisplayMode.IN_SCENE || (window != null && window.isFullscreen());
     }
 
     /**
@@ -755,8 +792,8 @@ public final class Dialog {
     // -------------------------------------------------------------- in-scene
 
     /**
-     * Presents in-scene, unless the host is already locked by a modal, in which
-     * case this dialog becomes a native window instead and says so.
+     * Presents in-scene, unless the host is already locked by a modal and is not
+     * fullscreen, in which case this dialog becomes a native window instead and says so.
      *
      * <p>An overlay is drawn inside its host window, so it can only be put in front
      * by bringing that window forward, and that hides whatever dialog was floating
@@ -771,7 +808,10 @@ public final class Dialog {
         Objects.requireNonNull(owner, "owner");
         checkNotPresented();
         NativeWindow host = owner.window();
-        if (!keepInScene && host != null && host.isModalBlocked()) {
+        // Never over a fullscreen host. The promotion rests on a new window stacking over the
+        // dialog already there, and over a fullscreen window a new one minimizes it or opens
+        // outside its Space instead, which is what sent a dialog into the scene there at all.
+        if (!keepInScene && host != null && host.isModalBlocked() && !host.isFullscreen()) {
             LOG.log(System.Logger.Level.WARNING,
                     "dialog \"{0}\" asked for IN_SCENE while a modal is already open over its "
                             + "window; presenting it as a native window instead, because an "
@@ -785,6 +825,9 @@ public final class Dialog {
             return presentNative(owner, true, toolkitScope ? null : host);
         }
         presented = true;
+        // IN_SCENE for real here too, including when a fullscreen owner overrode a request for a
+        // window: the card paints from this field, and displayMode() answers from it.
+        displayMode = DisplayMode.IN_SCENE;
         this.hostScene = owner;
         overlay = new SceneOverlay(panel);
         // The host link goes on the OVERLAY, not on the panel: the panel's parent is the

@@ -71,7 +71,8 @@ import java.util.function.Predicate;
  * keyboard back.
  *
  * <p>The presentation follows {@link DisplayMode}: a window of its own where the platform can place
- * one, an overlay inside the owner window where it cannot &mdash; and an application that documents
+ * one, an overlay inside the owner window where it cannot or where the owner is fullscreen, which
+ * has no room for a second window &mdash; and an application that documents
  * itself with screenshots asks for {@link DisplayMode#IN_SCENE} on purpose, because a native popup
  * is absent from a capture of the window.
  *
@@ -556,6 +557,11 @@ public final class DatePicker extends Widget<DatePicker> {
      * {@link DisplayMode#NATIVE_WINDOW}, so the grid can extend past the window's edge the way a
      * platform picker's does.
      *
+     * <p><b>A preference, not a guarantee.</b> A calendar asked for {@code NATIVE_WINDOW} is still
+     * drawn in scene on a window that cannot be positioned at an anchor (Wayland), and over a
+     * fullscreen window, which has no room for a second one. {@code IN_SCENE} is always honoured.
+     * Read {@link #displayMode()} for what happened. Takes effect on the next open.
+     *
      * @param mode what to ask for
      * @return this
      */
@@ -565,7 +571,11 @@ public final class DatePicker extends Widget<DatePicker> {
         return this;
     }
 
-    /** @return how the open popup is actually presented, or {@code null} while it is closed */
+    /**
+     * @return how the open popup is actually presented, including a fullscreen owner or a platform
+     *         forcing {@code IN_SCENE} over a request for a window, or {@code null} while it is
+     *         closed, since the next open decides afresh over the window as it is then
+     */
     public DisplayMode displayMode() {
         if (!open) {
             return null;
@@ -931,8 +941,13 @@ public final class DatePicker extends Widget<DatePicker> {
             return; // headless: the state machine is the whole of what a test drives
         }
         blurHandle = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
-        if (requested == DisplayMode.IN_SCENE
-                || (scene.window() != null && !scene.window().supportsAbsolutePositioning())) {
+        // The rule every surface anchored inside its owner keeps, written out here because this
+        // package cannot reach the one predicate the menu and the combo share: a fullscreen owner
+        // has no room for a calendar window (it would minimize the owner, or open outside its
+        // Space), and one that cannot be positioned would put it away from the field.
+        NativeWindow window = scene.window();
+        if (requested == DisplayMode.IN_SCENE || (window != null
+                && (window.isFullscreen() || !window.supportsAbsolutePositioning()))) {
             presentInScene(scene);
             return;
         }
@@ -941,7 +956,7 @@ public final class DatePicker extends Widget<DatePicker> {
                 setOpen(false, Change.Origin.USER);
             }
         });
-        if (scene.window() != null && popupWindow == null) {
+        if (window != null && popupWindow == null) {
             // Deferred: creating a window switches the GL context, which must not happen in the
             // middle of another window's frame callback.
             Ui.post(this::createPopupWindow);

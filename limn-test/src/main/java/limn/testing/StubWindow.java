@@ -126,9 +126,17 @@ public class StubWindow implements NativeWindow {
     @Override public boolean isClosed() { return false; }
     @Override public void requestClose() { }
     @Override public void close() { }
-    @Override public void enterFullscreen(int width, int height, int refreshRate) { }
-    @Override public void exitFullscreen() { }
-    @Override public boolean isFullscreen() { return false; }
+    /**
+     * Whether this window claims to be fullscreen: set by {@link #enterFullscreen(int, int, int)},
+     * cleared by {@link #exitFullscreen()}, and settable directly. It is the other question a
+     * popup asks before it opens a window of its own, since a fullscreen owner has no room for
+     * one, so a test of that fallback needs a window that can answer yes.
+     */
+    public boolean fullscreen;
+
+    @Override public void enterFullscreen(int width, int height, int refreshRate) { fullscreen = true; }
+    @Override public void exitFullscreen() { fullscreen = false; }
+    @Override public boolean isFullscreen() { return fullscreen; }
     /** Whether this window claims to be an active modal, as a dialog's own native window is. */
     public boolean modal;
 
