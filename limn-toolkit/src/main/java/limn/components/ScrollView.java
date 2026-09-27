@@ -5,6 +5,7 @@ import limn.accessibility.Accessible;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.input.Keys;
+import limn.internal.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.Scrollable;
 import limn.scene.Size;
@@ -15,10 +16,17 @@ import limn.scene.event.MouseEvent;
 
 /**
  * Generic scroll container: the child is measured unbounded on the scrolling
- * axes, painted clipped to the viewport and offset by the scroll position; the
- * wheel scrolls whenever there is overflow. The child is physically positioned
- * at {@code (-offsetX, -offsetY)}, so hit-testing and event coordinates work
- * unchanged.
+ * axes, painted offset by the scroll position and clipped to the viewport on
+ * those axes; the wheel scrolls whenever there is overflow. The child is
+ * physically positioned at {@code (-offsetX, -offsetY)}, so hit-testing and
+ * event coordinates work unchanged.
+ *
+ * <p><b>It clips exactly on an axis it scrolls, and not on one it does not.</b> Where the
+ * content scrolls, what lies past the viewport's edge is out of sight and is cut there. Across
+ * an axis that does not scroll nothing ever moves out of sight, so the content may paint past
+ * the viewport by a band, the reach of the theme's focus ring unless {@link #paintOverflow}
+ * says otherwise, so a control flush with the side of a view that scrolls only vertically keeps
+ * its whole focus ring.
  *
  * <p>Scroll indicators are the shared {@link ScrollBar} (draggable, themed,
  * policy-driven), the same component every scroller uses.
@@ -34,6 +42,8 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
 
     /** Logical points scrolled per wheel notch. */
     private static final float WHEEL_STEP = 48;
+    /** What {@link #paintOverflow} holds while the band follows the theme: the default. */
+    private static final float FROM_THEME = -1;
 
     private final Widget<?> child;
     private final boolean horizontal;
@@ -43,8 +53,13 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
     private float offsetX;
     private float offsetY;
     private final ScrollGutters gutters = new ScrollGutters();
+    /** The band {@link #paintOverflow(float)} declared, or {@link #FROM_THEME}. */
+    private float paintOverflow = FROM_THEME;
 
-    /** Wraps {@code child}, scrolling on both axes as its content overflows. */
+    /**
+     * Wraps {@code child}, scrolling vertically as its content overflows: clipped at the top and
+     * bottom, and let past the sides by {@link #paintOverflow}'s band.
+     */
     public ScrollView(Widget<?> child) {
         this(child, false, true);
     }
@@ -131,6 +146,89 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
     /** Whether the scrollbars overlay the content or reserve a gutter. */
     public ScrollGutters.Layout barLayout() {
         return gutters.layout();
+    }
+
+    /**
+     * Declares how far the content may paint past the viewport across an axis this view does not
+     * scroll, in logical points, in place of the reach the theme gives a focus ring. UI thread
+     * only.
+     *
+     * <p><b>What it is for.</b> On an axis it scrolls, this view clips the content exactly at the
+     * viewport, because there the content moves under the edge and what lies past it is out of
+     * sight. On an axis it does not scroll nothing ever moves out of sight, and a clip there cut
+     * only what a control draws outside its own box at the viewport's edge: the focus ring of a
+     * checkbox flush with the side of a view that scrolls vertically, a cursor centred on the edge
+     * of a colour plane. So across such an axis the content may paint this far past the viewport,
+     * on both sides, and is clipped there. A view scrolling both ways lets nothing past; one
+     * scrolling neither way lets the band past on all four sides.
+     *
+     * <p><b>By default the band is the reach of the focus ring</b> in the theme in effect for this
+     * view, {@link Theme#focusRingReach()}, the number every layout declares for its children, so a
+     * focused control flush with the view's side keeps its whole ring wherever the view has that
+     * much room round it. Declare more when the content draws farther and there is room for it,
+     * the padding of a card round the view for instance, and 0 for a view that must clip at its
+     * viewport on every side. {@link #paintOverflowFromTheme()} goes back to the theme's number.
+     *
+     * <p>Three things the band never reaches. A strip reserved for a bar
+     * ({@link ScrollGutters.Layout#RESERVED}) is not painted into: on the side the strip holds,
+     * the content stops at the viewport whatever this says. The bars stay clipped to this view's
+     * box. And the band is this view's allowance, not its ancestors': a clip above the view still
+     * cuts whatever reaches past it.
+     *
+     * <p><b>It is also what this view declares to partial rendering</b> as painting outside its
+     * box, through {@link #paintOutset()}, which is one number for both axes. So the view
+     * declares it only while an axis is left unclipped, and a view scrolling both ways declares
+     * nothing; on the axis the view does scroll the number over-declares by the band, which costs
+     * that many points of repaint above and below the view and never a stale pixel. The clip every
+     * descendant's damage is clamped to is the clip the content is painted in, band included, so
+     * a ring hanging into the band is repainted there when it changes.
+     *
+     * <p>A declaration already in force changes nothing and repaints nothing. A new one repaints
+     * this view and the wider of the band it leaves and the band it takes, so that what the
+     * content drew in a band that narrowed is wiped, and what it draws in one that widened is
+     * drawn at once.
+     *
+     * @param points how far the content may paint past each side of the viewport across an axis
+     *               this view does not scroll, in logical points
+     * @return this view
+     * @throws IllegalArgumentException when negative, {@code NaN} or infinite
+     */
+    public ScrollView paintOverflow(float points) {
+        Ui.checkUiThread();
+        float band = Checks.notNegative(points, "paint overflow");
+        if (paintOverflow != band) {
+            redeclare(band);
+        }
+        return this;
+    }
+
+    /**
+     * Goes back to letting the content paint past the viewport by the reach of the theme's focus
+     * ring across an axis this view does not scroll, which is the default; see
+     * {@link #paintOverflow(float)}. Repaints nothing when that is already the declaration. UI
+     * thread only.
+     *
+     * @return this view
+     */
+    public ScrollView paintOverflowFromTheme() {
+        Ui.checkUiThread();
+        if (paintOverflow != FROM_THEME) {
+            redeclare(FROM_THEME);
+        }
+        return this;
+    }
+
+    /** Stores a new declaration and repaints the wider of the band it leaves and the one it takes. */
+    private void redeclare(float declared) {
+        float was = paintOutset();
+        paintOverflow = declared;
+        float reach = Math.max(was, paintOutset());
+        invalidate(-reach, -reach, width() + 2 * reach, height() + 2 * reach);
+    }
+
+    /** The band in force: what {@link #paintOverflow(float)} declared, else the theme's reach. */
+    private float band() {
+        return paintOverflow >= 0 ? paintOverflow : Theme.of(this).focusRingReach();
     }
 
     /**
@@ -404,37 +502,76 @@ public final class ScrollView extends Widget<ScrollView> implements Scrollable {
         return true; // partial rendering: scrolled-out damage clamps to the viewport
     }
 
-    // The content is clipped to the viewport and the bars to the box, exactly as paintChildren
-    // does it, so that the showing test and the damage clamp agree with the paint. Under RESERVED
-    // the two rectangles differ by the gutter, and a descendant whose whole box lies in that strip
-    // is never painted; answering the box for it published it on screen under its own bar.
+    /**
+     * The band across an axis this view does not scroll, which its content may paint into past
+     * the box; nothing while it scrolls both ways, when the viewport bounds everything. One number
+     * for both axes, so on an axis the view scrolls it over-declares by the band, which repaints a
+     * little more and never leaves a stale pixel. O(1), from two flags and the band in force.
+     */
+    @Override
+    protected float paintOutset() {
+        return horizontal && vertical ? 0 : band();
+    }
+
+    // How far the content may paint past each side of the viewport: nothing on an axis the view
+    // scrolls, where the content moves under the edge; nothing on the side a reserved strip holds,
+    // which the bar owns; the band everywhere else. The vertical strip is on the side reading ends
+    // on, the left right to left, and the horizontal one at the bottom.
+
+    private float bandLeft() {
+        return horizontal || (isRightToLeft() && gutters.verticalStrip() > 0) ? 0 : band();
+    }
+
+    private float bandRight() {
+        return horizontal || (!isRightToLeft() && gutters.verticalStrip() > 0) ? 0 : band();
+    }
+
+    private float bandTop() {
+        return vertical ? 0 : band();
+    }
+
+    private float bandBottom() {
+        return vertical || gutters.horizontalStrip() > 0 ? 0 : band();
+    }
+
+    // The content is clipped to the viewport grown by the band on each side and the bars to the
+    // box, exactly as paintChildren does it, so that the showing test and the damage clamp agree
+    // with the paint: a ring hanging into the band damages the band. Under RESERVED the viewport
+    // and the box differ by the gutter, and a descendant whose whole box lies in that strip is
+    // never painted; answering the box for it published it on screen under its own bar.
     @Override
     protected float clipX(Widget<?> forChild) {
-        return forChild == child ? viewportLeft() : 0;
+        return forChild == child ? viewportLeft() - bandLeft() : 0;
+    }
+
+    @Override
+    protected float clipY(Widget<?> forChild) {
+        return forChild == child ? -bandTop() : 0;
     }
 
     @Override
     protected float clipWidth(Widget<?> forChild) {
-        return forChild == child ? viewportWidth() : width();
+        return forChild == child ? bandLeft() + viewportWidth() + bandRight() : width();
     }
 
     @Override
     protected float clipHeight(Widget<?> forChild) {
-        return forChild == child ? viewportHeight() : height();
+        return forChild == child ? bandTop() + viewportHeight() + bandBottom() : height();
     }
 
     @Override
     protected void paintChildren(Canvas canvas) {
-        // The content is clipped to the viewport and the bars to the box: under
-        // RESERVED those differ by the gutter, and content painting into it would
-        // show through around the thumb, the one thing the mode exists to prevent.
+        // The content is clipped to the viewport, grown by the band across an axis that does not
+        // scroll, and the bars to the box: under RESERVED those differ by the gutter, and content
+        // painting into it would show through around the thumb, the one thing the mode exists to
+        // prevent, which is why the band stops at the viewport on the gutter's side.
         // Both in a finally, for the reason Widget.paintChildren gives: the content below is an
         // arbitrary subtree, a throw in it unwinds through here, and a clip left pushed would end
         // the frame unbalanced, reported against nobody, because whatever threw is long out of
         // the stack by then. paintOne already guards its own; these are the two it does not cover.
         canvas.save();
         try {
-            canvas.clipRect(viewportLeft(), 0, viewportWidth(), viewportHeight());
+            canvas.clipRect(clipX(child), clipY(child), clipWidth(child), clipHeight(child));
             paintOne(canvas, child);
         } finally {
             canvas.restore();

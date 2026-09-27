@@ -181,6 +181,15 @@ rather than 1, and a pass paints a layout it would have skipped when it lands wi
 `ContainerOverflowTest` holds the defect (three cases that failed before, one per edge and both
 directions), the default, the setter, the refusals and the band.
 
+Later the same day (2026-09-27), a clipping widget stopped meaning one that clips on both axes: a
+`ScrollView` clips exactly on an axis it scrolls and, across one it does not, lets its content
+paint past the viewport by a band it declares as its `paintOutset()`, `paintOverflow(points)` or by
+default the theme's focus-ring reach, never into a reserved gutter, with its clip accessors
+answering the grown rectangle so that the damage clamp is the clip it paints with; a dialog's body,
+which scrolls only vertically, had cut the ring of a focused checkbox and half the colour picker's
+cursor at its left edge, and now paints into the card's padding less the outline
+(`ScrollAxisClipTest`).
+
 The second half is where the interesting failures are, and this work produced two, both in code
 written this month by somebody who had read the contract.
 

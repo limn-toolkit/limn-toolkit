@@ -16,6 +16,7 @@ import limn.i18n.I18nString;
 import limn.input.Keys;
 import limn.scene.Constraints;
 import limn.scene.ControlSize;
+import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -127,6 +128,8 @@ public final class Dialog {
     /** Title, message and the application's widget: the part that scrolls when the card is capped. */
     private final TokenColumn body;
     private final ScrollView bodyScroll;
+    /** The card's padding, round the body and the buttons; its sides are room the body paints in. */
+    private final TokenPadding cardPadding;
     private final ActionRow buttonRow;
     private Widget<?> custom;
     private final CompletableFuture<String> result = new CompletableFuture<>();
@@ -218,10 +221,12 @@ public final class Dialog {
         // Vertical only. A card that scrolled sideways would be one whose buttons can be
         // scrolled out of reach of a pointer that never learned there was anything to the
         // right; the width is capped by dialogMaxWidth instead, which cannot hide anything.
+        // And since nothing scrolls sideways, the body is not clipped sideways at the viewport:
+        // the column below lets it paint into the card's padding on both sides.
         bodyScroll = new ScrollView(body, false, true);
 
-        panel = new DialogPanel(new TokenPadding(Tokens.Role.LARGE,
-                new CardColumn(bodyScroll, buttonRow)));
+        cardPadding = new TokenPadding(Tokens.Role.LARGE, new CardColumn(bodyScroll, buttonRow));
+        panel = new DialogPanel(cardPadding);
     }
 
     /**
@@ -1017,11 +1022,21 @@ public final class Dialog {
      *
      * <p>The gutter is {@code spacingMedium}, the same token the body's own column carries, so
      * title → message → content → buttons reads as one rhythm however the card is split.
+     *
+     * <p>It is also where the body learns how far past its sides it may paint. The body scrolls
+     * only vertically, so its view clips it at the top and bottom and lets it past the sides by
+     * whatever band it is given; this column gives it the card's padding less the card's outline,
+     * so a focus ring or a colour plane's cursor at the body's edge is drawn whole, into the
+     * padding, and nothing of the body is ever drawn over the outline or past the card. Nothing
+     * else paints there: the padding is empty card, the footer sits below the body and the body's
+     * bar inside it.
      */
     private final class CardColumn extends Widget<CardColumn> {
 
         private final ScrollView scroll;
         private final Widget<?> footer;
+        /** How far past its sides the body may paint, as the last measure resolved it. */
+        private float band;
 
         CardColumn(ScrollView scroll, Widget<?> footer) {
             this.scroll = scroll;
@@ -1032,6 +1047,14 @@ public final class Dialog {
 
         @Override
         protected Size onMeasure(Constraints constraints) {
+            // The padding sets its insets from the step before it measures this column, so they
+            // are this pass's. The body column declares the same band as its view, because a
+            // repaint pass skips the first widget on the way down that declared less than what
+            // hangs past it, and what hangs past the body can reach as far as the view lets it.
+            Insets padding = cardPadding.insets();
+            band = Math.max(0, Math.min(padding.left(), padding.right()) - Strokes.BORDER);
+            scroll.paintOverflow(band);
+            body.paintOverflow(band);
             float gap = Tokens.spacingFor(this, Tokens.Role.MEDIUM);
             Constraints free = Constraints.loose(constraints.maxWidth(), Constraints.UNBOUNDED_LIMIT);
             Size footerSize = footer.measure(free);
@@ -1066,14 +1089,15 @@ public final class Dialog {
         }
 
         /**
-         * The reach of the theme's focus ring, which every layout declares for its children: the
-         * footer is laid out flush with this column's bottom and sides, so the ring of a button at
-         * its end hangs past the column into the card's padding. The body cannot, since its scroll
-         * view clips it.
+         * The larger of the reach of the theme's focus ring, which every layout declares for its
+         * children, and the band the body may paint past its sides. The footer is laid out flush
+         * with this column's bottom and sides, so the ring of a button at its end hangs past the
+         * column into the card's padding; and the body is laid out flush with its top and sides,
+         * clipped at the top by its view and let past the sides by the band.
          */
         @Override
         protected float paintOutset() {
-            return Theme.of(this).focusRingReach();
+            return Math.max(Theme.of(this).focusRingReach(), band);
         }
     }
 

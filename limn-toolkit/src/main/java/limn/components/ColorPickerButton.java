@@ -282,8 +282,11 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
         Dialog dialog = new Dialog(dialogTitle, I18nString.EMPTY);
         // A TokenBox, not a SizedBox: the width is a size token, and a number read here
         // would be the step this button happens to sit at when the dialog opens rather
-        // than the one the card resolves to.
-        dialog.setContent(new TokenBox(SizeTokens::colorDialogW, null, picker))
+        // than the one the card resolves to. It declares how far the picker paints past it,
+        // the cursor's reach, because the picker's sides are the dialog body's, and the body
+        // lets its content paint into the card's padding on both.
+        dialog.setContent(new TokenBox(SizeTokens::colorDialogW, null, picker)
+                        .paintOverflow(picker.paintOutset()))
                 .addButton(ComponentStrings.CANCEL, "cancel")
                 .addPrimaryButton(ComponentStrings.OK, "ok")
                 .setCancelResult("cancel")
