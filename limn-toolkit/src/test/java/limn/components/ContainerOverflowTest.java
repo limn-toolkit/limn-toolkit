@@ -428,11 +428,11 @@ class ContainerOverflowTest extends ComponentTestBase {
 
     /**
      * A widget that clips its children declares nothing for them, because its clip bounds them: a
-     * scroll view scrolling both ways, and a container of an application's own that clips, unless
-     * it is told a number. And the clip does bound them: a row flush with such a view's viewport,
-     * repainting, damages nothing past the view. A view scrolling one way lets its content past
-     * the viewport across the other and declares that band, which {@code ScrollAxisClipTest}
-     * holds.
+     * scroll view whose content overflows it both ways, and a container of an application's own
+     * that clips, unless it is told a number. And the clip does bound them: a row flush with such
+     * a view's viewport, repainting, damages nothing past the view. A view lets its content past
+     * the viewport across an axis it does not scroll or its content fits, and declares that band,
+     * which {@code ScrollAxisClipTest} holds.
      */
     @Test
     void aWidgetThatClipsItsChildrenDeclaresNothingForThem() {
@@ -447,11 +447,12 @@ class ContainerOverflowTest extends ComponentTestBase {
 
         Row content = new Row();
         content.add(new Button("Save"));
+        content.add(new SizedBox(400, 100)); // past the view on both axes
         ScrollView view = new ScrollView(content, true, true);
-        assertEquals(0, declared(view), 0);
         Stack centre = new Stack().alignment(Stack.Alignment.CENTER);
         centre.add(new SizedBox(200, 60, view));
         mount(new Padding(Insets.all(INSET), centre));
+        assertEquals(0, declared(view), 0);
         content.invalidate();
         frame();
         Rect bounds = sceneBox(view).inflate(FEATHER);

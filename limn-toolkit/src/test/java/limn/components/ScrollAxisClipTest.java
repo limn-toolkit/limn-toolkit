@@ -127,14 +127,33 @@ class ScrollAxisClipTest extends ComponentTestBase {
 
     /**
      * A focused button flush with the leading edge of a view scrolling on the axes given, with
-     * room above and below it, so that the ring crosses the view's side and only its side.
+     * room above and below it, so that the ring crosses the view's side and only its side. The
+     * content fits the view.
      */
     private void mountAButtonAtTheLeadingEdge(boolean horizontal, boolean vertical,
                                               LayoutDirection direction, boolean focused) {
+        mountAButtonAtTheLeadingEdge(horizontal, vertical, direction, focused, false);
+    }
+
+    /**
+     * The same, with a block after the button that makes the content overflow the view on every
+     * axis it scrolls when {@code overflowing}: past its trailing side and past its bottom, so
+     * that the button stays where it was.
+     */
+    private void mountAButtonAtTheLeadingEdge(boolean horizontal, boolean vertical,
+                                              LayoutDirection direction, boolean focused,
+                                              boolean overflowing) {
         button = new Button("Save");
         Row row = new Row();
         row.add(button);
-        view = new ScrollView(new Padding(Insets.symmetric(12, 0), row), horizontal, vertical);
+        Widget<?> content = new Padding(Insets.symmetric(12, 0), row);
+        if (overflowing) {
+            Column longer = new Column();
+            longer.add(content);
+            longer.add(new SizedBox(horizontal ? 400 : 1, vertical ? 200 : 1));
+            content = longer;
+        }
+        view = new ScrollView(content, horizontal, vertical);
         Stack centre = new Stack().alignment(Stack.Alignment.CENTER);
         centre.add(new SizedBox(200, 80, view));
         Padding root = new Padding(Insets.all(INSET), centre);
@@ -182,13 +201,14 @@ class ScrollAxisClipTest extends ComponentTestBase {
     }
 
     /**
-     * On the axis it scrolls a view clips at the viewport exactly, whatever it lets through on the
-     * other: the band is the reach of the theme's focus ring across the axis it does not scroll
-     * and nothing along the one it does.
+     * On an axis it scrolls and its content overflows a view clips at the viewport exactly,
+     * whatever it lets through on the other: the band is the reach of the theme's focus ring
+     * across the axis it does not scroll and nothing along the one it does.
      */
     @Test
-    void aViewClipsExactlyOnTheAxisItScrollsAndByTheReachOnTheOther() {
-        mountAButtonAtTheLeadingEdge(false, true, LayoutDirection.LTR, true);
+    void aViewClipsExactlyOnAnAxisItScrollsWhileItsContentOverflowsIt() {
+        mountAButtonAtTheLeadingEdge(false, true, LayoutDirection.LTR, true, true);
+        assertTrue(view.maxOffsetY() > 0, "the fixture overflows the view, or it proves nothing");
         wholeFrame();
         Rect clip = ringsOf(Strokes.FOCUS_RING).get(0).clip();
         Rect box = sceneBox(view);
@@ -196,7 +216,8 @@ class ScrollAxisClipTest extends ComponentTestBase {
         assertEquals(new Rect(box.x() - reach, box.y(), box.width() + 2 * reach, box.height()),
                 clip, "a view scrolling vertically");
 
-        mountAButtonAtTheLeadingEdge(true, false, LayoutDirection.LTR, true);
+        mountAButtonAtTheLeadingEdge(true, false, LayoutDirection.LTR, true, true);
+        assertTrue(view.maxOffsetX() > 0, "the fixture overflows the view, or it proves nothing");
         wholeFrame();
         clip = ringsOf(Strokes.FOCUS_RING).get(0).clip();
         box = sceneBox(view);
@@ -206,10 +227,32 @@ class ScrollAxisClipTest extends ComponentTestBase {
         assertTrue(ring.x() < clip.x(), "a view scrolling sideways still cuts the ring at its "
                 + "leading edge, where content scrolls out of sight");
 
-        mountAButtonAtTheLeadingEdge(true, true, LayoutDirection.LTR, true);
+        mountAButtonAtTheLeadingEdge(true, true, LayoutDirection.LTR, true, true);
         wholeFrame();
         assertEquals(sceneBox(view), ringsOf(Strokes.FOCUS_RING).get(0).clip(),
                 "a view scrolling both ways clips at its viewport on both");
+    }
+
+    /**
+     * On an axis it scrolls and its content fits, nothing can move out of sight either, so a view
+     * treats that axis as one it does not scroll: whatever it scrolls, content that fits it is let
+     * past every side by the band, and the ring of a button at its leading edge is drawn whole.
+     */
+    @Test
+    void aViewWhoseContentFitsLetsItPastEverySideByTheBand() {
+        float reach = Theme.current().focusRingReach();
+        boolean[][] axes = {{false, true}, {true, false}, {true, true}};
+        for (boolean[] scrolls : axes) {
+            String what = "a view scrolling " + (scrolls[0] ? "sideways" : "")
+                    + (scrolls[0] && scrolls[1] ? " and " : "") + (scrolls[1] ? "vertically" : "");
+            mountAButtonAtTheLeadingEdge(scrolls[0], scrolls[1], LayoutDirection.LTR, true);
+            assertEquals(0, view.maxOffsetX(), 0, what + ": the content fits");
+            assertEquals(0, view.maxOffsetY(), 0, what + ": the content fits");
+            wholeFrame();
+            List<InkRecorder.Ink> rings = ringsOf(Strokes.FOCUS_RING);
+            assertEquals(sceneBox(view).inflate(reach), rings.get(0).clip(), what);
+            assertWhole(rings, what + ": the focus ring");
+        }
     }
 
     /**
@@ -329,8 +372,10 @@ class ScrollAxisClipTest extends ComponentTestBase {
 
     /**
      * The band is the reach of the theme's focus ring by default, and it is declared to partial
-     * rendering while an axis is left unclipped: a view scrolling both ways declares nothing,
-     * whatever band it is given, because it lets nothing past.
+     * rendering while an axis is left unclipped: content that fits, as a view not yet laid out
+     * holds, is let past every side whatever the view scrolls, and only a view whose content
+     * overflows it both ways declares nothing, whatever band it is given, because it lets nothing
+     * past.
      */
     @Test
     void aViewDeclaresTheBandWhileAnAxisIsLeftUnclipped() {
@@ -339,8 +384,14 @@ class ScrollAxisClipTest extends ComponentTestBase {
         assertEquals(reach, declared(new ScrollView(new Row(), false, true)), 0);
         assertEquals(reach, declared(new ScrollView(new Row(), true, false)), 0);
         assertEquals(reach, declared(new ScrollView(new Row(), false, false)), 0);
-        assertEquals(0, declared(new ScrollView(new Row(), true, true)), 0);
-        assertEquals(0, declared(new ScrollView(new Row(), true, true).paintOverflow(8)), 0);
+        assertEquals(reach, declared(new ScrollView(new Row(), true, true)), 0,
+                "a view scrolling both ways whose content fits");
+
+        mountAButtonAtTheLeadingEdge(false, true, LayoutDirection.LTR, false, true);
+        assertEquals(reach, declared(view), 0, "overflowing downwards, it is let past the sides");
+        mountAButtonAtTheLeadingEdge(true, true, LayoutDirection.LTR, false, true);
+        assertEquals(0, declared(view), 0, "overflowing both ways");
+        assertEquals(0, declared(view.paintOverflow(8)), 0, "overflowing both ways, told 8");
     }
 
     @Test
@@ -424,25 +475,118 @@ class ScrollAxisClipTest extends ComponentTestBase {
         assertEquals(box, clip, "told 0, the view clips at its viewport on every side");
     }
 
-    // ------------------------------------------------------------------ the dialog
+    // ------------------------------------------------------------------ the content grows and shrinks
+
+    private Widget<?> extra;
 
     /**
-     * Five seconds of frames, long past every fade. Not {@link #settle()}: an in-scene card is laid
-     * out again on every paint to follow its slide, which refreshes the body's bar, so the scene
-     * never paints nothing.
+     * A focused button flush with the bottom of a view scrolling vertically, whose content fits
+     * the viewport exactly, so that the ring crosses the view's bottom edge; and a block above it,
+     * hidden, which overflows the view once shown.
      */
-    private void pump() {
-        for (int i = 0; i < 25; i++) {
-            nanos.addAndGet(200_000_000L);
-            canvas.reset();
-            scene.renderFrame(canvas);
+    private void mountAButtonAtTheBottom() {
+        button = new Button("Save");
+        Stack bottom = new Stack().alignment(Stack.Alignment.BOTTOM_LEFT);
+        bottom.add(button);
+        extra = new SizedBox(40, 10);
+        extra.setVisible(false);
+        Column content = new Column();
+        content.add(extra);
+        content.add(new SizedBox(200, 80, bottom));
+        view = new ScrollView(content, false, true);
+        Stack centre = new Stack().alignment(Stack.Alignment.CENTER);
+        centre.add(new SizedBox(200, 80, view));
+        mount(new Padding(Insets.all(INSET), centre), W, H);
+        button.requestFocus();
+        settle();
+    }
+
+    /** Every point of {@code ink} outside {@code kept} is inside one of the frames' passes. */
+    private static void assertRepainted(Rect ink, Rect kept, List<Rect> passes, String what) {
+        for (float y = ink.y() + 0.25f; y < ink.bottom(); y += 0.5f) {
+            for (float x = ink.x() + 0.25f; x < ink.right(); x += 0.5f) {
+                if (kept.contains(x, y)) {
+                    continue;
+                }
+                boolean covered = false;
+                for (Rect pass : passes) {
+                    if (pass.contains(x, y)) {
+                        covered = true;
+                        break;
+                    }
+                }
+                if (!covered) {
+                    throw new AssertionError(what + ": the ink at " + x + "," + y + " was never "
+                            + "repainted: no pass of " + passes + " covers " + ink);
+                }
+            }
         }
     }
 
+    /** The frames up to the one that paints nothing, their passes together; none of them whole. */
+    private List<Rect> passesUntilSettled() {
+        List<Rect> passes = new ArrayList<>();
+        for (int i = 0; i < 60; i++) {
+            frame();
+            if (canvas.nothingPainted()) {
+                return passes;
+            }
+            assertFalse(canvas.cleared, "a whole frame repaints the band by accident");
+            passes.addAll(canvas.passes);
+        }
+        throw new AssertionError("never settled");
+    }
+
+    /**
+     * Content that grows past the viewport closes the band along the axis it now scrolls, and the
+     * part of the ring the band held is wiped at once, although the frame lays the view out in
+     * place and repaints only what moved; content that shrinks back opens it again, and the ring
+     * is drawn whole.
+     */
+    @Test
+    void contentGrowingPastTheViewportAndShrinkingBackRepaintsTheBandItClosesAndOpens() {
+        mountAButtonAtTheBottom();
+        Rect ring = ringBox();
+        Rect box = sceneBox(view);
+        float reach = Theme.current().focusRingReach();
+        assertTrue(ring.bottom() > box.bottom() + FEATHER, "the ring hangs past the view's bottom");
+        wholeFrame();
+        assertWhole(ringsOf(Strokes.FOCUS_RING), "focus ring over content that fits");
+        settle();
+
+        extra.setVisible(true);
+        List<Rect> passes = passesUntilSettled();
+        assertTrue(view.maxOffsetY() > 0, "the content overflows now");
+        assertRepainted(ring, box, passes, "growing past the viewport");
+        wholeFrame();
+        List<InkRecorder.Ink> rings = ringsOf(Strokes.FOCUS_RING);
+        assertFalse(rings.isEmpty(), "the block above pushes the button down, not out of sight");
+        assertEquals(new Rect(box.x() - reach, box.y(), box.width() + 2 * reach, box.height()),
+                rings.get(0).clip(), "overflowing, the view clips at its top and bottom");
+        settle();
+
+        extra.setVisible(false);
+        passes = passesUntilSettled();
+        assertEquals(0, view.maxOffsetY(), 0, "the content fits again");
+        assertRepainted(ring, new Rect(0, 0, 0, 0), passes, "shrinking back");
+        wholeFrame();
+        rings = ringsOf(Strokes.FOCUS_RING);
+        assertEquals(box.inflate(reach), rings.get(0).clip(),
+                "fitting again, the band is open on every side");
+        assertWhole(rings, "focus ring over content that fits again");
+    }
+
+    // ------------------------------------------------------------------ the dialog
+
     private void showInScene(Dialog dialog) {
-        mount(new Column(), 900, 900);
+        showInScene(dialog, 900);
+    }
+
+    /** In a window {@code height} tall, which caps the card when it would stand taller. */
+    private void showInScene(Dialog dialog, int height) {
+        mount(new Column(), 900, height);
         dialog.setDisplayMode(DisplayMode.IN_SCENE).show(scene);
-        pump();
+        settle();
     }
 
     private static <T> T find(Widget<?> root, Class<T> type) {
@@ -461,8 +605,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
     /**
      * A checkbox focused at the body's leading edge keeps its whole ring, in both directions. A
      * line of text below it keeps the ring off the body's bottom, so that it crosses the body's
-     * side and only its side: the body scrolls vertically, and its top and bottom are clipped
-     * exactly.
+     * side and only its side.
      */
     @Test
     void aFocusedCheckboxAtTheDialogBodysEdgeKeepsItsWholeRing() {
@@ -476,7 +619,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
             dialog.contentRoot().setLayoutDirection(direction);
             showInScene(dialog);
             checkbox.requestFocus();
-            pump();
+            settle();
             wholeFrame();
             List<InkRecorder.Ink> rings = ringsOf(Strokes.FOCUS_RING_THIN);
             ScrollView body = find(dialog.contentRoot(), ScrollView.class);
@@ -495,6 +638,68 @@ class ScrollAxisClipTest extends ComponentTestBase {
     }
 
     /**
+     * A checkbox focused at the bottom of a body that fits keeps its whole ring, in both
+     * directions: the body scrolls vertically, but nothing in it can scroll out of sight while it
+     * fits, so its view lets it past its top and bottom by the band it lets it past its sides.
+     */
+    @Test
+    void aFocusedCheckboxAtTheBottomOfADialogBodyThatFitsKeepsItsWholeRing() {
+        for (LayoutDirection direction : LayoutDirection.values()) {
+            Checkbox checkbox = new Checkbox("Remember this choice");
+            Dialog dialog = new Dialog("Rename", "").setContent(checkbox)
+                    .addPrimaryButton("OK", "ok");
+            dialog.contentRoot().setLayoutDirection(direction);
+            showInScene(dialog);
+            checkbox.requestFocus();
+            settle();
+            wholeFrame();
+            ScrollView body = find(dialog.contentRoot(), ScrollView.class);
+            assertNotNull(body);
+            assertEquals(0, body.maxOffsetY(), 0, direction + ": the body fits");
+            List<InkRecorder.Ink> rings = ringsOf(Strokes.FOCUS_RING_THIN);
+            assertFalse(rings.isEmpty(), direction + ": the checkbox drew no ring");
+            Rect box = sceneBox(body);
+            assertTrue(rings.get(0).ink().bottom() > box.bottom(), direction + ": the checkbox is "
+                    + "the body's last line, so its ring hangs past the body's bottom");
+            assertEquals(box.inflate(declared(body)), rings.get(0).clip(), direction
+                    + ": the body's clip is its box grown by the band on every side");
+            assertWhole(rings, direction + " checkbox's focus ring");
+        }
+    }
+
+    /**
+     * A body that overflows, the card capped by a short window, clips exactly at its top and
+     * bottom, where the content scrolls out of sight, and is still let past its sides by the band:
+     * the ring of the checkbox revealed at its bottom edge is cut there, as it should be.
+     */
+    @Test
+    void aDialogBodyThatOverflowsClipsExactlyAtItsTopAndBottom() {
+        Checkbox checkbox = new Checkbox("Remember this choice");
+        Column content = new Column();
+        for (int i = 0; i < 40; i++) {
+            content.add(new Label("Line " + i));
+        }
+        content.add(checkbox);
+        Dialog dialog = new Dialog("Rename", "").setContent(content).addPrimaryButton("OK", "ok");
+        showInScene(dialog, 300);
+        ScrollView body = find(dialog.contentRoot(), ScrollView.class);
+        assertNotNull(body);
+        assertTrue(body.maxOffsetY() > 0, "the window caps the card, so the body scrolls");
+        checkbox.requestFocus();
+        settle();
+        assertEquals(body.maxOffsetY(), body.offsetY(), 0, "focus revealed the last line");
+        wholeFrame();
+        List<InkRecorder.Ink> rings = ringsOf(Strokes.FOCUS_RING_THIN);
+        assertFalse(rings.isEmpty(), "the checkbox drew no ring");
+        Rect box = sceneBox(body);
+        float band = declared(body);
+        assertEquals(new Rect(box.x() - band, box.y(), box.width() + 2 * band, box.height()),
+                rings.get(0).clip(), "clipped exactly at the top and bottom, past the sides");
+        assertTrue(rings.get(0).ink().bottom() > rings.get(0).clip().bottom(),
+                "the ring of the last line is cut at the bottom, where the content scrolls");
+    }
+
+    /**
      * Parks the picker a colour button raises on {@code colour}, reading {@code direction}, and
      * answers the cursor's circles: every one the field drew, each with the clip it was drawn in,
      * after holding that the clip lets the body past its edge by no more than the card's padding.
@@ -509,7 +714,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
         Dialog dialog = well.openDialog();
         assertNotNull(dialog, "the button raised no dialog");
         dialog.contentRoot().setLayoutDirection(direction);
-        pump();
+        settle();
         ColorPicker picker = find(dialog.contentRoot(), ColorPicker.class);
         assertNotNull(picker);
         body = find(dialog.contentRoot(), ScrollView.class);
@@ -602,16 +807,13 @@ class ScrollAxisClipTest extends ComponentTestBase {
         assertTrue(band.right() < left - Theme.current().focusRingReach() - FEATHER,
                 "the band lies past the focus ring's reach, where only the cursor's reaches");
 
-        // Past the frame the whole repaint leaves behind, to one that repaints only what the card
-        // keeps repainting, so that the band is the one pass that can reach the cursor.
-        for (int i = 0; i < 10 && (canvas.cleared || canvas.passes.isEmpty()); i++) {
-            frame();
-        }
-        assertFalse(canvas.cleared, "the card never stopped repainting whole");
+        // Past the frame the whole repaint leaves behind, to a scene that repaints nothing, so
+        // that the band is the one pass and the only one that can reach the cursor.
+        settle();
         scene.damage(band);
         frame();
         assertFalse(canvas.cleared, "a whole frame paints everything and tests no culling");
-        assertTrue(canvas.passes.contains(band), "the band is one of the passes");
+        assertEquals(List.of(band), canvas.passes, "the damage is the band alone");
         boolean redrawn = false;
         for (InkRecorder.Ink circle : canvas.circles) {
             if (meets(circle.ink(), band) && meets(circle.clip(), band)) {

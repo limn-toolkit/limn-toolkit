@@ -55,6 +55,63 @@ class ScrollBarTest extends ComponentTestBase {
         return bar;
     }
 
+    /** Renders frames until one paints nothing, and fails if none does. */
+    private void settle(RecordingTestCanvas canvas) {
+        for (int i = 0; i < 100; i++) {
+            canvas.reset();
+            scene.renderFrame(canvas);
+            if (canvas.nothingPainted()) {
+                return;
+            }
+        }
+        throw new AssertionError("the bar never stopped repainting");
+    }
+
+    /**
+     * A refresh that finds the thumb's numbers and the bar's box where the last one left them
+     * repaints nothing, because a host refreshes its bar from its layout and a layout can run again
+     * with nothing in it changed; one that finds any of them moved repaints the bar, and so does a
+     * new policy.
+     */
+    @Test
+    void aRefreshThatFindsNothingChangedRepaintsNothing() {
+        Model model = new Model();
+        ScrollBar bar = mount(ScrollBar.Policy.ALWAYS, model);
+        scene.setPartialRendering(true);
+        RecordingTestCanvas canvas = new RecordingTestCanvas(ScrollBar.thickness(), 200);
+        bar.refresh(); // as a host does once it has laid the bar out
+        settle(canvas);
+
+        bar.refresh();
+        canvas.reset();
+        scene.renderFrame(canvas);
+        assertTrue(canvas.nothingPainted(), "nothing changed, and the refresh repainted "
+                + (canvas.cleared ? "the whole window" : canvas.passClips()));
+
+        model.content = 1500;
+        bar.refresh();
+        canvas.reset();
+        scene.renderFrame(canvas);
+        assertFalse(canvas.nothingPainted(), "the content grew and the thumb was not repainted");
+        settle(canvas);
+
+        model.offset = 100;
+        bar.refresh();
+        canvas.reset();
+        scene.renderFrame(canvas);
+        assertFalse(canvas.nothingPainted(), "the offset moved and the thumb was not repainted");
+        settle(canvas);
+
+        bar.setPolicy(ScrollBar.Policy.ALWAYS);
+        canvas.reset();
+        scene.renderFrame(canvas);
+        assertTrue(canvas.nothingPainted(), "the policy in force, set again, repainted");
+        bar.setPolicy(ScrollBar.Policy.HIDDEN);
+        canvas.reset();
+        scene.renderFrame(canvas);
+        assertFalse(canvas.nothingPainted(), "a hidden bar left its thumb on screen");
+    }
+
     @Test
     void draggingTheThumbScrolls() {
         Model model = new Model();
