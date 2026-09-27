@@ -37,6 +37,18 @@ Maven Central say which number that was.
   still in flight left a future that never completes for the next backend to ask for the same file.
 - The process-wide list behind `FrameMetrics.processInstances()` is pruned whenever a scene is
   made, not only when that method is called. It kept an entry for every popup ever opened.
+- A `Table` sorted by the table itself re-sorts when its language changes, since a text sort is the
+  language's order (German puts "ä" before "z", Swedish after it). The cursor stays on its row.
+- A `Table`'s footer strip goes when the only column with a footer is hidden, and comes back when it
+  is shown. It stayed reserved and empty until a refresh.
+- A `Column.minWidth` set after the user dragged the column holds the dragged width too.
+- A range `DatePicker` clears the period in its grid when one end is cleared.
+- VoiceOver's point lookup answers the sibling painted on top where two overlap, and skips a child
+  that is not showing, as Windows and AT-SPI already did.
+- An MP3 whose ID3v2 tag claims more bytes than the file holds is refused before anything is
+  allocated. Sixteen bytes made the decoder allocate 268 MB, and a looping stream again per loop.
+- A WAV with no format chunk, no channels or no data throws `IllegalArgumentException` as a
+  malformed file, not `UnsupportedOperationException`.
 
 ### New
 
