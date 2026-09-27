@@ -154,6 +154,27 @@ class MenuTest extends ComponentTestBase {
         assertFalse(popup.isOpen());
     }
 
+    /**
+     * A submenu row disabled while the menu is open keeps the highlight it had, and the keys that
+     * open a submenu opened it anyway; a click already refused. Navigation skips it once the
+     * highlight moves, so this is the one moment the keyboard could reach it.
+     */
+    @Test
+    void aSubmenuRowDisabledWhileHighlightedDoesNotOpenFromTheKeyboard() {
+        Menu sub = new Menu().addItem("Filho", () -> { });
+        MenuItem parent = MenuItem.submenu("Parent", sub);
+        Menu menu = new Menu().add(parent).addItem("Other", () -> { });
+        PopupMenu popup = show(menu, 400, 300, 20, 20);
+        parent.setEnabled(false);
+        for (int key : new int[] {Keys.RIGHT, Keys.ENTER, Keys.SPACE}) {
+            popup.keyForTest(key);
+            assertEquals(1, popup.columnCountForTest(), "key " + key + " opened a disabled submenu");
+        }
+        parent.setEnabled(true);
+        popup.keyForTest(Keys.RIGHT);
+        assertEquals(2, popup.columnCountForTest(), "enabled again, it opens");
+    }
+
     @Test
     void escapeClosesTheSubmenuThenTheWholeMenu() {
         Menu sub = new Menu().addItem("Filho", () -> { });

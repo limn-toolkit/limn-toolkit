@@ -1483,7 +1483,10 @@ public final class PopupMenu {
                     // submenus opened the other.
                     if ((key == Keys.RIGHT) != isRtl()) {
                         int i = col.highlight;
-                        if (i >= 0 && col.menu.items().get(i).hasSubmenu()) {
+                        // Selectable as well: a row disabled while it held the highlight keeps it,
+                        // and only the click path used to ask.
+                        if (i >= 0 && col.menu.items().get(i).hasSubmenu()
+                                && col.menu.items().get(i).isSelectable()) {
                             openSubmenu(deep, i);
                         } else if (deep == 0) {
                             if (onRootTrailing != null) {
@@ -1504,9 +1507,12 @@ public final class PopupMenu {
                     int i = col.highlight;
                     if (i >= 0) {
                         MenuItem item = col.menu.items().get(i);
+                        if (!item.isSelectable()) {
+                            return true; // disabled while highlighted: neither opens nor runs
+                        }
                         if (item.hasSubmenu()) {
                             openSubmenu(deep, i);
-                        } else if (item.isSelectable()) {
+                        } else {
                             item.activate(Change.Origin.USER); // Enter or Space on the highlight
                             close();
                             return true;
