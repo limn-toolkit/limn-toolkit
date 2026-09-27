@@ -482,7 +482,9 @@ class ScrollAxisClipTest extends ComponentTestBase {
             ScrollView body = find(dialog.contentRoot(), ScrollView.class);
             assertNotNull(body);
             assertFalse(rings.isEmpty(), direction + ": the checkbox drew no ring");
-            Rect ring = rings.get(0).ink();
+            // The box's own border is drawn with the same pen; the focus ring is the one around it.
+            Rect ring = rings.stream().map(InkRecorder.Ink::ink)
+                    .max(java.util.Comparator.comparingDouble(Rect::width)).orElseThrow();
             assertTrue(direction == LayoutDirection.LTR
                             ? ring.x() < body.localToSceneX()
                             : ring.right() > body.localToSceneX() + body.width(),
