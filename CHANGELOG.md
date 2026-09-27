@@ -6,6 +6,17 @@ Each section is named after the release it follows. It is complete on the day th
 tagged, and no release has to edit this file to rename it; the release on GitHub and the version on
 Maven Central say which number that was.
 
+## After 0.9.0
+
+### Changed
+
+- `limn-fonts-all` names Noto Color Emoji 2.057.0 and the Noto Sans script faces 1.0.3. The emoji
+  cover Unicode 18.0; of the four script families only Devanagari moved (2.006 to 2.007, the same
+  glyphs, rehinted), and text lays out as before. An application that names the two artifacts
+  itself moves them to those versions.
+- The guides and the demo name `limn-icons-tabler` 3.48.0.0: 36 more icons, none removed or moved,
+  so code that names a constant compiles unchanged.
+
 ## After 0.8.0
 
 ### Fixed
