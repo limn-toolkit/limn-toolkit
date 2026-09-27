@@ -1,11 +1,16 @@
 # CLDR locale facts, dumped from ICU.
 # node v26.7.0, ICU 78.3, Unicode 17.0
-# produced by scripts/i18n/dump-cldr-locale-facts.mjs on 2026-09-24
+# produced by scripts/i18n/dump-cldr-locale-facts.mjs on 2026-09-27
 #
 # rtl <language subtag> ...   every subtag ICU writes right to left, searched over all
 #                             two- and three-letter codes
-# digits <language> <system>  a language whose default digits are not latn
+# digits <language> <system>  a language, of two letters or three, whose default digits
+#                             are not latn
 # digits <language>-<REGION> <system>   a region that differs from its language
+# digits <language>-<Script> <system>   a script ICU holds the language in that differs
+#                             from the language
+# digits <language>-<Script>-<REGION> <system>   a region that differs from its language
+#                             in that script, or from a region row of the language
 # likely <language>-<REGION> ...   the region ICU's likely subtags give a two-letter
 #                             language named alone
 rtl ae ar dv fa he iw ji ks ps sd ug ur yi aao abh abv
@@ -53,17 +58,37 @@ digits as beng
 digits bn beng
 digits dz tibt
 digits fa arabext
+digits ff-Adlm adlm
 digits ks arabext
+digits ks-Deva latn
 digits mr deva
 digits my mymr
 digits ne deva
 digits pa-PK arabext
+digits pa-Arab arabext
+digits pa-Guru-PK latn
 digits ps arabext
 digits sa deva
 digits sd arab
 digits sd-IN latn
+digits sd-Arab-IN arab
+digits sd-Deva latn
 digits ur-IN arabext
 digits uz-AF arabext
+digits uz-Arab arabext
+digits uz-Cyrl-AF latn
+digits uz-Latn-AF latn
+digits ars arab
+digits bgc deva
+digits bho deva
+digits ccp cakm
+digits ckb arab
+digits lrc arabext
+digits mni beng
+digits mzn arabext
+digits nqo nkoo
+digits raj deva
+digits sat olck
 likely aa-ET ab-GE ae-IR af-ZA ak-GH am-ET an-ES ar-EG as-IN av-RU ay-BO az-AZ
 likely ba-RU be-BY bg-BG bi-VU bm-ML bn-BD bo-CN br-FR bs-BA ca-ES ce-RU ch-GU
 likely co-FR cr-CA cs-CZ cu-RU cv-RU cy-GB da-DK de-DE dv-MV dz-BT ee-GH el-GR
