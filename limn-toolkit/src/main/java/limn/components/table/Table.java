@@ -251,7 +251,6 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     // refresh; shown while any shown column has one.
     private String[] footerTexts = new String[0];
     private ShapedText[] footerShaped = new ShapedText[0];
-    private boolean footerShown;
     private Font headerBase;
     private Font headerDerived;
     /**
@@ -1847,7 +1846,23 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     private float footerHeight(SizeTokens t) {
-        return footerShown ? t.controlHeight() : 0;
+        return footerShown() ? t.controlHeight() : 0;
+    }
+
+    /**
+     * Whether the footer strip shows: while any shown column has a footer text. Read from the
+     * columns each time rather than kept, because a column is hidden or shown with no call to the
+     * table but a layout, and a kept flag left the strip reserved and empty after its only column
+     * was hidden.
+     */
+    private boolean footerShown() {
+        int count = Math.min(columns.size(), footerTexts.length);
+        for (int c = 0; c < count; c++) {
+            if (footerTexts[c] != null && columns.get(c).isVisible()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The top of the footer row in this widget's coordinates, for this pass. */
@@ -1865,7 +1880,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             footerShaped = new ShapedText[columns.size()];
         }
         Locale locale = locale();
-        boolean shown = false;
+        boolean wasShown = footerShown();
         // Under the table's own locale, as a pass would be: a format that reads I18n.locale()
         // when it formats has to see this table's language, not the thread's, and a refresh is
         // called from application code outside any pass.
@@ -1875,13 +1890,11 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                 Column<T> column = columns.get(c);
                 footerTexts[c] = column.footerText(rows, locale);
                 footerShaped[c] = null;
-                shown |= footerTexts[c] != null && column.isVisible();
             }
         } finally {
             I18n.popScope(enclosing);
         }
-        if (shown != footerShown) {
-            footerShown = shown;
+        if (footerShown() != wasShown) {
             markNeedsLayout();
         }
         textEpoch++;
@@ -3066,7 +3079,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             canvas.restore();
         }
 
-        if (footerShown) {
+        if (footerShown()) {
             float footerH = footerHeight(t);
             float top = footerTop();
             canvas.save();
@@ -3740,7 +3753,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             a.endChild();
         }
 
-        if (footerShown) {
+        if (footerShown()) {
             float footerH = footerHeight(t);
             float top = footerTop();
             a.child(FOOTER_KEY);

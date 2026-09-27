@@ -720,6 +720,46 @@ class TableTest extends ComponentTestBase {
     }
 
     /**
+     * The footer strip follows its columns' visibility: hiding the only column with a footer
+     * left its strip reserved and drawn empty, and showing it again never brought the strip back,
+     * until a refresh.
+     */
+    @Test
+    void theFooterStripGoesWithTheOnlyColumnThatHasAFooter() {
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Table<Person> plain = new Table<>(List.of(nameColumn(), ageColumn()));
+        plain.setRows(people(200));
+        Scene plainScene = scene(plain, canvas);
+        int lastWithoutFooter = firstVisibleAtEnd(plainScene, plain, canvas);
+
+        Column<Person> age = ageColumn().footerSum();
+        Table<Person> table = new Table<>(List.of(nameColumn(), age));
+        table.setRows(people(200));
+        Scene scene = scene(table, canvas);
+        int lastWithFooter = firstVisibleAtEnd(scene, table, canvas);
+        assertTrue(lastWithFooter > lastWithoutFooter, "sanity: the footer takes a strip");
+
+        age.visible(false);
+        table.markNeedsLayout();
+        assertEquals(lastWithoutFooter, firstVisibleAtEnd(scene, table, canvas),
+                "with no column showing a footer there is no strip");
+        age.visible(true);
+        table.markNeedsLayout();
+        assertEquals(lastWithFooter, firstVisibleAtEnd(scene, table, canvas),
+                "and showing the column brings it back");
+    }
+
+    private static int firstVisibleAtEnd(Scene scene, Table<Person> table, FakeCanvas canvas) {
+        scene.renderFrame(canvas);
+        scene.requestFocus(table);
+        drive(scene).keyEvent(Keys.END, true, false, 0);
+        drive(scene).inputBatchEnded();
+        scene.renderFrame(canvas);
+        scene.renderFrame(canvas);
+        return table.firstVisibleRow();
+    }
+
+    /**
      * FN-9 of the 2026-09-24 review: the footer's documentation asks a numeric column for "a
      * number", and its formatter cast what came back to {@code Double}, so the natural
      * {@code mapToInt(...).sum()} threw a ClassCastException out of {@code setRows}. Any
