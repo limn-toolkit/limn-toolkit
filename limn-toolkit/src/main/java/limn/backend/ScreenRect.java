@@ -1,7 +1,7 @@
 package limn.backend;
 
 /**
- * A rectangle in native screen coordinates: a {@link Display}'s physical
+ * A rectangle in native screen coordinates: a {@link Display}'s full
  * {@link Display#bounds() bounds} or its usable {@link Display#workArea() work
  * area} (the monitor minus OS chrome like the taskbar/dock/menu bar). Popups and
  * fullscreen logic clamp against these so windows never open off-screen.

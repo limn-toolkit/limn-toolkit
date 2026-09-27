@@ -172,7 +172,9 @@ protected void onFileDrop(FileDropEvent event) {
 Screen information arrives as value types in `limn.backend`, so every class reads it the same way
 instead of asking the platform its own way:
 
-- `Resolution(width, height, refreshRate)` is a video mode, refresh `0` meaning unspecified;
+- `Resolution(width, height, refreshRate)` is a video mode, refresh `0` meaning unspecified, its
+  size in screen coordinates like everything here: pixels on Windows and Linux, points on macOS,
+  where a Retina display's modes are smaller than its panel (1728 × 1117 on a 3456 × 2234 one);
 - `ScreenRect(x, y, width, height)` is a rectangle in screen coordinates;
 - `Display` is a monitor: `id()` and `name()`, `isPrimary()`, `currentResolution()`,
   `availableResolutions()`, `bounds()`, `workArea()` — the monitor minus the taskbar or dock —

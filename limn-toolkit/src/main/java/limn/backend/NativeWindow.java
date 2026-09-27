@@ -157,11 +157,13 @@ public interface NativeWindow extends AutoCloseable {
      * Enters <b>exclusive</b> (mode-setting) fullscreen on the monitor the
      * window currently occupies. Pass {@code width}/{@code height} &le; 0 to keep
      * the monitor's current resolution (no mode switch); pass {@code refreshRate}
-     * &le; 0 for the monitor default. The previous windowed geometry is
-     * remembered for {@link #exitFullscreen()}. UI thread only.
+     * &le; 0 for the monitor default. The size is in screen coordinates, as a
+     * {@link Resolution}'s is: pixels on Windows, X11 and Wayland, points on
+     * macOS. The previous windowed geometry is remembered for
+     * {@link #exitFullscreen()}. UI thread only.
      *
-     * @param width       target width in physical pixels, or &le; 0 for current
-     * @param height      target height in physical pixels, or &le; 0 for current
+     * @param width       target width in screen coordinates, or &le; 0 for current
+     * @param height      target height in screen coordinates, or &le; 0 for current
      * @param refreshRate target refresh in Hz, or &le; 0 for the default
      */
     void enterFullscreen(int width, int height, int refreshRate);

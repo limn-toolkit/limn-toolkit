@@ -7,8 +7,11 @@ import java.util.List;
  * information the same way instead of each class poking at the platform: its
  * identity ({@link #id()}/{@link #name()}), the mode currently set
  * ({@link #currentResolution()}), all supported modes
- * ({@link #availableResolutions()}), the physical {@link #bounds()}, the usable
+ * ({@link #availableResolutions()}), the full {@link #bounds()}, the usable
  * {@link #workArea()} (minus taskbar/dock), and the DPI {@link #contentScale()}.
+ * Modes and rectangles are in screen coordinates, which are pixels on Windows,
+ * X11 and Wayland and points on macOS; {@link Resolution} says what that means
+ * for a HiDPI mode.
  *
  * <p>Enumerate displays through {@link Backend#displays()} /
  * {@link Backend#primaryDisplay()}; a window reports the display it currently
