@@ -60,6 +60,17 @@ Maven Central say which number that was.
 - An Ogg Vorbis file is decoded to the audio it holds, whatever length its last page claims. A
   quarter second claiming 2^30 stereo frames threw, and a smaller false length made the decoder
   allocate gigabytes.
+- A malformed glTF is refused with an `IllegalArgumentException` that names what was wrong (the
+  key, the type it had to be, the list an index missed), as the loader always promised. Truncated
+  or mistyped files escaped as `ClassCastException`, `NullPointerException`,
+  `StringIndexOutOfBoundsException` and others; a node naming a mesh the file does not have is
+  now refused when it is read instead of failing when the scene is built.
+- `TextField` and `TextArea` leave every key to the input method while a composition is under way.
+  On X11 Enter, Backspace, the arrows and shortcuts reached the field during a composition and
+  acted on the text already committed; macOS and Windows never delivered them.
+- The `ColorPicker`'s cursor ring no longer leaves a stale arc when it moves away from an edge or
+  a corner of the colour square. It paints past the square by design, centred on the exact colour,
+  and now says so to the repaint.
 
 ### New
 
@@ -67,6 +78,16 @@ Maven Central say which number that was.
   below when the next one does not fit: tags, filters, a toolbar that must not overflow. It takes
   `Row`'s `gap`, `mainAlignment` and `crossAlignment`, adds `runGap` between runs, mirrors in a
   right-to-left subtree, and refuses an `Expanded`, which means nothing there.
+- `Grid`, a layout of a fixed number of columns filled row by row in the order children are
+  added, so Tab and a screen reader follow what is on screen. Each column is as wide as its widest
+  cell, one column can take the leftover width (`expandedColumn`), and each row is as tall as its
+  tallest cell, aligned by baseline by default: a caption beside its field lines up. There are no
+  spanning cells, explicit positions or fixed tracks; a `SizedBox` gives a cell a size.
+- `Images.setTextureBudget` moves the bytes of image textures each window keeps, counted as the
+  GPU holds them, mipmaps included. The default is 256 MiB (`Images.DEFAULT_TEXTURE_BUDGET`); past
+  it the pictures drawn least recently are released at the end of a frame, never one the frame
+  drew. The cache used to release a picture only after 300 frames unused, so an application
+  showing a new photo each frame could hold gigabytes.
 - `I18n.observeUnresolvedKeys` tells an application which keys no bundle translates, so a typo or a
   file that fell behind stops showing its English silently. Each key is reported once per
   language, as an `UnresolvedKey`; with no listener, each is logged once. English locales, and a
@@ -81,6 +102,14 @@ Maven Central say which number that was.
 
 ### Changed
 
+- A WAV or Ogg Vorbis file whose sample rate is above 384 kHz is refused with
+  `UnsupportedOperationException`: past about 480 kHz OpenAL plays it slower than it should, and a
+  rate of zero or one that overflowed is refused as malformed. The audio engine answers
+  `Playback.NONE` for such a stream instead of throwing, as it does for any source it cannot play,
+  so a film with such a soundtrack still shows its pictures.
+- `Resolution`, `Display` and `NativeWindow.enterFullscreen` document their sizes as screen
+  coordinates, which is what they always were: pixels on Windows and Linux, points on macOS, where
+  a HiDPI mode's framebuffer is that size times `contentScale()`. They claimed physical pixels.
 - A `Spinner` writes and reads its number in the language in effect: German shows `0,50`,
   Swedish a true minus sign (`−1,5`), Arabic and Persian their own separator, never grouped.
   What a user types is read the same way, with the old tolerances kept (a leading `+`, the hyphen
