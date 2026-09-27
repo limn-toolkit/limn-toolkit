@@ -351,6 +351,10 @@ public final class Column<T> {
     public Column<T> minWidth(float points) {
         this.minWidth = Math.max(0, points);
         this.preferredWidth = Math.max(minWidth, preferredWidth);
+        if (draggedWidth >= 0) {
+            // The width layout starts from is the dragged one while there is one.
+            draggedWidth = Math.max(minWidth, draggedWidth);
+        }
         return this;
     }
 
