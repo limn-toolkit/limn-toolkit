@@ -304,6 +304,20 @@ class AccessibleCoverageTest {
             // own rectangle: transparency is per instance. Pinned by
             // limn.scene.WrapAccessibilityTest.
             "limn.scene.layout.Wrap",
+            // Declares no role, name, description, action or state, declares no onPaint, does not
+            // clip and is never focusable of its own accord, so §1.6's predicate deletes it and
+            // hoists its children into its parent's place in children() order. That order is the
+            // grid's own, row by row, so a caption is read and tabbed to just before the field
+            // beside it with nothing to reorder; what the deletion leaves behind is the two axes of
+            // geometry, each column's start and its alignment as a child's x, each row's top and
+            // the cross alignment as its y. A right-to-left subtree puts the first column at the
+            // right edge and moves no child in the order, and a column that widens is a
+            // BOUNDS_CHANGED for every cell it pushes, never a rebuild. It extends Container
+            // directly, so no Flex hook could reach it, and it is public and non-final like Row,
+            // so naming, tooltipping or roling an instance materialises a GROUP over the grid's
+            // own rectangle, which is how a form section asks to be announced as one. Pinned by
+            // limn.scene.GridAccessibilityTest.
+            "limn.scene.layout.Grid",
             // Declares no role, name, description, action or state, declares no onPaint so the
             // paints-and-says-nothing warning stays silent, and is never focusable of its own
             // accord, so §1.6's predicate deletes it and hoists its one child — or hoists nothing,
