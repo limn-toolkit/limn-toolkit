@@ -74,6 +74,21 @@ final class ComponentStrings {
     static final I18nString SPINNER_DECREMENT =
             new I18nString("limn.spinner.decrement", "Decrease");
 
+    // What a screen reader is told when a spinner refuses a typed number: {0} is the text as
+    // typed, {1} the value that stands, as it is shown. Spoken rather than published, because the
+    // node never carried the typed text and the value did not move, so nothing in the tree changes
+    // and the border's flash is the only other sign of it.
+    //
+    // "Not accepted" and never "is not a number", for a reason heard rather than read: the
+    // commonest refusal is a point typed where the language groups thousands with one, and a
+    // German voice reads "1.234" as twelve hundred and thirty-four, so a sentence calling it no
+    // number contradicts what the listener has just heard. It also serves a time spinner's "7:75"
+    // and an emptied field without a second sentence. The value that stands is said because
+    // nothing else says it: Enter leaves the value where it was, so no value change follows, and
+    // after a focus loss the reader is already on the next control.
+    static final I18nString SPINNER_REFUSED =
+            new I18nString("limn.spinner.refusedAnnouncement", "“{0}” not accepted, still {1}");
+
     // What a screen reader calls the layer an in-scene dropdown list is drawn on, and the
     // toolkit has to supply it for the divider's reason and one more: that layer paints nothing
     // at all, holds no text, can never acquire a tooltip, and is a private inner class no

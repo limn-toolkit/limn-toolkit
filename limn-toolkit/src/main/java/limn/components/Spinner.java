@@ -22,6 +22,7 @@ import limn.graphics.TextMetrics;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
 import limn.scene.Constraints;
+import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Change;
 import limn.scene.Widget;
@@ -65,7 +66,9 @@ import java.util.function.DoubleConsumer;
  * restores, and moving focus away commits. A number outside the bounds is clamped. Text that
  * does not read as a number is refused: the value stands, the editor closes on it, and the
  * border flashes the theme's danger colour for a moment, so that a refusal is not mistaken for
- * a commit that happened to land on the number already there.
+ * a commit that happened to land on the number already there. A screen reader is told the same
+ * thing in words, politely and in the spinner's own language: what was typed, and the value
+ * that stands ({@code “1.234” not accepted, still 7}).
  *
  * <p><b>Numbers are written and read in the language in effect</b>, the spinner's
  * {@linkplain limn.scene.Widget#locale() effective locale}: its decimal separator, its minus
@@ -640,10 +643,9 @@ public final class Spinner extends Widget<Spinner> {
      * border says it did not, and the value it closes on says what stands instead. An empty edit
      * is refused the same way, because a spinner always holds a number and the blank was not one.
      *
-     * <p>Nothing is published for a screen reader, which is the treatment every other refused
-     * entry in this widget gets: a set by text that does not parse leaves the value and the tree
-     * untouched, and so does this, since the accessible node carries the committed value and never
-     * carried the typed text. A reader hears nothing, and the value it was last told of stands.
+     * <p>A screen reader is told, politely, since the flash is for eyes and nothing in the tree
+     * moves: the node carries the committed value and never carried the typed text, and the value
+     * did not change. See {@link #announceRefused}.
      */
     private void commitEdit() {
         if (edit == null) {
@@ -660,8 +662,49 @@ public final class Spinner extends Widget<Spinner> {
             // snap is what makes a quick retype that is refused again flash again.
             refusedFlash.snap(1);
             refusedFlash.to(0);
+            announceRefused(typed);
         }
         invalidate();
+    }
+
+    /**
+     * Longest run of what was typed that a refusal quotes, in code points. Room for any number a
+     * person types into a spinner; a paste past it is quoted by its beginning.
+     */
+    private static final int REFUSAL_QUOTE_LIMIT = 32;
+
+    /**
+     * Says that {@code typed} was not taken, and what stands instead: {@code “1.234” not accepted,
+     * still 7}. Every path that refuses text a person gave goes through here — a commit by Enter,
+     * by focus leaving and by reaching for an arrow, and a set by text from an assistive
+     * technology.
+     *
+     * <p>The sentence is built here and handed over finished rather than queued as a string to be
+     * resolved later, because a queued string is resolved in the language of the whole scene when
+     * the frame drains it, and this is called inside the scope this widget's own handlers run in:
+     * the language the number was just read in, which a subtree can declare for itself.
+     *
+     * <p>Polite, never assertive: a refusal does not justify cutting a reader off mid-word, and
+     * the reader may be announcing the control focus has just moved to.
+     *
+     * <p>What was typed is quoted without its surrounding spaces, as the parse read it, and cut
+     * to its first {@value #REFUSAL_QUOTE_LIMIT} code points with an ellipsis: a paste is typed
+     * too, and a clipboard holding a paragraph would otherwise be read back whole ahead of the
+     * few words that matter. Nothing is said with no scene to say it in.
+     *
+     * @param typed the text that did not read as a value
+     */
+    private void announceRefused(String typed) {
+        Scene scene = scene();
+        if (scene == null) {
+            return;
+        }
+        String quoted = typed.strip();
+        if (quoted.codePointCount(0, quoted.length()) > REFUSAL_QUOTE_LIMIT) {
+            quoted = quoted.substring(0, quoted.offsetByCodePoints(0, REFUSAL_QUOTE_LIMIT)) + "…";
+        }
+        scene.announce(ComponentStrings.SPINNER_REFUSED.format(quoted, text()),
+                Accessible.Politeness.POLITE);
     }
 
     /** Ends the edit and keeps nothing. */
@@ -1784,6 +1827,15 @@ public final class Spinner extends Widget<Spinner> {
      * and applies through the from-the-user path, never through {@code setValue}, which is the
      * silent one and would move the value while telling the application nothing.
      *
+     * <p><b>A text that does not read is said</b>, in the sentence a refused typed commit gets
+     * ({@code “1.234” not accepted, still 7}), and a number that is not finite is not. The
+     * platform cannot report it: a bridge answers the client from the published tree before the
+     * set reaches this method, so a client that wrote a text is told it was taken whatever
+     * happens here, and without the sentence the only sign would be a value that never moved. A
+     * text is what a person dictated or typed into an assistive technology's own prompt; a
+     * {@code NaN} or an infinity is a client's defect, and saying it would speak to the user
+     * about somebody else's bug.
+     *
      * <p>The enabled check is the one the key path keeps for itself; the scene has already
      * re-checked the ancestor chain, showing and modality before the call arrives. What a reader
      * hears is the value change the next publish's difference produces; no verb here is
@@ -1800,8 +1852,8 @@ public final class Spinner extends Widget<Spinner> {
 
     /**
      * The spinner's mechanisms as the value shape drives them: a step is the key's
-     * path, a set reads a text through the same {@link #parse} a typed commit does, cancels the
-     * edit and applies from the user.
+     * path, a set reads a text through the same {@link #parse} a typed commit does, says a text it
+     * cannot read as a typed commit's refusal is said, cancels the edit and applies from the user.
      */
     private final class ValueHost implements ValueAccessibility.Host {
         @Override
@@ -1818,7 +1870,15 @@ public final class Spinner extends Widget<Spinner> {
         public double numberOf(Accessible.Argument arg) {
             if (arg instanceof Accessible.Argument.OfText text) {
                 Double parsed = parse(text.text());
-                return parsed != null && Double.isFinite(parsed) ? parsed : Double.NaN;
+                if (parsed != null && Double.isFinite(parsed)) {
+                    return parsed;
+                }
+                // Said, as a typed commit's refusal is, and here it is the only word anyone will
+                // get: the bridge answered the client before this ran, so the client believes the
+                // text was taken. A number that is not finite is not said -- that is a client's
+                // mistake, not words a person gave.
+                announceRefused(text.text());
+                return Double.NaN;
             }
             return Accessible.Argument.finiteValueOf(arg);
         }

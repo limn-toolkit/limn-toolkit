@@ -211,8 +211,9 @@ every keyboard types in place of a minus sign, and a comma in English all work �
 typed where the language groups thousands with points is refused rather than guessed at:
 `1.234` in German could mean either of two numbers a thousand apart. A number the spinner
 cannot read is not dropped silently: the field goes back to the value it had and its border
-flashes the theme's danger colour. The clock face of a time spinner is `HH:MM` in every
-language.
+flashes the theme's danger colour, and a screen reader is told the same in words, politely and
+in the spinner's language — “1.234” not accepted, still 7. The clock face of a time spinner is
+`HH:MM` in every language.
 
 Ordering and case mapping ask the language too. The toolkit shows lists in the order you
 hand them — order is content — so sorting stays one call on your side, through a collator
