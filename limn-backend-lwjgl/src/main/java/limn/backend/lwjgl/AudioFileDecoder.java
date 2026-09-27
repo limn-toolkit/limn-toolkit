@@ -108,11 +108,13 @@ final class AudioFileDecoder implements AudioDecoder {
             pos = body + size + (size & 1);
         }
 
+        // Malformed before unsupported: a file with no format, no channels or no data is broken,
+        // and UnsupportedOperationException is for a well-formed file this decoder cannot play.
+        if (formatCode < 0 || channels == 0 || sampleRate <= 0 || dataOffset < 0) {
+            throw new IllegalArgumentException("malformed WAV (missing fmt/data)");
+        }
         if (channels != 1 && channels != 2) {
             throw new UnsupportedOperationException("WAV must be mono or stereo, got " + channels + " channels");
-        }
-        if (sampleRate <= 0 || dataOffset < 0) {
-            throw new IllegalArgumentException("malformed WAV (missing fmt/data)");
         }
         short[] samples = toPcm16(bb, dataOffset, dataLength, formatCode, bits);
         if (samples.length % channels != 0) {
@@ -319,14 +321,18 @@ final class AudioFileDecoder implements AudioDecoder {
                     }
                     pos = body + chunkSize + (chunkSize & 1);
                 }
+                // Malformed before unsupported, as the whole-file reader does.
+                if (formatCode < 0 || foundChannels == 0 || foundRate <= 0 || foundDataStart < 0) {
+                    throw new IllegalArgumentException("malformed WAV: " + file);
+                }
                 if (formatCode != 1 || bits != 16) {
                     throw new UnsupportedOperationException(
                             "WAV streaming supports 16-bit PCM only (format " + formatCode
                                     + ", " + bits + "-bit); use Sounds.load for the rest");
                 }
-                if ((foundChannels != 1 && foundChannels != 2)
-                        || foundRate <= 0 || foundDataStart < 0) {
-                    throw new IllegalArgumentException("malformed WAV: " + file);
+                if (foundChannels != 1 && foundChannels != 2) {
+                    throw new UnsupportedOperationException(
+                            "WAV must be mono or stereo, got " + foundChannels + " channels");
                 }
                 channels = foundChannels;
                 sampleRate = foundRate;

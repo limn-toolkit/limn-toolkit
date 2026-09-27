@@ -200,6 +200,35 @@ class AudioFileDecoderTest {
         assertEquals(4, clip.samples().length, "the data chunk is read to the end of the file");
     }
 
+    /**
+     * A WAV with no format chunk, or one naming no channels, is a malformed file, not an unsupported
+     * one: it threw UnsupportedOperationException ("got 0 channels", "format -1"), which the
+     * decoder's contract keeps for a well-formed file it cannot play. Three channels still is one.
+     */
+    @Test
+    void aWavWithNoFormatOrNoChannelsIsMalformedNotUnsupported() throws Exception {
+        byte[] pcm = {1, 0, 2, 0, 3, 0, 4, 0};
+        ByteBuffer noFmt = ByteBuffer.allocate(20 + pcm.length).order(ByteOrder.LITTLE_ENDIAN);
+        noFmt.put("RIFF".getBytes()).putInt(12 + pcm.length).put("WAVE".getBytes());
+        noFmt.put("data".getBytes()).putInt(pcm.length).put(pcm);
+        byte[] noChannels = riff(pcm, 0, 44_100, 16, 1);
+        for (byte[] file : new byte[][] {noFmt.array(), noChannels}) {
+            IllegalArgumentException refused =
+                    assertThrows(IllegalArgumentException.class, () -> decoder.decode(file));
+            assertTrue(refused.getMessage().contains("malformed WAV"), refused.getMessage());
+            java.nio.file.Path onDisk = java.nio.file.Files.createTempFile("limn-malformed", ".wav");
+            try {
+                java.nio.file.Files.write(onDisk, file);
+                assertThrows(IllegalArgumentException.class, () -> decoder.openStream(onDisk));
+            } finally {
+                java.nio.file.Files.deleteIfExists(onDisk);
+            }
+        }
+        assertThrows(UnsupportedOperationException.class,
+                () -> decoder.decode(riff(new byte[12], 3, 44_100, 16, 1)),
+                "three channels is a real file this decoder does not play");
+    }
+
     // ------------------------------------------------------------ WAV writers
 
     private static byte[] wav(short[] samples, int channels, int rate, int bits) {
