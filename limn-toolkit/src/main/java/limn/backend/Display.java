@@ -32,7 +32,14 @@ public interface Display {
     /** @return the mode currently set on this display. */
     Resolution currentResolution();
 
-    /** @return every distinct mode this display supports. */
+    /**
+     * Every distinct mode the display can be switched to. On macOS that need not include the mode
+     * it is in: a Retina display set to 1728 × 1117 points was measured without that mode in its
+     * list, so a fullscreen that must keep the display as it is asks for no mode rather than for
+     * {@link #currentResolution()}; see {@link NativeWindow#enterFullscreen()}.
+     *
+     * @return the modes, each once
+     */
     List<Resolution> availableResolutions();
 
     /** @return the full monitor rectangle in screen coordinates. */

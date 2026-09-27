@@ -224,7 +224,29 @@ final class LwjglWindow implements NativeWindow {
     private boolean buffersSynced = true;
     private float opacity = 1f;
     private Cursor cursor = Cursor.DEFAULT;
-    private boolean fullscreen;
+    /** Whether GLFW holds this window fullscreen on a monitor, the only kind outside macOS. */
+    private boolean monitorFullscreen;
+    /**
+     * This window's {@code NSWindow} on macOS, read once, for native fullscreen; {@code NULL}
+     * elsewhere.
+     */
+    private final long cocoaWindow;
+    /** What this window knows of its macOS native fullscreen; never consulted elsewhere. */
+    private final NativeFullscreen nativeFullscreen = new NativeFullscreen();
+    /**
+     * A fullscreen on the monitor asked for while native fullscreen was still to be left, as
+     * {@code {width, height, refreshRate}}: GLFW rewrites the style mask of a window it takes
+     * fullscreen, which must not happen while AppKit animates it, so the request waits for the
+     * window to be out. {@code null} when nothing waits.
+     */
+    private int[] monitorFullscreenAfterNative;
+    /**
+     * The collection behaviour native fullscreen replaced on a window GLFW made unable to enter it,
+     * given back once the window is out; {@code -1} when nothing was replaced.
+     */
+    private long lentCollectionBehavior = -1;
+    /** Whether native fullscreen lent this window the resizable style it lacks, to take back on exit. */
+    private boolean lentResizable;
     private int windowedX;
     private int windowedY;
     private int windowedW;
@@ -309,6 +331,7 @@ final class LwjglWindow implements NativeWindow {
             }
             throw new IllegalStateException(message);
         }
+        cocoaWindow = MACOS ? org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle) : NULL;
         long softwareContext = NULL;
         if (softwareGl) {
             softwareContext = MacSoftwareGl.createContext(handle, config.transparent(),
@@ -442,6 +465,9 @@ final class LwjglWindow implements NativeWindow {
             if (MacInputContextGate.install(view)) {
                 imeGatedView = view;
             }
+            // Every native fullscreen transition, the person's as well as ours, so that
+            // isFullscreen() tells the truth about the green button and Control-Command-F too.
+            MacFullscreen.observe(cocoaWindow, this::nativeFullscreenChanged);
         }
         // After the scale is read: the limits are logical, and GLFW's are screen coordinates.
         limn.backend.SizeLimits limits = config.sizeLimits();
@@ -1033,6 +1059,9 @@ final class LwjglWindow implements NativeWindow {
         if (imeGatedView != NULL) {
             MacInputContextGate.forget(imeGatedView);
         }
+        if (cocoaWindow != NULL) {
+            MacFullscreen.forget(cocoaWindow);
+        }
         glfwDestroyWindow(handle);
     }
 
@@ -1428,19 +1457,54 @@ final class LwjglWindow implements NativeWindow {
         return destroyed;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Two routes, chosen by {@link NativeFullscreen#isNativeRequest}. On macOS the request that
+     * names no mode is native fullscreen, sent to AppKit, which animates after this returns; see
+     * {@link NativeFullscreen} for what is answered meanwhile. Every other request is GLFW's
+     * fullscreen on the monitor, made before this returns. A window in one kind asked for the other
+     * leaves the first: out of a fullscreen on the monitor at once, before native fullscreen is
+     * sent; out of native fullscreen by its animation, with the fullscreen on the monitor made when
+     * AppKit announces the window is out, because GLFW's rewrites the style mask of a window AppKit
+     * may still be animating.
+     */
     @Override
     public void enterFullscreen(int width, int height, int refreshRate) {
         backend.uiRuntime().checkUiThread();
         if (destroyed) {
             return;
         }
+        if (cocoaWindow != NULL && NativeFullscreen.isNativeRequest(MACOS, width, height, refreshRate)) {
+            monitorFullscreenAfterNative = null; // the later request replaces the earlier one
+            if (monitorFullscreen) {
+                leaveMonitorFullscreen();
+            }
+            nativeFullscreen.want(true);
+            settleNativeFullscreen();
+            return;
+        }
+        if (cocoaWindow != NULL) {
+            settleNativeFullscreen(); // the person may have entered it since the loop last looked
+            if (!nativeFullscreen.windowed()) {
+                monitorFullscreenAfterNative = new int[] {width, height, refreshRate};
+                nativeFullscreen.want(false);
+                settleNativeFullscreen();
+                return;
+            }
+        }
+        enterMonitorFullscreen(width, height, refreshRate);
+    }
+
+    /** GLFW's fullscreen on the monitor the window is on, switching its mode when it must. */
+    private void enterMonitorFullscreen(int width, int height, int refreshRate) {
         long monitor = monitorForWindow();
         GLFWVidMode mode = monitor == NULL ? null : glfwGetVideoMode(monitor);
         if (mode == null) {
             LOG.log(Level.WARNING, "no monitor/video mode available for fullscreen");
             return;
         }
-        if (!fullscreen) {
+        if (!monitorFullscreen) {
             // Remember the windowed geometry (screen coords) to restore later.
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 IntBuffer x = stack.mallocInt(1);
@@ -1455,30 +1519,135 @@ final class LwjglWindow implements NativeWindow {
                 windowedH = h.get(0);
             }
         }
-        // width/height <= 0 keeps the monitor's current resolution (no mode switch).
+        // A width or height <= 0 asks for the current one, and GLFW then keeps the monitor's mode
+        // wherever its mode list holds the current mode: Windows and X11 do. macOS never gets
+        // here with no mode named, because its list lacks a Retina display's current mode and
+        // GLFW would switch to the nearest listed one; see NativeFullscreen.isNativeRequest.
         int fw = width > 0 ? width : mode.width();
         int fh = height > 0 ? height : mode.height();
         int fr = refreshRate > 0 ? refreshRate : mode.refreshRate();
         glfwSetWindowMonitor(handle, monitor, 0, 0, fw, fh, fr);
-        fullscreen = true;
+        monitorFullscreen = true;
         refreshFramebufferMetrics();
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Native fullscreen is left by its animation, after this returns, whether this window or
+     * the person entered it; a fullscreen on the monitor is left before this returns.
+     */
     @Override
     public void exitFullscreen() {
         backend.uiRuntime().checkUiThread();
-        if (destroyed || !fullscreen) {
+        if (destroyed) {
             return;
         }
+        monitorFullscreenAfterNative = null;
+        if (monitorFullscreen) {
+            leaveMonitorFullscreen();
+        }
+        if (cocoaWindow != NULL) {
+            nativeFullscreen.want(false);
+            settleNativeFullscreen();
+        }
+    }
+
+    private void leaveMonitorFullscreen() {
         glfwSetWindowMonitor(handle, NULL, windowedX, windowedY,
                 Math.max(1, windowedW), Math.max(1, windowedH), GLFW_DONT_CARE);
-        fullscreen = false;
+        monitorFullscreen = false;
         refreshFramebufferMetrics();
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Native fullscreen answers where the window is going, not where its animation has got to:
+     * see {@link NativeFullscreen#fullscreen}. A fullscreen on the monitor waiting for native
+     * fullscreen to be left counts as fullscreen already, which the window is throughout.
+     */
     @Override
     public boolean isFullscreen() {
-        return fullscreen;
+        if (monitorFullscreen || monitorFullscreenAfterNative != null) {
+            return true;
+        }
+        return cocoaWindow != NULL && !destroyed && nativeFullscreen.fullscreen(System.nanoTime(),
+                MacFullscreen.isFullscreen(cocoaWindow));
+    }
+
+    /**
+     * Brings the native fullscreen record up to date and acts on it: sends the toggle a request
+     * made during a transition was waiting for, lends and gives back the collection behaviour,
+     * and makes a fullscreen on the monitor that was waiting for the window to leave native
+     * fullscreen. Run by the loop after every poll, which is where AppKit's notifications arrive,
+     * and by every request. A no-op outside macOS.
+     */
+    void settleNativeFullscreen() {
+        if (cocoaWindow == NULL || destroyed) {
+            return;
+        }
+        NativeFullscreen.Toggle toggle = nativeFullscreen.settle(System.nanoTime(),
+                MacFullscreen.isFullscreen(cocoaWindow));
+        if (toggle == NativeFullscreen.Toggle.ENTER && lentCollectionBehavior < 0) {
+            lentCollectionBehavior = MacFullscreen.allowFullscreen(cocoaWindow);
+        }
+        if (toggle == NativeFullscreen.Toggle.ENTER && !lentResizable) {
+            lentResizable = MacFullscreen.allowResize(cocoaWindow);
+        }
+        if (toggle != NativeFullscreen.Toggle.NONE) {
+            MacFullscreen.toggleSoon(cocoaWindow);
+        }
+        if (nativeFullscreen.windowed()) {
+            if (lentCollectionBehavior >= 0) {
+                MacFullscreen.restoreCollectionBehavior(cocoaWindow, lentCollectionBehavior);
+                lentCollectionBehavior = -1;
+            }
+            if (lentResizable) {
+                MacFullscreen.restoreResizable(cocoaWindow);
+                lentResizable = false;
+            }
+            int[] waiting = monitorFullscreenAfterNative;
+            if (waiting != null) {
+                monitorFullscreenAfterNative = null;
+                enterMonitorFullscreen(waiting[0], waiting[1], waiting[2]);
+            }
+        } else if (monitorFullscreenAfterNative != null && nativeFullscreen.settledInFullscreen()) {
+            // Leaving did not complete, or the person went back in: the window stays where it is,
+            // and the request that needed it out goes with it.
+            LOG.log(Level.WARNING, "native fullscreen was not left, so the fullscreen on the "
+                    + "monitor asked for meanwhile is dropped");
+            monitorFullscreenAfterNative = null;
+        }
+    }
+
+    /**
+     * Whether this window's close must wait: AppKit is animating it into or out of native
+     * fullscreen, and a window closed during that animation is left as a zombie that neither shows
+     * nor goes, as Chromium found. The wait ends when AppKit announces the end, or at the record's
+     * deadline.
+     */
+    boolean closeWaitsForFullscreen() {
+        return cocoaWindow != NULL && !destroyed && nativeFullscreen.animating(System.nanoTime());
+    }
+
+    /**
+     * AppKit's word on a native fullscreen transition, the person's or this window's. Called from
+     * inside the event pump, so it only records: what to do about it is the loop's, after the poll.
+     */
+    private void nativeFullscreenChanged(MacFullscreen.Event event) {
+        long now = System.nanoTime();
+        switch (event) {
+            case WILL_ENTER -> nativeFullscreen.willChange(true, now);
+            case WILL_EXIT -> nativeFullscreen.willChange(false, now);
+            case DID_ENTER -> nativeFullscreen.didChange(true);
+            case DID_EXIT -> nativeFullscreen.didChange(false);
+        }
+        frameRequested = true;
+        // The notification may arrive while the loop is parked in the pump, and it is no event the
+        // pump returns on: without a wake, a request waiting for this transition would wait for
+        // the next input.
+        backend.wakeLoop();
     }
 
     /** Picks the monitor whose bounds contain the window centre, else the primary. */

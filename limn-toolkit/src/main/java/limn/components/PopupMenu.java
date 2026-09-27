@@ -58,8 +58,9 @@ import java.util.Objects;
  * same cascade, flip, clamp and navigation either way, but an overlay is clamped to that window
  * rather than to the display, so a menu near the bottom edge has less room than it would
  * elsewhere. {@link #setDisplayMode} chooses; {@link #displayMode()} answers what was actually
- * used, which is not always the same thing. Two platforms have no choice and always draw in
- * scene: macOS exclusive fullscreen, where taking focus minimizes the fullscreen owner, and any
+ * used, which is not always the same thing. Two cases have no choice and always draw in scene: a
+ * {@linkplain limn.backend.NativeWindow#isFullscreen() fullscreen} window, which on a monitor is
+ * minimized when another window takes the focus and on macOS may be a Space of its own, and any
  * window reporting no {@link limn.backend.NativeWindow#supportsAbsolutePositioning()} (Wayland),
  * where a menu window would open somewhere other than the anchor.
  *
@@ -370,8 +371,9 @@ public final class PopupMenu {
         open = true;
         this.owner = ownerScene;
         beginOpen(ownerScene.textRuler(), host);
-        // Two platforms cannot hold a menu in a window of its own. macOS exclusive fullscreen
-        // has no room for a second one (taking focus/click minimizes the fullscreen owner), and
+        // Two cases cannot hold a menu in a window of its own. A fullscreen window has no room for
+        // a second one: GLFW minimizes one fullscreen on a monitor when another window takes the
+        // focus, and macOS native fullscreen puts the window in a Space of its own. And
         // Wayland has no way to put one where the anchor is: the cascade would open near the
         // middle of the display, wearing whatever frame the compositor decorates toplevels with.
         // Both fall back to an in-scene overlay drawn inside the owner window.
@@ -669,10 +671,10 @@ public final class PopupMenu {
      * which is what the platform's own menus do wherever a window can be placed at an anchor.
      *
      * <p><b>A preference, not a guarantee</b>, and only in one direction: a menu asked for
-     * {@code NATIVE_WINDOW} still draws in scene on Wayland and in macOS exclusive fullscreen,
-     * because on those a menu window does not land where the anchor is. {@code IN_SCENE} is always
-     * honoured; it needs nothing from the platform. Read {@link #displayMode()} for what
-     * happened.
+     * {@code NATIVE_WINDOW} still draws in scene on Wayland, where a menu window does not land
+     * where the anchor is, and in a fullscreen window, which has no room for a second one of any
+     * kind. {@code IN_SCENE} is always honoured; it needs nothing from the platform. Read
+     * {@link #displayMode()} for what happened.
      *
      * <p>Takes effect on the next open; a menu already on screen is not re-presented under it.
      */

@@ -155,8 +155,8 @@ public final class MenuBar extends Widget<MenuBar> {
      * Default {@link DisplayMode#NATIVE_WINDOW}, which is what a platform menu bar does.
      *
      * <p><b>A preference, not a guarantee</b>: a dropdown asked for {@code NATIVE_WINDOW} is still
-     * drawn in scene where the platform cannot place a window at the anchor, and in macOS
-     * exclusive fullscreen. {@code IN_SCENE} is always honoured, and the bar keeps its
+     * drawn in scene where the platform cannot place a window at the anchor, and in a
+     * fullscreen window. {@code IN_SCENE} is always honoured, and the bar keeps its
      * hover-to-switch behaviour under it, because pointer input over the strip falls through the
      * overlay.
      *

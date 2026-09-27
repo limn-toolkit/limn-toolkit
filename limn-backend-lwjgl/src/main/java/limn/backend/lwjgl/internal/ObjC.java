@@ -75,6 +75,22 @@ public final class ObjC {
         return JNI.invokePPPPP(self, sel(selector), a, b, MSG_SEND);
     }
 
+    /**
+     * {@code id objc_msgSend(id, SEL, id|SEL|NSInteger|BOOL, id|SEL|NSInteger|BOOL, id|SEL|NSInteger|BOOL)};
+     * a message that returns nothing may be sent through it too, and its answer ignored.
+     */
+    public static long msg(long self, String selector, long a, long b, long c) {
+        return JNI.invokePPPPPP(self, sel(selector), a, b, c, MSG_SEND);
+    }
+
+    /**
+     * {@code id objc_msgSend(id, SEL, id|SEL|NSInteger|BOOL, …)} with four arguments; a message that
+     * returns nothing may be sent through it too, and its answer ignored.
+     */
+    public static long msg(long self, String selector, long a, long b, long c, long d) {
+        return JNI.invokePPPPPPP(self, sel(selector), a, b, c, d, MSG_SEND);
+    }
+
     /** {@code void objc_msgSend(id, SEL)} */
     public static void msgVoid(long self, String selector) {
         JNI.invokePPV(self, sel(selector), MSG_SEND);

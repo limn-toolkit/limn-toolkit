@@ -624,8 +624,14 @@ public final class LwjglBackend implements Backend {
     // this net exists for raw frame callbacks and callback-resident code).
     private static final int CRASH_STREAK_LIMIT = 100;
 
-    /** How often the loop looks again at a covered window with a frame waiting. */
+    /**
+     * How often the loop looks again at a covered window with a frame waiting, and at a window
+     * whose close waits for a native fullscreen animation to end.
+     */
     private static final long COVERED_RECHECK_NANOS = 250_000_000L;
+
+    /** Whether the last sweep left a closed window open until its fullscreen animation ends. */
+    private boolean closeWaiting;
 
     /** Holds the loop to the refresh rate when the vsynced swap does not block. */
     private final FramePacer pacer = FramePacer.real(0);
@@ -663,7 +669,10 @@ public final class LwjglBackend implements Backend {
                     }
                 }
                 long sleepBudgetNanos = uiRuntime.nanosUntilNextDeadline();
-                if (coveredPending && (sleepBudgetNanos < 0 || sleepBudgetNanos > COVERED_RECHECK_NANOS)) {
+                // A close waiting for a fullscreen animation is woken by AppKit's notification of
+                // its end; the recheck is for the animation AppKit never announces the end of.
+                if ((coveredPending || closeWaiting)
+                        && (sleepBudgetNanos < 0 || sleepBudgetNanos > COVERED_RECHECK_NANOS)) {
                     sleepBudgetNanos = COVERED_RECHECK_NANOS;
                 }
                 try {
@@ -700,6 +709,9 @@ public final class LwjglBackend implements Backend {
                 // Copy: an input handler may legally create/close windows.
                 for (LwjglWindow window : List.copyOf(windows)) {
                     try {
+                        // The poll just delivered AppKit's word on any native fullscreen
+                        // transition; act on what was waiting for it (a no-op off macOS).
+                        window.settleNativeFullscreen();
                         window.notifyInputBatchEnd();
                     } catch (Crashes.ShutdownRequested shutdown) {
                         throw shutdown;
@@ -831,8 +843,13 @@ public final class LwjglBackend implements Backend {
         // consistent list), then destroy. Windows closed by those callbacks
         // are flagged and picked up by the next sweep.
         List<LwjglWindow> closing = null;
+        closeWaiting = false;
         for (int i = 0; i < windows.size(); i++) {
             LwjglWindow window = windows.get(i);
+            if (window.closeRequested() && window.closeWaitsForFullscreen()) {
+                closeWaiting = true; // closed once AppKit's animation ends; see the loop's sleep
+                continue;
+            }
             if (window.closeRequested()) {
                 if (closing == null) {
                     closing = new ArrayList<>();

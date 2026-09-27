@@ -183,7 +183,15 @@ instead of asking the platform its own way:
 `Backend.displays()` and `Backend.primaryDisplay()` enumerate them, and a window knows which one
 it is on: `NativeWindow.display()` returns the monitor containing the window's centre, or
 `null` once the window is closed. A `Display` whose monitor was unplugged answers what it last
-read. Fullscreen
-takes either form, `enterFullscreen(Resolution)` or the integer one, and native popups clamp
-themselves to `display().workArea()`, which is why a menu near the bottom of the screen does not
-open under the dock.
+read. Native popups clamp themselves to `display().workArea()`, which is why a menu near the
+bottom of the screen does not open under the dock.
+
+Fullscreen comes in two kinds, and which one a call makes depends on whether it names a mode.
+`enterFullscreen()` names none and leaves the display as it is: on macOS it is the native
+fullscreen of the green button, a Space of its own reached by an animation, with the menu bar a
+reach of the pointer away; on Windows and X11 a borderless window over the monitor; on Wayland the
+compositor's. `enterFullscreen(Resolution)`, or the integer form with a size, is the exclusive
+fullscreen a game wants: the display is switched to that mode until `exitFullscreen()`. Ask a
+Retina Mac for its `currentResolution()` and it switches anyway, because the mode it is in is not
+one it lists; to keep the display as it is, name no mode. `isFullscreen()` answers for both, and
+on macOS for the green button too.

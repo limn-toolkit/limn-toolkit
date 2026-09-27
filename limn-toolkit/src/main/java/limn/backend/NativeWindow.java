@@ -154,39 +154,93 @@ public interface NativeWindow extends AutoCloseable {
     boolean isClosed();
 
     /**
-     * Enters <b>exclusive</b> (mode-setting) fullscreen on the monitor the
-     * window currently occupies. Pass {@code width}/{@code height} &le; 0 to keep
-     * the monitor's current resolution (no mode switch); pass {@code refreshRate}
-     * &le; 0 for the monitor default. The size is in screen coordinates, as a
-     * {@link Resolution}'s is: pixels on Windows, X11 and Wayland, points on
-     * macOS. The previous windowed geometry is remembered for
-     * {@link #exitFullscreen()}. UI thread only.
+     * Makes the window fullscreen on the monitor it occupies, in one of two ways, chosen by whether
+     * the call names a display mode.
      *
-     * @param width       target width in screen coordinates, or &le; 0 for current
-     * @param height      target height in screen coordinates, or &le; 0 for current
-     * @param refreshRate target refresh in Hz, or &le; 0 for the default
+     * <p><b>Naming no mode</b>, {@code width}, {@code height} and {@code refreshRate} all &le; 0 as
+     * {@link #enterFullscreen()} passes them, leaves the display in the mode it is in, which is
+     * the fullscreen a document, a dashboard or any application that is not a game wants:
+     * <ul>
+     *   <li><b>macOS</b>: native fullscreen, what the green button and Control-Command-F do. The
+     *       window moves to a Space of its own with an animation of most of a second, the menu bar
+     *       and the title bar slide in when the pointer reaches the top of the screen, and the
+     *       person can leave it the way they leave any application's. This call returns before the
+     *       animation ends, and the window reports its new size when AppKit resizes it.</li>
+     *   <li><b>Windows and X11</b>: a borderless window covering the monitor at the mode it is
+     *       in, on X11 through the window manager's fullscreen state where it has one.</li>
+     *   <li><b>Wayland</b>: the compositor's fullscreen.</li>
+     * </ul>
+     *
+     * <p><b>Naming a mode</b>, a size or a refresh rate or both, is the exclusive fullscreen a game
+     * asks for: the display is switched to the mode it lists nearest to the one named, which
+     * holds the application for a noticeable moment each way (more than half a second on a Mac),
+     * and is switched back by {@link #exitFullscreen()}. A dimension &le; 0 beside a named one is
+     * the current one. The size is in screen coordinates, as a {@link Resolution}'s is: pixels on
+     * Windows, X11 and Wayland, points on macOS. On macOS the window covers the menu bar and the
+     * Dock and has no Space of its own; the mode a Retina display is in is usually not one it can
+     * be switched to, so naming the current mode switches to another. Wayland lets no application
+     * change the display's mode, and there the window is fullscreen at the compositor's whatever
+     * is named.
+     *
+     * <p>On Windows and X11 a fullscreen window of either kind, and on macOS one at a named mode,
+     * is minimized when it loses the focus, and a switched mode is switched back until the window
+     * is restored. macOS native fullscreen is not: the person moves to another Space and back.
+     *
+     * <p>A window already fullscreen one way and asked for the other leaves the first: a switched
+     * mode is switched back before native fullscreen begins, and native fullscreen is left, with
+     * its animation, before the mode is switched. The windowed position and size are remembered
+     * for {@link #exitFullscreen()}. UI thread only.
+     *
+     * @param width       width in screen coordinates, or &le; 0 to name none
+     * @param height      height in screen coordinates, or &le; 0 to name none
+     * @param refreshRate refresh rate in Hz, or &le; 0 to name none
      */
     void enterFullscreen(int width, int height, int refreshRate);
 
-    /** Enters exclusive fullscreen at the monitor's current resolution. UI thread only. */
+    /**
+     * Makes the window fullscreen without changing the display's mode: native fullscreen on macOS,
+     * a borderless window covering the monitor at its current mode on Windows and X11, and the
+     * compositor's fullscreen on Wayland. See {@link #enterFullscreen(int, int, int)}. UI thread
+     * only.
+     */
     default void enterFullscreen() {
         enterFullscreen(0, 0, 0);
     }
 
     /**
-     * Enters exclusive fullscreen at {@code mode} on the current display, the
-     * normalized form of {@link #enterFullscreen(int, int, int)} that reuses a
-     * {@link Resolution} (e.g. one from {@code display().availableResolutions()}).
-     * UI thread only.
+     * Makes the window fullscreen at {@code mode}, switching the display to it: the exclusive
+     * fullscreen a game asks for, on every platform but Wayland, which changes no display's mode.
+     * The normalized form of {@link #enterFullscreen(int, int, int)} that takes a
+     * {@link Resolution}, such as one from {@code display().availableResolutions()}. To keep the
+     * display as it is, call {@link #enterFullscreen()} instead: on macOS a Retina display's current
+     * mode is usually not among those a switch can reach. UI thread only.
+     *
+     * @param mode the mode to switch to
+     * @throws NullPointerException if {@code mode} is null, as it is from a display that lists none
      */
     default void enterFullscreen(Resolution mode) {
+        java.util.Objects.requireNonNull(mode, "mode");
         enterFullscreen(mode.width(), mode.height(), mode.refreshRate());
     }
 
-    /** Restores the previous windowed geometry (no-op if not fullscreen). UI thread only. */
+    /**
+     * Leaves fullscreen of either kind, and does nothing for a window that is not fullscreen. A
+     * switched mode is switched back and the windowed position and size restored before this
+     * returns; macOS native fullscreen is left with its animation, after this returns, and is left
+     * whether the application or the person entered it. UI thread only.
+     */
     void exitFullscreen();
 
-    /** @return whether the window is currently in exclusive fullscreen */
+    /**
+     * Whether the window is fullscreen, of either kind. On macOS that includes native fullscreen
+     * the person entered with the green button, Control-Command-F or the menu, and the answer is
+     * where the window is going rather than where its animation has got to: {@code true} from the
+     * moment {@link #enterFullscreen()} returns or the person starts the animation, {@code false}
+     * from the moment {@link #exitFullscreen()} returns or the person starts leaving. Elsewhere it
+     * is whether this window was made fullscreen and has not been told to leave.
+     *
+     * @return whether the window is, or is going to be, fullscreen
+     */
     boolean isFullscreen();
 
     /**
