@@ -625,10 +625,9 @@ public final class DatePicker extends Widget<DatePicker> {
             }
         }
         if (endField != null) {
-            DateRange picked = range();
-            if (picked != null) {
-                calendar.setSelectedRange(picked);
-            }
+            // A half-filled period is none, and the grid shows none: a period the fields no
+            // longer hold stayed on it once one end was cleared.
+            calendar.setSelectedRange(range());
             LocalDate anchor = filling().date();
             if (anchor != null) {
                 calendar.setVisibleMonth(anchor);

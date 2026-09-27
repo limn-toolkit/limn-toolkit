@@ -521,6 +521,23 @@ class DatePickerTest extends ComponentTestBase {
         assertNotNull(picker.range());
     }
 
+    /**
+     * Clearing one end of a period clears it in the grid too: the grid kept showing the period
+     * the fields no longer held, because only a whole period was ever passed on to it.
+     */
+    @Test
+    void clearingOneEndClearsThePeriodInTheGrid() {
+        build(rangePicker());
+        DateRange period = new DateRange(ANCHOR, ANCHOR.plusDays(3));
+        picker.setRange(period);
+        assertEquals(period, picker.calendar().selectedRange());
+        picker.endField().setDate(null);
+        assertNull(picker.range());
+        assertNull(picker.calendar().selectedRange(), "the grid shows what the fields hold");
+        picker.endField().setDate(ANCHOR.plusDays(5));
+        assertEquals(new DateRange(ANCHOR, ANCHOR.plusDays(5)), picker.calendar().selectedRange());
+    }
+
     @Test
     void theHandlerRunsForTheUserAndTheWatcherHearsEverything() {
         build(datePicker());
