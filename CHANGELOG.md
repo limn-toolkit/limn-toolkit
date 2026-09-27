@@ -115,6 +115,16 @@ Maven Central say which number that was.
 - `I18nString.format` and `PluralString.format` write a number argument in the digits the toolkit
   shows, with the separators that go with them. Under bare Arabic a sentence mixed a total in
   Arabic-Indic digits with Latin ones everywhere else on screen.
+- A `ComboBox`'s list, a `DatePicker`'s calendar, a modal `Dialog` and the `ColorPickerButton`'s
+  picker open inside a window that is fullscreen, as `PopupMenu` already did and `DisplayMode`
+  promised. A window of their own minimized a fullscreen owner on its monitor, and on macOS opened
+  outside the fullscreen Space. `displayMode()` says which happened; a non-modal dialog still opens
+  a window of its own, as does a dialog on Wayland.
+- A `DateField` tells the input method where the segment being typed is, so a Japanese or Chinese
+  candidate window opens under it. It had no anchor.
+- A legacy or three-letter language code writes the digits of the language it stands for: `pes`
+  and `prs` Persian digits, `arb-EG` Arabic-Indic ones, `npi` and `mar` Devanagari. Java keeps
+  these codes as they are, and they all answered Latin digits.
 
 ### New
 
@@ -152,6 +162,8 @@ Maven Central say which number that was.
   process. The default stays 2^26 elements (`GltfLoader.DEFAULT_ELEMENT_BUDGET`), which refuses a
   mesh without normals of about 2.8 million triangles; the ceiling is the defence against a small
   hostile file asking for gigabytes, so raise it for models you trust.
+- `StubWindow` in `limn-test` has a public `fullscreen` field, which `enterFullscreen` and
+  `exitFullscreen` set, so a test can open a surface over a fullscreen window.
 - `NumberFormats.scientific(maxDecimals)` writes a number in scientific notation in the current
   language's terms: `1.2E25` in English, `1,2E25` in German, `1,2×10^25` in Swedish, with the
   language's own digits and minus sign.
@@ -190,6 +202,8 @@ Maven Central say which number that was.
   `align`, `footer`, and `footerSum` through `footerCount`) check the UI thread, as every other
   public mutator does. Build columns on the UI thread; with no backend started a setter throws
   `IllegalStateException`. The static factories (`Column.text`, `numeric`, …) do not check.
+- `DatePicker.displayMode()` answers the presentation asked for while the picker is closed, as
+  `ComboBox.displayMode()` does. It answered null.
 - A chart writes values of 1e15 and more in scientific notation by default, on its value axis and
   in its tooltip and the names a screen reader hears: `0, 2E299, … 1E300` rather than 401
   characters a tick, and `1.235E20` rather than `123,456,000,000,000,000,000`. The axis picks the
