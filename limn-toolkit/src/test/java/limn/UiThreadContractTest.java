@@ -27,11 +27,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>A mutator is a method named with a verb that changes state, or one that takes an argument and
  * answers with the type it is declared in: a fluent setter, whatever it is called. The second rule
  * is the one that sees a builder-style name such as {@code Stack.alignment} or
- * {@code Expanded.atLeast}, which no list of verbs can foresee.
+ * {@code Expanded.atLeast}, which no list of verbs can foresee. The getter that shares such a
+ * setter's name and takes no argument is not one.
  *
  * <p>A method passes when its body calls {@code checkUiThread}, or when its first statement
  * delegates to a method of the same class that passes. The exceptions are {@link #ALLOWED}, each
- * with its reason, and the fluent setters of {@link #DESCRIPTIONS}.
+ * with its reason.
  */
 class UiThreadContractTest {
 
@@ -50,16 +51,6 @@ class UiThreadContractTest {
     private static final Map<String, String> ALLOWED = Map.of(
             "TextArea#scrollXOffset", "a getter whose name starts with a verb",
             "TextArea#scrollYOffset", "a getter whose name starts with a verb");
-
-    /**
-     * Sources, by their path under {@code limn/}, whose fluent setters are held to the verbs only,
-     * and why: they describe something a widget is later given, and are built before it is. By
-     * path, because a table's column and the layout {@code Column} share a simple name.
-     */
-    private static final Map<String, String> DESCRIPTIONS = Map.of(
-            "components/table/Column.java", "a table's column is a description an application "
-                    + "builds, with no UI running if it likes, before the table that reads it on the "
-                    + "UI thread holds it");
 
     /** The return type, then the name. */
     private static final Pattern METHOD = Pattern.compile(
@@ -87,25 +78,37 @@ class UiThreadContractTest {
                 continue;
             }
             String type = file.getFileName().toString().replace(".java", "");
-            String where = sources.relativize(file).toString().replace('\\', '/');
             Map<String, List<String>> bodies = new HashMap<>();
+            Map<String, List<String>> getters = new HashMap<>();
             Set<String> takesArgument = new HashSet<>();
             Set<String> fluent = new HashSet<>();
             Matcher m = METHOD.matcher(source);
             while (m.find()) {
+                boolean getter = false;
                 if (source.charAt(m.end()) != ')') {
                     takesArgument.add(m.group(2));
-                    if (answersWithItself(m.group(1), type) && !DESCRIPTIONS.containsKey(where)) {
+                    if (answersWithItself(m.group(1), type)) {
                         fluent.add(m.group(2));
                     }
+                } else {
+                    getter = !MUTATOR.matcher(m.group(2)).matches();
                 }
                 int open = source.indexOf('{', m.end());
                 int semicolon = source.indexOf(';', m.end());
                 if (open < 0 || (semicolon >= 0 && semicolon < open)) {
                     continue; // an interface method or an abstract one
                 }
-                bodies.computeIfAbsent(m.group(2), k -> new ArrayList<>()).add(body(source, open));
+                (getter ? getters : bodies).computeIfAbsent(m.group(2), k -> new ArrayList<>())
+                        .add(body(source, open));
             }
+            // A getter, no argument and no verb, whose name an overload with an argument shares
+            // is not held to that overload's check, as a table column's width() reads what
+            // width(float) writes; any other getter stays, for a mutator that delegates to it.
+            getters.forEach((name, list) -> {
+                if (!takesArgument.contains(name)) {
+                    bodies.computeIfAbsent(name, k -> new ArrayList<>()).addAll(list);
+                }
+            });
             Set<String> checked = new HashSet<>();
             boolean grew = true;
             while (grew) {
