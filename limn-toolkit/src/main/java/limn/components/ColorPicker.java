@@ -183,10 +183,12 @@ public final class ColorPicker extends Widget<ColorPicker> {
         // the others and lives with them below, not as a second column here. Every layout
         // between the field and the picker declares the cursor's reach, the field's own wrapper
         // and the box that gives the row its height included, because a repaint pass skips the
-        // first one on the way down that declared less than the ring hangs past it.
+        // first one on the way down that declared less than the ring hangs past it. The hue
+        // ramp's thumb stands proud of the ramp too, by at most six points at the largest step,
+        // so the ramp's box declares the same reach, which covers it at every step.
         rampsRow.crossAlignment(Flex.CrossAlignment.STRETCH);
         rampsRow.add(Expanded.of(field, 1).paintOverflow(CURSOR_REACH));
-        rampsRow.add(new TokenBox(SizeTokens::colorRampW, null, hueRamp));
+        rampsRow.add(new TokenBox(SizeTokens::colorRampW, null, hueRamp).paintOverflow(CURSOR_REACH));
         root.add(new TokenBox(null, SizeTokens::colorFieldH, rampsRow).paintOverflow(CURSOR_REACH));
 
         // "#" as a label rather than part of the text: the field then holds only
@@ -1557,34 +1559,48 @@ public final class ColorPicker extends Widget<ColorPicker> {
     }
 
     /**
-     * A bar across a ramp at {@code y}, outlined so it reads on any hue.
+     * The hue ramp's thumb at {@code y}: the channel rails' thumb laid across a vertical track, and
+     * hollow, so the hue it rests on shows in its middle.
      *
-     * <p><b>Built the way {@link #paintThumb} is</b>, a dark pill with a white one inset inside
-     * it, because it is the same control wearing a different axis: the rails put a thumb on a
-     * horizontal track, this puts one on a vertical track, and a reader who sees square corners
-     * on one and a pill on the other reads two controls where there is one.
+     * <p><b>The rails' thumb turned a quarter.</b> A rail's thumb is a pill that stands proud of
+     * its track by half the difference between the thumb's height and the rail's, on both sides;
+     * this one stands proud of the ramp by the same amount on the left and on the right, and is as
+     * thick along the ramp as a rail's thumb is wide. A reader who sees one control on two axes
+     * then reads one control: the thin bar it replaces sat inside the ramp and looked like a line
+     * drawn on the gradient rather than something to grab.
      *
-     * <p>It also stays inside the ramp's box, which is the other half of the same fix. It used to
-     * be drawn from {@code -1} to {@code w + 1} with square corners: the overhang fell outside the
-     * widget and was clipped away, so the ends came out cut flat against the ramp's rounded
-     * silhouette. The vertical centre is clamped for the same reason. Hue 0 and hue 360 put the
-     * bar exactly on an edge, where half of it was outside the box and vanished, so the two hues a
-     * reader is most likely to pick deliberately were the two the marker showed worst.
+     * <p><b>Hollow, with the hue in it</b>, which is the one way it differs from the rails'
+     * thumb: a dark rim, a white ring, and the pure hue it marks filling the middle, so the ramp's
+     * answer is readable under the thumb rather than covered by it, the way the saturation/value
+     * cursor shows the colour it sits on. The centre is clamped so the thumb never leaves the ramp
+     * at hue 0 or 360, the two hues a reader is most likely to pick on purpose.
      */
-    private static void paintMarker(Canvas canvas, float w, float rampH, float y) {
-        float h = MARKER_H;
-        float radius = h / 2;
-        float cy = Math.max(h / 2, Math.min(y, rampH - h / 2));
-        canvas.fillRoundRect(0, cy - h / 2, w, h, radius, Color.rgba(0x000000, 0.45f));
-        canvas.fillRoundRect(1, cy - h / 2 + 1, w - 2, h - 2, radius - 1, Color.WHITE);
+    private static void paintHueThumb(Canvas canvas, SizeTokens t, float w, float rampH, float y,
+                                      Color hueColour) {
+        float proud = hueThumbProud(t);
+        float thick = t.colorThumbW();
+        float len = w + 2 * proud;
+        float cy = Math.max(thick / 2, Math.min(y, rampH - thick / 2));
+        float x = -proud;
+        float top = cy - thick / 2;
+        float radius = thick / 2;
+        canvas.fillRoundRect(x, top, len, thick, radius, Color.rgba(0x000000, 0.45f));
+        canvas.fillRoundRect(x + 1, top + 1, len - 2, thick - 2, radius - 1, Color.WHITE);
+        float inset = 1 + HUE_THUMB_RING;
+        canvas.fillRoundRect(x + inset, top + inset, len - 2 * inset, thick - 2 * inset,
+                Math.max(0, radius - inset), hueColour);
+    }
+
+    /** How far the hue thumb stands proud of each side of the ramp: as far as a rail's thumb does. */
+    static float hueThumbProud(SizeTokens t) {
+        return (t.colorThumbH() - t.colorRailH()) / 2;
     }
 
     /**
-     * The marker bar's thickness. Not a size token: it is the weight of a pointer on a track,
-     * like the pens in {@link Strokes}, and it reads the same at every step for the same reason
-     * they do.
+     * The width of the hue thumb's white ring, inside its dark rim. Not a size token: it is the
+     * weight of a pen, like those in {@link Strokes}, and it reads the same at every step.
      */
-    private static final float MARKER_H = 6;
+    private static final float HUE_THUMB_RING = 2;
 
     /**
      * The hue ramp's press/drag/release loop, reporting a [0,1] position. Still a
@@ -1917,7 +1933,14 @@ public final class ColorPicker extends Widget<ColorPicker> {
             }
             canvas.restore();
             canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.of(this).outline());
-            paintMarker(canvas, w, h, hue / 360f * h);
+            paintHueThumb(canvas, Theme.of(this).tokensFor(this), w, h, hue / 360f * h,
+                    Color.hsv(hue >= 360f ? 0f : hue, 1f, 1f, 1f));
+        }
+
+        /** The thumb stands proud of the ramp on both sides; see {@link #paintHueThumb}. */
+        @Override
+        protected float paintOutset() {
+            return hueThumbProud(Theme.of(this).tokensFor(this));
         }
 
         @Override

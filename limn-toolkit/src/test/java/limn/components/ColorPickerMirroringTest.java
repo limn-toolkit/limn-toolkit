@@ -17,6 +17,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static limn.testing.SceneDriver.drive;
 
@@ -353,10 +354,44 @@ class ColorPickerMirroringTest extends ComponentTestBase {
             assertEquals(ramp.width(), fill.w(), EPS);
         }
 
-        Fill marker = markerIn(frame, ramp);
-        assertEquals(ramp.localToSceneX(), marker.x(), EPS, "the marker spans the full width");
+        Fill thumb = thumbIn(frame, ramp);
+        float proud = (thumb.w() - ramp.width()) / 2;
+        assertTrue(proud > 0, "the thumb stands proud of the ramp, as a rail's thumb does");
+        assertEquals(ramp.localToSceneX() - proud, thumb.x(), EPS,
+                "by the same amount on both sides, whichever way the picker reads");
         assertEquals(ramp.localToSceneY() + 120f / 360f * ramp.height(),
-                marker.y() + marker.h() / 2, EPS, "and its only variable coordinate is a y");
+                thumb.y() + thumb.h() / 2, EPS, "and its only variable coordinate is a y");
+    }
+
+    /**
+     * The hue thumb is hollow: the pure hue it marks fills its middle, inside a white ring and a
+     * dark rim, so the ramp's answer shows under the thumb instead of being covered by it. The
+     * rails' thumb is the same pill turned a quarter, so the thumb stands proud of the ramp by
+     * what a rail's thumb stands proud of its rail.
+     */
+    @Test
+    void theHueThumbShowsTheHueItMarksInItsMiddle() {
+        build(LayoutDirection.LTR);
+        picker.setInitialColor(Color.hsv(120, 0.3f, 0.6f, 1f));
+        Widget<?> ramp = picker.hueRamp();
+        Frame frame = paint();
+        Fill outer = thumbIn(frame, ramp);
+        SizeTokens t = SizeTokens.MEDIUM;
+        assertEquals(ramp.width() + 2 * ColorPicker.hueThumbProud(t), outer.w(), EPS);
+        assertEquals(t.colorThumbW(), outer.h(), EPS, "as thick as a rail's thumb is wide");
+        Fill centre = null;
+        for (Fill fill : frame.roundRects()) {
+            if (fill.paint() instanceof Color c && fill.w() < outer.w() - 2 && fill.h() < outer.h() - 2
+                    && Math.abs(fill.y() + fill.h() / 2 - (outer.y() + outer.h() / 2)) < EPS
+                    && Math.abs(fill.x() + fill.w() / 2 - (outer.x() + outer.w() / 2)) < EPS
+                    && c.a() > 0.99f && !c.equals(Color.WHITE)) {
+                centre = fill;
+            }
+        }
+        assertNotNull(centre, "a fill inside the thumb");
+        Color hue = (Color) centre.paint();
+        Color pure = Color.hsv(120, 1f, 1f, 1f);
+        assertEquals(pure.toHex(), hue.toHex(), "the pure hue, not the picked colour");
     }
 
     // ------------------------------------------------------- the before/after pair
@@ -469,14 +504,23 @@ class ColorPickerMirroringTest extends ComponentTestBase {
         throw new AssertionError("the rail painted no thumb");
     }
 
-    /** The full-width bar {@code ramp} drew for its hue marker. */
-    private Fill markerIn(Frame frame, Widget<?> ramp) {
+    /** The outer pill of the thumb {@code ramp} drew: wider than the ramp, centred on it. */
+    private Fill thumbIn(Frame frame, Widget<?> ramp) {
+        Fill widest = null;
         for (Fill fill : frame.roundRects()) {
-            if (Math.abs(fill.w() - ramp.width()) < EPS && covers(ramp, fill)) {
-                return fill;
+            float centreX = fill.x() + fill.w() / 2;
+            float rampCentre = ramp.localToSceneX() + ramp.width() / 2;
+            if (fill.w() > ramp.width() + EPS && Math.abs(centreX - rampCentre) < EPS
+                    && fill.y() >= ramp.localToSceneY() - EPS
+                    && fill.y() + fill.h() <= ramp.localToSceneY() + ramp.height() + EPS
+                    && (widest == null || fill.w() > widest.w())) {
+                widest = fill;
             }
         }
-        throw new AssertionError("the ramp painted no marker");
+        if (widest == null) {
+            throw new AssertionError("the ramp painted no thumb");
+        }
+        return widest;
     }
 
     /** The half of {@code swatch} filled with {@code colour}, as a scene x of its left edge. */
