@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,7 +42,7 @@ class BackdropDamageTest {
         @Override
         public void clipRect(float x, float y, float w, float h) {
             if (!drew) {
-                clips.add(String.format("%.0f,%.0f %.0fx%.0f", x, y, w, h));
+                clips.add(String.format(Locale.ROOT, "%.0f,%.0f %.0fx%.0f", x, y, w, h));
             }
         }
 

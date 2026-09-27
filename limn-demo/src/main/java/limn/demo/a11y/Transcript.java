@@ -64,7 +64,7 @@ public final class Transcript {
         for (int line = 0; line < order.size(); line++) {
             int index = order.get(line);
             AccessibleNode node = tree.node(index);
-            out.append(String.format("%" + width + "d ", line + 1));
+            out.append(String.format(Locale.ROOT, "%" + width + "d ", line + 1));
             out.append("  ".repeat(depthOf(tree, index)));
             describe(tree, node, treeLocale, lineOf, out);
             out.append('\n');

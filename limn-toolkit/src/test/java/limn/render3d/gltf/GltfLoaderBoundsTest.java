@@ -8,6 +8,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,7 +40,7 @@ class GltfLoaderBoundsTest {
         for (int v : indices) {
             bb.putShort((short) v);
         }
-        String json = """
+        String json = String.format(Locale.ROOT, """
                 {
                   "asset": {"version": "2.0"},
                   "scene": 0,
@@ -58,7 +59,7 @@ class GltfLoaderBoundsTest {
                   ],
                   "buffers": [{"uri": "data:application/octet-stream;base64,%s", "byteLength": 60}]
                 }
-                """.formatted(positionCount, indexCount,
+                """, positionCount, indexCount,
                 Base64.getEncoder().encodeToString(bb.array()));
         return json.getBytes(StandardCharsets.UTF_8);
     }
