@@ -53,6 +53,22 @@ component text) already ship translated for a long list of language tags, so swi
 locale translates the parts you did not write as well. A language the toolkit has no file
 for falls back to English, by the same rule your own bundles follow.
 
+## Finding a key nothing translates
+
+A key no bundle has, because of a typo, a rename, or a file that has not caught up, shows its
+English and says nothing else. To hear about it, subscribe:
+
+```java
+I18n.observeUnresolvedKeys(miss ->
+        System.err.println(miss.locale() + " has no " + miss.key()));
+```
+
+Each key is reported once per language, and again after a bundle is added or removed. A test
+can collect the reports and fail on any key of its own. English is never a miss, since it is the
+text the declaration carries, and neither is a plural form the language covers with its own
+`other`. With nobody listening, each miss is logged once instead: at `INFO` for your keys, and
+at `DEBUG` for the toolkit's `limn.*` keys, a few of which fall back to English on purpose.
+
 ## A subtree can hold its own language
 
 The locale does not have to be process-wide. A widget can declare one for itself and

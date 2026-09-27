@@ -10,7 +10,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 /**
  * The UI language: the {@linkplain #processLocale() process locale}, the
@@ -53,6 +57,18 @@ public final class I18n {
     /** Newest first: the last bundle registered gets the first chance at a key. */
     private static final CopyOnWriteArrayList<StringBundle> BUNDLES = new CopyOnWriteArrayList<>();
     private static final ChangeListeners LISTENERS = new ChangeListeners();
+
+    private static final System.Logger LOG = System.getLogger(I18n.class.getName());
+
+    /** Whoever asked to hear about keys that fell back to the English; see observeUnresolvedKeys. */
+    private static final CopyOnWriteArrayList<Consumer<UnresolvedKey>> UNRESOLVED =
+            new CopyOnWriteArrayList<>();
+
+    /**
+     * Each key and locale reported since the bundles last changed, so a miss is heard once rather
+     * than on every paint. Bounded by the catalog times the languages in use.
+     */
+    private static final Set<String> REPORTED = ConcurrentHashMap.newKeySet();
 
     /**
      * Every key ever declared, in declaration order; see {@link #declaredKeys()}.
@@ -366,6 +382,41 @@ public final class I18n {
     }
 
     /**
+     * Subscribes to keys that no registered bundle translates, which the toolkit otherwise answers
+     * silently with the English each declaration carries. A test can collect them and fail; an
+     * application can send them to its own logging. Each key is reported once per locale, and again
+     * after a bundle is added or removed, since that can change the answer.
+     *
+     * <p>A locale whose language is English reports nothing: there, the English in the declaration
+     * <em>is</em> the text. Neither does a plural form that is missing while the language's own
+     * {@code other} form is there, since that fallback is deliberate; when every form is missing,
+     * the {@code .other} key is reported.
+     *
+     * <p>With no listener, a miss is logged once through {@link System.Logger}: at {@code INFO} for
+     * an application's keys, and at {@code DEBUG} for the toolkit's own ({@code limn.*}), because
+     * several of those fall back on purpose, the colour picker's notations outside French and most
+     * theme names among them (docs/design/i18n.md).
+     *
+     * <p>A listener runs on the thread that resolved the key, which is usually the UI thread and is
+     * not always: an accessibility bridge resolves on the platform's thread. Keep it short and
+     * thread-safe. An exception it throws is logged and does not reach the text being drawn.
+     *
+     * @param listener what to tell about each unresolved key
+     * @return a handle that unsubscribes; cancelling it twice is a no-op
+     */
+    public static limn.concurrent.Subscription observeUnresolvedKeys(
+            Consumer<UnresolvedKey> listener) {
+        Objects.requireNonNull(listener, "listener");
+        UNRESOLVED.add(listener);
+        AtomicBoolean cancelled = new AtomicBoolean();
+        return () -> {
+            if (cancelled.compareAndSet(false, true)) {
+                UNRESOLVED.remove(listener);
+            }
+        };
+    }
+
+    /**
      * Every key declared so far, mapped to its English, in declaration order: the
      * translation catalog as a runtime fact rather than a document that drifts. A test
      * asserts a bundle covers it; a tool dumps it as a starter {@code .properties}.
@@ -479,6 +530,10 @@ public final class I18n {
      * scene has {@linkplain #retainLocale retained} resolves to the English rather than blocking or
      * reading a file on a caller's thread.
      *
+     * <p>When nothing translates the key, the {@code english} answered is reported to
+     * {@link #observeUnresolvedKeys}. A {@code null} {@code english} makes the call a probe that
+     * reports nothing, which is how a plural looks for one form before settling on another.
+     *
      * @param key     the key to look up
      * @param english what to answer when nothing translates it
      * @param target  the locale to answer in
@@ -491,7 +546,34 @@ public final class I18n {
                 return translated;
             }
         }
+        if (english != null) {
+            reportUnresolved(key, english, target);
+        }
         return english;
+    }
+
+    private static void reportUnresolved(String key, String english, Locale target) {
+        String language = target.getLanguage();
+        if (language.isEmpty() || language.equals("en")) {
+            return;
+        }
+        if (!REPORTED.add(key + '\u0000' + target.toLanguageTag())) {
+            return;
+        }
+        UnresolvedKey miss = new UnresolvedKey(key, english, target);
+        if (UNRESOLVED.isEmpty()) {
+            LOG.log(key.startsWith("limn.") ? System.Logger.Level.DEBUG : System.Logger.Level.INFO,
+                    "no translation of \"{0}\" for {1}; showing the English \"{2}\"",
+                    key, target.toLanguageTag(), english);
+            return;
+        }
+        for (Consumer<UnresolvedKey> listener : UNRESOLVED) {
+            try {
+                listener.accept(miss);
+            } catch (RuntimeException e) {
+                LOG.log(System.Logger.Level.WARNING, "an unresolved-key listener threw", e);
+            }
+        }
     }
 
     private static void prepareAll(Locale target) {
@@ -507,6 +589,7 @@ public final class I18n {
     }
 
     private static void invalidate() {
+        REPORTED.clear();
         epoch++;
         LISTENERS.fire();
     }
