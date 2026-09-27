@@ -1174,6 +1174,22 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
     @Override
     protected void onKeyEvent(KeyEvent event) {
+        if (event.isPressed() && !preedit.isEmpty()) {
+            // A key pressed while the input method is composing belongs to the input method,
+            // which is steering the composition with it: Return accepts, Escape abandons,
+            // Backspace and the arrows edit the composition, Space converts it. So the field
+            // neither acts on it nor lets it go on up, or the dialog around the field answers
+            // Return, Tab leaves the field and drops the composition, and a menu accelerator runs
+            // under the candidate list. macOS reports no key at all while marked text exists,
+            // Command chords included, and Windows drops the keys the IME took before they reach
+            // the toolkit, but X11 reports a key even when the input method's filter consumed
+            // it; this is what makes X11 behave like the other two, the way a browser marks the
+            // same events as composing for a page to ignore. Every press and every auto-repeat,
+            // whatever the key and whatever the modifiers. A release acts on nothing here, and
+            // its press has already been swallowed.
+            event.consume();
+            return;
+        }
         long text = model.textVersion();
         int start = model.selectionStart();
         int end = model.selectionEnd();
@@ -1232,7 +1248,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                 }
             }
             case Keys.ENTER -> {
-                if (onSubmit != null && preedit.isEmpty() && !event.isRepeat()) {
+                if (onSubmit != null && !event.isRepeat()) {
                     notifyChange(Change.of(Change.Aspect.SUBMITTED, Change.Origin.USER));
                 } else {
                     handled = false;

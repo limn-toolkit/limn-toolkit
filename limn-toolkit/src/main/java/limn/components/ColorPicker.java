@@ -110,8 +110,23 @@ public final class ColorPicker extends Widget<ColorPicker> {
     private static final Color CHECKER_LIGHT = Color.rgb(0x9AA0A8);
     private static final Color CHECKER_DARK = Color.rgb(0x6B7178);
 
-    private final Column root = new Column();
-    private final Row rampsRow = new Row();
+    /** The radius of the white half of the field's cursor; the dark half is a point wider. */
+    private static final float CURSOR_RADIUS = 6;
+    /**
+     * How far the field's cursor paints past the colour it is centred on: the dark ring's
+     * radius, one point more than {@link #CURSOR_RADIUS}, plus half of the pen that strokes it,
+     * which is 8 points.
+     *
+     * <p>The ring is centred on the exact colour, so at an edge of the field half of it hangs
+     * outside the field, and where the field's edge is the picker's own, along its top and its
+     * leading side, outside the picker too. That is the look chosen, over a ring pulled in to stay inside the
+     * square, which would stop marking the colour it names at every edge. What it costs is this
+     * number: the field, and every widget between the field and the picker, declares it as its
+     * {@code paintOutset()}, and the picker declares it to whatever holds the picker.
+     */
+    private static final float CURSOR_REACH = CURSOR_RADIUS + 1 + Strokes.PICKER_CURSOR / 2;
+
+    private final Column root = new PickerColumn();
     private final Row identityRow = new Row();
     /** The tab contents' top padding, re-applied per pass like every other gap. */
     private final List<Padding> tabPads = new ArrayList<>();
@@ -162,10 +177,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
 
         // The field and the hue ramp, and nothing else: alpha is a channel like
         // the others and lives with them below, not as a second column here.
-        rampsRow.crossAlignment(Flex.CrossAlignment.STRETCH);
-        rampsRow.add(Expanded.of(field, 1));
-        rampsRow.add(new TokenBox(SizeTokens::colorRampW, null, hueRamp));
-        root.add(new TokenBox(null, SizeTokens::colorFieldH, rampsRow));
+        root.add(new FieldRow());
 
         // "#" as a label rather than part of the text: the field then holds only
         // digits, so its length is the colour's, nothing has to defend against a
@@ -421,7 +433,6 @@ public final class ColorPicker extends Widget<ColorPicker> {
     private void applyStep(SizeTokens t) {
         float gap = t.colorGap();
         root.gap(gap);
-        rampsRow.gap(gap);
         identityRow.gap(gap);
         alphaRow.gap(gap);
         for (Padding pad : tabPads) {
@@ -440,6 +451,19 @@ public final class ColorPicker extends Widget<ColorPicker> {
         applyStep(Theme.of(this).tokensFor(this));
         root.measure(Constraints.tight(width(), height()));
         root.layoutBox(0, 0, width(), height());
+    }
+
+    /**
+     * The 8 points the saturation/value cursor's ring can hang past the picker's box. The field's
+     * top edge is the picker's top and its leading edge the picker's leading edge, and the ring is
+     * centred on the exact colour, so parked on white, on the pure hue or anywhere along those two
+     * edges, half of it lies outside the picker. Declared so that a repaint pass landing only in
+     * that band, where a neighbour above or beside the picker repaints, still paints the picker
+     * rather than skipping it and wiping the ring's arc there.
+     */
+    @Override
+    protected float paintOutset() {
+        return CURSOR_REACH;
     }
 
     // --- editing -------------------------------------------------------------
@@ -1582,6 +1606,83 @@ public final class ColorPicker extends Widget<ColorPicker> {
         }
     }
 
+    /**
+     * The field and the hue ramp beside it, one field-height tall: the field takes the width
+     * the ramp and the gap leave, and the ramp keeps its own. Laid out here by hand, where a
+     * {@link Row} of an {@link Expanded} field and a {@link TokenBox} ramp, held in a second
+     * {@code TokenBox} for the height, used to do it.
+     *
+     * <p><b>It exists so that every widget between the field and the picker can declare the
+     * cursor's reach.</b> A repaint pass skips any subtree whose box, grown by its
+     * {@code paintOutset()} and a pixel of antialiasing, misses the pass. The ring hangs up to
+     * {@link #CURSOR_REACH} past the field, and the field's top, bottom and leading edges are
+     * this row's too; so a pass landing only where the ring hangs, above the picker, in the gap
+     * under the field or in the gap before the ramp, skipped the first container on the way
+     * down that declared nothing, never reached the field, and wiped the part of a ring that had
+     * not moved. The {@code Expanded} and the {@code TokenBox} are final and declare nothing,
+     * which is right for them in general and wrong here, and this row replaces the three of them.
+     *
+     * <p>The arithmetic is the {@code Row}'s, kept exact: bounded, the row is as wide as it is
+     * offered and the field's share is what is left after the ramp and one gap, never below
+     * zero; unbounded, the field asks for nothing and the row is the ramp and the gap. Reading
+     * right to left the placement reflects, as a row's does, so the ramp changes sides while
+     * neither the field nor the ramp paints anything mirrored.
+     */
+    private final class FieldRow extends Widget<FieldRow> {
+
+        FieldRow() {
+            add(field);
+            add(hueRamp);
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            SizeTokens t = Theme.of(this).tokensFor(this);
+            float ramp = t.colorRampW();
+            float height = constraints.constrainHeight(t.colorFieldH());
+            float width = constraints.hasBoundedWidth()
+                    ? constraints.maxWidth()
+                    : ramp + t.colorGap();
+            return constraints.constrain(width, height);
+        }
+
+        @Override
+        protected void onLayout() {
+            SizeTokens t = Theme.of(this).tokensFor(this);
+            float w = width();
+            float h = height();
+            float ramp = t.colorRampW();
+            float gap = t.colorGap();
+            float share = Math.max(0, w - ramp - gap);
+            boolean rtl = isRightToLeft();
+            field.measure(Constraints.tight(share, h));
+            hueRamp.measure(Constraints.tight(ramp, h));
+            // The cursor walk a row makes, field first, with only the final coordinate reflected.
+            field.layoutBox(rtl ? w - share : 0, 0, share, h);
+            float rampAt = share + gap;
+            hueRamp.layoutBox(rtl ? w - rampAt - ramp : rampAt, 0, ramp, h);
+        }
+
+        /** The cursor's reach past the field, which is its reach past this row on three sides. */
+        @Override
+        protected float paintOutset() {
+            return CURSOR_REACH;
+        }
+    }
+
+    /**
+     * The picker's one column, a plain {@link Column} that declares {@link #CURSOR_REACH}: it is
+     * laid out over the whole picker, so wherever the ring hangs past the picker it hangs past
+     * this column too. See {@link FieldRow} for why a container between the field and the picker
+     * that declared nothing lost the ring.
+     */
+    private static final class PickerColumn extends Column {
+        @Override
+        protected float paintOutset() {
+            return CURSOR_REACH;
+        }
+    }
+
     /** Fills whatever the layout gives it; the fallbacks only matter unbounded. */
     private abstract static class Painted extends Widget<Painted> {
         @Override
@@ -1629,7 +1730,21 @@ public final class ColorPicker extends Widget<ColorPicker> {
                     Color.rgba(0x000000, 0f), Color.BLACK));
             canvas.restore();
             canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.of(this).outline());
-            paintCursor(canvas, saturation * w, (1 - value) * h, 6);
+            // After the restore, on purpose: the ring is centred on the exact colour and is not
+            // clipped to the square, so at an edge half of it lies outside, which is what the
+            // outset below declares.
+            paintCursor(canvas, saturation * w, (1 - value) * h, CURSOR_RADIUS);
+        }
+
+        /**
+         * The cursor's reach past the colour it marks, which at an edge or a corner is its reach
+         * past this field. Declared so that moving the cursor off an edge damages where the old
+         * ring was and not only the square: without it the half of the old ring outside the
+         * field stayed on screen as an arc beside the new one.
+         */
+        @Override
+        protected float paintOutset() {
+            return CURSOR_REACH;
         }
 
         @Override

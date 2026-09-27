@@ -1,0 +1,220 @@
+{
+ "asset": {
+  "version": "2.0",
+  "generator": "limn demo gen_gltf.py"
+ },
+ "scene": 0,
+ "scenes": [
+  {
+   "nodes": [
+    0,
+    1
+   ]
+  }
+ ],
+ "nodes": [
+  {
+   "name": "gold",
+   "translation": [
+    -2.6,
+    0,
+    0
+   ],
+   "mesh": 0
+  },
+  {
+   "name": "red",
+   "translation": [
+    0.6,
+    0,
+    0
+   ],
+   "rotation": [
+    0.0,
+    0.21643961393810288,
+    0.0,
+    0.9762960071199334
+   ],
+   "mesh": 1,
+   "children": [
+    2
+   ]
+  },
+  {
+   "name": "textured",
+   "translation": [
+    2.4,
+    0,
+    0
+   ],
+   "mesh": 2
+  }
+ ],
+ "meshes": [
+  {
+   "name": "gold",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "NORMAL": 1,
+      "TEXCOORD_0": 2
+     },
+     "indices": 3,
+     "material": 0
+    }
+   ]
+  },
+  {
+   "name": "red",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "NORMAL": 1,
+      "TEXCOORD_0": 2
+     },
+     "indices": 3,
+     "material": 1
+    }
+   ]
+  },
+  {
+   "name": "textured",
+   "primitives": [
+    {
+     "attributes": {
+      "POSITION": 0,
+      "NORMAL": 1,
+      "TEXCOORD_0": 2
+     },
+     "indices": 3,
+     "material": 2
+    }
+   ]
+  }
+ ],
+ "materials": [
+  {
+   "name": "gold",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     1.0,
+     0.78,
+     0.34,
+     1.0
+    ],
+    "metallicFactor": 1.0,
+    "roughnessFactor": 0.28
+   }
+  },
+  {
+   "name": "red",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     0.85,
+     0.13,
+     0.16,
+     1.0
+    ],
+    "metallicFactor": 0.0,
+    "roughnessFactor": 0.3
+   }
+  },
+  {
+   "name": "textured",
+   "pbrMetallicRoughness": {
+    "baseColorFactor": [
+     1,
+     1,
+     1,
+     1
+    ],
+    "metallicFactor": 0.1,
+    "roughnessFactor": 0.5,
+    "baseColorTexture": {
+     "index": 0
+    }
+   }
+  }
+ ],
+ "textures": [
+  {
+   "source": 0,
+   "sampler": 0
+  }
+ ],
+ "images": [
+  {
+   "mimeType": "image/png",
+   "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAbUlEQVR42u3XMQ0AIAxFQcQgA4mIYEYdEjBQpi4QLmHswE0vv9Q+wrdmC99t9wUAAAAAIAV45aOnewAAAACAHECJAQAAAOwBJQYAAACwB5QYAAAAwB5QYgAAAAB7QIkBAAAA7AElBgAAAPgGsAGNJTF43Z+gNgAAAABJRU5ErkJggg=="
+  }
+ ],
+ "samplers": [
+  {}
+ ],
+ "accessors": [
+  {
+   "bufferView": 0,
+   "componentType": 5126,
+   "count": 24,
+   "type": "VEC3",
+   "min": [
+    -0.7,
+    -0.7,
+    -0.7
+   ],
+   "max": [
+    0.7,
+    0.7,
+    0.7
+   ]
+  },
+  {
+   "bufferView": 1,
+   "componentType": 5126,
+   "count": 24,
+   "type": "VEC3"
+  },
+  {
+   "bufferView": 2,
+   "componentType": 5126,
+   "count": 24,
+   "type": "VEC2"
+  },
+  {
+   "bufferView": 3,
+   "componentType": 5123,
+   "count": 36,
+   "type": "SCALAR"
+  }
+ ],
+ "bufferViews": [
+  {
+   "buffer": 0,
+   "byteOffset": 0,
+   "byteLength": 288
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 288,
+   "byteLength": 288
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 576,
+   "byteLength": 192
+  },
+  {
+   "buffer": 0,
+   "byteOffset": 768,
+   "byteLength": 72
+  }
+ ],
+ "buffers": [
+  {
+   "byteLength": 840,
+   "uri": "data:application/octet-stream;base64,MzMzPzMzM78zMzM/MzMzPzMzM78zMzO/MzMzPzMzMz8zMzO/MzMzPzMzMz8zMzM/MzMzvzMzM78zMzO/MzMzvzMzM78zMzM/MzMzvzMzMz8zMzM/MzMzvzMzMz8zMzO/MzMzvzMzMz8zMzM/MzMzPzMzMz8zMzM/MzMzPzMzMz8zMzO/MzMzvzMzMz8zMzO/MzMzvzMzM78zMzO/MzMzPzMzM78zMzO/MzMzPzMzM78zMzM/MzMzvzMzM78zMzM/MzMzvzMzM78zMzM/MzMzPzMzM78zMzM/MzMzPzMzMz8zMzM/MzMzvzMzMz8zMzM/MzMzPzMzM78zMzO/MzMzvzMzM78zMzO/MzMzvzMzMz8zMzO/MzMzPzMzMz8zMzO/AACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAgD8AAIA/AAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAACAPwAAgD8AAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAIA/AACAPwAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAgD8AAIA/AAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAACAPwAAgD8AAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAIA/AACAPwAAAAAAAIA/AAABAAIAAAACAAMABAAFAAYABAAGAAcACAAJAAoACAAKAAsADAANAA4ADAAOAA8AEAARABIAEAASABMAFAAVABYAFAAWABcA"
+  }
+ ]
+}

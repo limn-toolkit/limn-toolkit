@@ -144,9 +144,12 @@ public final class GltfLoader {
      * decode of every embedded buffer and a copy per accessor, so see {@link #load(Path)} for the
      * cost and {@link #loadAsync(byte[])} for the same work on the worker pool.
      *
-     * @throws IllegalArgumentException if the document is malformed, including one that declares
-     *         more elements or bytes than the buffer behind them holds, which is refused before the
-     *         array for them is allocated, so a small file cannot ask for an enormous heap
+     * @throws IllegalArgumentException if the document is malformed, whatever is wrong with it: text
+     *         that is not JSON or ends early, a member of the wrong type or missing, an index past
+     *         the end of the list it names, and one that declares more elements or bytes than the
+     *         buffer behind them holds, which is refused before the array for them is allocated, so
+     *         a small file cannot ask for an enormous heap. It is the only exception a malformed
+     *         document is refused with
      */
     public static GltfModel load(byte[] data) {
         return load(data, NO_PROGRESS);
@@ -239,6 +242,13 @@ public final class GltfLoader {
         String json;
         byte[] glbBin = null;
         if (isGlb(data)) {
+            if (data.length < 12) {
+                // The magic alone makes it a GLB, and the three header words are read before any
+                // chunk is, so a file cut short inside them underflowed the buffer rather than
+                // being refused.
+                throw new IllegalArgumentException("malformed GLB: " + data.length
+                        + " bytes, shorter than the 12-byte header");
+            }
             ByteBuffer bb = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN);
             bb.getInt(); // magic
             bb.getInt(); // version
@@ -268,7 +278,7 @@ public final class GltfLoader {
         } else {
             json = new String(data, StandardCharsets.UTF_8);
         }
-        Map<String, Object> document = obj(Json.parse(json));
+        Map<String, Object> document = obj(Json.parse(json), "document");
         progress.report(JSON_DONE);
         return new Parser(document, glbBin, elementBudget).parse(progress);
     }
@@ -304,11 +314,12 @@ public final class GltfLoader {
         Parser(Map<String, Object> root, byte[] glbBin, long budget) {
             this.budget = budget;
             this.root = root;
-            this.bufferViews = arr(root.get("bufferViews"));
-            this.accessors = arr(root.get("accessors"));
-            for (Object b : arr(root.get("buffers"))) {
-                Map<String, Object> bm = obj(b);
-                String uri = (String) bm.get("uri");
+            this.bufferViews = arr(root, "bufferViews");
+            this.accessors = arr(root, "accessors");
+            List<Object> declared = arr(root, "buffers");
+            for (int i = 0; i < declared.size(); i++) {
+                Map<String, Object> bm = obj(declared.get(i), "buffer " + i);
+                String uri = strOr(bm, "uri", null);
                 if (uri == null) {
                     buffers.add(glbBin); // the GLB BIN chunk is buffer 0
                 } else if (uri.startsWith("data:")) {
@@ -321,44 +332,49 @@ public final class GltfLoader {
 
         GltfModel parse(Progress progress) {
             progress.report(BUFFERS_DONE);
-            List<Object> meshNodes = arr(root.get("meshes"));
+            List<Object> meshNodes = arr(root, "meshes");
             List<GltfModel.MeshDef> meshes = new ArrayList<>();
-            for (Object m : meshNodes) {
+            for (int i = 0; i < meshNodes.size(); i++) {
                 // Between meshes is the only place a cancel can be honoured cheaply: one mesh is a
                 // handful of array copies, and a superseded model must not burn a worker to the end.
                 if (progress.isCancelled()) {
                     throw new CancellationException("glTF parse cancelled");
                 }
-                meshes.add(parseMesh(obj(m)));
+                meshes.add(parseMesh(obj(meshNodes.get(i), "mesh " + i)));
                 progress.report(BUFFERS_DONE
                         + (MESHES_DONE - BUFFERS_DONE) * meshes.size() / meshNodes.size());
             }
             List<GltfModel.MaterialDef> materials = new ArrayList<>();
-            for (Object mat : arr(root.get("materials"))) {
-                materials.add(parseMaterial(obj(mat)));
+            List<Object> materialNodes = arr(root, "materials");
+            for (int i = 0; i < materialNodes.size(); i++) {
+                materials.add(parseMaterial(obj(materialNodes.get(i), "material " + i)));
             }
             List<GltfModel.ImageDef> images = new ArrayList<>();
-            for (Object img : arr(root.get("images"))) {
-                images.add(parseImage(obj(img)));
+            List<Object> imageNodes = arr(root, "images");
+            for (int i = 0; i < imageNodes.size(); i++) {
+                images.add(parseImage(obj(imageNodes.get(i), "image " + i)));
             }
             List<GltfModel.TextureDef> textures = new ArrayList<>();
-            for (Object t : arr(root.get("textures"))) {
-                Map<String, Object> tm = obj(t);
+            List<Object> textureNodes = arr(root, "textures");
+            for (int i = 0; i < textureNodes.size(); i++) {
+                Map<String, Object> tm = obj(textureNodes.get(i), "texture " + i);
                 textures.add(new GltfModel.TextureDef(intOr(tm, "source", -1), intOr(tm, "sampler", -1)));
             }
             List<GltfModel.SamplerDef> samplers = new ArrayList<>();
-            for (Object s : arr(root.get("samplers"))) {
-                Map<String, Object> sm = obj(s);
+            List<Object> samplerNodes = arr(root, "samplers");
+            for (int i = 0; i < samplerNodes.size(); i++) {
+                Map<String, Object> sm = obj(samplerNodes.get(i), "sampler " + i);
                 samplers.add(new GltfModel.SamplerDef(intOr(sm, "magFilter", -1),
                         intOr(sm, "minFilter", -1), intOr(sm, "wrapS", 10497), intOr(sm, "wrapT", 10497)));
             }
             List<GltfModel.NodeDef> nodes = new ArrayList<>();
-            for (Object n : arr(root.get("nodes"))) {
-                nodes.add(parseNode(obj(n)));
+            List<Object> nodeList = arr(root, "nodes");
+            for (int i = 0; i < nodeList.size(); i++) {
+                nodes.add(parseNode(obj(nodeList.get(i), "node " + i)));
             }
             int[] roots = sceneRoots(nodes.size());
             checkForest(nodes, roots);
-            checkReferences(textures, images.size(), materials);
+            checkReferences(textures, images.size(), materials, nodes, meshes.size());
             GltfModel model = new GltfModel(meshes, materials, textures, samplers, images, nodes,
                     roots);
             progress.report(1);
@@ -367,27 +383,30 @@ public final class GltfLoader {
 
         private GltfModel.MeshDef parseMesh(Map<String, Object> mesh) {
             List<GltfModel.Primitive> prims = new ArrayList<>();
-            for (Object p : arr(mesh.get("primitives"))) {
-                Map<String, Object> prim = obj(p);
-                Map<String, Object> attrs = obj(prim.get("attributes"));
+            List<Object> primitives = arr(mesh, "primitives");
+            for (int i = 0; i < primitives.size(); i++) {
+                Map<String, Object> prim = obj(primitives.get(i), "primitive " + i);
+                // Required by the specification, and the one member a primitive cannot do without:
+                // it names every array the primitive is drawn from.
+                Map<String, Object> attrs = object(prim, "attributes");
                 MeshData data = new MeshData();
                 if (attrs.containsKey("POSITION")) {
                     data.put(VertexAttribute.POSITION,
-                            readFloats(intOf(attrs.get("POSITION")), 3, "POSITION"));
+                            readFloats(intOf(attrs, "POSITION"), 3, "POSITION"));
                 }
                 if (attrs.containsKey("NORMAL")) {
                     data.put(VertexAttribute.NORMAL,
-                            readFloats(intOf(attrs.get("NORMAL")), 3, "NORMAL"));
+                            readFloats(intOf(attrs, "NORMAL"), 3, "NORMAL"));
                 }
                 if (attrs.containsKey("TEXCOORD_0")) {
                     data.put(VertexAttribute.UV0,
-                            readFloats(intOf(attrs.get("TEXCOORD_0")), 2, "TEXCOORD_0"));
+                            readFloats(intOf(attrs, "TEXCOORD_0"), 2, "TEXCOORD_0"));
                 }
                 if (!prim.containsKey("indices")) {
                     spend(data.vertexCount(), "sequential indices");
                 }
                 int[] indices = prim.containsKey("indices")
-                        ? readIndices(intOf(prim.get("indices")), data.vertexCount())
+                        ? readIndices(intOf(prim, "indices"), data.vertexCount())
                         : sequential(data.vertexCount());
                 // glTF primitive modes: 4 = TRIANGLES (native); strips/fans are
                 // converted to lists at load; points/lines have no pipeline here.
@@ -519,9 +538,19 @@ public final class GltfLoader {
          * source at all is allowed, as glTF allows it for an image an extension supplies: the model
          * treats it as no texture. A material's base-colour texture is optional too. A primitive's
          * material and a texture's sampler are already read defensively, falling back to a default.
+         * A node's mesh is checked here as well: building the scene looks the mesh up by it, where
+         * one the file does not have was an IndexOutOfBoundsException from a model that had loaded.
          */
         private static void checkReferences(List<GltfModel.TextureDef> textures, int imageCount,
-                                            List<GltfModel.MaterialDef> materials) {
+                                            List<GltfModel.MaterialDef> materials,
+                                            List<GltfModel.NodeDef> nodes, int meshCount) {
+            for (int i = 0; i < nodes.size(); i++) {
+                int mesh = nodes.get(i).mesh();
+                if (mesh < -1 || mesh >= meshCount) {
+                    throw new IllegalArgumentException("glTF node " + i + " names mesh "
+                            + mesh + ", but the file has " + meshCount);
+                }
+            }
             for (int i = 0; i < textures.size(); i++) {
                 int source = textures.get(i).image();
                 if (source < -1 || source >= imageCount) {
@@ -540,27 +569,27 @@ public final class GltfLoader {
 
         private GltfModel.MaterialDef parseMaterial(Map<String, Object> mat) {
             Map<String, Object> pbr = mat.containsKey("pbrMetallicRoughness")
-                    ? obj(mat.get("pbrMetallicRoughness")) : Map.of();
+                    ? object(mat, "pbrMetallicRoughness") : Map.of();
             Vec4 baseColor = vec4Or(pbr, "baseColorFactor", 1, 1, 1, 1);
             float metallic = floatOr(pbr, "metallicFactor", 1);
             float roughness = floatOr(pbr, "roughnessFactor", 1);
             Vec3 emissive = vec3Or(mat, "emissiveFactor", 0, 0, 0);
             int baseColorTexture = -1;
             if (pbr.containsKey("baseColorTexture")) {
-                baseColorTexture = intOr(obj(pbr.get("baseColorTexture")), "index", -1);
+                baseColorTexture = intOr(object(pbr, "baseColorTexture"), "index", -1);
             }
             return new GltfModel.MaterialDef(baseColor, metallic, roughness, emissive,
                     baseColorTexture, strOr(mat, "name", ""));
         }
 
         private GltfModel.ImageDef parseImage(Map<String, Object> image) {
-            String uri = (String) image.get("uri");
+            String uri = strOr(image, "uri", null);
             if (uri != null && uri.startsWith("data:")) {
                 return new GltfModel.ImageDef(dataUriBytes(uri), dataUriMime(uri));
             }
             if (image.containsKey("bufferView")) {
-                Map<String, Object> bv = obj(bufferViews.get(intOf(image.get("bufferView"))));
-                byte[] buffer = buffers.get(intOr(bv, "buffer", 0));
+                Map<String, Object> bv = bufferView(intOf(image, "bufferView"));
+                byte[] buffer = buffer(intOr(bv, "buffer", 0));
                 int offset = intOr(bv, "byteOffset", 0);
                 int length = intOr(bv, "byteLength", 0);
                 checkFits(length, offset, 1, 1, buffer.length, "image");
@@ -573,8 +602,9 @@ public final class GltfLoader {
 
         private GltfModel.NodeDef parseNode(Map<String, Object> node) {
             Transform3D transform;
-            if (node.containsKey("matrix")) {
-                transform = decompose(floats(arr(node.get("matrix"))));
+            float[] matrix = numbers(node, "matrix", 16);
+            if (matrix != null) {
+                transform = decompose(matrix);
             } else {
                 transform = new Transform3D(
                         vec3Or(node, "translation", 0, 0, 0),
@@ -582,7 +612,7 @@ public final class GltfLoader {
                         vec3Or(node, "scale", 1, 1, 1));
             }
             return new GltfModel.NodeDef(transform, intOr(node, "mesh", -1),
-                    intArray(node.get("children")), strOr(node, "name", ""));
+                    ints(node, "children"), strOr(node, "name", ""));
         }
 
         /** The deepest a node may sit below its scene's root; the scene is built and drawn by recursion. */
@@ -640,14 +670,15 @@ public final class GltfLoader {
         }
 
         private int[] sceneRoots(int nodeCount) {
-            List<Object> scenes = arr(root.get("scenes"));
+            List<Object> scenes = arr(root, "scenes");
             if (scenes.isEmpty()) {
                 // No scenes array: only nodes nobody references as a child are
                 // roots; instantiating EVERY node would duplicate each child
                 // subtree (once standalone, once under its parent).
                 boolean[] isChild = new boolean[nodeCount];
-                for (Object n : arr(root.get("nodes"))) {
-                    for (int child : intArray(obj(n).get("children"))) {
+                List<Object> nodes = arr(root, "nodes");
+                for (int n = 0; n < nodes.size(); n++) {
+                    for (int child : ints(obj(nodes.get(n), "node " + n), "children")) {
                         if (child >= 0 && child < nodeCount) {
                             isChild[child] = true;
                         }
@@ -667,8 +698,8 @@ public final class GltfLoader {
                 }
                 return all;
             }
-            Map<String, Object> scene = obj(scenes.get(intOr(root, "scene", 0)));
-            return intArray(scene.get("nodes"));
+            int index = intOr(root, "scene", 0);
+            return ints(obj(at(scenes, index, "scene"), "scene " + index), "nodes");
         }
 
         // --------------------------------------------------------- accessors
@@ -728,18 +759,42 @@ public final class GltfLoader {
                 throw new IllegalArgumentException(
                         "sparse accessors are not supported (" + what + ")");
             }
-            Object view = acc.get("bufferView");
-            if (view == null) {
+            if (acc.get("bufferView") == null) {
                 throw new IllegalArgumentException(
                         "accessor without a bufferView is not supported (" + what + ")");
             }
-            return obj(bufferViews.get(intOf(view)));
+            return bufferView(intOf(acc, "bufferView"));
+        }
+
+        /** The accessor the file numbers {@code index}, refusing one it does not have. */
+        private Map<String, Object> accessor(int index) {
+            return obj(at(accessors, index, "accessor"), "accessor " + index);
+        }
+
+        /** The bufferView the file numbers {@code index}, refusing one it does not have. */
+        private Map<String, Object> bufferView(int index) {
+            return obj(at(bufferViews, index, "bufferView"), "bufferView " + index);
+        }
+
+        /**
+         * The bytes of the buffer the file numbers {@code index}. A buffer without a uri stands for
+         * a GLB's binary chunk, so one in a file that has no such chunk, a {@code .gltf} or a GLB
+         * whose chunk is missing, is refused here, where it is first read, rather than being read
+         * as a null array.
+         */
+        private byte[] buffer(int index) {
+            byte[] bytes = at(buffers, index, "buffer");
+            if (bytes == null) {
+                throw new IllegalArgumentException("glTF buffer " + index + " has no uri, and the "
+                        + "file has no GLB binary chunk to stand in for it");
+            }
+            return bytes;
         }
 
         private float[] readFloats(int accessorIndex, int components, String what) {
-            Map<String, Object> acc = obj(accessors.get(accessorIndex));
+            Map<String, Object> acc = accessor(accessorIndex);
             Map<String, Object> bv = viewOf(acc, what);
-            byte[] buffer = buffers.get(intOr(bv, "buffer", 0));
+            byte[] buffer = buffer(intOr(bv, "buffer", 0));
             int base = intOr(bv, "byteOffset", 0) + intOr(acc, "byteOffset", 0);
             int componentType = intOr(acc, "componentType", 5126);
             boolean normalized = Boolean.TRUE.equals(acc.get("normalized"));
@@ -800,9 +855,9 @@ public final class GltfLoader {
          * index it is given. A primitive that carries normals goes to the device as-is.
          */
         private int[] readIndices(int accessorIndex, int vertexCount) {
-            Map<String, Object> acc = obj(accessors.get(accessorIndex));
+            Map<String, Object> acc = accessor(accessorIndex);
             Map<String, Object> bv = viewOf(acc, "indices");
-            byte[] buffer = buffers.get(intOr(bv, "buffer", 0));
+            byte[] buffer = buffer(intOr(bv, "buffer", 0));
             int base = intOr(bv, "byteOffset", 0) + intOr(acc, "byteOffset", 0);
             int componentType = intOr(acc, "componentType", 5123);
             int count = intOr(acc, "count", 0);
@@ -856,7 +911,14 @@ public final class GltfLoader {
         if (!header.contains(";base64")) {
             throw new IllegalArgumentException("only base64 data URIs supported: " + header);
         }
-        return Base64.getDecoder().decode(payload);
+        try {
+            return Base64.getDecoder().decode(payload);
+        } catch (IllegalArgumentException notBase64) {
+            // Already the right exception, but saying only "Illegal base64 character 5f", with no
+            // word that it was a data URI being read.
+            throw new IllegalArgumentException("malformed data URI (" + header + "): "
+                    + notBase64.getMessage(), notBase64);
+        }
     }
 
     private static String dataUriMime(String uri) {
@@ -919,71 +981,161 @@ public final class GltfLoader {
     }
 
     // ------------------------------------------------------------- JSON helpers
+    //
+    // Every value these read came out of a document that may have come from anywhere, so each one
+    // checks the type it is about to take the value as, and refuses anything else with an
+    // IllegalArgumentException naming the member and the type it had to be. They used to cast, and
+    // a file with a string where a number belonged, an array where an object did, or a value
+    // missing, escaped the loader as a ClassCastException or a NullPointerException, which an
+    // application catching the documented refusal of a malformed file did not catch.
 
+    /**
+     * {@code value} as a JSON object, refusing anything else, a missing value included.
+     *
+     * @param what the part of the model it is, for the refusal: {@code "mesh 2"}, {@code "document"}
+     */
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> obj(Object o) {
-        return (Map<String, Object>) o;
+    private static Map<String, Object> obj(Object value, String what) {
+        if (value instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        throw new IllegalArgumentException("glTF " + what + " must be an object, not "
+                + describe(value));
     }
 
-    @SuppressWarnings("unchecked")
-    private static List<Object> arr(Object o) {
-        return o == null ? List.of() : (List<Object>) o;
+    /** The object member {@code key} of {@code m}, which is required: absent is refused too. */
+    private static Map<String, Object> object(Map<String, Object> m, String key) {
+        return obj(m.get(key), "\"" + key + "\"");
     }
 
-    private static int intOf(Object o) {
-        return ((Double) o).intValue();
+    /**
+     * The array member {@code key} of {@code m}, empty where it is absent or null, which is what
+     * every array the loader reads means when the file leaves it out.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<Object> arr(Map<String, Object> m, String key) {
+        Object value = m.get(key);
+        if (value == null) {
+            return List.of();
+        }
+        if (value instanceof List<?> list) {
+            return (List<Object>) list;
+        }
+        throw new IllegalArgumentException("glTF \"" + key + "\" must be an array, not "
+                + describe(value));
+    }
+
+    /**
+     * Entry {@code index} of one of the file's top-level lists, for an index the file itself wrote
+     * somewhere else, refusing one past either end of the list instead of letting the lookup throw.
+     *
+     * @param what what the list holds, for the refusal: {@code "accessor"}, {@code "bufferView"}
+     */
+    private static <T> T at(List<T> list, int index, String what) {
+        if (index < 0 || index >= list.size()) {
+            throw new IllegalArgumentException("glTF names " + what + " " + index
+                    + ", but the file has " + list.size());
+        }
+        return list.get(index);
+    }
+
+    /** The number member {@code key} of {@code m} as an int, which is required. */
+    private static int intOf(Map<String, Object> m, String key) {
+        return number(m.get(key), key).intValue();
     }
 
     private static int intOr(Map<String, Object> m, String key, int def) {
         Object v = m.get(key);
-        return v == null ? def : ((Double) v).intValue();
+        return v == null ? def : number(v, key).intValue();
     }
 
     private static float floatOr(Map<String, Object> m, String key, float def) {
         Object v = m.get(key);
-        return v == null ? def : ((Double) v).floatValue();
+        return v == null ? def : number(v, key).floatValue();
     }
 
     private static String strOr(Map<String, Object> m, String key, String def) {
         Object v = m.get(key);
-        return v == null ? def : (String) v;
+        if (v == null) {
+            return def;
+        }
+        if (v instanceof String s) {
+            return s;
+        }
+        throw new IllegalArgumentException("glTF \"" + key + "\" must be a string, not "
+                + describe(v));
+    }
+
+    /** {@code value}, which the member {@code key} holds, as a number, refusing anything else. */
+    private static Double number(Object value, String key) {
+        if (value instanceof Double d) {
+            return d;
+        }
+        throw new IllegalArgumentException("glTF \"" + key + "\" must be a number, not "
+                + describe(value));
     }
 
     private static Vec3 vec3Or(Map<String, Object> m, String key, float x, float y, float z) {
-        List<Object> a = arr(m.get(key));
-        return a.isEmpty() ? new Vec3(x, y, z)
-                : new Vec3(f(a, 0), f(a, 1), f(a, 2));
+        float[] a = numbers(m, key, 3);
+        return a == null ? new Vec3(x, y, z) : new Vec3(a[0], a[1], a[2]);
     }
 
     private static Vec4 vec4Or(Map<String, Object> m, String key, float x, float y, float z, float w) {
-        List<Object> a = arr(m.get(key));
-        return a.isEmpty() ? new Vec4(x, y, z, w)
-                : new Vec4(f(a, 0), f(a, 1), f(a, 2), f(a, 3));
+        float[] a = numbers(m, key, 4);
+        return a == null ? new Vec4(x, y, z, w) : new Vec4(a[0], a[1], a[2], a[3]);
     }
 
     private static Quat quatOr(Map<String, Object> m, String key) {
-        List<Object> a = arr(m.get(key));
-        return a.isEmpty() ? Quat.IDENTITY : new Quat(f(a, 0), f(a, 1), f(a, 2), f(a, 3));
+        float[] a = numbers(m, key, 4);
+        return a == null ? Quat.IDENTITY : new Quat(a[0], a[1], a[2], a[3]);
     }
 
-    private static float f(List<Object> a, int i) {
-        return ((Double) a.get(i)).floatValue();
-    }
-
-    private static float[] floats(List<Object> a) {
-        float[] out = new float[a.size()];
-        for (int i = 0; i < a.size(); i++) {
-            out[i] = ((Double) a.get(i)).floatValue();
+    /**
+     * The array member {@code key} of {@code m} as floats, or {@code null} where it is absent or
+     * empty, which every caller reads as "use the default". An array of fewer than {@code needed}
+     * numbers is refused, as is one holding anything but numbers; one of more keeps the first
+     * {@code needed} and ignores the rest, as the loader always has.
+     */
+    private static float[] numbers(Map<String, Object> m, String key, int needed) {
+        List<Object> a = arr(m, key);
+        if (a.isEmpty()) {
+            return null;
+        }
+        if (a.size() < needed) {
+            throw new IllegalArgumentException("glTF \"" + key + "\" must hold " + needed
+                    + " numbers, not " + a.size());
+        }
+        float[] out = new float[needed];
+        for (int i = 0; i < needed; i++) {
+            out[i] = number(a.get(i), key).floatValue();
         }
         return out;
     }
 
-    private static int[] intArray(Object o) {
-        List<Object> a = arr(o);
+    /** The array member {@code key} of {@code m} as ints, empty where it is absent. */
+    private static int[] ints(Map<String, Object> m, String key) {
+        List<Object> a = arr(m, key);
         int[] out = new int[a.size()];
         for (int i = 0; i < a.size(); i++) {
-            out[i] = ((Double) a.get(i)).intValue();
+            out[i] = number(a.get(i), key).intValue();
         }
         return out;
+    }
+
+    /** What a JSON value is, for a refusal that says what was found where something else belonged. */
+    private static String describe(Object value) {
+        if (value == null) {
+            return "null";
+        }
+        if (value instanceof String) {
+            return "a string";
+        }
+        if (value instanceof Double) {
+            return "the number " + value;
+        }
+        if (value instanceof Boolean) {
+            return value.toString();
+        }
+        return value instanceof List ? "an array" : "an object";
     }
 }
