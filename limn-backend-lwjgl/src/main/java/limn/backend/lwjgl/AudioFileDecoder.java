@@ -500,9 +500,43 @@ final class AudioFileDecoder implements AudioDecoder {
                 || (b.length > 1 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xE0) == 0xE0);
     }
 
+    /**
+     * Where the MPEG audio starts: past an ID3v2 tag when the file opens with one, else at 0. The
+     * decoder is handed the bytes from here, because JLayer reads a leading tag by allocating the
+     * size its header states, before reading any of it: sixteen bytes could ask for 256 MB, and
+     * a looping stream asked again on every loop.
+     *
+     * @throws IllegalArgumentException if the tag's size is malformed or runs past the file
+     */
+    static int audioStart(byte[] b) {
+        if (b.length < 10 || !tagAt(b, 0, "ID3")) {
+            return 0;
+        }
+        int size = 0;
+        for (int i = 6; i < 10; i++) {
+            int digit = b[i] & 0xFF;
+            if (digit >= 0x80) {
+                throw new IllegalArgumentException("malformed MP3: the ID3v2 tag's size is not "
+                        + "synchsafe");
+            }
+            size = size << 7 | digit;
+        }
+        long end = 10L + size + ((b[5] & 0x10) != 0 ? 10 : 0);
+        if (end > b.length) {
+            throw new IllegalArgumentException("malformed MP3: the ID3v2 tag claims " + size
+                    + " bytes and the file holds " + (b.length - 10) + " after its header");
+        }
+        return (int) end;
+    }
+
+    private static java.io.InputStream audioAfterTag(byte[] bytes) {
+        int start = audioStart(bytes);
+        return new java.io.ByteArrayInputStream(bytes, start, bytes.length - start);
+    }
+
     private static AudioClip decodeMp3(byte[] bytes) {
         javazoom.jl.decoder.Bitstream bitstream =
-                new javazoom.jl.decoder.Bitstream(new java.io.ByteArrayInputStream(bytes));
+                new javazoom.jl.decoder.Bitstream(audioAfterTag(bytes));
         javazoom.jl.decoder.Decoder decoder = new javazoom.jl.decoder.Decoder();
         short[] pcm = new short[1 << 16];
         int used = 0;
@@ -574,8 +608,7 @@ final class AudioFileDecoder implements AudioDecoder {
         private int primedRate;
 
         private void openBitstream() {
-            bitstream = new javazoom.jl.decoder.Bitstream(
-                    new java.io.ByteArrayInputStream(encoded));
+            bitstream = new javazoom.jl.decoder.Bitstream(audioAfterTag(encoded));
             decoder = new javazoom.jl.decoder.Decoder();
             ended = false;
         }

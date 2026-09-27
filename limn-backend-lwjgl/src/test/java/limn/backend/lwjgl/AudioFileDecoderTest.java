@@ -10,6 +10,7 @@ import java.nio.ByteOrder;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * WAV parsing and format sniffing of {@link AudioFileDecoder}, driven with
@@ -60,6 +61,50 @@ class AudioFileDecoderTest {
         IllegalArgumentException ex =
                 assertThrows(IllegalArgumentException.class, () -> decoder.decode(id3));
         assertEquals(true, ex.getMessage().contains("MP3"));
+    }
+
+    /**
+     * An ID3v2 tag's size is the file's to state, and the MP3 decoder allocated whatever it said
+     * before reading a byte of it: sixteen bytes claiming the largest size asked for 256 MB, and a
+     * stream asked again on every loop. The size is now checked against the file first.
+     */
+    @Test
+    void anId3TagLargerThanItsFileIsRefusedWithoutAllocatingIt() throws Exception {
+        byte[] lying = {'I', 'D', '3', 4, 0, 0, 0x7F, 0x7F, 0x7F, 0x7F, 0, 0, 0, 0, 0, 0};
+        com.sun.management.ThreadMXBean threads =
+                (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+        long before = threads.getCurrentThreadAllocatedBytes();
+        IllegalArgumentException refused =
+                assertThrows(IllegalArgumentException.class, () -> decoder.decode(lying));
+        long allocated = threads.getCurrentThreadAllocatedBytes() - before;
+        assertTrue(allocated < 8 << 20, "allocated " + allocated + " bytes for a 16-byte file");
+        assertTrue(refused.getMessage().contains("ID3"), refused.getMessage());
+
+        java.nio.file.Path file = java.nio.file.Files.createTempFile("limn-id3", ".mp3");
+        try {
+            java.nio.file.Files.write(file, lying);
+            long streamBefore = threads.getCurrentThreadAllocatedBytes();
+            assertThrows(IllegalArgumentException.class, () -> decoder.openStream(file));
+            long streamAllocated = threads.getCurrentThreadAllocatedBytes() - streamBefore;
+            assertTrue(streamAllocated < 8 << 20, "the stream allocated " + streamAllocated);
+        } finally {
+            java.nio.file.Files.deleteIfExists(file);
+        }
+    }
+
+    /** Where the audio starts: after the tag's header, its size and, when flagged, its footer. */
+    @Test
+    void theAudioStartsWhereTheId3TagSaysItEnds() {
+        byte[] file = new byte[400];
+        byte[] head = {'I', 'D', '3', 4, 0, 0, 0, 0, 0x01, 0x05};   // synchsafe 133
+        System.arraycopy(head, 0, file, 0, head.length);
+        assertEquals(10 + 133, AudioFileDecoder.audioStart(file));
+        file[5] = 0x10;                                               // a footer follows
+        assertEquals(10 + 133 + 10, AudioFileDecoder.audioStart(file));
+        file[9] = (byte) 0x85;                                        // not synchsafe
+        assertThrows(IllegalArgumentException.class, () -> AudioFileDecoder.audioStart(file));
+        assertEquals(0, AudioFileDecoder.audioStart(new byte[] {(byte) 0xFF, (byte) 0xFB, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0}), "no tag, no offset");
     }
 
     @Test
