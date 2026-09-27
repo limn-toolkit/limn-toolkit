@@ -231,10 +231,13 @@ A form long enough to scroll needs two things said, and neither is the default:
 
 {% snippet guide:form-scroll %}
 
-The padding goes **inside** the scroll view. A viewport clips at its own edge, and a focused
-control paints its ring outside its own box, so a field flush against that edge loses the
-ring that says it is focused. Padding around the scroll view does not help: the clip travels
-with the viewport, not with the box around it.
+The padding goes **inside** the scroll view. A viewport clips at its own edge on the axis it
+scrolls, and a focused control paints its ring outside its own box, so a field flush against
+the top or the bottom loses the ring that says it is focused. Padding around the scroll view
+does not help there: the clip travels with the viewport, not with the box around it. The sides
+are different, because nothing scrolls sideways: the view lets a ring through there by the
+reach the theme gives it, or by `paintOverflow(points)` when something draws farther, though
+never into a strip reserved for the bar.
 
 The bar takes a strip of its own rather than floating. Every row of a form ends in something
 the reader is aiming at, and an overlay bar is drawn over the viewport with no knowledge that
