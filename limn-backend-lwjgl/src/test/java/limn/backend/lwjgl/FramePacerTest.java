@@ -24,13 +24,36 @@ class FramePacerTest {
     }, PERIOD);
 
     @Test
-    void aSwapThatDidNotBlockIsFollowedByASleepToThePeriodsEnd() {
+    void swapsThatDidNotBlockAreFollowedByASleepToThePeriodsEndFromTheSecond() {
         assertEquals(0, pacer.afterVsyncedPresent(), "the first present has nothing to measure from");
         now[0] += 300_000; // the next present came 0.3 ms later: the swap did not wait for the blank
-        assertEquals(PERIOD - 300_000, pacer.afterVsyncedPresent());
+        assertEquals(0, pacer.afterVsyncedPresent(), "one short present could be macOS's own");
+        now[0] += 300_000;
+        assertEquals(PERIOD - 300_000, pacer.afterVsyncedPresent(), "two in a row are not");
         now[0] += 300_000;
         assertEquals(PERIOD - 300_000, pacer.afterVsyncedPresent(), "and every one after it");
         assertEquals(List.of(PERIOD - 300_000, PERIOD - 300_000), sleeps);
+    }
+
+    /**
+     * A visible macOS window's blocking swap, as measured on a 120 Hz ProMotion display: a short
+     * return is always followed by a long one. Slept after each short one, the loop lost 5 to 8
+     * frames a second of the 113 to 117 it ran at unpaced.
+     */
+    @Test
+    void theShortThenLongReturnsOfABlockingMacSwapAreNeverSlept() {
+        FramePacer at120 = new FramePacer(() -> now[0], nanos -> {
+            sleeps.add(nanos);
+            now[0] += nanos;
+        }, 8_333_333L);
+        at120.afterVsyncedPresent();
+        long[] measured = {2_900_000, 14_000_000, 8_340_000, 3_100_000, 13_800_000, 8_330_000,
+                2_130_000, 14_500_000};
+        for (long interval : measured) {
+            now[0] += interval;
+            assertEquals(0, at120.afterVsyncedPresent());
+        }
+        assertEquals(List.of(), sleeps);
     }
 
     @Test

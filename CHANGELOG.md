@@ -53,6 +53,10 @@ Maven Central say which number that was.
   every window to the primary's refresh, so a window on a 144 Hz monitor beside a 60 Hz primary
   ran at 60 fps with judder. The rate follows the window when it is dragged to another monitor, and
   where the window's monitor cannot be known (Wayland) the fastest monitor's rate is used.
+- An animation on a 120 Hz ProMotion display runs at 120 fps; it ran at about 111. A macOS swap
+  sometimes returns early and makes up for it on the next, and the loop took each early one for a
+  swap that had not waited and slept. It now sleeps only after two such swaps in a row, which a
+  swap that really does not wait always gives.
 - An Ogg Vorbis file is decoded to the audio it holds, whatever length its last page claims. A
   quarter second claiming 2^30 stereo frames threw, and a smaller false length made the decoder
   allocate gigabytes.

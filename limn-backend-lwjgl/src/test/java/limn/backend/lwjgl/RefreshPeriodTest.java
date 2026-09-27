@@ -56,7 +56,7 @@ class RefreshPeriodTest {
     @Test
     void blockingPresentsOnAFastMonitorAreSleptOnlyUnderTheWrongPeriod() {
         assertEquals(0, sleptAtHz144(RefreshPeriod.forWindow(true, 2500, 500, DESK)));
-        assertEquals(9, sleptAtHz144(HZ_60), "the primary's period slept nine of ten");
+        assertEquals(8, sleptAtHz144(HZ_60), "the primary's period slept every one from the second");
     }
 
     /** How many of ten presents 1/144 s apart the pacer slept after, under {@code period}. */

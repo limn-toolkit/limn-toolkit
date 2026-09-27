@@ -10,10 +10,19 @@ import java.util.function.LongSupplier;
  * a window that is covered, and a driver or a virtual machine may ignore the interval altogether.
  * Measured on 2026-09-22 with a covered window and an indeterminate progress bar: 2,400–2,900 frames a
  * second and 70 % of a core, where the display refreshes 60 times. So after each vsynced present the
- * loop asks this pacer, and a present that came less than half a refresh period after the previous one
- * — a swap that did not block — is followed by a sleep to that period's end. A swap that did block
- * arrives a whole period after the last and sleeps nothing, and neither does the first present after
- * an idle stretch, so a window rendering on demand pays nothing.
+ * loop asks this pacer, and the <b>second</b> present in a row that came less than half a refresh
+ * period after the one before — a swap that did not block — is followed by a sleep to that period's
+ * end, and so is every one after it. A swap that did block arrives a whole period after the last and
+ * sleeps nothing, and neither does the first present after an idle stretch, so a window rendering on
+ * demand pays nothing.
+ *
+ * <p>One short present is not enough, because a visible macOS window's blocking swap does not return
+ * on the blank: on a 120 Hz ProMotion display it returned 2 to 4 ms after the previous one about a
+ * quarter of the time and 14 ms after it the next time, never two short ones in a row (six runs of
+ * 600 swaps, 2026-09-27). Slept after every short one, 96 % of frames slept and the loop ran at
+ * 108–109 fps where the bare swap ran at 113–117, every frame 9.25 ms apart instead of 8.33. A swap
+ * that does not block is short every time (126 in a row with vsync off), so it is still caught, one
+ * frame later.
  */
 final class FramePacer {
 
@@ -27,6 +36,8 @@ final class FramePacer {
     private long periodNanos;
     private long lastPresentNanos;
     private boolean presented;
+    /** How many presents in a row came under half a period after the one before. */
+    private int shortInARow;
 
     FramePacer(LongSupplier clock, Sleeper sleeper, long periodNanos) {
         this.clock = clock;
@@ -44,8 +55,8 @@ final class FramePacer {
     }
 
     /**
-     * Called after an iteration that presented through the vsynced swap. Sleeps when that swap did
-     * not block.
+     * Called after an iteration that presented through the vsynced swap. Sleeps when this swap and
+     * the one before it both did not block.
      *
      * @return how long it slept, in nanoseconds
      */
@@ -54,7 +65,8 @@ final class FramePacer {
         long slept = 0;
         if (presented) {
             long since = now - lastPresentNanos;
-            if (since >= 0 && since < periodNanos / 2) {
+            shortInARow = since >= 0 && since < periodNanos / 2 ? shortInARow + 1 : 0;
+            if (shortInARow >= 2) {
                 slept = periodNanos - since;
                 sleeper.sleepNanos(slept);
                 now = clock.getAsLong();
