@@ -50,6 +50,22 @@ Adopted version: LWJGL **3.4.1** (BOM), with natives per classifier
   the extra JNI binding today; the SPI described below allows a
   `limn-backend-sdl3` in the future without touching the upper modules.
 
+*Note, 2026-09-26: the first reason above no longer holds.* LWJGL itself now
+binds SDL3: the 3.4.3 BOM this repository pins (`gradle/libs.versions.toml`;
+the 3.4.1 above is the version first adopted) lists `lwjgl-sdl`, with natives
+for every platform Limn builds for, and its macOS arm64 library reports SDL
+3.4.14. So SDL3 would cost no third-party binding and no FFM. A spike on
+2026-09-25 wrote a thin SDL3 backend outside this repository and measured it on
+macOS, Fedora KDE on Wayland, Ubuntu GNOME on X11, Windows 11 at 250% and a Mac
+with no GPU; it worked in all five, and the accessibility bridges attached to
+its windows. Limn stays on GLFW all the same, by the maintainers' decision of
+that day: the swap is the largest item on the road map (about 3.3 thousand
+lines of the backend rewritten, the screen-reader and IME rounds redone, 1.6 to
+2.3 MB more natives per platform), and what the spike found wrong in the
+application-facing SPI is being fixed on GLFW instead. The last bullet's point
+stands: the SPI still keeps an SDL3 backend possible without touching the
+modules above it.
+
 ### Why OpenGL 3.3 core?
 
 It is the real greatest common denominator: Windows/Linux have GL ≥ 3.3 on any
