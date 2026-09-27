@@ -81,6 +81,17 @@ Maven Central say which number that was.
 - A focus ring at the edge of a layout is no longer bitten off when something beside the layout
   repaints: every layout that does not clip now declares the ring's reach, so a repaint that lands
   just outside it paints it too.
+- No colour shows outside a rounded border's corners any more. Every bordered surface filled the
+  whole box and stroked its border half a point in with the same radius, so at the corners the fill
+  reached past the border: most visible on the `ColorPicker`'s gradients and the
+  `ColorPickerButton`'s swatch, where saturated pixels sat outside the grey outline.
+- A partial repaint that cuts across a rounded surface draws exactly what a whole frame draws
+  there. The rounded clip took its corners from the repainted rectangle, so dark arcs appeared
+  inside a rounded field or ramp wherever a repaint region crossed it.
+- A focus ring or the `ColorPicker`'s cursor at the side edge of a dialog's body, or at its bottom
+  when the body fits, is drawn whole; the body clipped it although nothing scrolled there.
+- An in-scene `Dialog` stops repainting once it has settled; it redrew the strip where its scroll
+  bar lives on every frame, so the loop never idled while one was open.
 - `DateField` and `SearchField` leave every key to the input method while a composition is under
   way, as `TextField` and `TextArea` do; Enter ran a search and the arrows stepped a date segment.
 - Charts and tables write the separators and minus sign that go with the digits they show: under
@@ -111,6 +122,13 @@ Maven Central say which number that was.
   `paintOverflowFromTheme()` goes back to the default: the theme's focus-ring reach
   (`Theme.focusRingReach()`, 3 pt). A child that paints farther, as the `ColorPicker`'s cursor ring
   does, is declared on the layouts above it.
+- `ScrollView.paintOverflow(float)` and `paintOverflowFromTheme()`: a scroll view lets its content
+  paint that far past the viewport on an axis it does not scroll, or one whose content fits, so a
+  focus ring at the edge of a dialog's body is drawn whole. The default is the theme's focus-ring
+  reach; a dialog's body uses its card's padding.
+- `Canvas.fillRoundRectWithBorder`, `drawRoundRectBorder`, `fillRoundRectInsideBorder` and
+  `clipRoundRectInsideBorder` draw a bordered rounded surface the way every widget now does: the
+  border concentric with the box and the fill kept under the border's centre line.
 - `I18n.observeUnresolvedKeys` tells an application which keys no bundle translates, so a typo or a
   file that fell behind stops showing its English silently. Each key is reported once per
   language, as an `UnresolvedKey`; with no listener, each is logged once. English locales, and a
@@ -125,6 +143,9 @@ Maven Central say which number that was.
 
 ### Changed
 
+- The `ColorPicker`'s hue thumb is the channel rails' thumb laid across the ramp: it stands proud
+  of the ramp on both sides, and it is hollow, with the hue it marks in its middle. It was a thin
+  bar inside the ramp that covered the hue it pointed at.
 - A number a user types into a `Spinner` and the spinner refuses is announced to screen readers,
   politely, in the spinner's language: "“1.234” not accepted, still 7". A value an assistive
   technology sets as text and the spinner refuses is announced the same way, since no platform can
