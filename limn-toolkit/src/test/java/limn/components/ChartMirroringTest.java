@@ -329,6 +329,16 @@ class ChartMirroringTest extends ComponentTestBase {
         chart.setValueFormat(value -> "9"); // a fixed width, so the columns are arithmetic
     }
 
+    /**
+     * The tooltip panel's box, read off the first fill of the frame, which is the panel's: that
+     * fill stops at the border's centre line, half a border inside the box on every side.
+     */
+    private float[] panel() {
+        float[] fill = canvas.fills.get(0);
+        float half = Strokes.BORDER / 2;
+        return new float[] {fill[0] - half, fill[1] - half, fill[2] + 2 * half, fill[3] + 2 * half};
+    }
+
     /** The panel the tooltip sizes itself to: the wider of the heading and the one row. */
     private static float panelWidth() {
         float row = SWATCH + GAP_ICON + runWidth("s") + GAP + runWidth("9");
@@ -342,7 +352,7 @@ class ChartMirroringTest extends ComponentTestBase {
         hover(200, 150);
 
         float px = 200 - TOOLTIP_OFFSET - panelWidth();
-        assertEquals(px, canvas.fills.get(0)[0], EPS, "the panel leads the pointer to the left");
+        assertEquals(px, panel()[0], EPS, "the panel leads the pointer to the left");
 
         // ...and the two columns swap with it, in the same pass. The heading and the row's name
         // are flush to the panel's trailing pad; the value takes the far column.
@@ -362,7 +372,7 @@ class ChartMirroringTest extends ComponentTestBase {
         hover(200, 150);
 
         float px = 200 + TOOLTIP_OFFSET;
-        assertEquals(px, canvas.fills.get(0)[0], EPS);
+        assertEquals(px, panel()[0], EPS);
         assertEquals(px + TIP_PAD_H, textOf("cat").x(), EPS);
         assertEquals(px + TIP_PAD_H, canvas.fills.get(1)[0], EPS);
         assertEquals(px + TIP_PAD_H + SWATCH + GAP_ICON, textOf("s").x(), EPS);
@@ -376,13 +386,13 @@ class ChartMirroringTest extends ComponentTestBase {
         build(LayoutDirection.RTL);
         oneSeries();
         hover(20, 150);
-        assertEquals(20 + TOOLTIP_OFFSET, canvas.fills.get(0)[0], EPS,
+        assertEquals(20 + TOOLTIP_OFFSET, panel()[0], EPS,
                 "no room on the leading side, so it takes the other one");
 
         build(LayoutDirection.LTR);
         oneSeries();
         hover(380, 150);
-        assertEquals(380 - TOOLTIP_OFFSET - panelWidth(), canvas.fills.get(0)[0], EPS,
+        assertEquals(380 - TOOLTIP_OFFSET - panelWidth(), panel()[0], EPS,
                 "which is what it has always done at the right-hand edge");
     }
 
@@ -393,12 +403,12 @@ class ChartMirroringTest extends ComponentTestBase {
         build(LayoutDirection.LTR);
         oneSeries();
         hover(200, 150);
-        float ltrY = canvas.fills.get(0)[1];
+        float ltrY = panel()[1];
 
         build(LayoutDirection.RTL);
         oneSeries();
         hover(200, 150);
-        assertEquals(ltrY, canvas.fills.get(0)[1], EPS,
+        assertEquals(ltrY, panel()[1], EPS,
                 "there is nothing on the vertical axis for a direction to say");
         assertEquals(150 + TOOLTIP_OFFSET, ltrY, EPS);
     }

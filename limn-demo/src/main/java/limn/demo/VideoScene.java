@@ -1068,10 +1068,8 @@ final class VideoScene {
             float pillHeight = Math.min(height(), metrics.height() + 2 * padY);
             float left = (width() - pillWidth) / 2;
             float top = (height() - pillHeight) / 2;
-            canvas.fillRoundRect(left, top, pillWidth, pillHeight, tokens.radiusSmall(),
-                    theme.surfaceRaised());
-            canvas.drawRoundRect(left + 0.5f, top + 0.5f, pillWidth - 1, pillHeight - 1,
-                    tokens.radiusSmall(), limn.components.Strokes.BORDER, theme.outline());
+            canvas.fillRoundRectWithBorder(left, top, pillWidth, pillHeight, tokens.radiusSmall(),
+                    theme.surfaceRaised(), limn.components.Strokes.BORDER, theme.outline());
             canvas.drawText(notice, left + (pillWidth - metrics.width()) / 2,
                     top + (pillHeight - metrics.height()) / 2 + metrics.ascent(), font, theme.text());
         }

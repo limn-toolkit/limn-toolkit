@@ -277,7 +277,7 @@ class ToolBarMirroringTest extends ComponentTestBase {
         }
     }
 
-    /** Records the round rects a frame fills; the first a cascade paints is its column. */
+    /** Records the round rects a frame fills; the first a cascade paints is its column's. */
     private static final class ColumnCanvas extends FakeCanvas {
         final List<RoundRect> roundRects = new ArrayList<>();
 
@@ -317,7 +317,11 @@ class ToolBarMirroringTest extends ComponentTestBase {
         ColumnCanvas canvas = new ColumnCanvas(SCENE_W, SCENE_H);
         menuScene.renderFrame(canvas);
         assertFalse(canvas.roundRects.isEmpty(), "no cascade was painted");
-        RoundRect column = canvas.roundRects.get(0);
+        // The column's fill stops at its border's centre line, half a border inside the column.
+        RoundRect fill = canvas.roundRects.get(0);
+        float half = Strokes.BORDER / 2;
+        RoundRect column = RoundRect.of(fill.x() - half, fill.y() - half,
+                fill.width() + 2 * half, fill.height() + 2 * half, 0);
         assertTrue(column.x() > 0 && column.x() + column.width() < SCENE_W,
                 "the column was clamped to the bounds, so its edges prove nothing: " + column.x());
         return column;

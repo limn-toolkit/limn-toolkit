@@ -208,9 +208,8 @@ final class CursorsScene {
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
             Color fill = theme.surface().lerp(theme.surfaceRaised(), hover.value());
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), fill);
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(),
-                    1, theme.outline().lerp(theme.primaryHover(), hover.value()));
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(),
+                    fill, 1, theme.outline().lerp(theme.primaryHover(), hover.value()));
             Font font = theme.body();
             TextMetrics m = textRuler().measure(label, font);
             canvas.drawText(label, (width() - m.width()) / 2,
@@ -240,9 +239,8 @@ final class CursorsScene {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(),
-                    inside ? theme.surfaceRaised() : theme.surface());
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(),
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(),
+                    inside ? theme.surfaceRaised() : theme.surface(),
                     1, inside ? theme.primaryHover() : theme.outline());
             String text = inside ? "Cursor hidden; move out to restore" : "Hover to hide the cursor";
             Font font = theme.body();
@@ -310,9 +308,8 @@ final class CursorsScene {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(),
-                    captured ? theme.surfaceRaised() : theme.surface());
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(),
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(),
+                    captured ? theme.surfaceRaised() : theme.surface(),
                     1, captured ? theme.primary() : theme.outline());
 
             // Dial: a circle with a needle at 'angle'.
@@ -402,9 +399,8 @@ final class CursorsScene {
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
             Color fill = theme.surface().lerp(theme.surfaceRaised(), hover.value());
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), fill);
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(),
-                    1, theme.outline().lerp(theme.primaryHover(), hover.value()));
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(),
+                    fill, 1, theme.outline().lerp(theme.primaryHover(), hover.value()));
             Font font = theme.body();
             TextMetrics m = textRuler().measure(label, font);
             canvas.drawText(label, (width() - m.width()) / 2,

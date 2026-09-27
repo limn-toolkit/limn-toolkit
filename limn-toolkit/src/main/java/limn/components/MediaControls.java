@@ -473,10 +473,8 @@ public final class MediaControls extends Widget<MediaControls> {
         if (backdrop) {
             Theme theme = Theme.of(this);
             float radius = Theme.of(this).tokensFor(this).radiusMedium();
-            canvas.fillRoundRect(0, 0, width(), height(), radius,
-                    theme.surface().withAlpha(0.92f));
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, radius,
-                    Strokes.BORDER, theme.outline());
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), radius,
+                    theme.surface().withAlpha(0.92f), Strokes.BORDER, theme.outline());
         }
         if (!polling && scene() != null && isShowing()) {
             polling = true;

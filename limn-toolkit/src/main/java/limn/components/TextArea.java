@@ -1673,8 +1673,6 @@ public final class TextArea extends Widget<TextArea> {
         float padX = t.fieldPadH();
         float padY = t.areaPad();
 
-        canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(),
-                isEnabled() ? theme.surface() : theme.disabledFill());
         float focus = focusFade.value();
         Color border = switch (validation) {
             case NONE -> theme.outline().lerp(theme.focusRing(), focus);
@@ -1683,11 +1681,11 @@ public final class TextArea extends Widget<TextArea> {
             case SUCCESS -> theme.success();
             case INFO -> theme.info();
         };
-        // ONE stroke that thickens continuously 1 -> 2 as the fade runs. A ternary here
-        // (focus > 0 ? FOCUS_RING : BORDER) deletes the animation outright.
-        canvas.drawRoundRect(Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
-                width() - 2 * Strokes.HALF_PIXEL_INSET, height() - 2 * Strokes.HALF_PIXEL_INSET,
-                t.radiusMedium(),
+        // ONE stroke that thickens continuously 1 -> 2 as the fade runs, inward, so the box
+        // stays the box. A ternary here (focus > 0 ? FOCUS_RING : BORDER) deletes the
+        // animation outright.
+        canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusMedium(),
+                isEnabled() ? theme.surface() : theme.disabledFill(),
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus, border);
 
         canvas.save();

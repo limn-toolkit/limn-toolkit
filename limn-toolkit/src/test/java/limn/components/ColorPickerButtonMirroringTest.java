@@ -180,19 +180,18 @@ class ColorPickerButtonMirroringTest extends ComponentTestBase {
 
     @Test
     void theFaceAndItsBorderCoverTheWholeBoxInBothDirections() {
+        // The border lies inside the box, its path half a border in, and the face stops on that
+        // path: both are the same symmetric inset of the whole box, in either direction.
         build(LayoutDirection.RTL);
         Frame rtl = paint();
-        float inset = Strokes.HALF_PIXEL_INSET;
+        float inset = Strokes.BORDER / 2;
 
-        assertTrue(hasRoundRect(rtl, 0, 0, WIDTH, HEIGHT),
-                "the face is the whole box; there is no side of it to choose");
-        assertTrue(hasRoundRect(rtl, inset, inset, WIDTH - 2 * inset, HEIGHT - 2 * inset),
-                "and the border is a symmetric inset of it");
+        assertEquals(2, countRoundRects(rtl, inset, inset, WIDTH - 2 * inset, HEIGHT - 2 * inset),
+                "the face and its border are the whole box; there is no side of it to choose");
 
         build(LayoutDirection.LTR);
         Frame ltr = paint();
-        assertTrue(hasRoundRect(ltr, 0, 0, WIDTH, HEIGHT));
-        assertTrue(hasRoundRect(ltr, inset, inset, WIDTH - 2 * inset, HEIGHT - 2 * inset));
+        assertEquals(2, countRoundRects(ltr, inset, inset, WIDTH - 2 * inset, HEIGHT - 2 * inset));
     }
 
     // ------------------------------------------------------ the shaper's fallback
@@ -343,14 +342,15 @@ class ColorPickerButtonMirroringTest extends ComponentTestBase {
         return captionLine(frame).x();
     }
 
-    private boolean hasRoundRect(Frame frame, float x, float y, float w, float h) {
+    private int countRoundRects(Frame frame, float x, float y, float w, float h) {
+        int count = 0;
         for (Fill fill : frame.roundRects()) {
             if (Math.abs(fill.x() - x) < EPS && Math.abs(fill.y() - y) < EPS
                     && Math.abs(fill.w() - w) < EPS && Math.abs(fill.h() - h) < EPS) {
-                return true;
+                count++;
             }
         }
-        return false;
+        return count;
     }
 
     /**

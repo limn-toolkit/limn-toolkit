@@ -9,7 +9,6 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
-import limn.graphics.RoundRect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18nString;
@@ -424,10 +423,7 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
         Color fill = !isEnabled() ? theme.disabledFill()
                 : isArmed() ? theme.outline()
                 : theme.surface().lerp(theme.surfaceRaised(), hover.value());
-        canvas.fillRoundRect(0, 0, w, h, radius, fill);
-        float inset = Strokes.HALF_PIXEL_INSET; // lands the 1pt stroke on one device pixel
-        canvas.drawRoundRect(inset, inset, w - 2 * inset, h - 2 * inset, radius,
-                Strokes.BORDER, theme.outline());
+        canvas.fillRoundRectWithBorder(0, 0, w, h, radius, fill, Strokes.BORDER, theme.outline());
 
         float chip = t.iconBox();
         // The chip is the leading item of the pair, so its left edge is one pad in from the
@@ -474,16 +470,17 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
     private void paintChip(Canvas canvas, SizeTokens t, Theme theme,
                            float x, float y, float w, float h) {
         float radius = t.radiusSmall();
+        // Clipped to the border's centre line rather than to the box, so the border covers the
+        // colour's edge: a strong colour clipped to the box shows past a grey border's corners.
         canvas.save();
-        canvas.clipRoundRect(RoundRect.of(x, y, w, h, radius));
+        canvas.clipRoundRectInsideBorder(x, y, w, h, radius, Strokes.BORDER);
         if (color.a() < 1f) {
             ColorPicker.paintChecker(canvas, t, x, y, w, h);
         }
         canvas.fillRect(x, y, w, h,
                 isEnabled() ? color : color.lerp(theme.disabledFill(), 0.6f));
         canvas.restore();
-        canvas.drawRoundRect(x + Strokes.HALF_PIXEL_INSET, y + Strokes.HALF_PIXEL_INSET,
-                w - 1, h - 1, radius, Strokes.BORDER, theme.outline());
+        canvas.drawRoundRectBorder(x, y, w, h, radius, Strokes.BORDER, theme.outline());
     }
 
     /** @return whether the button currently renders in its pressed state */

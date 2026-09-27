@@ -1273,10 +1273,9 @@ public final class DatePicker extends Widget<DatePicker> {
         float w = width();
         float h = height();
 
-        canvas.fillRoundRect(0, 0, w, h, radius, enabled ? theme.surface() : theme.disabledFill());
         boolean invalid = !field.isValid() || endField != null && !endField.isValid();
-        float half = Strokes.HALF_PIXEL_INSET;
-        canvas.drawRoundRect(half, half, w - 2 * half, h - 2 * half, radius,
+        canvas.fillRoundRectWithBorder(0, 0, w, h, radius,
+                enabled ? theme.surface() : theme.disabledFill(),
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
                 invalid ? theme.danger() : theme.outline().lerp(theme.focusRing(), focus));
 
@@ -1594,12 +1593,9 @@ public final class DatePicker extends Widget<DatePicker> {
             // desktop shows through and the rounded corners are genuinely transparent, while in
             // the scene the same translucency would composite over the form underneath, and a
             // calendar you can read the form through is not frosted glass, it is unreadable.
-            canvas.fillRoundRect(0, 0, width(), height(), radius,
-                    scenePopup != null ? theme.surfaceRaised() : theme.surfaceRaised().withAlpha(0.94f));
-            canvas.drawRoundRect(Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
-                    width() - 2 * Strokes.HALF_PIXEL_INSET,
-                    height() - 2 * Strokes.HALF_PIXEL_INSET, radius, Strokes.BORDER,
-                    theme.outline());
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), radius,
+                    scenePopup != null ? theme.surfaceRaised() : theme.surfaceRaised().withAlpha(0.94f),
+                    Strokes.BORDER, theme.outline());
             if (fading) {
                 canvas.restore();
             }

@@ -255,9 +255,8 @@ final class FilesScene {
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
             float radius = theme.tokensFor(this).radiusMedium();
-            canvas.fillRoundRect(0, 0, width(), height(), radius, theme.surfaceRaised());
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1,
-                    radius, 1, theme.outline());
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), radius, theme.surfaceRaised(),
+                    1, theme.outline());
             Font font = theme.body();
             if (dropped.isEmpty()) {
                 drawCentered(canvas, "Drop files here", font, 0, 1);

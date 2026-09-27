@@ -4018,8 +4018,7 @@ public final class Scene {
         float h = rect.height();
         canvas.save();
         canvas.setOpacity(tooltipAlpha);
-        canvas.fillRoundRect(x, y, w, h, style.radius(), style.fill());
-        canvas.drawRoundRect(x + 0.5f, y + 0.5f, w - 1, h - 1, style.radius(), 1, style.border());
+        canvas.fillRoundRectWithBorder(x, y, w, h, style.radius(), style.fill(), 1, style.border());
         // Inside the pad on the side reading starts from; the panel was sized from this very
         // line, so the two pads are equal and the run fills what is between them.
         float textX = tooltipDirection().isRightToLeft()

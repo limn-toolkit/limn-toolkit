@@ -42,7 +42,10 @@ class SegmentedControlTest extends ComponentTestBase {
     private static final class RecordingCanvas extends FakeCanvas {
         final List<String> texts = new java.util.ArrayList<>();
         final List<float[]> clips = new java.util.ArrayList<>();
-        /** The first filled round rect of a paint is the track; {x, y, w, h}. */
+        /**
+         * The track, {x, y, w, h}, read off the first stroked round rect of a paint: the track's
+         * border, which lies inside the track, so its outer edge is the track.
+         */
         float[] track;
 
         RecordingCanvas(float width, float height) {
@@ -50,10 +53,11 @@ class SegmentedControlTest extends ComponentTestBase {
         }
 
         @Override
-        public void fillRoundRect(float x, float y, float w, float h, float radius,
-                                  limn.graphics.Paint paint) {
+        public void drawRoundRect(float x, float y, float w, float h, float radius,
+                                  float strokeWidth, limn.graphics.Paint paint) {
             if (track == null) {
-                track = new float[] { x, y, w, h };
+                float half = strokeWidth / 2;
+                track = new float[] { x - half, y - half, w + strokeWidth, h + strokeWidth };
             }
         }
 

@@ -298,10 +298,9 @@ public final class Checkbox extends Widget<Checkbox> {
         }
         float focus = focusFade.value();
         if (focus > 0.001f) {
-            // The gap is 1.5. The box border is a
-            // 1.5pt pen centred on the 0.5 inset, so its outer ink edge is 0.25pt OUTSIDE the
-            // nominal box; a ring 1pt out landed its inner ink edge on exactly that line and the
-            // two strokes fused into one thick seam. At 1.5 there is 0.5pt of clear ground.
+            // The gap is 1.5, as wide as the two pens it separates. The box border lies inside
+            // the box, its outer ink edge on the box's outline, and the ring's inner ink edge
+            // is 0.75pt out from that; a narrower gap reads the two strokes as one thick seam.
             float gap = Strokes.FOCUS_GAP_INDICATOR;
             canvas.drawRoundRect(left - gap, cy - gap, indicatorWidth(t) + 2 * gap,
                     indicatorHeight(t) + 2 * gap, t.indicatorFocusRadius(),
@@ -345,14 +344,15 @@ public final class Checkbox extends Widget<Checkbox> {
         Color border = !isEnabled() ? theme.disabledFill()
                 : p > 0 ? theme.primary()
                 : theme.outline().lerp(theme.primaryHover(), hover.value());
-        // Fill fades in with the animation.
+        // Fill fades in with the animation, under the border and no further than its centre
+        // line; the border lies inside the box.
         if (p > 0) { // a fill at alpha 0 draws nothing, and building its colour allocated
             Color fill = (isEnabled() ? theme.primary() : theme.disabledFill()).withAlpha(p);
-            canvas.fillRoundRect(left, top, box, box, t.indicatorRadius(), fill);
+            canvas.fillRoundRectInsideBorder(left, top, box, box, t.indicatorRadius(),
+                    Strokes.INDICATOR_BORDER, fill);
         }
-        canvas.drawRoundRect(left + Strokes.HALF_PIXEL_INSET, top + Strokes.HALF_PIXEL_INSET,
-                box - Strokes.BORDER, box - Strokes.BORDER,
-                t.indicatorRadius(), Strokes.INDICATOR_BORDER, border);
+        canvas.drawRoundRectBorder(left, top, box, box, t.indicatorRadius(),
+                Strokes.INDICATOR_BORDER, border);
         if (p > 0.05f) {
             Color ink = (isEnabled() ? theme.onPrimary() : theme.disabledText()).withAlpha(p);
             // The mark's extent follows the box; its pen does not (Strokes.CHECK_MARK).
@@ -381,10 +381,11 @@ public final class Checkbox extends Widget<Checkbox> {
         Color off = isEnabled() ? theme.surfaceRaised() : theme.disabledFill();
         Color on = isEnabled() ? theme.primary() : theme.disabledFill();
         Color track = off.lerp(on, p);
+        // The whole track, not only what the border surrounds: the border fades out as the
+        // track fills with the accent, and an ON track has to be the full pill.
         canvas.fillRoundRect(left, top, trackW, trackH, trackH / 2, track);
-        canvas.drawRoundRect(left + Strokes.HALF_PIXEL_INSET, top + Strokes.HALF_PIXEL_INSET,
-                trackW - Strokes.BORDER, trackH - Strokes.BORDER,
-                trackH / 2, Strokes.BORDER, theme.outline().withAlpha(1 - p));
+        canvas.drawRoundRectBorder(left, top, trackW, trackH, trackH / 2, Strokes.BORDER,
+                theme.outline().withAlpha(1 - p));
         float inset = t.switchThumbInset();
         float thumbRadius = trackH / 2 - inset;
         // The thumb's travel is a horizontal value axis, so its low end is the leading one: OFF is
