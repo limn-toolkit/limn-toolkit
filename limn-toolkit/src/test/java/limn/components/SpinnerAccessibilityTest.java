@@ -4,6 +4,9 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.ValueFacet;
+import limn.graphics.Color;
+import limn.graphics.Paint;
+import limn.graphics.RoundRect;
 import limn.i18n.I18n;
 import limn.input.Keys;
 import limn.scene.LayoutDirection;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
@@ -1052,6 +1056,53 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(List.of("„1.2.3“ nicht übernommen, bleibt bei 8"), announced(),
                 "a reader's press on the arrow commits as a click does, and says so as one does: "
                         + bridge.events);
+    }
+
+    /**
+     * A set by text that does not read is refused as a typed commit is, and that refusal flashes:
+     * the sentence is for a reader, and a person dictating, or typing into a reader's own prompt,
+     * may be watching the field instead. A number that is not finite is a client's defect and not
+     * words a person gave, so it neither flashes nor is said.
+     */
+    @Test
+    void aRefusedSetByTextFlashesAndANumberThatIsNotFiniteDoesNot() throws Exception {
+        bindSpinner(new Spinner(0, 99, 1).setValue(7));
+        long id = spinnerNode().id();
+        assertFalse(flashing(), "the fixture is not refusing");
+
+        perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfValue(Double.NaN));
+        perform(id, Accessible.Action.SET_VALUE,
+                new Accessible.Argument.OfValue(Double.POSITIVE_INFINITY));
+        frame();
+        assertFalse(flashing(), "a client's NaN is not a refusal anyone sees");
+
+        perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("1.2.3"));
+        frame();
+        assertEquals(7.0, spinner.value());
+        assertTrue(flashing(),
+                "a refused text flashes, as every refusal of words a person gave does");
+    }
+
+    /**
+     * Whether the spinner's border is painted in the danger colour, read off the last round rect
+     * a frame strokes, which is the outer border. The spinner is damaged first because a frame
+     * repaints only what moved. Time does not pass here unless a case moves it, so a refusal's
+     * flash sits at full colour until then.
+     */
+    private boolean flashing() {
+        spinner.invalidate();
+        AtomicReference<Paint> last = new AtomicReference<>();
+        scene.renderFrame(new FakeCanvas(400, 300) {
+            @Override
+            public void drawRoundRect(RoundRect roundRect, float strokeWidth, Paint paint) {
+                last.set(paint);
+            }
+        });
+        Color border = (Color) last.get();
+        Color danger = Theme.of(spinner).danger();
+        float eps = 1e-5f;
+        return Math.abs(danger.r() - border.r()) < eps && Math.abs(danger.g() - border.g()) < eps
+                && Math.abs(danger.b() - border.b()) < eps && Math.abs(danger.a() - border.a()) < eps;
     }
 
     @Test

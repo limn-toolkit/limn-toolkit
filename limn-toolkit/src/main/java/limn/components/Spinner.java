@@ -644,7 +644,7 @@ public final class Spinner extends Widget<Spinner> {
      *
      * <p>A screen reader is told, politely, since the flash is for eyes and nothing in the tree
      * moves: the node carries the committed value and never carried the typed text, and the value
-     * did not change. See {@link #announceRefused}.
+     * did not change. See {@link #refuse}.
      */
     private void commitEdit() {
         if (edit == null) {
@@ -657,13 +657,29 @@ public final class Spinner extends Widget<Spinner> {
         if (parsed != null) {
             apply(parsed, Change.Origin.USER);
         } else {
-            // From full colour back to none, restarted if a second refusal lands mid-fade: the
-            // snap is what makes a quick retype that is refused again flash again.
-            refusedFlash.snap(1);
-            refusedFlash.to(0);
-            announceRefused(typed);
+            refuse(typed);
         }
         invalidate();
+    }
+
+    /**
+     * Refuses {@code typed}, text a person gave that does not read as a value: the border flashes
+     * the theme's danger colour and a screen reader is told what was typed and what stands (see
+     * {@link #announceRefused}). Every path that refuses text a person gave goes through here — a
+     * commit by Enter, by focus leaving and by reaching for an arrow, and a set by text from an
+     * assistive technology — so that none of them can show a refusal to the eye and keep it from
+     * the ear, or the other way round: a person who dictated a number, or typed it into a
+     * reader's own prompt, may be watching the field rather than listening to it.
+     *
+     * <p>The flash runs from full colour back to none, and restarts if a second refusal lands
+     * mid-fade: the snap is what makes a quick retype that is refused again flash again.
+     *
+     * @param typed the text that did not read as a value
+     */
+    private void refuse(String typed) {
+        refusedFlash.snap(1);
+        refusedFlash.to(0);
+        announceRefused(typed);
     }
 
     /**
@@ -674,9 +690,7 @@ public final class Spinner extends Widget<Spinner> {
 
     /**
      * Says that {@code typed} was not taken, and what stands instead: {@code “1.234” not accepted,
-     * still 7}. Every path that refuses text a person gave goes through here — a commit by Enter,
-     * by focus leaving and by reaching for an arrow, and a set by text from an assistive
-     * technology.
+     * still 7}. The spoken half of {@link #refuse}, which is how every refusal reaches it.
      *
      * <p>The sentence is built here and handed over finished rather than queued as a string to be
      * resolved later, because a queued string is resolved in the language of the whole scene when
@@ -1826,14 +1840,15 @@ public final class Spinner extends Widget<Spinner> {
      * and applies through the from-the-user path, never through {@code setValue}, which is the
      * silent one and would move the value while telling the application nothing.
      *
-     * <p><b>A text that does not read is said</b>, in the sentence a refused typed commit gets
-     * ({@code “1.234” not accepted, still 7}), and a number that is not finite is not. The
-     * platform cannot report it: a bridge answers the client from the published tree before the
-     * set reaches this method, so a client that wrote a text is told it was taken whatever
-     * happens here, and without the sentence the only sign would be a value that never moved. A
-     * text is what a person dictated or typed into an assistive technology's own prompt; a
-     * {@code NaN} or an infinity is a client's defect, and saying it would speak to the user
-     * about somebody else's bug.
+     * <p><b>A text that does not read is refused as a typed commit is</b>: the border flashes, and
+     * the sentence a refused commit gets is said ({@code “1.234” not accepted, still 7}). A number
+     * that is not finite gets neither. The platform cannot report the refusal: a bridge answers
+     * the client from the published tree before the set reaches this method, so a client that
+     * wrote a text is told it was taken whatever happens here, and without the sentence the only
+     * sign would be a value that never moved. A text is what a person dictated or typed into an
+     * assistive technology's own prompt, and that person may be watching the field as much as
+     * listening to it, so the flash is theirs too; a {@code NaN} or an infinity is a client's
+     * defect, and flashing or saying it would show the user somebody else's bug.
      *
      * <p>The enabled check is the one the key path keeps for itself; the scene has already
      * re-checked the ancestor chain, showing and modality before the call arrives. What a reader
@@ -1851,8 +1866,8 @@ public final class Spinner extends Widget<Spinner> {
 
     /**
      * The spinner's mechanisms as the value shape drives them: a step is the key's
-     * path, a set reads a text through the same {@link #parse} a typed commit does, says a text it
-     * cannot read as a typed commit's refusal is said, cancels the edit and applies from the user.
+     * path, a set reads a text through the same {@link #parse} a typed commit does, refuses a text
+     * it cannot read as a typed commit is refused, cancels the edit and applies from the user.
      */
     private final class ValueHost implements ValueAccessibility.Host {
         @Override
@@ -1872,11 +1887,11 @@ public final class Spinner extends Widget<Spinner> {
                 if (parsed != null && Double.isFinite(parsed)) {
                     return parsed;
                 }
-                // Said, as a typed commit's refusal is, and here it is the only word anyone will
-                // get: the bridge answered the client before this ran, so the client believes the
-                // text was taken. A number that is not finite is not said -- that is a client's
-                // mistake, not words a person gave.
-                announceRefused(text.text());
+                // Refused as a typed commit is, flash and sentence alike, and here the sentence is
+                // the only word a reader will get: the bridge answered the client before this ran,
+                // so the client believes the text was taken. A number that is not finite is
+                // neither flashed nor said -- that is a client's mistake, not words a person gave.
+                refuse(text.text());
                 return Double.NaN;
             }
             return Accessible.Argument.finiteValueOf(arg);
