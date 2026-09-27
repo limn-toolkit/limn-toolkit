@@ -311,7 +311,7 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
                         + "and its controls are all deleted, and the three parts it draws have "
                         + "each taken their own step: the saturation/value plane is the CANVAS at "
                         + "the head of this list and the hue ramp the SLIDER beside it, because "
-                        + "the ramps row is the first thing in the column and they are the two "
+                        + "the field row is the first thing in the column and they are the two "
                         + "things in that row, and the swatch is the IMAGE after them, because it "
                         + "is the first thing in the identity row. What each says is pinned by "
                         + "limn.components.ColorPickerSaturationValueFieldAccessibilityTest, "
@@ -328,6 +328,64 @@ class ColorPickerAccessibilityTest extends AccessibleComponentTestBase {
             assertFalse(node.role() == Accessible.Role.GROUP && node.name().isEmpty(),
                     "a nameless group is scaffolding that survived the predicate" + describe(tree()));
         }
+    }
+
+    /**
+     * What the picker's own two containers leave behind once the predicate has deleted them: the
+     * column and the row holding the plane and the hue ramp publish nothing, and the boxes they
+     * gave the two are exactly what a row of an expanded plane and a ramp of its own width would
+     * have given. One field-height tall at the top of the picker, the ramp at its token width on
+     * the trailing edge, the plane taking what the ramp and one gap leave; reading right to left
+     * the ramp changes sides and the tree order does not.
+     *
+     * <p>Pinned because the two containers are hand-written and not a row: they exist so that
+     * each can declare how far the plane's cursor paints past it, which a final wrapper could not,
+     * and the arithmetic they replaced is the one a reader is told the plane's box by.
+     */
+    @Test
+    void thePlaneAndTheRampKeepTheBoxesARowGaveThemInBothDirections() {
+        bindPicker();
+        SizeTokens t = Theme.current().tokensFor(picker);
+        float eps = 1e-3f;
+        List<Long> ids = allIds();
+
+        AccessibleNode box = chooser();
+        AccessibleNode plane = named("Saturation and value").get(0);
+        AccessibleNode ramp = hueRampNode();
+        assertEquals(box.x(), plane.x(), eps, describe(tree()));
+        assertEquals(box.y(), plane.y(), eps, describe(tree()));
+        assertEquals(t.colorFieldH(), plane.height(), eps, describe(tree()));
+        assertEquals(box.y(), ramp.y(), eps, describe(tree()));
+        assertEquals(t.colorFieldH(), ramp.height(), eps, describe(tree()));
+        assertEquals(t.colorRampW(), ramp.width(), eps, describe(tree()));
+        assertEquals(box.x() + box.width(), ramp.x() + ramp.width(), eps,
+                "the ramp on the trailing edge" + describe(tree()));
+        assertEquals(t.colorGap(), ramp.x() - (plane.x() + plane.width()), eps,
+                "one gap between them, and the plane takes the rest" + describe(tree()));
+
+        root.setLayoutDirection(LayoutDirection.RTL);
+        frame();
+
+        assertEquals(ids, allIds(), "the boxes reflect and the order does not" + describe(tree()));
+        box = chooser();
+        plane = named("Saturation and value").get(0);
+        ramp = hueRampNode();
+        assertEquals(box.x(), ramp.x(), eps,
+                "reading right to left the ramp is on the left, the trailing edge"
+                        + describe(tree()));
+        assertEquals(box.x() + box.width(), plane.x() + plane.width(), eps, describe(tree()));
+        assertEquals(t.colorGap(), plane.x() - (ramp.x() + ramp.width()), eps, describe(tree()));
+        assertEquals(t.colorRampW(), ramp.width(), eps, describe(tree()));
+    }
+
+    /** @return the hue ramp's slider, found by its name and its role */
+    private AccessibleNode hueRampNode() {
+        for (AccessibleNode node : named("Hue")) {
+            if (node.role() == Accessible.Role.SLIDER) {
+                return node;
+            }
+        }
+        throw new AssertionError("no hue ramp" + describe(tree()));
     }
 
     // -------------------------------------------------------------------------------- the names

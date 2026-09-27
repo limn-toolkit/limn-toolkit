@@ -50,9 +50,11 @@ import static limn.testing.SceneDriver.drive;
  *
  * <ol>
  *   <li><b>Nothing outside the widget.</b> Every repaint pass lies within the widget's box grown
- *       by {@link #REACH}, which is its focus ring and the margin damage carries. This is the rule
- *       that holds for all of them without exception, and the one a widget breaks by damaging its
- *       parent, its siblings or the scene.</li>
+ *       by {@link #REACH}, which is its focus ring and the margin damage carries, or by what the
+ *       widget declares it paints outside its box plus that margin, where that is more (the
+ *       colour picker, whose cursor ring hangs past its top corners). This is the rule that holds
+ *       for all of them without exception, and the one a widget breaks by damaging its parent,
+ *       its siblings or the scene.</li>
  *   <li><b>Never the window.</b> No frame is a full repaint, unless the gesture names why it has
  *       to be one. A full frame is the defect ADR 043 opened with: the whole screen repainting for
  *       something that happened in one control.</li>
@@ -637,6 +639,7 @@ class DamageContractTest extends ComponentTestBase {
      */
     private void check(Row row, Widget<?> widget, Gesture gesture, List<String> offenders) {
         gesture.perform().accept(scene, widget);
+        float reach = Math.max(REACH, 1 + declaredOutset(widget));
         float bx = widget.localToSceneX();
         float by = widget.localToSceneY();
         float box = Math.max(1, widget.width() * widget.height());
@@ -661,9 +664,9 @@ class DamageContractTest extends ComponentTestBase {
                 continue;
             }
             for (Rect pass : canvas.passClips()) {
-                if (pass.x() < bx - REACH || pass.y() < by - REACH
-                        || pass.x() + pass.width() > bx + widget.width() + REACH
-                        || pass.y() + pass.height() > by + widget.height() + REACH) {
+                if (pass.x() < bx - reach || pass.y() < by - reach
+                        || pass.x() + pass.width() > bx + widget.width() + reach
+                        || pass.y() + pass.height() > by + widget.height() + reach) {
                     broke = "frame " + frame + " repainted " + pass + ", outside the widget at "
                             + bx + "," + by + " " + widget.width() + "x" + widget.height();
                     break;
@@ -682,6 +685,22 @@ class DamageContractTest extends ComponentTestBase {
         }
         if (broke != null) {
             offenders.add(who + ": " + broke);
+        }
+    }
+
+    /**
+     * What {@code widget} declares it paints outside its box, asked the way the scene asks it when
+     * it grows damage: the scene adds its pixel of margin to this, so a widget that declares more
+     * than {@link #REACH} less that pixel damages more than {@code REACH} by right. By reflection,
+     * because the hook is protected on {@link Widget} and the rows hold widgets of every kind.
+     */
+    private static float declaredOutset(Widget<?> widget) {
+        try {
+            java.lang.reflect.Method hook = Widget.class.getDeclaredMethod("paintOutset");
+            hook.setAccessible(true);
+            return (Float) hook.invoke(widget);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("paintOutset", e);
         }
     }
 
