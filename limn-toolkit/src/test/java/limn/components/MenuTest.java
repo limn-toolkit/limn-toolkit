@@ -175,6 +175,22 @@ class MenuTest extends ComponentTestBase {
         assertEquals(2, popup.columnCountForTest(), "enabled again, it opens");
     }
 
+    /**
+     * What addSeparator's javadoc always promised: a separator with nothing before it, one with
+     * nothing after it, and the second of two in a row take no room, so a menu built with ifs
+     * that skipped a group looks like the menu written by hand. The one between two groups stays.
+     */
+    @Test
+    void separatorsAtTheEndsOrDoubledCollapse() {
+        Menu messy = new Menu().addSeparator().addItem("A", () -> { }).addSeparator()
+                .addSeparator().addItem("B", () -> { }).addSeparator();
+        Menu clean = new Menu().addItem("A", () -> { }).addSeparator().addItem("B", () -> { });
+        float messyHeight = show(messy, 400, 300, 20, 20).columnRectForTest(0)[3];
+        float cleanHeight = show(clean, 400, 300, 20, 20).columnRectForTest(0)[3];
+        assertEquals(cleanHeight, messyHeight, 0.001f);
+        assertEquals(6, messy.items().size(), "the model keeps every separator it was given");
+    }
+
     @Test
     void escapeClosesTheSubmenuThenTheWholeMenu() {
         Menu sub = new Menu().addItem("Filho", () -> { });

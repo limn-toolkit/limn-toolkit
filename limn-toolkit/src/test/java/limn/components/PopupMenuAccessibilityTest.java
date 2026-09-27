@@ -443,6 +443,16 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
         }
     }
 
+    /** A separator the popup collapses is not drawn, so a reader is not told about it either. */
+    @Test
+    void aCollapsedSeparatorIsNotPublished() {
+        open(new Menu().addSeparator().addItem("A", () -> { }).addSeparator().addSeparator()
+                .addItem("B", () -> { }).addSeparator());
+        assertEquals(List.of(Accessible.Role.MENU_ITEM, Accessible.Role.SEPARATOR,
+                        Accessible.Role.MENU_ITEM),
+                rowsOf(rootColumn()).stream().map(AccessibleNode::role).toList(), describe(tree()));
+    }
+
     @Test
     void aClickAtEveryPublishedCentreChoosesThatRow() {
         // Each pass opens its own cascade, because choosing closes the one it was aimed at.

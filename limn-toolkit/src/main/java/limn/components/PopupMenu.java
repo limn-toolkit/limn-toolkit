@@ -1001,6 +1001,9 @@ public final class PopupMenu {
                 if (iy + col.hgt[i] < y || iy > y + col.visibleH) {
                     continue; // scrolled out of the visible band
                 }
+                if (col.collapsed[i]) {
+                    continue; // a leading, trailing or doubled separator takes no room
+                }
                 if (item.isSeparator()) {
                     // No half-pixel snap here, deliberately (a request for one was refused).
                     // Two reasons. (1) It would be a no-op on the term it targets: separatorBox
@@ -1691,6 +1694,9 @@ public final class PopupMenu {
             int position = 0;
             for (int i = 0; i < rows; i++) {
                 MenuItem item = items.get(i);
+                if (col.collapsed[i]) {
+                    continue; // not drawn, so not published
+                }
                 // The counter MenuItem mints once per item and never reuses, never the index:
                 // rebuildStaleColumns replaces a Column in place, and an index-keyed row would
                 // hand row three's identifier to row nine after an insert.
@@ -2021,12 +2027,46 @@ public final class PopupMenu {
      * opened it (−1 for the root), the per-item vertical extents, its highlighted
      * row, and its computed position/size in layout space.
      */
+    /**
+     * Which of {@code items} are separators the popup does not draw: a separator with no item
+     * before it, one with no item after it, and every separator after the first of a run. The
+     * model keeps them, so a menu built with conditions that skipped a group still reads as the
+     * menu written by hand.
+     */
+    static boolean[] collapsedSeparators(List<MenuItem> items) {
+        boolean[] collapsed = new boolean[items.size()];
+        boolean itemBefore = false;
+        int pending = -1; // the separator kept so far, if an item has yet to follow it
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i).isSeparator()) {
+                if (!itemBefore || pending >= 0) {
+                    collapsed[i] = true;
+                } else {
+                    pending = i;
+                }
+            } else {
+                itemBefore = true;
+                pending = -1;
+            }
+        }
+        if (pending >= 0) {
+            collapsed[pending] = true; // nothing came after it
+        }
+        return collapsed;
+    }
+
     private final class Column {
         final Menu menu;
         final int parentItem;
         final int builtModCount; // Menu.modCount() this geometry was built from
         final float[] top;  // per-item top, relative to the column's CONTENT top
         final float[] hgt;  // per-item height
+        /**
+         * Separators the column does not draw: one with nothing before it, one with nothing after
+         * it, and each after the first of a run. Such a row keeps its place in the model at zero
+         * height, so no pointer lands on it and no reader is told about it.
+         */
+        final boolean[] collapsed;
         /**
          * Per-item accelerator hint, or {@code null} where there is none. Resolved once here, not
          * re-derived in the paint: the string is what the column's width was measured against, and
@@ -2064,6 +2104,7 @@ public final class PopupMenu {
             List<MenuItem> items = menu.items();
             top = new float[items.size()];
             hgt = new float[items.size()];
+            collapsed = collapsedSeparators(items);
             accel = new String[items.size()];
             label = new ShapedText[items.size()];
             accelLine = new ShapedText[items.size()];
@@ -2086,7 +2127,7 @@ public final class PopupMenu {
                 // menuRowHeight is >= 24 at every step, which is what makes a menu row a
                 // conformant pointer target without any hit mechanism (rows are painted, not
                 // widgets, so nothing outside this class can enlarge them).
-                float ih = item.isSeparator() ? t.separatorBox() : t.menuRowHeight();
+                float ih = collapsed[i] ? 0 : item.isSeparator() ? t.separatorBox() : t.menuRowHeight();
                 top[i] = yy;
                 hgt[i] = ih;
                 yy += ih;
