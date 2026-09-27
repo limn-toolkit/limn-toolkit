@@ -66,7 +66,9 @@ AudioClip click = Sounds.fromResource("app/click.wav");
 Sounds.play(click);
 ```
 
-WAV, Ogg Vorbis and MP3 decode out of the box. `Sounds.isAvailable()` reports whether an
+WAV, Ogg Vorbis and MP3 decode out of the box, at sample rates up to 384 kHz: a file above that
+is refused with an `UnsupportedOperationException` rather than played slow, which is what the
+audio device would do with it. `Sounds.isAvailable()` reports whether an
 audio device was found at all. On a machine with none, playback is a no-op rather than an
 exception, so a game does not need a silent-mode branch.
 

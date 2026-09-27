@@ -336,7 +336,8 @@ public final class Sounds {
      * a source closed twice is a decoder torn down under a streaming thread still reading it. That
      * holds when playback ends, when it is {@linkplain Playback#stop() stopped}, and equally when
      * nothing ever sounds: no ENGINE.current() installed, no audio device, a channel count that is neither
-     * mono nor stereo, a full admission queue, or a source that yields no frames at all. Every one
+     * mono nor stereo, a sample rate the engine would not play at its speed, a full admission
+     * queue, or a source that yields no frames at all. Every one
      * of those returns {@link Playback#NONE}, and in every one of them the source has been closed
      * before this returns.
      *

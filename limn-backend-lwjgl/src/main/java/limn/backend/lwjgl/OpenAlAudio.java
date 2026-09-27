@@ -92,6 +92,21 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
     /** Device buffers are ~2 bytes/sample: dynamically created clips must not pin forever. */
     private static final int MAX_CACHED_CLIPS = 64;
 
+    /**
+     * The highest sample rate this engine plays, and {@link AudioFileDecoder} reads: 384 kHz, the
+     * highest in common use for recorded audio.
+     *
+     * <p>OpenAL Soft resamples a buffer to the device's rate by stepping through it at the ratio
+     * of the two, times the source's pitch, and caps that step at ten. A buffer more than ten times
+     * faster than the device therefore plays slow and low: measured with OpenAL Soft 1.25.2 on a
+     * 48 kHz device, 705.6 kHz played at 0.68 of its speed and 768 kHz at 0.63, while rates up to
+     * about 480 kHz played right. {@code alBufferData} accepts any positive rate and reports
+     * nothing, so a file past the cap played wrong with no error anywhere. 384 kHz keeps a margin
+     * under the cap on the 44.1 and 48 kHz devices a desktop has; a device slower than 38.4 kHz,
+     * or a pitch above one, reaches the cap sooner, and this bound does not cover those.
+     */
+    static final int MAX_SAMPLE_RATE = 384_000;
+
     /** Dedicated streaming slots (music + a couple of long ambiences). */
     private static final int MAX_STREAMS = 4;
 
@@ -128,6 +143,9 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
     @Override
     public synchronized Playback play(AudioClip clip, PlayOptions options) {
         if (!ensureInitialized()) {
+            return Playback.NONE;
+        }
+        if (!playsAtItsSpeed(clip.sampleRate(), "clip")) {
             return Playback.NONE;
         }
         try {
@@ -452,6 +470,25 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         return initialized && voice.generation == token && isActive(voice.source);
     }
 
+    /**
+     * Whether audio at {@code sampleRate} plays at its own speed here, logging a warning when it
+     * does not. The decoder refuses such a file before it gets this far; what reaches this is a
+     * clip the application made itself or a stream some other decoder opened, a film's soundtrack
+     * among them. Those are refused as a channel count this engine cannot play is, with
+     * {@link Playback#NONE} and never an exception: a player takes that answer as "no sound" and
+     * keeps its pictures going on the wall clock, where a throw would stop the film for the sake of
+     * its soundtrack. The warning is what keeps the refusal from being silent.
+     */
+    private static boolean playsAtItsSpeed(int sampleRate, String what) {
+        if (sampleRate > 0 && sampleRate <= MAX_SAMPLE_RATE) {
+            return true;
+        }
+        LOG.log(Level.WARNING, "{0} refused: its sample rate, {1} Hz, is not one this engine "
+                + "plays at its speed (1 to {2} Hz)", what, Integer.toString(sampleRate),
+                Integer.toString(MAX_SAMPLE_RATE)); // strings: a number argument would be grouped
+        return false;
+    }
+
     private static float clampPitch(float pitch) {
         return Float.isNaN(pitch) ? 1f : Math.max(0.25f, Math.min(4f, pitch));
     }
@@ -474,9 +511,14 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
             }
         }
         int channels = source.channels();
+        int sampleRate = source.sampleRate();
         if ((channels != 1 && channels != 2) || streams.size() >= MAX_STREAMS) {
             LOG.log(Level.DEBUG, "stream rejected (channels={0}, active={1})",
                     channels, streams.size());
+            Closeables.closeQuietly(source, "an audio stream source");
+            return Playback.NONE;
+        }
+        if (!playsAtItsSpeed(sampleRate, "stream")) {
             Closeables.closeQuietly(source, "an audio stream source");
             return Playback.NONE;
         }
@@ -485,8 +527,7 @@ final class OpenAlAudio implements AudioEngine, AutoCloseable {
         int queued = 0;
         try {
             alSource = alGenSources();
-            Stream stream = new Stream(alSource, source, channels,
-                    source.sampleRate(), options);
+            Stream stream = new Stream(alSource, source, channels, sampleRate, options);
             ensureStreamUpload();
             for (int i = 0; i < STREAM_BUFFERS; i++) {
                 int frames = readChunk(stream, stream.scratch);

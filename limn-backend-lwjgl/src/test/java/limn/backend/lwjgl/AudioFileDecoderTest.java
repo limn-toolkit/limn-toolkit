@@ -259,6 +259,126 @@ class AudioFileDecoderTest {
                 "three channels is a real file this decoder does not play");
     }
 
+    // ------------------------------------------------------------ sample rates
+
+    /**
+     * The device resamples a buffer by stepping through it at the ratio of the two rates, and
+     * OpenAL Soft caps that step at ten, so on a 48 kHz device a WAV at 705.6 kHz played at 0.68
+     * of its speed and one at 768 kHz at 0.63, with no error anywhere. The decoder now refuses a
+     * rate above 384 kHz as a real file it cannot play, whole or streamed, and still reads one at
+     * 384 kHz; the owner chose that bound on 2026-09-27.
+     */
+    @Test
+    void aWavAboveTheHighestPlayableRateIsUnsupportedWholeAndStreamed() throws Exception {
+        short[] pcm = {1, -1, 2, -2};
+        AudioClip highest = decoder.decode(wav(pcm, 2, OpenAlAudio.MAX_SAMPLE_RATE, 16));
+        assertEquals(384_000, highest.sampleRate());
+        for (int rate : new int[] {384_001, 768_000, Integer.MAX_VALUE}) {
+            byte[] file = wav(pcm, 2, rate, 16);
+            UnsupportedOperationException refused =
+                    assertThrows(UnsupportedOperationException.class, () -> decoder.decode(file));
+            assertEquals("WAV at " + rate + " Hz: this backend plays sample rates up to 384000 Hz",
+                    refused.getMessage());
+            assertThrows(UnsupportedOperationException.class, () -> openOnDisk(file, ".wav"));
+        }
+        try (limn.sound.AudioStreamSource stream = openOnDisk(wav(pcm, 2, 384_000, 16), ".wav")) {
+            assertEquals(384_000, stream.sampleRate());
+        }
+    }
+
+    /**
+     * A WAV's rate field is unsigned, and one at 2^31 or above reads negative: that is a broken
+     * header, refused as malformed, and the message says the rate the file wrote rather than
+     * blaming a missing chunk.
+     */
+    @Test
+    void aWavRateThatReadsNegativeIsMalformedAndSaysSo() throws Exception {
+        byte[] file = wav(new short[] {1, -1}, 1, Integer.MIN_VALUE, 16);
+        IllegalArgumentException refused =
+                assertThrows(IllegalArgumentException.class, () -> decoder.decode(file));
+        assertEquals("malformed WAV: sample rate 2147483648 Hz", refused.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> openOnDisk(file, ".wav"));
+    }
+
+    /**
+     * stb_vorbis refuses a rate of zero and nothing else: 768 kHz reached the engine, and a rate at
+     * 2^31 or above reached the streaming path as a negative number that nothing checked. The
+     * whole-file path only failed on it by accident, when the clip's own constructor refused it.
+     */
+    @Test
+    void anOggAboveTheHighestPlayableRateIsUnsupportedAndOneThatReadsNegativeIsMalformed()
+            throws Exception {
+        byte[] highest = oggAtRate(384_000);
+        assertEquals(384_000, decoder.decode(highest).sampleRate());
+        try (limn.sound.AudioStreamSource stream = openOnDisk(highest, ".ogg")) {
+            assertEquals(384_000, stream.sampleRate());
+        }
+
+        byte[] fast = oggAtRate(768_000);
+        UnsupportedOperationException unsupported =
+                assertThrows(UnsupportedOperationException.class, () -> decoder.decode(fast));
+        assertEquals("Ogg at 768000 Hz: this backend plays sample rates up to 384000 Hz",
+                unsupported.getMessage());
+        assertThrows(UnsupportedOperationException.class, () -> openOnDisk(fast, ".ogg"));
+
+        byte[] negative = oggAtRate(0x8000_0000L);
+        IllegalArgumentException malformed =
+                assertThrows(IllegalArgumentException.class, () -> decoder.decode(negative));
+        assertEquals("malformed Ogg: sample rate 2147483648 Hz", malformed.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> openOnDisk(negative, ".ogg"));
+    }
+
+    /** Opens {@code file} as a stream from a temporary file, which is deleted when this returns. */
+    private limn.sound.AudioStreamSource openOnDisk(byte[] file, String suffix) throws Exception {
+        java.nio.file.Path onDisk = java.nio.file.Files.createTempFile("limn-rate", suffix);
+        try {
+            java.nio.file.Files.write(onDisk, file);
+            return decoder.openStream(onDisk);
+        } finally {
+            java.nio.file.Files.deleteIfExists(onDisk);
+        }
+    }
+
+    /**
+     * {@code tone.ogg} with the sample rate in its identification header set to {@code rate}, and
+     * the first page's checksum made again: the header is the first page's only packet, and the
+     * rate is the 32-bit little-endian field after the packet type, "vorbis", the version and the
+     * channel count.
+     */
+    private static byte[] oggAtRate(long rate) throws java.io.IOException {
+        byte[] ogg = resource("tone.ogg");
+        ByteBuffer page = ByteBuffer.wrap(ogg).order(ByteOrder.LITTLE_ENDIAN);
+        int segments = ogg[26] & 0xFF;
+        int packet = 27 + segments;
+        int pageLength = packet;
+        for (int i = 0; i < segments; i++) {
+            pageLength += ogg[27 + i] & 0xFF;
+        }
+        assertEquals(1, ogg[packet], "the identification header");
+        assertEquals("vorbis", new String(ogg, packet + 1, 6, java.nio.charset.StandardCharsets.US_ASCII));
+        int stored = page.getInt(22);
+        page.putInt(22, 0);
+        assertEquals(stored, oggChecksum(ogg, pageLength), "the checksum as the fixture has it");
+        page.putInt(packet + 12, (int) rate);
+        page.putInt(22, oggChecksum(ogg, pageLength));
+        return ogg;
+    }
+
+    /**
+     * Ogg's page checksum: CRC-32 with polynomial 0x04C11DB7, not reflected, starting from zero,
+     * over the page with its checksum field zeroed.
+     */
+    private static int oggChecksum(byte[] bytes, int length) {
+        int crc = 0;
+        for (int i = 0; i < length; i++) {
+            crc ^= (bytes[i] & 0xFF) << 24;
+            for (int bit = 0; bit < 8; bit++) {
+                crc = crc < 0 ? (crc << 1) ^ 0x04C11DB7 : crc << 1;
+            }
+        }
+        return crc;
+    }
+
     // ------------------------------------------------------------ WAV writers
 
     private static byte[] wav(short[] samples, int channels, int rate, int bits) {

@@ -10,7 +10,9 @@ package limn.sound;
  * <p>Best-effort: on a machine with no audio device the engine reports
  * {@link #isAvailable() unavailable} and {@link #play} returns
  * {@link Playback#NONE} rather than throwing, so UI feedback sounds never
- * become a hard dependency.
+ * become a hard dependency. A clip or stream at a sample rate the device would
+ * not play at its speed is answered the same way; the shipped engine plays
+ * rates up to 384 kHz.
  */
 public interface AudioEngine {
 

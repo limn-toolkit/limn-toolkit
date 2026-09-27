@@ -25,6 +25,12 @@ import static org.lwjgl.stb.STBVorbis.stb_vorbis_open_memory;
  *   <li><b>MP3</b>, decoded with JLayer (pure Java, no natives; LGPL jar).</li>
  * </ul>
  * MP4/AAC are rejected with a clear message: no bundled decoder handles them.
+ *
+ * <p>A WAV or Ogg Vorbis at a sample rate above {@link OpenAlAudio#MAX_SAMPLE_RATE}
+ * is refused with {@link UnsupportedOperationException}, whole or streamed:
+ * a well-formed file the device would play slow. A rate of zero or less is a
+ * broken header and is refused as malformed. MP3 needs no check, because the
+ * format has no rate above 48 kHz.
  */
 final class AudioFileDecoder implements AudioDecoder {
 
@@ -109,9 +115,10 @@ final class AudioFileDecoder implements AudioDecoder {
 
         // Malformed before unsupported: a file with no format, no channels or no data is broken,
         // and UnsupportedOperationException is for a well-formed file this decoder cannot play.
-        if (formatCode < 0 || channels == 0 || sampleRate <= 0 || dataOffset < 0) {
+        if (formatCode < 0 || channels == 0 || dataOffset < 0) {
             throw new IllegalArgumentException("malformed WAV (missing fmt/data)");
         }
+        playableRate(sampleRate, "WAV");
         if (channels != 1 && channels != 2) {
             throw new UnsupportedOperationException("WAV must be mono or stereo, got " + channels + " channels");
         }
@@ -164,6 +171,34 @@ final class AudioFileDecoder implements AudioDecoder {
                 "unsupported WAV encoding (format " + formatCode + ", " + bits + "-bit)");
     }
 
+    /**
+     * The sample rate a WAV or Ogg header states, refused unless the device can play it at its
+     * speed. Called once the rest of the header is known to be there, so that a missing chunk is
+     * still reported as that, and before any other unsupported feature is: malformed before
+     * unsupported, as everywhere in this class.
+     *
+     * <p>A rate of zero or less is a broken header: both formats store it unsigned in 32 bits, and a
+     * value at 2<sup>31</sup> or above reads as a negative {@code int} here and in stb_vorbis's
+     * info, so the message prints it unsigned, as the file wrote it. A rate above
+     * {@link OpenAlAudio#MAX_SAMPLE_RATE} is a real file the device would play slow, which is
+     * what {@link UnsupportedOperationException} is kept for.
+     *
+     * @param rate   the rate as read, a signed view of the unsigned field
+     * @param format the format's name, which starts the message
+     * @throws IllegalArgumentException      if {@code rate} is zero or reads negative
+     * @throws UnsupportedOperationException if {@code rate} is above the highest this plays
+     */
+    private static void playableRate(int rate, String format) {
+        if (rate <= 0) {
+            throw new IllegalArgumentException("malformed " + format + ": sample rate "
+                    + Integer.toUnsignedString(rate) + " Hz");
+        }
+        if (rate > OpenAlAudio.MAX_SAMPLE_RATE) {
+            throw new UnsupportedOperationException(format + " at " + rate
+                    + " Hz: this backend plays sample rates up to " + OpenAlAudio.MAX_SAMPLE_RATE + " Hz");
+        }
+    }
+
     // ------------------------------------------------------------------ OGG
 
     /** Frames an Ogg is decoded in at a time: about 190 ms at 22050 Hz. */
@@ -183,6 +218,7 @@ final class AudioFileDecoder implements AudioDecoder {
                     stb_vorbis_get_info(decoder, info);
                     int channels = info.channels();
                     int sampleRate = info.sample_rate();
+                    playableRate(sampleRate, "Ogg");
                     if (channels != 1 && channels != 2) {
                         throw new UnsupportedOperationException(
                                 "Ogg must be mono or stereo, got " + channels + " channels");
@@ -255,7 +291,9 @@ final class AudioFileDecoder implements AudioDecoder {
      * @param file the audio file; must exist and be readable
      * @return a pull-mode source positioned at the start
      * @throws java.io.UncheckedIOException      if the file cannot be read
-     * @throws UnsupportedOperationException     if no bundled reader handles it
+     * @throws IllegalArgumentException          if the file is malformed
+     * @throws UnsupportedOperationException     if no bundled reader handles it, or its
+     *                                           sample rate is above the highest this plays
      */
     @Override
     public limn.sound.AudioStreamSource openStream(java.nio.file.Path file) {
@@ -341,9 +379,10 @@ final class AudioFileDecoder implements AudioDecoder {
                     pos = body + chunkSize + (chunkSize & 1);
                 }
                 // Malformed before unsupported, as the whole-file reader does.
-                if (formatCode < 0 || foundChannels == 0 || foundRate <= 0 || foundDataStart < 0) {
+                if (formatCode < 0 || foundChannels == 0 || foundDataStart < 0) {
                     throw new IllegalArgumentException("malformed WAV: " + file);
                 }
+                playableRate(foundRate, "WAV");
                 if (formatCode != 1 || bits != 16) {
                     throw new UnsupportedOperationException(
                             "WAV streaming supports 16-bit PCM only (format " + formatCode
@@ -452,10 +491,15 @@ final class AudioFileDecoder implements AudioDecoder {
                 stb_vorbis_get_info(handle, info);
                 channels = info.channels();
                 sampleRate = info.sample_rate();
-                if (channels != 1 && channels != 2) {
-                    close();
-                    throw new UnsupportedOperationException(
-                            "Ogg must be mono or stereo, got " + channels + " channels");
+                try {
+                    playableRate(sampleRate, "Ogg");
+                    if (channels != 1 && channels != 2) {
+                        throw new UnsupportedOperationException(
+                                "Ogg must be mono or stereo, got " + channels + " channels");
+                    }
+                } catch (RuntimeException refused) {
+                    close(); // a refused file releases its decoder and the native copy of its bytes
+                    throw refused;
                 }
             }
         }
