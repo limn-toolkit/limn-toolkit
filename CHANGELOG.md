@@ -71,6 +71,17 @@ Maven Central say which number that was.
 - The `ColorPicker`'s cursor ring no longer leaves a stale arc when it moves away from an edge or
   a corner of the colour square. It paints past the square by design, centred on the exact colour,
   and now says so to the repaint.
+- A focus ring at the edge of a layout is no longer bitten off when something beside the layout
+  repaints: every layout that does not clip now declares the ring's reach, so a repaint that lands
+  just outside it paints it too.
+- `DateField` and `SearchField` leave every key to the input method while a composition is under
+  way, as `TextField` and `TextArea` do; Enter ran a search and the arrows stepped a date segment.
+- Charts and tables write the separators and minus sign that go with the digits they show: under
+  a language whose default digits the toolkit does not write (bare Arabic, Bengali and some 40
+  others) a number mixed Latin digits with Arabic separators or kept trailing zeros. 1,023 of the
+  1,069 locales are unchanged byte for byte.
+- `Stack.alignment` and `Expanded.atLeast` check the UI thread and refuse null or a non-finite
+  number, and `Flex.gap` refuses NaN and infinity, as the other layout setters do.
 
 ### New
 
@@ -88,6 +99,11 @@ Maven Central say which number that was.
   it the pictures drawn least recently are released at the end of a frame, never one the frame
   drew. The cache used to release a picture only after 300 frames unused, so an application
   showing a new photo each frame could hold gigabytes.
+- `paintOverflow(float)` on every layout and wrapper (`Row`, `Column`, `Stack`, `Wrap`, `Grid`,
+  `Padding`, `Expanded`, `SizedBox`, `TokenBox`) says how far its children may paint past it, and
+  `paintOverflowFromTheme()` goes back to the default: the theme's focus-ring reach
+  (`Theme.focusRingReach()`, 3 pt). A child that paints farther, as the `ColorPicker`'s cursor ring
+  does, is declared on the layouts above it.
 - `I18n.observeUnresolvedKeys` tells an application which keys no bundle translates, so a typo or a
   file that fell behind stops showing its English silently. Each key is reported once per
   language, as an `UnresolvedKey`; with no listener, each is logged once. English locales, and a
@@ -102,6 +118,10 @@ Maven Central say which number that was.
 
 ### Changed
 
+- A number a user types into a `Spinner` and the spinner refuses is announced to screen readers,
+  politely, in the spinner's language: "“1.234” not accepted, still 7". A value an assistive
+  technology sets as text and the spinner refuses is announced the same way, since no platform can
+  report the refusal itself. The sentence is translated into the 21 shipped languages.
 - A WAV or Ogg Vorbis file whose sample rate is above 384 kHz is refused with
   `UnsupportedOperationException`: past about 480 kHz OpenAL plays it slower than it should, and a
   rate of zero or one that overflowed is refused as malformed. The audio engine answers
