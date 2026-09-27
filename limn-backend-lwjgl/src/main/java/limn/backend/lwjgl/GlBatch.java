@@ -50,7 +50,14 @@ import static org.lwjgl.opengl.GL33C.glVertexAttribPointer;
  */
 final class GlBatch implements AutoCloseable {
 
-    static final int VERTEX_FLOATS = 32;
+    /**
+     * Floats per vertex, 144 bytes. The last four are the rounded clip's own rectangle, apart from
+     * the clip rectangle four before them: see {@link DeviceClip} for why a rounded clip cannot be
+     * rounded from the rectangle every clip has narrowed. Per vertex rather than a uniform because
+     * the batch is one draw a frame and a rounded clip changes with every widget that sets one; a
+     * uniform would flush at each of them.
+     */
+    static final int VERTEX_FLOATS = 36;
 
     private static final int INITIAL_VERTICES = 4096;
     private static final int INITIAL_INDICES = INITIAL_VERTICES * 3 / 2;
@@ -79,6 +86,7 @@ final class GlBatch implements AutoCloseable {
     private float colB0, colB1, colB2, colB3;
     private float grad0, grad1, grad2, grad3;
     private float clip0, clip1, clip2, clip3;
+    private float round0, round1, round2, round3;
 
     GlBatch() {
         program = ShaderProgram.fromResources(
@@ -103,6 +111,7 @@ final class GlBatch implements AutoCloseable {
         attribute(7, 4, stride, 22);  // a_grad
         attribute(8, 4, stride, 26);  // a_clip
         attribute(9, 2, stride, 30);  // a_uv
+        attribute(10, 4, stride, 32); // a_roundClip
         glBindVertexArray(0);
         program.use();
         glUniform1i(program.uniformLocation("u_atlas"), 0);
@@ -142,7 +151,7 @@ final class GlBatch implements AutoCloseable {
 
     void setShape(float halfWidth, float halfHeight,
                   float topLeft, float topRight, float bottomRight, float bottomLeft,
-                  float strokeHalfWidth, int shapeKind, int paint, float clipCornerRadius) {
+                  float strokeHalfWidth, int shapeKind, int paint) {
         this.halfW = halfWidth;
         this.halfH = halfHeight;
         this.radTl = topLeft;
@@ -152,7 +161,6 @@ final class GlBatch implements AutoCloseable {
         this.strokeHalfWidth = strokeHalfWidth;
         this.kind = shapeKind;
         this.paintType = paint;
-        this.clipRadius = clipCornerRadius;
     }
 
     void setColors(float aR, float aG, float aB, float aA,
@@ -174,11 +182,20 @@ final class GlBatch implements AutoCloseable {
         grad3 = g3;
     }
 
-    void setClip(float x0, float y0, float x1, float y1) {
-        clip0 = x0;
-        clip1 = y0;
-        clip2 = x1;
-        clip3 = y1;
+    /**
+     * Loads a state's clip for the primitives that follow: the clip rectangle, and the rounded
+     * clip's own rectangle and radius, each copied into every vertex like the other registers.
+     */
+    void setClip(DeviceClip clip) {
+        clip0 = clip.x0;
+        clip1 = clip.y0;
+        clip2 = clip.x1;
+        clip3 = clip.y1;
+        round0 = clip.roundX0;
+        round1 = clip.roundY0;
+        round2 = clip.roundX1;
+        round3 = clip.roundY1;
+        clipRadius = clip.radius;
     }
 
     /**
@@ -281,7 +298,8 @@ final class GlBatch implements AutoCloseable {
                 .put(colB0).put(colB1).put(colB2).put(colB3)
                 .put(grad0).put(grad1).put(grad2).put(grad3)
                 .put(clip0).put(clip1).put(clip2).put(clip3)
-                .put(u).put(v);
+                .put(u).put(v)
+                .put(round0).put(round1).put(round2).put(round3);
         vertexCount++;
     }
 

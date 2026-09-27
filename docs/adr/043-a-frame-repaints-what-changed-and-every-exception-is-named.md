@@ -254,6 +254,27 @@ answer is the one `PartialRenderingTest` already models: assert the *clip*, not 
 that drives a gesture and asserts the repaint region is small is a test that fails when a widget
 starts over-invalidating, and it costs a recording canvas.
 
+**Amended 2026-09-27: a pass cuts a rounded clip straight.** A fourth way to go wrong, and one no
+widget could declare its way out of: **a pass that draws something other than what the whole frame
+drew inside it.** The LWJGL canvas kept one clip, a device rectangle and a radius, and rounded the
+corners of the rectangle every clip had narrowed, the rectangle each pass clips to included. So a
+pass that cut a surface painted inside `clipRoundRect` grew rounded corners where it cut, and the
+background the pass had just cleared showed through them as dark arcs a pixel or two inside the
+surface's border. Measured on a bare colour picker at 2×: a pass covering all of the hue ramp but
+its leftmost point and a half turned the ramp's inner corner pixels from red (`dc2313`, `dc1025`) to
+the window's background (`26232b`, `26232c`), fourteen pixels in all; every `clipRoundRect` user was
+exposed whenever a pass cut it, a caret blinking in a rounded field or a dialog's scrollbar strip.
+The same arcs appeared in a whole frame wherever a widget clipped a rectangle of its own inside a
+rounded clip. The clip now keeps the rounded rectangle at its own size apart from the rectangle
+every clip narrows (`DeviceClip`), each vertex carries both (four floats more, 144 bytes a vertex,
+still one draw call), and the shader intersects the two distances, so a pixel inside a pass's
+pixel-aligned rectangle is covered exactly as it was without it. The same probe now reads the pass
+identical to the whole frame, every pixel of it, and the whole frame identical to the one before the
+change. `RoundedClipGeometryTest` holds it against a device, three cases that failed before, and
+`DeviceClipTest` holds the model; nested rounded clips keep the rule `Canvas.clipRoundRect`
+documents, their rectangles intersected and rounded by the most recent radius, which a rectangular
+clip no longer takes part in.
+
 ## 8. Cost
 
 The flip itself is one line. The work is §9's list, and most of it is auditing rather than writing.

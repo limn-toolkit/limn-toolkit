@@ -9,12 +9,13 @@
 in vec2 v_local;
 in vec2 v_halfSize;
 in vec4 v_radii;
-in vec4 v_misc;    // x: strokeHalfWidth (-1 = fill), y: kind, z: paintType, w: clipRadius
+in vec4 v_misc;    // x: strokeHalfWidth (-1 = fill), y: kind, z: paintType, w: rounded clip radius
 in vec4 v_colorA;
 in vec4 v_colorB;
 in vec4 v_grad;
-in vec4 v_clip;
+in vec4 v_clip;      // the clip rectangle: every clip's device bounds intersected
 in vec2 v_uv;
+in vec4 v_roundClip; // the rounded clip's own device rectangle (radius: v_misc.w)
 
 uniform vec2 u_viewport;
 
@@ -111,14 +112,28 @@ void main() {
     float paintType = v_misc.z;
     float clipRadius = v_misc.w;
 
-    // Clip: rounded rect in device space (gl_FragCoord is y-up; flip). The
-    // radius must be clamped to the intersected AABB's half extents or the
-    // SDF degenerates and clips everything (nested clipRoundRect + clipRect).
+    // Clip, in device space (gl_FragCoord is y-up; flip): the clip rectangle
+    // intersected with the rounded clip, each from its OWN geometry, as the
+    // max of the two distances. Rounding the corners of the rectangle every
+    // clip has narrowed instead put a corner wherever a rectangular clip cut a
+    // rounded one, and a partial repaint clips each pass to a rectangle: the
+    // pass's edge grew arcs inside the surface it cut. Kept apart, a pixel
+    // inside a rectangular clip lies at least half a pixel from its
+    // pixel-aligned edges, so its coverage is exactly what it was without that
+    // clip: a pass draws what the whole frame drew. With no rounded clip the
+    // rounded rectangle is the whole target with no radius, which contains the
+    // clip rectangle and leaves the max the rectangle's own distance. The
+    // radius is clamped to the rounded rectangle's half extents, or the SDF
+    // degenerates and clips everything.
     vec2 fragDev = vec2(gl_FragCoord.x, u_viewport.y - gl_FragCoord.y);
     vec2 clipCenter = (v_clip.xy + v_clip.zw) * 0.5;
     vec2 clipHalf = (v_clip.zw - v_clip.xy) * 0.5;
-    float clipR = min(clipRadius, min(clipHalf.x, clipHalf.y));
-    float dClip = sdRoundRect(fragDev - clipCenter, clipHalf, vec4(clipR));
+    float dRect = sdRoundRect(fragDev - clipCenter, clipHalf, vec4(0.0));
+    vec2 roundCenter = (v_roundClip.xy + v_roundClip.zw) * 0.5;
+    vec2 roundHalf = (v_roundClip.zw - v_roundClip.xy) * 0.5;
+    float roundR = min(clipRadius, min(roundHalf.x, roundHalf.y));
+    float dRound = sdRoundRect(fragDev - roundCenter, roundHalf, vec4(roundR));
+    float dClip = max(dRect, dRound);
     float clipCoverage = 1.0 - smoothstep(-0.5, 0.5, dClip);
 
     if (kind >= 7.5) {
