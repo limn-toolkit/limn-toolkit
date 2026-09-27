@@ -1,12 +1,11 @@
 package limn.backend.lwjgl;
 
 import limn.graphics.Image;
+import limn.graphics.Images;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
-import java.util.IdentityHashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.List;
 
 import static org.lwjgl.opengl.GL33C.GL_CLAMP_TO_EDGE;
 import static org.lwjgl.opengl.GL33C.GL_LINEAR;
@@ -31,34 +30,29 @@ import static org.lwjgl.opengl.GL33C.glTexParameteri;
  * Per-window (per-GL-context) cache of RGBA8 textures for {@link Image}s,
  * uploaded lazily on first draw and keyed by image identity. Contexts are not
  * shared between windows, so each window's {@link GlCanvas} owns one of these.
- * Entries unused for {@link #EVICT_AFTER_FRAMES} rendered frames are deleted at
- * the frame boundary, so runtime-generated images (thumbnails, re-rasterized
- * SVGs) don't pin GPU + heap memory for the life of the window.
+ * At each frame boundary it deletes what {@link TextureResidency} says must go:
+ * a texture no frame has drawn for {@link TextureResidency#EVICT_AFTER_FRAMES}
+ * frames, and, while the window holds more than {@link Images#textureBudget()},
+ * the least recently drawn of those the frame that just ended did not draw. So
+ * runtime-generated images (thumbnails, re-rasterized SVGs) don't pin GPU and
+ * heap memory for the life of the window, and a stream of large new pictures,
+ * a photo browser's say, is held to the budget rather than to 300 frames' worth
+ * of them: three hundred photographs of 1920 × 1080 are 3.1 GiB of textures
+ * and 2.3 GiB of heap, more than the 2 GiB a JVM takes by default on a
+ * machine with 8 GB.
  */
 final class ImageTextureCache implements AutoCloseable {
 
-    /**
-     * Rendered frames of disuse after which an image's texture is deleted, and
-     * the {@link Image} released with it (the map key is the only backend
-     * reference, so app-dropped images become collectable). Counted in frames,
-     * not time, on purpose: the loop is event-driven, so an idle window evicts
-     * nothing, and re-drawing an evicted image just re-uploads it lazily.
-     */
-    private static final int EVICT_AFTER_FRAMES = 300;
-
     private static final class Entry {
         final int texture;
-        int lastUsedFrame;
         boolean pixelated; // current GL filter params (uploads start SMOOTH)
 
-        Entry(int texture, int frame) {
+        Entry(int texture) {
             this.texture = texture;
-            this.lastUsedFrame = frame;
         }
     }
 
-    private final Map<Image, Entry> textures = new IdentityHashMap<>();
-    private int frame;
+    private final TextureResidency<Image, Entry> residency = new TextureResidency<>();
 
     /**
      * The GL texture id for {@code image}, uploading it on first use. Requires
@@ -74,9 +68,8 @@ final class ImageTextureCache implements AutoCloseable {
      * the UI thread.
      */
     int textureFor(Image image) {
-        Entry existing = textures.get(image);
+        Entry existing = residency.drawn(image);
         if (existing != null) {
-            existing.lastUsedFrame = frame;
             return existing.texture;
         }
         int texture = glGenTextures();
@@ -110,7 +103,8 @@ final class ImageTextureCache implements AutoCloseable {
         } finally {
             MemoryUtil.memFree(buffer);
         }
-        textures.put(image, new Entry(texture, frame));
+        residency.admit(image, new Entry(texture),
+                TextureResidency.mipmappedRgba8Bytes(image.width(), image.height()));
         return texture;
     }
 
@@ -123,13 +117,13 @@ final class ImageTextureCache implements AutoCloseable {
      * reports a needed switch on the fresh entry).
      */
     boolean samplingDiffers(Image image, boolean pixelated) {
-        Entry entry = textures.get(image);
+        Entry entry = residency.peek(image);
         return entry != null && entry.pixelated != pixelated;
     }
 
     /** Rebinds {@code image}'s texture and switches its filter params. */
     void applySampling(Image image, boolean pixelated) {
-        Entry entry = textures.get(image);
+        Entry entry = residency.peek(image);
         if (entry == null || entry.pixelated == pixelated) {
             return;
         }
@@ -147,44 +141,35 @@ final class ImageTextureCache implements AutoCloseable {
     }
 
     /**
-     * Advances the frame counter and deletes textures unused for
-     * {@link #EVICT_AFTER_FRAMES} rendered frames. Called at the frame
-     * boundary, where no pending geometry references image textures.
+     * Ends the frame and deletes the textures {@link TextureResidency} drops,
+     * by age and against {@link Images#textureBudget()}, which is read here at
+     * every boundary so that a budget the application moves takes effect at
+     * this window's next frame. Called at the frame boundary, where no pending
+     * geometry references image textures.
      *
      * @return {@code true} if anything was deleted; the batch must then reset
      *         its bound-texture tracking, since GL recycles deleted ids
      */
     boolean beginFrameAndEvict() {
-        frame++;
-        if (textures.isEmpty()) {
-            return false;
+        List<Entry> evicted = residency.beginFrame(Images.textureBudget());
+        for (Entry entry : evicted) {
+            glDeleteTextures(entry.texture);
         }
-        boolean evicted = false;
-        for (Iterator<Entry> it = textures.values().iterator(); it.hasNext(); ) {
-            Entry entry = it.next();
-            if (frame - entry.lastUsedFrame > EVICT_AFTER_FRAMES) {
-                glDeleteTextures(entry.texture);
-                it.remove();
-                evicted = true;
-            }
-        }
-        return evicted;
+        return !evicted.isEmpty();
     }
 
-    /** @return cached image textures and their bytes (RGBA8: 4 bytes/texel). */
+    /**
+     * @return cached image textures and their bytes: RGBA8, four bytes a texel,
+     *         and the mipmap chain every upload builds, about a third again
+     */
     limn.backend.RenderStats stats() {
-        long bytes = 0;
-        for (Image image : textures.keySet()) {
-            bytes += (long) image.width() * image.height() * 4;
-        }
-        return new limn.backend.RenderStats(textures.size(), bytes);
+        return new limn.backend.RenderStats(residency.count(), residency.bytes());
     }
 
     @Override
     public void close() {
-        for (Entry entry : textures.values()) {
+        for (Entry entry : residency.clear()) {
             glDeleteTextures(entry.texture);
         }
-        textures.clear();
     }
 }

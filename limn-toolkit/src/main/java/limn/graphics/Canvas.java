@@ -390,7 +390,10 @@ public interface Canvas {
      * Draws {@code image} into the rectangle {@code (x, y, w, h)} in logical
      * points, scaled with linear filtering, modulated by the current
      * {@link #opacity()}. The GPU texture is created lazily on first use and
-     * cached per window.
+     * cached per window, within {@link Images#textureBudget()} as
+     * {@link Images#setTextureBudget} describes: a texture dropped at a frame
+     * boundary is made again when its image is next drawn, and none that the
+     * frame just ended drew is dropped.
      */
     void drawImage(Image image, float x, float y, float w, float h);
 

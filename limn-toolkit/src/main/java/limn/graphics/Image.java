@@ -11,7 +11,9 @@ import limn.internal.lang.Checks;
  * across multiple windows (whose GL contexts are not shared).
  *
  * <p>Object identity is the texture-cache key; reuse the same instance rather
- * than decoding the same asset repeatedly.
+ * than decoding the same asset repeatedly. A window's cache holds on to the
+ * instance, and so to its pixels, for as long as it keeps the texture, which
+ * {@link Images#setTextureBudget} bounds.
  */
 public final class Image {
 

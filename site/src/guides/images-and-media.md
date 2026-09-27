@@ -25,6 +25,13 @@ job you start, and may cancel:
 
 {% snippet guide:loading %}
 
+Each window keeps the texture of every image it draws, and the `Image` behind it, until 300
+frames go by without drawing it, or sooner, least recently drawn first, while it holds more than
+`Images.textureBudget()`: 256 MiB by default, mipmaps included, about twenty-four photographs of
+1920 × 1080. What a frame draws is never dropped, so a single picture larger than the budget
+still shows. An application short of memory lowers it, and one that keeps coming back to a set
+of pictures bigger than that raises it, with `Images.setTextureBudget`.
+
 Going the other way, `Images.encode(…)` and `Images.saveAsync(…)` write PNG.
 
 ## Icons

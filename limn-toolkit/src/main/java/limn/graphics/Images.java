@@ -401,6 +401,59 @@ public final class Images {
         shared.clear();
     }
 
+    // ------------------------------------------------------- texture budget
+
+    /**
+     * The bytes of image textures a window keeps unless {@link #setTextureBudget} says otherwise:
+     * 256 MiB, counted as the GPU holds them, four bytes a pixel and about a third again for the
+     * smaller copies a picture is sampled from when it is drawn below its size. That is some
+     * twenty-four pictures of 1920 × 1080. Three quarters of it sits on the heap as well, because
+     * a cached texture keeps its {@link Image} and the image keeps its pixels.
+     */
+    public static final long DEFAULT_TEXTURE_BUDGET = 256L << 20;
+
+    private static volatile long textureBudget = DEFAULT_TEXTURE_BUDGET;
+
+    /**
+     * Moves the budget each window keeps its image textures within, from that window's next frame
+     * on.
+     *
+     * <p>A texture is made when an image is first drawn, and each window caches its own. A window
+     * drops one at a frame boundary once 300 frames have gone by without drawing it, and sooner,
+     * least recently drawn first, while what it holds is over this budget. A texture the frame just
+     * finished drew is never dropped, so the budget is soft: a single picture larger than it still
+     * shows, and stays for as long as every frame draws it, and a screen whose pictures together
+     * exceed it keeps them all while each frame draws them all. A frame that repaints only part of
+     * a window draws only the pictures in that part, so over the budget a picture elsewhere can be
+     * dropped while it is still on screen. Drawing an image whose texture was dropped makes it
+     * again, at the cost of an upload in that frame.
+     *
+     * <p>Raise it for an application that keeps coming back to a set of large pictures bigger than
+     * the default, at the cost in memory the default describes; lower it where memory is short.
+     * The budget is per window, so two windows full of pictures may hold twice it. A window that
+     * is not drawing renders no frames and drops nothing until it draws again. Any thread.
+     *
+     * @param bytes the most texture bytes, mipmaps included, a window keeps unless its last frame
+     *              drew more; 0 keeps only what that frame drew
+     * @throws IllegalArgumentException if {@code bytes} is negative
+     */
+    public static void setTextureBudget(long bytes) {
+        if (bytes < 0) {
+            throw new IllegalArgumentException("a texture budget is at least 0 bytes, got " + bytes);
+        }
+        textureBudget = bytes;
+    }
+
+    /**
+     * The budget each window keeps its image textures within: {@link #DEFAULT_TEXTURE_BUDGET} until
+     * {@link #setTextureBudget} moves it.
+     *
+     * @return the current budget, in bytes
+     */
+    public static long textureBudget() {
+        return textureBudget;
+    }
+
     private static ImageDecoder require() {
         return DECODER.require();
     }
