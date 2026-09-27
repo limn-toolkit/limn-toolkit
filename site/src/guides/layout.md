@@ -1,9 +1,9 @@
 ---
 title: "Layout"
-description: "Columns, rows, wraps, stacks and the one marker that decides where leftover space goes, with a complete window built out of them."
+description: "Columns, rows, wraps, grids, stacks and the one marker that decides where leftover space goes, with a complete window built out of them."
 ---
 
-Limn has five layout widgets and one marker. That is the whole vocabulary, and it is enough
+Limn has six layout widgets and one marker. That is the whole vocabulary, and it is enough
 to build the window at the bottom of this page.
 
 | | |
@@ -11,6 +11,7 @@ to build the window at the bottom of this page.
 | `Column` | stacks children top to bottom |
 | `Row` | places children left to right |
 | `Wrap` | places children left to right, and starts a new line when the width runs out |
+| `Grid` | places children in columns, row by row, so that they line up both ways |
 | `Stack` | draws children on top of each other |
 | `Padding` | insets one child |
 | `Expanded` | marks the child that absorbs leftover space |
@@ -76,6 +77,33 @@ around a wrap of a few lines, give the wrap a maximum width. A child wider than 
 a line of its own, at the wrap's width. There is no leftover space on a line to share, so
 `Expanded` has no meaning in a wrap and is refused when added.
 
+## Rows that share their columns
+
+When children should line up both ways, a caption beside the field it names or a name beside
+its value, use a `Grid`. You give it a number of columns, and the children fill it row by row
+in the order they are added: in a grid of two columns, the first two children are the first
+row, the next two the second.
+
+{% snippet guide:layout-grid %}
+
+Each column is as wide as its widest cell, and each row as tall as its tallest. `gap` is the
+gutter between columns, the one a row has between neighbours, and `rowGap` the space between
+rows. `expandedColumn` names the one column that takes whatever width the others leave, the
+way `Expanded` does in a row, so the fields grow with the window and the captions keep their
+width; when the window is too narrow for both, that column gives way first. `columnAlignment`
+places the cells within a column: `START` by default, `END` for captions set against their
+fields, `STRETCH` for fields that should all be as wide as the column. Within a row, the cells
+line up on the baseline of their text unless you say otherwise, so a caption sits on the line
+its field's text sits on; `crossAlignment` changes that with the words a row uses.
+
+That is everything a grid does, on purpose. A cell cannot span two columns or be placed out
+of order: an empty cell is a `SizedBox(0, 0)`, and a column of a fixed width is a `SizedBox`
+around one of its cells. A hidden child keeps its cell, so hiding a caption does not move
+every field after it into the wrong column, and a row whose cells are all hidden takes no
+room. A screen reader and the Tab key go through the cells in the order they were added,
+which is the order the rows are read in, and in a right-to-left window the first column is
+the one on the right.
+
 ## Overlays
 
 `Stack` draws its children in order against one shared box, which is what an overlay is:
@@ -86,14 +114,15 @@ the content, and then the thing on top of it.
 Every child takes the stack's alignment, so to nudge one off a corner, wrap it in a
 `Padding` rather than looking for a per-child offset.
 
-## A grid, without a grid widget
+## Tiles of equal width
 
-There is no grid layout, and there does not need to be one: a grid is rows of `Expanded`
+A `Grid` makes each column as wide as its widest cell, which is right for a form and wrong for
+tiles, which should split the width evenly whatever is in them. That is rows of `Expanded`
 children, and writing it yourself takes ten lines and leaves you in charge of what a short
 last line does. (When the tiles should keep their own width and flow onto as many lines as
 the window allows, rather than fill a fixed number of columns, that is a `Wrap`.)
 
-{% snippet guide:layout-grid %}
+{% snippet guide:layout-tiles %}
 
 Each tile on a line gets flex 1, so the line splits its width evenly however many tiles
 there are. The second loop is the part worth copying: padding the last line with spacers is
@@ -113,10 +142,11 @@ the panes grow.
 
 {% shot layout "The window that code produces, rendered by Limn." %}
 
-Everything on that screen is on this page. The tiles are the grid above; each one is a
-column of a stacked swatch-and-badge and two labels; the filters under the header are the
-`tags` wrap; the header row and the status line are both `spread`. The sidebar is a `ListView` and the divider is a `SplitPane`, both of which
-are covered in [Lists and scrolling](/docs/lists-and-scrolling/).
+Everything on that screen is on this page. The tiles are the rows of `Expanded` above; each
+one is a column of a stacked swatch-and-badge and two labels; the filters under the header
+are the `tags` wrap; the form under the collections is the `details` grid; the header row and
+the status line are both `spread`. The collections are a `ListView` and the divider is a
+`SplitPane`, both of which are covered in [Lists and scrolling](/docs/lists-and-scrolling/).
 
 :::tip[Why the last row's tiles are not wider]
 Look at the bottom line: two tiles, each the same width as the tiles above them, with the
@@ -184,8 +214,9 @@ window follows: a paragraph with `setMaxWidth(560)` packs to that width, and a l
 **A centred card.** A `Row` with `MainAlignment.CENTER` and `CrossAlignment.CENTER`, one
 child, and a `SizedBox` to cap its width.
 
-**A two-column form.** A `Column` with `STRETCH`, where each row is a `Row` of a fixed-width
-`Label` and an `Expanded` field.
+**A two-column form.** A `Grid` of two columns, the second one expanded and stretched, the
+way `details` builds it: the captions take the width of the longest one, and no width is
+guessed that a translation could outgrow.
 
 **A footer pinned to the bottom.** A `Column` whose middle child is `Expanded`, the same
 shape as the window above.
