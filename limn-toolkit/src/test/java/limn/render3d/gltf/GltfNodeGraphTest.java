@@ -111,11 +111,11 @@ class GltfNodeGraphTest {
                 + "\"buffers\":[{\"uri\":\"data:application/octet-stream;base64,"
                 + Base64.getEncoder().encodeToString(buffer) + "\",\"byteLength\":65536}]}";
         // The same file under a budget a test can afford: forty times less than the real one.
-        long budget = GltfLoader.MAX_ELEMENTS / 40;
+        long budget = GltfLoader.DEFAULT_ELEMENT_BUDGET / 40;
         IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
                 () -> GltfLoader.load(json.getBytes(StandardCharsets.UTF_8), NEVER_CANCELLED, budget));
         assertTrue(refused.getMessage().contains(budget + " elements"), refused.getMessage());
-        assertEquals(1L << 26, GltfLoader.MAX_ELEMENTS,
+        assertEquals(1L << 26, GltfLoader.DEFAULT_ELEMENT_BUDGET,
                 "400 of these strips, 2.4 bytes of file per element, pass the real budget too");
     }
 

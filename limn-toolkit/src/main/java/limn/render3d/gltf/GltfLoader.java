@@ -36,9 +36,10 @@ import java.util.concurrent.CancellationException;
  * that on the {@code Ui} worker pool and deliver on the UI thread, which is what an application
  * loading a model behind a live window wants; the synchronous ones stay for setup code and tests.
  *
- * <p><b>One load creates at most 2<sup>26</sup> array elements</b>, a quarter of a gigabyte of
- * floats, and a model that needs more is refused with an {@link IllegalArgumentException}. What
- * that holds depends on whether the model carries its normals. A mesh that does costs six floats a
+ * <p><b>One load creates at most 2<sup>26</sup> array elements</b> by default, a quarter of a
+ * gigabyte of floats, and a model that needs more is refused with an
+ * {@link IllegalArgumentException}; {@link #setElementBudget} moves that ceiling for the whole
+ * process. What the default holds depends on whether the model carries its normals. A mesh that does costs six floats a
  * vertex and one index a triangle corner, so an indexed one of the usual shape, with about half as
  * many vertices as triangles, fits up to some eleven million triangles. A mesh without normals is
  * given flat ones, which takes a vertex of its own for every corner: three floats of position,
@@ -54,14 +55,43 @@ public final class GltfLoader {
     private static final int CHUNK_BIN = 0x004E4942;    // "BIN\0"
 
     /**
-     * The most array elements one load creates, over every accessor, index list, converted
-     * strip and generated normal together: 2<sup>26</sup>, a quarter of a gigabyte of floats.
-     * Each accessor is bounded by the bytes behind it, but primitives may name the same accessor
-     * again and again: a 168 KB file whose two thousand strips all reused one 64 KB buffer
-     * asked for more than two gigabytes. What that holds, in triangles, is in the class
-     * documentation.
+     * The most array elements one load creates unless {@link #setElementBudget} says otherwise,
+     * over every accessor, index list, converted strip and generated normal together:
+     * 2<sup>26</sup>, a quarter of a gigabyte of floats. Each accessor is bounded by the bytes
+     * behind it, but primitives may name the same accessor again and again: a 168 KB file whose
+     * two thousand strips all reused one 64 KB buffer asked for more than two gigabytes. What
+     * that holds, in triangles, is in the class documentation.
      */
-    static final long MAX_ELEMENTS = 1L << 26;
+    public static final long DEFAULT_ELEMENT_BUDGET = 1L << 26;
+
+    private static volatile long elementBudget = DEFAULT_ELEMENT_BUDGET;
+
+    /**
+     * Moves the ceiling on the array elements one load may create, for every load in the process
+     * from the next one on; a load already running keeps the ceiling it started with. Raise it for
+     * an application whose own models are large and trusted: 2<sup>27</sup> takes a mesh without
+     * normals of about five million triangles, at twice the memory a hostile file can make a load
+     * ask for before it is refused. Lower it where models come from strangers.
+     *
+     * @param elements the most elements one load creates, at least 1
+     * @throws IllegalArgumentException if {@code elements} is less than 1
+     */
+    public static void setElementBudget(long elements) {
+        if (elements < 1) {
+            throw new IllegalArgumentException("an element budget is at least 1, got " + elements);
+        }
+        elementBudget = elements;
+    }
+
+    /**
+     * The ceiling on the array elements one load may create: {@link #DEFAULT_ELEMENT_BUDGET} until
+     * {@link #setElementBudget} moves it.
+     *
+     * @return the current budget, in elements
+     */
+    public static long elementBudget() {
+        return elementBudget;
+    }
 
     /** What the synchronous entry points hand the parser: never cancelled, nobody listening. */
     private static final Progress NO_PROGRESS = new Progress() {
@@ -198,11 +228,11 @@ public final class GltfLoader {
      * production callers that pass a real one.
      */
     static GltfModel load(byte[] data, Progress progress) {
-        return load(data, progress, MAX_ELEMENTS);
+        return load(data, progress, elementBudget);
     }
 
     /**
-     * With a budget of array elements other than {@link #MAX_ELEMENTS}: package-private so a
+     * With a budget of array elements other than {@link #elementBudget()}: package-private so a
      * test can prove the refusal without building half a gigabyte of arrays first.
      */
     static GltfModel load(byte[] data, Progress progress, long elementBudget) {
@@ -251,7 +281,7 @@ public final class GltfLoader {
     private static final class Parser {
 
 
-        /** What this load may create, {@link GltfLoader#MAX_ELEMENTS} but for a test's smaller one. */
+        /** What this load may create: the process's budget when it started, or a test's own. */
         private final long budget;
 
         /** What this load has created so far, against {@link #budget}. */
@@ -261,7 +291,8 @@ public final class GltfLoader {
             spent += elements;
             if (spent > budget) {
                 throw new IllegalArgumentException("glTF " + what + " takes the model past "
-                        + budget + " elements, the most one load creates");
+                        + budget + " elements, the most one load creates"
+                        + " (GltfLoader.setElementBudget moves it)");
             }
         }
 

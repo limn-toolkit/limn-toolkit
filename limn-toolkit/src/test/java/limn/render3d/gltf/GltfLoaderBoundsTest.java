@@ -74,6 +74,29 @@ class GltfLoaderBoundsTest {
         assertTrue(mesh.has(VertexAttribute.POSITION));
     }
 
+    /**
+     * The ceiling is the application's to move, for the whole process: lowered, the honest model
+     * above is refused and the message names the setter; put back, it loads again. A load reads
+     * the budget when it starts. The owner chose a setting over a fixed constant on 2026-09-26.
+     */
+    @Test
+    void theElementBudgetIsTheApplicationsToMove() {
+        assertEquals(1L << 26, GltfLoader.DEFAULT_ELEMENT_BUDGET);
+        assertEquals(GltfLoader.DEFAULT_ELEMENT_BUDGET, GltfLoader.elementBudget());
+        try {
+            GltfLoader.setElementBudget(10);
+            IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+                    () -> GltfLoader.load(model(4, 6)));
+            assertTrue(refused.getMessage().contains("10 elements")
+                    && refused.getMessage().contains("setElementBudget"), refused.getMessage());
+            assertThrows(IllegalArgumentException.class, () -> GltfLoader.setElementBudget(0));
+            assertEquals(10, GltfLoader.elementBudget(), "a refused setting leaves the budget alone");
+        } finally {
+            GltfLoader.setElementBudget(GltfLoader.DEFAULT_ELEMENT_BUDGET);
+        }
+        GltfLoader.load(model(4, 6));
+    }
+
     @Test
     void aVertexCountBeyondItsBufferIsRefusedBeforeTheArrayIsAllocated() {
         // 100 million VEC3 floats is 1.2 GB asked for by a file of a few hundred bytes.
