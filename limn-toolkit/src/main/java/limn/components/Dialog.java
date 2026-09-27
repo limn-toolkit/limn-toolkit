@@ -1023,13 +1023,14 @@ public final class Dialog {
      * <p>The gutter is {@code spacingMedium}, the same token the body's own column carries, so
      * title → message → content → buttons reads as one rhythm however the card is split.
      *
-     * <p>It is also where the body learns how far past its sides it may paint. The body scrolls
-     * only vertically, so its view clips it at the top and bottom and lets it past the sides by
-     * whatever band it is given; this column gives it the card's padding less the card's outline,
-     * so a focus ring or a colour plane's cursor at the body's edge is drawn whole, into the
-     * padding, and nothing of the body is ever drawn over the outline or past the card. Nothing
-     * else paints there: the padding is empty card, the footer sits below the body and the body's
-     * bar inside it.
+     * <p>It is also where the body learns how far past its edges it may paint. The body scrolls
+     * only vertically, so its view lets it past the sides by whatever band it is given, and past
+     * the top and bottom too until the card is capped and the body overflows, when it clips there;
+     * this column gives it the card's padding less the card's outline, so a focus ring or a colour
+     * plane's cursor at the body's edge is drawn whole, into the padding, and nothing of the body
+     * is ever drawn over the outline or past the card. Nothing else paints there: the padding is
+     * empty card, the body's bar sits inside the body, and below it the gap leads to the footer,
+     * which paints after the body.
      */
     private final class CardColumn extends Widget<CardColumn> {
 
@@ -1093,7 +1094,7 @@ public final class Dialog {
          * children, and the band the body may paint past its sides. The footer is laid out flush
          * with this column's bottom and sides, so the ring of a button at its end hangs past the
          * column into the card's padding; and the body is laid out flush with its top and sides,
-         * clipped at the top by its view and let past the sides by the band.
+         * let past the sides by the band, and past the top while it fits.
          */
         @Override
         protected float paintOutset() {
