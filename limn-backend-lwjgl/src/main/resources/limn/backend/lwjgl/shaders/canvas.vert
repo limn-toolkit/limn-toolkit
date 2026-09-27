@@ -12,8 +12,9 @@ layout(location = 4) in vec4 a_misc;     // strokeHalfWidth(-1=fill), kind, pain
 layout(location = 5) in vec4 a_colorA;   // straight alpha
 layout(location = 6) in vec4 a_colorB;
 layout(location = 7) in vec4 a_grad;     // linear: p0,p1 (local); radial: center,radius,unused
-layout(location = 8) in vec4 a_clip;     // device px: x0,y0,x1,y1
+layout(location = 8) in vec4 a_clip;     // device px: x0,y0,x1,y1, every clip intersected
 layout(location = 9) in vec2 a_uv;       // glyph atlas texels (normalized)
+layout(location = 10) in vec4 a_roundClip; // device px: the rounded clip's own x0,y0,x1,y1
 
 uniform vec2 u_viewport;                 // framebuffer size in device px
 
@@ -26,6 +27,7 @@ out vec4 v_colorB;
 out vec4 v_grad;
 out vec4 v_clip;
 out vec2 v_uv;
+out vec4 v_roundClip;
 
 void main() {
     vec2 ndc = a_pos / u_viewport * 2.0 - 1.0;
@@ -39,4 +41,5 @@ void main() {
     v_grad = a_grad;
     v_clip = a_clip;
     v_uv = a_uv;
+    v_roundClip = a_roundClip;
 }

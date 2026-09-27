@@ -61,8 +61,7 @@ final class GlCanvas implements Canvas {
     private static final class State {
         final Transform2D transform = new Transform2D();
         float opacity = 1;
-        float clipX0, clipY0, clipX1, clipY1; // device px
-        float clipRadius;                     // device px
+        final DeviceClip clip = new DeviceClip();
         limn.graphics.BlendMode blendMode = limn.graphics.BlendMode.NORMAL;
         limn.graphics.Sampling sampling = limn.graphics.Sampling.SMOOTH;
         boolean pixelSnap = true;             // image quads only (see Canvas doc)
@@ -70,11 +69,7 @@ final class GlCanvas implements Canvas {
         void copyFrom(State other) {
             transform.copyFrom(other.transform);
             opacity = other.opacity;
-            clipX0 = other.clipX0;
-            clipY0 = other.clipY0;
-            clipX1 = other.clipX1;
-            clipY1 = other.clipY1;
-            clipRadius = other.clipRadius;
+            clip.copyFrom(other.clip);
             blendMode = other.blendMode;
             sampling = other.sampling;
             pixelSnap = other.pixelSnap;
@@ -118,11 +113,7 @@ final class GlCanvas implements Canvas {
         State root = states.get(0);
         root.transform.setScale(contentScale);
         root.opacity = 1;
-        root.clipX0 = 0;
-        root.clipY0 = 0;
-        root.clipX1 = framebufferWidth;
-        root.clipY1 = framebufferHeight;
-        root.clipRadius = 0;
+        root.clip.reset(framebufferWidth, framebufferHeight);
         root.blendMode = limn.graphics.BlendMode.NORMAL;
         root.sampling = limn.graphics.Sampling.SMOOTH;
         root.pixelSnap = true;
@@ -404,10 +395,11 @@ final class GlCanvas implements Canvas {
 
     @Override
     public void clipRect(float x, float y, float width, float height) {
-        intersectClipAabb(x, y, width, height);
-        // Rect clip keeps a previously set corner radius: the radius now
-        // applies to the shrunken rect, which can only clip more, the
-        // conservative side of the v1 single-round-rect clip model.
+        // Narrows the clip rectangle only. A rounded clip already in force keeps its own rectangle
+        // and radius, so this cuts it straight rather than rounding the corners of what is left:
+        // the pass a partial repaint clips to is one of these, and a pass must draw what the whole
+        // frame drew inside it (see DeviceClip).
+        intersectClip(x, y, width, height, 0);
     }
 
     @Override
@@ -419,10 +411,10 @@ final class GlCanvas implements Canvas {
         }
         // Axis-aligned: device = local * m + t on each axis, so the pre-image is the box between
         // the two mapped-back edges, whichever way a negative scale turned them.
-        float x0 = (s.clipX0 - t.tx) / t.m00;
-        float x1 = (s.clipX1 - t.tx) / t.m00;
-        float y0 = (s.clipY0 - t.ty) / t.m11;
-        float y1 = (s.clipY1 - t.ty) / t.m11;
+        float x0 = (s.clip.x0 - t.tx) / t.m00;
+        float x1 = (s.clip.x1 - t.tx) / t.m00;
+        float y0 = (s.clip.y0 - t.ty) / t.m11;
+        float y1 = (s.clip.y1 - t.ty) / t.m11;
         float left = Math.min(x0, x1);
         float top = Math.min(y0, y1);
         return new limn.graphics.Rect(left, top, Math.max(x0, x1) - left, Math.max(y0, y1) - top);
@@ -430,17 +422,23 @@ final class GlCanvas implements Canvas {
 
     @Override
     public void clipRoundRect(RoundRect roundRect) {
+        ensureInFrame();
         RoundRect rr = roundRect.normalized();
-        intersectClipAabb(rr.x(), rr.y(), rr.width(), rr.height());
-        State s = state();
         float maxRadius = Math.max(Math.max(rr.topLeft(), rr.topRight()),
                 Math.max(rr.bottomRight(), rr.bottomLeft()));
-        // V1 model: one rounded rect; the most recent radius wins, converted
-        // to device pixels (exact for axis-aligned transforms).
-        s.clipRadius = maxRadius * s.transform.approxScale();
+        // One rounded rect, with one uniform radius, converted to device pixels (exact for
+        // axis-aligned transforms); DeviceClip says what a second one nested in it does.
+        intersectClip(rr.x(), rr.y(), rr.width(), rr.height(),
+                maxRadius * state().transform.approxScale());
     }
 
-    private void intersectClipAabb(float x, float y, float width, float height) {
+    /**
+     * Intersects the current clip with the device-space bounds of a rectangle in current
+     * coordinates, as a rounded clip of {@code deviceRadius} when that is positive and a plain
+     * rectangle otherwise. Under a rotation the bounds are the transformed corners' box, a superset
+     * of the requested region, which is the documented degradation.
+     */
+    private void intersectClip(float x, float y, float width, float height, float deviceRadius) {
         ensureInFrame();
         State s = state();
         Transform2D t = s.transform;
@@ -450,16 +448,7 @@ final class GlCanvas implements Canvas {
         float dy0 = min4(t.y(x, y), t.y(x1, y), t.y(x, y1), t.y(x1, y1));
         float dx1 = max4(t.x(x, y), t.x(x1, y), t.x(x, y1), t.x(x1, y1));
         float dy1 = max4(t.y(x, y), t.y(x1, y), t.y(x, y1), t.y(x1, y1));
-        s.clipX0 = Math.max(s.clipX0, dx0);
-        s.clipY0 = Math.max(s.clipY0, dy0);
-        s.clipX1 = Math.min(s.clipX1, dx1);
-        s.clipY1 = Math.min(s.clipY1, dy1);
-        if (s.clipX1 < s.clipX0) {
-            s.clipX1 = s.clipX0;
-        }
-        if (s.clipY1 < s.clipY0) {
-            s.clipY1 = s.clipY0;
-        }
+        s.clip.intersectRoundRect(dx0, dy0, dx1, dy1, deviceRadius);
     }
 
     // ----------------------------------------------------------------- shapes
@@ -532,7 +521,7 @@ final class GlCanvas implements Canvas {
         }
         ensureInFrame();
         State s = state();
-        if (s.clipX1 - s.clipX0 <= 0 || s.clipY1 - s.clipY0 <= 0) {
+        if (s.clip.isEmpty()) {
             return; // fully clipped out: nothing to copy and nothing to draw
         }
         Transform2D t = s.transform;
@@ -583,11 +572,11 @@ final class GlCanvas implements Canvas {
         // The stroke slot carries the device scale here: a backdrop quad is always a fill, and the
         // shader needs points-to-pixels to turn a rim width or a cell size into a displacement.
         batch.setShape(halfW, halfH, rr.topLeft(), rr.topRight(), rr.bottomRight(), rr.bottomLeft(),
-                scale, KIND_BACKDROP, PAINT_SOLID, s.clipRadius);
+                scale, KIND_BACKDROP, PAINT_SOLID);
         batch.setColors(tint.r(), tint.g(), tint.b(), tint.a(),
                 variantId(effect), param1(effect), param2(effect), s.opacity);
         batch.setGradient(u0, v0, u1, v1);
-        batch.setClip(s.clipX0, s.clipY0, s.clipX1, s.clipY1);
+        batch.setClip(s.clip);
         batch.ensure(4, 6);
         int base = batch.baseVertex();
         putCorner(t, cx, cy, 1, 0, 0, 1, -(halfW + pad), -(halfH + pad));
@@ -835,7 +824,7 @@ final class GlCanvas implements Canvas {
             return;
         }
         State s = state();
-        if (s.clipX1 - s.clipX0 <= 0 || s.clipY1 - s.clipY0 <= 0) {
+        if (s.clip.isEmpty()) {
             return;
         }
         if (font.size() * s.transform.approxScale() < MIN_DEVICE_FONT_SIZE) {
@@ -902,7 +891,7 @@ final class GlCanvas implements Canvas {
             return;
         }
         State s = state();
-        if (s.clipX1 - s.clipX0 <= 0 || s.clipY1 - s.clipY0 <= 0) {
+        if (s.clip.isEmpty()) {
             return;
         }
         // The font is the one the glyphs were CHOSEN for, taken from the value rather than from a
@@ -919,8 +908,8 @@ final class GlCanvas implements Canvas {
         boolean snap = t.isUniformAxisAligned();
         int paintType = applyPaint(paint, x, y, 1, 0, 0, 1, s.opacity);
         applyBlend(s);
-        batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_GLYPH, paintType, s.clipRadius);
-        batch.setClip(s.clipX0, s.clipY0, s.clipX1, s.clipY1);
+        batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_GLYPH, paintType);
+        batch.setClip(s.clip);
 
         // The run origin is snapped to the device grid: with a fractional origin every glyph
         // rounds independently and the rounding pattern changes as the origin slides by sub-pixel
@@ -1006,8 +995,8 @@ final class GlCanvas implements Canvas {
                     // tint); restore both, or glyphs after the emoji lose the text colour.
                     applyPaint(paint, x, y, 1, 0, 0, 1, s.opacity);
                     applyBlend(s);
-                    batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_GLYPH, paintType, s.clipRadius);
-                    batch.setClip(s.clipX0, s.clipY0, s.clipX1, s.clipY1);
+                    batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_GLYPH, paintType);
+                    batch.setClip(s.clip);
                     penUser += (float) fontStore.colorEmojiAdvance(cp, deviceSize) / deviceScale;
                     continue;
                 }
@@ -1201,17 +1190,17 @@ final class GlCanvas implements Canvas {
             return;
         }
         State s = state();
-        if (s.clipX1 - s.clipX0 <= 0 || s.clipY1 - s.clipY0 <= 0) {
+        if (s.clip.isEmpty()) {
             return;
         }
         Transform2D t = s.transform;
         batch.requireTexture(texture);
         applyBlend(s);
-        batch.setShape(0, 0, 0, 0, 0, 0, -1, kind, PAINT_SOLID, s.clipRadius);
+        batch.setShape(0, 0, 0, 0, 0, 0, -1, kind, PAINT_SOLID);
         // Straight-alpha tint; the shader multiplies the texel and premultiplies.
         batch.setColors(tintR, tintG, tintB, tintA * s.opacity, 0, 0, 0, 0);
         batch.setGradient(0, 0, 0, 0);
-        batch.setClip(s.clipX0, s.clipY0, s.clipX1, s.clipY1);
+        batch.setClip(s.clip);
         batch.ensure(4, 6);
         int base = batch.baseVertex();
         if (t.isUniformAxisAligned() && s.pixelSnap) {
@@ -1312,7 +1301,7 @@ final class GlCanvas implements Canvas {
                              float strokeHalfWidth, float ux, float uy, Paint paint) {
         State s = state();
         Transform2D t = s.transform;
-        if (s.clipX1 - s.clipX0 <= 0 || s.clipY1 - s.clipY0 <= 0) {
+        if (s.clip.isEmpty()) {
             return; // fully clipped out
         }
 
@@ -1326,8 +1315,8 @@ final class GlCanvas implements Canvas {
 
         int paintType = applyPaint(paint, cx, cy, ux, uy, vx, vy, s.opacity);
         applyBlend(s);
-        batch.setShape(halfW, halfH, tl, tr, br, bl, strokeHalfWidth, kind, paintType, s.clipRadius);
-        batch.setClip(s.clipX0, s.clipY0, s.clipX1, s.clipY1);
+        batch.setShape(halfW, halfH, tl, tr, br, bl, strokeHalfWidth, kind, paintType);
+        batch.setClip(s.clip);
         batch.ensure(4, 6);
         int base = batch.baseVertex();
         putCorner(t, cx, cy, ux, uy, vx, vy, -ex, -ey);
@@ -1370,8 +1359,8 @@ final class GlCanvas implements Canvas {
         Transform2D t = s.transform;
         int paintType = applyPaint(paint, cx, cy, 1, 0, 0, 1, s.opacity);
         applyBlend(s);
-        batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_PLAIN, paintType, s.clipRadius);
-        batch.setClip(s.clipX0, s.clipY0, s.clipX1, s.clipY1);
+        batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_PLAIN, paintType);
+        batch.setClip(s.clip);
         batch.ensure(count, triangles.length);
         int base = batch.baseVertex();
         for (int i = start; i < start + count; i++) {
@@ -1402,8 +1391,8 @@ final class GlCanvas implements Canvas {
                 ? 1f : -1f;
 
         applyBlend(s);
-        batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_FRINGE, paintType, s.clipRadius);
-        batch.setClip(s.clipX0, s.clipY0, s.clipX1, s.clipY1);
+        batch.setShape(0, 0, 0, 0, 0, 0, -1, KIND_FRINGE, paintType);
+        batch.setClip(s.clip);
         batch.ensure(count * 2, count * 6);
         int base = batch.baseVertex();
 

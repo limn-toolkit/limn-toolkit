@@ -180,12 +180,22 @@ public interface Canvas {
     }
 
     /**
-     * Intersects the clip with a rounded rectangle. V1 limitations: the clip
-     * state tracks one rounded rect, so nested rounded clips intersect their
-     * rectangles exactly, but only the most recent corner radius applies, as
-     * a single uniform radius (the max of the four corners, clamped to the
-     * clip region's half extents); rotation degrades to the AABB like
-     * {@link #clipRect(float, float, float, float)}.
+     * Intersects the clip with a rounded rectangle. The corners are this
+     * rectangle's own: a {@link #clipRect(float, float, float, float)} made
+     * before or after it cuts the region straight and never rounds where it
+     * cuts, so a repaint confined to part of a rounded surface draws that part
+     * exactly as a whole frame does.
+     *
+     * <p>V1 limitations: the clip state tracks one rounded rect, so nested
+     * rounded clips intersect their rectangles exactly and the region they
+     * leave is rounded by the most recent corner radius alone, as a single
+     * uniform radius (the max of the four corners, clamped to that region's
+     * half extents). That is exact when the inner rounded rect lies inside the
+     * outer one; where the two only overlap, every corner of the region they
+     * leave is rounded by the inner radius, whichever rectangle it came from.
+     * A rounded rect whose corners are all square clips like {@code clipRect}
+     * and leaves an earlier one's corners as they were. Rotation degrades to
+     * the AABB like {@code clipRect}.
      */
     void clipRoundRect(RoundRect roundRect);
 
