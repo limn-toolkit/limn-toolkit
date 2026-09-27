@@ -169,6 +169,12 @@ public final class LwjglBackend implements Backend {
         // crashed with on a machine that simply has no display server. Errors from here on have
         // nowhere else to surface, so they keep the callback.
         GLFWErrorCallback.createPrint(System.err).set();
+        // A monitor connected or gone can change the rate a window is paced to.
+        org.lwjgl.glfw.GLFW.glfwSetMonitorCallback((monitor, event) -> {
+            for (LwjglWindow window : windows) {
+                window.refreshRateMayHaveChanged();
+            }
+        });
         uiRuntime = UiRuntime.create(this::wakeLoop);
         uiRuntime.bindToCurrentThread();
         fontStore = new FontStore();
@@ -632,7 +638,6 @@ public final class LwjglBackend implements Backend {
             throw new IllegalStateException("event loop is already running");
         }
         running = true;
-        pacer.setPeriodNanos(primaryRefreshPeriodNanos());
         int crashStreak = 0;
         try {
             while (running) {
@@ -722,11 +727,13 @@ public final class LwjglBackend implements Backend {
                 // tearing. All-windows vsync would serialize N animated windows
                 // down to refresh/N fps each (six bouncing gadgets = 10 fps).
                 boolean vsyncTaken = false;
+                LwjglWindow vsyncWindow = null;
                 for (LwjglWindow window : List.copyOf(windows)) {
                     if (window.closeRequested() || window.isCovered()) {
                         continue;
                     }
                     try {
+                        boolean hadVsync = vsyncTaken;
                         if (window.frameRequested()) {
                             vsyncTaken |= window.renderNow(!vsyncTaken);
                         }
@@ -734,6 +741,9 @@ public final class LwjglBackend implements Backend {
                         // both double buffers match; a sparse present otherwise lets the
                         // compositor surface a one-frame-old buffer (thumb ghost/flicker).
                         vsyncTaken |= window.syncBuffers(!vsyncTaken);
+                        if (vsyncTaken && !hadVsync) {
+                            vsyncWindow = window;
+                        }
                     } catch (Crashes.ShutdownRequested shutdown) {
                         throw shutdown;
                     } catch (Throwable error) {
@@ -748,7 +758,10 @@ public final class LwjglBackend implements Backend {
                     }
                 }
 
-                if (vsyncTaken) {
+                if (vsyncWindow != null) {
+                    // The swap blocked, or should have, to the refresh of the monitor that
+                    // window is on, which is not the primary's when it sits on another.
+                    pacer.setPeriodNanos(vsyncWindow.refreshPeriodNanos());
                     pacer.afterVsyncedPresent();
                 }
 
@@ -763,16 +776,6 @@ public final class LwjglBackend implements Backend {
         } finally {
             running = false;
         }
-    }
-
-    /** @return the primary monitor's refresh period, or 0 when GLFW cannot say */
-    private static long primaryRefreshPeriodNanos() {
-        long monitor = org.lwjgl.glfw.GLFW.glfwGetPrimaryMonitor();
-        if (monitor == NULL) {
-            return 0;
-        }
-        org.lwjgl.glfw.GLFWVidMode mode = org.lwjgl.glfw.GLFW.glfwGetVideoMode(monitor);
-        return mode == null || mode.refreshRate() <= 0 ? 0 : 1_000_000_000L / mode.refreshRate();
     }
 
     /**
@@ -1086,6 +1089,10 @@ public final class LwjglBackend implements Backend {
             glfwDestroyCursor(handle);
         }
         imageCursors.clear();
+        org.lwjgl.glfw.GLFWMonitorCallback monitors = org.lwjgl.glfw.GLFW.glfwSetMonitorCallback(null);
+        if (monitors != null) {
+            monitors.free();
+        }
         glfwTerminate();
         GLFWErrorCallback previous = glfwSetErrorCallback(null);
         if (previous != null) {

@@ -49,6 +49,10 @@ Maven Central say which number that was.
   allocated. Sixteen bytes made the decoder allocate 268 MB, and a looping stream again per loop.
 - A WAV with no format chunk, no channels or no data throws `IllegalArgumentException` as a
   malformed file, not `UnsupportedOperationException`.
+- A window on a monitor faster than the primary animates at that monitor's rate. The loop paced
+  every window to the primary's refresh, so a window on a 144 Hz monitor beside a 60 Hz primary
+  ran at 60 fps with judder. The rate follows the window when it is dragged to another monitor, and
+  where the window's monitor cannot be known (Wayland) the fastest monitor's rate is used.
 - An Ogg Vorbis file is decoded to the audio it holds, whatever length its last page claims. A
   quarter second claiming 2^30 stereo frames threw, and a smaller false length made the decoder
   allocate gigabytes.

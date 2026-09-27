@@ -471,6 +471,7 @@ final class LwjglWindow implements NativeWindow {
         glfwSetWindowPosCallback(handle, (win, x, y) -> windowMovedTo(x, y));
         glfwSetWindowContentScaleCallback(handle, (win, scaleX, scaleY) -> {
             contentScale = scaleX;
+            refreshRateMayHaveChanged(); // a new scale is usually a new monitor
             LOG.log(Level.INFO, "Window ''{0}'' moved to a monitor with content scale {1}", title, scaleX);
             if (contentScaleListener != null) {
                 contentScaleListener.onContentScaleChanged(scaleX);
@@ -478,6 +479,11 @@ final class LwjglWindow implements NativeWindow {
             frameRequested = true;
         });
         glfwSetWindowFocusCallback(handle, (win, focused) -> {
+            if (focused) {
+                // No platform reports a monitor's rate changing (a display set from 120 Hz to
+                // 60 Hz in the system settings), and coming back from those settings focuses us.
+                refreshRateMayHaveChanged();
+            }
             // A modal-blocked window must never keep OS activation: the OS
             // raises/focuses it on click before our button handler runs. Hand
             // activation straight to the modal that blocks it, in the same event
@@ -752,6 +758,63 @@ final class LwjglWindow implements NativeWindow {
         lastScreenX = x;
         lastScreenY = y;
         childPopups.moveBy(dx, dy);
+        refreshRateMayHaveChanged();
+    }
+
+    /** This window's refresh period, read again at the next ask; negative until read. */
+    private long refreshPeriodNanos = -1;
+
+    /**
+     * Forgets the refresh period, to be read again the next time the loop paces to this window:
+     * the window moved, possibly onto another monitor, or a monitor came or went. Only marked
+     * here, because a drag moves the window on every event and the read lists every monitor.
+     */
+    void refreshRateMayHaveChanged() {
+        refreshPeriodNanos = -1;
+    }
+
+    /**
+     * The refresh period of the monitor this window is on, in nanoseconds, or 0 when no monitor
+     * states a rate; see {@link RefreshPeriod} for which monitor that is.
+     */
+    long refreshPeriodNanos() {
+        if (refreshPeriodNanos < 0) {
+            refreshPeriodNanos = readRefreshPeriod();
+        }
+        return refreshPeriodNanos;
+    }
+
+    private long readRefreshPeriod() {
+        java.util.List<RefreshPeriod.Monitor> connected = new java.util.ArrayList<>();
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            PointerBuffer monitors = glfwGetMonitors();
+            IntBuffer mx = stack.mallocInt(1);
+            IntBuffer my = stack.mallocInt(1);
+            for (int i = 0; monitors != null && i < monitors.limit(); i++) {
+                long monitor = monitors.get(i);
+                GLFWVidMode mode = glfwGetVideoMode(monitor);
+                if (mode == null) {
+                    continue;
+                }
+                glfwGetMonitorPos(monitor, mx, my);
+                connected.add(new RefreshPeriod.Monitor(mx.get(0), my.get(0), mode.width(),
+                        mode.height(), mode.refreshRate()));
+            }
+            boolean positionKnown = supportsAbsolutePositioning() && !destroyed;
+            int cx = 0;
+            int cy = 0;
+            if (positionKnown) {
+                IntBuffer px = stack.mallocInt(1);
+                IntBuffer py = stack.mallocInt(1);
+                IntBuffer sw = stack.mallocInt(1);
+                IntBuffer sh = stack.mallocInt(1);
+                readWindowPos(px, py);
+                glfwGetWindowSize(handle, sw, sh);
+                cx = px.get(0) + sw.get(0) / 2;
+                cy = py.get(0) + sh.get(0) / 2;
+            }
+            return RefreshPeriod.forWindow(positionKnown, cx, cy, connected);
+        }
     }
 
     boolean frameRequested() {
