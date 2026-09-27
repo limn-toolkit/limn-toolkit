@@ -86,6 +86,19 @@ class DatePickerTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
     }
 
+    /**
+     * Closed, the picker answers what the next open will be asked for, as a combo and a menu do:
+     * nothing is presented yet, so the request is the whole of the answer, and a null here made
+     * code that branches on presentation handle a case no other floating surface has.
+     */
+    @Test
+    void aClosedPickerAnswersThePresentationItWasAskedFor() {
+        build(datePicker());
+        assertEquals(DisplayMode.NATIVE_WINDOW, picker.displayMode(), "the default");
+        picker.setDisplayMode(DisplayMode.IN_SCENE);
+        assertEquals(DisplayMode.IN_SCENE, picker.displayMode());
+    }
+
     @Test
     void thePickerIsAFieldAndAGridAndOwnsNeithersBehaviour() {
         build(datePicker());

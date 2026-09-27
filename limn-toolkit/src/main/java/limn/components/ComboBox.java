@@ -2,6 +2,7 @@ package limn.components;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.internal.FloatingSurfaces;
 import limn.components.internal.a11y.PopupOwnerAccessibility;
 import limn.animation.Transition;
 import limn.backend.Cursor;
@@ -304,8 +305,8 @@ public final class ComboBox extends Widget<ComboBox> {
         // A fullscreen owner has no room for a list window (it would minimize the owner, or open
         // outside its Space), and one that cannot be positioned would put the list away from the
         // field: both draw it in scene, whatever was asked.
-        if (requested == DisplayMode.IN_SCENE
-                || (scene.window() != null && !DisplayMode.anchoredWindowAvailable(scene.window()))) {
+        if (requested == DisplayMode.IN_SCENE || (scene.window() != null
+                && !FloatingSurfaces.anchoredWindowAvailable(scene.window()))) {
             presentInScene();
             return;
         }

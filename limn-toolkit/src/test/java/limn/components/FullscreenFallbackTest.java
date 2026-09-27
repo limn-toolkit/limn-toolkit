@@ -122,6 +122,10 @@ class FullscreenFallbackTest extends ComponentTestBase {
         assertEquals(DisplayMode.IN_SCENE, picker.displayMode(),
                 "a calendar window would have minimized its owner");
         assertNotNull(picker.calendar().parent(), "the grid is in the card that is showing");
+
+        picker.close();
+        assertEquals(DisplayMode.NATIVE_WINDOW, picker.displayMode(),
+                "closed, the forced overlay is over and the request is the answer again");
     }
 
     // ------------------------------------------------------------------ dialog

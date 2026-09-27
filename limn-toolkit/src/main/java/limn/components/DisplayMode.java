@@ -58,16 +58,5 @@ public enum DisplayMode {
      * only presentation over a fullscreen window and on a platform that cannot position a window
      * at an anchor.
      */
-    IN_SCENE;
-
-    /**
-     * Whether a surface anchored inside {@code owner} can have a window of its own there: not
-     * while the owner is fullscreen, and not where the owner cannot be positioned. One predicate
-     * for the anchored surfaces of this package rather than a condition written out in each,
-     * because a condition written out in each drifts: one surface learns a case and the others
-     * go on opening windows where they cannot.
-     */
-    static boolean anchoredWindowAvailable(NativeWindow owner) {
-        return !owner.isFullscreen() && owner.supportsAbsolutePositioning();
-    }
+    IN_SCENE
 }

@@ -10,6 +10,7 @@ import limn.components.DisplayMode;
 import limn.components.SizeTokens;
 import limn.components.Strokes;
 import limn.components.Theme;
+import limn.components.internal.FloatingSurfaces;
 import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -572,15 +573,13 @@ public final class DatePicker extends Widget<DatePicker> {
     }
 
     /**
-     * @return how the open popup is actually presented, including a fullscreen owner or a platform
-     *         forcing {@code IN_SCENE} over a request for a window, or {@code null} while it is
-     *         closed, since the next open decides afresh over the window as it is then
+     * @return how the calendar is presented: while it is open, what it actually chose, including a
+     *         fullscreen owner or a platform forcing {@code IN_SCENE} over a request for a window.
+     *         While it is closed, what was last asked for, since the next open decides afresh over
+     *         the window as it is then.
      */
     public DisplayMode displayMode() {
-        if (!open) {
-            return null;
-        }
-        return scenePopup != null ? DisplayMode.IN_SCENE : DisplayMode.NATIVE_WINDOW;
+        return scenePopup != null ? DisplayMode.IN_SCENE : requested;
     }
 
     /** Opens the calendar. Does nothing if it is already open or the picker is disabled. */
@@ -941,13 +940,12 @@ public final class DatePicker extends Widget<DatePicker> {
             return; // headless: the state machine is the whole of what a test drives
         }
         blurHandle = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
-        // The rule every surface anchored inside its owner keeps, written out here because this
-        // package cannot reach the one predicate the menu and the combo share: a fullscreen owner
-        // has no room for a calendar window (it would minimize the owner, or open outside its
-        // Space), and one that cannot be positioned would put it away from the field.
+        // A fullscreen owner has no room for a calendar window (it would minimize the owner, or
+        // open outside its Space), and one that cannot be positioned would put it away from the
+        // field: both draw it in scene, whatever was asked.
         NativeWindow window = scene.window();
-        if (requested == DisplayMode.IN_SCENE || (window != null
-                && (window.isFullscreen() || !window.supportsAbsolutePositioning()))) {
+        if (requested == DisplayMode.IN_SCENE
+                || (window != null && !FloatingSurfaces.anchoredWindowAvailable(window))) {
             presentInScene(scene);
             return;
         }
