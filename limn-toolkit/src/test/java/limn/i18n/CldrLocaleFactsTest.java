@@ -42,57 +42,63 @@ class CldrLocaleFactsTest {
     private static final Path DUMP = Path.of("src/test/resources/limn/i18n/cldr-locale-facts.txt");
 
     /**
-     * Languages CLDR gives a numbering system this enum does not carry. They answer
-     * {@link NumberingSystem#LATN} and the class note says why: a system is a constant and a
-     * table row away, and what gates it is the glyph coverage test, because digits the vendored
+     * Rows whose system this enum does not carry, a language's or one script's of it. They
+     * answer {@link NumberingSystem#LATN} and the class note says why: a system is a constant and
+     * a table row away, and what gates it is the glyph coverage test, because digits the vendored
      * fonts cannot draw are worse than Latin ones.
      */
-    private static final Set<String> KNOWN_GAPS = Set.of("as", "bn", "dz", "my");
+    private static final Set<String> KNOWN_GAPS =
+            Set.of("as", "bn", "ccp", "dz", "ff-Adlm", "mni", "my", "nqo", "sat");
 
     @Test
     void theDigitsTableIsCldrs() throws Exception {
         List<String> wrong = new ArrayList<>();
-        List<String> gaps = new ArrayList<>();
+        Set<String> gaps = new TreeSet<>();
         int rows = 0;
-        for (String line : lines()) {
-            if (!line.startsWith("digits ")) {
-                continue;
-            }
+        for (String[] row : digitRows()) {
             rows++;
-            String[] parts = line.split(" ");
-            Locale locale = Locale.forLanguageTag(parts[1]);
-            String cldr = parts[2];
+            Locale locale = Locale.forLanguageTag(row[0]);
+            String cldr = row[1];
             NumberingSystem ours = NumberingSystem.forLocale(locale);
-            if (KNOWN_GAPS.contains(locale.getLanguage())) {
-                gaps.add(parts[1] + "=" + cldr);
+            if (KNOWN_GAPS.contains(row[0])) {
+                gaps.add(row[0]);
                 assertEquals(NumberingSystem.LATN, ours,
-                        parts[1] + " is a known gap and must fall back to Latin digits, not to "
+                        row[0] + " is a known gap and must fall back to Latin digits, not to "
                                 + "a system that is not the one CLDR names");
                 continue;
             }
             if (!ours.name().equalsIgnoreCase(cldr)) {
-                wrong.add(parts[1] + ": CLDR says " + cldr + ", we say " + ours);
+                wrong.add(row[0] + ": CLDR says " + cldr + ", we say " + ours);
             }
         }
-        assertTrue(rows >= 30, "the dump carries only " + rows + " digit rows");
+        assertTrue(rows >= 50, "the dump carries only " + rows + " digit rows");
         assertEquals(List.of(), wrong, "NumberingSystem.forLocale disagrees with CLDR");
-        assertEquals(4, gaps.size(), "the known gaps changed, so the class note has to: " + gaps);
+        assertEquals(new TreeSet<>(KNOWN_GAPS), gaps,
+                "the known gaps changed, so the class note has to");
     }
 
     /**
      * Everything the dump does <b>not</b> name writes Latin digits. Without this half the table
-     * could answer {@code ARAB} for every language on earth and still pass the half above.
+     * could answer {@code ARAB} for every language on earth and still pass the half above. The
+     * three-letter half is searched over every combination there is, as the dump searched it,
+     * since the JDK lists only the two-letter codes.
      */
     @Test
     void everyOtherLanguageWritesLatinDigits() throws Exception {
         Set<String> named = new TreeSet<>();
-        for (String line : lines()) {
-            if (line.startsWith("digits ")) {
-                named.add(line.split(" ")[1].split("-")[0]);
+        for (String[] row : digitRows()) {
+            named.add(row[0].split("-")[0]);
+        }
+        List<String> languages = new ArrayList<>(List.of(Locale.getISOLanguages()));
+        for (char a = 'a'; a <= 'z'; a++) {
+            for (char b = 'a'; b <= 'z'; b++) {
+                for (char c = 'a'; c <= 'z'; c++) {
+                    languages.add(new String(new char[]{a, b, c}));
+                }
             }
         }
         List<String> wrong = new ArrayList<>();
-        for (String language : Locale.getISOLanguages()) {
+        for (String language : languages) {
             if (named.contains(language)) {
                 continue;
             }
@@ -102,6 +108,46 @@ class CldrLocaleFactsTest {
             }
         }
         assertEquals(List.of(), wrong, "a language CLDR writes in Latin digits gets others here");
+    }
+
+    /**
+     * A script the dump does not name for a language changes nothing: the language in that script
+     * writes what the language alone writes, which is what CLDR's inheritance gives a script it
+     * holds no data for, and what it holds and the dump left out because it agrees. Without this
+     * half a table that read every script as Latin would pass the rows above, which name only the
+     * scripts that differ; asked over every script some row names, of every language some row
+     * names.
+     */
+    @Test
+    void aScriptTheDumpDoesNotNameChangesNothing() throws Exception {
+        Set<String> tags = new TreeSet<>();
+        Set<String> languages = new TreeSet<>();
+        Set<String> scripts = new TreeSet<>();
+        for (String[] row : digitRows()) {
+            tags.add(row[0]);
+            Locale locale = Locale.forLanguageTag(row[0]);
+            languages.add(locale.getLanguage());
+            if (!locale.getScript().isEmpty()) {
+                scripts.add(locale.getScript());
+            }
+        }
+        assertTrue(scripts.size() >= 4, "the dump names only the scripts " + scripts);
+
+        List<String> wrong = new ArrayList<>();
+        for (String language : languages) {
+            NumberingSystem alone = NumberingSystem.forLocale(Locale.forLanguageTag(language));
+            for (String script : scripts) {
+                String tag = language + "-" + script;
+                if (tags.contains(tag)) {
+                    continue;
+                }
+                NumberingSystem ours = NumberingSystem.forLocale(Locale.forLanguageTag(tag));
+                if (ours != alone) {
+                    wrong.add(tag + ": " + language + " writes " + alone + ", we say " + ours);
+                }
+            }
+        }
+        assertEquals(List.of(), wrong, "a script the dump does not name moved a language's digits");
     }
 
     @Test
@@ -134,6 +180,18 @@ class CldrLocaleFactsTest {
             }
         }
         assertEquals(List.of(), overreach, "languages we mirror and CLDR does not");
+    }
+
+    /** Each {@code digits} row as its tag and CLDR's system for it. */
+    private static List<String[]> digitRows() throws Exception {
+        List<String[]> rows = new ArrayList<>();
+        for (String line : lines()) {
+            if (line.startsWith("digits ")) {
+                String[] parts = line.split(" ");
+                rows.add(new String[]{parts[1], parts[2]});
+            }
+        }
+        return rows;
     }
 
     private static List<String> lines() throws Exception {
