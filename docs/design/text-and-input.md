@@ -255,7 +255,8 @@ puts the old one back, because a paste silently rewritten would be a field decid
 meant. A pasted run of Arabic now reorders on a line that knows it did.
 
 Widening the accepted set — ADR 006 §2.4's locale separator, a locale's own digits, the sv-SE minus
-sign — no longer has a caret to move onto a shaped line as part of itself. It is already there.
+sign — no longer has a caret to move onto a shaped line as part of itself. It is already there, and
+when the widening arrived (2026-09-27, ADR 006 §9.1) nothing in the editor's geometry changed for it.
 
 ## Lines, and the wrapping
 

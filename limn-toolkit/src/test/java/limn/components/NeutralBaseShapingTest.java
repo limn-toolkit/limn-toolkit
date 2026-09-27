@@ -180,18 +180,27 @@ class NeutralBaseShapingTest extends ComponentTestBase {
         // right-to-left base it takes the paragraph's own odd level and is drawn AFTER the digits,
         // while the digits keep their order between them. A prefix width cannot describe that, and
         // for as long as the caret was placed by one it was placed somewhere the ink is not.
-        buildSpinner(new Spinner(-100, 100, 1).setValue(-42), LayoutDirection.RTL);
-        ShapedText line = paintSpinner().line("-42");
-        assertBase(ShapedText.Direction.RTL, line, "the value reads with the form");
-        assertTrue(visualX(line, 0) > visualX(line, 2),
-                "the sign is drawn after both digits");
-        assertTrue(visualX(line, 1) < visualX(line, 2),
-                "and the digits keep their own order between them");
+        //
+        // The language is pinned because a spinner writes its minus sign in the language in
+        // effect, and a machine whose default writes U+2212 would draw a different first character.
+        java.util.Locale language = limn.i18n.I18n.locale();
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        try {
+            buildSpinner(new Spinner(-100, 100, 1).setValue(-42), LayoutDirection.RTL);
+            ShapedText line = paintSpinner().line("-42");
+            assertBase(ShapedText.Direction.RTL, line, "the value reads with the form");
+            assertTrue(visualX(line, 0) > visualX(line, 2),
+                    "the sign is drawn after both digits");
+            assertTrue(visualX(line, 1) < visualX(line, 2),
+                    "and the digits keep their own order between them");
 
-        buildSpinner(new Spinner(-100, 100, 1).setValue(-42), LayoutDirection.LTR);
-        ShapedText plain = paintSpinner().line("-42");
-        assertBase(ShapedText.Direction.LTR, plain, "left to right is unchanged");
-        assertTrue(visualX(plain, 0) < visualX(plain, 1), "the sign still leads");
+            buildSpinner(new Spinner(-100, 100, 1).setValue(-42), LayoutDirection.LTR);
+            ShapedText plain = paintSpinner().line("-42");
+            assertBase(ShapedText.Direction.LTR, plain, "left to right is unchanged");
+            assertTrue(visualX(plain, 0) < visualX(plain, 1), "the sign still leads");
+        } finally {
+            limn.i18n.I18n.setLocale(language);
+        }
     }
 
     @Test
