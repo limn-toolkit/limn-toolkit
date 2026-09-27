@@ -102,6 +102,11 @@ class ScrollAxisClipTest extends ComponentTestBase {
     }
 
     /** The focus rings the frame stroked with {@code pen}, each with the clip it was drawn in. */
+    /**
+     * The rings drawn with {@code pen}, widest first: a focus ring encloses its control, and a
+     * checkbox draws its own box with the same 1.5-point pen as its focus ring, so the first ring
+     * answered is the focus ring.
+     */
     private List<InkRecorder.Ink> ringsOf(float pen) {
         List<InkRecorder.Ink> found = new ArrayList<>();
         for (InkRecorder.Ink ink : canvas.rings) {
@@ -109,6 +114,8 @@ class ScrollAxisClipTest extends ComponentTestBase {
                 found.add(ink);
             }
         }
+        found.sort(java.util.Comparator.comparingDouble((InkRecorder.Ink ink) -> ink.ink().width())
+                .reversed());
         return found;
     }
 
