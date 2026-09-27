@@ -26,6 +26,17 @@ Maven Central say which number that was.
   texture decode; a texture with no image at all, which glTF allows, loads as no texture.
 - A `RenderTarget` disposed twice no longer deletes a GL object the driver has since given to
   something else.
+- A `ListView` given new items, or a `Table` new rows, before its first layout opens at the top, as
+  `setItems` and `setRows` say. A selection set earlier scrolled the new ones to its old index.
+- A glTF triangle list whose index count is not a multiple of three loads without its unfinished
+  last triangle, which a draw skips anyway. A mesh without normals threw
+  `ArrayIndexOutOfBoundsException`.
+- A subtitle window drops every cue that ended long ago. One long cue near the front kept all the
+  short ones after it, and the window grew with the whole script.
+- Stopping a backend forgets the shared loads of `Images.loadShared` and `Sounds.loadShared`. A load
+  still in flight left a future that never completes for the next backend to ask for the same file.
+- The process-wide list behind `FrameMetrics.processInstances()` is pruned whenever a scene is
+  made, not only when that method is called. It kept an entry for every popup ever opened.
 
 ### New
 
