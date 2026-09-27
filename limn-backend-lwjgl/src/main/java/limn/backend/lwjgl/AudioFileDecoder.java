@@ -14,7 +14,6 @@ import static org.lwjgl.stb.STBVorbis.stb_vorbis_close;
 import static org.lwjgl.stb.STBVorbis.stb_vorbis_get_info;
 import static org.lwjgl.stb.STBVorbis.stb_vorbis_get_samples_short_interleaved;
 import static org.lwjgl.stb.STBVorbis.stb_vorbis_open_memory;
-import static org.lwjgl.stb.STBVorbis.stb_vorbis_stream_length_in_samples;
 
 /**
  * Decodes encoded audio into a 16-bit {@link AudioClip}. Supports what LWJGL's
@@ -167,6 +166,9 @@ final class AudioFileDecoder implements AudioDecoder {
 
     // ------------------------------------------------------------------ OGG
 
+    /** Frames an Ogg is decoded in at a time: about 190 ms at 22050 Hz. */
+    private static final int OGG_CHUNK_FRAMES = 4096;
+
     private static AudioClip decodeOgg(byte[] bytes) {
         ByteBuffer encoded = OffHeap.copyOf(bytes);
         try {
@@ -185,15 +187,32 @@ final class AudioFileDecoder implements AudioDecoder {
                         throw new UnsupportedOperationException(
                                 "Ogg must be mono or stereo, got " + channels + " channels");
                     }
-                    int frames = stb_vorbis_stream_length_in_samples(decoder);
-                    ShortBuffer pcm = MemoryUtil.memAllocShort(frames * channels);
+                    // Decoded in chunks until the stream ends, never sized from its stated
+                    // length: that is the last page's granule position, a number the file
+                    // chooses, and a quarter second claiming 2^30 stereo frames overflowed the
+                    // allocation while a smaller lie asked for gigabytes.
+                    ShortBuffer chunk = MemoryUtil.memAllocShort(OGG_CHUNK_FRAMES * channels);
                     try {
-                        int decoded = stb_vorbis_get_samples_short_interleaved(decoder, channels, pcm);
-                        short[] out = new short[decoded * channels];
-                        pcm.get(0, out); // absolute bulk get: never advances/frees by position
-                        return AudioClip.of(out, channels, sampleRate);
+                        short[] out = new short[OGG_CHUNK_FRAMES * channels];
+                        int used = 0;
+                        while (true) {
+                            chunk.clear();
+                            int frames = stb_vorbis_get_samples_short_interleaved(
+                                    decoder, channels, chunk);
+                            if (frames <= 0) {
+                                break;
+                            }
+                            int length = frames * channels;
+                            if (used + length > out.length) {
+                                out = java.util.Arrays.copyOf(out,
+                                        Math.max(out.length * 2, used + length));
+                            }
+                            chunk.get(0, out, used, length); // absolute: never moves the position
+                            used += length;
+                        }
+                        return AudioClip.of(java.util.Arrays.copyOf(out, used), channels, sampleRate);
                     } finally {
-                        MemoryUtil.memFree(pcm);
+                        MemoryUtil.memFree(chunk);
                     }
                 } finally {
                     stb_vorbis_close(decoder);

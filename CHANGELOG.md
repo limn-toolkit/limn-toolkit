@@ -49,6 +49,9 @@ Maven Central say which number that was.
   allocated. Sixteen bytes made the decoder allocate 268 MB, and a looping stream again per loop.
 - A WAV with no format chunk, no channels or no data throws `IllegalArgumentException` as a
   malformed file, not `UnsupportedOperationException`.
+- An Ogg Vorbis file is decoded to the audio it holds, whatever length its last page claims. A
+  quarter second claiming 2^30 stereo frames threw, and a smaller false length made the decoder
+  allocate gigabytes.
 
 ### New
 

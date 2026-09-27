@@ -14,8 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * WAV parsing and format sniffing of {@link AudioFileDecoder}, driven with
- * in-memory files, so it needs no audio device (the Ogg path is exercised
- * manually/at runtime, since it needs the stb_vorbis native).
+ * in-memory files, so it needs no audio device; the Ogg path reads the two small
+ * fixtures under {@code audio/} through the stb_vorbis native, which needs none
+ * either.
  */
 class AudioFileDecoderTest {
 
@@ -198,6 +199,35 @@ class AudioFileDecoderTest {
         ByteBuffer.wrap(file).order(ByteOrder.LITTLE_ENDIAN).putInt(40, 0x7FFFFFF0);
         AudioClip clip = new AudioFileDecoder().decode(file);
         assertEquals(4, clip.samples().length, "the data chunk is read to the end of the file");
+    }
+
+    /**
+     * An Ogg's length is the granule position on its last page, a number the file states, and the
+     * decoder allocated that many frames before decoding: a quarter second claiming 2^30 stereo
+     * frames overflowed the count and failed, and one claiming less than that asked for gigabytes.
+     * The audio is what decodes, whatever the last page says. The last granule is also what trims
+     * the final packet's padding, so a file that lies about it keeps that padding: at most one
+     * packet more than the honest file, never the length it claims.
+     */
+    @Test
+    void anOggDecodesWhatItHoldsWhateverLengthItsLastPageClaims() throws Exception {
+        AudioClip honest = decoder.decode(resource("tone.ogg"));
+        assertEquals(2, honest.channels());
+        assertEquals(22_050, honest.sampleRate());
+        assertEquals(5512, honest.frameCount());
+
+        AudioClip lying = decoder.decode(resource("tone-lying-length.ogg"));
+        int extra = lying.frameCount() - honest.frameCount();
+        assertTrue(extra >= 0 && extra <= 4096,
+                "the frames the file holds and its last packet's padding, not 2^30: " + extra);
+        assertArrayEquals(honest.samples(),
+                java.util.Arrays.copyOf(lying.samples(), honest.samples().length));
+    }
+
+    private static byte[] resource(String name) throws java.io.IOException {
+        try (java.io.InputStream in = AudioFileDecoderTest.class.getResourceAsStream("audio/" + name)) {
+            return in.readAllBytes();
+        }
     }
 
     /**
