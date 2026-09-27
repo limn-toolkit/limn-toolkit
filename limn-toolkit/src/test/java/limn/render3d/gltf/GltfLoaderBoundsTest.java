@@ -97,6 +97,39 @@ class GltfLoaderBoundsTest {
         GltfLoader.load(model(4, 6));
     }
 
+    /**
+     * An index into another list of the document is checked where it is read: a texture naming an
+     * image the file does not have, and a material naming a texture the file does not have, both
+     * loaded and threw ArrayIndexOutOfBoundsException later, from the texture decode or upload,
+     * instead of the IllegalArgumentException a malformed file gets. A texture with no image at
+     * all is legal glTF (an extension may supply one) and loads as no texture: it threw from the
+     * decode too.
+     */
+    @Test
+    void anIndexIntoAListTheFileDoesNotFillIsRefusedWhenTheFileIsRead() {
+        String image = "\"images\": [{\"uri\": \"data:image/png;base64,AAAA\"}]";
+        String[] documents = {
+                "{\"asset\": {\"version\": \"2.0\"}, " + image
+                        + ", \"textures\": [{\"source\": 3}]}",
+                "{\"asset\": {\"version\": \"2.0\"}, " + image
+                        + ", \"textures\": [{\"source\": 0}], \"materials\": [{"
+                        + "\"pbrMetallicRoughness\": {\"baseColorTexture\": {\"index\": 2}}}]}",
+        };
+        for (String document : documents) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> GltfLoader.load(document.getBytes(StandardCharsets.UTF_8)), document);
+        }
+        String honest = "{\"asset\": {\"version\": \"2.0\"}, " + image
+                + ", \"textures\": [{\"source\": 0}], \"materials\": [{"
+                + "\"pbrMetallicRoughness\": {\"baseColorTexture\": {\"index\": 0}}}]}";
+        GltfLoader.load(honest.getBytes(StandardCharsets.UTF_8));
+
+        String noSource = "{\"asset\": {\"version\": \"2.0\"}, " + image
+                + ", \"textures\": [{\"sampler\": 0}], \"materials\": [{"
+                + "\"pbrMetallicRoughness\": {\"baseColorTexture\": {\"index\": 0}}}]}";
+        GltfLoader.load(noSource.getBytes(StandardCharsets.UTF_8)).decodeTextures();
+    }
+
     @Test
     void aVertexCountBeyondItsBufferIsRefusedBeforeTheArrayIsAllocated() {
         // 100 million VEC3 floats is 1.2 GB asked for by a file of a few hundred bytes.

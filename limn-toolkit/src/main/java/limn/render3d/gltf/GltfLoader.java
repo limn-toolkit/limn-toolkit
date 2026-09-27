@@ -358,6 +358,7 @@ public final class GltfLoader {
             }
             int[] roots = sceneRoots(nodes.size());
             checkForest(nodes, roots);
+            checkReferences(textures, images.size(), materials);
             GltfModel model = new GltfModel(meshes, materials, textures, samplers, images, nodes,
                     roots);
             progress.report(1);
@@ -506,6 +507,32 @@ public final class GltfLoader {
                 out[t * 3 + 2] = fan[t + 2];
             }
             return out;
+        }
+
+        /**
+         * Every index a texture or a material holds into another list names an entry the file has:
+         * the model uses them as array indices when it decodes and uploads, where a bad one was an
+         * ArrayIndexOutOfBoundsException long after the load had answered. A texture with no
+         * source at all is allowed, as glTF allows it for an image an extension supplies: the model
+         * treats it as no texture. A material's base-colour texture is optional too. A primitive's
+         * material and a texture's sampler are already read defensively, falling back to a default.
+         */
+        private static void checkReferences(List<GltfModel.TextureDef> textures, int imageCount,
+                                            List<GltfModel.MaterialDef> materials) {
+            for (int i = 0; i < textures.size(); i++) {
+                int source = textures.get(i).image();
+                if (source < -1 || source >= imageCount) {
+                    throw new IllegalArgumentException("glTF texture " + i + " names image "
+                            + source + ", but the file has " + imageCount);
+                }
+            }
+            for (int i = 0; i < materials.size(); i++) {
+                int texture = materials.get(i).baseColorTexture();
+                if (texture < -1 || texture >= textures.size()) {
+                    throw new IllegalArgumentException("glTF material " + i + " names texture "
+                            + texture + ", but the file has " + textures.size());
+                }
+            }
         }
 
         private GltfModel.MaterialDef parseMaterial(Map<String, Object> mat) {

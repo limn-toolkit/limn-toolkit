@@ -228,6 +228,9 @@ public final class GltfModel {
                 throw new CancellationException("glTF texture decode cancelled");
             }
             int source = textures.get(i).image();
+            if (source < 0) {
+                continue; // no image in the file, as glTF allows when an extension supplies it
+            }
             if (byImage[source] == null) {
                 byImage[source] = Images.decode(images.get(source).bytes());
             }
