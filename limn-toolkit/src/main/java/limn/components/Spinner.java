@@ -89,7 +89,9 @@ import java.util.function.DoubleConsumer;
  *
  * <p>Stepping never goes away: Up/Down step even mid-edit, taking the typed text as the
  * number to step from, and Left/Right resume stepping (or switching time fields) once
- * the edit is committed. {@link #setEditable} turns typing off entirely.
+ * the edit is committed. Typed text that does not read as a number is refused by a step as
+ * Enter refuses it, with the same flash and the same sentence, and the step is not taken: the
+ * edit stays open on the value that stands. {@link #setEditable} turns typing off entirely.
  *
  * <p><b>A programmatic {@link #setValue} cancels an edit in progress</b>, because the
  * half-typed text is no longer about the number now in the field and committing it later
@@ -644,7 +646,7 @@ public final class Spinner extends Widget<Spinner> {
      *
      * <p>A screen reader is told, politely, since the flash is for eyes and nothing in the tree
      * moves: the node carries the committed value and never carried the typed text, and the value
-     * did not change. See {@link #announceRefused}.
+     * did not change. See {@link #refuse}.
      */
     private void commitEdit() {
         if (edit == null) {
@@ -657,13 +659,30 @@ public final class Spinner extends Widget<Spinner> {
         if (parsed != null) {
             apply(parsed, Change.Origin.USER);
         } else {
-            // From full colour back to none, restarted if a second refusal lands mid-fade: the
-            // snap is what makes a quick retype that is refused again flash again.
-            refusedFlash.snap(1);
-            refusedFlash.to(0);
-            announceRefused(typed);
+            refuse(typed);
         }
         invalidate();
+    }
+
+    /**
+     * Refuses {@code typed}, text a person gave that does not read as a value: the border flashes
+     * the theme's danger colour and a screen reader is told what was typed and what stands (see
+     * {@link #announceRefused}). Every path that refuses text a person gave goes through here — a
+     * commit by Enter, by focus leaving and by reaching for an arrow, a step over the text by a
+     * key or by an assistive technology's increment or decrement, and a set by text from an
+     * assistive technology — so that none of them can show a refusal to the eye and keep it from
+     * the ear, or the other way round: a person who dictated a number, or typed it into a
+     * reader's own prompt, may be watching the field rather than listening to it.
+     *
+     * <p>The flash runs from full colour back to none, and restarts if a second refusal lands
+     * mid-fade: the snap is what makes a quick retype that is refused again flash again.
+     *
+     * @param typed the text that did not read as a value
+     */
+    private void refuse(String typed) {
+        refusedFlash.snap(1);
+        refusedFlash.to(0);
+        announceRefused(typed);
     }
 
     /**
@@ -674,9 +693,7 @@ public final class Spinner extends Widget<Spinner> {
 
     /**
      * Says that {@code typed} was not taken, and what stands instead: {@code “1.234” not accepted,
-     * still 7}. Every path that refuses text a person gave goes through here — a commit by Enter,
-     * by focus leaving and by reaching for an arrow, and a set by text from an assistive
-     * technology.
+     * still 7}. The spoken half of {@link #refuse}, which is how every refusal reaches it.
      *
      * <p>The sentence is built here and handed over finished rather than queued as a string to be
      * resolved later, because a queued string is resolved in the language of the whole scene when
@@ -847,17 +864,34 @@ public final class Spinner extends Widget<Spinner> {
      * silently, the step announces if it moved past that, and if it did not -- a step at a bound
      * over a number that was itself new -- the adoption is announced in its place. A typed edit
      * whose following step was a no-op used to apply with no notification at all.
+     *
+     * <p><b>Text that does not read is refused, and nothing steps</b>, as Enter refuses it: the
+     * value stands, the border flashes and a screen reader is told ({@link #refuse}), and the
+     * edit stays open with the value that stands in it, selected, so that retyping replaces it
+     * and a second press steps from it. Stepping from the value behind the text, which is what
+     * this used to do, stepped from a number the person was no longer looking at and wrote the
+     * result over what they had typed, so the text vanished with no sign that it had been
+     * refused. An emptied field is refused the same way, because Enter refuses it: the blank is
+     * not a number either, and the one it replaced is no longer on screen.
+     *
+     * <p>The arrow buttons answer the same text differently, and on purpose: reaching for them is
+     * leaving the text, so they commit it first, and when that commit is refused they step from
+     * the value that stands, which by then is what the field shows. A key, or an assistive
+     * technology's increment, never left the text, and had nothing on screen to step from but
+     * what it could not read.
      */
     private void stepFromTyped(Runnable step) {
-        double before = value;
         Double typed = parse(edit.text());
-        if (typed != null) {
+        if (typed == null) {
+            refuse(edit.text());
+        } else {
+            double before = value;
             settle(typed, this.step);
-        }
-        double adopted = value;
-        step.run();
-        if (value == adopted && value != before) {
-            notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+            double adopted = value;
+            step.run();
+            if (value == adopted && value != before) {
+                notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+            }
         }
         edit.setText(text());
         edit.selectAll();
@@ -1504,7 +1538,7 @@ public final class Spinner extends Widget<Spinner> {
                 cancelEdit();
                 return true;
             }
-            // Stepping never goes away, it just steps from what is typed.
+            // Stepping never goes away: it steps from what is typed, and refuses what does not read.
             case Keys.UP -> {
                 stepFromTyped(() -> nudgeFromKey(1, mods));
                 return true;
@@ -1803,7 +1837,8 @@ public final class Spinner extends Widget<Spinner> {
      * <p>So a step mid-edit goes through {@link #stepFromTyped} exactly as Up does: the number on
      * screen is adopted silently, the step is the one reported change, and the edit stays open with
      * the editor re-seeded from the committed value, so the published value and the typed text
-     * agree afterwards. The arrow buttons take the other path and end the edit instead; see
+     * agree afterwards. Text it cannot read is refused as Up refuses it, flash and sentence alike,
+     * and no step is taken. The arrow buttons take the other path and end the edit instead; see
      * {@link #onSyntheticAction}, which is the finding this widget produced — the two gestures are
      * two different private paths, and each verb reaches the one its own box reaches.
      *
@@ -1826,14 +1861,15 @@ public final class Spinner extends Widget<Spinner> {
      * and applies through the from-the-user path, never through {@code setValue}, which is the
      * silent one and would move the value while telling the application nothing.
      *
-     * <p><b>A text that does not read is said</b>, in the sentence a refused typed commit gets
-     * ({@code “1.234” not accepted, still 7}), and a number that is not finite is not. The
-     * platform cannot report it: a bridge answers the client from the published tree before the
-     * set reaches this method, so a client that wrote a text is told it was taken whatever
-     * happens here, and without the sentence the only sign would be a value that never moved. A
-     * text is what a person dictated or typed into an assistive technology's own prompt; a
-     * {@code NaN} or an infinity is a client's defect, and saying it would speak to the user
-     * about somebody else's bug.
+     * <p><b>A text that does not read is refused as a typed commit is</b>: the border flashes, and
+     * the sentence a refused commit gets is said ({@code “1.234” not accepted, still 7}). A number
+     * that is not finite gets neither. The platform cannot report the refusal: a bridge answers
+     * the client from the published tree before the set reaches this method, so a client that
+     * wrote a text is told it was taken whatever happens here, and without the sentence the only
+     * sign would be a value that never moved. A text is what a person dictated or typed into an
+     * assistive technology's own prompt, and that person may be watching the field as much as
+     * listening to it, so the flash is theirs too; a {@code NaN} or an infinity is a client's
+     * defect, and flashing or saying it would show the user somebody else's bug.
      *
      * <p>The enabled check is the one the key path keeps for itself; the scene has already
      * re-checked the ancestor chain, showing and modality before the call arrives. What a reader
@@ -1851,8 +1887,8 @@ public final class Spinner extends Widget<Spinner> {
 
     /**
      * The spinner's mechanisms as the value shape drives them: a step is the key's
-     * path, a set reads a text through the same {@link #parse} a typed commit does, says a text it
-     * cannot read as a typed commit's refusal is said, cancels the edit and applies from the user.
+     * path, a set reads a text through the same {@link #parse} a typed commit does, refuses a text
+     * it cannot read as a typed commit is refused, cancels the edit and applies from the user.
      */
     private final class ValueHost implements ValueAccessibility.Host {
         @Override
@@ -1872,11 +1908,11 @@ public final class Spinner extends Widget<Spinner> {
                 if (parsed != null && Double.isFinite(parsed)) {
                     return parsed;
                 }
-                // Said, as a typed commit's refusal is, and here it is the only word anyone will
-                // get: the bridge answered the client before this ran, so the client believes the
-                // text was taken. A number that is not finite is not said -- that is a client's
-                // mistake, not words a person gave.
-                announceRefused(text.text());
+                // Refused as a typed commit is, flash and sentence alike, and here the sentence is
+                // the only word a reader will get: the bridge answered the client before this ran,
+                // so the client believes the text was taken. A number that is not finite is
+                // neither flashed nor said -- that is a client's mistake, not words a person gave.
+                refuse(text.text());
                 return Double.NaN;
             }
             return Accessible.Argument.finiteValueOf(arg);

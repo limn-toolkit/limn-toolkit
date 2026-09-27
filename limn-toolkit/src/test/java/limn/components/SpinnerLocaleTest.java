@@ -326,6 +326,40 @@ class SpinnerLocaleTest extends ComponentTestBase {
         assertColor(Theme.of(spinner).danger(), border(), "the same answer as Enter gets");
     }
 
+    @Test
+    void aStepOverRefusedTextFlashesAndStepsNowhere() {
+        // Up mid-edit steps from what is typed, and 1.234 in German is not a number to step from.
+        // It used to step from the value behind it and write the result over the text, so what was
+        // typed vanished with no sign that it had been refused.
+        I18n.setLocale(GERMAN);
+        build(new Spinner(0, 10_000, 1).setValue(7));
+        scene.requestFocus(spinner);
+        settle();
+        typeInto("1.234");
+        press(Keys.UP, 0);
+
+        assertEquals(7.0, spinner.value(), "the value stands, as it does when Enter is refused");
+        assertNull(changed.get(), "and nothing was reported, since nothing moved");
+        assertTrue(spinner.isEditing(), "a step never ends the edit, refused or not");
+        List<String> shown = painted();
+        assertTrue(shown.contains("7") && !shown.contains("1.234"),
+                "the editor shows the value that stands: " + shown);
+        assertColor(Theme.of(spinner).danger(), border(), "and the border says it was refused");
+
+        settle();
+        assertColor(restingBorder(), border(), "the same brief flash Enter's refusal gets");
+        press(Keys.UP, 0);
+        assertEquals(8.0, spinner.value(), "the next press steps from the value it was shown");
+        assertColor(restingBorder(), border(), "and a step that reads is not a refusal");
+
+        // An emptied field is refused by Enter, since a spinner always holds a number, and a
+        // step over it is refused the same way rather than stepping from a number no longer shown.
+        press(Keys.BACKSPACE, 0);
+        press(Keys.DOWN, 0);
+        assertEquals(8.0, spinner.value(), "a blank is not a number to step from");
+        assertColor(Theme.of(spinner).danger(), border(), "and it is refused as Enter refuses it");
+    }
+
     // ------------------------------------------------------------- time mode
 
     @Test
