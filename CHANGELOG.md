@@ -8,6 +8,21 @@ Maven Central say which number that was.
 
 ## After 0.9.0
 
+### Fixed
+
+- A menu's separators at its start or end, or right after another separator, are no longer drawn,
+  as `Menu.addSeparator` always promised, so a menu built with conditions shows no double or
+  dangling rule. The model keeps them.
+- A submenu row disabled while it was highlighted no longer opens from the keyboard.
+- Editable text reads a lone carriage return, the classic Mac OS line break, as a line break;
+  it was deleted, joining the lines around it.
+- A chart whose values reach near the largest double no longer throws on every frame.
+- A glTF texture or material that names an image or texture the file does not have is refused
+  with an `IllegalArgumentException` when the file is read, rather than failing later in the
+  texture decode; a texture with no image at all, which glTF allows, loads as no texture.
+- A `RenderTarget` disposed twice no longer deletes a GL object the driver has since given to
+  something else.
+
 ### New
 
 - `I18n.observeUnresolvedKeys` tells an application which keys no bundle translates, so a typo or a
