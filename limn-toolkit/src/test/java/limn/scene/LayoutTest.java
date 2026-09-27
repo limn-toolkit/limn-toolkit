@@ -9,7 +9,11 @@ import limn.scene.layout.SizedBox;
 import limn.scene.layout.Stack;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.ExecutionException;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LayoutTest extends SceneTestBase {
 
@@ -266,5 +270,67 @@ class LayoutTest extends SceneTestBase {
         stack.layoutBox(0, 0, 200, 100);
         assertEquals(150, small.x(), EPS);
         assertEquals(80, small.y(), EPS);
+    }
+
+    /**
+     * A null alignment is refused where it is given, and a refused one changes nothing: it was
+     * stored, and the next layout pass threw from the switch that places each child, far from the
+     * call that put it there.
+     */
+    @Test
+    void stackRefusesANullAlignment() {
+        Stack stack = new Stack().alignment(Stack.Alignment.CENTER);
+        FixedBox box = new FixedBox(50, 20);
+        stack.add(box);
+        NullPointerException error = assertThrows(NullPointerException.class,
+                () -> stack.alignment(null));
+        assertEquals("alignment", error.getMessage());
+        stack.layoutBox(0, 0, 200, 100);
+        assertEquals(75, box.x(), EPS, "the stack still centres");
+    }
+
+    /**
+     * An alignment set off the UI thread is refused before it is stored. It used to be refused
+     * only by the layout request that followed the write, so the stack threw and still held the
+     * value a worker had raced into it.
+     */
+    @Test
+    void stackAlignmentOffTheUiThreadThrowsAndChangesNothing()
+            throws ExecutionException, InterruptedException {
+        Stack stack = new Stack();
+        FixedBox box = new FixedBox(50, 20);
+        stack.add(box);
+        IllegalStateException error = ui.workers().submit(() ->
+                assertThrows(IllegalStateException.class,
+                        () -> stack.alignment(Stack.Alignment.CENTER))).get();
+        assertTrue(error.getMessage().contains("UI thread"), error.getMessage());
+        stack.layoutBox(0, 0, 200, 100);
+        assertEquals(0, box.x(), EPS, "the stack still places its child at the top left");
+    }
+
+    /** The alignment the stack already holds asks for no layout, so no measure runs. */
+    @Test
+    void stackAlignmentItAlreadyHoldsAsksForNoLayout() {
+        int[] measures = {0};
+        Stack stack = new Stack() {
+            @Override
+            protected Size onMeasure(Constraints constraints) {
+                measures[0]++;
+                return super.onMeasure(constraints);
+            }
+        };
+        stack.add(new FixedBox(50, 20));
+        stack.alignment(Stack.Alignment.CENTER);
+        Constraints loose = Constraints.loose(200, 100);
+        stack.measure(loose);
+        assertEquals(1, measures[0]);
+
+        stack.alignment(Stack.Alignment.CENTER);
+        stack.measure(loose);
+        assertEquals(1, measures[0], "nothing changed, so the stack answered from its cache");
+
+        stack.alignment(Stack.Alignment.BOTTOM_END);
+        stack.measure(loose);
+        assertEquals(2, measures[0], "and a real change measures again");
     }
 }

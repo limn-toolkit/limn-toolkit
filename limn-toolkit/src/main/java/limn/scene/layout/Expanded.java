@@ -86,6 +86,7 @@ public final class Expanded extends Widget<Expanded> {
      * @throws IllegalArgumentException when above a ceiling {@link #atMost} set
      */
     public Expanded atLeast(float points) {
+        Ui.checkUiThread();
         float floor = Math.max(0, points);
         if (floor > maxMain) {
             throw new IllegalArgumentException("floor " + floor + " is above the ceiling " + maxMain);
