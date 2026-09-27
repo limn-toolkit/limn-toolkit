@@ -578,19 +578,6 @@ class ScrollAxisClipTest extends ComponentTestBase {
 
     // ------------------------------------------------------------------ the dialog
 
-    /**
-     * Five seconds of frames, long past every fade. Not {@link #settle()}: an in-scene card is laid
-     * out again on every paint to follow its slide, which refreshes the body's bar, so the scene
-     * never paints nothing.
-     */
-    private void pump() {
-        for (int i = 0; i < 25; i++) {
-            nanos.addAndGet(200_000_000L);
-            canvas.reset();
-            scene.renderFrame(canvas);
-        }
-    }
-
     private void showInScene(Dialog dialog) {
         showInScene(dialog, 900);
     }
@@ -599,7 +586,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
     private void showInScene(Dialog dialog, int height) {
         mount(new Column(), 900, height);
         dialog.setDisplayMode(DisplayMode.IN_SCENE).show(scene);
-        pump();
+        settle();
     }
 
     private static <T> T find(Widget<?> root, Class<T> type) {
@@ -632,7 +619,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
             dialog.contentRoot().setLayoutDirection(direction);
             showInScene(dialog);
             checkbox.requestFocus();
-            pump();
+            settle();
             wholeFrame();
             List<InkRecorder.Ink> rings = ringsOf(Strokes.FOCUS_RING_THIN);
             ScrollView body = find(dialog.contentRoot(), ScrollView.class);
@@ -662,7 +649,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
             dialog.contentRoot().setLayoutDirection(direction);
             showInScene(dialog);
             checkbox.requestFocus();
-            pump();
+            settle();
             wholeFrame();
             ScrollView body = find(dialog.contentRoot(), ScrollView.class);
             assertNotNull(body);
@@ -697,7 +684,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
         assertNotNull(body);
         assertTrue(body.maxOffsetY() > 0, "the window caps the card, so the body scrolls");
         checkbox.requestFocus();
-        pump();
+        settle();
         assertEquals(body.maxOffsetY(), body.offsetY(), 0, "focus revealed the last line");
         wholeFrame();
         List<InkRecorder.Ink> rings = ringsOf(Strokes.FOCUS_RING_THIN);
@@ -725,7 +712,7 @@ class ScrollAxisClipTest extends ComponentTestBase {
         Dialog dialog = well.openDialog();
         assertNotNull(dialog, "the button raised no dialog");
         dialog.contentRoot().setLayoutDirection(direction);
-        pump();
+        settle();
         ColorPicker picker = find(dialog.contentRoot(), ColorPicker.class);
         assertNotNull(picker);
         body = find(dialog.contentRoot(), ScrollView.class);
@@ -818,16 +805,13 @@ class ScrollAxisClipTest extends ComponentTestBase {
         assertTrue(band.right() < left - Theme.current().focusRingReach() - FEATHER,
                 "the band lies past the focus ring's reach, where only the cursor's reaches");
 
-        // Past the frame the whole repaint leaves behind, to one that repaints only what the card
-        // keeps repainting, so that the band is the one pass that can reach the cursor.
-        for (int i = 0; i < 10 && (canvas.cleared || canvas.passes.isEmpty()); i++) {
-            frame();
-        }
-        assertFalse(canvas.cleared, "the card never stopped repainting whole");
+        // Past the frame the whole repaint leaves behind, to a scene that repaints nothing, so
+        // that the band is the one pass and the only one that can reach the cursor.
+        settle();
         scene.damage(band);
         frame();
         assertFalse(canvas.cleared, "a whole frame paints everything and tests no culling");
-        assertTrue(canvas.passes.contains(band), "the band is one of the passes");
+        assertEquals(List.of(band), canvas.passes, "the damage is the band alone");
         boolean redrawn = false;
         for (InkRecorder.Ink circle : canvas.circles) {
             if (meets(circle.ink(), band) && meets(circle.clip(), band)) {

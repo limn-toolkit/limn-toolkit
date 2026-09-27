@@ -747,7 +747,9 @@ class DialogTest extends ComponentTestBase {
             inScene.show(host);
             pump(clock, host, canvas); // settle the fade-in, so the alpha is the token's own
 
+            // A settled dialog repaints nothing of its own accord, so this frame is asked for.
             canvas.fills.clear();
+            host.requestRender();
             host.renderFrame(canvas);
             assertTrue(canvas.fills.contains(veiled.scrim()),
                     "the settled veil must be the palette's scrim, was " + canvas.fills);

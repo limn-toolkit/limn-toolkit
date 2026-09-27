@@ -1079,8 +1079,8 @@ public final class Dialog {
 
         @Override
         protected void onLayout() {
-            // Re-derived rather than remembered from the measure: an in-scene card is laid out
-            // again on every paint to follow the fade slide, without a measure in between.
+            // Re-derived rather than remembered from the measure, so that the two boxes follow
+            // the height this column was given, whatever measure came before.
             float gap = Tokens.spacingFor(this, Tokens.Role.MEDIUM);
             float footerHeight = footer.measure(
                     Constraints.loose(width(), Constraints.UNBOUNDED_LIMIT)).height();
@@ -1397,9 +1397,7 @@ public final class Dialog {
         protected void onLayout() {
             // Resolved on the CARD, not on this overlay: the cap and the scene margin are
             // properties of the dialog, so an explicitly-stepped Dialog keeps its own width
-            // budget even though the overlay itself inherits the host scene's step. Called
-            // from paintChildren too (the fade slide), which is safe because resolution is a
-            // memo read plus an array index, never a re-measure.
+            // budget even though the overlay itself inherits the host scene's step.
             SizeTokens t = Theme.of(this).tokensFor(card);
             float maxW = Math.min(t.dialogMaxWidth(), width() - 2 * t.spacingLarge());
             // The same margin down the other axis, which the height had never been given: an
@@ -1409,9 +1407,17 @@ public final class Dialog {
             float maxH = height() - 2 * t.spacingLarge();
             Size size = card.measure(
                     new Constraints(0, Math.max(0, maxW), 0, Math.max(0, maxH)));
-            float px = (width() - size.width()) / 2 + dragOffsetX;
-            float py = (height() - size.height()) / 2 + (1 - fade) * SLIDE_DISTANCE + dragOffsetY;
-            card.layoutBox(px, py, size.width(), size.height());
+            card.layoutBox(cardX(size.width()), cardY(size.height()), size.width(), size.height());
+        }
+
+        /** Where the card's left edge goes: centred, then dragged. */
+        private float cardX(float cardWidth) {
+            return (width() - cardWidth) / 2 + dragOffsetX;
+        }
+
+        /** Where its top goes: centred, lowered by what is left of the fade's slide, dragged. */
+        private float cardY(float cardHeight) {
+            return (height() - cardHeight) / 2 + (1 - fade) * SLIDE_DISTANCE + dragOffsetY;
         }
 
         @Override
@@ -1449,7 +1455,12 @@ public final class Dialog {
         protected void paintChildren(Canvas canvas) {
             float wasX = card.x();
             float wasY = card.y();
-            onLayout(); // re-place the card for the current fade slide
+            // Re-placed for the current fade slide and drag by moving it, not by laying it out
+            // again: between two layout passes nothing else moves it, and a layout run from here
+            // ran every layout inside the card on every frame, so one that repainted itself each
+            // time it was laid out, as the body's scroll bar did, asked from inside each frame for
+            // the next, and a dialog left alone never let the loop go idle.
+            moveChild(card, cardX(card.width()), cardY(card.height()));
             if (card.x() != wasX || card.y() != wasY) {
                 // A placement the layout pass never saw. The accessible tree reads every box
                 // before the paint passes, so on a frame that slid or dragged the card the tree

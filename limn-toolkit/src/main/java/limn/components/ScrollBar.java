@@ -113,6 +113,16 @@ public final class ScrollBar extends Widget<ScrollBar> {
     private boolean holdArmed;
     /** Last answer of {@link #hasOverflow}, so the first time it turns true can announce itself. */
     private boolean overflowed;
+    /**
+     * What the last {@link #refresh()} read the thumb from: the model's three numbers and this
+     * bar's size. A refresh that reads the same ones repaints nothing. NaN before the first, which
+     * no number equals.
+     */
+    private float refreshedContent = Float.NaN;
+    private float refreshedViewport = Float.NaN;
+    private float refreshedOffset = Float.NaN;
+    private float refreshedWidth = Float.NaN;
+    private float refreshedHeight = Float.NaN;
     // Reused toolkit animators: the bar fades and the thumb widens through these
     // instead of hand-rolled interpolation. Opacity's duration is set per direction
     // (quick in, slow out) right before each target change.
@@ -131,8 +141,12 @@ public final class ScrollBar extends Widget<ScrollBar> {
     /** When the bar is shown: always, never, or only while the content overflows. */
     public ScrollBar setPolicy(Policy newPolicy) {
         Ui.checkUiThread();
+        Policy was = policy;
         this.policy = Objects.requireNonNull(newPolicy, "policy");
         refresh();
+        if (newPolicy != was) {
+            invalidate(); // what the bar shows follows the policy, which refresh() does not read
+        }
         return this;
     }
 
@@ -189,16 +203,37 @@ public final class ScrollBar extends Widget<ScrollBar> {
      * otherwise invisible until the pointer moves over the host or the wheel turns, so a card that
      * was capped opens with nothing at all saying that anything was cut off. The gutter inset says
      * the card is capped; only the bar says it can be scrolled.
+     *
+     * <p><b>It repaints the bar only when something the thumb is drawn from changed</b> since the
+     * last refresh: the content's length, the viewport's, the offset, or the bar's own size. A host
+     * calls this from its layout, and a layout can run again with nothing in it changed; a refresh
+     * that repainted every time turned each such layout into damage, and a host laid out on every
+     * frame into a frame that asked for the next one, for ever. The fades and the widening repaint
+     * the bar themselves as they run.
      */
     public void refresh() {
         Ui.checkUiThread();
-        boolean overflow = hasOverflow();
+        // Read once, as every pass over the model does: a host's model may re-derive its content
+        // estimate on every call, and two reads in one refresh could disagree.
+        float content = model.contentLength();
+        float viewport = model.viewportLength();
+        float offset = model.offset();
+        boolean overflow = overflows(content, viewport);
         if (overflow && !overflowed) {
             lastScrollNanos = now();
         }
         overflowed = overflow;
         settle();
-        invalidate();
+        if (content != refreshedContent || viewport != refreshedViewport
+                || offset != refreshedOffset || width() != refreshedWidth
+                || height() != refreshedHeight) {
+            refreshedContent = content;
+            refreshedViewport = viewport;
+            refreshedOffset = offset;
+            refreshedWidth = width();
+            refreshedHeight = height();
+            invalidate();
+        }
     }
 
     /** Lets a test decide when a hold has expired. Package-private. */
@@ -233,7 +268,11 @@ public final class ScrollBar extends Widget<ScrollBar> {
     }
 
     private boolean hasOverflow() {
-        return model.contentLength() - model.viewportLength() > 0.5f;
+        return overflows(model.contentLength(), model.viewportLength());
+    }
+
+    private static boolean overflows(float content, float viewport) {
+        return content - viewport > 0.5f;
     }
 
     private boolean shouldShow() {
