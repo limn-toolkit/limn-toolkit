@@ -4,6 +4,9 @@ import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.components.date.CalendarView;
 import limn.components.date.DateField;
+import limn.graphics.Color;
+import limn.graphics.Paint;
+import limn.graphics.RoundRect;
 import limn.i18n.I18n;
 import limn.input.Keys;
 import limn.scene.LayoutDirection;
@@ -14,7 +17,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 
@@ -176,6 +181,152 @@ class DateMirroringTest extends AccessibleComponentTestBase {
         }
         assertTrue(right.get(0).x() > leftRunStart,
                 "what moves is the run's origin, which sits against the trailing edge");
+    }
+
+    /**
+     * A field bound on its own reading right to left, holding 09/09/2026 under the deterministic
+     * ruler, with the caret where a fresh field has it, on the day.
+     */
+    private DateField bindRightToLeftField() {
+        I18n.setLocale(Locale.forLanguageTag("pt-BR"));
+        DateField field = new DateField().setClock(SEPTEMBER_16);
+        field.setDate(ANCHOR);
+        field.setLayoutDirection(LayoutDirection.RTL);
+        bind(field);
+        scene.setTextRuler(RULER);
+        field.markNeedsLayout();
+        frame();
+        return field;
+    }
+
+    /**
+     * The month's box in scene coordinates, as its left edge and its width, worked out from the
+     * field's own trailing edge and not read off anything the field computed: reading right to
+     * left the run ends at the trailing pad, and at the ruler's ten points a code point the year
+     * ("2026") and the slash before it are the last fifty points of the run and the month the
+     * twenty before those. Where the tree, a click and the paint put the month is each checked
+     * against this, so a run placed from the wrong edge moves all of them off it.
+     */
+    private static float[] monthFromTheTrailingEdge(DateField field) {
+        float runEnd = field.localToSceneX() + field.width()
+                - Theme.current().tokensFor(field).fieldPadH();
+        return new float[] {runEnd - 50 - 20, 20};
+    }
+
+    /**
+     * The click, the third reader of where the run starts: a click on the month of a field read
+     * right to left puts the caret on the month. The point is the month's box worked out from the
+     * trailing edge, so a click that walked the run from the leading pad lands past its end and
+     * takes the last segment, the year.
+     */
+    @Test
+    void aClickOnTheMonthReadingRightToLeftPutsTheCaretOnTheMonth() {
+        DateField field = bindRightToLeftField();
+        assertEquals(0, field.focusedSegment(), "the caret starts on the day");
+        float[] month = monthFromTheTrailingEdge(field);
+
+        drive(scene).click(month[0] + month[1] / 2, field.localToSceneY() + field.height() / 2);
+        frame();
+
+        assertEquals(1, field.focusedSegment(),
+                "a click on the month at " + month[0] + " puts the caret on the month");
+        AccessibleNode published = childrenOf(node(Accessible.Role.GROUP)).get(1);
+        assertEquals(month[0], published.x(), EPS, "the tree gives the month that same box");
+        assertEquals(month[1], published.width(), EPS);
+    }
+
+    /**
+     * The paint, the fourth: the band behind the caret's segment is painted over the month's box,
+     * read off a canvas that records its fills in scene coordinates, reading right to left. It
+     * reaches the segment's own padding past each side and no further, so it is the month's band
+     * and not one drawn from the leading pad over the day's neighbour.
+     */
+    @Test
+    void theCaretsBandIsPaintedOverTheMonthReadingRightToLeft() {
+        DateField field = bindRightToLeftField();
+        scene.requestFocus(field);
+        key(Keys.RIGHT);
+        assertEquals(1, field.focusedSegment(), "Right puts the caret on the month");
+        settleAnimations(field); // the focus fade at its end, so the band is at full strength
+
+        FillCanvas painted = new FillCanvas(400, 300);
+        field.invalidate();
+        scene.renderFrame(painted);
+        Color bandInk = Theme.current().primary().withAlpha(0.20f);
+        List<RoundRect> bands = painted.fillsIn(bandInk);
+        assertEquals(1, bands.size(), "one band, behind the caret's segment: " + painted.fills);
+        RoundRect band = bands.get(0);
+
+        SizeTokens t = Theme.current().tokensFor(field);
+        float[] month = monthFromTheTrailingEdge(field);
+        assertEquals(month[0] - t.spinnerFieldPadX(), band.x(), EPS,
+                "the band starts the segment's padding before the month at " + month[0]);
+        assertEquals(month[1] + 2 * t.spinnerFieldPadX(), band.width(), EPS,
+                "and is the month's width and that padding on each side");
+        AccessibleNode published = childrenOf(node(Accessible.Role.GROUP)).get(1);
+        assertTrue(band.x() <= published.x()
+                        && band.x() + band.width() >= published.x() + published.width(),
+                "over the box the tree gives the month, " + published.x() + " wide "
+                        + published.width() + ": " + band);
+    }
+
+    private static final float EPS = 1e-3f;
+
+    /** Records every rounded fill and its paint in scene coordinates, following the transforms. */
+    private static final class FillCanvas extends FakeCanvas {
+
+        record Fill(RoundRect shape, Paint paint) {
+        }
+
+        final List<Fill> fills = new ArrayList<>();
+        private final Deque<float[]> saved = new ArrayDeque<>();
+        private float tx;
+        private float ty;
+
+        FillCanvas(float width, float height) {
+            super(width, height);
+        }
+
+        List<RoundRect> fillsIn(Paint paint) {
+            return fills.stream().filter(fill -> fill.paint().equals(paint))
+                    .map(Fill::shape).toList();
+        }
+
+        @Override
+        public void save() {
+            super.save();
+            saved.push(new float[] {tx, ty});
+        }
+
+        @Override
+        public void restore() {
+            if (!saved.isEmpty()) {
+                float[] outer = saved.pop();
+                tx = outer[0];
+                ty = outer[1];
+            }
+            super.restore();
+        }
+
+        @Override
+        public void restoreToCount(int count) {
+            while (saveCount() > count && !saved.isEmpty()) {
+                restore();
+            }
+            super.restoreToCount(count);
+        }
+
+        @Override
+        public void translate(float dx, float dy) {
+            tx += dx;
+            ty += dy;
+        }
+
+        @Override
+        public void fillRoundRect(RoundRect r, Paint paint) {
+            fills.add(new Fill(new RoundRect(tx + r.x(), ty + r.y(), r.width(), r.height(),
+                    r.topLeft(), r.topRight(), r.bottomRight(), r.bottomLeft()), paint));
+        }
     }
 
     private void key(int keyCode) {
