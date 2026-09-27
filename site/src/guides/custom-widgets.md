@@ -126,3 +126,24 @@ the same way: `class Grid extends Container<Grid>`. Its `onMeasure` measures eac
 `child.measure(constraints)` and answers its own size from theirs. Its `onLayout` then places each
 child with `child.layoutBox(x, y, width, height)`, in the container's own coordinates. The
 container's children are in `children()`.
+
+A container that does not clip lets what its children draw outside themselves show outside it
+too: the focus ring of a button at the edge of your layout hangs past the layout. A frame
+repaints only what changed, and it skips a whole subtree whose box, grown by what the subtree
+says it paints outside itself, misses the region being repainted. A layout that said nothing
+would be skipped when only the band beside it repaints, a neighbour's hover for instance, and
+the ring in that band would be wiped.
+
+`Container` says it for you. By default it declares the reach the theme gives a focus ring,
+`Theme.of(this).focusRingReach()`, which covers the ring of every control the toolkit ships, and
+the rows, columns, paddings and boxes you put your layout in declare it too. When a child draws farther,
+such as a cursor centred on its edge, a glow or a badge across a corner, declare that with
+`paintOverflow(points)`, on your layout and on every layout between it and that child. When the
+children are known to stay inside, `paintOverflow(0)` spares the band on every repaint.
+`paintOverflowFromTheme()` goes back to the default. A layout that clips its children, by
+overriding `clipsChildren()`, declares nothing by default, because the clip already bounds them.
+
+A layout that extends `Widget` directly instead of `Container` inherits none of this. It
+overrides `paintOutset()`, the hook `paintOverflow` sets, and returns the reach itself:
+`Theme.of(this).focusRingReach()` when it has nothing better to say. The hook is asked on every
+repaint, so it returns a number it holds and never walks the children.

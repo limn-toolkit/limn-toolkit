@@ -1,5 +1,7 @@
 package limn.components;
 
+import limn.concurrent.Ui;
+import limn.internal.lang.Checks;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
@@ -40,8 +42,14 @@ import java.util.Objects;
  * with a parent in place, and is then clamped by the incoming constraints like any other
  * request. An {@code Extent} that ignores its argument is a constant, and a tight parent
  * discards the number either way.
+ *
+ * <p>Like every layout, it declares how far its child may paint past it: by default the reach of
+ * the theme's focus ring, and whatever {@link #paintOverflow(float)} says instead.
  */
 public final class TokenBox extends Widget<TokenBox> {
+
+    /** What {@link #paintOverflow} holds while the reach follows the theme: the default. */
+    private static final float FROM_THEME = -1;
 
     /** One extent, read off a size step. */
     @FunctionalInterface
@@ -53,6 +61,8 @@ public final class TokenBox extends Widget<TokenBox> {
     private final Extent fixedWidth;
     private final Extent fixedHeight;
     private final Widget<?> child;
+    /** The reach {@link #paintOverflow(float)} declared, or {@link #FROM_THEME}. */
+    private float paintOverflow = FROM_THEME;
 
     /**
      * @param fixedWidth  the width to impose, or {@code null} to take the child's
@@ -64,6 +74,52 @@ public final class TokenBox extends Widget<TokenBox> {
         this.fixedHeight = fixedHeight;
         this.child = Objects.requireNonNull(child, "child");
         add(child);
+    }
+
+    /**
+     * Declares how far the child may paint past this box, in logical points, in place of the reach
+     * of the theme's focus ring, which is the default. It is what
+     * {@link limn.scene.layout.Container#paintOverflow(float)} is to a container, for the one child
+     * here: the public setter of {@link #paintOutset()}, and a new declaration repaints this box
+     * and its band while one already in force repaints nothing. UI thread only.
+     *
+     * @param points how far the child may paint past each side of this box, in logical points
+     * @return this box
+     * @throws IllegalArgumentException when negative, {@code NaN} or infinite
+     */
+    public TokenBox paintOverflow(float points) {
+        Ui.checkUiThread();
+        float reach = Checks.notNegative(points, "paint overflow");
+        if (paintOverflow != reach) {
+            paintOverflow = reach;
+            invalidate();
+        }
+        return this;
+    }
+
+    /**
+     * Goes back to declaring the reach of the theme's focus ring for the child, which is the
+     * default; see {@link #paintOverflow(float)}. UI thread only.
+     *
+     * @return this box
+     */
+    public TokenBox paintOverflowFromTheme() {
+        Ui.checkUiThread();
+        if (paintOverflow != FROM_THEME) {
+            paintOverflow = FROM_THEME;
+            invalidate();
+        }
+        return this;
+    }
+
+    /**
+     * What {@link #paintOverflow(float)} declared, else the theme's {@link Theme#focusRingReach()}:
+     * the child is laid out over the whole box, so a ring at its edge is a ring at this box's
+     * edge. O(1) and allocation-free.
+     */
+    @Override
+    protected float paintOutset() {
+        return paintOverflow >= 0 ? paintOverflow : Theme.of(this).focusRingReach();
     }
 
     @Override

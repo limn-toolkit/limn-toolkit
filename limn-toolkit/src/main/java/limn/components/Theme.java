@@ -38,7 +38,9 @@ import limn.internal.lang.Checks;
  * <p>What a palette carries is <b>colour, plus one metric</b>: {@link #cornerScale}, how
  * round the corners are. Spacing and typography stay process-wide and identical in every
  * palette; see {@link #tokens} for why that boundary falls exactly where it does, and why
- * a radius is the one metric allowed across it.
+ * a radius is the one metric allowed across it. A palette also answers one number it does not
+ * choose, {@link #focusRingReach}: how far the focus ring reaches past a control, which is what
+ * every layout declares by default for the children it does not clip.
  */
 public final class Theme {
 
@@ -600,6 +602,34 @@ public final class Theme {
     /** @return this palette's {@code cornerScale} */
     public float cornerScale() {
         return cornerScale;
+    }
+
+    /**
+     * How far past a control's box the focus ring drawn under this palette reaches, in logical
+     * points: the widest ring in the toolkit, a {@link Strokes#FOCUS_RING} pen centred
+     * {@link Strokes#FOCUS_GAP_BUTTON} outside a button's edge, which is
+     * {@link Strokes#FOCUS_RING_OUTSET}, 3 points.
+     *
+     * <p><b>It is what a layout declares for its children unless it is told another number.</b> A
+     * row, a column, a padding and every other layout that does not clip lets what its children
+     * draw outside themselves show outside it too, and partial rendering knows that only if the
+     * layout says so: a repaint pass skips a subtree whose box, grown by what its root declares it
+     * paints outside itself, misses the pass. So each layout declares this reach, and a control
+     * whose ring touches the layout's edge keeps the ring when only the band just outside the
+     * layout repaints, a neighbour's hover or a caret beside it. A layout whose children reach
+     * farther, or never reach past it, says so with its {@code paintOverflow}.
+     *
+     * <p>The same number for every palette, because the ring's pen and gap are locked rather than
+     * tabled and no palette chooses them, so neither the builder nor the saved format carries it.
+     * It is asked of the palette, through {@link #of(Widget)}, so that the layouts follow the theme
+     * in effect for them rather than a constant of their own. Nothing measures from it: it moves
+     * which pixels a frame repaints and never a box, so, like the corner scale, it costs a palette
+     * switch no relayout.
+     *
+     * @return the reach in logical points
+     */
+    public float focusRingReach() {
+        return Strokes.FOCUS_RING_OUTSET;
     }
 
     /** @return this palette's {@code fontFamily} */
@@ -1263,6 +1293,19 @@ public final class Theme {
         // panel appearance at the step resolved on the hovered anchor (resolved at paint, so
         // it follows both theme switches and size changes).
         limn.scene.Scene.installTooltipStyle(Theme::tooltipStyle);
+        // The layouts live in limn.scene, which names no type of this package, and each declares
+        // by default how far its children may paint past it: the reach of the focus ring in the
+        // palette in effect for it. Resolved per call through of(widget), so a palette resolved
+        // per subtree is followed the day there is one, and without allocating, because a repaint
+        // pass asks it of every layout it considers. Before this class loads a layout declares
+        // LayoutOverflow's own number, which must therefore be this one: otherwise the damage of
+        // one tree would change the moment the first control was built, and a test that never
+        // touched a palette would measure what no application ever sees.
+        if (probe.focusRingReach() != limn.scene.internal.LayoutOverflow.BEFORE_THEME) {
+            throw new AssertionError("Theme's focus ring reach disagrees with what a layout "
+                    + "declares before the theme loads");
+        }
+        limn.scene.internal.LayoutOverflow.install(widget -> of(widget).focusRingReach());
     }
 }
 
