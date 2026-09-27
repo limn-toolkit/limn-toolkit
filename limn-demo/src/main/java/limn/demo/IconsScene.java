@@ -171,8 +171,9 @@ final class IconsScene {
         // A fixed box rather than Expanded: the tab panel measures its content against an
         // unbounded height, and a Flex only shares its main axis out when that axis is
         // bounded: a flex child there measures to nothing at all. Tall enough that a
-        // catalogue of five thousand is visibly a catalogue, which is the point of the tab.
-        column.add(new SizedBox(Float.POSITIVE_INFINITY, LIST_HEIGHT, list));
+        // catalogue of five thousand is visibly a catalogue, which is the point of the tab. Its
+        // width is left free: the column stretches every child across its own width.
+        column.add(new SizedBox(SizedBox.UNSET, LIST_HEIGHT, list));
         column.add(detail);
         return column;
     }

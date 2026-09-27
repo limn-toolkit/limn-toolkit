@@ -10,6 +10,15 @@ import limn.scene.internal.LayoutOverflow;
 /**
  * Forces a fixed width and/or height (unset dimensions pass through to the
  * child, or collapse to zero without one). Also handy as a rigid spacer.
+ *
+ * <p>A dimension is a finite number of points, zero or more, or {@link #UNSET}, which leaves it
+ * free. Any other negative leaves it free as well, and {@code UNSET} is the way to say so. A
+ * {@code NaN} or an infinite dimension is refused where the box is made: measure asked only whether
+ * a dimension was at least zero, so a {@code NaN} left its axis free without a word and positive
+ * infinity was clamped to whatever the parent allowed, which is a different box under every
+ * parent and an infinite one under an unbounded axis. A box meant to take all the room it is given
+ * leaves that to its parent: {@code UNSET} across a {@link Flex} that stretches its children, or an
+ * {@link Expanded} along one.
  */
 public final class SizedBox extends Widget<SizedBox> {
 
@@ -25,19 +34,41 @@ public final class SizedBox extends Widget<SizedBox> {
     /** The reach {@link #paintOverflow(float)} declared, or {@link #FROM_THEME}. */
     private float paintOverflow = FROM_THEME;
 
-    /** Forces {@code child} to an exact size; {@link #UNSET} on an axis leaves it free. */
+    /**
+     * Forces {@code child} to an exact size; {@link #UNSET} on an axis leaves it free.
+     *
+     * @param width  the width in points, or {@link #UNSET}
+     * @param height the height in points, or {@link #UNSET}
+     * @param child  what the box holds, or {@code null} for a spacer
+     * @throws IllegalArgumentException when a dimension is {@code NaN} or infinite
+     */
     public SizedBox(float width, float height, Widget<?> child) {
-        this.fixedWidth = width;
-        this.fixedHeight = height;
+        this.fixedWidth = dimension(width, "width");
+        this.fixedHeight = dimension(height, "height");
         this.child = child;
         if (child != null) {
             add(child);
         }
     }
 
-    /** An empty box of a fixed size: a spacer. */
+    /**
+     * An empty box of a fixed size: a spacer.
+     *
+     * @param width  the width in points, or {@link #UNSET}
+     * @param height the height in points, or {@link #UNSET}
+     * @throws IllegalArgumentException when a dimension is {@code NaN} or infinite
+     */
     public SizedBox(float width, float height) {
         this(width, height, null);
+    }
+
+    /** A dimension as given, once it is a number of points: finite, or negative for free. */
+    private static float dimension(float value, String name) {
+        if (!Float.isFinite(value)) {
+            throw new IllegalArgumentException(name + " must be finite, got " + value
+                    + "; SizedBox.UNSET leaves a dimension free");
+        }
+        return value;
     }
 
     /**
