@@ -73,7 +73,10 @@ platform**: a bridge accepts or refuses a verb synchronously from the published 
 posts, and the `false` a hook answers later is bookkeeping nobody hears. So the only refusal a
 reader can see is the published one — a node accepts exactly the parameterless verbs it publishes
 plus the setters its writable facets imply while it is enabled and visible
-(`AccessibleNode#accepts`), and a widget that accepts a synonym publishes it. On a node the scene
+(`AccessibleNode#accepts`), and a widget that accepts a synonym publishes it. A refusal no
+snapshot can predict — a set by text the widget turns out not to read — can only be said: `Spinner`
+announces it with `Scene#announce`, politely, in the sentence its refused typed commit gets
+("“1.234” not accepted, still 7"), because the client was already told the write was taken. On a node the scene
 will not operate the walk withdraws every verb for you, and there are **three** reasons it will not,
 all read the same way: the widget or an ancestor is disabled (a synthetic child you declared
 `disabled()` included), the node is outside the layer that owns input (beneath an overlay of the

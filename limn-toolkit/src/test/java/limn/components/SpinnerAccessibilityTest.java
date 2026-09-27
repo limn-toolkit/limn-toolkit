@@ -177,6 +177,34 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         frame();
     }
 
+    /** Types {@code text} into the focused spinner a character at a time, as a keyboard does. */
+    private void type(String text) {
+        scene.requestFocus(spinner);
+        text.codePoints().forEach(drive(scene)::charTyped);
+        drive(scene).inputBatchEnded();
+        frame();
+    }
+
+    /** @return every announcement the bridge was handed, in order */
+    private List<AccessibleEvent> announcements() {
+        List<AccessibleEvent> found = new ArrayList<>();
+        for (AccessibleEvent event : bridge.events) {
+            if (event.type() == AccessibleEvent.Type.ANNOUNCEMENT) {
+                found.add(event);
+            }
+        }
+        return found;
+    }
+
+    /** @return every announcement the bridge was handed, in order, as the text a reader says */
+    private List<String> announced() {
+        List<String> said = new ArrayList<>();
+        for (AccessibleEvent event : announcements()) {
+            said.add(String.valueOf(event.newValue()));
+        }
+        return said;
+    }
+
     // -------------------------------------------------------------------------------- the shape
 
     @Test
@@ -449,6 +477,12 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
      * typed commit does, because a platform's value pattern hands over the string a client spoke
      * or typed, and a spinner that could only be set by number could not be set by a reader at
      * all. What the reader cannot parse is refused as a non-number is, before the clamp.
+     *
+     * <p>And since the owner's choice of 2026-09-27 it is <b>said</b>, as a refused typed commit
+     * is: every bridge answers the client from the snapshot before the widget has read the text
+     * (Windows' {@code SetValue} returns {@code S_OK} once the set is posted, macOS's setter
+     * returns nothing at all), so the client believes the write was taken and nothing else will
+     * ever say it was not. It used to be asserted silent here.
      */
     @Test
     void aSetByTextIsReadAsATypedCommitIsAndWhatCannotBeReadIsRefused() throws Exception {
@@ -479,7 +513,18 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         frame();
         assertEquals(34.0, spinner.value(), "what the reader cannot read is refused whole");
         assertEquals(List.of(), changed, "refused before any handler");
-        assertTrue(bridge.events.isEmpty(), bridge.events.toString());
+        assertEquals(List.of(
+                        "“forty” not accepted, still 34.0",
+                        "“1E3” not accepted, still 34.0",
+                        "“∞” not accepted, still 34.0",
+                        "“” not accepted, still 34.0",
+                        "“1.2.3” not accepted, still 34.0"), announced(),
+                "each refused text is said, since the platform was told it was taken: "
+                        + bridge.events);
+        assertTrue(announcements().stream()
+                        .allMatch(said -> said.politeness() == Accessible.Politeness.POLITE),
+                bridge.events.toString());
+        assertEquals(List.of(), valueEvents(), "and nothing else moved: " + bridge.events);
 
         bindSpinner(Spinner.time().setValue(7 * 60 + 30));
         perform(spinnerNode().id(), Accessible.Action.SET_VALUE,
@@ -510,10 +555,13 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals("2,5", spinnerNode().value().text(), describe(tree()));
 
         changed.clear();
+        bridge.events.clear();
         perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("1.234"));
         frame();
         assertEquals(2.5, spinner.value(), "a German point groups thousands, and is refused");
         assertEquals(List.of(), changed);
+        assertEquals(List.of("„1.234“ nicht übernommen, bleibt bei 2,5"), announced(),
+                "and the refusal is said in the language the set was read in: " + bridge.events);
     }
 
     @Test
@@ -927,7 +975,206 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
                 "and the value moved, which is the fact a reader actually wants: " + bridge.events);
     }
 
-    // ------------------------------------------------------------------------------- the naming
+    // --------------------------------------------------------------------- the refusal, said aloud
+
+    /**
+     * The owner's choice of 2026-09-27: a typed number the spinner cannot read is <b>said</b>, and
+     * politely. The border's flash was the only sign of it, and a reader heard nothing at all —
+     * Enter left the value where it was, so no value change followed either, and the edit a
+     * reader might have re-read was already gone.
+     *
+     * <p>One sentence, what was typed and what stands: "not accepted" rather than "is not a
+     * number", because the commonest refusal is exactly this one, and a German voice reads
+     * {@code 1.234} as one thousand two hundred and thirty-four, which a sentence calling it no
+     * number would contradict in the listener's ear.
+     */
+    @Test
+    void aRefusedEnterIsSaidOncePolitelyWithWhatWasTypedAndWhatStands() {
+        I18n.setLocale(Locale.GERMAN);
+        bindSpinner(new Spinner(0, 10_000, 1).setValue(7));
+        type("1.234");
+        assertTrue(spinner.isEditing(), "the fixture really is an open edit");
+        bridge.events.clear();
+
+        press(Keys.ENTER);
+
+        assertEquals(7.0, spinner.value(), "the refusal itself is what it was");
+        assertFalse(spinner.isEditing());
+        List<AccessibleEvent> said = announcements();
+        assertEquals(List.of("„1.234“ nicht übernommen, bleibt bei 7"), announced(),
+                "once, with the text as typed and the value as shown: " + bridge.events);
+        assertEquals(Accessible.Politeness.POLITE, said.get(0).politeness(),
+                "polite: a refusal is not worth cutting a reader off mid-word");
+        assertEquals(List.of(), valueEvents(), "and nothing moved: " + bridge.events);
+    }
+
+    @Test
+    void aRefusalOnFocusLossIsSaidToo() {
+        I18n.setLocale(Locale.GERMAN);
+        bindSpinner(new Spinner(0, 10_000, 1).setValue(7));
+        type("1.234");
+        bridge.events.clear();
+
+        scene.requestFocus(null);
+        frame();
+
+        assertEquals(7.0, spinner.value());
+        assertEquals(List.of("„1.234“ nicht übernommen, bleibt bei 7"), announced(),
+                "focus leaving is the commit people make most often, and the reader has moved on "
+                        + "by the time it is refused, so it is the case that most needs saying: "
+                        + bridge.events);
+    }
+
+    /**
+     * Reaching for an arrow commits first, the pointer's way and the reader's way alike, so a
+     * refused text is said before the step moves the value on from the number that stood.
+     */
+    @Test
+    void anArrowThatCommitsFirstSaysTheRefusalAndThenSteps() throws Exception {
+        I18n.setLocale(Locale.GERMAN);
+        bindSpinner(new Spinner(0, 10_000, 1).setValue(7));
+        type("1.234");
+        bridge.events.clear();
+
+        clickCentreOf(arrows().get(0));
+
+        assertEquals(8.0, spinner.value(), "the step lands on the number that stood");
+        assertEquals(List.of("„1.234“ nicht übernommen, bleibt bei 7"), announced(),
+                bridge.events.toString());
+
+        type("1.2.3");
+        bridge.events.clear();
+        assertTrue(perform(arrows().get(0).id(), Accessible.Action.PRESS,
+                Accessible.Argument.NONE));
+        frame();
+
+        assertEquals(9.0, spinner.value());
+        assertEquals(List.of("„1.2.3“ nicht übernommen, bleibt bei 8"), announced(),
+                "a reader's press on the arrow commits as a click does, and says so as one does: "
+                        + bridge.events);
+    }
+
+    @Test
+    void anAcceptedCommitAndAnEscapeSayNothing() {
+        I18n.setLocale(Locale.GERMAN);
+        bindSpinner(new Spinner(0, 100, 0.5).setValue(7));
+        bridge.events.clear();
+
+        type("2,5");
+        press(Keys.ENTER);
+        assertEquals(2.5, spinner.value());
+
+        type("1.234");
+        press(Keys.ESCAPE);
+        assertEquals(2.5, spinner.value(), "Escape is the user's own revert");
+
+        type("42");
+        scene.requestFocus(null);
+        frame();
+        assertEquals(42.0, spinner.value());
+
+        assertEquals(List.of(), announced(),
+                "a number that commits, and a revert the user asked for, are not refusals: "
+                        + bridge.events);
+    }
+
+    /**
+     * Said in the spinner's own language, which here is not the scene's: the sentence is built
+     * where the refusal happens, inside the scope the widget's handlers run in, because a queued
+     * string is resolved when it is drained and a drain answers in the language of the whole scene.
+     */
+    @Test
+    void theSentenceIsInTheSpinnersOwnLanguage() {
+        bindSpinner(new Spinner(0, 10_000, 0.5).setValue(7));
+        root.setLocale(Locale.GERMAN);
+        frame();
+        type("1.234");
+        bridge.events.clear();
+        press(Keys.ENTER);
+
+        assertEquals(List.of("„1.234“ nicht übernommen, bleibt bei 7,0"), announced(),
+                "a German subtree in an English interface: " + bridge.events);
+
+        root.setLocale(Locale.JAPANESE);
+        frame();
+        type("1.2.3");
+        bridge.events.clear();
+        press(Keys.ENTER);
+        assertEquals(List.of("「1.2.3」は受け付けられませんでした。7.0 のままです"), announced(),
+                bridge.events.toString());
+
+        root.setLocale(null);
+        frame();
+        type("1.2.3");
+        bridge.events.clear();
+        press(Keys.ENTER);
+        assertEquals(List.of("“1.2.3” not accepted, still 7.0"), announced(),
+                "and the process's own language once the subtree declares none: "
+                        + bridge.events);
+    }
+
+    /**
+     * Every shipped language has the sentence, and each carries both arguments once formatted: a
+     * pattern whose quoting swallowed a placeholder, or a catalog that lost the key, would say
+     * the English or say half of it.
+     */
+    @Test
+    void everyShippedLanguageSaysItsOwnSentenceWithWhatWasTypedAndWhatStands() {
+        bindSpinner(new Spinner(0, 10_000, 1).setValue(7));
+        String english = "“1.2.3” not accepted, still 7";
+        for (String tag : List.of("pt-BR", "pt", "es", "fr", "de", "it", "nl", "pl", "cs", "tr",
+                "ru", "uk", "id", "vi", "ja", "ko", "zh-Hans", "zh-Hant", "hi", "ar", "he")) {
+            root.setLocale(Locale.forLanguageTag(tag));
+            frame();
+            type("1.2.3");
+            bridge.events.clear();
+            press(Keys.ENTER);
+
+            List<String> said = announced();
+            assertEquals(1, said.size(), tag + ": " + bridge.events);
+            String sentence = said.get(0);
+            assertFalse(sentence.equals(english), tag + " fell back to English: " + sentence);
+            assertTrue(sentence.contains("1.2.3") && sentence.contains("7"),
+                    tag + " lost an argument: " + sentence);
+        }
+    }
+
+    /** One sentence serves both modes, which is the other reason it does not say "number". */
+    @Test
+    void aTimeSpinnerSaysTheClockFaceThatStands() {
+        bindSpinner(Spinner.time().setValue(7 * 60 + 30));
+        type("7:75");
+        bridge.events.clear();
+        press(Keys.ENTER);
+
+        assertEquals(7 * 60 + 30.0, spinner.value(), "minutes past 59 are a typo, not an hour");
+        assertEquals(List.of("“7:75” not accepted, still 07:30"), announced(),
+                bridge.events.toString());
+    }
+
+    /**
+     * What was typed is quoted, and a paste is typed too: a clipboard holding a paragraph would
+     * otherwise be read back whole, inside a sentence whose point is the few words at its end. The
+     * quote keeps the start, which is what the user recognises, and says it was cut.
+     */
+    @Test
+    void aLongPasteIsQuotedByItsBeginning() {
+        bindSpinner(new Spinner(0, 100, 1).setValue(3));
+        TextFieldTest.MockClipboard clipboard = new TextFieldTest.MockClipboard();
+        scene.setClipboard(clipboard);
+        clipboard.value = "Invoice 2026-0412, due within thirty days of receipt";
+        scene.requestFocus(spinner);
+        drive(scene).keyEvent(Keys.V, true, false, Keys.MOD_CONTROL);
+        drive(scene).inputBatchEnded();
+        frame();
+        bridge.events.clear();
+        press(Keys.ENTER);
+
+        assertEquals(3.0, spinner.value());
+        assertEquals(List.of("“Invoice 2026-0412, due within th…” not accepted, still 3"),
+                announced(), bridge.events.toString());
+    }
+
 
     @Test
     void aBareSpinnerIsNamelessAndTakesWhateverNamesItFromOutside() {
