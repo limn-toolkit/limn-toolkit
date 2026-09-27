@@ -74,6 +74,8 @@ final class MacFullscreen {
     // ---- NSWindow.h, verbatim --------------------------------------------------------------------
     /** {@code NSWindowStyleMaskFullScreen}. */
     static final long STYLE_MASK_FULL_SCREEN = 1L << 14;
+    /** {@code NSWindowStyleMaskResizable}. */
+    static final long STYLE_MASK_RESIZABLE = 1L << 3;
     /** {@code NSWindowCollectionBehaviorFullScreenPrimary}. */
     static final long BEHAVIOR_FULL_SCREEN_PRIMARY = 1L << 7;
     /** {@code NSWindowCollectionBehaviorFullScreenAuxiliary}, which AppKit refuses beside the primary. */
@@ -174,6 +176,29 @@ final class MacFullscreen {
     /** Gives back what {@link #allowFullscreen} replaced. */
     static void restoreCollectionBehavior(long nsWindow, long behavior) {
         ObjC.msgVoid(nsWindow, "setCollectionBehavior:", behavior);
+    }
+
+    /**
+     * Lends a window that is not resizable the resizable style, which AppKit needs to stretch it
+     * over its fullscreen Space: with the collection behaviour alone, a window GLFW made fixed got
+     * a Space of its own and stayed at its windowed size in the middle of it (measured on a
+     * MacBook Pro, 2026-09-27: 420 × 200 in a 1728 × 1084 Space). SDL lends it the same way.
+     *
+     * @return whether the style was lent, so that {@link #restoreResizable} takes it back
+     */
+    static boolean allowResize(long nsWindow) {
+        long mask = ObjC.msg(nsWindow, "styleMask");
+        if ((mask & STYLE_MASK_RESIZABLE) != 0) {
+            return false;
+        }
+        ObjC.msgVoid(nsWindow, "setStyleMask:", mask | STYLE_MASK_RESIZABLE);
+        return true;
+    }
+
+    /** Takes back the resizable style {@link #allowResize} lent, once the window is out again. */
+    static void restoreResizable(long nsWindow) {
+        long mask = ObjC.msg(nsWindow, "styleMask");
+        ObjC.msgVoid(nsWindow, "setStyleMask:", mask & ~STYLE_MASK_RESIZABLE);
     }
 
     /**

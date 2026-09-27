@@ -245,6 +245,8 @@ final class LwjglWindow implements NativeWindow {
      * given back once the window is out; {@code -1} when nothing was replaced.
      */
     private long lentCollectionBehavior = -1;
+    /** Whether native fullscreen lent this window the resizable style it lacks, to take back on exit. */
+    private boolean lentResizable;
     private int windowedX;
     private int windowedY;
     private int windowedW;
@@ -1590,6 +1592,9 @@ final class LwjglWindow implements NativeWindow {
         if (toggle == NativeFullscreen.Toggle.ENTER && lentCollectionBehavior < 0) {
             lentCollectionBehavior = MacFullscreen.allowFullscreen(cocoaWindow);
         }
+        if (toggle == NativeFullscreen.Toggle.ENTER && !lentResizable) {
+            lentResizable = MacFullscreen.allowResize(cocoaWindow);
+        }
         if (toggle != NativeFullscreen.Toggle.NONE) {
             MacFullscreen.toggleSoon(cocoaWindow);
         }
@@ -1597,6 +1602,10 @@ final class LwjglWindow implements NativeWindow {
             if (lentCollectionBehavior >= 0) {
                 MacFullscreen.restoreCollectionBehavior(cocoaWindow, lentCollectionBehavior);
                 lentCollectionBehavior = -1;
+            }
+            if (lentResizable) {
+                MacFullscreen.restoreResizable(cocoaWindow);
+                lentResizable = false;
             }
             int[] waiting = monitorFullscreenAfterNative;
             if (waiting != null) {
