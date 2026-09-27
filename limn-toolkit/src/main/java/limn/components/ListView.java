@@ -425,6 +425,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         rangeAnchor = -1;
         anchorIndex = 0;
         anchorTop = 0;
+        // A reveal still waiting for the first layout was asked of the old items.
+        pendingEnsureVisible = -1;
         recycleExcept(0, 0, 0);
         markNeedsLayout();
         invalidate();

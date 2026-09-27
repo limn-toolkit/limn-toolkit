@@ -915,6 +915,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         resetRowIds();
         anchorIndex = 0;
         anchorTop = 0;
+        // A reveal still waiting for the first layout was asked of the old rows.
+        pendingEnsureVisible = -1;
         resort();
         unmountAll();
         recomputeFooter();

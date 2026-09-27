@@ -160,6 +160,24 @@ class ListViewTest extends ComponentTestBase {
                 "the list opened at the selection, not the top: " + list.firstVisibleIndex());
     }
 
+    /**
+     * A new list is a new world and opens at its top, as setItems promises: the reveal still
+     * waiting for the first layout belonged to the old items, and it scrolled the new ones to
+     * the same index.
+     */
+    @Test
+    void newItemsBeforeFirstLayoutDropTheOldItemsReveal() {
+        ListView<Integer> list = list(200, i -> 40);
+        list.setSelectedIndex(150);
+        list.setItems(new ArrayList<>(list.items()));
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(list, canvas);
+        scene.renderFrame(canvas);
+
+        assertEquals(0, list.firstVisibleIndex(), "the new items open at their top");
+        assertEquals(-1, list.selectedIndex(), "and nothing is selected in them");
+    }
+
     @Test
     void scrollShiftsMountedRowCoordinatesSynchronously() {
         // The Scrollable contract: nested reveals re-read child coordinates in

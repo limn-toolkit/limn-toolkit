@@ -164,6 +164,22 @@ class TableTest extends ComponentTestBase {
     }
 
     /**
+     * New rows start at the top, as setRows promises: a reveal still waiting for the first
+     * layout was asked of the old rows, and it scrolled the new ones to the same index.
+     */
+    @Test
+    void newRowsBeforeFirstLayoutDropTheOldRowsReveal() {
+        Table<Person> table = new Table<>(List.of(nameColumn()));
+        table.setRows(people(200));
+        table.setSelectedRow(150);
+        table.setRows(people(200));
+        FakeCanvas canvas = new FakeCanvas(300, 200);
+        Scene scene = scene(table, canvas);
+        scene.renderFrame(canvas);
+        assertEquals(0, table.firstVisibleRow(), "the new rows open at their top");
+    }
+
+    /**
      * Decision 40 of 2026-09-14: after a sort the focus row is revealed with the least scroll
      * that shows it, as every other write that moves the focus cell does; until then the cursor
      * could sit fifty rows below the viewport with nothing on screen to say so.
