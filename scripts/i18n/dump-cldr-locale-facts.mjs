@@ -1,6 +1,6 @@
 // What CLDR says about a locale, for the tables this toolkit writes out by hand: which digits a
-// language writes numbers in, which direction its script runs, and which region a language named
-// alone is taken to mean.
+// language writes numbers in, which direction its script runs, which region a language named
+// alone is taken to mean, and which codes are another language's.
 //
 // The sibling of dump-cldr-plurals.mjs and the same argument: Node's Intl is CLDR through ICU,
 // so it is the source limn.i18n.NumberingSystem, limn.scene.LayoutDirection and the likely
@@ -10,7 +10,8 @@
 //   node scripts/i18n/dump-cldr-locale-facts.mjs > \
 //       limn-toolkit/src/test/resources/limn/i18n/cldr-locale-facts.txt
 //
-// CldrLocaleFactsTest compares the first two tables against it and LikelyRegionsTest the third.
+// CldrLocaleFactsTest compares the first two tables and the aliases against it, and
+// LikelyRegionsTest the third.
 // Nothing in the build runs Node.
 //
 // The direction search is exhaustive over the shape of a language subtag rather than over a list
@@ -25,6 +26,18 @@
 // region along with the script and answers for the language alone: ar-Arab-EG answers latn where
 // ar-EG answers arab. That is an artifact of the lookup, not a fact about how Arabic is written in
 // Egypt, and a row carrying it would teach the Java table something false.
+//
+// The alias search asks the same space which codes ICU reads as another language before it looks
+// anything up: pes, Iranian Persian, is fa; prs, Dari, is fa-AF; arb, Standard Arabic, is ar. The
+// digits search cannot see them, since its guard drops a tag ICU answers for under another
+// language, and Java's Locale replaces only three of them itself (iw, ji and in), so a table keyed
+// on the language subtag answers every other one as a language nobody listed. The replacement is
+// new Intl.Locale(code).baseName, ICU's canonicalization with CLDR's alias data, and not
+// Intl.getCanonicalLocales, which leaves bh and tw alone when they are named alone and replaces
+// them the moment a region is attached (bh-IN is bho-IN); Intl.NumberFormat then falls back to the
+// default locale for the bare code, which is the same artifact of the lookup the digits search
+// refuses, not a fact about Bhojpuri. A replacement can carry a script or a region, sh is sr-Latn,
+// and fills in only what the tag leaves out: prs-IR is fa-IR and sh-Cyrl is sr-Cyrl.
 
 const TWO_LETTER = [];
 for (let a = 97; a < 123; a++) {
@@ -114,6 +127,8 @@ out.push("# digits <language>-<Script>-<REGION> <system>   a region that differs
 out.push("#                             in that script, or from a region row of the language");
 out.push("# likely <language>-<REGION> ...   the region ICU's likely subtags give a two-letter");
 out.push("#                             language named alone");
+out.push("# alias <code> <replacement>   a two- or three-letter code ICU reads as another language,");
+out.push("#                             and the script or region the replacement carries");
 
 const rtl = [...TWO_LETTER, ...THREE_LETTER].filter(tag => direction(tag) === "rtl");
 for (let i = 0; i < rtl.length; i += 16) {
@@ -182,6 +197,19 @@ for (const language of TWO_LETTER) {
 }
 for (let i = 0; i < likely.length; i += 12) {
     out.push("likely " + likely.slice(i, i + 12).join(" "));
+}
+
+// Every code ICU replaces with another language, one to a row since each carries its replacement.
+for (const code of [...TWO_LETTER, ...THREE_LETTER]) {
+    let replacement;
+    try {
+        replacement = new Intl.Locale(code).baseName;
+    } catch {
+        continue;
+    }
+    if (replacement.split("-")[0] !== code) {
+        out.push(`alias ${code} ${replacement}`);
+    }
 }
 
 process.stdout.write(out.join("\n") + "\n");

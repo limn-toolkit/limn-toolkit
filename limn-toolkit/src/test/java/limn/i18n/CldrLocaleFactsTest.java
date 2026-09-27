@@ -36,6 +36,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>The dump's third table, the region a language named alone is read for when a calendar needs
  * its week, is checked by {@code LikelyRegionsTest} in the date package, for the same reason.
+ *
+ * <p>Its fourth, the codes ICU reads as another language, is asked of the digits table here. The
+ * direction search went through the same replacement, so a code whose replacement is written
+ * right to left is itself a {@code rtl} row and the direction test already holds it.
  */
 class CldrLocaleFactsTest {
 
@@ -88,6 +92,13 @@ class CldrLocaleFactsTest {
         Set<String> named = new TreeSet<>();
         for (String[] row : digitRows()) {
             named.add(row[0].split("-")[0]);
+        }
+        // A code ICU reads as one of those languages writes that language's digits, which the
+        // alias tests below hold it to.
+        for (String[] alias : aliasRows()) {
+            if (named.contains(Locale.forLanguageTag(alias[1]).getLanguage())) {
+                named.add(alias[0]);
+            }
         }
         List<String> languages = new ArrayList<>(List.of(Locale.getISOLanguages()));
         for (char a = 'a'; a <= 'z'; a++) {
@@ -150,6 +161,73 @@ class CldrLocaleFactsTest {
         assertEquals(List.of(), wrong, "a script the dump does not name moved a language's digits");
     }
 
+    /**
+     * A code ICU reads as another language writes that language's digits: {@code pes}, the ISO
+     * 639-3 code for Iranian Persian, writes what {@code fa} writes, and {@code prs}, Dari, what
+     * {@code fa-AF} writes. ICU replaces the code before it looks anything up, and Java's
+     * {@link Locale} replaces only {@code iw}, {@code ji} and {@code in} itself, so a table keyed
+     * on the language subtag answers every other alias as a language it never heard of. Asked of
+     * every {@code alias} row, including the ones whose replacement writes Latin digits, so that
+     * a table that answered an alias for a language it is not would be caught as well.
+     */
+    @Test
+    void anAliasWritesItsReplacementsDigits() throws Exception {
+        List<String[]> aliases = aliasRows();
+        assertTrue(aliases.size() > 400, "the dump carries only " + aliases.size() + " aliases");
+
+        List<String> wrong = new ArrayList<>();
+        for (String[] alias : aliases) {
+            NumberingSystem ours = NumberingSystem.forLocale(Locale.forLanguageTag(alias[0]));
+            NumberingSystem replacement = NumberingSystem.forLocale(Locale.forLanguageTag(alias[1]));
+            if (ours != replacement) {
+                wrong.add(alias[0] + " is " + alias[1] + ", which writes " + replacement
+                        + ", we say " + ours);
+            }
+        }
+        assertEquals(List.of(), wrong, "an alias writes other digits than its replacement");
+    }
+
+    /**
+     * And it keeps the script and region it is named with. {@code arb}, Standard Arabic, writes
+     * Latin digits alone as {@code ar} does, so the half above cannot tell a table that ignores it
+     * from one that reads it; {@code arb-EG} writes Arabic-Indic ones as {@code ar-EG} does, and
+     * that is where it can. Asked of every alias in the script and region of every {@code digits}
+     * row of its replacement's language. The replacement's own script or region fills in only
+     * what the tag leaves out, which is how ICU replaces it: {@code prs-IR} is {@code fa-IR}.
+     */
+    @Test
+    void anAliasKeepsItsScriptAndRegion() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        int asked = 0;
+        for (String[] alias : aliasRows()) {
+            Locale replacement = Locale.forLanguageTag(alias[1]);
+            for (String[] row : digitRows()) {
+                Locale written = Locale.forLanguageTag(row[0]);
+                String script = written.getScript();
+                String region = written.getCountry();
+                if (!written.getLanguage().equals(replacement.getLanguage())
+                        || (script.isEmpty() && region.isEmpty())) {
+                    continue;
+                }
+                asked++;
+                Locale tag = new Locale.Builder().setLanguage(alias[0])
+                        .setScript(script).setRegion(region).build();
+                Locale canonical = new Locale.Builder().setLanguage(replacement.getLanguage())
+                        .setScript(script.isEmpty() ? replacement.getScript() : script)
+                        .setRegion(region.isEmpty() ? replacement.getCountry() : region)
+                        .build();
+                NumberingSystem ours = NumberingSystem.forLocale(tag);
+                NumberingSystem theirs = NumberingSystem.forLocale(canonical);
+                if (ours != theirs) {
+                    wrong.add(tag.toLanguageTag() + " is " + canonical.toLanguageTag()
+                            + ", which writes " + theirs + ", we say " + ours);
+                }
+            }
+        }
+        assertTrue(asked >= 50, "only " + asked + " aliased tags carry a script or region");
+        assertEquals(List.of(), wrong, "an alias with a script or region writes other digits");
+    }
+
     @Test
     void theRightToLeftLanguagesAreCldrs() throws Exception {
         Set<String> cldr = new TreeSet<>();
@@ -187,6 +265,18 @@ class CldrLocaleFactsTest {
         List<String[]> rows = new ArrayList<>();
         for (String line : lines()) {
             if (line.startsWith("digits ")) {
+                String[] parts = line.split(" ");
+                rows.add(new String[]{parts[1], parts[2]});
+            }
+        }
+        return rows;
+    }
+
+    /** Each {@code alias} row as the code and the tag ICU replaces it with. */
+    private static List<String[]> aliasRows() throws Exception {
+        List<String[]> rows = new ArrayList<>();
+        for (String line : lines()) {
+            if (line.startsWith("alias ")) {
                 String[] parts = line.split(" ");
                 rows.add(new String[]{parts[1], parts[2]});
             }
