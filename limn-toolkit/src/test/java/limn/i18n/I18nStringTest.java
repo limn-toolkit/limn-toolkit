@@ -152,6 +152,50 @@ class I18nStringTest {
         assertEquals("Display 3", message.format("3"), "a bad bundle must not break a paint");
     }
 
+    /**
+     * A number argument is written in the digits the toolkit shows for the language, with the
+     * separators that go with them, as every other number it writes is. The JDK answers
+     * Arabic-Indic digits and the Arabic separators for a bare {@code ar}, where the toolkit
+     * writes Latin digits, and Latin digits with Uzbek's decimal comma for {@code uz-AF}, where it
+     * writes Extended Arabic-Indic ones, so a sentence formatted under the bare locale carried its
+     * count in digits no other number on the screen used.
+     */
+    @Test
+    void aNumberArgumentIsWrittenInTheDigitsTheToolkitShows() {
+        I18nString total = new I18nString("test.args.total", "Total {0,number}");
+
+        I18n.setLocale(Locale.forLanguageTag("ar"));
+        assertEquals(NumberingSystem.LATN, I18n.numberingSystem(), "the premise: Latin digits");
+        assertEquals("Total 1,234.5", total.format(1234.5));
+
+        I18n.setLocale(Locale.forLanguageTag("uz-AF"));
+        assertEquals(NumberingSystem.ARABEXT, I18n.numberingSystem(), "the premise");
+        assertEquals("Total ۱٬۲۳۴٫۵", total.format(1234.5));
+
+        I18n.setLocale(Locale.forLanguageTag("sr-BA"));
+        assertEquals("Total 1.234,5", total.format(1234.5),
+                "where the platform already writes the digits shown, its separators stand");
+
+        I18n.setLocale(Locale.ENGLISH);
+        I18n.setNumberingSystem(NumberingSystem.ARAB);
+        try {
+            assertEquals("Total ١٬٢٣٤٫٥", total.format(1234.5),
+                    "a declared system brings its own digits and separators");
+        } finally {
+            I18n.setNumberingSystem(null);
+        }
+    }
+
+    /** The English a malformed translation falls back to writes its numbers the same way. */
+    @Test
+    void theFallbackPatternWritesItsNumberInTheDigitsTheToolkitShows() {
+        Locale arabic = Locale.forLanguageTag("ar");
+        I18nString total = new I18nString("test.args.fallbackTotal", "Total {0,number}");
+        register(PropertyBundle.of(arabic, Map.of("test.args.fallbackTotal", "المجموع {0")));
+        I18n.setLocale(arabic);
+        assertEquals("Total 1,234.5", total.format(1234.5));
+    }
+
     @Test
     void declaringOneKeyTwiceWithDifferentEnglishIsABug() {
         new I18nString("test.duplicate.key", "First");

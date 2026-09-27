@@ -1,5 +1,7 @@
 package limn.i18n;
 
+import limn.i18n.internal.NumberLocale;
+
 import java.text.MessageFormat;
 import java.util.Locale;
 import java.util.Objects;
@@ -122,20 +124,28 @@ public final class I18nString {
      * stray brace; a pattern a translator got wrong falls back to the English rather
      * than throwing in the middle of a paint.
      *
-     * <p>Numbers are formatted for the locale, so pass {@code Integer.toString(n)}
-     * where ASCII digits are required; digits the text pipeline cannot draw are
-     * worse than an unlocalised number.
+     * <p>A number argument is written the way {@link NumberFormats} writes one: in the
+     * {@linkplain I18n#numberingSystem() digits the toolkit shows} for the language, with
+     * the separators, signs and grouping that go with those digits, and so are the digits
+     * of a {@code {0,date}} or {@code {0,time}} argument. The platform's own idea of a
+     * language's digits is not always the toolkit's: it writes Arabic-Indic digits for a
+     * bare {@code ar}, where every other number on the screen is Latin, and a sentence
+     * formatted under the bare locale carried its count in the digits nothing beside it
+     * used. Everything else the locale decides, the words of a date and a currency's
+     * symbol among them, is the language's as before. Pass {@code Integer.toString(n)}
+     * where a number is a spelling rather than a quantity and must stay in ASCII digits.
      */
     public String format(Object... args) {
         String pattern = get();
         if (args == null || args.length == 0) {
             return pattern;
         }
+        Locale numbers = NumberLocale.inEffect();
         try {
-            return new MessageFormat(pattern, I18n.locale()).format(args);
+            return new MessageFormat(pattern, numbers).format(args);
         } catch (IllegalArgumentException malformedPattern) {
             try {
-                return new MessageFormat(english, I18n.locale()).format(args);
+                return new MessageFormat(english, numbers).format(args);
             } catch (IllegalArgumentException ourOwnPatternIsBroken) {
                 return english;
             }
