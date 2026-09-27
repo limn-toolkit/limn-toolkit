@@ -416,10 +416,8 @@ final class AnimationsScene {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusLarge(),
-                    theme.surface().withAlpha(0.98f));
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusLarge(),
-                    1, theme.outline());
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), theme.tokensFor(this).radiusLarge(),
+                    theme.surface().withAlpha(0.98f), 1, theme.outline());
         }
     }
 }

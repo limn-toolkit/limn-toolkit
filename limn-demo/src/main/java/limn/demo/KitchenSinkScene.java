@@ -745,8 +745,8 @@ final class KitchenSinkScene {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(), 1, theme.outline());
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(),
+                    theme.surface(), 1, theme.outline());
             String hint = "right-click here";
             Font font = theme.body();
             TextMetrics m = textRuler().measure(hint, font);

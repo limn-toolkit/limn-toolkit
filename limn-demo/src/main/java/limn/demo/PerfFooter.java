@@ -137,8 +137,8 @@ public final class PerfFooter extends Widget<PerfFooter> {
         }
 
         Theme theme = Theme.current();
-        canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(), theme.surface());
-        canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusMedium(), 1, theme.outline());
+        canvas.fillRoundRectWithBorder(0, 0, width(), height(), theme.tokensFor(this).radiusMedium(),
+                theme.surface(), 1, theme.outline());
 
         float pad = 10;
         float gap = 6;

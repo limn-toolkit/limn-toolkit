@@ -90,8 +90,7 @@ public final class ThemePreview extends Widget<ThemePreview> {
         float cardY = pad;
         float cardW = w - 2 * pad;
         float cardH = h - 2 * pad - row - gap;
-        canvas.fillRoundRect(cardX, cardY, cardW, cardH, t.radiusMedium(), theme.surface());
-        outline(canvas, cardX, cardY, cardW, cardH, t.radiusMedium());
+        bordered(canvas, cardX, cardY, cardW, cardH, t.radiusMedium(), theme.surface());
 
         float textX = cardX + pad;
         float cursorY = cardY + pad;
@@ -128,8 +127,7 @@ public final class ThemePreview extends Widget<ThemePreview> {
         float fieldY = chipY + row + gap + Strokes.FOCUS_RING_OUTSET;
         float fieldW = Math.min(cardW - 2 * pad, 6 * row);
         if (fieldY + row <= cardY + cardH - pad) {
-            canvas.fillRoundRect(textX, fieldY, fieldW, row, t.radiusSmall(), theme.surfaceRaised());
-            outline(canvas, textX, fieldY, fieldW, row, t.radiusSmall());
+            bordered(canvas, textX, fieldY, fieldW, row, t.radiusSmall(), theme.surfaceRaised());
             float ring = Strokes.FOCUS_GAP_BUTTON;
             canvas.drawRoundRect(textX - ring, fieldY - ring, fieldW + 2 * ring, row + 2 * ring,
                     t.radiusSmall() + ring, Strokes.FOCUS_RING, theme.focusRing());
@@ -141,8 +139,7 @@ public final class ThemePreview extends Widget<ThemePreview> {
         Color[] semantic = {theme.danger(), theme.warning(), theme.success(), theme.info()};
         for (int i = 0; i < semantic.length; i++) {
             float x = pad + i * (stripW + gap);
-            canvas.fillRoundRect(x, stripY, stripW, row, t.radiusSmall(), theme.surfaceRaised());
-            outline(canvas, x, stripY, stripW, row, t.radiusSmall());
+            bordered(canvas, x, stripY, stripW, row, t.radiusSmall(), theme.surfaceRaised());
             float dot = t.iconBox() / 2;
             canvas.fillCircle(x + gap + dot / 2, stripY + row / 2, dot / 2, semantic[i]);
         }
@@ -182,9 +179,9 @@ public final class ThemePreview extends Widget<ThemePreview> {
         return x + w;
     }
 
-    private void outline(Canvas canvas, float x, float y, float w, float h, float radius) {
-        float inset = Strokes.HALF_PIXEL_INSET;
-        canvas.drawRoundRect(x + inset, y + inset, w - 2 * inset, h - 2 * inset, radius,
-                Strokes.BORDER, theme.outline());
+    /** A surface of the previewed palette with its outline, the way the toolkit draws one. */
+    private void bordered(Canvas canvas, float x, float y, float w, float h, float radius,
+                          Color fill) {
+        canvas.fillRoundRectWithBorder(x, y, w, h, radius, fill, Strokes.BORDER, theme.outline());
     }
 }

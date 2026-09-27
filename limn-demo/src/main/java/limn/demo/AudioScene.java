@@ -313,9 +313,8 @@ final class AudioScene {
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
             float radius = theme.tokensFor(this).radiusMedium();
-            canvas.fillRoundRect(0, 0, width(), height(), radius, theme.surface());
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1,
-                    radius, 1, theme.outline());
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), radius, theme.surface(),
+                    1, theme.outline());
             float cx = width() / 2;
             float cy = height() - 24; // listener near the bottom, "facing up"
             canvas.fillCircle(cx, cy, 6, theme.primary());

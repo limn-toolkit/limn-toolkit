@@ -165,8 +165,8 @@ final class MenuScene {
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
-            canvas.fillRoundRect(0, 0, width(), height(), theme.tokensFor(this).radiusLarge(), theme.surface());
-            canvas.drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, theme.tokensFor(this).radiusLarge(), 1, theme.outline());
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), theme.tokensFor(this).radiusLarge(),
+                    theme.surface(), 1, theme.outline());
             String hint = "Right-click, or press the Menu key, to open the context menu";
             Font font = theme.body();
             TextMetrics m = textRuler().measure(hint, font);
