@@ -125,15 +125,31 @@ void main() {
     // clip rectangle and leaves the max the rectangle's own distance. The
     // radius is clamped to the rounded rectangle's half extents, or the SDF
     // degenerates and clips everything.
+    //
+    // Only one of the two distances is computed unless both are needed, because on a renderer
+    // that runs this shader on the CPU (macOS's software fallback) the second one cost a fifth
+    // of the frame rate. The clip rectangle always lies inside the rounded clip's bounds, so:
+    // with no radius the rectangle's distance is the whole answer; when nothing has cut the
+    // rounded clip the two rectangles coincide and the rounded distance, never below the
+    // rectangle's, is the answer; only a rounded clip that a rectangle has cut needs the max.
+    // Each branch gives exactly what the max gives, so the coverage is unchanged bit for bit.
     vec2 fragDev = vec2(gl_FragCoord.x, u_viewport.y - gl_FragCoord.y);
     vec2 clipCenter = (v_clip.xy + v_clip.zw) * 0.5;
     vec2 clipHalf = (v_clip.zw - v_clip.xy) * 0.5;
-    float dRect = sdRoundRect(fragDev - clipCenter, clipHalf, vec4(0.0));
-    vec2 roundCenter = (v_roundClip.xy + v_roundClip.zw) * 0.5;
-    vec2 roundHalf = (v_roundClip.zw - v_roundClip.xy) * 0.5;
-    float roundR = min(clipRadius, min(roundHalf.x, roundHalf.y));
-    float dRound = sdRoundRect(fragDev - roundCenter, roundHalf, vec4(roundR));
-    float dClip = max(dRect, dRound);
+    float dClip;
+    if (clipRadius <= 0.0) {
+        dClip = sdRoundRect(fragDev - clipCenter, clipHalf, vec4(0.0));
+    } else {
+        vec2 roundCenter = (v_roundClip.xy + v_roundClip.zw) * 0.5;
+        vec2 roundHalf = (v_roundClip.zw - v_roundClip.xy) * 0.5;
+        float roundR = min(clipRadius, min(roundHalf.x, roundHalf.y));
+        float dRound = sdRoundRect(fragDev - roundCenter, roundHalf, vec4(roundR));
+        if (all(lessThan(abs(v_clip - v_roundClip), vec4(1.0e-3)))) {
+            dClip = dRound;
+        } else {
+            dClip = max(sdRoundRect(fragDev - clipCenter, clipHalf, vec4(0.0)), dRound);
+        }
+    }
     float clipCoverage = 1.0 - smoothstep(-0.5, 0.5, dClip);
 
     if (kind >= 7.5) {
