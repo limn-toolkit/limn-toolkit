@@ -96,6 +96,45 @@ public final class NumberFormats {
     }
 
     /**
+     * Scientific notation: a mantissa from 1 up to 10 with up to {@code maxDecimals} decimals and
+     * no trailing zeros, then the language's exponent sign and the power of ten. {@code 1.2e25}
+     * reads {@code "1.2E25"} in English, {@code "1,2E25"} in German and {@code "1,2×10^25"} in
+     * Swedish, {@code 0.00042} reads {@code "4.2E-4"}, and zero reads {@code "0"}. It is what a number too large to write out
+     * wants: past about 10<sup>15</sup> a double no longer holds every whole number, so the digits
+     * a written-out value shows past there are noise, and there are hundreds of them by 1e300.
+     *
+     * @param maxDecimals the most decimals the mantissa is written with; a negative count writes
+     *                    none
+     * @return the format
+     */
+    public static DoubleFunction<String> scientific(int maxDecimals) {
+        int decimals = Math.max(0, maxDecimals);
+        String mantissaPattern = "%." + decimals + "f";
+        return v -> {
+            if (!Double.isFinite(v)) {
+                return "-";
+            }
+            if (v == 0) {
+                return localized("0");
+            }
+            // Rounded to its significant digits first, so a mantissa that rounds up to ten moves
+            // the exponent instead: 9.99e5 at one decimal is 1E6, never 10.0E5.
+            java.math.BigDecimal rounded = new java.math.BigDecimal(v)
+                    .round(new java.math.MathContext(decimals + 1, java.math.RoundingMode.HALF_UP));
+            int exponent = rounded.precision() - rounded.scale() - 1;
+            double mantissa = rounded.movePointLeft(exponent).doubleValue();
+            // The language's own exponent sign and minus, from CLDR: "E" in most, "×10^" in
+            // Swedish, "اس" in Arabic, and a true minus (U+2212) where the language writes one.
+            java.text.DecimalFormatSymbols symbols = new java.text.DecimalFormatSymbols(I18n.locale());
+            String power = exponent < 0
+                    ? symbols.getMinusSign() + Integer.toString(-exponent)
+                    : Integer.toString(exponent);
+            return localized(trimZeros(String.format(I18n.locale(), mantissaPattern, mantissa))
+                    + symbols.getExponentSeparator() + power);
+        };
+    }
+
+    /**
      * A <em>fraction</em> as a percentage: {@code 0.42} reads {@code "42%"}. Values that
      * are already scaled to 0–100 want {@link #unit(String)} with {@code "%"} instead.
      */

@@ -122,7 +122,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
     private boolean legendInteractive = true;
     private TooltipMode tooltipMode = TooltipMode.INDEX;
     private boolean tooltipEnabled = true;
-    private DoubleFunction<String> valueFormat = NumberFormats.number();
+    private DoubleFunction<String> valueFormat = DEFAULT_VALUE_FORMAT;
     private Function<ChartPoint, String> tooltipFormat;
     private float preferredWidth = UNSET;
     private float preferredHeight = UNSET;
@@ -518,7 +518,26 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
 
     // -------------------------------------------------------------- formatting
 
-    /** How values are written in tooltips (and, unless overridden, on the value axis). */
+    /**
+     * The magnitude from which a chart writes its values in scientific notation by default,
+     * on the value axis and in the tooltip: past it a grouped number runs to 21 characters and
+     * more, and a little further on a double no longer holds every whole number, so the digits
+     * written out would claim a precision the value does not have.
+     */
+    static final double SCIENTIFIC_FROM = 1e15;
+
+    private static final DoubleFunction<String> GROUPED = NumberFormats.number();
+    private static final DoubleFunction<String> SCIENTIFIC = NumberFormats.scientific(3);
+
+    /** Grouped digits, and scientific notation from {@value #SCIENTIFIC_FROM} up. */
+    private static final DoubleFunction<String> DEFAULT_VALUE_FORMAT =
+            v -> Math.abs(v) >= SCIENTIFIC_FROM ? SCIENTIFIC.apply(v) : GROUPED.apply(v);
+
+    /**
+     * How values are written in tooltips and in the names a screen reader hears for each mark:
+     * grouped digits by default ({@code 1,234.5}), and scientific notation with up to three
+     * decimals from {@code 1e15} up ({@code 1.235E20}).
+     */
     public DoubleFunction<String> valueFormat() {
         return valueFormat;
     }

@@ -293,7 +293,8 @@ class ChartOutOfScaleTest extends ComponentTestBase {
      * A tick label wider than the chart took the whole width for its gutter, left the plot a
      * point wide, and the chart drew nothing at all, labels included: 1e300 written out grouped is
      * 401 characters. The gutter now stops at a share of the width and a label past it is cut
-     * with an ellipsis, upright and sideways alike.
+     * with an ellipsis, upright and sideways alike. The default format no longer writes such a
+     * label, so the axis is handed the grouped one that does.
      */
     @Test
     void tickLabelsWiderThanTheChartAreCutAndTheChartStillDraws() {
@@ -302,6 +303,7 @@ class ChartOutOfScaleTest extends ComponentTestBase {
                     ChartSeries.of("v", 1e300, 5e299, 2e299));
             chart.setLocale(java.util.Locale.ENGLISH);
             chart.setHorizontal(sideways);
+            chart.valueAxis().setFormat(limn.i18n.NumberFormats.number());
             InkCanvas canvas = frame(sceneOf(chart));
             String which = sideways ? "sideways" : "upright";
             assertEquals(3, canvas.bars.size(), "every bar is drawn " + which);
@@ -327,6 +329,46 @@ class ChartOutOfScaleTest extends ComponentTestBase {
                                     + row.get(i)[0] + " " + canvas.texts);
                 }
             }
+        }
+    }
+
+    /**
+     * Values past 1e15 are written in scientific notation by default, on the axis and in the
+     * tooltip, so they fit without being cut: grouped, 1e300 was 401 characters.
+     */
+    @Test
+    void largeValuesAreWrittenInScientificNotationAndFitUncut() {
+        for (boolean sideways : new boolean[] {false, true}) {
+            BarChart chart = BarChart.of(List.of("a", "b", "c"),
+                    ChartSeries.of("v", 1e300, 5e299, 2e299));
+            chart.setLocale(java.util.Locale.ENGLISH);
+            chart.setHorizontal(sideways);
+            sceneOf(chart);
+            // The test ruler gives every character ten points, so five of them take more than the
+            // fifth of 300 points each sideways label may have; a real face takes about 35.
+            chart.setPreferredSize(500, 200);
+            Scene scene = new Scene(chart);
+            scene.setTextRuler(RULER);
+            InkCanvas canvas = frame(scene);
+            String which = sideways ? "sideways" : "upright";
+            assertEquals(3, canvas.bars.size(), "every bar is drawn " + which);
+            assertTrue(canvas.texts.containsAll(
+                            List.of("0", "2E299", "4E299", "6E299", "8E299", "1E300")),
+                    "the ticks are written in scientific notation " + which + ": " + canvas.texts);
+            assertTrue(canvas.texts.stream().noneMatch(text -> text.endsWith("\u2026")),
+                    "nothing needs cutting " + which + ": " + canvas.texts);
+        }
+        // A format reads the language when it is applied, which a chart does inside its own.
+        java.util.Locale original = limn.i18n.I18n.locale();
+        limn.i18n.I18n.setLocale(java.util.Locale.ENGLISH);
+        try {
+            var format = BarChart.of(List.of("a"), ChartSeries.of("v", 1)).valueFormat();
+            assertEquals("1.235E20", format.apply(1.23456e20));
+            assertEquals("-1E15", format.apply(-1e15));
+            assertEquals("999,999,999,999,999", format.apply(999_999_999_999_999d));
+            assertEquals("1,234.5", format.apply(1234.5));
+        } finally {
+            limn.i18n.I18n.setLocale(original);
         }
     }
 

@@ -40,6 +40,35 @@ class NumberFormatsDigitsTest {
         assertEquals("42", NumberFormats.number().apply(42), "and the Latin default is unchanged");
     }
 
+    /**
+     * Scientific notation in the language's own terms, which CLDR spells differently from one to
+     * the next: the exponent sign is "E" in English and German, "×10^" in Swedish and "اس" in
+     * Arabic, and Swedish writes a negative power with a true minus sign.
+     */
+    @Test
+    void scientificNotationIsWrittenTheWayTheLanguageWritesIt() {
+        I18n.setLocale(Locale.ENGLISH);
+        var one = NumberFormats.scientific(1);
+        assertEquals("1.2E25", one.apply(1.2e25));
+        assertEquals("1E300", one.apply(1e300), "no trailing zero in the mantissa");
+        assertEquals("1E6", one.apply(9.99e5), "a mantissa that rounds to ten moves the power");
+        assertEquals("4.2E-4", one.apply(0.00042));
+        assertEquals("-3.5E20", one.apply(-3.5e20));
+        assertEquals("0", one.apply(0));
+        assertEquals("-", one.apply(Double.NaN));
+        assertEquals("1.797693E308", NumberFormats.scientific(6).apply(Double.MAX_VALUE));
+
+        I18n.setLocale(Locale.GERMAN);
+        assertEquals("1,2E25", one.apply(1.2e25));
+
+        I18n.setLocale(Locale.forLanguageTag("sv"));
+        assertEquals("1,2×10^25", one.apply(1.2e25));
+        assertEquals("4,2×10^\u22124", one.apply(0.00042));
+
+        I18n.setLocale(Locale.forLanguageTag("ar-EG"));
+        assertEquals("١٫٢اس٢٥", one.apply(1.2e25), "the language's digits, separator and sign");
+    }
+
     @Test
     void aDeclaredSystemWinsOverThePlatformsOwnSubstitution() {
         I18n.setLocale(Locale.forLanguageTag("ar-EG"));

@@ -184,13 +184,44 @@ public final class ChartAxis {
      * is still on its default, that default with enough decimals to tell one tick from the
      * next. Two decimals stay the floor, which is what the default always wrote, so only an
      * axis whose ticks sit closer than a hundredth apart reads any differently.
+     *
+     * <p>A scale that reaches {@value Chart#SCIENTIFIC_FROM} is written in scientific notation
+     * instead, with the mantissa decimals that tell its ticks apart: written out, {@code 1e300}
+     * is a label of 401 characters. Only where the ticks sit so close together that six
+     * decimals cannot tell them apart does the axis keep writing every digit.
      */
     DoubleFunction<String> tickFormat(Scale scale) {
         if (format != DEFAULT_FORMAT) {
             return format;
         }
+        double largest = Math.max(Math.abs(scale.min()), Math.abs(scale.max()));
+        if (largest >= Chart.SCIENTIFIC_FROM && scale.step() > 0 && Double.isFinite(largest)) {
+            int decimals = (int) (Math.floor(Math.log10(largest)) - Math.floor(Math.log10(scale.step())))
+                    + stepDigits(scale.step()) - 1;
+            if (decimals <= MOST_SCIENTIFIC_DECIMALS) {
+                return NumberFormats.scientific(Math.max(0, decimals));
+            }
+        }
         int decimals = scale.decimals();
         return decimals <= 2 ? DEFAULT_FORMAT : NumberFormats.number(decimals);
+    }
+
+    /** The most mantissa decimals an axis writes before it goes back to every digit. */
+    private static final int MOST_SCIENTIFIC_DECIMALS = 6;
+
+    /**
+     * How many significant digits the step carries: one for the 1, 2 and 5 steps a round
+     * scale picks, two for a 2.5, and three for anything rounder steps failed to give.
+     */
+    private static int stepDigits(double step) {
+        double mantissa = step / Math.pow(10, Math.floor(Math.log10(step)));
+        for (int digits = 1; digits < 3; digits++) {
+            double scaled = mantissa * Math.pow(10, digits - 1);
+            if (Math.abs(scaled - Math.rint(scaled)) <= scaled * 1e-9) {
+                return digits;
+            }
+        }
+        return 3;
     }
 
     // --------------------------------------------------------------- the scale

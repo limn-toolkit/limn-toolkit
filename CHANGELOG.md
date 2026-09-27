@@ -17,8 +17,7 @@ Maven Central say which number that was.
 - Editable text reads a lone carriage return, the classic Mac OS line break, as a line break;
   it was deleted, joining the lines around it.
 - A chart whose values reach near the largest double no longer throws on every frame.
-- A chart whose value-axis labels are wider than the chart itself (values past about 1e20 written
-  out in full, or a long custom format) draws: the labels are cut with an ellipsis, upright to at
+- A chart whose value-axis labels are wider than the chart itself (a long custom format) draws: the labels are cut with an ellipsis, upright to at
   most 35% of the chart's width, as a sideways chart's category labels already were, and sideways
   also to the room between two ticks. The chart used to give that width to the labels and draw
   nothing at all.
@@ -38,12 +37,20 @@ Maven Central say which number that was.
   process. The default stays 2^26 elements (`GltfLoader.DEFAULT_ELEMENT_BUDGET`), which refuses a
   mesh without normals of about 2.8 million triangles; the ceiling is the defence against a small
   hostile file asking for gigabytes, so raise it for models you trust.
+- `NumberFormats.scientific(maxDecimals)` writes a number in scientific notation in the current
+  language's terms: `1.2E25` in English, `1,2E25` in German, `1,2×10^25` in Swedish, with the
+  language's own digits and minus sign.
 
 ### Changed
 
 - An hour typed or stepped into an empty twelve-hour `DateField` takes the half of the day nearest
   to now: at 9 AM "1230" is half past noon, and at 1 AM "1130" is the evening just gone. It used to
   take the clock's own half, which made that 9 AM entry half past midnight.
+- A chart writes values of 1e15 and more in scientific notation by default, on its value axis and
+  in its tooltip and the names a screen reader hears: `0, 2E299, … 1E300` rather than 401
+  characters a tick, and `1.235E20` rather than `123,456,000,000,000,000,000`. The axis picks the
+  decimals its tick spacing needs; ticks too close together for six of them keep every digit. A
+  format set with `ChartAxis.setFormat` or `Chart.setValueFormat` is used as before.
 
 - `limn-fonts-all` names Noto Color Emoji 2.057.0 and the Noto Sans script faces 1.0.3. The emoji
   cover Unicode 18.0; of the four script families only Devanagari moved (2.006 to 2.007, the same
