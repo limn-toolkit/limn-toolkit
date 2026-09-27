@@ -53,6 +53,68 @@ class LayoutTest extends SceneTestBase {
         assertEquals(100, a.width(), EPS);
     }
 
+    /**
+     * A gap that is not a number is refused where it is given, as a wrap's and a grid's are, and
+     * a refused one changes nothing. NaN was stored: it put every child after the first at NaN,
+     * and it asked for another layout pass on every call, because NaN equals nothing, itself
+     * included, so the unchanged-value guard never held. Positive infinity was stored as well, and
+     * negative infinity clamped to none where a wrap refuses it.
+     */
+    @Test
+    void flexRefusesAGapThatIsNotAFiniteNumber() {
+        Column column = new Column().gap(10);
+        FixedBox a = new FixedBox(100, 20);
+        FixedBox b = new FixedBox(80, 30);
+        column.add(a);
+        column.add(b);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> column.gap(Float.NaN));
+        assertEquals("gap must be finite, got NaN", error.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> column.gap(Float.POSITIVE_INFINITY));
+        assertThrows(IllegalArgumentException.class, () -> column.gap(Float.NEGATIVE_INFINITY));
+        assertThrows(IllegalArgumentException.class, () -> new Row().gap(Float.NaN));
+        column.measure(Constraints.tight(200, 300));
+        column.layoutBox(0, 0, 200, 300);
+        assertEquals(30, b.y(), EPS, "a refused gap changed nothing");
+
+        column.gap(-5);
+        column.measure(Constraints.tight(200, 300));
+        column.layoutBox(0, 0, 200, 300);
+        assertEquals(20, b.y(), EPS, "a negative gap is still none");
+    }
+
+    /**
+     * The silent form a container pushes from its own measure refuses the same values: it is the
+     * same gap, and a NaN stored by it lays out as badly as one stored by the public setter.
+     */
+    @Test
+    void aGapPushedSilentlyFromTheMeasureRefusesTheSameValues() {
+        Row row = new Row() {
+            @Override
+            protected Size onMeasure(Constraints constraints) {
+                gapSilently(Float.NaN);
+                return super.onMeasure(constraints);
+            }
+        };
+        row.add(new FixedBox(10, 10));
+        row.add(new FixedBox(10, 10));
+        assertThrows(IllegalArgumentException.class, () -> row.measure(Constraints.loose(100, 100)));
+    }
+
+    /**
+     * A floor that is not a finite number is refused, as a ceiling that is not a number already
+     * is, and a refused one changes nothing: NaN was stored and never compared above the ceiling,
+     * and an infinite floor was stored beneath the infinite ceiling that means none.
+     */
+    @Test
+    void expandedRefusesAFloorThatIsNotAFiniteNumber() {
+        Expanded expanded = Expanded.of(new FixedBox(10, 10)).atLeast(20);
+        assertThrows(IllegalArgumentException.class, () -> expanded.atLeast(Float.NaN));
+        assertThrows(IllegalArgumentException.class, () -> expanded.atLeast(Float.POSITIVE_INFINITY));
+        assertEquals(20, expanded.minMain(), EPS, "a refused floor changed nothing");
+    }
+
     @Test
     void rowDistributesLeftoverByFlexWeight() {
         Row row = new Row();
