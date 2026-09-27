@@ -71,6 +71,13 @@ Maven Central say which number that was.
 - The `ColorPicker`'s cursor ring no longer leaves a stale arc when it moves away from an edge or
   a corner of the colour square. It paints past the square by design, centred on the exact colour,
   and now says so to the repaint.
+- `enterFullscreen()` with no mode enters macOS's own fullscreen, the green button's Space, and
+  leaves the display in its mode. It asked GLFW for the current mode, which a Retina display does
+  not list, so a MacBook Pro switched from 1728 × 1117 at scale 2 to 1920 × 1200 at scale 1 and
+  the UI thread stalled 595 ms; now the window fills its Space with the UI thread held under 100 ms.
+  `isFullscreen()` also reports the fullscreen a person enters with the green button or
+  Control-Command-F. A named mode (`enterFullscreen(width, height, rate)` or a `Resolution`) still
+  switches the display, on every platform, for games. Windows and X11 already kept their mode.
 - A focus ring at the edge of a layout is no longer bitten off when something beside the layout
   repaints: every layout that does not clip now declares the ring's reach, so a repaint that lands
   just outside it paints it too.
