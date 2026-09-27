@@ -221,7 +221,8 @@ final class KitchenSinkScene {
         dialogOptions.add(dialogDecorated);
         // Sound-package demo: a synthesized tone (same primitive as the beep).
         Button playTone = new Button(KitchenStrings.PLAY_SOUND).setSecondary(true);
-        // Exclusive fullscreen: current resolution and a mode-switch (1280×720).
+        // Fullscreen both ways: at the display's own mode (macOS native fullscreen there), and
+        // the exclusive one a game asks for, switching the display to 1280×720.
         Button fullscreenNative = new Button(KitchenStrings.FULLSCREEN_NATIVE).setSecondary(true);
         Button fullscreenRes = new Button(KitchenStrings.FULLSCREEN_RES).setSecondary(true);
         Row windowRow = new Row();
@@ -503,8 +504,9 @@ final class KitchenSinkScene {
             status.setText(Sounds.isAvailable()
                     ? KitchenStrings.STATUS_SOUND.get() : KitchenStrings.STATUS_SOUND_NO_DEVICE.get());
         });
-        // Both fullscreen buttons toggle: enter (at the given resolution, or the
-        // current one for w/h <= 0) when windowed, exit when already fullscreen.
+        // Both fullscreen buttons toggle: enter (at the given resolution, or without
+        // changing the display's mode for w/h <= 0) when windowed, exit when already
+        // fullscreen, including when the person entered it with macOS's green button.
         BiConsumer<Integer, Integer> toggleFullscreen = (w, h) -> {
             NativeWindow win = scene.window();
             if (win == null) {

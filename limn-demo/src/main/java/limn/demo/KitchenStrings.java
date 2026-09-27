@@ -185,7 +185,7 @@ final class KitchenStrings {
     static final I18nString STATUS_WINDOW_RESTORED =
             new I18nString("kitchen.status.windowRestored", "Window restored");
     static final I18nString STATUS_FS_CURRENT =
-            new I18nString("kitchen.status.fullscreenCurrent", "Exclusive fullscreen (current resolution)");
+            new I18nString("kitchen.status.fullscreenCurrent", "Fullscreen (current resolution)");
     static final I18nString STATUS_FS_AT =
             new I18nString("kitchen.status.fullscreenAt", "Exclusive fullscreen {0}×{1}");
     static final I18nString STATUS_THEME_CHANGED =

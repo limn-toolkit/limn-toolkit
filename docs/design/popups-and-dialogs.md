@@ -105,9 +105,11 @@ clamp against the monitor's work area like a real OS menu. So the whole cascade 
 one undecorated, transparent native window, sized to the open cascade's bounding box and
 re-fit as submenus open and close.
 
-Two platforms cannot hold one. macOS exclusive fullscreen has no room for a second
-window: taking focus minimizes the fullscreen owner. And a window reporting no
-`supportsAbsolutePositioning()` cannot say *where* the second window goes, so the menu
+Two cases cannot hold one. A fullscreen window has no room for a second window: GLFW
+minimizes a window fullscreen on a monitor when another takes the focus, on Windows, X11
+and macOS alike, and macOS native fullscreen gives the window a Space of its own. And a
+window reporting no `supportsAbsolutePositioning()` cannot say *where* the second window
+goes, so the menu
 would open near the middle of the display wearing whatever frame the compositor puts on
 toplevels; that is Wayland, where absolute position is absent from the protocol rather
 than missing from an implementation. Both fall back to an in-scene overlay, with the same
