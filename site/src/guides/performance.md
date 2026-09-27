@@ -20,6 +20,12 @@ changes for a reason of its own, `markNeedsLayoutInPlace()` re-measures only the
 size moved and repaints only what moved. A `Label` whose text changes does exactly that, so a
 status line that ticks every second repaints the label and not the screen around it.
 
+A layout repaints a little more than its box. The focus ring of a control at the edge of a row
+is drawn outside the row, so every row, column, padding and box declares that it may be painted
+past, by the reach the theme gives a focus ring, and its repaint covers that band too. A layout
+whose children draw farther says so with `paintOverflow(points)`, and one whose children never
+leave it with `paintOverflow(0)`; a padding wider than the ring needs neither.
+
 `scene.setDamageDebug(true)` washes each frame's damage in magenta. Two kinds of mistake show up
 at once: a whole window flashing on a small change is a layout, or an `invalidate` too wide, where
 something narrower would do; a region that never flashes although it changed is a widget that

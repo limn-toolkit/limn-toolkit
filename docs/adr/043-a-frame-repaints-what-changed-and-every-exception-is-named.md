@@ -141,6 +141,46 @@ miss one, which is the right way round for a correctness rule.
 One sentence, and it is already the contract: **declare, in `paintOutset()`, everything you paint
 outside your own box, and call `invalidate()` for everything you change.**
 
+**Amended 2026-09-27 (the owner's choice of that day): a layout declares what its children paint
+past it.** The sentence above was kept by the leaves and by nothing that held them. `paintOutset()`
+covers "any descendant no ancestor clips", and the culling reads it on every widget down the path,
+but no row, column, stack, wrap, grid, padding, expanded, sized box or token box declared anything,
+so a focused button at the edge of a row lost the part of its ring past the row whenever a pass
+landed only in that band — a neighbour of the row repainting — because the pass skipped the row and
+never reached the button. The colour picker had met it first and worked round it with two private
+containers; the rule now is general, in the owner's words: *slack declared on the container, taken
+by default from the theme as what the focus ring needs, adjustable by the developer.*
+
+- **Every layout that does not clip declares a reach for its children.** `Container` (so `Row`,
+  `Column`, `Stack`, `Wrap`, `Grid`, `TokenRow`, `TokenColumn` and an application's own), `Padding`
+  (and `TokenPadding`, `BackdropPanel`), `Expanded`, `SizedBox` and `TokenBox` answer it from
+  `paintOutset()`. Three components that lay controls out flush with their own box without clipping
+  do the same: the region `ContextMenus.attach` returns, the dialog card's column and the media
+  transport without its backdrop.
+- **The default is the theme's**: `Theme.focusRingReach()`, 3 points, the widest ring a control
+  draws (`Strokes.FOCUS_RING_OUTSET`), the same for every palette because the ring is locked, and
+  asked through `Theme.of(widget)` so that a palette resolved per subtree is followed. `limn.scene`
+  names no `limn.components` type, so the theme installs a resolver in `limn.scene.internal`
+  (`LayoutOverflow`) as it loads, as it installs the tooltip style; before that a layout declares
+  `LayoutOverflow.BEFORE_THEME`, and the theme refuses to load if that is not its own number, so no
+  tree's damage changes the moment the first control is built.
+- **Adjustable per layout**: `paintOverflow(points)`, the public setter of the protected hook, UI
+  thread only, refusing `NaN`, negatives and infinities, repainting nothing when the declaration is
+  already in force; `paintOverflowFromTheme()` goes back. A padding's default is what is left of the
+  reach past its narrowest inset, a spacer's is nothing, and a layout that clips declares nothing
+  by default, since its clip bounds its children.
+- **Constant per layout, never summed from the children**, because a pass asks it of every widget it
+  considers: a child that paints farther than its layouts declare is declared on each of them.
+  The colour picker's two private containers are gone again for that reason: its cursor's 8 points
+  are declared with `paintOverflow` on the plain `Column`, `TokenBox`, `Row` and `Expanded` it was
+  built from, pixel for pixel the picker it was, and `ColorPickerCursorDamageTest` probes bands six
+  points out, where the focus ring's default no longer reaches.
+
+What it costs is the band: a layout's own `invalidate()` now repaints its box grown by 4 points
+rather than 1, and a pass paints a layout it would have skipped when it lands within 4 points of it.
+`ContainerOverflowTest` holds the defect (three cases that failed before, one per edge and both
+directions), the default, the setter, the refusals and the band.
+
 The second half is where the interesting failures are, and this work produced two, both in code
 written this month by somebody who had read the contract.
 

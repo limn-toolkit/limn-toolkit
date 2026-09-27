@@ -196,6 +196,16 @@ public final class ContextMenus {
             content.layoutBox(0, 0, width(), height());
         }
 
+        /**
+         * The reach of the theme's focus ring, which every layout declares for its children: the
+         * content is laid out over the whole region, so the ring of a focused control there hangs
+         * past the region exactly as far as past the control.
+         */
+        @Override
+        protected float paintOutset() {
+            return Theme.of(this).focusRingReach();
+        }
+
         @Override
         protected void onMouseEvent(MouseEvent event) {
             if (isRequest(event)) {

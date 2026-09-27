@@ -240,6 +240,34 @@ class ColorPickerCursorDamageTest extends ComponentTestBase {
                 f -> new Rect(f.right() + 2, f.y() + 2, 4, 4));
     }
 
+    /*
+     * The same three bands, farther out: six points past the field, where the ring still reaches
+     * and the focus ring's three points, which every layout declares unless it is told otherwise,
+     * do not. Each layout between the field and the picker has to declare the cursor's own reach
+     * for these, the field's expanded share and the box giving its row a height included.
+     */
+
+    /** Six points above the top-left corner, outside the picker. */
+    @Test
+    void aPassFarAboveThePickerStillDrawsTheRingHangingIntoIt() {
+        assertTheRingIsRedrawnWhenOnlyThisIsRepainted(Color.WHITE,
+                f -> new Rect(f.x() - 2, f.y() - 8, 4, 2));
+    }
+
+    /** Six points below the bottom-left corner, in the gap above the swatch row. */
+    @Test
+    void aPassFarUnderTheFieldStillDrawsTheRingHangingIntoIt() {
+        assertTheRingIsRedrawnWhenOnlyThisIsRepainted(Color.BLACK,
+                f -> new Rect(f.x() + 1, f.bottom() + 6, 4, 2));
+    }
+
+    /** Six points right of the top-right corner, across the gap and onto the hue ramp. */
+    @Test
+    void aPassFarBesideTheFieldStillDrawsTheRingHangingIntoIt() {
+        assertTheRingIsRedrawnWhenOnlyThisIsRepainted(Color.rgb(0xFF0000),
+                f -> new Rect(f.right() + 6, f.y() + 2, 2, 4));
+    }
+
     // ------------------------------------------------------------------ canvas
 
     private record Ring(float cx, float cy, float radius, float pen) {

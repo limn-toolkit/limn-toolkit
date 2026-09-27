@@ -1782,10 +1782,24 @@ public abstract class Widget<W extends Widget<W>> {
      * rendering uses it both ways: {@link #invalidate()} damage grows by it,
      * and a repaint pass skips this subtree only when bounds + outset miss the
      * pass region; painting farther than declared leaves stale pixels.
-     * Default {@code 0}: everything stays inside the bounds, which is true
-     * for most built-in components, but not all. {@code Label} (icon overhang)
-     * and {@code Button}, {@code Checkbox} and {@code RadioButton} (focus rings
-     * drawn outside the box) override it.
+     *
+     * <p><b>The work is divided by who knows the number.</b> A widget declares what it
+     * paints itself outside its box: {@code Label}'s icon overhang, the focus ring
+     * {@code Button}, {@code Checkbox} and {@code RadioButton} draw outside theirs. A widget
+     * that lays out children and does not clip them declares how far <em>they</em> may
+     * paint past it, because a ring on a child at its edge hangs past it too, and a pass
+     * landing only in that band would otherwise skip it and never reach the child. Every
+     * layout the toolkit ships does that by default with the reach the theme gives a focus
+     * ring, and takes another number through its public {@code paintOverflow}, which sets
+     * what this hook answers; a layout an application writes inherits both by extending
+     * {@code limn.scene.layout.Container}, and one that extends this class directly
+     * overrides this hook itself. A widget that {@linkplain #clipsChildren() clips its
+     * children} declares only its own painting, since the clip bounds theirs.
+     *
+     * <p>Asked of every widget a repaint pass considers, and on every {@code invalidate()},
+     * so an override answers in constant time without allocating: a number held or looked
+     * up, never a walk over the children. Default {@code 0}: everything stays inside the
+     * bounds, which is true for most leaves.
      */
     protected float paintOutset() {
         return 0;

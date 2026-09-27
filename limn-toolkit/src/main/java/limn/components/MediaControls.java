@@ -449,6 +449,17 @@ public final class MediaControls extends Widget<MediaControls> {
     }
 
     /**
+     * What is left of the theme's focus ring reach past the padding round the row, which is all
+     * of it without the backdrop: the play button is then flush with the bar's leading edge, and
+     * its ring, and that of any control an application added at either end, hangs past the bar.
+     * With the backdrop the padding is wider than the ring at every step and nothing is left.
+     */
+    @Override
+    protected float paintOutset() {
+        return Math.max(0, Theme.of(this).focusRingReach() - pad());
+    }
+
+    /**
      * Paints the backdrop and arms the poll. <b>It refreshes nothing</b>: a paint may not announce
      * a change, and {@link #refresh()} writes widget state that announces -- the bar's value on
      * every advance, the clock's text once a second -- so the refresh runs from the poll tick

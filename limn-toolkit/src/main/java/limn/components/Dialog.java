@@ -1064,6 +1064,17 @@ public final class Dialog {
             scroll.layoutBox(0, 0, width(), bodyHeight);
             footer.layoutBox(0, bodyHeight + gap, width(), footerHeight);
         }
+
+        /**
+         * The reach of the theme's focus ring, which every layout declares for its children: the
+         * footer is laid out flush with this column's bottom and sides, so the ring of a button at
+         * its end hangs past the column into the card's padding. The body cannot, since its scroll
+         * view clips it.
+         */
+        @Override
+        protected float paintOutset() {
+            return Theme.of(this).focusRingReach();
+        }
     }
 
     // ------------------------------------------------------------- panel
