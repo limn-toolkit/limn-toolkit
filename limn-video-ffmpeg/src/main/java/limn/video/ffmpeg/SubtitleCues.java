@@ -202,10 +202,18 @@ public final class SubtitleCues {
     }
 
     private void prune(long micros) {
+        prune(window, micros);
+    }
+
+    /**
+     * Drops from {@code window} every cue that ended more than {@link #RETAIN_MICROS} before
+     * {@code micros}, wherever it stands. The window is in start order, not end order: stopping at
+     * the first cue still held let one long cue near the front (a title card for the whole film, a
+     * duration a file got wrong) keep every short one after it for good.
+     */
+    static void prune(List<Cue> window, long micros) {
         long horizon = micros - RETAIN_MICROS;
-        while (!window.isEmpty() && window.get(0).endMicros() <= horizon) {
-            window.remove(0);
-        }
+        window.removeIf(cue -> cue.endMicros() <= horizon);
     }
 
     /**
