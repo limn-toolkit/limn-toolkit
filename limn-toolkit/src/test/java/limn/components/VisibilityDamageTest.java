@@ -9,6 +9,7 @@ import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
+import limn.scene.layout.Wrap;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -221,6 +222,91 @@ class VisibilityDamageTest extends ComponentTestBase {
                     "a pass reached outside the scroll view: " + pass + " against " + container);
         }
         assertFalse(touched(outsideBox), "the label below the scroll view was repainted");
+    }
+
+    /** A page of a label, a wrap of chips 120 wide held to 400 (three to a run), and a label. */
+    private Wrap chipsPage(Label top, Label under, List<Widget<?>> chips, int count) {
+        Wrap tags = new Wrap().gap(8).runGap(8);
+        for (int i = 0; i < count; i++) {
+            Widget<?> chip = new SizedBox(120, SizedBox.UNSET, new Button("tag " + i));
+            chips.add(chip);
+            tags.add(chip);
+        }
+        Column page = new Column();
+        page.gap(8).crossAlignment(Flex.CrossAlignment.START);
+        page.add(top);
+        page.add(new SizedBox(400, SizedBox.UNSET, tags));
+        page.add(under);
+        mount(page);
+        return tags;
+    }
+
+    /**
+     * A chip hidden in a wrap re-flows the runs, and the wrap absorbs it: six chips are still two
+     * runs with one hidden, so the wrap keeps its size, the chips after the hidden one slide back
+     * (the fourth up onto the first run) and are repainted where they were and where they went,
+     * and nothing outside the wrap is repainted.
+     */
+    @Test
+    void aChipHiddenInAWrapRepaintsTheChipsThatMovedNotTheWindow() {
+        Label top = new Label("top");
+        Label under = new Label("under the tags");
+        List<Widget<?>> chips = new ArrayList<>();
+        Wrap tags = chipsPage(top, under, chips, 6);
+
+        Rect topBox = sceneBox(top);
+        Rect underBox = sceneBox(under);
+        Rect firstBox = sceneBox(chips.get(0));
+        Rect hiddenBox = sceneBox(chips.get(1));
+        Rect fourthBefore = sceneBox(chips.get(3));
+        float height = tags.height();
+
+        gesture(() -> chips.get(1).setVisible(false));
+
+        assertFalse(anyFullFrame, "hiding one chip repainted the whole window");
+        assertEquals(height, tags.height(), "five chips are still two runs");
+        Rect fourthAfter = sceneBox(chips.get(3));
+        assertTrue(fourthAfter.y() < fourthBefore.y(), "the fourth chip did not move up a run");
+        assertTrue(repainted(hiddenBox), "the hidden chip's box was never repainted; passes "
+                + passes);
+        assertTrue(repainted(fourthBefore) && repainted(fourthAfter),
+                "a chip that changed run was not repainted where it was and where it went; passes "
+                        + passes);
+        assertEquals(firstBox, sceneBox(chips.get(0)), "the chip before the hidden one moved");
+        assertEquals(underBox, sceneBox(under), "the label under the wrap moved");
+        assertFalse(touched(underBox), "the label under the wrap was repainted; passes " + passes);
+        assertFalse(touched(topBox), "the label above the wrap was repainted; passes " + passes);
+    }
+
+    /**
+     * When the hidden chip takes the wrap's last run with it, the wrap gets shorter and the change
+     * climbs to the column that absorbs it: the label under the wrap moves up and is repainted, and
+     * the label above is not.
+     */
+    @Test
+    void aWrapThatLosesARunHandsTheChangeUpToWhatAbsorbsIt() {
+        Label top = new Label("top");
+        Label under = new Label("under the tags");
+        List<Widget<?>> chips = new ArrayList<>();
+        Wrap tags = chipsPage(top, under, chips, 4);
+
+        Rect topBox = sceneBox(top);
+        Rect underBefore = sceneBox(under);
+        Rect hiddenBox = sceneBox(chips.get(1));
+        Rect fourthBefore = sceneBox(chips.get(3));
+        float height = tags.height();
+
+        gesture(() -> chips.get(1).setVisible(false));
+
+        assertFalse(anyFullFrame, "a wrap that lost a run escalated to the whole window");
+        assertTrue(tags.height() < height, "three chips are one run");
+        assertTrue(repainted(hiddenBox) && repainted(fourthBefore)
+                        && repainted(sceneBox(chips.get(3))),
+                "what moved inside the wrap was not repainted; passes " + passes);
+        assertTrue(sceneBox(under).y() < underBefore.y(), "what is under the wrap did not move up");
+        assertTrue(repainted(underBefore) && repainted(sceneBox(under)),
+                "the label under the wrap was not repainted where it was and where it went");
+        assertFalse(touched(topBox), "the label above the wrap was repainted; passes " + passes);
     }
 
     /**

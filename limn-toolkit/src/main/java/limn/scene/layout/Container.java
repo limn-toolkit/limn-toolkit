@@ -12,7 +12,8 @@ import limn.scene.Widget;
  * button its label — and adding to one of those from outside either did nothing it would show or
  * took a row out from under the widget's own bookkeeping. So {@link Widget#add} and
  * {@link Widget#remove} are protected, and this class is where they become public. {@link Column},
- * {@link Row} and {@link Stack} are containers; a layout an application writes extends this.
+ * {@link Row}, {@link Wrap} and {@link Stack} are containers; a layout an application writes
+ * extends this.
  */
 public abstract class Container<W extends Container<W>> extends Widget<W> {
 

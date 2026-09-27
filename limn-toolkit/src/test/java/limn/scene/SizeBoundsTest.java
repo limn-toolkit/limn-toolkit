@@ -5,6 +5,7 @@ import limn.scene.layout.Column;
 import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Row;
+import limn.scene.layout.Wrap;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -97,6 +98,47 @@ class SizeBoundsTest extends SceneTestBase {
     void theSettersChainAsTheWidgetsOwnType() {
         Button button = new Button("OK").setMinWidth(80).setMaxWidth(200); // compiles only as Button
         assertEquals(80, button.minWidth());
+    }
+
+    // ------------------------------------------------------------------ bounds and a wrap
+
+    @Test
+    void aWrapsOwnMaximumWidthIsWhereItsRunsBreak() {
+        Wrap wrap = new Wrap().gap(10).runGap(8).setMaxWidth(220);
+        wrap.add(new FixedBox(120, 40));
+        wrap.add(new FixedBox(80, 30));
+        wrap.add(new FixedBox(100, 20));
+        Size size = wrap.measure(new Constraints(0, Constraints.UNBOUNDED_LIMIT, 0,
+                Constraints.UNBOUNDED_LIMIT));
+        assertEquals(210, size.width(), EPS, "120 and 80 share a run; 100 more would pass 220");
+        assertEquals(40 + 8 + 20, size.height(), EPS, "two runs where the open width gave one");
+    }
+
+    @Test
+    void aChildsMinimumWiderThanTheWrapIsCutToTheWrapsWidth() {
+        FixedBox before = new FixedBox(50, 20);
+        FixedBox floored = new FixedBox(50, 20).setMinWidth(500);
+        Wrap wrap = new Wrap().gap(10);
+        wrap.add(before);
+        wrap.add(floored);
+        wrap.measure(Constraints.tight(200, 100));
+        wrap.layoutBox(0, 0, 200, 100);
+        assertEquals(200, floored.width(), EPS, "the parent wins: at most the wrap's width");
+        assertEquals(20, floored.y(), EPS, "and as wide as that, it takes a run of its own");
+    }
+
+    @Test
+    void aChildsMaximumHoldsInsideAWrap() {
+        FixedBox capped = new FixedBox(300, 20).setMaxWidth(90);
+        FixedBox next = new FixedBox(90, 20);
+        Wrap wrap = new Wrap().gap(10);
+        wrap.add(capped);
+        wrap.add(next);
+        wrap.measure(Constraints.tight(200, 100));
+        wrap.layoutBox(0, 0, 200, 100);
+        assertEquals(90, capped.width(), EPS, "a wrap leaves the width to the child");
+        assertEquals(0, next.y(), EPS, "so the capped width is the one the run is broken with");
+        assertEquals(100, next.x(), EPS);
     }
 
     // ------------------------------------------------------------------ a flexible child's ceiling

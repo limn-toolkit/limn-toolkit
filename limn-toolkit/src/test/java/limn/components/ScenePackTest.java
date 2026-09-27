@@ -9,6 +9,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.SizedBox;
+import limn.scene.layout.Wrap;
 import limn.testing.StubWindow;
 import org.junit.jupiter.api.Test;
 
@@ -112,6 +113,37 @@ class ScenePackTest extends ComponentTestBase {
         assertTrue(size[0] <= 200, "the paragraph's maximum, not the screen: " + size[0]);
         assertTrue(size[1] >= 160 + 3 * 12, "its lines at 200 and the flexible child's floor: "
                 + size[1]);
+    }
+
+    @Test
+    void aWrapPacksToOneRun() {
+        Wrap wrap = new Wrap().gap(10).runGap(8);
+        wrap.add(new SizedBox(120, 40));
+        wrap.add(new SizedBox(80, 30));
+        wrap.add(new SizedBox(100, 20));
+        assertArrayEquals(new int[] {320, 40}, pack(wrap, windowOn(2000, 2000)),
+                "its natural size is a row of its children, and the second measure at that width "
+                        + "must not break it");
+    }
+
+    @Test
+    void aWrapHeldToAMaximumWidthPacksToItsRuns() {
+        Wrap wrap = new Wrap().gap(10).runGap(8).setMaxWidth(220);
+        wrap.add(new SizedBox(120, 40));
+        wrap.add(new SizedBox(80, 30));
+        wrap.add(new SizedBox(100, 20));
+        assertArrayEquals(new int[] {210, 68}, pack(wrap, windowOn(2000, 2000)),
+                "the widest run, and the height of both runs at that width");
+    }
+
+    @Test
+    void aWrapWiderThanTheWorkAreaPacksToTheRunsItBreaksIntoThere() {
+        Wrap wrap = new Wrap().gap(10);
+        for (int i = 0; i < 6; i++) {
+            wrap.add(new SizedBox(90, 20));
+        }
+        assertArrayEquals(new int[] {300, 40}, pack(wrap, windowOn(300, 2000)),
+                "one run of 590 asks for the work area's 300, and at 300 it is two runs of three");
     }
 
     @Test

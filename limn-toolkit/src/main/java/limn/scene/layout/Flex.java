@@ -32,6 +32,9 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
      * name that means nothing there must still mean something predictable.
      *
      * <p>{@link #CENTER} is the same number in both vocabularies and in both directions.
+     *
+     * <p>A {@link Wrap} places each of its runs with the same constants, and reads them as a row
+     * does.
      */
     public enum MainAlignment {
         /** Against the edge reading starts from. */
@@ -58,6 +61,8 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
      * under {@code CENTER} two controls at adjacent steps sit with their baselines up to
      * 0.69pt apart (2.73pt across the full ramp). {@code BASELINE} is ignored on a
      * {@link Column}, where the cross axis is horizontal and there is no shared baseline.
+     *
+     * <p>A {@link Wrap} reads them as a row does, within the height of each of its runs.
      */
     public enum CrossAlignment { START, CENTER, END, STRETCH, BASELINE }
 

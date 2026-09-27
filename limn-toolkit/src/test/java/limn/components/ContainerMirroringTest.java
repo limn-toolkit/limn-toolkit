@@ -9,14 +9,16 @@ import limn.scene.layout.Column;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
+import limn.scene.layout.SizedBox;
 import limn.scene.layout.Stack;
+import limn.scene.layout.Wrap;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * What the three containers do with a direction, and — just as much the point — what they do not.
+ * What the containers do with a direction, and — just as much the point — what they do not.
  *
  * <p>The end state this pins is deliberately a halfway one: a {@link Row} of children in a
  * right-to-left subtree is in the right order with the right gaps, and each child still paints its
@@ -177,6 +179,87 @@ class ContainerMirroringTest extends ComponentTestBase {
 
         assertEquals(170, inner.x(), EPS, "the inner row is placed at the leading edge...");
         assertEquals(0, child.x(), EPS, "...and mirrors inside its own 30pt box, which is all of it");
+    }
+
+    // ------------------------------------------------------------------- Wrap
+
+    /** Children of 80, 70 and 60 with a gap of 10 in 200: two on the first run, one on the next. */
+    private static Wrap wrapOf(Box... boxes) {
+        Wrap wrap = new Wrap().gap(10).runGap(5);
+        for (Box box : boxes) {
+            wrap.add(box);
+        }
+        return wrap;
+    }
+
+    @Test
+    void aRightToLeftWrapStartsEveryRunAtTheRightEdgeAndStillGoesDown() {
+        Box first = new Box(80);
+        Box second = new Box(70);
+        Box third = new Box(60);
+        Wrap wrap = wrapOf(first, second, third);
+        wrap.setLayoutDirection(LayoutDirection.RTL);
+        layout(wrap, 200, 45);
+
+        assertEquals(120, first.x(), EPS, "the first child against the leading edge, the right one");
+        assertEquals(40, second.x(), EPS, "80 wide plus a 10 gap to the left of it");
+        assertEquals(10, first.x() - second.x() - second.width(), EPS, "the gap survived");
+        assertEquals(140, third.x(), EPS, "the second run starts at the right edge again");
+        assertEquals(0, first.y(), EPS);
+        assertEquals(25, third.y(), EPS, "and runs go down in both directions");
+    }
+
+    @Test
+    void aLeftToRightWrapIsTheSameArithmeticUnreflected() {
+        Box first = new Box(80);
+        Box second = new Box(70);
+        Box third = new Box(60);
+        layout(wrapOf(first, second, third), 200, 45);
+
+        assertEquals(0, first.x(), EPS);
+        assertEquals(90, second.x(), EPS);
+        assertEquals(0, third.x(), EPS);
+        assertEquals(25, third.y(), EPS);
+    }
+
+    @Test
+    void aWrapsLogicalAlignmentsTurnAroundAndItsPhysicalOnesStayPut() {
+        for (LayoutDirection direction : LayoutDirection.values()) {
+            boolean rtl = direction == LayoutDirection.RTL;
+            Box first = new Box(80);
+            Box second = new Box(70);
+            Box third = new Box(60);
+            Wrap wrap = wrapOf(first, second, third);
+            wrap.setLayoutDirection(direction);
+
+            wrap.mainAlignment(Flex.MainAlignment.END);
+            layout(wrap, 200, 45);
+            assertEquals(rtl ? 0 : 140, third.x(), EPS, direction + ": END is where reading ends");
+            assertEquals(rtl ? 80 : 40, first.x(), EPS, direction + ": for every run");
+
+            wrap.mainAlignment(Flex.MainAlignment.LEFT);
+            layout(wrap, 200, 45);
+            assertEquals(0, third.x(), EPS, direction + ": LEFT names a side of the box");
+            assertEquals(rtl ? 80 : 0, first.x(), EPS,
+                    direction + ": and the run still reads its own way from there");
+
+            wrap.mainAlignment(Flex.MainAlignment.RIGHT);
+            layout(wrap, 200, 45);
+            assertEquals(140, third.x(), EPS, direction + ": and so does RIGHT");
+            assertEquals(rtl ? 120 : 40, first.x(), EPS);
+        }
+    }
+
+    @Test
+    void aWrapsCrossAlignmentIsVerticalAndDoesNotMirror() {
+        Box shortOne = new Box(80);
+        Wrap wrap = new Wrap().gap(10).crossAlignment(Flex.CrossAlignment.END);
+        wrap.add(shortOne);
+        wrap.add(new SizedBox(70, 40));
+        wrap.setLayoutDirection(LayoutDirection.RTL);
+        layout(wrap, 200, 40);
+        assertEquals(20, shortOne.y(), EPS, "END in a run is its bottom, in both directions");
+        assertEquals(120, shortOne.x(), EPS);
     }
 
     // ---------------------------------------------------------------- Padding

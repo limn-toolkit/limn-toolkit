@@ -290,6 +290,20 @@ class AccessibleCoverageTest {
             // Row, TokenColumn and TokenRow at once. Pinned by
             // limn.scene.ColumnAccessibilityTest.
             "limn.scene.layout.Column",
+            // Declares no role, name, description, action or state, declares no onPaint, does not
+            // clip and is never focusable of its own accord, so §1.6's predicate deletes it and
+            // hoists its children into its parent's place in children() order. What the deletion
+            // leaves behind is a row's geometry run by run: the gap and the main alignment as each
+            // child's x within its run, the cross alignment as its y within the run's height, and
+            // the break itself as the y of every run after the first. A child that changes run
+            // because the width or the gap changed is a BOUNDS_CHANGED and never a rebuild, and
+            // reading order and Tab order stay the order the children were added in while a
+            // right-to-left subtree starts every run at the right edge. It extends Container
+            // directly, so no Flex hook could reach it, and it is public and non-final like Row,
+            // so naming, tooltipping or roling an instance materialises a GROUP over the wrap's
+            // own rectangle: transparency is per instance. Pinned by
+            // limn.scene.WrapAccessibilityTest.
+            "limn.scene.layout.Wrap",
             // Declares no role, name, description, action or state, declares no onPaint so the
             // paints-and-says-nothing warning stays silent, and is never focusable of its own
             // accord, so §1.6's predicate deletes it and hoists its one child — or hoists nothing,
