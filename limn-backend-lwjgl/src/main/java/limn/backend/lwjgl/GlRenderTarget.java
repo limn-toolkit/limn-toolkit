@@ -26,6 +26,8 @@ final class GlRenderTarget implements RenderTarget {
 
     // Single-sample resolve target: the texture the 2D pipeline composites.
     private int resolveFbo;
+    /** Set by the first dispose, which is the only one that reaches the driver. */
+    private boolean disposed;
     private int colorTex;
     private int resolveDepthRbo; // only when samples == 1 (depth lives on the resolve FBO)
 
@@ -315,8 +317,16 @@ final class GlRenderTarget implements RenderTarget {
         return new RenderStats(textures, bytes);
     }
 
+    /**
+     * Frees the target's GL objects. A second call does nothing: GL hands a deleted name to the next
+     * object that asks for one, so deleting the old number again would delete somebody else's.
+     */
     @Override
     public void dispose() {
+        if (disposed) {
+            return;
+        }
+        disposed = true;
         deleteGl();
         owner.forget(this);
     }

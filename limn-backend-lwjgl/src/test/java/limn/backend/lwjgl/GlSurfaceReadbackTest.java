@@ -187,6 +187,29 @@ class GlSurfaceReadbackTest {
         return Math.round(ColorSpace.displayTransform(straightLinear, 1f) * 255f);
     }
 
+    /**
+     * A second dispose must not reach the driver: GL hands a deleted name to the next object that
+     * asks, so deleting the old number again deleted somebody else's framebuffer.
+     */
+    @Test
+    void disposingTwiceLeavesANameTheDriverHasSinceReusedAlone() {
+        GlRenderTarget target = target(1);
+        int fbo = target.renderFramebuffer();
+        target.dispose();
+        int reused = GL33C.glGenFramebuffers();
+        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, reused);
+        GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, 0);
+        try {
+            org.junit.jupiter.api.Assumptions.assumeTrue(reused == fbo,
+                    "this driver did not reuse the name, so there is nothing to collide with");
+            target.dispose();
+            assertTrue(GL33C.glIsFramebuffer(reused),
+                    "the framebuffer that now owns the name survives the second dispose");
+        } finally {
+            GL33C.glDeleteFramebuffers(reused);
+        }
+    }
+
     private GlRenderTarget target(int samples) {
         RenderTarget created = canvas.gl3d().createTarget(WIDTH, HEIGHT, samples);
         return (GlRenderTarget) created;
