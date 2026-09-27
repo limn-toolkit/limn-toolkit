@@ -100,6 +100,21 @@ Maven Central say which number that was.
   1,069 locales are unchanged byte for byte.
 - `Stack.alignment` and `Expanded.atLeast` check the UI thread and refuse null or a non-finite
   number, and `Flex.gap` refuses NaN and infinity, as the other layout setters do.
+- A `Spinner` being edited refuses a step over text it cannot read the way Enter refuses it: Up,
+  Down, Page Up, Page Down or a screen reader's increment over `1.2.3`, German `1.234` or an emptied
+  field flashes the border, says "“1.234” not accepted, still 7", and leaves the value where it was.
+  The step went ahead from the old value and wrote over what was typed with no sign. The arrow
+  buttons still commit the text first and then step.
+- A value an assistive technology sets as text and a `Spinner` refuses flashes the border, as a
+  refused typed number does; it was only announced.
+- A locale's script decides its digits where CLDR says it does, and three-letter language codes
+  are read: Sindhi and Kashmiri in Devanagari (`sd-Deva`, `ks-Deva`) write Latin digits, not Arabic
+  ones; Punjabi in Arabic script (`pa-Arab`) writes Persian ones; Central Kurdish (`ckb`) writes
+  Arabic-Indic digits, Mazanderani and Northern Luri Persian ones, Bhojpuri and Rajasthani
+  Devanagari. Fifteen locales were answered wrong.
+- `I18nString.format` and `PluralString.format` write a number argument in the digits the toolkit
+  shows, with the separators that go with them. Under bare Arabic a sentence mixed a total in
+  Arabic-Indic digits with Latin ones everywhere else on screen.
 
 ### New
 
@@ -167,6 +182,14 @@ Maven Central say which number that was.
 - An hour typed or stepped into an empty twelve-hour `DateField` takes the half of the day nearest
   to now: at 9 AM "1230" is half past noon, and at 1 AM "1130" is the evening just gone. It used to
   take the clock's own half, which made that 9 AM entry half past midnight.
+- `Insets` and `SizedBox` refuse a size that is NaN or infinite with an `IllegalArgumentException`
+  that names the side or the axis. NaN insets made a `Padding` measure NaN, and a `SizedBox` took
+  NaN as a free dimension and infinity as "as large as allowed". To fill the space, leave the
+  dimension `SizedBox.UNSET` under a stretching parent, or use `Expanded`.
+- A table `Column`'s setters (`width`, `minWidth`, `weight`, `visible`, `sortable`, `comparator`,
+  `align`, `footer`, and `footerSum` through `footerCount`) check the UI thread, as every other
+  public mutator does. Build columns on the UI thread; with no backend started a setter throws
+  `IllegalStateException`. The static factories (`Column.text`, `numeric`, …) do not check.
 - A chart writes values of 1e15 and more in scientific notation by default, on its value axis and
   in its tooltip and the names a screen reader hears: `0, 2E299, … 1E300` rather than 401
   characters a tick, and `1.235E20` rather than `123,456,000,000,000,000,000`. The axis picks the
