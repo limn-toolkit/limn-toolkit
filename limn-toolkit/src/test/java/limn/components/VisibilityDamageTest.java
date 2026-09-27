@@ -6,6 +6,7 @@ import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.Flex;
+import limn.scene.layout.Grid;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
@@ -307,6 +308,102 @@ class VisibilityDamageTest extends ComponentTestBase {
         assertTrue(repainted(underBefore) && repainted(sceneBox(under)),
                 "the label under the wrap was not repainted where it was and where it went");
         assertFalse(touched(topBox), "the label above the wrap was repainted; passes " + passes);
+    }
+
+    /**
+     * A page of a label, a form of three captions beside three fields that fill what the captions
+     * leave, and a label. The widest caption is on the first row, so hiding anything on the second
+     * leaves the caption column as it was.
+     */
+    private Grid formPage(Label top, Label under, List<Widget<?>> cells) {
+        Grid form = new Grid(2).gap(12).rowGap(8).expandedColumn(1)
+                .columnAlignment(1, Flex.CrossAlignment.STRETCH);
+        for (String caption : List.of("Email address", "Name", "Phone")) {
+            Label label = new Label(caption);
+            TextField field = new TextField();
+            cells.add(label);
+            cells.add(field);
+            form.add(label);
+            form.add(field);
+        }
+        Column page = new Column();
+        page.gap(8).crossAlignment(Flex.CrossAlignment.STRETCH);
+        page.add(top);
+        page.add(form);
+        page.add(under);
+        mount(page);
+        return form;
+    }
+
+    /**
+     * A caption hidden in a grid leaves its cell empty and moves nothing: the grid keeps its size
+     * and its columns, the field beside the caption stays where it was, and the one box repainted
+     * is the caption's own.
+     */
+    @Test
+    void aCaptionHiddenInAGridRepaintsItsCellAndNothingElse() {
+        Label top = new Label("top");
+        Label under = new Label("under the form");
+        List<Widget<?>> cells = new ArrayList<>();
+        Grid form = formPage(top, under, cells);
+
+        Rect captionBox = sceneBox(cells.get(2));
+        Rect fieldBox = sceneBox(cells.get(3));
+        Rect lastBox = sceneBox(cells.get(5));
+        Rect underBox = sceneBox(under);
+        float height = form.height();
+
+        gesture(() -> cells.get(2).setVisible(false));
+
+        assertFalse(anyFullFrame, "hiding one caption repainted the whole window");
+        assertEquals(height, form.height(), "the row keeps its field, so it keeps its height");
+        assertTrue(repainted(captionBox), "the hidden caption's box was never repainted; passes "
+                + passes);
+        assertEquals(fieldBox, sceneBox(cells.get(3)), "the field beside it moved");
+        assertEquals(lastBox, sceneBox(cells.get(5)), "a later cell moved into the empty one");
+        assertFalse(touched(fieldBox), "the field beside it was repainted; passes " + passes);
+        assertFalse(touched(underBox), "the label under the form was repainted; passes " + passes);
+    }
+
+    /**
+     * A whole row hidden takes its height and its gap with it: the rows below it move up and are
+     * repainted where they were and where they went, the grid gets shorter, and the change climbs
+     * to the column, which moves the label under the form and leaves the one above it alone.
+     */
+    @Test
+    void aRowHiddenInAGridMovesTheRowsBelowItAndHandsTheChangeUp() {
+        Label top = new Label("top");
+        Label under = new Label("under the form");
+        List<Widget<?>> cells = new ArrayList<>();
+        Grid form = formPage(top, under, cells);
+
+        Rect topBox = sceneBox(top);
+        Rect firstField = sceneBox(cells.get(1));
+        Rect captionBox = sceneBox(cells.get(2));
+        Rect fieldBox = sceneBox(cells.get(3));
+        Rect lastBefore = sceneBox(cells.get(5));
+        Rect underBefore = sceneBox(under);
+        float height = form.height();
+
+        gesture(() -> {
+            cells.get(2).setVisible(false);
+            cells.get(3).setVisible(false);
+        });
+
+        assertFalse(anyFullFrame, "hiding a row of a form escalated to the whole window");
+        assertTrue(form.height() < height, "two rows are shorter than three");
+        assertEquals(fieldBox.y(), sceneBox(cells.get(5)).y(), 0.5f,
+                "the last row moved up into the hidden row's place");
+        assertTrue(repainted(captionBox) && repainted(fieldBox),
+                "the hidden row's boxes were never repainted; passes " + passes);
+        assertTrue(repainted(lastBefore) && repainted(sceneBox(cells.get(5))),
+                "the row that moved was not repainted where it was and where it went; passes "
+                        + passes);
+        assertEquals(firstField, sceneBox(cells.get(1)), "the row above the hidden one moved");
+        assertTrue(sceneBox(under).y() < underBefore.y(), "what is under the form did not move up");
+        assertTrue(repainted(underBefore) && repainted(sceneBox(under)),
+                "the label under the form was not repainted where it was and where it went");
+        assertFalse(touched(topBox), "the label above the form was repainted; passes " + passes);
     }
 
     /**

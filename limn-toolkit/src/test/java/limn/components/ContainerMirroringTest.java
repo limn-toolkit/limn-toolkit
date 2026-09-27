@@ -7,6 +7,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.Flex;
+import limn.scene.layout.Grid;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
@@ -260,6 +261,98 @@ class ContainerMirroringTest extends ComponentTestBase {
         layout(wrap, 200, 40);
         assertEquals(20, shortOne.y(), EPS, "END in a run is its bottom, in both directions");
         assertEquals(120, shortOne.x(), EPS);
+    }
+
+    // ------------------------------------------------------------------- Grid
+
+    /** Two rows of a caption and a field: a caption column of 60 and a field column of 80. */
+    private static Grid formOf(Box nameCaption, Box name, Box emailCaption, Box email) {
+        Grid grid = new Grid(2).gap(10).rowGap(5);
+        grid.add(nameCaption);
+        grid.add(name);
+        grid.add(emailCaption);
+        grid.add(email);
+        return grid;
+    }
+
+    @Test
+    void aRightToLeftGridPutsItsFirstColumnAtTheRightEdgeAndStillGoesDown() {
+        Box nameCaption = new Box(40);
+        Box name = new Box(80);
+        Box emailCaption = new Box(60);
+        Box email = new Box(50);
+        Grid grid = formOf(nameCaption, name, emailCaption, email);
+        grid.setLayoutDirection(LayoutDirection.RTL);
+        layout(grid, 200, 45);
+
+        assertEquals(160, nameCaption.x(), EPS, "a caption at the start of the first column, which "
+                + "is the right edge");
+        assertEquals(140, emailCaption.x(), EPS, "and the wider one fills the column leftwards");
+        assertEquals(50, name.x(), EPS, "the field column starts 60 and a gap in from the right");
+        assertEquals(10, emailCaption.x() - name.x() - name.width(), EPS, "the gap survived");
+        assertEquals(80, email.x(), EPS, "a field at the start of its column, its right edge");
+        assertEquals(0, nameCaption.y(), EPS);
+        assertEquals(25, emailCaption.y(), EPS, "and rows go down in both directions");
+    }
+
+    @Test
+    void aLeftToRightGridIsTheSameArithmeticUnreflected() {
+        Box nameCaption = new Box(40);
+        Box name = new Box(80);
+        Box emailCaption = new Box(60);
+        Box email = new Box(50);
+        layout(formOf(nameCaption, name, emailCaption, email), 200, 45);
+
+        assertEquals(0, nameCaption.x(), EPS);
+        assertEquals(70, name.x(), EPS);
+        assertEquals(0, emailCaption.x(), EPS);
+        assertEquals(70, email.x(), EPS);
+        assertEquals(25, email.y(), EPS);
+    }
+
+    /**
+     * A column's START and END are the edges reading starts from and ends on, so they turn around;
+     * CENTER is the same number both ways; and the expanded column fills the same width in both
+     * directions, from the other side.
+     */
+    @Test
+    void aGridsColumnAlignmentsTurnAroundAndItsExpandedColumnFillsFromTheOtherSide() {
+        for (LayoutDirection direction : LayoutDirection.values()) {
+            boolean rtl = direction == LayoutDirection.RTL;
+            Box nameCaption = new Box(40);
+            Box name = new Box(80);
+            Box emailCaption = new Box(60);
+            Box email = new Box(50);
+            Grid grid = formOf(nameCaption, name, emailCaption, email);
+            grid.setLayoutDirection(direction);
+
+            grid.columnAlignment(0, Flex.CrossAlignment.END);
+            layout(grid, 200, 45);
+            assertEquals(rtl ? 140 : 20, nameCaption.x(), EPS,
+                    direction + ": END is the edge of the column reading ends on");
+
+            grid.columnAlignment(0, Flex.CrossAlignment.CENTER);
+            layout(grid, 200, 45);
+            assertEquals(rtl ? 150 : 10, nameCaption.x(), EPS, direction + ": CENTER is centred");
+
+            grid.expandedColumn(1).columnAlignment(1, Flex.CrossAlignment.STRETCH);
+            layout(grid, 200, 45);
+            assertEquals(130, email.width(), EPS, direction + ": the 200 less 60 and a gap");
+            assertEquals(rtl ? 0 : 70, email.x(), EPS, direction + ": and it reaches the edge "
+                    + "reading ends on");
+        }
+    }
+
+    @Test
+    void aGridsCrossAlignmentIsVerticalAndDoesNotMirror() {
+        Box shortOne = new Box(40);
+        Grid grid = new Grid(2).gap(10).crossAlignment(Flex.CrossAlignment.END);
+        grid.add(shortOne);
+        grid.add(new SizedBox(70, 40));
+        grid.setLayoutDirection(LayoutDirection.RTL);
+        layout(grid, 200, 40);
+        assertEquals(20, shortOne.y(), EPS, "END in a row is its bottom, in both directions");
+        assertEquals(160, shortOne.x(), EPS);
     }
 
     // ---------------------------------------------------------------- Padding

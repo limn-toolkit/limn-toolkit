@@ -38,7 +38,8 @@ class UiThreadContractTest {
 
     /** Mutators only when they take an argument: a handler slot, and the layouts' builder names. */
     private static final Pattern WITH_ARGUMENT = Pattern.compile(
-            "on[A-Z]\\w*|gap|runGap|mainAlignment|crossAlignment");
+            "on[A-Z]\\w*|gap|runGap|rowGap|mainAlignment|crossAlignment|columnAlignment"
+                    + "|expandedColumn");
 
     /** Class#method, and why it need not check. */
     private static final Map<String, String> ALLOWED = Map.of(

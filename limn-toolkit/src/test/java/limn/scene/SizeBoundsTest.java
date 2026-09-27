@@ -4,6 +4,7 @@ import limn.components.Button;
 import limn.scene.layout.Column;
 import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
+import limn.scene.layout.Grid;
 import limn.scene.layout.Row;
 import limn.scene.layout.Wrap;
 import org.junit.jupiter.api.Test;
@@ -139,6 +140,46 @@ class SizeBoundsTest extends SceneTestBase {
         assertEquals(90, capped.width(), EPS, "a wrap leaves the width to the child");
         assertEquals(0, next.y(), EPS, "so the capped width is the one the run is broken with");
         assertEquals(100, next.x(), EPS);
+    }
+
+    // ------------------------------------------------------------------ bounds and a grid
+
+    @Test
+    void aGridsOwnMaximumWidthIsWhatItsExpandedColumnFills() {
+        FixedBox field = new FixedBox(80, 20);
+        Grid grid = new Grid(2).gap(10).expandedColumn(1)
+                .columnAlignment(1, Flex.CrossAlignment.STRETCH).setMaxWidth(260);
+        grid.add(new FixedBox(50, 20));
+        grid.add(field);
+        Size size = grid.measure(Constraints.loose(600, 100));
+        grid.layoutBox(0, 0, size.width(), size.height());
+        assertEquals(260, size.width(), EPS, "the grid fills its own bound, not its parent's");
+        assertEquals(200, field.width(), EPS, "and the field column is what that leaves");
+    }
+
+    @Test
+    void aCellsMinimumWiderThanTheGridIsCutToTheGridsWidth() {
+        FixedBox floored = new FixedBox(50, 20).setMinWidth(500);
+        Grid grid = new Grid(1);
+        grid.add(new FixedBox(50, 20));
+        grid.add(floored);
+        grid.measure(Constraints.tight(200, 100));
+        grid.layoutBox(0, 0, 200, 100);
+        assertEquals(200, floored.width(), EPS, "the parent wins: at most the grid's width");
+    }
+
+    @Test
+    void aCellsMaximumHoldsInsideAGridAndSizesItsColumn() {
+        FixedBox capped = new FixedBox(300, 20).setMaxWidth(90);
+        FixedBox next = new FixedBox(40, 20);
+        Grid grid = new Grid(2).gap(10);
+        grid.add(capped);
+        grid.add(next);
+        Size size = grid.measure(Constraints.loose(400, 100));
+        grid.layoutBox(0, 0, size.width(), size.height());
+        assertEquals(90, capped.width(), EPS, "a grid leaves the width to the cell");
+        assertEquals(100, next.x(), EPS, "so the capped width is the one its column is sized from");
+        assertEquals(140, size.width(), EPS);
     }
 
     // ------------------------------------------------------------------ a flexible child's ceiling

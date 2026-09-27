@@ -8,6 +8,8 @@ import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
+import limn.scene.layout.Flex;
+import limn.scene.layout.Grid;
 import limn.scene.layout.SizedBox;
 import limn.scene.layout.Wrap;
 import limn.testing.StubWindow;
@@ -144,6 +146,27 @@ class ScenePackTest extends ComponentTestBase {
         }
         assertArrayEquals(new int[] {300, 40}, pack(wrap, windowOn(300, 2000)),
                 "one run of 590 asks for the work area's 300, and at 300 it is two runs of three");
+    }
+
+    @Test
+    void aGridPacksToItsColumnsAndRows() {
+        Grid grid = new Grid(2).gap(12).rowGap(8);
+        grid.add(new SizedBox(60, 20));
+        grid.add(new SizedBox(200, 32));
+        grid.add(new SizedBox(90, 20));
+        grid.add(new SizedBox(150, 32));
+        assertArrayEquals(new int[] {302, 72}, pack(grid, windowOn(2000, 2000)),
+                "the widest cell of each column and the tallest of each row, with their gaps");
+    }
+
+    @Test
+    void aGridWithAnExpandedColumnPacksToItsWidestCellAndKeepsItThere() {
+        Grid grid = new Grid(2).gap(12).rowGap(8).expandedColumn(1)
+                .columnAlignment(1, Flex.CrossAlignment.STRETCH);
+        grid.add(new SizedBox(60, 20));
+        grid.add(new SizedBox(200, 32));
+        assertArrayEquals(new int[] {272, 32}, pack(grid, windowOn(2000, 2000)),
+                "with no width to fill, the expanded column asks for its widest cell");
     }
 
     @Test

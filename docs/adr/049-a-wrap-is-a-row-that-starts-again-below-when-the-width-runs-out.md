@@ -148,6 +148,11 @@ The road map names "Grid and Wrap" together. The owner is reconsidering a simpli
 record decides Wrap alone and decides nothing about a grid; the layout guide keeps its "grid,
 without a grid widget" section, and points to a wrap for tiles that should keep their own width.
 
+*Amended 2026-09-27, the same day:* the owner approved a simplified grid, which
+[ADR 050](050-a-grid-is-rows-that-share-their-columns.md) decides. The guide's section became
+"Tiles of equal width", because a grid's columns are as wide as their widest cell and tiles that
+split the width evenly are still rows of `Expanded` children.
+
 ## 8. How it is held
 
 `WrapTest` pins the breaks (the exact fit, a child wider than the wrap, no bound, hidden children,

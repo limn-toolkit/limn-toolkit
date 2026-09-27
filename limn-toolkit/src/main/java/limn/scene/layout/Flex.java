@@ -62,7 +62,9 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
      * 0.69pt apart (2.73pt across the full ramp). {@code BASELINE} is ignored on a
      * {@link Column}, where the cross axis is horizontal and there is no shared baseline.
      *
-     * <p>A {@link Wrap} reads them as a row does, within the height of each of its runs.
+     * <p>A {@link Wrap} reads them as a row does, within the height of each of its runs. A
+     * {@link Grid} reads them as a row does within the height of each of its rows, and as a
+     * column does across the width of each of its columns.
      */
     public enum CrossAlignment { START, CENTER, END, STRETCH, BASELINE }
 

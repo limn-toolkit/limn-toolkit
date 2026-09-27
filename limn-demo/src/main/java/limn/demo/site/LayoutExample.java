@@ -1,6 +1,7 @@
 package limn.demo.site;
 
 import limn.components.Button;
+import limn.components.Checkbox;
 import limn.components.ImageView;
 import limn.components.Label;
 import limn.components.ListView;
@@ -9,6 +10,7 @@ import limn.components.SearchField;
 import limn.components.SegmentedControl;
 import limn.components.Separator;
 import limn.components.SplitPane;
+import limn.components.TextField;
 import limn.components.Theme;
 import limn.components.ToolBar;
 import limn.graphics.Color;
@@ -20,6 +22,7 @@ import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
+import limn.scene.layout.Grid;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
@@ -31,8 +34,8 @@ import java.util.List;
 
 /**
  * The worked window the guide's Layout page is built from: an asset library with a toolbar,
- * a sidebar, a set of filters, a tile grid and a status bar, assembled out of the primitives
- * that page teaches, and nothing else.
+ * a sidebar with a collection's details under it, a set of filters, a grid of tiles and a
+ * status bar, assembled out of the primitives that page teaches, and nothing else.
  *
  * <p>Every region marked here becomes a code block on that page, and this file is compiled
  * by {@code ./gradlew check}. Each helper is used by {@link #shell()}, so the screenshot on
@@ -137,13 +140,45 @@ public final class LayoutExample {
     // #endregion
 
     /**
-     * A grid, built out of the two widgets that already exist rather than a widget of its
-     * own. Every tile on a line gets flex 1, so the line splits its width evenly however
-     * many tiles there are, and a short last line is padded with spacers, so its two tiles
-     * keep the column width the full lines set instead of stretching across the pane.
+     * A grid lines its children up in columns, row by row in the order they were added, so a
+     * caption and the field it names stand side by side and every field starts at the same
+     * place. The caption column is as wide as its longest caption. The field column is the
+     * expanded one, which takes whatever width the captions and the gap leave, and STRETCH
+     * makes each field as wide as that. Each row lines up the text of its cells, the caption's
+     * with the field's, without being asked.
      */
     // #region guide:layout-grid
-    static Column grid(int perRow, List<Widget<?>> tiles) {
+    static Grid details(String name, String location) {
+        TextField nameField = new TextField();
+        nameField.setText(name);
+        TextField locationField = new TextField();
+        locationField.setText(location);
+        Checkbox shared = new Checkbox(Checkbox.Variant.BOX, "Shared");
+        shared.setChecked(true);
+
+        Grid form = new Grid(2);
+        form.gap(12).rowGap(10).expandedColumn(1)
+                .columnAlignment(1, Flex.CrossAlignment.STRETCH);
+        form.add(new Label("Name").setMuted(true).setLabelFor(nameField));
+        form.add(nameField);
+        form.add(new Label("Location").setMuted(true).setLabelFor(locationField));
+        form.add(locationField);
+        form.add(new SizedBox(0, 0)); // an empty cell: the checkbox carries its own caption
+        form.add(shared);
+        return form;
+    }
+    // #endregion
+
+    /**
+     * Tiles that split the width evenly, built out of rows rather than a {@link Grid}: a
+     * grid's columns are as wide as their widest cell, and tiles want the opposite, every
+     * column the same whatever is in it. Every tile on a line gets flex 1, so the line splits
+     * its width evenly however many tiles there are, and a short last line is padded with
+     * spacers, so its two tiles keep the column width the full lines set instead of
+     * stretching across the pane.
+     */
+    // #region guide:layout-tiles
+    static Column tiles(int perRow, List<Widget<?>> tiles) {
         Column rows = new Column();
         rows.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
         for (int start = 0; start < tiles.size(); start += perRow) {
@@ -174,7 +209,7 @@ public final class LayoutExample {
         bar.addItem(new Button("New collection").setSecondary(true));
         bar.addItem(new Button("Share").setSecondary(true));
 
-        SplitPane panes = SplitPane.horizontal(collections(), library());
+        SplitPane panes = SplitPane.horizontal(sidebar(), library());
         panes.setRatio(0.24f).setMinimums(150, 320);
 
         Row status = spread(
@@ -189,7 +224,20 @@ public final class LayoutExample {
     }
     // #endregion
 
-    /** The sidebar: a list whose rows are ordinary widgets, supplied on demand. */
+    /**
+     * The sidebar: the collections, taking every point of height the details under them leave,
+     * and the selected collection's details.
+     */
+    // #region showcase:layout-sidebar
+    private static Widget<?> sidebar() {
+        return column(0,
+                Expanded.of(collections(), 1),
+                Separator.horizontal(),
+                new Padding(Insets.all(14), details("Textures", "Studio drive")));
+    }
+    // #endregion
+
+    /** The collections: a list whose rows are ordinary widgets, supplied on demand. */
     // #region showcase:layout-collections
     private static Widget<?> collections() {
         ListView<String> list = new ListView<>(
@@ -226,7 +274,7 @@ public final class LayoutExample {
         return new Padding(Insets.all(20), column(18,
                 spread(new Label("Textures").setRole(Label.Role.TITLE), tools),
                 tags(TAGS),
-                Expanded.of(new ScrollView(grid(3, tiles)), 1)));
+                Expanded.of(new ScrollView(tiles(3, tiles)), 1)));
     }
     // #endregion
 
