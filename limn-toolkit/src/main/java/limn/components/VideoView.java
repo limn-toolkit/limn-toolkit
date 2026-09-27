@@ -1063,10 +1063,8 @@ public final class VideoView extends Widget<VideoView> {
         float pillHeight = Math.min(height(), metrics.height() + 2 * padY);
         float left = (width() - pillWidth) / 2;
         float top = (height() - pillHeight) / 2;
-        canvas.fillRoundRect(left, top, pillWidth, pillHeight, tokens.radiusSmall(),
-                theme.surfaceRaised());
-        canvas.drawRoundRect(left + 0.5f, top + 0.5f, pillWidth - 1, pillHeight - 1,
-                tokens.radiusSmall(), Strokes.BORDER, theme.outline());
+        canvas.fillRoundRectWithBorder(left, top, pillWidth, pillHeight, tokens.radiusSmall(),
+                theme.surfaceRaised(), Strokes.BORDER, theme.outline());
         // Centred inside an already-centred pill: unchanged in either direction.
         canvas.drawText(line, left + (pillWidth - metrics.width()) / 2,
                 top + (pillHeight - metrics.height()) / 2 + metrics.ascent(), theme.text());

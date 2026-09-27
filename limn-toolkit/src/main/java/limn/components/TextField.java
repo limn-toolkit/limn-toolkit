@@ -899,9 +899,12 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         // selection band, the text and the caret all compose from this one answer.
         boolean rtl = isRightToLeft();
 
-        Color fill = isEnabled() ? theme.surface() : theme.disabledFill();
-        canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
+        // ONE border that thickens continuously as the focus fade runs, and a fill that stops
+        // at its centre line whatever its weight; a ternary here deletes the animation.
         float focus = focusFade.value();
+        float pen = Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus;
+        Color fill = isEnabled() ? theme.surface() : theme.disabledFill();
+        canvas.fillRoundRectInsideBorder(0, 0, width(), height(), t.radiusMedium(), pen, fill);
 
         // Leading icon, tinted to the muted ink, inside the pad on the side reading starts from.
         if (leadingIcon != null) {
@@ -914,7 +917,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         // Trailing coupled button (ComboBox-caret idiom): a themed background that
         // lights up on hover and deepens on press (click feedback), then the divider
         // and the icon on top. The background fills the whole region after the
-        // divider (square on the divider side, the field's own radius on the outer
+        // divider (square on the divider side, the field's own corners on the outer
         // side), so it reads as one coupled button, not a floating pill.
         if (trailingIcon != null) {
             float regionW = trailingWidth(t);
@@ -923,12 +926,17 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                 Color bg = trailingArmed
                         ? theme.surfaceRaised().lerp(theme.text(), 0.10f)
                         : theme.surfaceRaised();
-                float r = t.radiusMedium();
-                // Square on the divider side and rounded on the outer one, so the region reads as
-                // one coupled button either way round; which side is which is the direction's.
+                // Square on the divider side, which the divider covers, and on the three outer
+                // sides the field's own fill, stopping at the border's centre line with its
+                // radius, so the border covers its edge there too. Which side is which is the
+                // direction's.
+                float half = pen / 2;
+                float r = Math.max(0, t.radiusMedium() - half);
+                float w = Math.max(0, regionW - half);
+                float h = Math.max(0, height() - pen);
                 canvas.fillRoundRect(rtl
-                        ? new RoundRect(regionX, 0, regionW, height(), r, 0, 0, r)
-                        : new RoundRect(regionX, 0, regionW, height(), 0, r, r, 0), bg);
+                        ? new RoundRect(regionX + half, half, w, h, r, 0, 0, r)
+                        : new RoundRect(regionX, half, w, h, 0, r, r, 0), bg);
             }
             // Its own inset token: the divider is a paint coordinate, and padV is not one. It
             // stands on the region's inner edge, which is the far one reading right to left.
@@ -1008,13 +1016,10 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         canvas.restore();
 
         // Focus/validation border LAST: nothing (not even the trailing-button
-        // background) paints above the focus ring. ONE stroke that thickens
-        // continuously as the fade runs; a ternary here deletes the animation.
+        // background) paints above the focus ring. It thickens inward, so the box
+        // stays the box at every weight.
         Color border = borderColor(theme, focus);
-        canvas.drawRoundRect(Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
-                width() - 2 * Strokes.HALF_PIXEL_INSET, height() - 2 * Strokes.HALF_PIXEL_INSET,
-                t.radiusMedium(),
-                Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus, border);
+        canvas.drawRoundRectBorder(0, 0, width(), height(), t.radiusMedium(), pen, border);
     }
 
     private Color borderColor(Theme theme, float focus) {

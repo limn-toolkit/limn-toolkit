@@ -7,7 +7,6 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.LinearGradient;
-import limn.graphics.RoundRect;
 import limn.i18n.I18nString;
 import limn.i18n.LanguageWitness;
 import limn.input.Keys;
@@ -1227,16 +1226,17 @@ public final class ColorPicker extends Widget<ColorPicker> {
             float rail = t.colorRailH();
             float top = (h - rail) / 2;
             float radius = Math.min(rail / 2, t.radiusSmall());
+            // The rail's own outline IS the focus ring, thickening inward into the accent
+            // as the fade runs: one stroke, so nothing is drawn outside the box and
+            // the animation survives (a ternary here would delete it). The sweep is
+            // clipped to its centre line, so the outline covers the sweep's edge.
+            float focus = focusFade.value();
+            float pen = Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus;
             canvas.save();
-            canvas.clipRoundRect(RoundRect.of(0, top, w, rail, radius));
+            canvas.clipRoundRectInsideBorder(0, top, w, rail, radius, pen);
             paintRail(canvas, t, w, top, rtl);
             canvas.restore();
-            // The rail's own outline IS the focus ring, thickening into the accent
-            // as the fade runs: one stroke, so nothing is drawn outside the box and
-            // the animation survives (a ternary here would delete it).
-            float focus = focusFade.value();
-            canvas.drawRoundRect(0.5f, top + 0.5f, w - 1, rail - 1, radius,
-                    Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
+            canvas.drawRoundRectBorder(0, top, w, rail, radius, pen,
                     Theme.of(this).outline().lerp(Theme.of(this).focusRing(), focus));
             paintThumb(canvas, t, thumbCentreX(t, rtl), h / 2, focus);
         }
@@ -1669,8 +1669,9 @@ public final class ColorPicker extends Widget<ColorPicker> {
                 return;
             }
             float radius = Theme.of(this).tokensFor(this).radiusSmall();
+            // Clipped to the outline's centre line, so the outline covers the field's edge.
             canvas.save();
-            canvas.clipRoundRect(RoundRect.of(0, 0, w, h, radius));
+            canvas.clipRoundRectInsideBorder(0, 0, w, h, radius, Strokes.BORDER);
             // White → the pure hue across, then transparent → black down. Two
             // two-stop gradients, because that is what the toolkit's Paint offers,
             // and they compose into the standard field exactly.
@@ -1679,7 +1680,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
             canvas.fillRect(0, 0, w, h, new LinearGradient(0, 0, 0, h,
                     Color.rgba(0x000000, 0f), Color.BLACK));
             canvas.restore();
-            canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.of(this).outline());
+            canvas.drawRoundRectBorder(0, 0, w, h, radius, Strokes.BORDER, Theme.of(this).outline());
             // After the restore, on purpose: the ring is centred on the exact colour and is not
             // clipped to the square, so at an edge half of it lies outside, which is what the
             // outset below declares.
@@ -1923,8 +1924,9 @@ public final class ColorPicker extends Widget<ColorPicker> {
                 return;
             }
             float radius = Theme.of(this).tokensFor(this).radiusSmall();
+            // Clipped to the outline's centre line, so the outline covers the ramp's edge.
             canvas.save();
-            canvas.clipRoundRect(RoundRect.of(0, 0, w, h, radius));
+            canvas.clipRoundRectInsideBorder(0, 0, w, h, radius, Strokes.BORDER);
             float band = h / (HUE_STOPS.length - 1);
             for (int i = 0; i < HUE_STOPS.length - 1; i++) {
                 float y = i * band;
@@ -1932,7 +1934,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
                         new LinearGradient(0, y, 0, y + band, HUE_STOPS[i], HUE_STOPS[i + 1]));
             }
             canvas.restore();
-            canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.of(this).outline());
+            canvas.drawRoundRectBorder(0, 0, w, h, radius, Strokes.BORDER, Theme.of(this).outline());
             paintHueThumb(canvas, Theme.of(this).tokensFor(this), w, h, hue / 360f * h,
                     Color.hsv(hue >= 360f ? 0f : hue, 1f, 1f, 1f));
         }
@@ -2115,8 +2117,9 @@ public final class ColorPicker extends Widget<ColorPicker> {
             }
             SizeTokens t = Theme.of(this).tokensFor(this);
             float radius = t.radiusSmall();
+            // Clipped to the outline's centre line, so the outline covers the swatch's edge.
             canvas.save();
-            canvas.clipRoundRect(RoundRect.of(0, 0, w, h, radius));
+            canvas.clipRoundRectInsideBorder(0, 0, w, h, radius, Strokes.BORDER);
             paintChecker(canvas, t, 0, 0, w, h);
             // An ordered pair, so it reads in reading order: the colour the picker
             // opened on first, the one it is showing now after it. Not a colour space
@@ -2128,7 +2131,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
             canvas.fillRect(rtl ? w / 2 : 0, 0, w / 2, h, original);
             canvas.fillRect(rtl ? 0 : w / 2, 0, w / 2, h, color());
             canvas.restore();
-            canvas.drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, Theme.of(this).outline());
+            canvas.drawRoundRectBorder(0, 0, w, h, radius, Strokes.BORDER, Theme.of(this).outline());
         }
 
         /**

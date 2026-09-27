@@ -981,11 +981,8 @@ public final class PopupMenu {
             boolean rtl = isRtl();
             float x = col.x - offsetX;
             float y = col.y - offsetY;
-            float inset = Strokes.HALF_PIXEL_INSET;
-            canvas.fillRoundRect(x, y, col.w, col.visibleH, t.radiusMedium(),
-                    theme.surfaceRaised().withAlpha(0.98f));
-            canvas.drawRoundRect(x + inset, y + inset, col.w - 2 * inset, col.visibleH - 2 * inset,
-                    t.radiusMedium(), Strokes.BORDER, theme.outline());
+            canvas.fillRoundRectWithBorder(x, y, col.w, col.visibleH, t.radiusMedium(),
+                    theme.surfaceRaised().withAlpha(0.98f), Strokes.BORDER, theme.outline());
 
             Font font = t.body();
             TextMetrics fm = ruler.measure("Hg", font);
@@ -1018,9 +1015,9 @@ public final class PopupMenu {
                     // rule OFF the device grid at exactly the scales where crispness is at
                     // stake. The backend already places stroke centrelines on the right device
                     // half-pixel (Snapping.snapCenter), so a second, coarser snap here can only
-                    // fight it. The one point-space correction this file makes is
-                    // HALF_PIXEL_INSET on the border, and that is measured from the column's
-                    // own box, not from the scene.
+                    // fight it. The one point-space correction this file makes is the half
+                    // border the column's border is inset by, and that is measured from the
+                    // column's own box, not from the scene.
                     float sepY = iy + col.hgt[i] / 2;
                     canvas.drawLine(x + t.menuSepInsetX(), sepY, x + col.w - t.menuSepInsetX(),
                             sepY, Strokes.HAIRLINE, theme.outline());

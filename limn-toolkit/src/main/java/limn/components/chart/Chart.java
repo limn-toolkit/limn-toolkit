@@ -1199,9 +1199,10 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
             if (entry.visible()) {
                 canvas.fillRoundRect(swatchX, swatchY, swatch, swatch, radius, entry.color());
             } else {
-                canvas.drawRoundRect(swatchX + Strokes.HALF_PIXEL_INSET,
-                        swatchY + Strokes.HALF_PIXEL_INSET,
-                        swatch - 1, swatch - 1, radius, Strokes.BORDER, theme.textMuted());
+                // The same box as the filled swatch, outlined inside it, so hiding a series
+                // empties the swatch without changing its shape.
+                canvas.drawRoundRectBorder(swatchX, swatchY, swatch, swatch, radius,
+                        Strokes.BORDER, theme.textMuted());
             }
             // The run's LEFT edge in both directions, which is what drawText places against:
             // reading right to left the name ends where the swatch begins, so its left edge is
@@ -1334,10 +1335,8 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
         canvas.save();
         try {
             canvas.setOpacity(canvas.opacity() * fade);
-            canvas.fillRoundRect(px, py, panelWidth, panelHeight, t.radiusSmall(),
-                    theme.surfaceRaised());
-            canvas.drawRoundRect(px + Strokes.HALF_PIXEL_INSET, py + Strokes.HALF_PIXEL_INSET,
-                    panelWidth - 1, panelHeight - 1, t.radiusSmall(), Strokes.BORDER, theme.outline());
+            canvas.fillRoundRectWithBorder(px, py, panelWidth, panelHeight, t.radiusSmall(),
+                    theme.surfaceRaised(), Strokes.BORDER, theme.outline());
             float y = py + padV;
             if (!heading.isEmpty()) {
                 ShapedText line = shapeText(heading, headingFont);

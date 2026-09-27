@@ -508,10 +508,8 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
         // clip and the focus ring are all symmetric about the track's centre and take no branch.
         LayoutDirection direction = layoutDirection();
         boolean rtl = direction.isRightToLeft();
-        canvas.fillRoundRect(trackLeft, 0, trackWidth, height(), t.radiusMedium(), theme.surface());
-        canvas.drawRoundRect(trackLeft + Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
-                trackWidth - 2 * Strokes.HALF_PIXEL_INSET, height() - 2 * Strokes.HALF_PIXEL_INSET,
-                t.radiusMedium(), Strokes.BORDER, theme.outline());
+        canvas.fillRoundRectWithBorder(trackLeft, 0, trackWidth, height(), t.radiusMedium(),
+                theme.surface(), Strokes.BORDER, theme.outline());
 
         float indLeft = indicatorLeft.value();
         float indRight = indicatorRight.value();

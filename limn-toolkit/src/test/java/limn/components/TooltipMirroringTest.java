@@ -61,7 +61,10 @@ class TooltipMirroringTest extends ComponentTestBase {
         }
     }
 
-    /** Records the panel's rect and the x its text was drawn at. */
+    /**
+     * Records the panel's rect, read off its border, which lies inside the panel and so has the
+     * panel's outline as its outer edge, and the x its text was drawn at.
+     */
     private static final class TooltipCanvas extends FakeCanvas {
         final List<float[]> rounds = new ArrayList<>();
         float textX = Float.NaN;
@@ -71,8 +74,9 @@ class TooltipMirroringTest extends ComponentTestBase {
         }
 
         @Override
-        public void fillRoundRect(float x, float y, float w, float h, float r, Paint paint) {
-            rounds.add(new float[]{x, w});
+        public void drawRoundRect(float x, float y, float w, float h, float r, float stroke,
+                                  Paint paint) {
+            rounds.add(new float[]{x - stroke / 2, w + stroke});
         }
 
         @Override

@@ -1241,9 +1241,8 @@ public final class Dialog {
             float inset = Strokes.HALF_PIXEL_INSET;
             // In-scene: always the glassy rounded card, composited over the scrim.
             if (displayMode == DisplayMode.IN_SCENE || style == WindowStyle.UNDECORATED_TRANSLUCENT) {
-                canvas.fillRoundRect(0, 0, w, h, t.radiusLarge(),
-                        theme.surface().withAlpha(0.98f * fade));
-                canvas.drawRoundRect(inset, inset, w - 2 * inset, h - 2 * inset, t.radiusLarge(),
+                canvas.fillRoundRectWithBorder(0, 0, w, h, t.radiusLarge(),
+                        theme.surface().withAlpha(0.98f * fade),
                         Strokes.BORDER, theme.outline().withAlpha(fade));
                 return;
             }

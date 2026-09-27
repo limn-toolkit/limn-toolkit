@@ -308,11 +308,11 @@ public final class Button extends Widget<Button> {
                     : theme.primary().lerp(theme.primaryHover(), h);
             ink = isEnabled() ? theme.onPrimary() : theme.disabledText();
         }
-        canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
         if (secondary) {
-            float inset = Strokes.HALF_PIXEL_INSET; // lands the 1pt stroke on one device pixel
-            canvas.drawRoundRect(inset, inset, width() - 2 * inset, height() - 2 * inset,
-                    t.radiusMedium(), Strokes.BORDER, theme.outline());
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusMedium(), fill,
+                    Strokes.BORDER, theme.outline());
+        } else {
+            canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
         }
         float focus = focusFade.value();
         if (focus > 0.001f) {

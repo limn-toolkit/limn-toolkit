@@ -462,11 +462,15 @@ class ComboBoxMirroringTest extends ComponentTestBase {
             return bands.stream().filter(b -> Math.abs(b.width() - width) < EPS).toList();
         }
 
-        /** The one rounded rect of exactly this width, in scene coordinates. */
+        /**
+         * The one box drawn at exactly this width, in scene coordinates. A bordered face draws it
+         * twice, its fill and its border sharing one path, so every rect of the width must be
+         * that same box.
+         */
         RoundRect roundRect(float width) {
             List<RoundRect> matching = roundRects.stream()
                     .filter(r -> Math.abs(r.width() - width) < EPS).toList();
-            assertEquals(1, matching.size(),
+            assertEquals(1, matching.stream().distinct().count(),
                     "expected one round rect " + width + " wide: " + roundRects);
             return matching.get(0);
         }

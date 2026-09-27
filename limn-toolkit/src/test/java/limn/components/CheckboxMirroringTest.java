@@ -78,9 +78,11 @@ class CheckboxMirroringTest extends ComponentTestBase {
         // Checked, so the box has a fill to compare its border with: an unchecked box fills
         // nothing, since a fill at alpha 0 drew nothing and only cost its colour.
         build(Checkbox.Variant.BOX, LayoutDirection.LTR, true);
-        assertEquals(0, canvas.firstFill().x(), EPS, "the box is flush with the left edge");
-        assertEquals(Strokes.HALF_PIXEL_INSET, canvas.firstStroke().x(), EPS,
-                "and its border takes the same origin, half a pixel in");
+        // The border lies inside the box, its path half a pen in, and the fill stops on it.
+        float half = Strokes.INDICATOR_BORDER / 2;
+        assertEquals(half, canvas.firstStroke().x(), EPS, "the box is flush with the left edge");
+        assertEquals(half, canvas.firstFill().x(), EPS,
+                "and its fill takes the border's origin, half a pen in");
         assertEquals(t.indicator() + t.gapLabel(), canvas.textX, EPS,
                 "the label starts one gap past the box");
     }
@@ -89,9 +91,11 @@ class CheckboxMirroringTest extends ComponentTestBase {
     void theBoxSitsOnTheFarEdgeAndTheLabelRunsBackFromItReadingRightToLeft() {
         build(Checkbox.Variant.BOX, LayoutDirection.RTL, true); // checked: see the test above
         float left = WIDTH - t.indicator();
-        assertEquals(left, canvas.firstFill().x(), EPS, "the box is flush with the right edge");
-        assertEquals(left + Strokes.HALF_PIXEL_INSET, canvas.firstStroke().x(), EPS,
-                "the border moved with the fill; a border left behind separates from its box");
+        float half = Strokes.INDICATOR_BORDER / 2;
+        assertEquals(left + half, canvas.firstStroke().x(), EPS,
+                "the box is flush with the right edge");
+        assertEquals(left + half, canvas.firstFill().x(), EPS,
+                "the fill moved with the border; a fill left behind separates from its box");
 
         // drawText places a line by its LEFT edge, so the label's own x is a whole label width
         // back from where reading starts.

@@ -719,12 +719,10 @@ public final class ComboBox extends Widget<ComboBox> {
         boolean rtl = isRightToLeft();
         Color fill = !isEnabled() ? theme.disabledFill()
                 : theme.surface().lerp(theme.surfaceRaised(), open ? 1f : hover.value());
-        canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), fill);
         float focus = focusFade.value();
-        // One rect whose weight animates BORDER -> FOCUS_RING; a ternary here would delete
-        // the focus fade outright.
-        canvas.drawRoundRect(Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
-                width() - Strokes.BORDER, height() - Strokes.BORDER, t.radiusMedium(),
+        // One border whose weight animates BORDER -> FOCUS_RING, inward; a ternary here would
+        // delete the focus fade outright.
+        canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusMedium(), fill,
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
                 theme.outline().lerp(theme.focusRing(), focus));
 
@@ -1506,12 +1504,9 @@ public final class ComboBox extends Widget<ComboBox> {
             // over the owner's own content instead of over the desktop, and a list you can read
             // the page through is not frosted glass: it is unreadable. So that presentation
             // paints the theme's surface as the theme wrote it.
-            canvas.fillRoundRect(Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
-                    width() - Strokes.BORDER, height() - Strokes.BORDER, t.radiusLarge(),
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusLarge(),
                     scenePopup != null ? theme.surfaceRaised()
-                            : theme.surfaceRaised().withAlpha(0.94f));
-            canvas.drawRoundRect(Strokes.HALF_PIXEL_INSET, Strokes.HALF_PIXEL_INSET,
-                    width() - Strokes.BORDER, height() - Strokes.BORDER, t.radiusLarge(),
+                            : theme.surfaceRaised().withAlpha(0.94f),
                     Strokes.BORDER, theme.outline());
 
             Font font = t.body();

@@ -38,9 +38,17 @@ public final class Strokes {
     public static final float HAIRLINE = BORDER;
 
     /**
-     * Half of {@link #BORDER}. Lands a 1&nbsp;pt stroke on a whole device pixel instead
-     * of straddling two and going grey: {@code drawRoundRect(0.5f, 0.5f, w - 1, h - 1,
-     * …)}. A function of the stroke, not of the size: at XLARGE it is still 0.5.
+     * Half of {@link #BORDER}. Lands a 1&nbsp;pt line on a whole device pixel instead of
+     * straddling two and going grey: a rule along a box's bottom edge is drawn at
+     * {@code h - HALF_PIXEL_INSET}. A function of the stroke, not of the size: at XLARGE it
+     * is still 0.5.
+     *
+     * <p>A rounded border is not placed with it by hand. Insetting the rectangle by this
+     * much and keeping the box's radius draws a corner that is not concentric with the box,
+     * and whatever fills the box shows outside the border there;
+     * {@link limn.graphics.Canvas#drawRoundRectBorder} insets by half the border
+     * <em>and</em> reduces the radius by as much, and
+     * {@link limn.graphics.Canvas#fillRoundRectWithBorder} keeps the fill under it.
      */
     public static final float HALF_PIXEL_INSET = 0.5f;
 
@@ -90,8 +98,9 @@ public final class Strokes {
 
     /**
      * The check-mark pen. The mark's extent scales with the indicator; the pen does not.
-     * At XSMALL the mark still keeps 1.83&nbsp;pt of clearance from the box border's inner
-     * ink edge (1.75 at MEDIUM), so one pen is optically sound at every step.
+     * On the smallest box, 18&nbsp;pt from XSMALL to MEDIUM, the mark still keeps
+     * 1.5&nbsp;pt of clearance from the box border's inner ink edge at its sides, and more on
+     * the larger boxes, so one pen is optically sound at every step.
      */
     public static final float CHECK_MARK = 2;
 

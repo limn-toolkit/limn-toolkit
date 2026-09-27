@@ -16,7 +16,6 @@ import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Path2D;
-import limn.graphics.RoundRect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.input.Keys;
@@ -1133,29 +1132,29 @@ public final class Spinner extends Widget<Spinner> {
         float h = height();
         float focus = focusFade.value();
         float radius = t.radiusMedium(); // one resolution: fill, clip and border must agree
+        // The width is an expression, not a branch: the border thickens continuously, inward,
+        // as the focus fade runs, and the fill and the clip stop at its centre line.
+        float pen = Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus;
 
         Color fill = enabled ? theme.surface() : theme.disabledFill();
-        canvas.fillRoundRect(0, 0, w, h, radius, fill);
+        canvas.fillRoundRectInsideBorder(0, 0, w, h, radius, pen, fill);
 
-        // Clip the content to the rounded box so the button hover fill and the
-        // divider lines never spill past the corners.
+        // Clip the content to the fill so the button hover fill and the divider lines
+        // never spill past the corners or out from under the border.
         canvas.save();
-        canvas.clipRoundRect(RoundRect.of(0, 0, w, h, radius));
+        canvas.clipRoundRectInsideBorder(0, 0, w, h, radius, pen);
         paintValue(canvas, theme, t, enabled, focus);
         paintButtons(canvas, theme, t, enabled);
         canvas.restore();
 
         // Border LAST, on top, so a divider reaching the edge sits under it and
-        // the (thicker, focused) border stays clean. The width is an expression, not
-        // a branch: the stroke thickens continuously as the focus fade runs.
+        // the (thicker, focused) border stays clean.
         //
         // A refused commit colours it: the danger colour on the border is how the toolkit's text
         // and date fields say they hold something they cannot accept, so it is read the same way
         // here. Only the colour moves and never the width, so a flash cannot put a weight on the
         // screen that is not one of the declared pens; at rest the lerp is the identity.
-        float half = Strokes.HALF_PIXEL_INSET;
-        canvas.drawRoundRect(half, half, w - 2 * half, h - 2 * half, radius,
-                Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
+        canvas.drawRoundRectBorder(0, 0, w, h, radius, pen,
                 theme.outline().lerp(theme.focusRing(), focus)
                         .lerp(theme.danger(), refusedFlash.value()));
     }

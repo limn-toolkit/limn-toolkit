@@ -156,7 +156,9 @@ class SurfaceTextMirroringTest extends ComponentTestBase {
     void theVideoPillIsSizedFromTheLineItDraws() {
         buildVideo(LayoutDirection.RTL);
         float text = ruled(ComponentStrings.VIDEO_NO_BACKEND.get());
-        assertEquals((WIDTH - (text + 2 * PILL_PAD_H)) / 2, painted().roundRectX.get(0), EPS);
+        // The pill's fill, which stops at its border's centre line, half a border inside the pill.
+        assertEquals((WIDTH - (text + 2 * PILL_PAD_H)) / 2 + Strokes.BORDER / 2,
+                painted().roundRectX.get(0), EPS);
     }
 
     /**

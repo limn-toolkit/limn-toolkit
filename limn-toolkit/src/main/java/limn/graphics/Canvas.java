@@ -266,12 +266,13 @@ public interface Canvas {
      *
      * <p>A degenerate size (zero or negative width/height) draws nothing rather
      * than throwing, which is the convention every 2D API follows, and a
-     * practical necessity: the near-universal border idiom
-     * {@code drawRoundRect(0.5f, 0.5f, width() - 1, height() - 1, …)} produces a
-     * negative size the moment a widget is laid out under 1 pt, which happens
-     * routinely while a window is being resized small. Explicitly building a
-     * {@link RoundRect} still validates, so genuinely malformed geometry (say,
-     * swapped corners) is still caught at construction.
+     * practical necessity: a border drawn inside its box
+     * ({@link #drawRoundRectBorder}, a stroke on the box inset by half the
+     * border) produces a negative size the moment a widget is laid out narrower
+     * than its border, which happens routinely while a window is being resized
+     * small. Explicitly building a {@link RoundRect} still validates, so
+     * genuinely malformed geometry (say, swapped corners) is still caught at
+     * construction.
      */
     default void drawRoundRect(float x, float y, float width, float height, float radius,
                                float strokeWidth, Paint paint) {
@@ -279,6 +280,90 @@ public interface Canvas {
             return;
         }
         drawRoundRect(RoundRect.of(x, y, width, height, radius), strokeWidth, paint);
+    }
+
+    // ------------------------------------------------------ bordered surfaces
+
+    /**
+     * Paints a bordered surface: {@code fill} over the rounded box, and a border
+     * {@code borderWidth} wide in {@code border} lying wholly inside the box, its
+     * outer edge exactly the box's outline. The one call for a field, a card, a
+     * panel or a swatch; {@link #drawRoundRectBorder} explains the geometry, and
+     * {@link #fillRoundRectInsideBorder} and {@link #clipRoundRectInsideBorder}
+     * are its two halves, for a surface that paints something between its fill
+     * and its border or whose fill is not one paint.
+     *
+     * <p>The defaults here build on the scalar {@code fillRoundRect} and
+     * {@code drawRoundRect}, so they allocate nothing. A renderer may draw the pair
+     * in one pass instead, as long as it keeps the geometry the defaults define.
+     */
+    default void fillRoundRectWithBorder(float x, float y, float width, float height, float radius,
+                                         Paint fill, float borderWidth, Paint border) {
+        fillRoundRectInsideBorder(x, y, width, height, radius, borderWidth, fill);
+        drawRoundRectBorder(x, y, width, height, radius, borderWidth, border);
+    }
+
+    /**
+     * Strokes a border {@code borderWidth} wide lying wholly inside the rounded
+     * box, its outer edge exactly the box's outline.
+     *
+     * <p><b>The geometry.</b> A stroke is centred on its path, so a border inside
+     * a box is a stroke on the box inset by half the border. The inset path's
+     * corner radius has to shrink by the same half border, and that is what makes
+     * it concentric with the box: every point of an arc of radius
+     * {@code radius - borderWidth / 2} is half a border from the box's own arc,
+     * so the stroke's outer edge follows the box's outline all the way round.
+     * Insetting the rectangle but keeping the box's radius, the obvious
+     * {@code drawRoundRect(0.5f, 0.5f, w - 1, h - 1, radius, 1, …)}, draws a
+     * corner whose outer edge is an arc of radius {@code radius + 0.5} about a
+     * centre half a point further in: on the diagonal it falls
+     * {@code 0.5 × (√2 − 1)}, about 0.2 pt, short of the box's corner, and
+     * whatever fills the box shows outside the border there.
+     *
+     * <p>A radius under half the border leaves the path square, and the stroke's
+     * outer corner is then rounded by half the border, which is as tight as a
+     * centred stroke can draw. A box no wider or taller than its border draws
+     * nothing.
+     */
+    default void drawRoundRectBorder(float x, float y, float width, float height, float radius,
+                                     float borderWidth, Paint paint) {
+        float half = borderWidth / 2;
+        drawRoundRect(x + half, y + half, width - borderWidth, height - borderWidth,
+                Math.max(0, radius - half), borderWidth, paint);
+    }
+
+    /**
+     * Fills the box inside the border {@link #drawRoundRectBorder} draws with the
+     * same arguments, as far as the border's centre line: the box inset by half
+     * the border, with the radius reduced by as much. Reaching exactly that far
+     * is what hides the fill's antialiased edge under the border's opaque middle:
+     * a fill of the whole box puts that edge on the border's own outer edge, and
+     * the partly covered pixels there mix the fill into the border's fringe, which
+     * a strong fill under a grey border shows as a coloured rim. Draw the border
+     * after it.
+     *
+     * <p>A border that fades out, leaving the fill to stand alone, is the one case
+     * this is wrong for: the fill has to reach the box then, and is a plain
+     * {@link #fillRoundRect(float, float, float, float, float, Paint)} of it.
+     */
+    default void fillRoundRectInsideBorder(float x, float y, float width, float height, float radius,
+                                           float borderWidth, Paint paint) {
+        float half = borderWidth / 2;
+        fillRoundRect(x + half, y + half, width - borderWidth, height - borderWidth,
+                Math.max(0, radius - half), paint);
+    }
+
+    /**
+     * Intersects the clip with the shape {@link #fillRoundRectInsideBorder}
+     * fills, for a surface whose fill is a gradient, an image or several shapes:
+     * clip, paint them over the whole box, restore, then draw the border. Builds
+     * one {@link RoundRect}, as {@link #clipRoundRect} needs.
+     */
+    default void clipRoundRectInsideBorder(float x, float y, float width, float height, float radius,
+                                           float borderWidth) {
+        float half = borderWidth / 2;
+        clipRoundRect(RoundRect.of(x + half, y + half, Math.max(0, width - borderWidth),
+                Math.max(0, height - borderWidth), Math.max(0, radius - half)));
     }
 
     void fillCircle(float cx, float cy, float radius, Paint paint);

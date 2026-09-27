@@ -174,10 +174,8 @@ public final class ToolBar extends Widget<ToolBar> {
     protected void onPaint(Canvas canvas) {
         Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
-        canvas.fillRoundRect(0, 0, width(), height(), t.radiusMedium(), theme.surface());
-        float inset = Strokes.HALF_PIXEL_INSET; // lands the 1pt stroke on one device pixel
-        canvas.drawRoundRect(inset, inset, width() - 2 * inset, height() - 2 * inset,
-                t.radiusMedium(), Strokes.BORDER, theme.outline());
+        canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusMedium(), theme.surface(),
+                Strokes.BORDER, theme.outline());
     }
 
     /**

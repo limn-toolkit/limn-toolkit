@@ -12,7 +12,6 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
-import limn.graphics.RoundRect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
@@ -1889,12 +1888,16 @@ public final class DateField extends Widget<DateField> {
         float h = height();
         float focus = focusFade.value();
         float radius = t.radiusMedium();
+        // The border thickens inward as the fade runs, and the fill and the clip stop at its
+        // centre line. A field inside a picker has no border, and its clip is its box.
+        float pen = chrome ? Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus : 0;
 
         if (chrome) {
-            canvas.fillRoundRect(0, 0, w, h, radius, enabled ? theme.surface() : theme.disabledFill());
+            canvas.fillRoundRectInsideBorder(0, 0, w, h, radius, pen,
+                    enabled ? theme.surface() : theme.disabledFill());
         }
         canvas.save();
-        canvas.clipRoundRect(RoundRect.of(0, 0, w, h, radius));
+        canvas.clipRoundRectInsideBorder(0, 0, w, h, radius, pen);
         paintSegments(canvas, theme, t, enabled, focus);
         canvas.restore();
 
@@ -1906,10 +1909,8 @@ public final class DateField extends Widget<DateField> {
         if (!chrome) {
             return;
         }
-        float half = Strokes.HALF_PIXEL_INSET;
         Color border = validity != null ? theme.danger() : theme.outline().lerp(theme.focusRing(), focus);
-        canvas.drawRoundRect(half, half, w - 2 * half, h - 2 * half, radius,
-                Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus, border);
+        canvas.drawRoundRectBorder(0, 0, w, h, radius, pen, border);
     }
 
     private void paintSegments(Canvas canvas, Theme theme, SizeTokens t, boolean enabled,
