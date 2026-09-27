@@ -396,7 +396,10 @@ public final class GltfLoader {
                     spend(3L * Math.max(0, indices.length - 2), "a strip or fan made a list");
                 }
                 data.indices(switch (mode) {
-                    case 4 -> indices;
+                    // A list that ends mid-triangle: a draw call skips the unfinished one, and so
+                    // does the loader, since the flat normals below read three corners at a time.
+                    case 4 -> indices.length % 3 == 0 ? indices
+                            : java.util.Arrays.copyOf(indices, indices.length - indices.length % 3);
                     case 5 -> stripToTriangles(indices);
                     case 6 -> fanToTriangles(indices);
                     default -> throw new IllegalArgumentException(

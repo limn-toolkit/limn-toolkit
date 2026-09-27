@@ -75,6 +75,21 @@ class GltfLoaderBoundsTest {
     }
 
     /**
+     * A triangle list whose index count is not a multiple of three ends in a triangle it never
+     * finishes, which a draw call skips. The loader skips it too: generating flat normals read
+     * past the end of the list and threw ArrayIndexOutOfBoundsException.
+     */
+    @Test
+    void aTriangleListsUnfinishedLastTriangleIsLeftOut() {
+        for (int count : new int[] {4, 5}) {
+            MeshData mesh = GltfLoader.load(model(4, count))
+                    .meshes().get(0).primitives().get(0).mesh();
+            assertEquals(3, mesh.vertexCount(), count + " indices draw the one whole triangle");
+            assertEquals(3, mesh.indices().length);
+        }
+    }
+
+    /**
      * The ceiling is the application's to move, for the whole process: lowered, the honest model
      * above is refused and the message names the setter; put back, it loads again. A load reads
      * the budget when it starts. The owner chose a setting over a fixed constant on 2026-09-26.
