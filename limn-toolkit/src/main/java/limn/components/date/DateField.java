@@ -12,6 +12,7 @@ import limn.concurrent.Ui;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
@@ -1996,6 +1997,56 @@ public final class DateField extends Widget<DateField> {
     protected void onPreedit(PreeditEvent event) {
         composing = !event.isEmpty();
         event.consume();
+    }
+
+    /**
+     * The box of the segment the caret is in, in scene coordinates: the band the paint fills behind
+     * it, which is this field's caret. The platform puts an input method's candidate window under
+     * this rectangle, so a digit composed through a Japanese or Chinese input method has its list
+     * of candidates under the segment it will land in, and follows the caret to the next segment
+     * when a full one moves it on. Without it the list stayed wherever the platform last had it:
+     * the window's corner, or the caret of whichever text field had the focus before.
+     *
+     * <p>The field draws no composition, so there is no caret inside the segment to point at while
+     * one is up: the segment is where the committed digits go, and it is the whole answer.
+     *
+     * <p>Walks the same composed run the paint, a click and the accessible tree walk, so reading
+     * right to left it moves with the run to the trailing edge, and the segment a reader is told
+     * the caret is in is the one the candidate window sits under.
+     *
+     * @return the box, or {@code null} before the first layout and while no caret is shown
+     */
+    @Override
+    protected Rect caretRect() {
+        if (width() <= 0 || !caretShown()) {
+            return null;
+        }
+        ensureParts();
+        SizeTokens t = Theme.of(this).tokensFor(this);
+        TextRuler ruler = textRuler();
+        Font font = t.body();
+        ShapedText.Direction neutral = neutralBase();
+        float runWidth = 0;
+        for (DatePattern.Part part : parts) {
+            runWidth += pieceWidth(ruler, font, neutral, part);
+        }
+        float pad = t.fieldPadH();
+        float x = isRightToLeft() ? Math.max(pad, width() - pad - runWidth) : pad;
+        int slot = 0;
+        for (DatePattern.Part part : parts) {
+            float pieceWidth = pieceWidth(ruler, font, neutral, part);
+            if (part instanceof DatePattern.FieldPart field && field.field().editable()) {
+                if (slot == focusedSlot) {
+                    float padX = t.spinnerFieldPadX();
+                    float inset = t.spinnerFieldInset();
+                    return new Rect(localToSceneX() + x - padX, localToSceneY() + inset,
+                            pieceWidth + 2 * padX, height() - 2 * inset);
+                }
+                slot++;
+            }
+            x += pieceWidth;
+        }
+        return null;
     }
 
     @Override
