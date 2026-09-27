@@ -214,8 +214,12 @@ public interface NativeWindow extends AutoCloseable {
      * {@link Resolution}, such as one from {@code display().availableResolutions()}. To keep the
      * display as it is, call {@link #enterFullscreen()} instead: on macOS a Retina display's current
      * mode is usually not among those a switch can reach. UI thread only.
+     *
+     * @param mode the mode to switch to
+     * @throws NullPointerException if {@code mode} is null, as it is from a display that lists none
      */
     default void enterFullscreen(Resolution mode) {
+        java.util.Objects.requireNonNull(mode, "mode");
         enterFullscreen(mode.width(), mode.height(), mode.refreshRate());
     }
 
