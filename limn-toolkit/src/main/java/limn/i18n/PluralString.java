@@ -1,5 +1,7 @@
 package limn.i18n;
 
+import limn.i18n.internal.NumberLocale;
+
 import java.text.MessageFormat;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -36,10 +38,11 @@ import java.util.Objects;
  *
  * <p><b>The number is written the way the locale writes numbers</b> — grouped and in its own
  * digits, through {@link NumberFormats#number()}, so a million reads "1,000,000" in English,
- * "1.000.000" in Portuguese and "١٬٠٠٠٬٠٠٠" in Arabic. It is inserted as text, so that
+ * "1.000.000" in Portuguese and "١٬٠٠٠٬٠٠٠" in Egyptian Arabic. It is inserted as text, so that
  * {@link MessageFormat} does not format it again under a second set of rules; passing the raw
  * digits instead would put an ungrouped "1000000" in the one sentence whose whole subject is a
- * number.
+ * number. A number among the caller's own arguments is written in the same digits, as
+ * {@link I18nString#format} writes one.
  *
  * @see PluralRules
  */
@@ -107,11 +110,12 @@ public final class PluralString {
             System.arraycopy(args, 0, all, 0, args.length);
         }
         all[all.length - 1] = NumberFormats.number().apply(count);
+        Locale numbers = NumberLocale.inEffect();
         try {
-            return new MessageFormat(pattern, locale).format(all);
+            return new MessageFormat(pattern, numbers).format(all);
         } catch (IllegalArgumentException malformedPattern) {
             try {
-                return new MessageFormat(fallback, locale).format(all);
+                return new MessageFormat(fallback, numbers).format(all);
             } catch (IllegalArgumentException ourOwnPatternIsBroken) {
                 return fallback;
             }
