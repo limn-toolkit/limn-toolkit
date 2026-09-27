@@ -472,6 +472,8 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         bridge.events.clear();
         changed.clear();
         perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("forty"));
+        perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("1E3"));
+        perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("\u221E"));
         perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText(""));
         perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("1.2.3"));
         frame();
@@ -486,6 +488,32 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(18 * 60 + 45.0, spinner.value(),
                 "a time spinner reads the clock face it shows, in the minutes it publishes");
         assertEquals("18:45", spinnerNode().value().text(), describe(tree()));
+    }
+
+    /**
+     * The text a reader hears and the text a set is read from are in the spinner's own language,
+     * which here is not the process's: the action runs inside the scope the widget's passes run
+     * in, so a German subtree in an English interface publishes a decimal comma and reads one back,
+     * and refuses the point German groups thousands with rather than misreading it.
+     */
+    @Test
+    void aSetByTextIsReadInTheSubtreesOwnLanguage() throws Exception {
+        bindSpinner(new Spinner(0, 10_000, 0.5).setValue(7));
+        root.setLocale(Locale.GERMAN);
+        frame();
+        assertEquals("7,0", spinnerNode().value().text(), describe(tree()));
+        long id = spinnerNode().id();
+
+        perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("2,5"));
+        frame();
+        assertEquals(2.5, spinner.value(), "the German decimal comma");
+        assertEquals("2,5", spinnerNode().value().text(), describe(tree()));
+
+        changed.clear();
+        perform(id, Accessible.Action.SET_VALUE, new Accessible.Argument.OfText("1.234"));
+        frame();
+        assertEquals(2.5, spinner.value(), "a German point groups thousands, and is refused");
+        assertEquals(List.of(), changed);
     }
 
     @Test

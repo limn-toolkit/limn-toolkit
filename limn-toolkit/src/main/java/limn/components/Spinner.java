@@ -3,6 +3,7 @@ package limn.components;
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.components.internal.a11y.ValueAccessibility;
+import limn.animation.Easing;
 import limn.animation.Transition;
 import limn.backend.Cursor;
 import limn.components.internal.text.TextEditModel;
@@ -27,10 +28,15 @@ import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.text.ParsePosition;
+import java.util.IllformedLocaleException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.DoubleConsumer;
-import java.util.regex.Pattern;
 
 /**
  * A stepper input for a bounded value, in two modes:
@@ -56,8 +62,22 @@ import java.util.regex.Pattern;
  * <p><b>The value can also be typed.</b> Type a digit and the spinner turns into a
  * one-line text field with the old value selected, so the first keystroke replaces it;
  * click into the value to place the caret instead. {@code Enter} commits, {@code Escape}
- * restores, and moving focus away commits. Text that does not parse commits nothing and
- * the value stands; a number outside the bounds is clamped.
+ * restores, and moving focus away commits. A number outside the bounds is clamped. Text that
+ * does not read as a number is refused: the value stands, the editor closes on it, and the
+ * border flashes the theme's danger colour for a moment, so that a refusal is not mistaken for
+ * a commit that happened to land on the number already there.
+ *
+ * <p><b>Numbers are written and read in the language in effect</b>, the spinner's
+ * {@linkplain limn.scene.Widget#locale() effective locale}: its decimal separator, its minus
+ * sign and its digits, never grouped, so a spinner stepping by a quarter shows a half as
+ * {@code 0,50} in German, and a negative value in Swedish starts with a true minus sign
+ * (U+2212). Typing is more forgiving than the display: a leading {@code +} is accepted, the
+ * hyphen every keyboard types stands for whatever minus sign the language writes, and in a
+ * number with no decimal separator of the language's own a comma stands for one, as does a
+ * point wherever the language does not group digits with points. Where it does, a point is not
+ * guessed at: {@code 1.234} typed in German is refused rather than read as a little over one or
+ * as twelve hundred. Time mode's clock face is {@code HH:MM} in every language, and only its
+ * digits change.
  *
  * <p><b>Copy and paste work in both states.</b> With no edit in progress
  * {@code Ctrl/Cmd+C} copies the whole value as shown; while editing it copies the
@@ -107,12 +127,25 @@ public final class Spinner extends Widget<Spinner> {
     /** Caret blink half-period, the same one {@link TextField} uses. */
     private static final double BLINK_SECONDS = 0.5;
     /**
-     * What a typed or pasted number may look like. Deliberately narrower than
-     * {@link Double#parseDouble}, which also takes {@code 1d}, {@code 0x1p3},
-     * {@code Infinity} and {@code NaN}, none of which is a number anyone typed
-     * into a spinner on purpose, and all of which would arrive through a paste.
+     * How long the border takes to fade back from the danger colour after a refused commit. Long
+     * enough to be seen by someone whose eyes were on the keyboard when they pressed Enter, and
+     * short enough to be gone before the next thing they type; eased in, so it holds near full
+     * colour for most of that time and then lets go, rather than being mostly faded when first
+     * seen.
      */
-    private static final Pattern NUMBER = Pattern.compile("[+-]?(\\d+(\\.\\d*)?|\\.\\d+)");
+    private static final double REFUSED_FLASH_SECONDS = 0.5;
+    /**
+     * The minus sign the languages that do not use the hyphen write (Swedish, Finnish, Norwegian,
+     * Persian among them), accepted from a paste or a keyboard in every language because the
+     * display itself shows it in some.
+     */
+    private static final char TRUE_MINUS = '\u2212';
+    /**
+     * The Arabic decimal separator, which marks a fraction and nothing else in every language that
+     * writes it, so it can stand for the decimal separator anywhere without being mistaken for a
+     * group of thousands: the separator's counterpart of accepting every known system's digits.
+     */
+    private static final char ARABIC_DECIMAL_SEPARATOR = '\u066B';
 
     private final Mode mode;
     private final double min;
@@ -128,6 +161,13 @@ public final class Spinner extends Widget<Spinner> {
     private DoubleConsumer onChange;
     private final Transition focusFade =
             new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
+    /**
+     * How much of the danger colour the border carries: snapped to 1 when a commit is refused and
+     * eased back to 0, and at rest the rest of the time, so a spinner that never refuses anything
+     * paints exactly the border it always did.
+     */
+    private final Transition refusedFlash =
+            new Transition(this).duration(REFUSED_FLASH_SECONDS).easing(Easing.EASE_IN);
     private final Path2D triangle = new Path2D();
 
     private boolean editable = true;
@@ -294,10 +334,11 @@ public final class Spinner extends Widget<Spinner> {
      * The current value rendered, memoized on the value it was rendered from.
      *
      * <p>Not an optimisation of the arithmetic, but of the fact that this is asked from
-     * {@link #onPaint}, and the widget repaints on every frame of a focus fade and on every hover
-     * and press with the number unchanged. {@code String.format} is the most expensive way in the
-     * library to render two digits: a locale lookup, a pattern parse and boxing, and in numeric
-     * mode the pattern itself is built by concatenation and re-parsed on each call.
+     * {@link #onPaint}, and the widget repaints on every frame of a focus fade, of a refusal's
+     * flash and on every hover and press with the number unchanged. Rendering is never free even
+     * with the format itself kept: a number is rounded through a {@link BigDecimal} and written
+     * into a fresh buffer, and a clock face goes through {@code String.format}, which is a locale
+     * lookup, a pattern parse and boxing to write two digits.
      *
      * <p>Validated against the value it was built from rather than cleared by whatever moved it.
      * The value moves several ways (a step, a drag, a typed commit, a programmatic set), and a
@@ -364,16 +405,105 @@ public final class Spinner extends Widget<Spinner> {
     /**
      * Renders any value exactly as {@link #text()} renders the current one, shared
      * so {@link #onMeasure} cannot drift from what {@link #paintValue} draws.
+     *
+     * <p>Both modes write ASCII digits first and then hand the string to
+     * {@link I18n#localizeDigits}, which is where the numbering system in effect (the language's
+     * own, or the one a deployment declared) is applied; the number's separator and sign are the
+     * format's, and the clock face's colon is nobody's but its own.
+     *
+     * <p>A number is handed to the format as {@link BigDecimal#valueOf(double)}, the shortest
+     * decimal that reads back as the same double, rather than as the double itself, because a tie
+     * is decided on the digits a value prints as and not on its binary expansion: {@code 1.005}
+     * shown to two places has always read {@code 1.01}, and the double nearest it lies a hair
+     * below the half, where rounding the binary value would write {@code 1.00}. The rounding mode
+     * is pinned to half-up for the same reason; the platform's default rounds a tie to the even
+     * neighbour, which would turn a {@code 0.125} that used to read {@code 0.13} into {@code 0.12}.
+     * A bound at infinity has no decimal, and is handed over as the double it is.
      */
     private String format(double v) {
-        // Rendered in ASCII first (Locale.US pins the separator story ADR 006 chose), then the
-        // digits take the locale's numbering system: the one format-time seam ADR 033 allows.
         if (mode == Mode.TIME) {
             int m = (int) Math.round(v);
             return I18n.localizeDigits(String.format(Locale.US, "%02d:%02d", m / 60, m % 60));
         }
-        return I18n.localizeDigits(String.format(Locale.US, "%." + decimals + "f", v));
+        Object number = Double.isFinite(v) ? BigDecimal.valueOf(v) : (Object) v;
+        return I18n.localizeDigits(numberFormat().format(number));
     }
+
+    /**
+     * The format a number is written and read with, rebuilt when the language moves and kept
+     * otherwise: display, measurement and parse all come through here, so the box can never be
+     * measured in one convention, painted in a second and read back in a third.
+     *
+     * <p>Keyed on the i18n epoch and the effective locale together, which is what
+     * {@link LanguageWitness} holds, and for the reason {@link #formatted} gives: a switch of the
+     * process language or of the numbering system bumps the epoch, and a locale declared on this
+     * widget's subtree moves the locale without it. It is asked first, before the null check, so
+     * that the witness takes the answer even on the call that builds.
+     *
+     * <p>The symbols come from the locale <em>with the numbering system in effect named on it</em>,
+     * rather than from the bare locale, because the platform's symbols follow the digits they are
+     * written with and its idea of a language's default digits is not always the toolkit's: for a
+     * bare {@code ar} the platform answers Arabic-Indic digits and the Arabic decimal separator,
+     * where the toolkit writes Latin digits, and asking for the bare locale would put the Arabic
+     * separator between Latin digits. With the system named, Latin digits come with a point and
+     * Arabic-Indic ones with the Arabic separator, and a deployment that declared a system gets
+     * the separator that goes with it. The enum's constants carry the Unicode names of their
+     * systems, which is what makes their lower-cased names the keyword's values.
+     *
+     * <p>Grouping is off, and that is load-bearing twice over. It keeps the width argument in
+     * {@link #onMeasure} true, since a grouped value's separators would come and go with its
+     * magnitude, and it is what makes a language's grouping separator a character the parse does
+     * not read, which is how {@code 1.234} typed in German is refused instead of misread.
+     *
+     * <p>The minus sign is the language's own single character, with the invisible direction mark
+     * some languages put in front of it (Hebrew, Arabic, Persian) left out. The toolkit already
+     * places a signed number in a right-to-left form by the bidirectional algorithm and says
+     * where the sign lands, and an invisible character inside an editable value would also be a
+     * caret stop nobody can see.
+     */
+    private DecimalFormat numberFormat() {
+        if (numberFormatLanguage.moved() || numberFormat == null) {
+            DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(
+                    withNumberingSystem(I18n.locale(), I18n.numberingSystem()));
+            decimalSeparator = symbols.getDecimalSeparator();
+            groupingSeparator = symbols.getGroupingSeparator();
+            minusSign = symbols.getMinusSign();
+            // ASCII out, whatever the system: I18n.localizeDigits applies the digits afterwards,
+            // which is what lets a declared system win over the locale's own formatter.
+            symbols.setZeroDigit('0');
+            DecimalFormat built = new DecimalFormat("0", symbols);
+            built.setGroupingUsed(false);
+            built.setMinimumFractionDigits(decimals);
+            built.setMaximumFractionDigits(decimals);
+            built.setRoundingMode(RoundingMode.HALF_UP);
+            built.setNegativePrefix(String.valueOf(minusSign));
+            built.setNegativeSuffix("");
+            numberFormat = built;
+        }
+        return numberFormat;
+    }
+
+    /**
+     * {@code locale} with {@code system} named as its numbering system, or {@code locale} itself
+     * when it is a legacy form the builder cannot carry an extension on, in which case the
+     * platform's own default system for it decides the separators.
+     */
+    private static Locale withNumberingSystem(Locale locale, NumberingSystem system) {
+        try {
+            return new Locale.Builder().setLocale(locale)
+                    .setUnicodeLocaleKeyword("nu", system.name().toLowerCase(Locale.ROOT))
+                    .build();
+        } catch (IllformedLocaleException legacy) {
+            return locale;
+        }
+    }
+
+    private final LanguageWitness numberFormatLanguage = new LanguageWitness();
+    private DecimalFormat numberFormat;
+    /** The three characters of {@link #numberFormat} that the parse and the keyboard filter read. */
+    private char decimalSeparator;
+    private char groupingSeparator;
+    private char minusSign;
 
     // --------------------------------------------------------------- stepping
 
@@ -519,6 +649,17 @@ public final class Spinner extends Widget<Spinner> {
      * not parse is dropped whole rather than half-applied: {@code 1.2.3} has no
      * value to take, and a field that guessed at one would be worse than a field
      * that refuses.
+     *
+     * <p>The refusal is shown rather than silent. Dropped without a sign, it looks exactly like a
+     * commit that landed on the number already there, and a person who typed {@code 1.5} in a
+     * language that writes {@code 1,5} would conclude the field had taken it; the flash on the
+     * border says it did not, and the value it closes on says what stands instead. An empty edit
+     * is refused the same way, because a spinner always holds a number and the blank was not one.
+     *
+     * <p>Nothing is published for a screen reader, which is the treatment every other refused
+     * entry in this widget gets: a set by text that does not parse leaves the value and the tree
+     * untouched, and so does this, since the accessible node carries the committed value and never
+     * carried the typed text. A reader hears nothing, and the value it was last told of stands.
      */
     private void commitEdit() {
         if (edit == null) {
@@ -530,6 +671,11 @@ public final class Spinner extends Widget<Spinner> {
         Double parsed = parse(typed);
         if (parsed != null) {
             apply(parsed, Change.Origin.USER);
+        } else {
+            // From full colour back to none, restarted if a second refusal lands mid-fade: the
+            // snap is what makes a quick retype that is refused again flash again.
+            refusedFlash.snap(1);
+            refusedFlash.to(0);
         }
         invalidate();
     }
@@ -545,15 +691,12 @@ public final class Spinner extends Widget<Spinner> {
     }
 
     /**
-     * The number in {@code typed}, or {@code null} when there is none.
-     *
-     * <p>A comma reads as a decimal point when there is no point: most of the
-     * world types one, this widget renders the other, and a field that silently
-     * dropped {@code 1,5} would be blaming the user for a format it chose itself.
+     * The number in {@code typed}, or {@code null} when there is none: a clock face in time mode,
+     * and otherwise a number in the language in effect, read by {@link #parseNumber}.
      */
     private Double parse(String typed) {
         // Every known digit set folds to ASCII first, whatever system is active: the editor is
-        // seeded from the localized display, and a paste must survive a locale switch (ADR 033).
+        // seeded from the localized display, and a paste must survive a locale switch.
         String text = I18n.toAsciiDigits(typed).strip();
         if (text.isEmpty()) {
             return null;
@@ -576,22 +719,96 @@ public final class Spinner extends Widget<Spinner> {
                 return null;
             }
         }
-        if (text.indexOf('.') < 0) {
-            text = text.replace(',', '.');
-        }
-        return NUMBER.matcher(text).matches() ? Double.valueOf(text) : null;
+        return parseNumber(text);
     }
 
-    /** Whether a typed character could be part of a value in this mode. */
+    /**
+     * A number in the language in effect, from text whose digits are already ASCII and whose ends
+     * are already trimmed: what the text says after the tolerances below, read by the display's
+     * own format, and refused unless that format consumed every character of it.
+     *
+     * <p><b>The tolerances</b> are the ones a typed number has always had, restated for a display
+     * that is no longer always written with a point. One sign may lead: a {@code +}, which the
+     * format has no use for and is dropped, or a hyphen or a true minus, either of which stands
+     * for the language's own minus sign, because Swedish writes U+2212 and no keyboard types it.
+     * Then, in a number holding no decimal separator of the language's own, a comma stands for
+     * one: most of the world writes a decimal comma, and an English display is what people from
+     * all of it read when no language of theirs is available, so a field that refused {@code 1,5}
+     * there would be blaming its user for a format it chose. A point stands for one too, wherever
+     * the language does not group digits with points, since there a point can mean nothing else;
+     * and so does the Arabic decimal separator, which never means anything else anywhere.
+     *
+     * <p><b>What is not tolerated is a point where the language groups with one.</b> Grouping is
+     * off in the format, so its grouping separator is not a character the format reads, and German
+     * {@code 1.234} is refused instead of misread either way it could be: as a little over one,
+     * which is what the English reading made of it, or as twelve hundred, which a grouping parse
+     * would. A person who wrote thousands the way their language writes them is told the field
+     * cannot take that, rather than handed a number off by a factor of a thousand.
+     *
+     * <p><b>Deliberately narrower than the format's own parse</b>, which also reads an exponent,
+     * the infinity sign and {@code NaN} &mdash; none of them a number anyone types into a spinner on
+     * purpose, and all of them things a paste can deliver. Only ASCII digits and the language's
+     * decimal separator may follow the sign, so none of those ever reaches the format, and what
+     * does reach it is kept only if the format consumed every character: a second separator, or
+     * a separator with no digit on either side, stops it short of the end.
+     */
+    private Double parseNumber(String text) {
+        DecimalFormat format = numberFormat();
+        boolean negative = false;
+        int start = 0;
+        char first = text.charAt(0);
+        if (first == '+') {
+            start = 1;
+        } else if (first == '-' || first == TRUE_MINUS || first == minusSign) {
+            negative = true;
+            start = 1;
+        }
+        String body = text.substring(start);
+        char decimal = decimalSeparator;
+        if (body.indexOf(decimal) < 0) {
+            body = body.replace(ARABIC_DECIMAL_SEPARATOR, decimal).replace(',', decimal);
+            if (groupingSeparator != '.') {
+                body = body.replace('.', decimal);
+            }
+        }
+        for (int i = 0; i < body.length(); i++) {
+            char c = body.charAt(i);
+            if ((c < '0' || c > '9') && c != decimal) {
+                return null;
+            }
+        }
+        String normalized = negative ? minusSign + body : body;
+        ParsePosition position = new ParsePosition(0);
+        Number number = format.parse(normalized, position);
+        if (number == null || position.getIndex() != normalized.length()) {
+            return null;
+        }
+        return number.doubleValue();
+    }
+
+    /**
+     * Whether a typed character could be part of a value in this mode.
+     *
+     * <p>In numeric mode that is every character {@link #parseNumber} can make something of, and
+     * not only the ones the language writes, because a character refused here is dropped without
+     * a trace: a German keyboard's point filtered out of {@code 1.5} would leave {@code 15} to be
+     * committed, which is worse than the refusal the point earns at the commit. So both separators
+     * and the Arabic one pass, as do the plus, both minus signs and whatever the language writes
+     * instead of either, and the commit decides.
+     */
     private boolean acceptsChar(int codepoint) {
         // Any known system's digits, not only the active one: an Arabic keyboard types
         // U+0660–0669, and gating on ASCII alone locked that keyboard out entirely.
         if (NumberingSystem.digitValue(codepoint) >= 0) {
             return true;
         }
-        return mode == Mode.TIME
-                ? codepoint == ':'
-                : codepoint == '-' || codepoint == '+' || codepoint == '.' || codepoint == ',';
+        if (mode == Mode.TIME) {
+            return codepoint == ':';
+        }
+        numberFormat(); // the language's own separator and minus sign, as of this pass
+        return codepoint == '+' || codepoint == '-' || codepoint == TRUE_MINUS
+                || codepoint == minusSign || codepoint == decimalSeparator
+                || codepoint == '.' || codepoint == ',' || codepoint == ARABIC_DECIMAL_SEPARATOR;
     }
 
     /**
@@ -904,10 +1121,16 @@ public final class Spinner extends Widget<Spinner> {
         // Border LAST, on top, so a divider reaching the edge sits under it and
         // the (thicker, focused) border stays clean. The width is an expression, not
         // a branch: the stroke thickens continuously as the focus fade runs.
+        //
+        // A refused commit colours it: the danger colour on the border is how the toolkit's text
+        // and date fields say they hold something they cannot accept, so it is read the same way
+        // here. Only the colour moves and never the width, so a flash cannot put a weight on the
+        // screen that is not one of the declared pens; at rest the lerp is the identity.
         float half = Strokes.HALF_PIXEL_INSET;
         canvas.drawRoundRect(half, half, w - 2 * half, h - 2 * half, radius,
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
-                theme.outline().lerp(theme.focusRing(), focus));
+                theme.outline().lerp(theme.focusRing(), focus)
+                        .lerp(theme.danger(), refusedFlash.value()));
     }
 
     private void paintValue(Canvas canvas, Theme theme, SizeTokens t, boolean enabled, float focus) {
@@ -1343,9 +1566,9 @@ public final class Spinner extends Widget<Spinner> {
      * which is what pasting into an untouched field means everywhere else.
      *
      * <p>What arrives is not filtered. A clipboard holding {@code 12 px} shows up
-     * as typed, and {@code Enter} then keeps the number or {@code Escape} puts the
-     * old one back; a paste silently rewritten to {@code 12} would be a field
-     * deciding what its user meant.
+     * as typed, and {@code Enter} then refuses it, with the flash every refused
+     * commit gets, or {@code Escape} puts the old number back; a paste silently
+     * rewritten to {@code 12} would be a field deciding what its user meant.
      */
     private boolean paste() {
         if (!editable || !isEnabled()) {
@@ -1564,8 +1787,9 @@ public final class Spinner extends Widget<Spinner> {
      * pair would run backwards in Arabic and Hebrew.
      *
      * <p>{@code SET_VALUE} takes a number or a text. A text is read by {@link #parse}, the same
-     * reader a typed commit goes through — {@code 42}, {@code 1,5} with the comma most of the world
-     * types, {@code 7:30} on a time spinner, any known digit set — because a platform's value
+     * reader a typed commit goes through, in the spinner's own language and with the same
+     * tolerances — {@code 42}, {@code 1,5} with the comma most of the world types, {@code 7:30} on
+     * a time spinner, any known digit set — because a platform's value
      * pattern hands over the string a client spoke or typed ({@code Value.SetValue("42")} on
      * Windows, once the bridge routes it here), and a reader that could only set by number could
      * not set at all. It refuses anything that is not a number, in either form, <em>before</em> the

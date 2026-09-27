@@ -204,6 +204,16 @@ convention. Your own strings are never rewritten — a part number keeps exactly
 characters you authored — and the same seam is public for your own formatting:
 `I18n.localizeDigits(text)` on the way out, `I18n.toAsciiDigits(text)` on the way back in.
 
+A spinner's number is written and read the way the language writes it: a spinner stepping by
+a quarter shows a half as `0,50` in German, Swedish writes a negative value with a true minus
+sign (`−1,5`), and no language's thousands are ever grouped. Typing is more forgiving than the display — a leading `+`, the hyphen
+every keyboard types in place of a minus sign, and a comma in English all work — but a point
+typed where the language groups thousands with points is refused rather than guessed at:
+`1.234` in German could mean either of two numbers a thousand apart. A number the spinner
+cannot read is not dropped silently: the field goes back to the value it had and its border
+flashes the theme's danger colour. The clock face of a time spinner is `HH:MM` in every
+language.
+
 Ordering and case mapping ask the language too. The toolkit shows lists in the order you
 hand them — order is content — so sorting stays one call on your side, through a collator
 in the language the user is reading:
@@ -275,6 +285,3 @@ for an ellipsis.
   the whole layout system, not a direction flag.
 - **Justification and hyphenation.** Lines are broken, not fitted: a wrapped paragraph is
   ragged at the end of its lines.
-- **Localized separators in number input.** A spinner shows and accepts the locale's
-  digits, but its editable value keeps the ASCII decimal point (a comma is tolerated), not
-  the locale's separator.

@@ -1,5 +1,6 @@
 package limn.components;
 
+import limn.i18n.I18n;
 import limn.input.Keys;
 import limn.graphics.Font;
 import limn.graphics.Paint;
@@ -8,9 +9,12 @@ import limn.scene.ControlSize;
 import limn.scene.Scene;
 import limn.scene.layout.Column;
 import limn.scene.Size;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -40,6 +44,23 @@ class SpinnerTest extends ComponentTestBase {
     private Scene scene;
     private AtomicReference<Double> changed;
     private TextFieldTest.MockClipboard clipboard;
+    private Locale original;
+
+    /**
+     * The numbers below are written the way English writes them ({@code "0.50"}, {@code "1,5"}
+     * typed as a tolerated comma), and a spinner writes the language in effect, so the language is
+     * pinned rather than inherited from the machine or from whatever test ran before.
+     */
+    @BeforeEach
+    void pinTheLanguage() {
+        original = I18n.locale();
+        I18n.setLocale(Locale.ENGLISH);
+    }
+
+    @AfterEach
+    void restoreTheLanguage() {
+        I18n.setLocale(original);
+    }
 
     private void build(Spinner s) {
         spinner = s;
