@@ -89,4 +89,35 @@ class SharedLoadsTest {
         pumpUntil(again::isDone);
         assertEquals("v2", again.join());
     }
+
+    /**
+     * A load still in flight when its backend shuts down completes on a queue nothing drains any
+     * more. The cache outlived the backend, so the next backend asking for the same key was handed
+     * that future and waited on it forever.
+     */
+    @Test
+    void aLoadInFlightWhenTheBackendStopsIsNotHandedToTheNextOne() throws InterruptedException {
+        SharedLoads<String> loads = new SharedLoads<>();
+        java.util.concurrent.CountDownLatch started = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        CompletableFuture<String> stranded = loads.load("a", () -> {
+            started.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            return "v1";
+        });
+        assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS));
+        release.countDown();
+        ui.close(); // the worker finishes, but the completion is posted to a queue now dead
+
+        ui = new HeadlessUi();
+        runtime = ui.runtime();
+        CompletableFuture<String> fresh = loads.load("a", () -> "v2");
+        assertNotSame(stranded, fresh, "the new backend starts its own load");
+        pumpUntil(fresh::isDone);
+        assertEquals("v2", fresh.join());
+    }
 }

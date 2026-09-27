@@ -42,10 +42,16 @@ public final class Ui {
         runtime = candidate;
     }
 
-    /** Uninstalls {@code candidate} if it is the installed runtime (backend shutdown). */
+    /**
+     * Uninstalls {@code candidate} if it is the installed runtime (backend shutdown). The shared
+     * loads of images and sounds are forgotten with it: one still in flight would complete on this
+     * runtime's queue, which nothing drains any more, and a later backend asking for the same file
+     * would be handed a future that never completes.
+     */
     public static synchronized void uninstall(UiRuntime candidate) {
         if (runtime == candidate) {
             runtime = null;
+            limn.concurrent.internal.SharedLoads.forgetAll();
         }
     }
 

@@ -25,7 +25,19 @@ import java.util.function.Supplier;
  */
 public final class SharedLoads<T> {
 
+    /**
+     * Every instance, so a backend's shutdown can empty them all. Weak, because only the static
+     * ones in {@code Images} and {@code Sounds} live for the process; a test's do not.
+     */
+    private static final java.util.Set<SharedLoads<?>> ALL = java.util.Collections.synchronizedSet(
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>()));
+
     private final ConcurrentHashMap<String, CompletableFuture<T>> pending = new ConcurrentHashMap<>();
+
+    /** An empty set of loads. */
+    public SharedLoads() {
+        ALL.add(this);
+    }
 
     /**
      * The future for {@code key}: the one already in flight or landed, or a new one running
@@ -51,5 +63,19 @@ public final class SharedLoads<T> {
     /** Forgets every load, so the next ask for any key runs its loader again. Any thread. */
     public void clear() {
         pending.clear();
+    }
+
+    /**
+     * Forgets the loads of every instance; called when the runtime is uninstalled. Each future
+     * completes on the UI thread of the runtime it was started under, so one still in flight would
+     * never complete for a backend started after it, and every ask for its key would wait forever.
+     * The landed ones go too: a new backend is a new start, and a load costs one more read.
+     */
+    public static void forgetAll() {
+        synchronized (ALL) {
+            for (SharedLoads<?> loads : ALL) {
+                loads.clear();
+            }
+        }
     }
 }
