@@ -218,6 +218,35 @@ class DateFieldTest extends ComponentTestBase {
         assertEquals(LocalTime.of(12, 30), field.time(), field.text());
     }
 
+    /**
+     * An hour typed into an empty twelve-hour field means the half of the day nearest to now, the
+     * owner's rule of 2026-09-26: at 9 AM "1230" is half past noon, where the clock's own half made
+     * it half past midnight. Round the clock too: at 1 AM "1130" is the evening just gone. Twelve
+     * hours either way is a tie, and keeps the clock's half.
+     */
+    @Test
+    void anHourTypedIntoAnEmptyTwelveHourFieldMeansTheHalfNearestToNow() {
+        build(DateField.ofTime().setClock(
+                Clock.fixed(Instant.parse("2026-09-09T09:00:00Z"), ZoneOffset.UTC)), EN_US);
+        type("1230");
+        assertEquals(LocalTime.of(12, 30), field.time(), field.text());
+
+        build(DateField.ofTime().setClock(
+                Clock.fixed(Instant.parse("2026-09-09T01:00:00Z"), ZoneOffset.UTC)), EN_US);
+        type("1130");
+        assertEquals(LocalTime.of(23, 30), field.time(), field.text());
+
+        build(DateField.ofTime().setClock(
+                Clock.fixed(Instant.parse("2026-09-09T06:00:00Z"), ZoneOffset.UTC)), EN_US);
+        type("1200");
+        assertEquals(LocalTime.of(0, 0), field.time(), "a tie keeps the clock's morning");
+
+        build(DateField.ofTime().setClock(
+                Clock.fixed(Instant.parse("2026-09-09T15:10:00Z"), ZoneOffset.UTC)), EN_US);
+        type("0405");
+        assertEquals(LocalTime.of(16, 5), field.time(), field.text());
+    }
+
     @Test
     void theArrowsStepTheFocusedSegmentAndRollOverIt() {
         build(dateField(), PT_BR);

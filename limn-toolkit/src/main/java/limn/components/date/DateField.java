@@ -214,6 +214,12 @@ public final class DateField extends Widget<DateField> {
     /** How many digits have been typed into the focused segment since it was last entered. */
     private int typedDigits;
     /**
+     * Whether the hour being typed took its half of the day from now and may still move it: set
+     * when a twelve-hour hour is written into an empty field and cleared once that segment is
+     * complete, so "1130" at 1 AM is judged as 11 and not as the 1 its first digit made.
+     */
+    private boolean halfFromNow;
+    /**
      * How many digits the year holds as typed, until the caret leaves it or something else writes
      * it: what decides whether a year left behind was written with two digits. Apart from
      * {@link #typedDigits}, which a picker aiming at this field and the focus coming back both
@@ -1158,15 +1164,21 @@ public final class DateField extends Widget<DateField> {
             case DAY -> day = value;
             case HOUR24 -> hour = value;
             case HOUR12 -> {
-                // An empty hour takes its half of the day from the clock, as the day period's own
-                // first step does: a first Up at 21:40 is 9 PM, and "12" typed at noon is noon.
-                // It took the morning, so both landed twelve hours early.
-                int half = hour == UNSET ? defaultFor(DatePattern.Field.DAY_PERIOD) : hour / 12;
+                // An empty hour takes the half of the day nearest to now: a first Up at 21:40 is
+                // 9 PM, and "1230" typed at 9 AM is half past noon. It took the morning until
+                // 0.8.0, so both could land twelve hours early; 0.8.0 took the clock's half, which
+                // still made that 9 AM "1230" half past midnight.
+                boolean fromNow = hour == UNSET || (halfFromNow && typedDigits > 0);
+                int half = fromNow ? nearestHalf(value) : hour / 12;
                 hour = half * 12 + value % 12;
+                halfFromNow = fromNow && !complete;
             }
             case MINUTE -> minute = value;
             case SECOND -> second = value;
-            case DAY_PERIOD -> hour = (hour == UNSET ? 0 : hour % 12) + (value == 0 ? 0 : 12);
+            case DAY_PERIOD -> {
+                hour = (hour == UNSET ? 0 : hour % 12) + (value == 0 ? 0 : 12);
+                halfFromNow = false; // chosen, so no longer a guess
+            }
             default -> {
                 return;
             }
@@ -1273,6 +1285,33 @@ public final class DateField extends Widget<DateField> {
         int base = today().getYear() - twoDigitYearWindow;
         int candidate = Math.floorDiv(base, 100) * 100 + twoDigits;
         return candidate < base ? candidate + 100 : candidate;
+    }
+
+    /**
+     * Which half of the day an hour typed or stepped into an empty twelve-hour segment means: the
+     * one that puts it nearest to now, going round the clock, so at 1 AM "1130" is the evening just
+     * gone rather than the morning ahead. The minute counts when it is already set. A tie, twelve
+     * hours from now either way, keeps the clock's own half.
+     *
+     * @param hour12 the hour as the segment holds it, 1 to 12
+     * @return 0 for the morning, 1 for the afternoon
+     */
+    private int nearestHalf(int hour12) {
+        LocalTime now = clock == null ? LocalTime.now() : LocalTime.now(clock);
+        int nowMinutes = now.getHour() * 60 + now.getMinute();
+        int morning = (hour12 % 12) * 60 + (minute == UNSET ? 0 : minute);
+        int toMorning = aroundTheClock(morning, nowMinutes);
+        int toAfternoon = aroundTheClock(morning + 12 * 60, nowMinutes);
+        if (toMorning == toAfternoon) {
+            return now.getHour() / 12;
+        }
+        return toMorning < toAfternoon ? 0 : 1;
+    }
+
+    /** Minutes between two times of day, the short way round. */
+    private static int aroundTheClock(int a, int b) {
+        int apart = Math.abs(a - b) % (24 * 60);
+        return Math.min(apart, 24 * 60 - apart);
     }
 
     /** What an empty segment becomes on its first step: today's, which is the nearest guess. */
