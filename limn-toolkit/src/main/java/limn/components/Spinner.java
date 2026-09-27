@@ -89,7 +89,9 @@ import java.util.function.DoubleConsumer;
  *
  * <p>Stepping never goes away: Up/Down step even mid-edit, taking the typed text as the
  * number to step from, and Left/Right resume stepping (or switching time fields) once
- * the edit is committed. {@link #setEditable} turns typing off entirely.
+ * the edit is committed. Typed text that does not read as a number is refused by a step as
+ * Enter refuses it, with the same flash and the same sentence, and the step is not taken: the
+ * edit stays open on the value that stands. {@link #setEditable} turns typing off entirely.
  *
  * <p><b>A programmatic {@link #setValue} cancels an edit in progress</b>, because the
  * half-typed text is no longer about the number now in the field and committing it later
@@ -666,7 +668,8 @@ public final class Spinner extends Widget<Spinner> {
      * Refuses {@code typed}, text a person gave that does not read as a value: the border flashes
      * the theme's danger colour and a screen reader is told what was typed and what stands (see
      * {@link #announceRefused}). Every path that refuses text a person gave goes through here — a
-     * commit by Enter, by focus leaving and by reaching for an arrow, and a set by text from an
+     * commit by Enter, by focus leaving and by reaching for an arrow, a step over the text by a
+     * key or by an assistive technology's increment or decrement, and a set by text from an
      * assistive technology — so that none of them can show a refusal to the eye and keep it from
      * the ear, or the other way round: a person who dictated a number, or typed it into a
      * reader's own prompt, may be watching the field rather than listening to it.
@@ -861,17 +864,34 @@ public final class Spinner extends Widget<Spinner> {
      * silently, the step announces if it moved past that, and if it did not -- a step at a bound
      * over a number that was itself new -- the adoption is announced in its place. A typed edit
      * whose following step was a no-op used to apply with no notification at all.
+     *
+     * <p><b>Text that does not read is refused, and nothing steps</b>, as Enter refuses it: the
+     * value stands, the border flashes and a screen reader is told ({@link #refuse}), and the
+     * edit stays open with the value that stands in it, selected, so that retyping replaces it
+     * and a second press steps from it. Stepping from the value behind the text, which is what
+     * this used to do, stepped from a number the person was no longer looking at and wrote the
+     * result over what they had typed, so the text vanished with no sign that it had been
+     * refused. An emptied field is refused the same way, because Enter refuses it: the blank is
+     * not a number either, and the one it replaced is no longer on screen.
+     *
+     * <p>The arrow buttons answer the same text differently, and on purpose: reaching for them is
+     * leaving the text, so they commit it first, and when that commit is refused they step from
+     * the value that stands, which by then is what the field shows. A key, or an assistive
+     * technology's increment, never left the text, and had nothing on screen to step from but
+     * what it could not read.
      */
     private void stepFromTyped(Runnable step) {
-        double before = value;
         Double typed = parse(edit.text());
-        if (typed != null) {
+        if (typed == null) {
+            refuse(edit.text());
+        } else {
+            double before = value;
             settle(typed, this.step);
-        }
-        double adopted = value;
-        step.run();
-        if (value == adopted && value != before) {
-            notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+            double adopted = value;
+            step.run();
+            if (value == adopted && value != before) {
+                notifyChange(Change.of(Change.Aspect.VALUE, Change.Origin.USER));
+            }
         }
         edit.setText(text());
         edit.selectAll();
@@ -1518,7 +1538,7 @@ public final class Spinner extends Widget<Spinner> {
                 cancelEdit();
                 return true;
             }
-            // Stepping never goes away, it just steps from what is typed.
+            // Stepping never goes away: it steps from what is typed, and refuses what does not read.
             case Keys.UP -> {
                 stepFromTyped(() -> nudgeFromKey(1, mods));
                 return true;
@@ -1817,7 +1837,8 @@ public final class Spinner extends Widget<Spinner> {
      * <p>So a step mid-edit goes through {@link #stepFromTyped} exactly as Up does: the number on
      * screen is adopted silently, the step is the one reported change, and the edit stays open with
      * the editor re-seeded from the committed value, so the published value and the typed text
-     * agree afterwards. The arrow buttons take the other path and end the edit instead; see
+     * agree afterwards. Text it cannot read is refused as Up refuses it, flash and sentence alike,
+     * and no step is taken. The arrow buttons take the other path and end the edit instead; see
      * {@link #onSyntheticAction}, which is the finding this widget produced — the two gestures are
      * two different private paths, and each verb reaches the one its own box reaches.
      *

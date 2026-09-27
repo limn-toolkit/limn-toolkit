@@ -1059,6 +1059,96 @@ class SpinnerAccessibilityTest extends AccessibleComponentTestBase {
     }
 
     /**
+     * A step mid-edit steps from what is typed, so a step over text that does not read has
+     * nothing to step from, and is refused as Enter refuses it: said once, politely, with the
+     * value that stands, and no step. It used to step from the value behind the text in silence
+     * and write the result over it, so what was typed vanished and a reader heard only a value
+     * change from a number nobody had typed.
+     */
+    @Test
+    void aStepOverTextThatDoesNotReadIsSaidAsARefusedEnterIs() {
+        I18n.setLocale(Locale.GERMAN);
+        bindSpinner(new Spinner(0, 10_000, 1).setValue(7));
+        int[] keys = {Keys.UP, Keys.DOWN, Keys.PAGE_UP, Keys.PAGE_DOWN};
+        String[] names = {"Up", "Down", "PageUp", "PageDown"};
+        for (int k = 0; k < keys.length; k++) {
+            int key = keys[k];
+            String name = names[k];
+            type("1.234");
+            assertTrue(spinner.isEditing(), "the fixture really is an open edit");
+            bridge.events.clear();
+
+            press(key);
+
+            assertEquals(7.0, spinner.value(), name + ": the value stands and no step is taken");
+            assertTrue(spinner.isEditing(), name + ": a step never ends the edit");
+            assertEquals(List.of("„1.234“ nicht übernommen, bleibt bei 7"), announced(),
+                    name + ": once, with the text as typed and the value as shown: "
+                            + bridge.events);
+            assertEquals(Accessible.Politeness.POLITE, announcements().get(0).politeness());
+            assertEquals(List.of(), valueEvents(), name + ": and nothing moved: " + bridge.events);
+        }
+        assertEquals(List.of(), changed, "no step ran, so no handler was called");
+
+        // An emptied field, which Enter refuses because a spinner always holds a number.
+        type("5");
+        press(Keys.BACKSPACE);
+        bridge.events.clear();
+        press(Keys.UP);
+        assertEquals(7.0, spinner.value(), "a blank is not a number to step from");
+        assertEquals(List.of("„“ nicht übernommen, bleibt bei 7"), announced(),
+                bridge.events.toString());
+
+        // And a clock face that is not one.
+        I18n.setLocale(Locale.ENGLISH);
+        bindSpinner(Spinner.time().setValue(7 * 60 + 30));
+        type("7:75");
+        bridge.events.clear();
+        press(Keys.UP);
+        assertEquals(7 * 60 + 30.0, spinner.value(), "minutes past 59 are a typo, not an hour");
+        assertEquals(List.of("“7:75” not accepted, still 07:30"), announced(),
+                bridge.events.toString());
+    }
+
+    /**
+     * An increment is Up, and reaches Up's path while an edit is open, so it refuses what Up
+     * refuses, the same way: the value stands, the edit stays open on it, the border flashes and a
+     * reader is told. The platform already answered the client that the verb was taken.
+     */
+    @Test
+    void aReadersStepOverTextThatDoesNotReadIsRefusedAsUpRefusesIt() throws Exception {
+        bindSpinner(new Spinner(0, 99, 1).setValue(7));
+        long id = spinnerNode().id();
+        assertFalse(flashing(), "the fixture is not refusing");
+        type("1.2.3");
+        bridge.events.clear();
+
+        assertTrue(perform(id, Accessible.Action.INCREMENT, Accessible.Argument.NONE));
+        frame();
+
+        assertEquals(7.0, spinner.value(), "the value stands and no step is taken");
+        assertTrue(spinner.isEditing(), "an increment is Up, and Up never ends the edit");
+        assertEquals(List.of("“1.2.3” not accepted, still 7"), announced(),
+                bridge.events.toString());
+        assertEquals(List.of(), valueEvents(), "and nothing moved: " + bridge.events);
+        assertTrue(flashing(), "the border flashes as Up's refusal does");
+
+        type("1.2.3");
+        bridge.events.clear();
+        perform(id, Accessible.Action.DECREMENT, Accessible.Argument.NONE);
+        frame();
+        assertEquals(7.0, spinner.value());
+        assertEquals(List.of("“1.2.3” not accepted, still 7"), announced(),
+                bridge.events.toString());
+        assertEquals(List.of(), changed, "no step ran, so no handler was called");
+
+        perform(id, Accessible.Action.INCREMENT, Accessible.Argument.NONE);
+        frame();
+        assertEquals(8.0, spinner.value(),
+                "the next step steps from the value the edit now shows");
+    }
+
+    /**
      * A set by text that does not read is refused as a typed commit is, and that refusal flashes:
      * the sentence is for a reader, and a person dictating, or typing into a reader's own prompt,
      * may be watching the field instead. A number that is not finite is a client's defect and not
