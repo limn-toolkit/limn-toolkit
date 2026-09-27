@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The number formats under ADR 033. Java's own locale data already wrote Arabic-Indic digits
- * under {@code ar}, so what is asserted here is the part that was actually missing: a declared
+ * under {@code ar-EG}, so what is asserted here is the part that was actually missing: a declared
  * numbering system wins over the platform's substitution (the fold), and a localized zero trims
  * exactly as an ASCII one does (the defect the measurement found riding along).
  */
@@ -74,7 +74,7 @@ class NumberFormatsDigitsTest {
         I18n.setLocale(Locale.forLanguageTag("ar-EG"));
         I18n.setNumberingSystem(NumberingSystem.LATN);
         assertEquals("42", NumberFormats.number().apply(42),
-                "the platform wrote ٤٢ on its own; the override must fold it back");
+                "the platform writes ٤٢ on its own; the override must win over it");
 
         I18n.setLocale(Locale.ENGLISH);
         I18n.setNumberingSystem(NumberingSystem.DEVA);
@@ -115,6 +115,88 @@ class NumberFormatsDigitsTest {
         }
         assertEquals("3.5", NumberFormats.number().apply(3.5),
                 "outside the scope the process language formats as before");
+    }
+
+    /**
+     * The separators follow the digits a number is shown in, not the platform's idea of the
+     * language's digits. The JDK answers Arabic-Indic digits and the Arabic separators for a bare
+     * {@code ar}, where the toolkit writes Latin digits, and formatting under the bare locale put
+     * {@code ٫} and {@code ٬} between Latin digits.
+     */
+    @Test
+    void aBareArabicWritesTheSeparatorsOfTheLatinDigitsItShows() {
+        I18n.setLocale(Locale.forLanguageTag("ar"));
+        assertEquals(NumberingSystem.LATN, I18n.numberingSystem(), "the premise: Latin digits");
+        assertEquals("1,234.5", NumberFormats.number().apply(1234.5));
+        assertEquals("-0.25", NumberFormats.number(2).apply(-0.25));
+        assertEquals("0.105", NumberFormats.number(3).apply(0.105));
+        assertEquals("1,234.50", NumberFormats.decimals(2).apply(1234.5));
+        assertEquals("27.6k", NumberFormats.compact().apply(27600));
+        assertEquals("1.2E25", NumberFormats.scientific(1).apply(1.2e25),
+                "the exponent sign that goes with Latin digits, not the Arabic one");
+        assertEquals("4.2E-4", NumberFormats.scientific(1).apply(0.00042));
+        assertEquals("42.5%", NumberFormats.percent(1).apply(0.425));
+    }
+
+    /**
+     * The other direction: in Afghanistan Uzbek is written in Extended Arabic-Indic digits, where
+     * the JDK's data for {@code uz-AF} is Uzbek's Latin-script convention of a decimal comma and a
+     * space between groups, which put a comma between Persian digits.
+     */
+    @Test
+    void uzbekInAfghanistanWritesTheSeparatorsOfItsExtendedArabicDigits() {
+        I18n.setLocale(Locale.forLanguageTag("uz-AF"));
+        assertEquals(NumberingSystem.ARABEXT, I18n.numberingSystem(), "the premise");
+        assertEquals("۱٬۲۳۴٫۵", NumberFormats.number().apply(1234.5));
+        assertEquals("-۰٫۲۵", NumberFormats.number(2).apply(-0.25));
+        assertEquals("۱٫۲×۱۰^۲۵", NumberFormats.scientific(1).apply(1.2e25));
+        assertEquals("۴۲٫۵%", NumberFormats.percent(1).apply(0.425));
+    }
+
+    @Test
+    void aDeclaredSystemBringsItsOwnSeparators() {
+        I18n.setLocale(Locale.forLanguageTag("ar-EG"));
+        I18n.setNumberingSystem(NumberingSystem.LATN);
+        assertEquals("1,234.5", NumberFormats.number().apply(1234.5),
+                "Latin digits declared over Egyptian Arabic come with the point and the comma");
+
+        I18n.setLocale(Locale.ENGLISH);
+        I18n.setNumberingSystem(NumberingSystem.ARAB);
+        assertEquals("١٬٢٣٤٫٥", NumberFormats.number().apply(1234.5),
+                "and Arabic-Indic digits declared over English with the Arabic separators");
+    }
+
+    /**
+     * Bengali is a system the toolkit does not write yet, and the digit fold does not know it
+     * either, so the platform's Bengali digits went through untouched while every other number
+     * the toolkit writes under {@code bn}, a spinner's among them, is Latin.
+     */
+    @Test
+    void aLanguageWhoseDigitsTheToolkitDoesNotWriteGetsLatinOnes() {
+        I18n.setLocale(Locale.forLanguageTag("bn"));
+        assertEquals("1,234.5", NumberFormats.number().apply(1234.5));
+        assertEquals("42%", NumberFormats.percent(0).apply(0.42));
+    }
+
+    /**
+     * Where the platform already writes the digits the toolkit shows, the locale is used as it
+     * came. That is not only economy: the JDK answers the wrong separators for a few locales once
+     * a numbering system is named on them, and Serbian in Bosnia is one, where naming the Latin
+     * digits it already writes turns its decimal comma into a point.
+     */
+    @Test
+    void whereThePlatformAlreadyWritesTheDigitsShownNothingMoves() {
+        I18n.setLocale(Locale.forLanguageTag("sr-BA"));
+        assertEquals("1.234,5", NumberFormats.number().apply(1234.5));
+        assertEquals("1,2E25", NumberFormats.scientific(1).apply(1.2e25));
+
+        I18n.setLocale(Locale.forLanguageTag("fa"));
+        assertEquals("۱٬۲۳۴٫۵", NumberFormats.number().apply(1234.5));
+        assertEquals("۴٫۲×۱۰^−۴", NumberFormats.scientific(1).apply(0.00042));
+
+        I18n.setLocale(Locale.forLanguageTag("de"));
+        assertEquals("1.234,5", NumberFormats.number().apply(1234.5));
+        assertEquals("-0,25", NumberFormats.number(2).apply(-0.25));
     }
 
     @Test

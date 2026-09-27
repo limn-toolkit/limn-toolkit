@@ -131,6 +131,17 @@ class SpinnerLocaleTest extends ComponentTestBase {
     }
 
     @Test
+    void aLocaleThatAlreadyWritesTheDigitsShownKeepsItsOwnSeparators() {
+        // Naming the Latin digits Serbian in Bosnia already writes makes the JDK answer a point
+        // for its decimal comma, so a system is named only where the platform's digits differ.
+        I18n.setLocale(Locale.forLanguageTag("sr-BA"));
+        build(new Spinner(-10, 10, 0.25).setValue(-0.5));
+        assertEquals("-0,50", spinner.text());
+        typeAndCommit("1,25");
+        assertEquals(1.25, spinner.value(), 1e-9, "and it reads the comma it writes");
+    }
+
+    @Test
     void aTieRoundsUpAsItAlwaysHas() {
         build(new Spinner(0, 10, 0.01).setSnapToStep(false).setValue(0.125));
         assertEquals("0.13", spinner.text(), "an exact tie rounds up, not to the even neighbour");

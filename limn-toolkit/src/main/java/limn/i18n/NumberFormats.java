@@ -1,7 +1,10 @@
 package limn.i18n;
 
+import limn.i18n.internal.NumberLocale;
+
 import java.text.NumberFormat;
 import java.util.Currency;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.DoubleFunction;
 
@@ -16,6 +19,13 @@ import java.util.function.DoubleFunction;
  * position alike &mdash; because the widget's passes hold its effective locale in scope. A format
  * is a plain {@code DoubleFunction<String>}: anything else you write is equally acceptable, and
  * reads the same scope for free by asking {@code I18n.locale()} when it formats.
+ *
+ * <p>The separators are always the ones that go with the digits a number is written in, which are
+ * the {@linkplain I18n#numberingSystem() numbering system's} and not necessarily the ones the
+ * platform would pick for the language: a bare {@code ar}, which the toolkit writes in Latin
+ * digits, reads {@code 1,234.5} rather than putting the Arabic separators between Latin digits,
+ * {@code ar-EG} reads {@code ١٬٢٣٤٫٥}, and a {@linkplain I18n#setNumberingSystem declared system}
+ * brings its own separators along with its digits.
  *
  * <pre>{@code
  * chart.setValueFormat(NumberFormats.compact());                      // 12500 -> "12.5k"
@@ -56,9 +66,9 @@ public final class NumberFormats {
                 return "-";
             }
             if (v == Math.rint(v) && Math.abs(v) < 1e15) {
-                return localized(String.format(I18n.locale(), "%,d", (long) v));
+                return localized(String.format(NumberLocale.inEffect(), "%,d", (long) v));
             }
-            String text = String.format(I18n.locale(), pattern, v);
+            String text = String.format(NumberLocale.inEffect(), pattern, v);
             return localized(trimZeros(text));
         };
     }
@@ -67,7 +77,7 @@ public final class NumberFormats {
     public static DoubleFunction<String> decimals(int digits) {
         int d = Math.max(0, digits);
         return v -> Double.isFinite(v)
-                ? localized(String.format(I18n.locale(), "%,." + d + "f", v))
+                ? localized(String.format(NumberLocale.inEffect(), "%,." + d + "f", v))
                 : "-";
     }
 
@@ -82,14 +92,15 @@ public final class NumberFormats {
                 return "-";
             }
             double abs = Math.abs(v);
+            Locale numbers = NumberLocale.inEffect();
             if (abs >= 1e9) {
-                return localized(trimZeros(String.format(I18n.locale(), "%.1f", v / 1e9))) + "B";
+                return localized(trimZeros(String.format(numbers, "%.1f", v / 1e9))) + "B";
             }
             if (abs >= 1e6) {
-                return localized(trimZeros(String.format(I18n.locale(), "%.1f", v / 1e6))) + "M";
+                return localized(trimZeros(String.format(numbers, "%.1f", v / 1e6))) + "M";
             }
             if (abs >= 1e3) {
-                return localized(trimZeros(String.format(I18n.locale(), "%.1f", v / 1e3))) + "k";
+                return localized(trimZeros(String.format(numbers, "%.1f", v / 1e3))) + "k";
             }
             return body.apply(v);
         };
@@ -123,13 +134,15 @@ public final class NumberFormats {
                     .round(new java.math.MathContext(decimals + 1, java.math.RoundingMode.HALF_UP));
             int exponent = rounded.precision() - rounded.scale() - 1;
             double mantissa = rounded.movePointLeft(exponent).doubleValue();
-            // The language's own exponent sign and minus, from CLDR: "E" in most, "×10^" in
-            // Swedish, "اس" in Arabic, and a true minus (U+2212) where the language writes one.
-            java.text.DecimalFormatSymbols symbols = new java.text.DecimalFormatSymbols(I18n.locale());
+            // The language's own exponent sign and minus for the digits it is written in, from
+            // CLDR: "E" in most, "×10^" in Swedish, "اس" in Arabic-Indic digits and "E" in Latin
+            // ones, and a true minus (U+2212) where the language writes one.
+            Locale numbers = NumberLocale.inEffect();
+            java.text.DecimalFormatSymbols symbols = java.text.DecimalFormatSymbols.getInstance(numbers);
             String power = exponent < 0
                     ? symbols.getMinusSign() + Integer.toString(-exponent)
                     : Integer.toString(exponent);
-            return localized(trimZeros(String.format(I18n.locale(), mantissaPattern, mantissa))
+            return localized(trimZeros(String.format(numbers, mantissaPattern, mantissa))
                     + symbols.getExponentSeparator() + power);
         };
     }
@@ -175,11 +188,12 @@ public final class NumberFormats {
             if (!Double.isFinite(v)) {
                 return "-";
             }
-            NumberFormat format = NumberFormat.getCurrencyInstance(I18n.locale());
+            Locale numbers = NumberLocale.inEffect();
+            NumberFormat format = NumberFormat.getCurrencyInstance(numbers);
             format.setCurrency(currency);
             format.setMinimumFractionDigits(currency.getDefaultFractionDigits());
             format.setMaximumFractionDigits(currency.getDefaultFractionDigits());
-            return localized(keepSymbolWhole(format.format(v), currency.getSymbol(I18n.locale())));
+            return localized(keepSymbolWhole(format.format(v), currency.getSymbol(numbers)));
         };
     }
 
@@ -245,16 +259,17 @@ public final class NumberFormats {
             if (!Double.isFinite(v)) {
                 return "-";
             }
-            return localized(NumberFormat.getCurrencyInstance(I18n.locale()).format(v));
+            return localized(NumberFormat.getCurrencyInstance(NumberLocale.inEffect()).format(v));
         };
     }
 
     /**
      * Folds whatever digits the platform formatter wrote back to ASCII, then writes the digits
-     * of the active {@linkplain I18n#numberingSystem() numbering system}. The fold is what makes
-     * a declared system authoritative: Java's own locale data already writes Arabic-Indic digits
-     * under {@code ar}, and an override must win over the locale's formatter as well as over
-     * ASCII.
+     * of the active {@linkplain I18n#numberingSystem() numbering system}. The formatter is asked
+     * for that system's digits already, with the system named on its locale wherever its own
+     * default is another; the fold is what keeps a declared system authoritative where it cannot
+     * be named, on a legacy locale that takes no extension, whose formatter writes the platform's
+     * own digits.
      */
     private static String localized(String text) {
         return I18n.localizeDigits(I18n.toAsciiDigits(text));
@@ -264,11 +279,11 @@ public final class NumberFormats {
      * Drops a decimal separator with nothing but zeros behind it. Locale-driven: the
      * separator is whatever the formatter just used, which is why this reads it off the
      * formatted text rather than assuming '.' — and why the zero test asks the digit's value
-     * rather than comparing against ASCII {@code '0'}, since under {@code ar} the formatter
+     * rather than comparing against ASCII {@code '0'}, since under {@code ar-EG} the formatter
      * already wrote {@code ٠}.
      */
     private static String trimZeros(String text) {
-        char separator = new java.text.DecimalFormatSymbols(I18n.locale()).getDecimalSeparator();
+        char separator = NumberLocale.symbols().getDecimalSeparator();
         int dot = text.lastIndexOf(separator);
         if (dot < 0) {
             return text;

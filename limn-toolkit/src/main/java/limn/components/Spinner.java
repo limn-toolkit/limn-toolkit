@@ -11,6 +11,7 @@ import limn.concurrent.Ui;
 import limn.i18n.I18n;
 import limn.i18n.LanguageWitness;
 import limn.i18n.NumberingSystem;
+import limn.i18n.internal.NumberLocale;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
@@ -33,7 +34,6 @@ import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.ParsePosition;
-import java.util.IllformedLocaleException;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.DoubleConsumer;
@@ -440,15 +440,15 @@ public final class Spinner extends Widget<Spinner> {
      * widget's subtree moves the locale without it. It is asked first, before the null check, so
      * that the witness takes the answer even on the call that builds.
      *
-     * <p>The symbols come from the locale <em>with the numbering system in effect named on it</em>,
-     * rather than from the bare locale, because the platform's symbols follow the digits they are
-     * written with and its idea of a language's default digits is not always the toolkit's: for a
-     * bare {@code ar} the platform answers Arabic-Indic digits and the Arabic decimal separator,
-     * where the toolkit writes Latin digits, and asking for the bare locale would put the Arabic
-     * separator between Latin digits. With the system named, Latin digits come with a point and
-     * Arabic-Indic ones with the Arabic separator, and a deployment that declared a system gets
-     * the separator that goes with it. The enum's constants carry the Unicode names of their
-     * systems, which is what makes their lower-cased names the keyword's values.
+     * <p>The symbols are those of the locale numbers are written in, which every number format in
+     * the toolkit shares: the language, with the digits shown named on it wherever the platform's
+     * own digits for it are other ones. The bare locale would not do, because the platform's
+     * symbols follow the digits they are written with and its idea of a language's default digits
+     * is not always the toolkit's: for a bare {@code ar} the platform answers Arabic-Indic digits
+     * and the Arabic decimal separator, where the toolkit writes Latin digits, and the bare locale
+     * would put the Arabic separator between Latin digits. With the digits named, Latin digits
+     * come with a point and Arabic-Indic ones with the Arabic separator, and a deployment that
+     * declared a system gets the separator that goes with it.
      *
      * <p>Grouping is off, and that is load-bearing twice over. It keeps the width argument in
      * {@link #onMeasure} true, since a grouped value's separators would come and go with its
@@ -463,8 +463,7 @@ public final class Spinner extends Widget<Spinner> {
      */
     private DecimalFormat numberFormat() {
         if (numberFormatLanguage.moved() || numberFormat == null) {
-            DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(
-                    withNumberingSystem(I18n.locale(), I18n.numberingSystem()));
+            DecimalFormatSymbols symbols = NumberLocale.symbols();
             decimalSeparator = symbols.getDecimalSeparator();
             groupingSeparator = symbols.getGroupingSeparator();
             minusSign = symbols.getMinusSign();
@@ -481,21 +480,6 @@ public final class Spinner extends Widget<Spinner> {
             numberFormat = built;
         }
         return numberFormat;
-    }
-
-    /**
-     * {@code locale} with {@code system} named as its numbering system, or {@code locale} itself
-     * when it is a legacy form the builder cannot carry an extension on, in which case the
-     * platform's own default system for it decides the separators.
-     */
-    private static Locale withNumberingSystem(Locale locale, NumberingSystem system) {
-        try {
-            return new Locale.Builder().setLocale(locale)
-                    .setUnicodeLocaleKeyword("nu", system.name().toLowerCase(Locale.ROOT))
-                    .build();
-        } catch (IllformedLocaleException legacy) {
-            return locale;
-        }
     }
 
     private final LanguageWitness numberFormatLanguage = new LanguageWitness();
