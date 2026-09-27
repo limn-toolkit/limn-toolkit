@@ -64,7 +64,10 @@ public final class SearchField extends TextField {
 
     @Override
     protected void onKeyEvent(KeyEvent event) {
-        if (event.isPressed() && !event.isRepeat() && event.key() == Keys.ENTER) {
+        // Not while the input method is composing: that Return is the input method's, and the
+        // field below swallows it, as it does every key pressed during a composition.
+        if (event.isPressed() && !event.isRepeat() && event.key() == Keys.ENTER
+                && composingText().isEmpty()) {
             submit();
             event.consume();
             return;

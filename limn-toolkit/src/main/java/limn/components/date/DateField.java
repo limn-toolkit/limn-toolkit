@@ -28,6 +28,7 @@ import limn.scene.Widget;
 import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import limn.scene.event.PreeditEvent;
 
 import java.time.Clock;
 import java.time.DateTimeException;
@@ -184,6 +185,14 @@ public final class DateField extends Widget<DateField> {
      * segment it committed 0001-02-20 and called it valid.
      */
     private final StringBuilder typedRun = new StringBuilder();
+    /**
+     * Whether an input method is composing into this field, which it can because the field takes
+     * text input: a digit typed through a Japanese input method in kana mode is a composition
+     * until Return commits it. Only the fact is kept, not the text; the field draws no
+     * composition, and what the input method commits arrives as the characters the field already
+     * reads, full-width digits included.
+     */
+    private boolean composing;
 
     // ---- the pattern, taken apart, rebuilt only when the language or the calendar moves --------
 
@@ -1974,11 +1983,18 @@ public final class DateField extends Widget<DateField> {
         }
         typedDigits = 0;
         typedRun.setLength(0);
+        composing = false; // the scene has the platform drop a composition the focus leaves
     }
 
     @Override
     protected boolean acceptsTextInput() {
         return true;
+    }
+
+    @Override
+    protected void onPreedit(PreeditEvent event) {
+        composing = !event.isEmpty();
+        event.consume();
     }
 
     @Override
@@ -2178,6 +2194,20 @@ public final class DateField extends Widget<DateField> {
 
     @Override
     protected void onKeyEvent(KeyEvent event) {
+        if (event.isPressed() && composing) {
+            // A key pressed while the input method is composing belongs to the input method,
+            // which is steering the composition with it: Return accepts, Escape abandons,
+            // Backspace and the arrows edit the composition. So the field neither acts on it nor
+            // lets it go on up, not even to a picker's delegate, or Return answers the dialog
+            // around the field, Escape cancels it, Alt+Down opens the calendar under the
+            // candidate list, the arrows step a segment and Tab leaves the field and drops the
+            // composition. macOS reports no key at all while marked text exists and Windows drops
+            // the keys the IME took, but X11 reports a key even when the input method's filter
+            // consumed it; this is what makes X11 behave like the other two, as TextField does.
+            // Every press and every auto-repeat, whatever the key and whatever the modifiers.
+            event.consume();
+            return;
+        }
         if (!event.isPressed() || !isEnabled()) {
             return;
         }

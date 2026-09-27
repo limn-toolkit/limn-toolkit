@@ -1,8 +1,11 @@
 package limn.scene.layout;
 
+import limn.concurrent.Ui;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
+
+import java.util.Objects;
 
 /**
  * Overlays children on top of each other (later children on top; the base
@@ -56,10 +59,22 @@ public class Stack extends Container<Stack> {
 
     private Alignment alignment = Alignment.TOP_LEFT;
 
-    /** Where children sit within the stack's box; they all get the full box to measure against. */
-    public Stack alignment(Alignment newAlignment) {
-        this.alignment = newAlignment;
-        markNeedsLayout();
+    /**
+     * Where children sit within the stack's box; they all get the full box to measure against.
+     * The default is {@link Alignment#TOP_LEFT}. UI thread only.
+     *
+     * @param alignment where each child sits
+     * @return this stack
+     */
+    public Stack alignment(Alignment alignment) {
+        Ui.checkUiThread();
+        // Validated before anything is stored: a stored null only explodes at the next layout
+        // pass, far from the call that put it there.
+        Alignment value = Objects.requireNonNull(alignment, "alignment");
+        if (this.alignment != value) {
+            this.alignment = value;
+            markNeedsLayout();
+        }
         return this;
     }
 

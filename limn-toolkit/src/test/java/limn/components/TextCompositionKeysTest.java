@@ -244,6 +244,35 @@ class TextCompositionKeysTest extends ComponentTestBase {
         assertEquals("cancel", f.result.get(), "Escape reaches the dialog again");
     }
 
+    /**
+     * A search field takes Return for its search before the field it extends sees the key, so it
+     * has to leave a composing Return to the field as well: the search ran on the text beside the
+     * composition, before the input method had committed anything into it.
+     */
+    @Test
+    void aComposingSearchFieldDoesNotSearch() {
+        SearchField search = new SearchField();
+        List<String> searched = new ArrayList<>();
+        search.onSubmit(searched::add);
+        Fixture f = new Fixture();
+        f.text = search;
+        f.scene = new Scene(search);
+        f.scene.setTextRuler(RULER);
+        f.scene.layoutPass(400, 40);
+        f.scene.requestFocus(search);
+        search.setText("abc").setCaretPosition(3);
+        preedit(f, "か");
+
+        hold(f, new Chord("Enter", Keys.ENTER, 0));
+        assertEquals(List.of(), searched, "Return steered the composition and searched nothing");
+        assertEquals("か", search.composingText(), "and the composition is still up");
+
+        drive(f.scene).type("下");
+        preedit(f, "");
+        drive(f.scene).press(Keys.ENTER);
+        assertEquals(List.of("abc下"), searched, "once committed, Return searches for what was typed");
+    }
+
     /** A composition the user abandons gives the keyboard back the same way a commit does. */
     @Test
     void aCancelledCompositionGivesTheKeysBack() {

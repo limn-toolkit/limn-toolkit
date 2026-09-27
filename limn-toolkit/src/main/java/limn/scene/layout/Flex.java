@@ -1,6 +1,7 @@
 package limn.scene.layout;
 
 import limn.concurrent.Ui;
+import limn.internal.lang.Checks;
 
 import limn.scene.Constraints;
 import limn.scene.Size;
@@ -77,10 +78,17 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
         this.vertical = vertical;
     }
 
-    /** Space between children, in logical points. Not applied before the first or after the last. */
+    /**
+     * Space between children, in logical points. Not applied before the first or after the last.
+     * Negative values clamp to {@code 0}. UI thread only.
+     *
+     * @param newGap the gutter between neighbours
+     * @return this container
+     * @throws IllegalArgumentException when {@code NaN} or infinite
+     */
     public W gap(float newGap) {
         Ui.checkUiThread();
-        setGap(Math.max(0, newGap));
+        setGap(Math.max(0, Checks.finite(newGap, "gap")));
         return self();
     }
 
@@ -103,10 +111,14 @@ public abstract class Flex<W extends Flex<W>> extends Container<W> {
      * container that derives its gap from resolved size tokens inside its own
      * {@code onMeasure}. Safe there and only there: the caller is already inside the pass
      * that will consume the new value, so requesting another one is at best wasteful and at
-     * worst non-terminating. Everything else uses {@link #gap(float)}.
+     * worst non-terminating. Everything else uses {@link #gap(float)}, and this refuses and clamps
+     * what that does.
+     *
+     * @param newGap the gutter between neighbours
+     * @throws IllegalArgumentException when {@code NaN} or infinite
      */
     protected final void gapSilently(float newGap) {
-        this.gap = Math.max(0, newGap);
+        this.gap = Math.max(0, Checks.finite(newGap, "gap"));
     }
 
     /** How leftover space along the layout axis is distributed. */

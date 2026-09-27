@@ -83,10 +83,12 @@ public final class Expanded extends Widget<Expanded> {
      *
      * <p>Negative values clamp to {@code 0}. UI thread only.
      *
-     * @throws IllegalArgumentException when above a ceiling {@link #atMost} set
+     * @throws IllegalArgumentException when {@code NaN} or infinite, or above a ceiling
+     *                                  {@link #atMost} set
      */
     public Expanded atLeast(float points) {
-        float floor = Math.max(0, points);
+        Ui.checkUiThread();
+        float floor = Math.max(0, Checks.finite(points, "floor"));
         if (floor > maxMain) {
             throw new IllegalArgumentException("floor " + floor + " is above the ceiling " + maxMain);
         }

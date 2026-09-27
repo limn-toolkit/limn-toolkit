@@ -9,7 +9,11 @@ import limn.scene.layout.SizedBox;
 import limn.scene.layout.Stack;
 import org.junit.jupiter.api.Test;
 
+import java.util.concurrent.ExecutionException;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LayoutTest extends SceneTestBase {
 
@@ -47,6 +51,68 @@ class LayoutTest extends SceneTestBase {
         assertEquals(20, a.height(), EPS);
         assertEquals(30, b.y(), EPS, "second child sits below the first + gap");
         assertEquals(100, a.width(), EPS);
+    }
+
+    /**
+     * A gap that is not a number is refused where it is given, as a wrap's and a grid's are, and
+     * a refused one changes nothing. NaN was stored: it put every child after the first at NaN,
+     * and it asked for another layout pass on every call, because NaN equals nothing, itself
+     * included, so the unchanged-value guard never held. Positive infinity was stored as well, and
+     * negative infinity clamped to none where a wrap refuses it.
+     */
+    @Test
+    void flexRefusesAGapThatIsNotAFiniteNumber() {
+        Column column = new Column().gap(10);
+        FixedBox a = new FixedBox(100, 20);
+        FixedBox b = new FixedBox(80, 30);
+        column.add(a);
+        column.add(b);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> column.gap(Float.NaN));
+        assertEquals("gap must be finite, got NaN", error.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> column.gap(Float.POSITIVE_INFINITY));
+        assertThrows(IllegalArgumentException.class, () -> column.gap(Float.NEGATIVE_INFINITY));
+        assertThrows(IllegalArgumentException.class, () -> new Row().gap(Float.NaN));
+        column.measure(Constraints.tight(200, 300));
+        column.layoutBox(0, 0, 200, 300);
+        assertEquals(30, b.y(), EPS, "a refused gap changed nothing");
+
+        column.gap(-5);
+        column.measure(Constraints.tight(200, 300));
+        column.layoutBox(0, 0, 200, 300);
+        assertEquals(20, b.y(), EPS, "a negative gap is still none");
+    }
+
+    /**
+     * The silent form a container pushes from its own measure refuses the same values: it is the
+     * same gap, and a NaN stored by it lays out as badly as one stored by the public setter.
+     */
+    @Test
+    void aGapPushedSilentlyFromTheMeasureRefusesTheSameValues() {
+        Row row = new Row() {
+            @Override
+            protected Size onMeasure(Constraints constraints) {
+                gapSilently(Float.NaN);
+                return super.onMeasure(constraints);
+            }
+        };
+        row.add(new FixedBox(10, 10));
+        row.add(new FixedBox(10, 10));
+        assertThrows(IllegalArgumentException.class, () -> row.measure(Constraints.loose(100, 100)));
+    }
+
+    /**
+     * A floor that is not a finite number is refused, as a ceiling that is not a number already
+     * is, and a refused one changes nothing: NaN was stored and never compared above the ceiling,
+     * and an infinite floor was stored beneath the infinite ceiling that means none.
+     */
+    @Test
+    void expandedRefusesAFloorThatIsNotAFiniteNumber() {
+        Expanded expanded = Expanded.of(new FixedBox(10, 10)).atLeast(20);
+        assertThrows(IllegalArgumentException.class, () -> expanded.atLeast(Float.NaN));
+        assertThrows(IllegalArgumentException.class, () -> expanded.atLeast(Float.POSITIVE_INFINITY));
+        assertEquals(20, expanded.minMain(), EPS, "a refused floor changed nothing");
     }
 
     @Test
@@ -266,5 +332,67 @@ class LayoutTest extends SceneTestBase {
         stack.layoutBox(0, 0, 200, 100);
         assertEquals(150, small.x(), EPS);
         assertEquals(80, small.y(), EPS);
+    }
+
+    /**
+     * A null alignment is refused where it is given, and a refused one changes nothing: it was
+     * stored, and the next layout pass threw from the switch that places each child, far from the
+     * call that put it there.
+     */
+    @Test
+    void stackRefusesANullAlignment() {
+        Stack stack = new Stack().alignment(Stack.Alignment.CENTER);
+        FixedBox box = new FixedBox(50, 20);
+        stack.add(box);
+        NullPointerException error = assertThrows(NullPointerException.class,
+                () -> stack.alignment(null));
+        assertEquals("alignment", error.getMessage());
+        stack.layoutBox(0, 0, 200, 100);
+        assertEquals(75, box.x(), EPS, "the stack still centres");
+    }
+
+    /**
+     * An alignment set off the UI thread is refused before it is stored. It used to be refused
+     * only by the layout request that followed the write, so the stack threw and still held the
+     * value a worker had raced into it.
+     */
+    @Test
+    void stackAlignmentOffTheUiThreadThrowsAndChangesNothing()
+            throws ExecutionException, InterruptedException {
+        Stack stack = new Stack();
+        FixedBox box = new FixedBox(50, 20);
+        stack.add(box);
+        IllegalStateException error = ui.workers().submit(() ->
+                assertThrows(IllegalStateException.class,
+                        () -> stack.alignment(Stack.Alignment.CENTER))).get();
+        assertTrue(error.getMessage().contains("UI thread"), error.getMessage());
+        stack.layoutBox(0, 0, 200, 100);
+        assertEquals(0, box.x(), EPS, "the stack still places its child at the top left");
+    }
+
+    /** The alignment the stack already holds asks for no layout, so no measure runs. */
+    @Test
+    void stackAlignmentItAlreadyHoldsAsksForNoLayout() {
+        int[] measures = {0};
+        Stack stack = new Stack() {
+            @Override
+            protected Size onMeasure(Constraints constraints) {
+                measures[0]++;
+                return super.onMeasure(constraints);
+            }
+        };
+        stack.add(new FixedBox(50, 20));
+        stack.alignment(Stack.Alignment.CENTER);
+        Constraints loose = Constraints.loose(200, 100);
+        stack.measure(loose);
+        assertEquals(1, measures[0]);
+
+        stack.alignment(Stack.Alignment.CENTER);
+        stack.measure(loose);
+        assertEquals(1, measures[0], "nothing changed, so the stack answered from its cache");
+
+        stack.alignment(Stack.Alignment.BOTTOM_END);
+        stack.measure(loose);
+        assertEquals(2, measures[0], "and a real change measures again");
     }
 }
