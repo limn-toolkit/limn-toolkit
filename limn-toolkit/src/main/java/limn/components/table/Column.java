@@ -27,6 +27,13 @@ import java.util.function.ToDoubleFunction;
  * &mdash; and {@link #widget} is the seam for a cell that is a control rather than a value: a
  * switch, a button, an icon. Everything after the factory is a fluent setter.
  *
+ * <p><b>The UI thread.</b> Every setter runs on the UI thread, as every widget's does, and throws
+ * {@link IllegalStateException} on any other thread and before a backend is running. The table
+ * reads its columns on that thread while it lays out, sorts and paints, and a column changes under
+ * a table that already holds it (a width, a visibility), so a column written from another thread
+ * is a race with that reading, one nothing would report. Build the columns where the table is
+ * built, on the UI thread.
+ *
  * <p><b>Widths.</b> A column has a preferred width, a minimum, and a weight. Layout gives every
  * column its preferred width and then shares what is left of the viewport among the weighted
  * ones, as {@code Expanded} shares a row's leftover; a table whose preferred widths exceed the
@@ -287,11 +294,13 @@ public final class Column<T> {
 
     /**
      * Names how rows compare on this column, replacing the comparison derived from the value.
+     * UI thread only.
      *
      * @param comparator the order; {@code null} restores the derived one
      * @return this column
      */
     public Column<T> comparator(Comparator<T> comparator) {
+        Ui.checkUiThread();
         this.comparator = comparator;
         return this;
     }
@@ -299,11 +308,13 @@ public final class Column<T> {
     /**
      * Sets whether a header click sorts on this column (default on). A column that cannot
      * compare &mdash; a widget column with no comparator &mdash; is not sortable whatever this says.
+     * UI thread only.
      *
      * @param sortable whether a click sorts
      * @return this column
      */
     public Column<T> sortable(boolean sortable) {
+        Ui.checkUiThread();
         this.sortable = sortable;
         return this;
     }
@@ -315,12 +326,13 @@ public final class Column<T> {
 
     /**
      * Sets where a cell's text sits across the column (default {@link Alignment#START}, or
-     * {@link Alignment#END} for a {@link #numeric} column).
+     * {@link Alignment#END} for a {@link #numeric} column). UI thread only.
      *
      * @param alignment where the text sits
      * @return this column
      */
     public Column<T> align(Alignment alignment) {
+        Ui.checkUiThread();
         this.alignment = Objects.requireNonNull(alignment, "alignment");
         return this;
     }
@@ -332,23 +344,26 @@ public final class Column<T> {
 
     /**
      * Sets the width layout starts from, in points (default 120). A width the user dragged
-     * replaces it until {@link #resetWidth()}.
+     * replaces it until {@link #resetWidth()}. UI thread only.
      *
      * @param points the preferred width; at least the minimum
      * @return this column
      */
     public Column<T> width(float points) {
+        Ui.checkUiThread();
         this.preferredWidth = Math.max(minWidth, points);
         return this;
     }
 
     /**
-     * Sets the width below which neither layout nor a drag takes this column (default 40).
+     * Sets the width below which neither layout nor a drag takes this column (default 40). UI
+     * thread only.
      *
      * @param points the floor
      * @return this column
      */
     public Column<T> minWidth(float points) {
+        Ui.checkUiThread();
         this.minWidth = Math.max(0, points);
         this.preferredWidth = Math.max(minWidth, preferredWidth);
         if (draggedWidth >= 0) {
@@ -362,12 +377,13 @@ public final class Column<T> {
      * Sets this column's share of the viewport width left over once every column has its
      * preferred width (default 0: keep the preferred width). A weight of 1 on one column makes
      * it take all of the leftover; equal weights on two share it equally. A column whose width
-     * the user dragged takes no share until {@link #resetWidth()}.
+     * the user dragged takes no share until {@link #resetWidth()}. UI thread only.
      *
      * @param weight the share; zero or more
      * @return this column
      */
     public Column<T> weight(float weight) {
+        Ui.checkUiThread();
         this.weight = Math.max(0, weight);
         return this;
     }
@@ -383,12 +399,14 @@ public final class Column<T> {
      * realized rows except the one whose widget cell holds the keyboard, which stays with its
      * record while the list still holds it (and hands the keyboard to the table when its own
      * column is the one hidden, or its record is gone). A focus cell,
-     * or the header's cursor, on the hidden column moves to the nearest shown column.
+     * or the header's cursor, on the hidden column moves to the nearest shown column. UI thread
+     * only.
      *
      * @param visible whether the column is shown
      * @return this column
      */
     public Column<T> visible(boolean visible) {
+        Ui.checkUiThread();
         this.visible = visible;
         return this;
     }
@@ -401,12 +419,14 @@ public final class Column<T> {
     // ------------------------------------------------------------------------------- footer
 
     /**
-     * Puts a fixed text in this column's footer cell: "Total", say, beside the sums.
+     * Puts a fixed text in this column's footer cell: "Total", say, beside the sums. UI thread
+     * only.
      *
      * @param text what the footer cell says; {@code null} removes the footer cell
      * @return this column
      */
     public Column<T> footer(I18nString text) {
+        Ui.checkUiThread();
         this.footerText = text;
         this.footer = null;
         return this;
@@ -426,11 +446,13 @@ public final class Column<T> {
      * Computes this column's footer cell from all the rows, and formats the result as the
      * column's cells are formatted: a {@link #text} column expects a string back, a
      * {@link #numeric} one any {@code Number}, an {@link #of} column a value of its own type.
+     * UI thread only.
      *
      * @param summary the footer value from the rows; {@code null} removes the footer cell
      * @return this column
      */
     public Column<T> footer(Function<List<T>, ?> summary) {
+        Ui.checkUiThread();
         this.footerText = null;
         this.footer = summary == null ? null : summary::apply;
         this.footerFormat = format;
@@ -438,13 +460,14 @@ public final class Column<T> {
     }
 
     /**
-     * Sums the column's numbers in the footer.
+     * Sums the column's numbers in the footer. UI thread only.
      *
      * @return this column
      * @throws IllegalStateException on a column without a numeric value, from the first
      *                               {@link Table#refresh()} that computes it
      */
     public Column<T> footerSum() {
+        Ui.checkUiThread();
         return aggregate(numbers -> {
             double sum = 0;
             for (double n : numbers) {
@@ -455,11 +478,12 @@ public final class Column<T> {
     }
 
     /**
-     * Averages the column's numbers in the footer; empty when there are no rows.
+     * Averages the column's numbers in the footer; empty when there are no rows. UI thread only.
      *
      * @return this column
      */
     public Column<T> footerAverage() {
+        Ui.checkUiThread();
         return aggregate(numbers -> {
             if (numbers.length == 0) {
                 return null;
@@ -473,11 +497,13 @@ public final class Column<T> {
     }
 
     /**
-     * The smallest of the column's numbers in the footer; empty when there are no rows.
+     * The smallest of the column's numbers in the footer; empty when there are no rows. UI thread
+     * only.
      *
      * @return this column
      */
     public Column<T> footerMin() {
+        Ui.checkUiThread();
         return aggregate(numbers -> {
             if (numbers.length == 0) {
                 return null;
@@ -491,11 +517,13 @@ public final class Column<T> {
     }
 
     /**
-     * The largest of the column's numbers in the footer; empty when there are no rows.
+     * The largest of the column's numbers in the footer; empty when there are no rows. UI thread
+     * only.
      *
      * @return this column
      */
     public Column<T> footerMax() {
+        Ui.checkUiThread();
         return aggregate(numbers -> {
             if (numbers.length == 0) {
                 return null;
@@ -509,11 +537,12 @@ public final class Column<T> {
     }
 
     /**
-     * The row count in the footer, localized as a number; any column may carry it.
+     * The row count in the footer, localized as a number; any column may carry it. UI thread only.
      *
      * @return this column
      */
     public Column<T> footerCount() {
+        Ui.checkUiThread();
         DoubleFunction<String> number = NumberFormats.number();
         this.footerText = null;
         this.footer = rows -> (double) rows.size();
@@ -565,7 +594,7 @@ public final class Column<T> {
 
     /**
      * Forgets a width the user dragged, so layout starts from the preferred width again and the
-     * column's weight takes its share of the leftover again.
+     * column's weight takes its share of the leftover again. UI thread only.
      */
     public void resetWidth() {
         Ui.checkUiThread();

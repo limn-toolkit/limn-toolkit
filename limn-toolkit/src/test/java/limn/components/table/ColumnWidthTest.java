@@ -1,11 +1,27 @@
 package limn.components.table;
 
+import limn.testing.HeadlessUi;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** A column's floor holds whatever width layout starts from, the one the user dragged included. */
 class ColumnWidthTest {
+
+    /** A column's setters run on the UI thread, which this binds to the test's own. */
+    private HeadlessUi ui;
+
+    @BeforeEach
+    void installRuntime() {
+        ui = new HeadlessUi();
+    }
+
+    @AfterEach
+    void uninstallRuntime() {
+        ui.close();
+    }
 
     /**
      * A floor raised after a drag raised the preferred width only, and the width layout starts
