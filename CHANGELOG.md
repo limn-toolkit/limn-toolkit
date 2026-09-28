@@ -146,6 +146,18 @@ Maven Central say which number that was.
   most likely means: Central Kurdish (`ckb`) starts on Saturday as Iraq does, where 4,304 such
   languages had the United States' week.
 - Text in the Garay and Sidetic scripts runs right to left.
+- A retired two-letter region (`SU`, `YU`, `ZR`, `AN`, …) is read as the region ICU reads it as, for
+  its week, digits and direction.
+- A key pressed while a menu bar walks from one menu to the next reaches the next menu: Right twice
+  in quick succession walks two menus; the second press was dropped.
+- A window blocked by a modal dialog, and one holding a dialog drawn inside it, costs no more to draw
+  than it did unblocked on a machine without a GPU: the dimming layer took as long as every widget
+  of the window together (366 ms at 2604 × 1850 on the software renderer, now 10 ms), and a partial
+  repaint drew it over the whole window.
+- Linux screen readers get the application's language from `Application.GetLocale`, which answered
+  nothing.
+- `limn-test`'s headless window has a clipboard: a copy in a text field of a scene bound to one
+  threw `NullPointerException`.
 - A window gets the keyboard back as soon as an item of its menu is chosen, so a Tab pressed right
   after moves its focus; the key went to the fading menu and was lost, and on macOS the window did
   not get the keyboard back at all. A menu that is closing takes no more input, so a second Enter
@@ -195,6 +207,11 @@ Maven Central say which number that was.
   process. The default stays 2^26 elements (`GltfLoader.DEFAULT_ELEMENT_BUDGET`), which refuses a
   mesh without normals of about 2.8 million triangles; the ceiling is the defence against a small
   hostile file asking for gigabytes, so raise it for models you trust.
+- The public API says where null is allowed: every exported package is `@NullMarked` (JSpecify),
+  and a parameter or result that may be null is `@Nullable`, so a nullness checker or an IDE warns
+  where a call passes or ignores one. `org.jspecify:jspecify` 1.0.1 comes with `limn-toolkit`, the
+  backend, `limn-test` and `limn-video-ffmpeg` as an API dependency (`requires static transitive`
+  in their modules), and nothing needs it at run time.
 - `StubWindow` in `limn-test` has a public `fullscreen` field, which `enterFullscreen` and
   `exitFullscreen` set and report to the scene, so a test can open a surface over a fullscreen
   window or change fullscreen under one.
