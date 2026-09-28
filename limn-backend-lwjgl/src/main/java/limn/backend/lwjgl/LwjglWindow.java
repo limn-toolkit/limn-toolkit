@@ -247,6 +247,11 @@ final class LwjglWindow implements NativeWindow {
     private long lentCollectionBehavior = -1;
     /** Whether native fullscreen lent this window the resizable style it lacks, to take back on exit. */
     private boolean lentResizable;
+    /**
+     * What {@link #isFullscreen()} answered when the input was last told; see
+     * {@link #reportFullscreen}.
+     */
+    private boolean reportedFullscreen;
     private int windowedX;
     private int windowedY;
     private int windowedW;
@@ -1475,6 +1480,12 @@ final class LwjglWindow implements NativeWindow {
         if (destroyed) {
             return;
         }
+        requestFullscreen(width, height, refreshRate);
+        reportFullscreen();
+    }
+
+    /** {@link #enterFullscreen(int, int, int)} without the report, which its every route shares. */
+    private void requestFullscreen(int width, int height, int refreshRate) {
         if (cocoaWindow != NULL && NativeFullscreen.isNativeRequest(MACOS, width, height, refreshRate)) {
             monitorFullscreenAfterNative = null; // the later request replaces the earlier one
             if (monitorFullscreen) {
@@ -1551,6 +1562,7 @@ final class LwjglWindow implements NativeWindow {
             nativeFullscreen.want(false);
             settleNativeFullscreen();
         }
+        reportFullscreen();
     }
 
     private void leaveMonitorFullscreen() {
@@ -1619,6 +1631,34 @@ final class LwjglWindow implements NativeWindow {
                     + "monitor asked for meanwhile is dropped");
             monitorFullscreenAfterNative = null;
         }
+        // The loop's turn is where an answer changes that no call and no notification changed: a
+        // transition given up at its deadline, a style mask believed over the record.
+        reportFullscreen();
+    }
+
+    /**
+     * Tells the input that {@link #isFullscreen()} has changed its answer, once per change and
+     * whichever route changed it: {@link #enterFullscreen(int, int, int)} and
+     * {@link #exitFullscreen()} on every platform, AppKit's notifications of the person's green
+     * button, Control-Command-F or menu item, and the loop's settling of a transition that never
+     * finished. Comparing against the last answer told, rather than telling at each route, is what
+     * keeps a request that changes nothing, or a transition announced twice (asked for, then
+     * begun), from being told as a change.
+     *
+     * <p>Told whether or not a modal blocks this window: the dialog that blocks it is one of the
+     * surfaces that has to move. A frame is asked for, so that a loop about to park dispatches the
+     * batch the change is in rather than holding it until the next input.
+     */
+    private void reportFullscreen() {
+        boolean now = isFullscreen();
+        if (now == reportedFullscreen) {
+            return;
+        }
+        reportedFullscreen = now;
+        frameRequested = true;
+        if (input != null) {
+            input.windowFullscreenChanged(now);
+        }
     }
 
     /**
@@ -1634,8 +1674,12 @@ final class LwjglWindow implements NativeWindow {
     /**
      * AppKit's word on a native fullscreen transition, the person's or this window's. Called from
      * inside the event pump, so it only records: what to do about it is the loop's, after the poll.
+     * Telling the input records too, as a key callback's does, since the scene queues the change
+     * for the end of the batch; it is told here, in its place among the poll's other input, rather
+     * than left for the loop's settling after the poll. Package-private so that a test can deliver
+     * AppKit's four events to a window that never goes fullscreen.
      */
-    private void nativeFullscreenChanged(MacFullscreen.Event event) {
+    void nativeFullscreenChanged(MacFullscreen.Event event) {
         long now = System.nanoTime();
         switch (event) {
             case WILL_ENTER -> nativeFullscreen.willChange(true, now);
@@ -1643,6 +1687,7 @@ final class LwjglWindow implements NativeWindow {
             case DID_ENTER -> nativeFullscreen.didChange(true);
             case DID_EXIT -> nativeFullscreen.didChange(false);
         }
+        reportFullscreen();
         frameRequested = true;
         // The notification may arrive while the loop is parked in the pump, and it is no event the
         // pump returns on: without a wake, a request waiting for this transition would wait for

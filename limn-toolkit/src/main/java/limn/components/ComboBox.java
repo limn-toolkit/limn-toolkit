@@ -60,7 +60,9 @@ import java.util.function.IntConsumer;
  * window instead. Same rows, same keys, same type-ahead; the difference is that
  * it is clamped to that window rather than to the display, so a combo near the bottom edge shows
  * fewer rows and scrolls sooner. Chosen by the platform, not by the application, and
- * {@link #popupWindow()} is {@code null} throughout.
+ * {@link #popupWindow()} is {@code null} throughout. Chosen when the list opens; a list already
+ * open in a window of its own when the owner enters or leaves fullscreen closes instead, as if
+ * dismissed, with the selection as it was: see {@link DisplayMode}.
  *
  * <p>Field and dropdown share one {@link limn.scene.ControlSize} step: the panel is the root
  * of its own window-bound {@link Scene}, so it inherits through
@@ -142,6 +144,8 @@ public final class ComboBox extends Widget<ComboBox> {
     private Subscription dismissHandle;
     private Subscription blurHandle;
     private Subscription popupBlurHandle;
+    /** Closes a list that opened towards a window of its own when the owner changes fullscreen. */
+    private Subscription fullscreenHandle;
 
     /** A combo over fixed labels; see {@link #localized} for items that follow the UI language. */
     public ComboBox(List<String> items) {
@@ -319,6 +323,12 @@ public final class ComboBox extends Widget<ComboBox> {
                 close(Change.Origin.USER);
             }
         });
+        // The owner going fullscreen, or leaving it, takes the list down as a platform's own
+        // drop-down goes on a change of its window's state: left open it would minimize a
+        // fullscreen owner, or stay outside its Space. Dismissed, so the highlight is not chosen.
+        // An in-scene list is left alone: it is inside the window whatever the window does.
+        fullscreenHandle = scene.observeWindowFullscreen(
+                fullscreen -> close(Change.Origin.ADJUSTMENT));
         if (scene.window() != null && popupWindow == null) {
             // Defer: creating a window switches the GL context, which must
             // not happen in the middle of another window's frame callback.
@@ -393,6 +403,10 @@ public final class ComboBox extends Widget<ComboBox> {
         if (popupBlurHandle != null) {
             popupBlurHandle.cancel();
             popupBlurHandle = null;
+        }
+        if (fullscreenHandle != null) {
+            fullscreenHandle.cancel();
+            fullscreenHandle = null;
         }
         if (popupWindow != null) {
             // The options stop offering their verbs now (optionsOperable() reads `open`), and a
@@ -566,6 +580,12 @@ public final class ComboBox extends Widget<ComboBox> {
             return;
         }
         NativeWindow parent = scene.window();
+        if (!FloatingSurfaces.anchoredWindowAvailable(parent)) {
+            // The owner went fullscreen between the open and this turn, and the change has not
+            // been dispatched yet: the window it would have closed is never made.
+            close(Change.Origin.ADJUSTMENT);
+            return;
+        }
         SizeTokens t = Theme.of(this).tokensFor(this);
         float gap = t.popupGap();
         float factor = parent.logicalToScreenFactor();

@@ -36,6 +36,17 @@ import limn.backend.NativeWindow;
  * on presentation must read that one; code that reads back the setter is reading its own wish.
  * The choice is made each time a surface opens, over the window as it is then.
  *
+ * <p><b>And a window of its own does not outlive a change that rules it out.</b> When the owner
+ * enters or leaves fullscreen while a surface is open in a window of its own, a menu, a drop-down
+ * list or a calendar closes as if dismissed, choosing nothing, as the platform's own menus close
+ * on a change of their window's state; on macOS the person can make that change with the green
+ * button or Control-Command-F while a list or a calendar is open, since neither takes the focus
+ * from the window. A modal dialog, the colour picker's included, is a question still waiting for
+ * its answer, so it moves into the scene instead, with what was typed in it. Two stay windows: a
+ * non-modal dialog, for the reason above, and a modal one with another dialog or a modal menu open
+ * over it, since moving it would close the window that one belongs to. A surface drawn in scene
+ * stays where it is, and nothing moves back into a window when the owner leaves fullscreen.
+ *
  * <p><b>Why it is worth choosing rather than inheriting.</b> An in-scene surface is contained by
  * the window: it cannot extend past the edge, it composites with what is behind it, and a
  * screenshot of the window contains it. A native one is none of those things, and the last point

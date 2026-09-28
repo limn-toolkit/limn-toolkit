@@ -152,6 +152,16 @@ final class MacFullscreen {
                 ObjC.sel(TOGGLE), nsWindow, 0L);
     }
 
+    /**
+     * Whether {@link #toggleSoon} waits for the run loop and then sends only to a window still
+     * observed, which it does once the observer exists; without one it sends at once. The seam a
+     * test uses to ask for fullscreen on a window it has {@linkplain #forget forgotten} and know
+     * that nothing reaches AppKit.
+     */
+    static boolean togglesOnlyObservedWindows() {
+        return observer != NULL;
+    }
+
     /** @return whether the window's style mask holds {@code NSWindowStyleMaskFullScreen} */
     static boolean isFullscreen(long nsWindow) {
         return (ObjC.msg(nsWindow, "styleMask") & STYLE_MASK_FULL_SCREEN) != 0;

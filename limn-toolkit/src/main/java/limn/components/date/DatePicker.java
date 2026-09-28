@@ -75,7 +75,9 @@ import java.util.function.Predicate;
  * one, an overlay inside the owner window where it cannot or where the owner is fullscreen, which
  * has no room for a second window &mdash; and an application that documents
  * itself with screenshots asks for {@link DisplayMode#IN_SCENE} on purpose, because a native popup
- * is absent from a capture of the window.
+ * is absent from a capture of the window. The presentation is chosen when the popup opens; one
+ * already open in a window of its own when the owner enters or leaves fullscreen closes instead, as
+ * if dismissed, and what the fields hold is left as it was.
  *
  * <p>Like every widget, it is touched from the UI thread only: each method that changes it checks,
  * and throws on any other thread.
@@ -118,6 +120,8 @@ public final class DatePicker extends Widget<DatePicker> {
     private Subscription blurHandle;
     private Subscription dismissHandle;
     private Subscription popupBlurHandle;
+    /** Closes a calendar opened towards a window of its own when the owner changes fullscreen. */
+    private Subscription fullscreenHandle;
 
     /**
      * The trailing affordance, a real widget rather than a painted region.
@@ -954,6 +958,12 @@ public final class DatePicker extends Widget<DatePicker> {
                 setOpen(false, Change.Origin.USER);
             }
         });
+        // The owner going fullscreen, or leaving it, takes the calendar down as a platform's own
+        // popup goes on a change of its window's state: left open it would minimize a fullscreen
+        // owner, or stay outside its Space. Dismissed, so the grid's cursor is not a pick. An
+        // in-scene calendar is left alone: it is inside the window whatever the window does.
+        fullscreenHandle = scene.observeWindowFullscreen(
+                fullscreen -> setOpen(false, Change.Origin.ADJUSTMENT));
         if (window != null && popupWindow == null) {
             // Deferred: creating a window switches the GL context, which must not happen in the
             // middle of another window's frame callback.
@@ -1027,6 +1037,12 @@ public final class DatePicker extends Widget<DatePicker> {
             return;
         }
         NativeWindow parent = scene.window();
+        if (!FloatingSurfaces.anchoredWindowAvailable(parent)) {
+            // The owner went fullscreen between the open and this turn, and the change has not
+            // been dispatched yet: the window it would have closed is never made.
+            setOpen(false, Change.Origin.ADJUSTMENT);
+            return;
+        }
         SizeTokens t = Theme.of(this).tokensFor(this);
         float gap = t.popupGap();
         float factor = parent.logicalToScreenFactor();
@@ -1139,6 +1155,10 @@ public final class DatePicker extends Widget<DatePicker> {
         if (popupBlurHandle != null) {
             popupBlurHandle.cancel();
             popupBlurHandle = null;
+        }
+        if (fullscreenHandle != null) {
+            fullscreenHandle.cancel();
+            fullscreenHandle = null;
         }
         if (popupWindow != null) {
             NativeWindow closing = popupWindow;

@@ -8,6 +8,7 @@ import limn.concurrent.UiRuntime;
 import limn.input.Keys;
 import limn.scene.layout.Column;
 import limn.testing.HeadlessUi;
+import limn.testing.StubWindow;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,10 +25,10 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static limn.testing.SceneDriver.drive;
 
 /**
- * The scene's four observers and the weak axis listener on the one fan-out shape: the press and
- * blur observers' first tests, the window-close list's dropped-registration defect closed, the
- * shortcut chain's containment, and the claim ADR 002 §5.4 leans on and nothing had ever verified
- * -- that a scene dropped and collected purges itself from every process-wide axis.
+ * The scene's five observers and the weak axis listener on the one fan-out shape: the press, blur
+ * and fullscreen observers' first tests, the window-close list's dropped-registration defect
+ * closed, the shortcut chain's containment, and the claim ADR 002 §5.4 leans on and nothing had
+ * ever verified -- that a scene dropped and collected purges itself from every process-wide axis.
  */
 class SceneObserversTest {
 
@@ -132,6 +133,91 @@ class SceneObserversTest {
         drive(scene).windowFocusChanged(false);
         drive(scene).inputBatchEnded();
         assertEquals(1, blurs.get());
+    }
+
+    // ---------------------------------------------------------------------- fullscreen
+
+    @Test
+    void aFullscreenObserverIsToldEachChangeWhenTheBatchEnds() {
+        Scene scene = sceneOf(new Stop());
+        List<Boolean> heard = new ArrayList<>();
+        Subscription handle = scene.observeWindowFullscreen(heard::add);
+
+        drive(scene).windowFullscreenChanged(true);
+        assertEquals(List.of(), heard, "queued with the rest of the batch");
+        drive(scene).inputBatchEnded();
+        assertEquals(List.of(true), heard);
+        drive(scene).windowFullscreenChanged(false);
+        drive(scene).inputBatchEnded();
+        assertEquals(List.of(true, false), heard);
+
+        handle.cancel();
+        drive(scene).windowFullscreenChanged(true);
+        drive(scene).inputBatchEnded();
+        assertEquals(List.of(true, false), heard);
+    }
+
+    /**
+     * The shape of an application's F11: a key handler makes the window fullscreen while the batch
+     * holding that key is being dispatched, and the change it causes is acted on in the same batch
+     * rather than waiting for the next input to arrive.
+     */
+    @Test
+    void aChangeMadeByAHandlerIsToldInTheBatchThatMadeIt() {
+        StubWindow window = new StubWindow();
+        FullscreenKey key = new FullscreenKey(window);
+        Scene scene = sceneOf(key);
+        scene.bind(window);
+        scene.requestFocus(key);
+        List<Boolean> heard = new ArrayList<>();
+        scene.observeWindowFullscreen(heard::add);
+
+        drive(scene).press(Keys.F11);
+
+        assertEquals(List.of(true), heard);
+    }
+
+    /** Makes its window fullscreen on any key, as an application's shortcut would. */
+    static final class FullscreenKey extends Widget<FullscreenKey> {
+        private final StubWindow window;
+
+        FullscreenKey(StubWindow window) {
+            this.window = window;
+            setFocusable(true);
+        }
+
+        @Override
+        protected void onKeyEvent(limn.scene.event.KeyEvent event) {
+            if (event.isPressed()) {
+                window.enterFullscreen();
+                event.consume();
+            }
+        }
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(50, 20);
+        }
+    }
+
+    /** What a stub window tells is what a backend tells: each change, once, and never a non-change. */
+    @Test
+    void aStubWindowTellsItsSceneOfEachFullscreenChangeAndOfNothingElse() {
+        StubWindow window = new StubWindow();
+        Scene scene = sceneOf(new Stop());
+        scene.bind(window);
+        List<Boolean> heard = new ArrayList<>();
+        scene.observeWindowFullscreen(heard::add);
+
+        window.enterFullscreen();
+        window.enterFullscreen(1920, 1080, 60); // already fullscreen: no change to tell
+        drive(scene).inputBatchEnded();
+        assertEquals(List.of(true), heard);
+
+        window.exitFullscreen();
+        window.exitFullscreen();
+        drive(scene).inputBatchEnded();
+        assertEquals(List.of(true, false), heard);
     }
 
     // ---------------------------------------------------------------------- window close

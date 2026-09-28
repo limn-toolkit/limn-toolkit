@@ -116,6 +116,9 @@ public final class Scene {
     private record RawFocus(boolean focused) implements Raw {
     }
 
+    private record RawFullscreen(boolean fullscreen) implements Raw {
+    }
+
     private record RawResize(float width, float height) implements Raw {
     }
 
@@ -1898,6 +1901,49 @@ public final class Scene {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private static final java.util.function.Consumer<Boolean>[] NO_FULLSCREEN_OBSERVERS =
+            (java.util.function.Consumer<Boolean>[]) new java.util.function.Consumer<?>[0];
+
+    private java.util.function.Consumer<Boolean>[] fullscreenObservers;
+
+    /**
+     * Observes the bound window entering or leaving fullscreen, the cue that closes a surface open
+     * in a window of its own over it (a menu, a drop-down list, a calendar), since a fullscreen
+     * window has no room for a second one: on a monitor it is minimized when another window takes
+     * the focus, and macOS native fullscreen is a Space of its own. The person can make the change
+     * on macOS with the green button or Control-Command-F while a list or a calendar is open,
+     * because neither takes the focus from the window. A modal dialog's window hears it too, and
+     * moves into the scene.
+     *
+     * <p>Told once per change, at the end of the input batch that brought it, even while a modal
+     * blocks the window; see {@link WindowInput#windowFullscreenChanged}.
+     *
+     * @param observer told whether the window is fullscreen now; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
+     */
+    public Subscription observeWindowFullscreen(java.util.function.Consumer<Boolean> observer) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(observer, "observer");
+        fullscreenObservers =
+                Listeners.added(fullscreenObservers, observer, NO_FULLSCREEN_OBSERVERS);
+        return once(() -> fullscreenObservers = Listeners.removed(fullscreenObservers, observer));
+    }
+
+    private void notifyFullscreenObservers(boolean fullscreen) {
+        java.util.function.Consumer<Boolean>[] snapshot = fullscreenObservers;
+        if (snapshot == null) {
+            return;
+        }
+        for (java.util.function.Consumer<Boolean> observer : snapshot) {
+            try {
+                observer.accept(fullscreen);
+            } catch (Throwable error) {
+                Listeners.failed(limn.backend.CrashPhase.OBSERVER, error);
+            }
+        }
+    }
+
     /**
      * The widget whose subtree a contained layout pass is running over, or {@code null}. Held so
      * that the mounting and recycling such a pass exists to perform (which goes through
@@ -2805,6 +2851,9 @@ public final class Scene {
             Scene.this.filesDropped(paths);
         }
         @Override public void windowFocusChanged(boolean focused) { Scene.this.windowFocusChanged(focused); }
+        @Override public void windowFullscreenChanged(boolean fullscreen) {
+            Scene.this.windowFullscreenChanged(fullscreen);
+        }
         @Override public void inputBatchEnded() { Scene.this.inputBatchEnded(); }
         @Override public void windowClosed() { Scene.this.windowClosed(); }
 
@@ -2915,6 +2964,10 @@ public final class Scene {
 
     private void windowFocusChanged(boolean focused) {
         queue.add(new RawFocus(focused));
+    }
+
+    private void windowFullscreenChanged(boolean fullscreen) {
+        queue.add(new RawFullscreen(fullscreen)); // never dropped: each change closes what it must
     }
 
     private void windowResized(float logicalWidth, float logicalHeight) {
@@ -3033,6 +3086,10 @@ public final class Scene {
                         notifyWindowBlurObservers();
                         invalidate = true;
                     }
+                } else if (raw instanceof RawFullscreen change) {
+                    // Nothing of its own to repaint: the resize that comes with it relays out, and
+                    // a surface an observer closes or moves invalidates what it touched.
+                    notifyFullscreenObservers(change.fullscreen);
                 } else if (raw instanceof RawResize) {
                     layoutDirty = true;
                     invalidate = true;

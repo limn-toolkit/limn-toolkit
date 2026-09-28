@@ -1,16 +1,25 @@
 package limn.components;
 
+import limn.backend.Backend;
+import limn.backend.NativeWindow;
+import limn.backend.WindowConfig;
 import limn.components.date.DatePicker;
+import limn.concurrent.UiRuntime;
 import limn.graphics.Color;
+import limn.input.Keys;
 import limn.scene.Scene;
 import limn.testing.StubWindow;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static limn.testing.SceneDriver.drive;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -25,11 +34,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * surface asked for {@link DisplayMode#NATIVE_WINDOW} is drawn in scene there, and each one's
  * {@code displayMode()} says so.
  *
+ * <p>And what an owner going fullscreen does to one already open as a window of its own: a menu,
+ * a list or a calendar closes as if dismissed, a modal dialog moves into the scene, and a
+ * surface already drawn in scene is left where it is.
+ *
  * <p>Headless, over windows that refuse to create another: {@link StubWindow#backend()} throws
  * and {@link OverlayHost#createWindow} throws, so a surface that took the native path anyway
  * fails here with an assertion instead of minimizing someone's game. A popup's own window is
- * created a posted turn after it opens, which these tests never pump, so for the popups the
- * assertion is on the presentation they chose rather than on a window.
+ * created a posted turn after it opens, which the first tests never pump, so for the popups the
+ * assertion is on the presentation they chose rather than on a window. The tests of a change
+ * while open do pump it, over a {@link WindowHost} whose backend makes windows that do nothing.
  */
 class FullscreenFallbackTest extends ComponentTestBase {
 
@@ -192,5 +206,356 @@ class FullscreenFallbackTest extends ComponentTestBase {
         assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
         assertEquals(DisplayMode.IN_SCENE, well.pickerDisplayMode(),
                 "while the picker is up the well answers how it is actually presented");
+    }
+
+    // ------------------------------------------------------------------ fullscreen while open
+
+    /**
+     * A window whose backend makes windows, so a surface can be open as a window of its own when
+     * its owner goes fullscreen. What it makes answers like a {@link StubWindow} and remembers being
+     * asked to close; the modal calls are recorded, not enforced.
+     */
+    private static final class WindowHost extends StubWindow implements Backend {
+        /** Every window made, in order. */
+        final List<Made> made = new ArrayList<>();
+        /** The native modals pushed and not yet popped. */
+        final List<NativeWindow> modals = new ArrayList<>();
+        /** The window the last in-scene modal named as the one kept live, while it is up. */
+        NativeWindow sceneModalOwner;
+        /** Whether that in-scene modal locks every window. */
+        boolean sceneModalToolkitScope;
+
+        /** A window of this host's, answering to its backend as a real one does. */
+        final class Made extends StubWindow {
+            boolean closeRequested;
+
+            @Override public Backend backend() { return WindowHost.this; }
+            @Override public void requestClose() { closeRequested = true; }
+        }
+
+        @Override public Backend backend() { return this; }
+        @Override public UiRuntime uiRuntime() { return null; }
+        @Override public NativeWindow createWindow(WindowConfig config) {
+            Made window = new Made();
+            made.add(window);
+            return window;
+        }
+        @Override public void runEventLoop() { }
+        @Override public void pushModal(NativeWindow modal, NativeWindow parent) { modals.add(modal); }
+        @Override public void popModal(NativeWindow modal) { modals.remove(modal); }
+        @Override public SceneModalHandle pushSceneModal(NativeWindow owner, boolean toolkitScope) {
+            sceneModalOwner = owner;
+            sceneModalToolkitScope = toolkitScope;
+            return () -> sceneModalOwner = null;
+        }
+        @Override public void signalModalBlocked() { }
+        @Override public void stop() { }
+    }
+
+    /** The owner goes fullscreen as a backend reports it: the change, then the end of the batch. */
+    private static void goFullscreen(Scene scene, StubWindow window) {
+        window.enterFullscreen();
+        drive(scene).inputBatchEnded();
+    }
+
+    private static void leaveFullscreen(Scene scene, StubWindow window) {
+        window.exitFullscreen();
+        drive(scene).inputBatchEnded();
+    }
+
+    private static Scene sceneOver(StubWindow window, limn.scene.Widget<?> root, float width,
+                                   float height) {
+        Scene scene = new Scene(root);
+        scene.setTextRuler(RULER);
+        scene.bind(window);
+        scene.layoutPass(width, height);
+        return scene;
+    }
+
+    // --- menu
+
+    /** The cascade is one window, and it goes as a press elsewhere would take it: nothing is run. */
+    @Test
+    void aMenuWindowClosesWhenItsOwnerGoesFullscreenAndRunsNothing() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        AtomicInteger ran = new AtomicInteger();
+        PopupMenu popup = new PopupMenu(new Menu()
+                .addItem("One", ran::incrementAndGet)
+                .addSubmenu("More", new Menu().addItem("Two", ran::incrementAndGet)));
+        popup.showAnchored(scene, 20, 20, 0, 0);
+        runtime.drain(); // the menu's window is made a turn after it opens
+        assertNotNull(popup.popupWindow(), "sanity: the menu is a window of its own");
+        popup.keyForTest(Keys.DOWN);
+        popup.keyForTest(Keys.DOWN);
+        popup.keyForTest(Keys.RIGHT);
+        assertEquals(2, popup.columnCountForTest(), "sanity: the cascade is open");
+
+        goFullscreen(scene, window);
+
+        assertFalse(popup.isOpen(), "a menu window left over a fullscreen owner minimizes it, "
+                + "or stays outside its Space");
+        assertNull(popup.popupWindow());
+        assertEquals(0, ran.get(), "a dismissal runs no item");
+    }
+
+    @Test
+    void aMenuInSceneIsLeftAloneWhenItsOwnerGoesFullscreen() {
+        StubWindow window = new StubWindow();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", () -> { }))
+                .setDisplayMode(DisplayMode.IN_SCENE);
+        popup.showAnchored(scene, 20, 20, 0, 0);
+
+        goFullscreen(scene, window);
+
+        assertTrue(popup.isOpen(), "an overlay has nowhere else to be");
+        assertTrue(popup.isInSceneForTest());
+    }
+
+    /**
+     * The window is made a posted turn after the menu opens, and the owner can go fullscreen in
+     * between, before the change has been dispatched: the turn that would make it asks again.
+     */
+    @Test
+    void aMenuWindowIsNotMadeOverAnOwnerThatWentFullscreenFirst() {
+        StubWindow window = new StubWindow(); // its backend() fails the test if a window is made
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", () -> { }));
+        popup.showAnchored(scene, 20, 20, 0, 0);
+        assertFalse(popup.isInSceneForTest(), "sanity: it opened towards a window");
+
+        window.enterFullscreen();
+        runtime.drain();
+
+        assertFalse(popup.isOpen());
+        assertNull(popup.popupWindow());
+    }
+
+    // --- combo
+
+    @Test
+    void aComboListWindowClosesWhenItsOwnerGoesFullscreenAndSelectsNothing() {
+        WindowHost window = new WindowHost();
+        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        AtomicInteger selected = new AtomicInteger(-1);
+        combo.onSelect(selected::set);
+        Scene scene = sceneOver(window, combo, 400, 300);
+        scene.requestFocus(combo);
+        combo.open();
+        runtime.drain();
+        assertNotNull(combo.popupWindow(), "sanity: the list is a window of its own");
+        drive(scene).press(Keys.DOWN);
+        assertEquals(1, combo.highlightedIndex(), "sanity: the highlight moved");
+
+        goFullscreen(scene, window);
+
+        assertFalse(combo.isOpen(), "a list window left over a fullscreen owner minimizes it, "
+                + "or stays outside its Space");
+        assertNull(combo.popupWindow());
+        assertEquals(0, combo.selectedIndex(), "the highlight is not a choice");
+        assertEquals(-1, selected.get(), "and nothing was reported as one");
+    }
+
+    /** The other direction: a list the fullscreen owner put in scene stays when the owner leaves. */
+    @Test
+    void aComboListInSceneIsLeftAloneWhenItsOwnerLeavesFullscreen() {
+        StubWindow window = fullscreen(new StubWindow());
+        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        Scene scene = sceneOver(window, combo, 400, 300);
+        combo.open();
+        assertTrue(combo.isInSceneForTest(), "sanity: forced in scene");
+
+        leaveFullscreen(scene, window);
+
+        assertTrue(combo.isOpen());
+        assertTrue(combo.isInSceneForTest());
+    }
+
+    @Test
+    void aComboListWindowIsNotMadeOverAnOwnerThatWentFullscreenFirst() {
+        StubWindow window = new StubWindow();
+        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        Scene scene = sceneOver(window, combo, 400, 300);
+        combo.open();
+        assertFalse(combo.isInSceneForTest(), "sanity: it opened towards a window");
+
+        window.enterFullscreen();
+        runtime.drain();
+
+        assertFalse(combo.isOpen());
+        assertNull(combo.popupWindow());
+    }
+
+    // --- date picker
+
+    private static DatePicker picker() {
+        return new DatePicker().setClock(
+                Clock.fixed(Instant.parse("2026-09-16T12:00:00Z"), ZoneOffset.UTC));
+    }
+
+    @Test
+    void aCalendarWindowClosesWhenItsOwnerGoesFullscreenAndPicksNothing() {
+        WindowHost window = new WindowHost();
+        LocalDate chosen = LocalDate.of(2026, 9, 9);
+        DatePicker picker = picker().setDate(chosen);
+        AtomicInteger picked = new AtomicInteger();
+        picker.onSelect(picked::incrementAndGet);
+        Scene scene = sceneOver(window, picker, 400, 320);
+        scene.renderFrame(new FakeCanvas(400, 320));
+        scene.requestFocus(picker.field());
+        picker.open();
+        runtime.drain();
+        assertEquals(1, window.made.size(), "sanity: the calendar is a window of its own");
+        drive(scene).press(Keys.DOWN);
+        assertEquals(chosen.plusWeeks(1), picker.calendar().focusedDate(),
+                "sanity: the grid's cursor moved");
+
+        goFullscreen(scene, window);
+
+        assertFalse(picker.isOpen(), "a calendar window left over a fullscreen owner minimizes it, "
+                + "or stays outside its Space");
+        assertEquals(chosen, picker.date(), "the cursor is not a pick");
+        assertEquals(0, picked.get());
+    }
+
+    @Test
+    void aCalendarInSceneIsLeftAloneWhenItsOwnerGoesFullscreen() {
+        StubWindow window = new StubWindow();
+        DatePicker picker = picker().setDisplayMode(DisplayMode.IN_SCENE);
+        Scene scene = sceneOver(window, picker, 400, 320);
+        scene.renderFrame(new FakeCanvas(400, 320));
+        picker.open();
+
+        goFullscreen(scene, window);
+
+        assertTrue(picker.isOpen());
+        assertEquals(DisplayMode.IN_SCENE, picker.displayMode());
+    }
+
+    @Test
+    void aCalendarWindowIsNotMadeOverAnOwnerThatWentFullscreenFirst() {
+        StubWindow window = new StubWindow();
+        DatePicker picker = picker();
+        Scene scene = sceneOver(window, picker, 400, 320);
+        scene.renderFrame(new FakeCanvas(400, 320));
+        picker.open();
+
+        window.enterFullscreen();
+        runtime.drain();
+
+        assertFalse(picker.isOpen());
+    }
+
+    // --- dialog
+
+    /**
+     * A modal dialog is a question the application is waiting on, so it is not dismissed: it moves
+     * into the scene, as it would have opened there, with what the person had typed, where the
+     * keyboard was, and its scope.
+     */
+    @Test
+    void aModalDialogWindowMovesIntoTheSceneWhenItsOwnerGoesFullscreen() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        TextField name = new TextField();
+        Dialog dialog = new Dialog("Rename", "A new name.")
+                .setContent(name)
+                .addPrimaryButton("Rename", "rename")
+                .setCancelResult("cancel");
+        dialog.show(scene);
+        assertNotNull(dialog.modalWindow(), "sanity: the dialog is a window of its own");
+        Scene card = dialog.contentRoot().scene();
+        card.requestFocus(name);
+        drive(card).type("draft");
+
+        goFullscreen(scene, window);
+
+        assertNull(dialog.modalWindow(), "a dialog window left over a fullscreen owner minimizes "
+                + "it, or stays outside its Space");
+        assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
+        assertTrue(window.made.get(0).closeRequested, "its window was asked to go");
+        assertEquals(List.of(), window.modals, "and let go of the owner");
+        assertSame(window, window.sceneModalOwner, "the overlay is modal over the same owner");
+        assertFalse(window.sceneModalToolkitScope, "and no wider than the window was");
+        assertFalse(dialog.result().toCompletableFuture().isDone(), "nobody answered it");
+        assertSame(scene, name.scene(), "the card is in the owner's scene");
+        assertSame(name, scene.focusedWidget(), "the keyboard is where the person left it");
+        assertEquals("draft", name.text());
+
+        leaveFullscreen(scene, window);
+        assertEquals(DisplayMode.IN_SCENE, dialog.displayMode(),
+                "an overlay is never promoted back into a window");
+    }
+
+    @Test
+    void aToolkitModalDialogKeepsItsScopeWhenItMovesIntoTheScene() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        Dialog dialog = new Dialog("Quit?", "Every window closes.")
+                .addPrimaryButton("Quit", "quit")
+                .setCancelResult("cancel");
+        dialog.showToolkitModal(scene);
+        assertNotNull(dialog.modalWindow(), "sanity");
+
+        goFullscreen(scene, window);
+
+        assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
+        assertSame(window, window.sceneModalOwner);
+        assertTrue(window.sceneModalToolkitScope, "every other window stays locked");
+    }
+
+    /** The documented exception: a non-modal dialog has no in-scene form, so it stays a window. */
+    @Test
+    void aNonModalDialogStaysAWindowWhenItsOwnerGoesFullscreen() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        Dialog dialog = new Dialog("Find", "").addButton("Close", "close");
+        dialog.showNonModal(scene);
+
+        goFullscreen(scene, window);
+
+        assertNotNull(dialog.modalWindow());
+        assertEquals(DisplayMode.NATIVE_WINDOW, dialog.displayMode());
+        assertFalse(window.made.get(0).closeRequested);
+    }
+
+    /**
+     * The other limit: a dialog something else is open over stays a window, and so does what is
+     * over it, because moving the one underneath would close the window the other belongs to.
+     */
+    @Test
+    void aModalDialogWithAnotherOverItStaysAWindowWhenItsOwnerGoesFullscreen() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        Dialog dialog = new Dialog("Settings", "").addPrimaryButton("Done", "done");
+        dialog.show(scene);
+        window.made.get(0).modalBlocked = true; // a second dialog is open over this one's window
+
+        goFullscreen(scene, window);
+
+        assertNotNull(dialog.modalWindow());
+        assertEquals(DisplayMode.NATIVE_WINDOW, dialog.displayMode());
+        assertFalse(window.made.get(0).closeRequested);
+    }
+
+    // --- colour well
+
+    @Test
+    void theColourPickerWindowMovesIntoTheSceneWhenItsOwnerGoesFullscreen() {
+        WindowHost window = new WindowHost();
+        Color amber = Color.rgb(0xF59E0B);
+        ColorPickerButton well = new ColorPickerButton(amber);
+        Scene scene = sceneOver(window, well, 400, 300);
+        well.openPicker();
+        Dialog dialog = well.openDialog();
+        assertNotNull(dialog.modalWindow(), "sanity: the picker is a window of its own");
+
+        goFullscreen(scene, window);
+
+        assertSame(dialog, well.openDialog(), "the same picker, still up");
+        assertNull(dialog.modalWindow());
+        assertEquals(DisplayMode.IN_SCENE, well.pickerDisplayMode());
+        assertEquals(amber, well.color(), "neither a pick nor a cancel reached the well");
     }
 }

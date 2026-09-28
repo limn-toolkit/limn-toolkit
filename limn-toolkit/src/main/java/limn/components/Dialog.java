@@ -71,6 +71,12 @@ import java.util.concurrent.CompletionStage;
  * (Wayland) changes nothing: a dialog has no anchor to line up with, so the compositor placing
  * it is where it belongs. {@link #displayMode()} answers what was chosen.
  *
+ * <p>The same holds for a modal dialog already open as a window when its owner goes fullscreen:
+ * it moves into the scene then, card, contents, focus and scope, and is still waiting for its
+ * answer; the owner going fullscreen answers nothing. It is left a window only while another
+ * dialog or a modal menu is open over it, since moving it would close the window that one belongs
+ * to, and nothing moves back into a window when the owner leaves fullscreen.
+ *
  * <h2>Stacking</h2>
  * Dialogs stack in either mode and in any combination: the newest is the one the user
  * answers, everything under it is frozen until it closes, and answering the top one
@@ -163,6 +169,9 @@ public final class Dialog {
     private boolean keepInScene; // the app has vouched for IN_SCENE; never promote
     // Unregisters the "died unanswered" observer once a real answer is on its way.
     private Subscription unanswered;
+    // While a modal dialog is a window of its own: moves it into the scene if the owner goes
+    // fullscreen.
+    private Subscription fullscreenWatch;
 
     // Native-window presentation state (null when in-scene / headless).
     private NativeWindow modalWindow;
@@ -384,9 +393,10 @@ public final class Dialog {
      * raised while a modal is already open over its window is presented as a native one instead;
      * an overlay can only be brought to the front by raising its host, which would hide the dialog
      * already there. And a modal {@code NATIVE_WINDOW} dialog over a fullscreen window is drawn in
-     * scene, since a second window there would minimize the owner or open outside its Space; a
-     * non-modal one stays a window, having no in-scene form. {@link #displayMode()} answers what
-     * actually happened; {@code keepInScene()} insists on the overlay.
+     * scene, since a second window there would minimize the owner or open outside its Space, and
+     * one already a window moves into the scene when its owner goes fullscreen; a non-modal one
+     * stays a window, having no in-scene form. {@link #displayMode()} answers what actually
+     * happened; {@code keepInScene()} insists on the overlay.
      *
      * @param mode the presentation asked for
      * @return this dialog
@@ -399,7 +409,8 @@ public final class Dialog {
 
     /**
      * How this dialog is <em>actually</em> presented: the requested mode until {@link #show}
-     * decides otherwise, and the effective one afterwards.
+     * decides otherwise, and the effective one afterwards, which changes once more, to
+     * {@link DisplayMode#IN_SCENE}, if a modal dialog's owner goes fullscreen while it is a window.
      *
      * <p>Worth asking after {@code show} by anything that styles or positions the card on the
      * assumption that it is one or the other: a promoted dialog is a real window, so
@@ -497,7 +508,10 @@ public final class Dialog {
         return fade;
     }
 
-    /** @return the modal's native window while open (screenshots/tests), else null */
+    /**
+     * @return the modal's native window while open (screenshots/tests), else null, which it also
+     *         is once a modal dialog has moved into the scene of an owner that went fullscreen
+     */
     public NativeWindow modalWindow() {
         return modalWindow;
     }
@@ -547,9 +561,9 @@ public final class Dialog {
      * interactive. Only valid in {@link DisplayMode#NATIVE_WINDOW}; an in-scene
      * overlay always captures its scene's input. For the same reason it stays a window
      * even over a fullscreen owner, where every other floating surface is drawn in scene,
-     * and there it pays what a second window costs: on a monitor the owner is minimized
-     * when the dialog takes the focus, and on macOS the dialog opens outside the Space the
-     * owner has to itself.
+     * and when its owner goes fullscreen while it is open, and there it pays what a second
+     * window costs: on a monitor the owner is minimized when the dialog takes the focus, and
+     * on macOS the dialog is outside the Space the owner has to itself.
      *
      * @param owner the scene the dialog opens over
      * @return a stage that completes with the result when the dialog closes
@@ -740,8 +754,70 @@ public final class Dialog {
         modalScene.focusTraverse(false); // focus the first button
         fade = 1; // content painted opaque; the window opacity does the fading
         observeUnanswered(modalScene); // the OS can close this window out from under us
+        if (modal) {
+            // Told even though the owner is blocked: the application can still make it
+            // fullscreen, and on macOS the lock stops the owner's input, not the green button in
+            // its title bar, which AppKit answers itself.
+            boolean toolkitScope = blockParent == null;
+            fullscreenWatch = owner.observeWindowFullscreen(fullscreen -> {
+                if (fullscreen) {
+                    moveIntoScene(owner, toolkitScope);
+                }
+            });
+        }
         modalWindow.requestFrame();
         return result;
+    }
+
+    /**
+     * Moves a modal dialog that is a window of its own into its owner's scene, the owner having
+     * gone fullscreen: the presentation it would have had if it had opened there.
+     *
+     * <p>Moved rather than dismissed, because a modal dialog is a question the application is
+     * waiting on, and a fullscreen change is no answer to it. Left as a window it would be left
+     * behind: on a monitor the fullscreen owner covers it, and is minimized when the person
+     * reaches it, and macOS native fullscreen takes the owner to a Space of its own while the
+     * dialog stays on the desktop. The card itself moves, so what the person typed in it and where
+     * the keyboard was come with it, and the lock goes on the same windows the window's did.
+     *
+     * <p>Not while an answer is on its way out, and not while something is open over the dialog's
+     * own window, a second dialog or a modal menu: moving this one would close the window that one
+     * belongs to. Both stay windows then, as they were before this existed. Never back: an overlay
+     * is a valid presentation over a window of any kind, so leaving fullscreen changes nothing.
+     */
+    private void moveIntoScene(Scene owner, boolean toolkitScope) {
+        NativeWindow host = owner.window();
+        if (modalWindow == null || closing || modalWindow.isModalBlocked()
+                || host == null || host.isClosed()) {
+            return;
+        }
+        Scene leaving = modalScene;
+        Widget<?> keyboard = leaving.focusedWidget();
+        // Out of the scene being left first, through its own focus-lost path, so that scene holds
+        // nothing of the card and its close later has nothing of the card to let go of.
+        leaving.requestFocus(null);
+        if (unanswered != null) {
+            // The window goes and the dialog does not: its close must not answer for it.
+            unanswered.cancel();
+            unanswered = null;
+        }
+        modalWindow.hide(); // gone at once, not at the loop's next turn
+        closeWindow(); // lets go of the owner's lock and asks the window to close
+        modalScene = null;
+        displayMode = DisplayMode.IN_SCENE;
+        hostScene = owner;
+        // The card is the root of the scene being left, parentless, so the overlay can adopt it,
+        // and adopting it takes it out of that scene before pushOverlay puts it in this one.
+        overlay = new SceneOverlay(panel);
+        overlay.setInheritanceHost(inheritanceHostFor(owner));
+        owner.pushOverlay(overlay);
+        sceneModal = host.backend().pushSceneModal(host, toolkitScope);
+        observeUnanswered(owner);
+        fade = 0;
+        startFadeInScene();
+        if (keyboard != null) {
+            owner.requestFocus(keyboard); // pushOverlay put it on the first stop
+        }
     }
 
     /**
@@ -771,6 +847,10 @@ public final class Dialog {
     }
 
     private void closeWindow() {
+        if (fullscreenWatch != null) {
+            fullscreenWatch.cancel();
+            fullscreenWatch = null;
+        }
         if (modalWindow == null) {
             return;
         }
@@ -925,6 +1005,10 @@ public final class Dialog {
             // The window is already destroyed and the backend has dropped it from
             // the modal stack, so there is nothing here to pop, close or unhook:
             // only fields to stop pointing at the dead.
+            if (fullscreenWatch != null) {
+                fullscreenWatch.cancel(); // held by the owner's scene, which may outlive this
+                fullscreenWatch = null;
+            }
             modalWindow = null;
             overlay = null;
             sceneModal = null;

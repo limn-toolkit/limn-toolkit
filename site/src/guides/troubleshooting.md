@@ -91,7 +91,8 @@ with the same keys, clamped to the window rather than to the screen. The same pr
 gets real popup windows.
 
 On any platform, a fullscreen window draws its popups and its modal dialogs inside itself too,
-because a second window would minimize it or take the person to another Space.
+because a second window would minimize it or take the person to another Space. A popup already
+open as a window when the window goes fullscreen closes, and a modal dialog moves inside.
 
 ## Video or sound is unavailable
 
