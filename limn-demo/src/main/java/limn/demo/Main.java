@@ -78,13 +78,15 @@ public final class Main {
      *
      * <p>Both spellings of Hebrew are matched because {@code Locale.getLanguage} answers with the
      * legacy ISO code under {@code -Djava.locale.useOldISOCodes=true}, which is a JVM flag rather
-     * than anything this program controls.
+     * than anything this program controls. The language is read as the toolkit reads it, so
+     * {@code jpn}, {@code heb} and {@code zho} wait for the faces {@code ja}, {@code he} and
+     * {@code zh} do.
      */
-    private static boolean localeNeedsAFallbackFace(java.util.Locale locale) {
+    static boolean localeNeedsAFallbackFace(java.util.Locale locale) {
         if (locale == null) {
             return false;
         }
-        return switch (locale.getLanguage()) {
+        return switch (limn.i18n.I18n.canonical(locale).getLanguage()) {
             case "ja", "ko", "zh", "hi", "th", "ar", "he", "iw" -> true;
             default -> false;
         };
