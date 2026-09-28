@@ -25,12 +25,14 @@ its own box, and is opt-in per call site.
 
 ## It is not the locale
 
-Nothing in the toolkit consults `I18n.locale()` to decide a direction. Language and direction are
-different axes: a Hebrew subtree inside an English interface still shows English strings, it just
-lays them out right to left. `LayoutDirection.forLocale` exists so that an *application* can bridge
-the two at its own call site, typically once at startup. A widget that calls it has smuggled the
-process-wide locale back in as a source of direction, which is the one thing the axis exists to keep
-out.
+Nothing in the scene graph consults `I18n.locale()` to decide a direction. Language and direction
+are different axes: a Hebrew subtree inside an English interface still shows English strings, it
+just lays them out right to left. `LayoutDirection.forLocale` exists so that an *application* can
+bridge the two at its own call site, typically once at startup. A widget that calls it has smuggled
+the process-wide locale back in as a source of direction, which is the one thing the axis exists to
+keep out. The one caller in the toolkit's own modules is `WindowsDriverDialog`, the native dialog
+the Windows backend shows when no window can be made at all: it has no scene to inherit a direction
+from, and its text is in the process locale.
 
 Since ADR 035 the locale is an inherited axis of its own, resolved through this same chain: the
 Hebrew-UI-with-an-English-code-pane case is one declaration per axis

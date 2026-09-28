@@ -38,12 +38,14 @@ import java.util.Set;
  * Arabic writes one line at its scene root; a subtree that disagrees writes one more.
  *
  * <h2>This is never read from the locale</h2>
- * Nothing in the toolkit consults {@code I18n.locale()} to decide a direction. Language and
+ * Nothing in the scene graph consults {@code I18n.locale()} to decide a direction. Language and
  * direction are different axes: a Hebrew subtree inside an English interface still shows English
  * strings, it just lays them out right to left. {@link #forLocale} exists so an <em>application</em>
- * can bridge the two at its own call site, typically once at startup; it is not called by the
- * toolkit and must not be called from inside a widget, where it would smuggle the process locale
- * back into the axis this enum exists to keep out of it.
+ * can bridge the two at its own call site, typically once at startup; no widget and no scene calls
+ * it, and none must, since inside a widget it would smuggle the process locale back into the axis
+ * this enum exists to keep out of it. The one caller in the toolkit's own modules is the native
+ * dialog the Windows backend shows when no window can be made at all: it has no scene to inherit
+ * a direction from, and its text is in the process locale.
  *
  * <h2>Never read this in a constructor</h2>
  * {@link Widget#add} assigns the child's parent <em>after</em> the child is fully constructed, so
@@ -252,11 +254,12 @@ public enum LayoutDirection {
      * {@code LayoutDirection.setProcessDefault(LayoutDirection.forLocale(locale))} at startup
      * instead of writing the same table itself.
      *
-     * <p><b>Nothing in the toolkit calls this</b>, and a widget that calls it has reintroduced the
+     * <p><b>No widget and no scene calls this</b>, and a widget that calls it has reintroduced the
      * process-wide locale as a source of direction, which is the one thing this axis exists to
-     * prevent. It is a function from a locale to a direction, at an application's call site, and a
-     * starting point rather than a policy: an application whose user has chosen a direction should
-     * honour that choice instead.
+     * prevent. Its one caller in the toolkit is the Windows backend's no-driver dialog, which
+     * runs where no scene exists. It is a function from a locale to a direction, at an
+     * application's call site, and a starting point rather than a policy: an application whose
+     * user has chosen a direction should honour that choice instead.
      *
      * <p>The script is consulted first, because a language can be written in either direction and
      * only the script says which. A locale that names no script is read, as CLDR reads it, for
