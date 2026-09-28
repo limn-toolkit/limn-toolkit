@@ -230,9 +230,12 @@ public interface NativeWindow extends AutoCloseable {
 
     /**
      * Leaves fullscreen of either kind, and does nothing for a window that is not fullscreen. A
-     * switched mode is switched back and the windowed position and size restored before this
-     * returns; macOS native fullscreen is left with its animation, after this returns, and is left
-     * whether the application or the person entered it. UI thread only.
+     * switched mode is switched back and the windowed position and size asked for before this
+     * returns, and given back as the window had them: where the window manager answers later, as
+     * on X11, a window it gives back maximized when it was not, or elsewhere or at another size, is
+     * asked once more when the answer comes. macOS native fullscreen is left with its animation,
+     * after this returns, and is left whether the application or the person entered it. UI thread
+     * only.
      */
     void exitFullscreen();
 
