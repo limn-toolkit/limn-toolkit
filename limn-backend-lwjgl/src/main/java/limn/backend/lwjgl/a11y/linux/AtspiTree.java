@@ -7,6 +7,7 @@ import limn.accessibility.AccessibleTree;
 import limn.accessibility.CellFacet;
 import limn.backend.AccessibilityBridge;
 import limn.backend.lwjgl.a11y.PointLookup;
+import limn.i18n.internal.LocaleServices;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -724,8 +725,7 @@ final class AtspiTree {
         out.put("Description", new DBus.Variant("s", node.description()));
         out.put("Parent", new DBus.Variant("(so)", parentRef(tree, node).toStruct()));
         out.put("ChildCount", new DBus.Variant("i", tree.children(node).size()));
-        out.put("Locale", new DBus.Variant("s",
-                node.locale() == null ? "" : node.locale().toLanguageTag()));
+        out.put("Locale", new DBus.Variant("s", LocaleServices.languageTag(node.locale())));
         out.put("AccessibleId", new DBus.Variant("s", Long.toString(node.id())));
         // Empty, and deliberately not the description. AT-SPI2 2.52 added HelpText beside
         // Description as a SECOND string, and a bridge that answered the same text in both would

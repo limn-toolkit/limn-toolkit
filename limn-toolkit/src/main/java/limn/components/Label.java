@@ -11,6 +11,7 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
+import limn.i18n.internal.LocaleServices;
 import limn.scene.Change;
 import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
@@ -780,7 +781,7 @@ public final class Label extends Widget<Label> {
             out.add(paragraph);
             return paragraph.metrics().width();
         }
-        BreakIterator breaks = BreakIterator.getLineInstance(I18n.locale());
+        BreakIterator breaks = LocaleServices.lineBreaks(I18n.locale());
         breaks.setText(text);
         float widest = 0;
         int start = 0;

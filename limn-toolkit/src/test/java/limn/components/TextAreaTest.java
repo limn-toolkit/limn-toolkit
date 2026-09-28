@@ -872,6 +872,32 @@ class TextAreaTest extends ComponentTestBase {
         assertEquals(0, area.scrollXOffset(), EPS);
     }
 
+    /**
+     * Thai named by its ISO 639-2 code, {@code tha}, wraps at the words the Thai dictionary finds,
+     * as under {@code th}. The platform reaches that dictionary through the language subtag, and
+     * Java's {@link java.util.Locale} keeps {@code tha} as it was written, so the rows were cut at
+     * the last whole cluster that fit, in the middle of a word.
+     */
+    @Test
+    void softWrapFindsThaiWordsUnderAnyCodeForThai() {
+        String thai = "สวัสดี" + "ชาว" + "โลก"; // words end at 6, 9 and 12
+        java.util.Locale original = limn.i18n.I18n.locale();
+        try {
+            limn.i18n.I18n.setLocale(java.util.Locale.forLanguageTag("th"));
+            buildWrapped(thai + thai);
+            float x = area.caretRect().x();
+            float y = area.caretRect().y();
+            assertEquals(PAD_Y + 12, y, EPS, "the caret at the end is on the second row");
+
+            limn.i18n.I18n.setLocale(java.util.Locale.forLanguageTag("tha"));
+            buildWrapped(thai + thai);
+            assertEquals(x, area.caretRect().x(), EPS, "the second row starts where th starts it");
+            assertEquals(y, area.caretRect().y(), EPS);
+        } finally {
+            limn.i18n.I18n.setLocale(original);
+        }
+    }
+
     @Test
     void softWrapPinsTheHorizontalAxisAndScrollsTheVerticalOne() {
         buildWrapped("a".repeat(400)); // 24 cluster-broken rows of 17 against a 7-row viewport

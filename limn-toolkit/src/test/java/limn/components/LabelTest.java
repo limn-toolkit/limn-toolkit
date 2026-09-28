@@ -300,6 +300,22 @@ class LabelTest extends ComponentTestBase {
                 english.displayedLines(), "fitEnd's cut, one cluster past the word boundary");
     }
 
+    /**
+     * Thai named by its ISO 639-2 code, {@code tha}, finds the words the Thai dictionary finds.
+     * The platform reaches that dictionary through the language subtag, and Java's {@link Locale}
+     * keeps {@code tha} as it was written, so the label broke these twelve characters at the
+     * cluster cut an English locale takes.
+     */
+    @Test
+    void thaiWrapsUnderAnyCodeForThai() {
+        I18n.setLocale(Locale.forLanguageTag("tha"));
+        Label thai = new Label(THAI);
+        thai.setWrap(true);
+        sceneWith(thai, 100, 100);
+        assertEquals(List.of(THAI.substring(0, 9), THAI.substring(9)), thai.displayedLines(),
+                "the dictionary boundary at 9, as under th");
+    }
+
     @Test
     void aLeadingSpaceDoesNotBecomeABlankFirstLine() {
         // " abcdefgh ij" offers a break opportunity at index 1, so the first segment the greedy

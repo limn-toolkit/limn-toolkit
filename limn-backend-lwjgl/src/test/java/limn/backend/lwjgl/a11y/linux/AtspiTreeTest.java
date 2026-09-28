@@ -882,6 +882,63 @@ class AtspiTreeTest {
                 "no geometry is answered (ADR 039 §11)");
     }
 
+    /** "sawatdi chao lok": three Thai words, 6, 3 and 3 characters, with no space between them. */
+    private static final String THAI = "สวัสดี" + "ชาว" + "โลก";
+
+    /** A window of text nodes, one per locale, ids 9201 onwards in the order given. */
+    private void publishAWindowOfTextIn(String text, String... tags) {
+        Accessibility a = new Accessibility();
+        a.beginWalk(400, 300, Locale.ENGLISH);
+        a.begin(1000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+        a.role(Accessible.Role.WINDOW);
+        a.inherited(true, true, true, false, false);
+        for (int i = 0; i < tags.length; i++) {
+            a.begin(9201 + i, 0, Locale.forLanguageTag(tags[i]), 0, 30 * i, 400, 30);
+            a.role(Accessible.Role.TEXT_FIELD);
+            a.text(text, 1, 0, limn.graphics.ShapedText.Affinity.UPSTREAM, 0, 0, 1, null, false);
+            a.inherited(true, true, true, true, false);
+            a.end();
+        }
+        a.end();
+        tree.set(a.publish(9201, 0, 0, 1f, true));
+    }
+
+    private Object localeOf(long id) {
+        return ((DBus.Variant) call(path(id), Atspi.I_PROPS, "Get", "ss", Atspi.I_ACCESSIBLE,
+                "Locale").body[0]).value;
+    }
+
+    /**
+     * The language a node is in is told to a reader as the language its code stands for: a node
+     * in {@code pes}, the ISO 639-3 code for Iranian Persian, is in {@code fa}, one in {@code prs},
+     * Dari, in {@code fa-AF}, and one in {@code sh-RS} in {@code sr-Latn-RS}. A reader picks a
+     * voice by that tag, and speech engines know a language by one code, so the tag as written
+     * sent a Persian node to the default voice.
+     */
+    @Test
+    void aNodesLocaleIsTheLanguageItsCodeStandsFor() {
+        publishAWindowOfTextIn("x", "pes", "prs", "sh-RS", "fr-CA");
+        assertEquals("fa", localeOf(9201));
+        assertEquals("fa-AF", localeOf(9202));
+        assertEquals("sr-Latn-RS", localeOf(9203));
+        assertEquals("fr-CA", localeOf(9204), "a code that is its own is told as it is");
+    }
+
+    /**
+     * Thai named by its ISO 639-2 code, {@code tha}, is read a word at a time by the words the
+     * Thai dictionary finds, as under {@code th}. The platform reaches that dictionary through the
+     * language subtag, so under the code as written the whole run was one word.
+     */
+    @Test
+    void thaiIsReadAWordAtATimeUnderAnyCodeForThai() {
+        publishAWindowOfTextIn(THAI, "th", "tha");
+        List<Object> thai = range(9201, "GetStringAtOffset", "iu", 7,
+                Atspi.TEXT_GRANULARITY_WORD);
+        assertEquals(List.of("ชาว", 6, 9), thai, "the middle word, under th");
+        assertEquals(thai, range(9202, "GetStringAtOffset", "iu", 7,
+                Atspi.TEXT_GRANULARITY_WORD), "and the same under tha");
+    }
+
     /**
      * The writes of Text post SET_CARET and SET_SELECTION in UTF-16 units, where the node accepts
      * them (semantics 5); a value's display form is read-only text (settled linux-value-text), and a

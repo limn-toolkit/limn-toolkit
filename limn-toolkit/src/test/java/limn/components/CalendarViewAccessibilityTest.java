@@ -187,6 +187,39 @@ class CalendarViewAccessibilityTest extends AccessibleComponentTestBase {
         assertEquals(48, dayNodes().size(), "seven days and one week number per row");
     }
 
+    /**
+     * A calendar under a code ICU reads as another language is read as that language: under
+     * {@code fra}, the ISO 639-2 code for French, the title says "septembre 2026", the columns are
+     * named "lundi" to "dimanche" and the month chooser names the months in French, as under
+     * {@code fr}. The platform's date names choose by the language subtag and Java's
+     * {@link Locale} keeps {@code fra} as it was written, so a reader heard the root locale's
+     * words in place of every one of them.
+     */
+    @Test
+    void aCalendarUnderAnAliasIsReadAsItsReplacement() throws InterruptedException {
+        List<String> french = calendarNames(Locale.forLanguageTag("fr"));
+        assertTrue(french.get(0).toLowerCase(Locale.ROOT).contains("septembre"), french.get(0));
+        assertEquals(french, calendarNames(Locale.forLanguageTag("fra")));
+    }
+
+    /** The title, the column heads, the first week's days and the month chooser, as read. */
+    private List<String> calendarNames(Locale locale) throws InterruptedException {
+        CalendarView calendar = bindCalendar(locale);
+        List<String> names = new ArrayList<>();
+        AccessibleNode title = titleNode();
+        names.add(title.name());
+        AccessibleNode header = childrenOf(gridNode()).stream()
+                .filter(child -> child.role() == Accessible.Role.GROUP)
+                .findFirst().orElseThrow();
+        childrenOf(header).forEach(head -> names.add(head.name()));
+        dayNodes().stream().limit(7).forEach(day -> names.add(day.name()));
+        assertTrue(perform(title.id(), Accessible.Action.PRESS, Accessible.Argument.NONE));
+        assertEquals(CalendarView.View.MONTHS, calendar.view());
+        frame();
+        dayNodes().forEach(month -> names.add(month.name()));
+        return names;
+    }
+
     @Test
     void theHeaderRowNamesEachColumnWithTheWholeWeekdayAndNotTheLetterDrawn() {
         bindCalendar();

@@ -16,6 +16,7 @@ import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18n;
+import limn.i18n.internal.LocaleServices;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
 import limn.scene.Change;
@@ -1243,7 +1244,7 @@ public final class TextArea extends Widget<TextArea> {
         if (textMatches && preedit == rowMapPreedit && overlayLine == rowMapOverlayLine) {
             return;
         }
-        BreakIterator breaks = BreakIterator.getLineInstance(locale);
+        BreakIterator breaks = LocaleServices.lineBreaks(locale);
         TextEditModel.LineDamage damage = model.lineDamage();
         int lineCount = model.lineCount();
         if (textMatches) {

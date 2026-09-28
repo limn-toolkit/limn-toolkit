@@ -454,6 +454,53 @@ class DateFieldTest extends ComponentTestBase {
         assertEquals(LocalDate.of(2026, 12, 31), field.date(), "four digits need no guess");
     }
 
+    /**
+     * A field under a code ICU reads as another language writes and reads a date as that language
+     * does: {@code fra}, the ISO 639-2 code for French, writes 01/03/2026 and takes the French
+     * "1 mars 2026" from a paste. The platform's patterns choose by the language subtag and Java's
+     * {@link Locale} keeps {@code fra} as it was written, so the field wrote the root locale's
+     * 2026-03-01 and could not read a French date. Asked of every {@code alias} row of
+     * {@code cldr-locale-facts.txt}, for a date and for a time.
+     */
+    @Test
+    void aFieldUnderAnAliasWritesAndReadsAsItsReplacement() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        for (String[] alias : limn.i18n.CldrAliasRows.read()) {
+            String ours = fieldTexts(Locale.forLanguageTag(alias[0]));
+            String replacement = fieldTexts(Locale.forLanguageTag(alias[1]));
+            if (!ours.equals(replacement)) {
+                wrong.add(alias[0] + " is " + alias[1] + ", which writes " + replacement
+                        + ", we write " + ours);
+            }
+        }
+        assertEquals(List.of(), wrong, "a field under an alias writes otherwise than its replacement");
+
+        build(dateField(), Locale.forLanguageTag("fra"));
+        field.setDate(LocalDate.of(2026, 3, 1));
+        assertEquals("01/03/2026", field.text(), "fra is French");
+        field.setDate(LocalDate.of(2026, 9, 9));
+        paste("1 mars 2026");
+        assertEquals(LocalDate.of(2026, 3, 1), field.date(), "and reads a French date");
+    }
+
+    /**
+     * A date field's and a time field's text under {@code locale}, the field declaring it. The
+     * declarations are cleared again, since a declared locale is retained process-wide until it
+     * is.
+     */
+    private static String fieldTexts(Locale locale) {
+        DateField date = dateField().setLocale(locale);
+        DateField time = timeField().setLocale(locale);
+        try {
+            date.setDate(LocalDate.of(2026, 3, 1));
+            time.setTime(LocalTime.of(14, 30));
+            return date.text() + " | " + time.text();
+        } finally {
+            date.setLocale(null);
+            time.setLocale(null);
+        }
+    }
+
     @Test
     void aPastedRunKeepsItsLeadingZero() {
         build(dateField(), PT_BR);

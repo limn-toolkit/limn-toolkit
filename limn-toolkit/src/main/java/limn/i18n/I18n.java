@@ -3,6 +3,7 @@ package limn.i18n;
 import limn.concurrent.internal.ChangeListeners;
 import limn.concurrent.Ui;
 import limn.i18n.internal.LanguageAliases;
+import limn.i18n.internal.LocaleServices;
 
 import java.text.Collator;
 import java.util.Collections;
@@ -492,7 +493,7 @@ public final class I18n {
      * would order both as no language at all.
      */
     public static Collator collator() {
-        return Collator.getInstance(LanguageAliases.resolve(textLocale()));
+        return LocaleServices.collator(textLocale());
     }
 
     /**
@@ -502,12 +503,12 @@ public final class I18n {
      * and exactly wrong in a hex color. Turkish named {@code tur} maps it the same way.
      */
     public static String toUpperCase(String text) {
-        return text.toUpperCase(LanguageAliases.resolve(textLocale()));
+        return LocaleServices.upperCase(text, textLocale());
     }
 
     /** The lower-case twin of {@link #toUpperCase}, in the same locale. */
     public static String toLowerCase(String text) {
-        return text.toLowerCase(LanguageAliases.resolve(textLocale()));
+        return LocaleServices.lowerCase(text, textLocale());
     }
 
     /** Records a key and catches the one mistake that would surface as a mistranslation. */
