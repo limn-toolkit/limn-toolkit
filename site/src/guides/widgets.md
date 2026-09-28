@@ -67,6 +67,27 @@ scene.setControlSize(ControlSize.SMALL);
 Use it for a compact mode, a dense inspector panel, or a touch-friendly kiosk build. You
 almost never set a pixel size on a component yourself; the step decides.
 
+## Where null is allowed
+
+Every public signature says whether it takes or answers `null`, in
+[JSpecify](https://jspecify.dev/)'s annotations: the packages are `@NullMarked`, so a type
+without a mark is never null, and `@Nullable` names the places that are. `setIcon(null)`
+clears an icon because its parameter says `@Nullable Icon`; `widget.parent()` can be `null`
+because its return type says so; `new Scene(null)` is a mistake the signature already
+warned you about.
+
+```java
+@Nullable Widget<?> parent = widget.parent();   // null while it is not in a tree
+button.setIcon(null);                            // allowed: the parameter is @Nullable
+```
+
+Nothing enforces this at run time, and nothing needs adding for the annotations to be there:
+they come with the toolkit's dependency, and no code reads them once the program runs; a
+modular application may even leave the jar off its module path. An IDE reads them and warns
+at the call; Kotlin turns them into `Widget<*>?` and `Icon?`; a checker such as
+[NullAway](https://github.com/uber/NullAway) turns them into build errors, for your own code
+as well once you mark it `@NullMarked` too.
+
 ## Writing your own widget
 
 When no combination of the existing ones will do, extend `Widget` and implement two

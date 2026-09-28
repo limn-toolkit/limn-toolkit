@@ -13,7 +13,7 @@ directory holds what a *contributor* wants and a *user* of the toolkit does not.
 
 | | Lives in | Why |
 | --- | --- | --- |
-| Contract: units, ranges, nullability, threading, what a method promises | Javadoc, on the member | It is what a caller needs, and it ships with the artifact |
+| Contract: units, ranges, nullability, threading, what a method promises | Javadoc, on the member; nullability also as `@Nullable` in the signature, which a compiler reads | It is what a caller needs, and it ships with the artifact |
 | A trap that prevents a specific wrong edit | Javadoc or a one-line comment, **at the code it guards** | Whoever is about to make that edit is reading that line, not an index |
 | Why a design is shaped this way; alternatives weighed; consequences accepted | An ADR under `docs/adr/` | Dated, decided once, read once |
 | Subsystem background a contributor needs before changing it | Here | Too long for a member, too small for an ADR |
