@@ -1,5 +1,7 @@
 package limn.scene.event;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * In-progress IME composition ("preedit"): the text an input method is still
  * composing, shown inline with an underline but <em>not</em> committed to the
@@ -29,7 +31,7 @@ public final class PreeditEvent extends InputEvent {
      * blocks, {@code focusedBlock} is the one being converted, and the caret is a char
      * offset into {@code text}. Empty text ends the composition.
      */
-    public PreeditEvent(String text, int[] blockSizes, int focusedBlock, int caret) {
+    public PreeditEvent(@Nullable String text, int @Nullable [] blockSizes, int focusedBlock, int caret) {
         this.text = text == null ? "" : text;
         this.blockSizes = blockSizes == null ? new int[0] : blockSizes.clone();
         this.focusedBlock = focusedBlock;

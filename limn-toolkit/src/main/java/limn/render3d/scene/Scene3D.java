@@ -11,6 +11,7 @@ import limn.render3d.IrradianceSh;
 import limn.render3d.Light;
 import limn.render3d.Material;
 import limn.render3d.RenderPass;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,7 +57,7 @@ public final class Scene3D {
     }
 
     /** Colour the target is cleared to; a zero w leaves the viewport transparent. */
-    public Scene3D background(Vec4 color) {
+    public Scene3D background(@Nullable Vec4 color) {
         this.background = color;
         return this;
     }
@@ -68,7 +69,7 @@ public final class Scene3D {
     }
 
     /** Sets the image-based lighting environment (baking its irradiance once); {@code null} disables. */
-    public Scene3D environment(Environment environment) {
+    public Scene3D environment(@Nullable Environment environment) {
         this.environment = environment;
         this.irradiance = environment != null ? IrradianceSh.bake(environment) : null;
         return this;

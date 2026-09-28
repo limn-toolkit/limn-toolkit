@@ -1,5 +1,7 @@
 package limn.concurrent;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
@@ -101,7 +103,7 @@ public final class Ui {
      * UI thread buys no frame; {@code label.setText(data)} asks for the frame
      * that shows it, a field written directly does not.
      */
-    public static <T> CompletionStage<T> async(Supplier<T> work) {
+    public static <T extends @Nullable Object> CompletionStage<T> async(Supplier<T> work) {
         return require().async(work);
     }
 
@@ -122,7 +124,7 @@ public final class Ui {
      * to the question last <em>asked</em>, rather than whichever answer
      * happened to finish last.
      */
-    public static <T> Work<T> work(Work.Body<T> body) {
+    public static <T extends @Nullable Object> Work<T> work(Work.Body<T> body) {
         return require().work(body);
     }
 

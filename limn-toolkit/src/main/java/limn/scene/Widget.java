@@ -13,6 +13,7 @@ import limn.scene.event.FileDropEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import limn.scene.event.PreeditEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -216,7 +217,7 @@ public abstract class Widget<W extends Widget<W>> {
     // ------------------------------------------------------------------ tree
 
     /** The parent this widget was added to, or {@code null} while it is unattached. */
-    public final Widget<?> parent() {
+    public final @Nullable Widget<?> parent() {
         return parent;
     }
 
@@ -385,7 +386,7 @@ public abstract class Widget<W extends Widget<W>> {
     }
 
     /** The scene this widget belongs to, or {@code null} until it is added to one. */
-    public final Scene scene() {
+    public final @Nullable Scene scene() {
         return scene;
     }
 
@@ -731,7 +732,7 @@ public abstract class Widget<W extends Widget<W>> {
      *         {@link Cursor#DEFAULT} at the root). Non-final so a component can
      *         override it with a state-dependent shape.
      */
-    public Cursor cursor() {
+    public @Nullable Cursor cursor() {
         return cursor;
     }
 
@@ -742,7 +743,7 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * @return this widget
      */
-    public final W setCursor(Cursor cursor) {
+    public final W setCursor(@Nullable Cursor cursor) {
         Ui.checkUiThread();
         this.cursor = cursor;
         // If we're the widget currently under the pointer (or an ancestor of it),
@@ -760,7 +761,7 @@ public abstract class Widget<W extends Widget<W>> {
      *         {@code null} to inherit. Resolved like {@link #cursor()}, with
      *         an image cursor winning over a shape on the same widget.
      */
-    public limn.backend.ImageCursor imageCursor() {
+    public limn.backend.@Nullable ImageCursor imageCursor() {
         return imageCursor;
     }
 
@@ -771,7 +772,7 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * @return this widget
      */
-    public final W setImageCursor(limn.backend.ImageCursor cursor) {
+    public final W setImageCursor(limn.backend.@Nullable ImageCursor cursor) {
         Ui.checkUiThread();
         this.imageCursor = cursor;
         if (scene != null) {
@@ -790,7 +791,7 @@ public abstract class Widget<W extends Widget<W>> {
      *         belongs to the subtree it annotates, and the scene painting it is
      *         outside any pass that would put that locale in scope.
      */
-    public String tooltip() {
+    public @Nullable String tooltip() {
         if (tooltip == null) {
             return null;
         }
@@ -809,12 +810,12 @@ public abstract class Widget<W extends Widget<W>> {
      *         the natural name when it has no other, and neither can be re-resolved when the
      *         translation epoch moves unless the string itself is reachable.
      */
-    public limn.i18n.I18nString tooltipSource() {
+    public limn.i18n.@Nullable I18nString tooltipSource() {
         return tooltip;
     }
 
     /** Sets the hover tooltip text ({@code null} clears it). UI thread only. */
-    public final W setTooltip(String text) {
+    public final W setTooltip(@Nullable String text) {
         setTooltip(text == null ? null : limn.i18n.I18nString.literal(text));
         return self();
     }
@@ -834,7 +835,7 @@ public abstract class Widget<W extends Widget<W>> {
      * and every repeated {@code setTooltip("Play")} would announce a description that did not
      * change. {@code I18nString} answers this already, over its key and its English.
      */
-    public final W setTooltip(limn.i18n.I18nString text) {
+    public final W setTooltip(limn.i18n.@Nullable I18nString text) {
         Ui.checkUiThread();
         if (Objects.equals(this.tooltip, text)) {
             return self();
@@ -890,7 +891,7 @@ public abstract class Widget<W extends Widget<W>> {
      *         {@link #controlSize()} for the effective value (cf. {@link #isVisible()}
      *         vs {@link #isShowing()}).
      */
-    public final ControlSize declaredControlSize() {
+    public final @Nullable ControlSize declaredControlSize() {
         return declaredControlSize;
     }
 
@@ -964,7 +965,7 @@ public abstract class Widget<W extends Widget<W>> {
      * Re-measures whatever actually changed and repaints; a descendant that declares its own
      * step keeps its measure cache. No-op when unchanged. UI thread only.
      */
-    public final W setControlSize(ControlSize size) {
+    public final W setControlSize(@Nullable ControlSize size) {
         Ui.checkUiThread();
         if (declaredControlSize == size) {
             return self();
@@ -983,7 +984,7 @@ public abstract class Widget<W extends Widget<W>> {
      *         client walking either way finds the other.
      * @see #setInheritanceHost(Widget)
      */
-    public final Widget<?> inheritanceHost() {
+    public final @Nullable Widget<?> inheritanceHost() {
         return inheritanceHost;
     }
 
@@ -1017,7 +1018,7 @@ public abstract class Widget<W extends Widget<W>> {
      * @param host the widget to resolve through, or {@code null} to unlink
      * @throws IllegalArgumentException if {@code host} resolves through this widget
      */
-    public final W setInheritanceHost(Widget<?> host) {
+    public final W setInheritanceHost(@Nullable Widget<?> host) {
         Ui.checkUiThread();
         // Walk the chain host would resolve through, exactly as resolveControlSize does.
         // Terminates: add() forbids tree cycles, and every previously installed host link
@@ -1045,7 +1046,7 @@ public abstract class Widget<W extends Widget<W>> {
      *         {@code null} when it inherits. The "is it set here" reader; use
      *         {@link #layoutDirection()} for the effective value.
      */
-    public final LayoutDirection declaredLayoutDirection() {
+    public final @Nullable LayoutDirection declaredLayoutDirection() {
         return declaredLayoutDirection;
     }
 
@@ -1128,7 +1129,7 @@ public abstract class Widget<W extends Widget<W>> {
      * inheritance. Re-measures whatever actually changed and repaints; a descendant that declares
      * its own direction keeps its measure cache. No-op when unchanged. UI thread only.
      */
-    public final W setLayoutDirection(LayoutDirection direction) {
+    public final W setLayoutDirection(@Nullable LayoutDirection direction) {
         Ui.checkUiThread();
         if (declaredLayoutDirection == direction) {
             return self();
@@ -1146,7 +1147,7 @@ public abstract class Widget<W extends Widget<W>> {
      *         {@code null} when it inherits. The "is it set here" reader; use
      *         {@link #locale()} for the effective value.
      */
-    public final Locale declaredLocale() {
+    public final @Nullable Locale declaredLocale() {
         return declaredLocale;
     }
 
@@ -1236,7 +1237,7 @@ public abstract class Widget<W extends Widget<W>> {
      * <p>Re-measures whatever actually changed and repaints; a descendant that declares its
      * own locale keeps its measure cache. No-op when unchanged. UI thread only.
      */
-    public final W setLocale(Locale locale) {
+    public final W setLocale(@Nullable Locale locale) {
         Ui.checkUiThread();
         if (Objects.equals(declaredLocale, locale)) {
             return self();
@@ -1909,7 +1910,7 @@ public abstract class Widget<W extends Widget<W>> {
      * or this widget itself; {@code null} when outside. Later children win
      * because they paint on top.
      */
-    public Widget<?> hitTest(float localX, float localY) {
+    public @Nullable Widget<?> hitTest(float localX, float localY) {
         if (!visible || !enabled
                 || localX < 0 || localY < 0 || localX >= width || localY >= height) {
             return null;
@@ -1975,7 +1976,7 @@ public abstract class Widget<W extends Widget<W>> {
      * anchor (or the widget is not laid out yet). Consulted by the scene only
      * while this widget is focused and {@link #acceptsTextInput()} is true.
      */
-    protected limn.graphics.Rect caretRect() {
+    protected limn.graphics.@Nullable Rect caretRect() {
         return null;
     }
 
@@ -2476,7 +2477,7 @@ public abstract class Widget<W extends Widget<W>> {
      * @param label the widget whose text names this one, or {@code null} to remove the link
      * @see limn.components.Label#setLabelFor(Widget)
      */
-    public final W setAccessibleLabelledBy(Widget<?> label) {
+    public final W setAccessibleLabelledBy(@Nullable Widget<?> label) {
         Ui.checkUiThread();
         overrides().labelledBy = label;
         invalidateAccessible();
@@ -2492,7 +2493,7 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * @return the caption text, or {@code null}
      */
-    protected limn.i18n.I18nString accessibleLabelText() {
+    protected limn.i18n.@Nullable I18nString accessibleLabelText() {
         return null;
     }
 
@@ -2544,7 +2545,7 @@ public abstract class Widget<W extends Widget<W>> {
      * @param source the widget whose text describes this one, or {@code null} to remove the link
      * @see limn.components.Label#setDescriptionFor(Widget)
      */
-    public final W setAccessibleDescribedBy(Widget<?> source) {
+    public final W setAccessibleDescribedBy(@Nullable Widget<?> source) {
         Ui.checkUiThread();
         overrides().describedBy = source;
         invalidateAccessible();
@@ -2565,14 +2566,14 @@ public abstract class Widget<W extends Widget<W>> {
      * @param id the id, or {@code null} for none (the default)
      * @return this widget
      */
-    public final W setId(String id) {
+    public final W setId(@Nullable String id) {
         Ui.checkUiThread();
         this.id = id;
         return self();
     }
 
     /** @return the id {@link #setId} gave, or {@code null} */
-    public final String id() {
+    public final @Nullable String id() {
         return id;
     }
 
@@ -2585,7 +2586,7 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * @param name the name, or {@code null} to let the widget name itself again
      */
-    public final W setAccessibleName(limn.i18n.I18nString name) {
+    public final W setAccessibleName(limn.i18n.@Nullable I18nString name) {
         Ui.checkUiThread();
         if (java.util.Objects.equals(overrides().name, name)) {
             return self();
@@ -2603,7 +2604,7 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * @param name the name, or {@code null} to let the widget name itself again
      */
-    public final W setAccessibleName(String name) {
+    public final W setAccessibleName(@Nullable String name) {
         setAccessibleName(name == null ? null : limn.i18n.I18nString.literal(name));
         return self();
     }
@@ -2614,7 +2615,7 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * @param text the description, or {@code null} to let the widget describe itself again
      */
-    public final W setAccessibleDescription(limn.i18n.I18nString text) {
+    public final W setAccessibleDescription(limn.i18n.@Nullable I18nString text) {
         Ui.checkUiThread();
         overrides().description = text;
         invalidateAccessible();
@@ -2626,7 +2627,7 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * @param text the description, or {@code null} to let the widget describe itself again
      */
-    public final W setAccessibleDescription(String text) {
+    public final W setAccessibleDescription(@Nullable String text) {
         setAccessibleDescription(text == null ? null : limn.i18n.I18nString.literal(text));
         return self();
     }
@@ -2640,7 +2641,7 @@ public abstract class Widget<W extends Widget<W>> {
      *
      * @param role the role, or {@code null} to let the widget declare its own
      */
-    public final W setAccessibleRole(limn.accessibility.Accessible.Role role) {
+    public final W setAccessibleRole(limn.accessibility.Accessible.@Nullable Role role) {
         Ui.checkUiThread();
         overrides().role = role;
         invalidateAccessible();

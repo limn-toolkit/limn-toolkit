@@ -13,6 +13,7 @@ import java.util.function.DoubleConsumer;
 import limn.backend.CrashPhase;
 import limn.backend.Crashes;
 import limn.math.Scalars;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A description of background work, built up and then started once. The body
@@ -47,7 +48,7 @@ import limn.math.Scalars;
  *
  * @param <T> the type the body produces
  */
-public final class Work<T> {
+public final class Work<T extends @Nullable Object> {
 
     /**
      * The background body. Runs on the worker pool, never on the UI thread,
@@ -57,7 +58,7 @@ public final class Work<T> {
      * @param <T> the type the body produces
      */
     @FunctionalInterface
-    public interface Body<T> {
+    public interface Body<T extends @Nullable Object> {
         /**
          * @param progress the job's own handle: cancellation and reporting
          * @return the value handed to the success callback; may be {@code null}
@@ -140,7 +141,7 @@ public final class Work<T> {
      * @param handler the receiver, or {@code null} to drop the result
      * @return this, for chaining
      */
-    public Work<T> onSuccess(Consumer<T> handler) {
+    public Work<T> onSuccess(@Nullable Consumer<T> handler) {
         this.onSuccess = handler;
         return this;
     }
@@ -159,7 +160,7 @@ public final class Work<T> {
      *                default
      * @return this, for chaining
      */
-    public Work<T> onFailure(Consumer<Throwable> handler) {
+    public Work<T> onFailure(@Nullable Consumer<Throwable> handler) {
         this.onFailure = handler;
         return this;
     }
@@ -177,7 +178,7 @@ public final class Work<T> {
      * @param handler the receiver, or {@code null} to ignore reports
      * @return this, for chaining
      */
-    public Work<T> onProgress(DoubleConsumer handler) {
+    public Work<T> onProgress(@Nullable DoubleConsumer handler) {
         this.onProgress = handler;
         return this;
     }
@@ -205,7 +206,7 @@ public final class Work<T> {
      * @param dispose the disposer, or {@code null} to drop silently
      * @return this, for chaining
      */
-    public Work<T> onDiscarded(Consumer<T> dispose) {
+    public Work<T> onDiscarded(@Nullable Consumer<T> dispose) {
         this.onDiscarded = dispose;
         return this;
     }
@@ -229,7 +230,7 @@ public final class Work<T> {
      * @param alive asked on the UI thread, or {@code null} to always deliver
      * @return this, for chaining
      */
-    public Work<T> deliverIf(BooleanSupplier alive) {
+    public Work<T> deliverIf(@Nullable BooleanSupplier alive) {
         this.alive = alive;
         return this;
     }

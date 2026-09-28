@@ -1,5 +1,7 @@
 package limn.i18n;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.Locale;
 
 /**
@@ -37,7 +39,7 @@ public final class LanguageWitness {
     }
 
     /** @return the locale the last built string was made under, or {@code null} before the first */
-    public Locale locale() {
+    public @Nullable Locale locale() {
         return locale;
     }
 }

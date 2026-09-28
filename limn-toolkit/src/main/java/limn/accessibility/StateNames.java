@@ -3,6 +3,7 @@ package limn.accessibility;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.i18n.PropertyBundle;
+import org.jspecify.annotations.Nullable;
 
 import java.util.EnumMap;
 import java.util.Locale;
@@ -96,7 +97,7 @@ public final class StateNames {
      * @return the phrase, or the English when nothing translates it, or {@code null} for a state
      *         no platform carries as words
      */
-    public static String of(Accessible.State state, Locale locale) {
+    public static @Nullable String of(Accessible.State state, Locale locale) {
         I18nString phrase = PHRASE.get(state);
         // Not phrase.get(), for RoleNames.of's reason: the node's locale, on the platform's thread.
         return phrase == null ? null : I18n.resolve(phrase.key(), phrase.english(), locale);
@@ -106,7 +107,7 @@ public final class StateNames {
      * @param state a state
      * @return the English phrase without consulting any bundle, or {@code null} when there is none
      */
-    public static String englishOf(Accessible.State state) {
+    public static @Nullable String englishOf(Accessible.State state) {
         I18nString phrase = PHRASE.get(state);
         return phrase == null ? null : phrase.english();
     }

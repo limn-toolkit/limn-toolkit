@@ -1,5 +1,7 @@
 package limn.accessibility;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * A node whose state is a number in a range: a slider, a spinner, a progress bar, a scroll bar,
  * a split pane's divider, a date field's segment.
@@ -40,7 +42,7 @@ package limn.accessibility;
  * @param readOnly whether the value may be read and not set
  * @param empty    whether the node holds no number at all, its range and text standing
  */
-public record ValueFacet(double value, double min, double max, double step, String text,
+public record ValueFacet(double value, double min, double max, double step, @Nullable String text,
                          boolean readOnly, boolean empty) {
 
     /**
@@ -53,7 +55,7 @@ public record ValueFacet(double value, double min, double max, double step, Stri
      * @param text     the value as displayed, or {@code null}
      * @param readOnly whether the value may be read and not set
      */
-    public ValueFacet(double value, double min, double max, double step, String text,
+    public ValueFacet(double value, double min, double max, double step, @Nullable String text,
                       boolean readOnly) {
         this(value, min, max, step, text, readOnly, false);
     }

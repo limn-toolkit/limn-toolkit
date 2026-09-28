@@ -1,5 +1,7 @@
 package limn.backend;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -80,7 +82,7 @@ public final class ModalStack {
      *               non-modal window
      * @throws IllegalStateException if {@code window} is already modal
      */
-    public void push(Object window, Object parent) {
+    public void push(Object window, @Nullable Object parent) {
         push(window, parent, null);
     }
 
@@ -96,7 +98,7 @@ public final class ModalStack {
      *                       {@code null} for none
      * @throws IllegalStateException if {@code window} is already modal
      */
-    public void push(Object window, Object parent, Object ownerException) {
+    public void push(Object window, @Nullable Object parent, @Nullable Object ownerException) {
         Objects.requireNonNull(window, "window");
         // A window already on the stack is a programming error, not a re-raise. The old
         // behaviour moved it to the top AND adopted the new parent and exception, silently:
@@ -127,7 +129,7 @@ public final class ModalStack {
      * @param owner the host window that closed
      * @return whether anything was removed
      */
-    public boolean removeOwnedBy(Object owner) {
+    public boolean removeOwnedBy(@Nullable Object owner) {
         return owner != null && stack.removeIf(m -> m.ownerException == owner);
     }
 
@@ -137,7 +139,7 @@ public final class ModalStack {
     }
 
     /** @return the topmost (interactive) modal window, or {@code null} if none */
-    public Object topModal() {
+    public @Nullable Object topModal() {
         return stack.isEmpty() ? null : stack.get(stack.size() - 1).window;
     }
 

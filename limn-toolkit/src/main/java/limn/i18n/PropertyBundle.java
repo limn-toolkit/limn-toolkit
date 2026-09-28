@@ -15,6 +15,7 @@ import java.util.function.Function;
 import java.util.concurrent.ConcurrentHashMap;
 import limn.i18n.internal.LanguageAliases;
 import limn.io.Resources;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A {@link StringBundle} backed by UTF-8 {@code .properties} files on the classpath,
@@ -116,7 +117,8 @@ public final class PropertyBundle implements StringBundle {
      *                         answers {@code null} when there is no such file
      * @return the family
      */
-    public static PropertyBundle family(String baseResourcePath, Function<String, InputStream> open) {
+    public static PropertyBundle family(String baseResourcePath,
+                                       Function<String, @Nullable InputStream> open) {
         String path = Objects.requireNonNull(baseResourcePath, "baseResourcePath");
         return new PropertyBundle(path.startsWith("/") ? path.substring(1) : path, null, null,
                 Objects.requireNonNull(open, "open"));
@@ -149,7 +151,7 @@ public final class PropertyBundle implements StringBundle {
     }
 
     @Override
-    public String lookup(String key, Locale locale) {
+    public @Nullable String lookup(String key, Locale locale) {
         Map<String, String> table = tables.get(locale);
         if (table == null) {
             // Only reachable for a locale nobody prepared this bundle for; I18n prepares

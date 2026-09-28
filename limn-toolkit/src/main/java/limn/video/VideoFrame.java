@@ -5,6 +5,7 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import limn.internal.lang.Checks;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One decoded picture, borrowed from the producer that published it. A frame is a <em>lease</em>,
@@ -596,7 +597,7 @@ public final class VideoFrame {
          *
          * @param downloader what {@link VideoFrame#toPlanar()} calls; null removes it
          */
-        public void setDownloader(Downloader downloader) {
+        public void setDownloader(@Nullable Downloader downloader) {
             frame.downloader = downloader;
         }
 

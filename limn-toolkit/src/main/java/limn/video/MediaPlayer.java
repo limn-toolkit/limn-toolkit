@@ -9,6 +9,7 @@ import limn.sound.AudioStreamSource;
 import limn.sound.PlayOptions;
 import limn.sound.Playback;
 import limn.sound.Sounds;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -243,7 +244,7 @@ public final class MediaPlayer implements AutoCloseable {
      *                {@link PlayOptions#loop()} is overridden by {@link #setLooping(boolean)}.
      * @throws IllegalStateException if this player has already been started
      */
-    public MediaPlayer setAudio(AudioStreamSource newAudio, PlayOptions options) {
+    public MediaPlayer setAudio(@Nullable AudioStreamSource newAudio, PlayOptions options) {
         Ui.checkUiThread();
         checkIdle("the audio track");
         if (audio != null && audio != newAudio) {
@@ -619,7 +620,7 @@ public final class MediaPlayer implements AutoCloseable {
      * <p>UI thread. Cheap enough for every frame: it reads the master at most once and allocates
      * nothing.
      */
-    public VideoFrame takePicture() {
+    public @Nullable VideoFrame takePicture() {
         Ui.checkUiThread();
         if (state == State.FAILED) {
             drainRing(); // the pictures outlived the stream that made them; give the slots back
@@ -921,7 +922,7 @@ public final class MediaPlayer implements AutoCloseable {
      * @return the exception a decode threw, or null. The player stops reading the stream and hands
      *         out nothing more; {@link #restart()} or {@link #stop()} clears it.
      */
-    public RuntimeException failure() {
+    public @Nullable RuntimeException failure() {
         return failure;
     }
 

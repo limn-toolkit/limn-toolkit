@@ -1,5 +1,7 @@
 package limn.concurrent;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -12,7 +14,7 @@ import java.util.concurrent.Executor;
  * registration from a background thread and {@code cancel()} run inline on
  * the calling thread, as per {@link CompletableFuture} semantics).
  */
-final class UiFuture<T> extends CompletableFuture<T> {
+final class UiFuture<T extends @Nullable Object> extends CompletableFuture<T> {
 
     private final UiRuntime runtime;
 

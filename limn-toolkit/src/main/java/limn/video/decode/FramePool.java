@@ -5,6 +5,7 @@ import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoFrame;
 import limn.video.VideoStreamSource;
+import org.jspecify.annotations.Nullable;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
@@ -185,7 +186,7 @@ public final class FramePool implements VideoFrame.Recycler {
      *
      * @return a writer whose planes are the caller's to fill, or null
      */
-    public VideoFrame.Writer acquire() {
+    public VideoFrame.@Nullable Writer acquire() {
         while (true) {
             long mask = free.get();
             if (mask == 0) {

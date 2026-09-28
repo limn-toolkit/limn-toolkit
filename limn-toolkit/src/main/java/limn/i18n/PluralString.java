@@ -1,6 +1,7 @@
 package limn.i18n;
 
 import limn.i18n.internal.NumberLocale;
+import org.jspecify.annotations.Nullable;
 
 import java.text.MessageFormat;
 import java.util.LinkedHashMap;
@@ -93,7 +94,7 @@ public final class PluralString {
      * @param args  the caller's arguments, which keep their own positions
      * @return the formatted sentence
      */
-    public String format(long count, Object... args) {
+    public String format(long count, @Nullable Object @Nullable ... args) {
         Locale locale = I18n.locale();
         PluralRules.Category category = PluralRules.select(locale, count);
         String fallback = english.get(category);

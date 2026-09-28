@@ -1,5 +1,7 @@
 package limn.backend;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * System clipboard (UTF-8 text). The LWJGL backend maps it to
  * {@code glfwGet/SetClipboardString}; tests inject mocks.
@@ -20,7 +22,7 @@ public interface Clipboard {
         }
 
         @Override
-        public void set(String text) {
+        public void set(@Nullable String text) {
             value = text == null ? "" : text;
         }
     };
@@ -29,5 +31,5 @@ public interface Clipboard {
     String get();
 
     /** @param text the new clipboard text; {@code null} is the empty string */
-    void set(String text);
+    void set(@Nullable String text);
 }

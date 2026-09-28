@@ -4,6 +4,7 @@ import limn.concurrent.Progress;
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
 import limn.io.internal.Closeables;
+import org.jspecify.annotations.Nullable;
 
 import java.lang.System.Logger.Level;
 import java.nio.file.Path;
@@ -181,7 +182,7 @@ public final class Videos {
      *                                       the message names every decoder asked, in order
      * @throws NullPointerException          if {@code file} is null
      */
-    public static VideoStreamSource open(Path file) {
+    public static @Nullable VideoStreamSource open(Path file) {
         Objects.requireNonNull(file, "file");
         return probeAndOpen(file, NEVER_CANCELLED);
     }

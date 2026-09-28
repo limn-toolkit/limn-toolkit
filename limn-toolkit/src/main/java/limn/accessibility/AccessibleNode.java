@@ -1,6 +1,7 @@
 package limn.accessibility;
 
 import limn.graphics.Rect;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Collections;
 import java.util.EnumSet;
@@ -210,62 +211,62 @@ public final class AccessibleNode {
     }
 
     /** @return this node's checked state, or {@code null} when it has none */
-    public ToggleFacet toggle() {
+    public @Nullable ToggleFacet toggle() {
         return toggle;
     }
 
     /** @return this node's numeric value, or {@code null} when it has none */
-    public ValueFacet value() {
+    public @Nullable ValueFacet value() {
         return value;
     }
 
     /** @return this node's selection, or {@code null} when it holds none */
-    public SelectionFacet selection() {
+    public @Nullable SelectionFacet selection() {
         return selection;
     }
 
     /** @return this node's membership of a selection, or {@code null} when it is in none */
-    public SelectionItemFacet selectionItem() {
+    public @Nullable SelectionItemFacet selectionItem() {
         return selectionItem;
     }
 
     /** @return whether this node is open, or {@code null} when it does not open */
-    public ExpandFacet expand() {
+    public @Nullable ExpandFacet expand() {
         return expand;
     }
 
     /** @return this node's text, or {@code null} when it has none */
-    public TextFacet text() {
+    public @Nullable TextFacet text() {
         return text;
     }
 
     /** @return this node's scroll position, or {@code null} when it does not scroll */
-    public ScrollFacet scroll() {
+    public @Nullable ScrollFacet scroll() {
         return scroll;
     }
 
     /** @return this node's window, or {@code null} when it is not one */
-    public WindowFacet window() {
+    public @Nullable WindowFacet window() {
         return window;
     }
 
     /** @return this node's grid shape, or {@code null} when it is not a table */
-    public TableFacet table() {
+    public @Nullable TableFacet table() {
         return table;
     }
 
     /** @return where this node sits in a table, or {@code null} when it is not a cell */
-    public CellFacet cell() {
+    public @Nullable CellFacet cell() {
         return cell;
     }
 
     /** @return where this node stands in an outline, or {@code null} when it is not a row of one */
-    public HierarchyFacet hierarchy() {
+    public @Nullable HierarchyFacet hierarchy() {
         return hierarchy;
     }
 
     /** @return the verbs this node offers, or {@code null} when it offers none */
-    public ActionFacet actions() {
+    public @Nullable ActionFacet actions() {
         return actions;
     }
 

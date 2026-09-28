@@ -3,6 +3,7 @@ package limn.accessibility;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.i18n.PropertyBundle;
+import org.jspecify.annotations.Nullable;
 
 import java.util.EnumMap;
 import java.util.Locale;
@@ -153,7 +154,7 @@ public final class RoleNames {
      * @return the English phrase, without consulting any bundle. For the tests that check the
      *         catalogue's own shape, and for a caller with no locale to speak of
      */
-    public static String englishOf(Accessible.Role role) {
+    public static @Nullable String englishOf(Accessible.Role role) {
         I18nString phrase = PHRASE.get(role);
         return phrase == null ? null : phrase.english();
     }

@@ -1,6 +1,7 @@
 package limn.i18n;
 
 import limn.i18n.internal.NumberLocale;
+import org.jspecify.annotations.Nullable;
 
 import java.text.MessageFormat;
 import java.util.Locale;
@@ -135,7 +136,7 @@ public final class I18nString {
      * symbol among them, is the language's as before. Pass {@code Integer.toString(n)}
      * where a number is a spelling rather than a quantity and must stay in ASCII digits.
      */
-    public String format(Object... args) {
+    public String format(@Nullable Object @Nullable ... args) {
         String pattern = get();
         if (args == null || args.length == 0) {
             return pattern;
@@ -153,7 +154,7 @@ public final class I18nString {
     }
 
     /** The lookup key, or {@code null} for a {@linkplain #literal literal}. */
-    public String key() {
+    public @Nullable String key() {
         return key;
     }
 
@@ -179,7 +180,7 @@ public final class I18nString {
      * its field stops being a {@code String}.
      */
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
         if (this == o) {
             return true;
         }

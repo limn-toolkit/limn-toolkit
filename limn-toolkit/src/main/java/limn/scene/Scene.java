@@ -19,6 +19,7 @@ import limn.scene.event.FileDropEvent;
 import limn.scene.event.InputEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.lang.System.Logger.Level;
 import java.util.ArrayList;
@@ -501,7 +502,7 @@ public final class Scene {
     }
 
     /** @return the bound window, or {@code null} when headless */
-    public NativeWindow window() {
+    public @Nullable NativeWindow window() {
         return window;
     }
 
@@ -532,7 +533,7 @@ public final class Scene {
      * @param id the id to look for
      * @return the widget, or {@code null} when none has that id
      */
-    public Widget<?> find(String id) {
+    public @Nullable Widget<?> find(String id) {
         Ui.checkUiThread();
         Objects.requireNonNull(id, "id");
         Widget<?> found = root == null ? null : findIn(root, id);
@@ -551,7 +552,7 @@ public final class Scene {
      * @return the widget, or {@code null} when none has that id
      * @throws ClassCastException when the widget with that id is not a {@code type}
      */
-    public <T> T find(String id, Class<T> type) {
+    public <T> @Nullable T find(String id, Class<T> type) {
         return type.cast(find(id));
     }
 
@@ -577,7 +578,7 @@ public final class Scene {
      *         scene declares nothing, which is what lets it inherit from the widget that
      *         opened it.
      */
-    public ControlSize controlSize() {
+    public @Nullable ControlSize controlSize() {
         return controlSize;
     }
 
@@ -586,7 +587,7 @@ public final class Scene {
      * compact tool window beside a regular main window). Widgets that declare their own step,
      * and their subtrees, are unaffected. {@code null} restores fall-through. UI thread only.
      */
-    public void setControlSize(ControlSize size) {
+    public void setControlSize(@Nullable ControlSize size) {
         Ui.checkUiThread();
         if (controlSize == size) {
             return;
@@ -605,7 +606,7 @@ public final class Scene {
      *         {@link #controlSize()} is: a popup's own scene declares nothing, which is what lets
      *         it inherit from the widget that opened it.
      */
-    public LayoutDirection layoutDirection() {
+    public @Nullable LayoutDirection layoutDirection() {
         return layoutDirection;
     }
 
@@ -616,7 +617,7 @@ public final class Scene {
      * left-to-right code editor, log pane or URL bar sit inside it. {@code null} restores
      * fall-through. UI thread only.
      */
-    public void setLayoutDirection(LayoutDirection direction) {
+    public void setLayoutDirection(@Nullable LayoutDirection direction) {
         Ui.checkUiThread();
         if (layoutDirection == direction) {
             return;
@@ -635,7 +636,7 @@ public final class Scene {
      *         {@link #controlSize()} is: a popup's own scene declares nothing, which is what
      *         lets it inherit from the widget that opened it.
      */
-    public java.util.Locale locale() {
+    public java.util.@Nullable Locale locale() {
         return locale;
     }
 
@@ -646,7 +647,7 @@ public final class Scene {
      * restores fall-through. Retains the declared locale's bundle tables exactly as
      * {@link Widget#setLocale} does. UI thread only.
      */
-    public void setLocale(java.util.Locale locale) {
+    public void setLocale(java.util.@Nullable Locale locale) {
         Ui.checkUiThread();
         if (Objects.equals(this.locale, locale)) {
             return;
@@ -1723,14 +1724,14 @@ public final class Scene {
      *
      * <p>Painted before the damage-debug flashes, so those stay legible on top of it.
      */
-    public void setFrontPainter(java.util.function.Consumer<Canvas> painter) {
+    public void setFrontPainter(java.util.function.@Nullable Consumer<Canvas> painter) {
         Ui.checkUiThread();
         this.frontPainter = painter;
         requestRender();
     }
 
     /** @return the front painter, or {@code null}. */
-    public java.util.function.Consumer<Canvas> frontPainter() {
+    public java.util.function.@Nullable Consumer<Canvas> frontPainter() {
         return frontPainter;
     }
 
@@ -1909,7 +1910,7 @@ public final class Scene {
      * @param observer told about every press; never null
      * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
      */
-    public Subscription observePresses(java.util.function.Consumer<Widget<?>> observer) {
+    public Subscription observePresses(java.util.function.Consumer<@Nullable Widget<?>> observer) {
         Ui.checkUiThread();
         Objects.requireNonNull(observer, "observer");
         pressObservers = Listeners.added(pressObservers, observer, NO_PRESS_OBSERVERS);
@@ -2535,7 +2536,7 @@ public final class Scene {
     // ----------------------------------------------------------------- focus
 
     /** The widget holding keyboard focus, or {@code null} when nothing does. */
-    public Widget<?> focusedWidget() {
+    public @Nullable Widget<?> focusedWidget() {
         return focused;
     }
 
@@ -2551,7 +2552,7 @@ public final class Scene {
      * through {@link Widget#requestFocus(Change.Origin)}. Reading the method rather than the
      * entry point would report every keyboard-driven focus move in the toolkit as made by code.
      */
-    public void requestFocus(Widget<?> widget) {
+    public void requestFocus(@Nullable Widget<?> widget) {
         Ui.checkUiThread();
         requestFocus(widget, Change.Origin.CODE);
     }
@@ -2790,7 +2791,7 @@ public final class Scene {
      * a 3D viewport) call this from {@link Widget#onDetached()} instead of
      * disposing inline, because {@code dispose()} would run without a current context.
      */
-    public void disposeLater(GpuSurface surface) {
+    public void disposeLater(@Nullable GpuSurface surface) {
         Ui.checkUiThread();
         if (surface != null) {
             disposeLater(surface::dispose);
@@ -2802,7 +2803,7 @@ public final class Scene {
      * with this scene's GL context current, e.g. a retained 3D scene's
      * {@code Scene3D.dispose()}. Runs once, at the top of the next frame.
      */
-    public void disposeLater(Runnable gpuCleanup) {
+    public void disposeLater(@Nullable Runnable gpuCleanup) {
         Ui.checkUiThread();
         if (gpuCleanup != null) {
             pendingDisposals.add(gpuCleanup);
@@ -4281,7 +4282,7 @@ public final class Scene {
     }
 
     /** Eases the window opacity to {@code 0}, then runs {@code onGone} (typically a close). */
-    public void fadeWindowOut(double seconds, Runnable onGone) {
+    public void fadeWindowOut(double seconds, @Nullable Runnable onGone) {
         fadeWindow(0f, seconds, onGone);
     }
 
@@ -4293,7 +4294,7 @@ public final class Scene {
      * window) jumps straight to {@code target} and runs {@code onArrive} now.
      * UI thread only.
      */
-    public void fadeWindow(float target, double seconds, Runnable onArrive) {
+    public void fadeWindow(float target, double seconds, @Nullable Runnable onArrive) {
         float clamped = Math.max(0f, Math.min(1f, target));
         int generation = ++winFadeGeneration; // supersede any in-flight fade
         NativeWindow w = window;

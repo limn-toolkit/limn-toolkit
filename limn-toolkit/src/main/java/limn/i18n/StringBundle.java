@@ -1,5 +1,7 @@
 package limn.i18n;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.Locale;
 
 /**
@@ -20,7 +22,7 @@ public interface StringBundle {
      * bundle does not have one. Called on the UI thread during measure and paint, so
      * it must not block; see {@link #prepare}.
      */
-    String lookup(String key, Locale locale);
+    @Nullable String lookup(String key, Locale locale);
 
     /**
      * Loads whatever answering {@code locale} will need. Called by

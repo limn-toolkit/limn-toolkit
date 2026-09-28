@@ -3,6 +3,7 @@ package limn.video.decode;
 import limn.video.VideoDecoder;
 import limn.video.VideoStreamSource;
 import limn.video.Videos;
+import org.jspecify.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.util.Locale;
@@ -48,7 +49,7 @@ public final class SyntheticVideoDecoder implements VideoDecoder {
      *         wrong with it) by {@link #openStream}.
      */
     @Override
-    public boolean supports(Path file) {
+    public boolean supports(@Nullable Path file) {
         if (file == null) {
             return false;
         }

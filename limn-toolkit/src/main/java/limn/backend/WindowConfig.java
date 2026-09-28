@@ -2,6 +2,7 @@ package limn.backend;
 
 import java.util.Objects;
 import limn.internal.lang.Checks;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Initial configuration for a {@link NativeWindow}: start from {@link #of}, then change what differs
@@ -272,7 +273,7 @@ public final class WindowConfig {
      *                the placement to the desktop, so a caller need not branch
      * @return a copy anchored to that display, or {@code this} when there is none
      */
-    public WindowConfig on(Display display) {
+    public WindowConfig on(@Nullable Display display) {
         if (display == null) {
             return this;
         }
@@ -281,7 +282,7 @@ public final class WindowConfig {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
         return o instanceof WindowConfig c && c.width == width && c.height == height
                 && c.visible == visible && c.resizable == resizable && c.decorated == decorated
                 && c.floating == floating && c.transparent == transparent

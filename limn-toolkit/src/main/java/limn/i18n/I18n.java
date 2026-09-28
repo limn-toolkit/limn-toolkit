@@ -4,6 +4,7 @@ import limn.concurrent.internal.ChangeListeners;
 import limn.concurrent.Ui;
 import limn.i18n.internal.LanguageAliases;
 import limn.i18n.internal.LocaleServices;
+import org.jspecify.annotations.Nullable;
 
 import java.text.Collator;
 import java.util.Collections;
@@ -172,7 +173,7 @@ public final class I18n {
      * @return the scope in effect before this call, possibly {@code null}: the value
      *         {@link #popScope} must be given back
      */
-    public static Locale pushScope(Locale locale) {
+    public static @Nullable Locale pushScope(Locale locale) {
         Objects.requireNonNull(locale, "locale");
         Locale enclosing = SCOPE.get();
         // Every widget opens a scope around its measure, layout and paint, and nearly every
@@ -190,7 +191,7 @@ public final class I18n {
      * {@code null} (the usual outermost case) restores "no scope", which is the
      * process locale. Always call it in a {@code finally}.
      */
-    public static void popScope(Locale enclosing) {
+    public static void popScope(@Nullable Locale enclosing) {
         if (SCOPE.get() != enclosing) {
             SCOPE.set(enclosing);
         }
@@ -277,7 +278,7 @@ public final class I18n {
      * Treated as a text change: the epoch bumps and every live scene re-lays-out, exactly as a
      * locale switch does, because every formatted number on screen just changed.
      */
-    public static void setNumberingSystem(NumberingSystem system) {
+    public static void setNumberingSystem(@Nullable NumberingSystem system) {
         checkUiThread();
         if (declaredNumberingSystem == system) {
             return;
@@ -465,7 +466,7 @@ public final class I18n {
      * application built through {@link #collator()} is now stale and the application's own
      * change listener is where it re-sorts.
      */
-    public static void setTextLocale(Locale next) {
+    public static void setTextLocale(@Nullable Locale next) {
         checkUiThread();
         if (Objects.equals(declaredTextLocale, next)) {
             return;
@@ -545,7 +546,7 @@ public final class I18n {
      * @param target  the locale to answer in
      * @return the translation, or {@code english}
      */
-    public static String resolve(String key, String english, Locale target) {
+    public static String resolve(String key, @Nullable String english, Locale target) {
         for (StringBundle bundle : BUNDLES) {
             String translated = bundle.lookup(key, target);
             if (translated != null) {

@@ -1,5 +1,7 @@
 package limn.backend;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * A top-level native window. Sizes exposed to the toolkit are in <em>logical
  * points</em>; the backend multiplies by the monitor's {@linkplain
@@ -91,7 +93,7 @@ public interface NativeWindow extends AutoCloseable {
      * veto silently. A backend with no close gesture of its own (headless, embedded) keeps the
      * handler and never calls it, and says so in its implementation.
      */
-    void setCloseRequestHandler(java.util.function.BooleanSupplier handler);
+    void setCloseRequestHandler(java.util.function.@Nullable BooleanSupplier handler);
 
     void show();
 
@@ -114,7 +116,7 @@ public interface NativeWindow extends AutoCloseable {
      * cannot provide falls back to the arrow. The default implementation ignores
      * it (headless/embedding). UI thread only.
      */
-    default void setCursor(Cursor cursor) {
+    default void setCursor(@Nullable Cursor cursor) {
     }
 
     /** Brings this window to the front and gives it input focus. UI thread only. */
@@ -396,7 +398,7 @@ public interface NativeWindow extends AutoCloseable {
      * the mode is window state and survives the widget. No-op where
      * unsupported. UI thread only.
      */
-    default void setPointerMode(PointerMode mode) {
+    default void setPointerMode(@Nullable PointerMode mode) {
     }
 
     /** @return the current {@link PointerMode} (default {@link PointerMode#NORMAL}) */
@@ -411,7 +413,7 @@ public interface NativeWindow extends AutoCloseable {
      * {@link limn.scene.Widget#setImageCursor} hover resolution; call it
      * directly only in windowless/manual setups. UI thread only.
      */
-    default void setImageCursor(ImageCursor cursor) {
+    default void setImageCursor(@Nullable ImageCursor cursor) {
     }
 
     /**
@@ -450,7 +452,7 @@ public interface NativeWindow extends AutoCloseable {
      *         headless/embedded. Its {@link Display#workArea()} is what external
      *         popups clamp against to stay on screen. UI thread only.
      */
-    default Display display() {
+    default @Nullable Display display() {
         return null;
     }
 

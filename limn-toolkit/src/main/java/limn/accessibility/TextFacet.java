@@ -2,6 +2,7 @@ package limn.accessibility;
 
 import limn.graphics.Rect;
 import limn.graphics.ShapedText;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A node that holds text a user can read, and usually edit: a text field, a text area, a search
@@ -34,7 +35,7 @@ import limn.graphics.ShapedText;
  *                       the node has no caret to draw
  */
 public record TextFacet(String text, int caretOffset, ShapedText.Affinity caretAffinity,
-                        int selectionStart, int selectionEnd, int lineCount, Rect caretRect) {
+                        int selectionStart, int selectionEnd, int lineCount, @Nullable Rect caretRect) {
 
     /**
      * @throws NullPointerException if {@code text} or {@code caretAffinity} is {@code null}

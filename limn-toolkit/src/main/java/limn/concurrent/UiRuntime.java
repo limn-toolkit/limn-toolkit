@@ -1,6 +1,7 @@
 package limn.concurrent;
 
 import limn.concurrent.internal.Threads;
+import org.jspecify.annotations.Nullable;
 
 import java.lang.System.Logger.Level;
 import java.util.ArrayList;
@@ -252,7 +253,7 @@ public final class UiRuntime implements AutoCloseable {
      *
      * @param clock what delayed tasks read as now, or {@code null} for this runtime's own clock
      */
-    public void setDelayClock(LongSupplier clock) {
+    public void setDelayClock(@Nullable LongSupplier clock) {
         LongSupplier next = clock != null ? clock : nanoClock;
         synchronized (delayedLock) {
             if (next == delayClock) {
@@ -291,7 +292,7 @@ public final class UiRuntime implements AutoCloseable {
      * UI thread buys no frame; {@code label.setText(data)} asks for the frame
      * that shows it, a field written directly does not.
      */
-    public <T> CompletableFuture<T> async(Supplier<T> work) {
+    public <T extends @Nullable Object> CompletableFuture<T> async(Supplier<T> work) {
         Objects.requireNonNull(work, "work");
         UiFuture<T> future = new UiFuture<>(this);
         workers.execute(() -> {
@@ -316,7 +317,7 @@ public final class UiRuntime implements AutoCloseable {
      * where competing {@code async} calls show whichever answer happened to
      * finish last.
      */
-    public <T> Work<T> work(Work.Body<T> body) {
+    public <T extends @Nullable Object> Work<T> work(Work.Body<T> body) {
         return new Work<>(this, body);
     }
 

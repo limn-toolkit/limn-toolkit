@@ -1,5 +1,7 @@
 package limn.graphics;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * A themeable, resolution-independent glyph, conceptually distinct from an
  * {@link Image}, which is just a fixed grid of RGBA pixels for display. An icon
@@ -59,7 +61,7 @@ public interface Icon {
      * the picture untouched). This is the one idiom every component uses to draw an
      * icon.
      */
-    default void paint(Canvas canvas, float x, float y, float size, Color tint, boolean dark) {
+    default void paint(Canvas canvas, float x, float y, float size, @Nullable Color tint, boolean dark) {
         int px = Math.max(1, Math.round(size * canvas.contentScale()));
         Image bitmap = image(px, dark);
         // Aspect-fit, centered: the rasterizer preserves the source's aspect
@@ -115,7 +117,7 @@ public interface Icon {
      * @param mirrored whether to flip; {@code false} is exactly
      *                 {@link #paint(Canvas, float, float, float, Color, boolean)}
      */
-    default void paint(Canvas canvas, float x, float y, float size, Color tint, boolean dark,
+    default void paint(Canvas canvas, float x, float y, float size, @Nullable Color tint, boolean dark,
                        boolean mirrored) {
         if (!mirrored) {
             paint(canvas, x, y, size, tint, dark);
