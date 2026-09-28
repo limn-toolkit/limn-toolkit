@@ -389,23 +389,42 @@ val hostPlatforms = listOf(
 // against the table above so that a new target fails this build rather than resolving nothing.
 // Read at configuration time, into plain strings: what the POM task runs later must carry no
 // reference to a project or to this script, or the configuration cache refuses to store it.
-data class LwjglDeclaration(val modules: List<String>, val version: String) : java.io.Serializable
+//
+// Two lists, because not every LWJGL module has natives. lwjgl-egl is classes only — it binds the
+// system's libEGL — and LWJGL publishes no natives-* jar for it; naming one in a profile is a
+// dependency no resolver can satisfy, which is how the 0.9.0 POMs of both runnable modules came
+// to name six jars that do not exist. So the natives come from the backend's runtimeOnly
+// declarations, the only place that says which modules HAVE natives, and the backend resolves
+// those itself on every test run: a module listed there without natives fails the backend's own
+// build long before a POM is written.
+data class LwjglDeclaration(
+    val modules: List<String>, val nativeModules: List<String>, val version: String,
+) : java.io.Serializable
 fun lwjglAsDeclaredByTheBackend(): LwjglDeclaration {
     val backend = project(":limn-backend-lwjgl")
     val modules = backend.configurations.getByName("implementation").dependencies
         .filter { it.group == "org.lwjgl" && it.name != "lwjgl-bom" }
         .map { it.name }.distinct().sorted()
-    val classifiers = backend.configurations.getByName("runtimeOnly").dependencies
+    val natives = backend.configurations.getByName("runtimeOnly").dependencies
         .filter { it.group == "org.lwjgl" }
-        .flatMap { (it as ExternalModuleDependency).artifacts.mapNotNull { artifact -> artifact.classifier } }
-        .toSet()
+        .map { it as ExternalModuleDependency }
+        .filter { it.artifacts.any { artifact -> artifact.classifier?.startsWith("natives-") == true } }
+    val nativeModules = natives.map { it.name }.distinct().sorted()
     val expected = hostPlatforms.map { it.lwjglClassifier }.toSet()
-    if (modules.isEmpty() || classifiers != expected) {
+    val classifiersPerModule = natives.groupBy { it.name }
+        .mapValues { (_, declared) -> declared.flatMap { d -> d.artifacts.mapNotNull { it.classifier } }.toSet() }
+    val incomplete = classifiersPerModule.filterValues { it != expected }
+    if (modules.isEmpty() || nativeModules.isEmpty() || incomplete.isNotEmpty()) {
         throw GradleException(
-            "limn-backend-lwjgl declares LWJGL modules $modules under classifiers $classifiers, " +
-                    "but the host-natives table in the root build knows $expected: update the table.")
+            "limn-backend-lwjgl declares LWJGL natives $classifiersPerModule, but the host-natives " +
+                    "table in the root build knows $expected for every module: update the table.")
     }
-    return LwjglDeclaration(modules, libs.versions.lwjgl.get())
+    val orphans = nativeModules - modules.toSet()
+    if (orphans.isNotEmpty()) {
+        throw GradleException(
+            "limn-backend-lwjgl declares natives for $orphans without the module itself in implementation.")
+    }
+    return LwjglDeclaration(modules, nativeModules, libs.versions.lwjgl.get())
 }
 
 /**
@@ -470,7 +489,7 @@ object HostNativesPom {
                 appendNode("arch", platform.arch)
             }
             val natives = profile.appendNode("dependencies")
-            lwjgl.modules.forEach { module ->
+            lwjgl.nativeModules.forEach { module ->
                 appendDependency(natives, "org.lwjgl", module, lwjgl.version, platform.lwjglClassifier)
             }
             perPlatform.getValue(platform.id).forEach { natives.append(it) }
@@ -479,7 +498,7 @@ object HostNativesPom {
 
     /** What is wrong with a shipped POM, as sentences; empty when it resolves one platform at a time. */
     fun problems(pom: groovy.util.Node, group: String, published: Set<String>,
-                 platforms: List<HostPlatform>): List<String> {
+                 lwjgl: LwjglDeclaration, platforms: List<HostPlatform>): List<String> {
         val plain = children(child(pom, "dependencies"))
         val problems = mutableListOf<String>()
         plain.filter { childText(it, "classifier")?.startsWith("natives-") == true }
@@ -491,6 +510,9 @@ object HostNativesPom {
             .forEach { problems += "${childText(it, "artifactId")} can still reach LWJGL's natives for every platform" }
         val lwjglModules = plain.filter { childText(it, "groupId") == "org.lwjgl" }.map { childText(it, "artifactId") }
         if (lwjglModules.isEmpty()) problems += "no LWJGL module is declared plain"
+        if (lwjglModules != lwjgl.modules) {
+            problems += "the plain LWJGL modules are $lwjglModules, the backend uses ${lwjgl.modules}"
+        }
         val profiles = children(child(pom, "profiles"))
         val ids = profiles.map { childText(it, "id") }
         val expected = platforms.map { "natives-${it.id}" }
@@ -498,8 +520,18 @@ object HostNativesPom {
         profiles.forEach { profile ->
             val natives = children(child(profile, "dependencies"))
             val lwjglNatives = natives.filter { childText(it, "groupId") == "org.lwjgl" }
-            if (lwjglNatives.map { childText(it, "artifactId") } != lwjglModules) {
-                problems += "${childText(profile, "id")} does not carry one native per plain LWJGL module"
+                .map { childText(it, "artifactId") }
+            // Exactly the modules the backend resolves natives for: a module LWJGL publishes no
+            // natives for (lwjgl-egl) named here is a jar no resolver can find, and one missing
+            // is a library that will not load on that platform.
+            val withoutNatives = lwjglNatives.filter { it !in lwjgl.nativeModules }
+            if (withoutNatives.isNotEmpty()) {
+                problems += "${childText(profile, "id")} names natives of $withoutNatives, " +
+                        "which the backend declares none of and LWJGL may not publish"
+            }
+            if (lwjglNatives.sortedBy { it } != lwjgl.nativeModules) {
+                problems += "${childText(profile, "id")} carries LWJGL natives $lwjglNatives, " +
+                        "expected ${lwjgl.nativeModules}"
             }
             if (natives.any { childText(it, "classifier") == null }) {
                 problems += "${childText(profile, "id")} carries a dependency without a classifier"
@@ -597,10 +629,11 @@ subprojects {
                 val group = this@subprojects.group.toString()
                 val published = publishedModules.keys.toSet()
                 val platforms = hostPlatforms
+                val lwjgl = lwjglAsDeclaredByTheBackend()
                 inputs.file(pomFile)
                 doLast {
                     val pom = groovy.xml.XmlParser(false, false).parse(pomFile.get().asFile)
-                    val problems = HostNativesPom.problems(pom, group, published, platforms)
+                    val problems = HostNativesPom.problems(pom, group, published, lwjgl, platforms)
                     if (problems.isNotEmpty()) {
                         throw GradleException(
                             "${pomFile.get()} would not resolve one platform at a time:\n  " +
