@@ -1,5 +1,7 @@
 package limn.demo;
 
+import limn.i18n.I18n;
+
 import java.util.List;
 import java.util.Locale;
 
@@ -51,8 +53,13 @@ final class Languages {
             "Українська", "Indonesia", "Tiếng Việt", "日本語", "한국어", "简体中文",
             "繁體中文", "हिन्दी", "العربية", "עברית");
 
-    /** The entry a locale selects, matching on language and then on the full tag. */
-    static int indexOf(Locale locale) {
+    /**
+     * The entry a locale selects, matching on the full tag and then on the language, both as the
+     * toolkit reads them: {@code jpn} selects Japanese and {@code por} Portuguese, since those are
+     * the languages the toolkit translates them into.
+     */
+    static int indexOf(Locale asked) {
+        Locale locale = I18n.canonical(asked);
         for (int i = 0; i < LOCALES.size(); i++) {
             if (LOCALES.get(i).toLanguageTag().equals(locale.toLanguageTag())) {
                 return i;
