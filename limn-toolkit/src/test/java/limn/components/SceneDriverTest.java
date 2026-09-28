@@ -3,6 +3,7 @@ package limn.components;
 import limn.backend.WindowInput;
 import limn.input.Keys;
 import limn.scene.Scene;
+import limn.scene.Widget;
 import limn.scene.internal.SceneAccess;
 import limn.testing.HeadlessBackend;
 import limn.testing.HeadlessWindow;
@@ -54,6 +55,10 @@ class SceneDriverTest extends ComponentTestBase {
             @Override
             public Scene sceneOf(WindowInput input) {
                 return null;
+            }
+
+            @Override
+            public void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
             }
         }));
     }

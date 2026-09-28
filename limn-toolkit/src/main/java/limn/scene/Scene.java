@@ -675,6 +675,60 @@ public final class Scene {
     public void pushOverlay(Widget<?> overlay) {
         Ui.checkUiThread();
         Objects.requireNonNull(overlay, "overlay");
+        stackOverlay(overlay);
+        // Move focus into the new modal layer.
+        focusTraverse(false);
+        requestRender();
+    }
+
+    /**
+     * Pushes {@code overlay} as {@link #pushOverlay(Widget)} does, over content that another
+     * scene, {@code movedFrom}, drew until now, and with the keyboard where it was there: the
+     * widget that held that scene's focus, now inside {@code overlay}, holds this one's. A modal
+     * dialog that was a window of its own moves into its owner's scene this way when the owner
+     * goes fullscreen.
+     *
+     * <p>The widget is told nothing, neither a loss nor a gain, because for it nothing changed: a
+     * field keeps its caret and its selection, and an entry left half typed stays open. Moving the
+     * focus out and back in would not be the same thing. The loss is what ends an entry: a field
+     * drops its selection and a spinner commits what was typed. And the overlay's first stop is
+     * focused by traversal, the arrival by Tab, which makes a field select all of its text, so the
+     * next key typed would replace everything the person had typed.
+     *
+     * <p>What does not come along is a composition an input method had open, which belongs to the
+     * window being left: it is cancelled there, and the widget is told it ended as a platform
+     * tells it of a cancelled one. When nothing inside {@code overlay} held {@code movedFrom}'s
+     * focus, the focus goes to the overlay's first stop, as with {@link #pushOverlay(Widget)}.
+     *
+     * <p>Not API, since only the toolkit moves content between scenes: a component reaches it
+     * through {@link limn.scene.internal.SceneAccess#pushMovedOverlay}.
+     *
+     * @param overlay   the overlay's root, holding content {@code movedFrom} drew until now
+     * @param movedFrom the scene that content comes from, which lets go of its focus
+     */
+    void pushOverlay(Widget<?> overlay, Scene movedFrom) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(overlay, "overlay");
+        Objects.requireNonNull(movedFrom, "movedFrom");
+        Widget<?> keyboard = movedFrom == this ? null : movedFrom.focused;
+        if (keyboard == null || !isInSubtree(keyboard, overlay) || !keyboard.isFocusable()
+                || !keyboard.isVisible() || !keyboard.isEnabled()) {
+            pushOverlay(overlay);
+            return;
+        }
+        stackOverlay(overlay);
+        boolean composed = movedFrom.letGoOfMovedFocus();
+        if (composed) {
+            dispatchBubbling(keyboard, new PreeditEvent("", null, -1, 0));
+        }
+        // CODE, the origin of pushOverlay(Widget)'s traversal: the widget this scene had focused is
+        // told of its loss exactly as that traversal would tell it.
+        setFocus(keyboard, Change.Origin.CODE, true);
+        requestRender();
+    }
+
+    /** Puts {@code overlay} on top, capturing input, and keeps the focus it takes to give back. */
+    private void stackOverlay(Widget<?> overlay) {
         // A drag captured before this modal opened must not keep feeding the
         // now-blocked content beneath the scrim: DRAG follows the capture, not
         // hit-testing. Synthesize its RELEASE (window blur's treatment).
@@ -683,9 +737,25 @@ public final class Scene {
         overlays.add(overlay);
         overlay.setSceneRecursively(this);
         layoutDirty = true;
-        // Move focus into the new modal layer.
-        focusTraverse(false);
-        requestRender();
+    }
+
+    /**
+     * Lets go of the focused widget without telling it, because it keeps the keyboard in the scene
+     * it moved to, and cancels what the input method was composing for it in this window, which
+     * cannot finish there.
+     *
+     * @return whether a composition was open in it, which the widget must still be told has ended
+     */
+    private boolean letGoOfMovedFocus() {
+        Widget<?> keyboard = focused;
+        boolean wasComposing = composing;
+        focused = null;
+        composing = false;
+        if (window != null && keyboard.acceptsTextInputInternal()) {
+            window.resetPreedit();
+        }
+        updateImeState();
+        return wasComposing;
     }
 
     /**
@@ -2486,11 +2556,21 @@ public final class Scene {
      * so a watcher reads a widget that has already settled.
      */
     private void setFocus(Widget<?> widget, Change.Origin origin) {
+        setFocus(widget, origin, false);
+    }
+
+    /**
+     * {@link #setFocus(Widget, Change.Origin)}, where {@code carried} says {@code widget} arrives
+     * with the focus it held in another scene, and so is told of no gain; see
+     * {@link #pushOverlay(Widget, Scene)}.
+     */
+    private void setFocus(Widget<?> widget, Change.Origin origin, boolean carried) {
         if (focused == widget) {
             return;
         }
         Widget<?> old = focused;
         focused = widget;
+        composing = false; // an open one was the old widget's; the platform's is cancelled below
         if (old != null) {
             if (window != null && old.acceptsTextInputInternal()) {
                 // Focus is leaving a text widget: cancel any OS-side composition
@@ -2504,7 +2584,9 @@ public final class Scene {
             }
         }
         if (widget != null) {
-            widget.notifyFocus(true, origin);
+            if (!carried) {
+                widget.notifyFocus(true, origin);
+            }
             // Auto-scroll: focus must never land off-screen. With a layout
             // pending the geometry is stale (a just-added widget still sits at
             // 0,0 against already-offset scroll content), so revealing NOW
@@ -2535,6 +2617,13 @@ public final class Scene {
 
     /** Focused widget awaiting post-layout reveal (see {@link #setFocus}). */
     private Widget<?> pendingReveal;
+
+    /**
+     * Whether the last composition the focused widget was handed is still open: an input method's
+     * text not yet committed or cancelled, which only a focus that moves between scenes has to end
+     * by hand, since a focus lost ends it in the widget's own focus-lost hook.
+     */
+    private boolean composing;
 
     // ------------------------------------------------------------- IME/preedit
 
@@ -2886,6 +2975,11 @@ public final class Scene {
             public Scene sceneOf(WindowInput input) {
                 return input instanceof Input own ? own.scene() : null;
             }
+
+            @Override
+            public void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
+                scene.pushOverlay(overlay, movedFrom);
+            }
         });
     }
 
@@ -3060,8 +3154,13 @@ public final class Scene {
                     // echoed, and with nothing focused there is nowhere to
                     // show it, so drop it.
                     if (focused != null && focused.acceptsTextInputInternal()) {
-                        dispatchBubbling(focused, new PreeditEvent(
-                                preedit.text, preedit.blockSizes, preedit.focusedBlock, preedit.caret));
+                        Widget<?> target = focused;
+                        PreeditEvent event = new PreeditEvent(preedit.text, preedit.blockSizes,
+                                preedit.focusedBlock, preedit.caret);
+                        dispatchBubbling(target, event);
+                        if (focused == target) { // a handler that moved the focus ended it
+                            composing = !event.isEmpty();
+                        }
                     }
                     invalidate = true;
                 } else if (raw instanceof RawDrop drop) {

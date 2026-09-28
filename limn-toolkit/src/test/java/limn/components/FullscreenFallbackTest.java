@@ -3,11 +3,13 @@ package limn.components;
 import limn.backend.Backend;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
+import limn.components.date.DateField;
 import limn.components.date.DatePicker;
 import limn.concurrent.UiRuntime;
 import limn.graphics.Color;
 import limn.input.Keys;
 import limn.scene.Scene;
+import limn.scene.layout.Column;
 import limn.testing.StubWindow;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +19,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static limn.testing.SceneDriver.drive;
@@ -233,9 +236,12 @@ class FullscreenFallbackTest extends ComponentTestBase {
         /** A window of this host's, answering to its backend as a real one does. */
         final class Made extends StubWindow {
             boolean closeRequested;
+            /** Whether its input method was told to drop what it was composing. */
+            boolean preeditReset;
 
             @Override public Backend backend() { return WindowHost.this; }
             @Override public void requestClose() { closeRequested = true; }
+            @Override public void resetPreedit() { preeditReset = true; }
         }
 
         @Override public Backend backend() { return this; }
@@ -492,6 +498,178 @@ class FullscreenFallbackTest extends ComponentTestBase {
         leaveFullscreen(scene, window);
         assertEquals(DisplayMode.IN_SCENE, dialog.displayMode(),
                 "an overlay is never promoted back into a window");
+    }
+
+    /**
+     * The keyboard comes with the card as it was, not as if Tab had brought it there. The field is
+     * the dialog's first stop, which the dialog focuses on opening, as it did in the live run: the
+     * person typed, the owner went fullscreen, and the next key they typed replaced everything.
+     */
+    @Test
+    void aFieldKeepsItsCaretWhenItsDialogMovesIntoTheScene() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        TextField name = new TextField();
+        Dialog dialog = new Dialog("Rename", "A new name.")
+                .setContent(name)
+                .addPrimaryButton("Rename", "rename")
+                .setCancelResult("cancel");
+        dialog.show(scene);
+        Scene card = dialog.contentRoot().scene();
+        assertSame(name, card.focusedWidget(), "sanity: the field is the first stop");
+        drive(card).type("hello");
+        assertEquals(5, name.caretPosition(), "sanity");
+        assertEquals(name.selectionStart(), name.selectionEnd(), "sanity: nothing selected");
+
+        goFullscreen(scene, window);
+
+        assertSame(name, scene.focusedWidget());
+        assertEquals(5, name.caretPosition(), "the caret stays where the typing left it");
+        assertEquals(5, name.selectionStart(), "and nothing is selected");
+        assertEquals(5, name.selectionEnd(), "and nothing is selected");
+        drive(scene).type("x");
+        assertEquals("hellox", name.text(), "the next key goes on from there");
+    }
+
+    /**
+     * The one thing that stays behind: a composition belongs to the input method of the window
+     * being left, which cannot finish it in another, so it ends there, as a loss of focus ends it,
+     * and the field keeps what was committed before it.
+     */
+    @Test
+    void aCompositionInTheDialogsWindowEndsWhenItMovesIntoTheScene() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        TextField name = new TextField();
+        Dialog dialog = new Dialog("Rename", "A new name.")
+                .setContent(name)
+                .addPrimaryButton("Rename", "rename")
+                .setCancelResult("cancel");
+        dialog.show(scene);
+        Scene card = dialog.contentRoot().scene();
+        drive(card).type("hello");
+        drive(card).preeditChanged("か", new int[]{1}, 0, 1);
+        drive(card).inputBatchEnded();
+        assertEquals("か", name.composingText(), "sanity: a composition is open");
+
+        goFullscreen(scene, window);
+
+        assertTrue(window.made.get(0).preeditReset, "the window's input method dropped it");
+        assertEquals("", name.composingText(), "and the field no longer shows it");
+        assertEquals("hello", name.text());
+        assertEquals(5, name.caretPosition());
+        assertEquals(5, name.selectionStart(), "nothing is selected");
+    }
+
+    /** A selection the person made is theirs, in both its ends and its direction. */
+    @Test
+    void aFieldKeepsItsSelectionWhenItsDialogMovesIntoTheScene() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        TextField name = new TextField();
+        Dialog dialog = new Dialog("Rename", "A new name.")
+                .setContent(name)
+                .addPrimaryButton("Rename", "rename")
+                .setCancelResult("cancel");
+        dialog.show(scene);
+        Scene card = dialog.contentRoot().scene();
+        drive(card).type("hello");
+        name.select(4, 1); // "ell", made from its end backward
+
+        goFullscreen(scene, window);
+
+        assertEquals(1, name.selectionStart());
+        assertEquals(4, name.selectionEnd());
+        assertEquals(1, name.caretPosition(), "the caret is still at the end it was dragged to");
+    }
+
+    /**
+     * An area selects nothing when tabbed into, so there it was the loss of focus in the window
+     * being left that took the selection.
+     */
+    @Test
+    void anAreaKeepsItsSelectionWhenItsDialogMovesIntoTheScene() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        TextArea notes = new TextArea();
+        Dialog dialog = new Dialog("Notes", "")
+                .setContent(notes)
+                .addPrimaryButton("Save", "save")
+                .setCancelResult("cancel");
+        dialog.show(scene);
+        Scene card = dialog.contentRoot().scene();
+        card.requestFocus(notes);
+        drive(card).type("first\nsecond");
+        notes.select(2, 9);
+
+        goFullscreen(scene, window);
+
+        assertSame(notes, scene.focusedWidget());
+        assertEquals(2, notes.selectionStart());
+        assertEquals(9, notes.selectionEnd());
+        assertEquals(9, notes.caretPosition());
+    }
+
+    /**
+     * A number half typed into a spinner is still being typed: the move is not the person moving
+     * on, which is what commits it, so the entry stays open and goes on from where it was.
+     */
+    @Test
+    void aSpinnerKeepsItsEntryOpenWhenItsDialogMovesIntoTheScene() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        TextField name = new TextField();
+        Spinner copies = new Spinner(1, 999, 1);
+        copies.setValue(5);
+        Column content = new Column();
+        content.add(name);
+        content.add(copies);
+        Dialog dialog = new Dialog("Print", "")
+                .setContent(content)
+                .addPrimaryButton("Print", "print")
+                .setCancelResult("cancel");
+        dialog.show(scene);
+        Scene card = dialog.contentRoot().scene();
+        card.requestFocus(copies);
+        drive(card).type("12");
+        assertTrue(copies.isEditing(), "sanity: typing opened an entry");
+
+        goFullscreen(scene, window);
+
+        assertSame(copies, scene.focusedWidget());
+        assertTrue(copies.isEditing(), "the entry is still open");
+        assertEquals(5.0, copies.value(), "and nothing was committed from it");
+        drive(scene).type("3").press(Keys.ENTER);
+        assertEquals(123.0, copies.value(), "the typing went on where it was");
+    }
+
+    /**
+     * A year half typed is still being typed: the loss of focus is what settles two digits into a
+     * century, and the move is not one, so the next two digits go on from the first two.
+     */
+    @Test
+    void aDateFieldKeepsAYearHalfTypedWhenItsDialogMovesIntoTheScene() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        DateField due = new DateField()
+                .setClock(Clock.fixed(Instant.parse("2026-09-16T12:00:00Z"), ZoneOffset.UTC));
+        due.setLocale(Locale.forLanguageTag("pt-BR")); // day first, so the year is typed last
+        Dialog dialog = new Dialog("Due", "")
+                .setContent(due)
+                .addPrimaryButton("Set", "set")
+                .setCancelResult("cancel");
+        dialog.show(scene);
+        Scene card = dialog.contentRoot().scene();
+        card.requestFocus(due);
+        drive(card).type("311220");
+        assertEquals(LocalDate.of(20, 12, 31), due.date(), "sanity: the caret is in the year");
+
+        goFullscreen(scene, window);
+
+        assertSame(due, scene.focusedWidget());
+        assertEquals(LocalDate.of(20, 12, 31), due.date(), "nothing settled the year");
+        drive(scene).type("26");
+        assertEquals(LocalDate.of(2026, 12, 31), due.date(), "the next digits went on from those");
     }
 
     @Test
