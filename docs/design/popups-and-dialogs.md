@@ -150,10 +150,13 @@ the list and the calendar, which never took the focus, never. GLFW then minimize
 fullscreen on a monitor that lost the focus; since the application's fullscreen stays fullscreen
 when it loses the focus, only one at a named mode is minimized, but an owner passed over this way
 has lost the keyboard all the same. A modal menu or dialog lets go of
-its lock first, since a blocked owner hands the focus straight back to the modal over it, and the
-dialog's window is hidden only after that. A menu asks at the end of its fade and only if its
-window still holds the focus then, so that a window a chosen item opened keeps the focus it was
-given; the list and the calendar ask as they close.
+its lock first, since a blocked owner hands the focus straight back to the modal over it. A
+dialog moving into the scene keeps its window up, out of sight and inert, until the owner reports
+the focus, and only then hides it, or after 300 ms if the owner never does: hidden in the same
+instant the owner was asked, the window was unmapped before GNOME had registered the request, and
+the owner lost the focus again some 20 ms later (3 clean runs of 5, 13 traced of 13). A menu
+asks at the end of its fade and only if its window still holds the focus then, so that a window a
+chosen item opened keeps the focus it was given; the list and the calendar ask as they close.
 
 ## What the in-scene fallback costs, and why it is not a second implementation
 

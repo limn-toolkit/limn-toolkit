@@ -60,6 +60,11 @@ class SceneDriverTest extends ComponentTestBase {
             @Override
             public void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
             }
+
+            @Override
+            public limn.concurrent.Subscription observeWindowFocus(Scene scene, Runnable observer) {
+                return null;
+            }
         }));
     }
 

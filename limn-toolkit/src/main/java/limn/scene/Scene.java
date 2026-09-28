@@ -1958,7 +1958,30 @@ public final class Scene {
     }
 
     private void notifyWindowBlurObservers() {
-        Runnable[] snapshot = windowBlurObservers;
+        runObservers(windowBlurObservers);
+    }
+
+    private Runnable[] windowFocusObservers;
+
+    /**
+     * Observes the bound window gaining OS focus, as the backend reports it: the other half of
+     * {@link #observeWindowBlur}. Told at the end of the input batch that brought the report.
+     *
+     * <p>Not API: only the toolkit waits on it, a modal dialog whose card has moved into this scene
+     * keeping its own window up until this one has the focus. A component reaches it through
+     * {@link limn.scene.internal.SceneAccess#observeWindowFocus}.
+     *
+     * @param observer told when the window gains focus; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
+     */
+    Subscription observeWindowFocus(Runnable observer) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(observer, "observer");
+        windowFocusObservers = Listeners.added(windowFocusObservers, observer, NO_RUNNABLES);
+        return once(() -> windowFocusObservers = Listeners.removed(windowFocusObservers, observer));
+    }
+
+    private static void runObservers(Runnable[] snapshot) {
         if (snapshot == null) {
             return;
         }
@@ -2980,6 +3003,11 @@ public final class Scene {
             public void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
                 scene.pushOverlay(overlay, movedFrom);
             }
+
+            @Override
+            public Subscription observeWindowFocus(Scene scene, Runnable observer) {
+                return scene.observeWindowFocus(observer);
+            }
         });
     }
 
@@ -3195,6 +3223,8 @@ public final class Scene {
                         cancelKeyState();
                         notifyWindowBlurObservers();
                         invalidate = true;
+                    } else {
+                        runObservers(windowFocusObservers);
                     }
                 } else if (raw instanceof RawFullscreen change) {
                     // Nothing of its own to repaint: the resize that comes with it relays out, and

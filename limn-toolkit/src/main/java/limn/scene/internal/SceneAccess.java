@@ -1,6 +1,7 @@
 package limn.scene.internal;
 
 import limn.backend.WindowInput;
+import limn.concurrent.Subscription;
 import limn.scene.Scene;
 import limn.scene.Widget;
 
@@ -8,7 +9,8 @@ import limn.scene.Widget;
  * The way outside {@code limn.scene} to what a scene keeps from applications: its window input,
  * for the test driver of {@code limn-test} and for a program that replays input into a scene of
  * its own (the demo's captures and films), and the move of content from one scene into another
- * with its keyboard, for a modal dialog leaving its own window for its owner's scene. Not API: an
+ * with its keyboard and the word that the scene's window has the focus, both for a modal dialog
+ * leaving its own window for its owner's scene. Not API: an
  * application talks to its scene through {@link Scene}, and a window receives input from the
  * adapter {@link Scene#bind} hands it.
  *
@@ -40,6 +42,16 @@ public final class SceneAccess {
          * @param movedFrom the scene it comes from
          */
         void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom);
+
+        /**
+         * Observes {@code scene}'s window gaining OS focus; see
+         * {@link SceneAccess#observeWindowFocus}.
+         *
+         * @param scene    a scene
+         * @param observer told when its window gains focus
+         * @return a handle that unregisters
+         */
+        Subscription observeWindowFocus(Scene scene, Runnable observer);
     }
 
     private static volatile Hook hook;
@@ -93,6 +105,21 @@ public final class SceneAccess {
     public static void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
         java.util.Objects.requireNonNull(scene, "scene");
         hook().pushMovedOverlay(scene, overlay, movedFrom);
+    }
+
+    /**
+     * Observes {@code scene}'s window gaining OS focus, told at the end of the input batch that
+     * brought the report, as {@link Scene#observeWindowBlur} is told of a loss. For a modal dialog
+     * whose card has moved into {@code scene}: its own window, which held the focus, stays up until
+     * the owner has it, so that the desktop never has to choose where the focus goes.
+     *
+     * @param scene    the scene whose window is watched
+     * @param observer told when that window gains focus; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
+     */
+    public static Subscription observeWindowFocus(Scene scene, Runnable observer) {
+        java.util.Objects.requireNonNull(scene, "scene");
+        return hook().observeWindowFocus(scene, observer);
     }
 
     private static Hook hook() {

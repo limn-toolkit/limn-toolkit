@@ -15,6 +15,7 @@ import limn.graphics.Color;
 import limn.graphics.Image;
 import limn.input.Keys;
 import limn.scene.Scene;
+import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.testing.StubWindow;
 import org.junit.jupiter.api.Test;
@@ -326,6 +327,12 @@ class FullscreenFallbackTest extends ComponentTestBase {
         window.input.inputBatchEnded();
     }
 
+    /** The desktop gave the focus to the owner {@code scene} is bound to, as a backend says. */
+    private static void focusedByTheDesktop(Scene scene) {
+        drive(scene).windowFocusChanged(true);
+        drive(scene).inputBatchEnded();
+    }
+
     /** The desktop took the focus from {@code window}, as a backend reports it. */
     private static void blurredByTheDesktop(WindowHost.Made window) {
         window.input.windowFocusChanged(false);
@@ -590,12 +597,14 @@ class FullscreenFallbackTest extends ComponentTestBase {
         drive(card).type("draft");
 
         goFullscreen(scene, window);
+        focusedByTheDesktop(scene);
 
         assertNull(dialog.modalWindow(), "a modal dialog over a fullscreen owner is drawn in "
                 + "scene, however it opened: the window would minimize an owner fullscreen at a "
                 + "named mode when the person reached it");
         assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
-        assertTrue(window.made.get(0).closeRequested, "its window was asked to go");
+        assertTrue(window.made.get(0).closeRequested,
+                "its window was asked to go once the owner had the focus");
         assertEquals(List.of(), window.modals, "and let go of the owner");
         assertSame(window, window.sceneModalOwner, "the overlay is modal over the same owner");
         assertFalse(window.sceneModalToolkitScope, "and no wider than the window was");
@@ -979,10 +988,15 @@ class FullscreenFallbackTest extends ComponentTestBase {
 
     /**
      * A modal dialog's window holds the focus over an owner it blocks, so the move lets go of the
-     * owner, the owner asks for the focus, and only then does the window go, at once.
+     * owner, moves the card, asks the owner for the focus, and sends the window away only once the
+     * owner reports having it. Hidden in the same instant the owner was asked, the window went
+     * before the window manager had given the owner the focus, and on GNOME over X11 the owner lost
+     * it again some 20 ms later.
      */
     @Test
-    void theOwnerAsksForTheFocusBeforeAModalDialogsWindowGoesIntoTheScene() {
+    void aModalDialogsWindowGoesOnlyOnceTheOwnerHasTheFocus() {
+        long[] nanos = {0};
+        runtime.setDelayClock(() -> nanos[0]);
         WindowHost window = new WindowHost();
         Scene scene = sceneOver(window, new Label("root"), 400, 300);
         Dialog dialog = new Dialog("Rename", "A new name.")
@@ -995,8 +1009,88 @@ class FullscreenFallbackTest extends ComponentTestBase {
 
         goFullscreen(scene, window);
 
-        assertEquals(List.of("release Rename", "focus owner", "hide Rename", "close Rename",
-                "scene modal over owner"), window.calls);
+        assertEquals(List.of("release Rename", "scene modal over owner", "focus owner"),
+                window.calls, "the window stays up while the owner is asked for the focus");
+        WindowHost.Made left = window.made.get(0);
+        assertEquals(0, left.opacity, "out of sight meanwhile");
+
+        focusedByTheDesktop(scene);
+
+        assertEquals(List.of("release Rename", "scene modal over owner", "focus owner",
+                "hide Rename", "close Rename"), window.calls);
+
+        nanos[0] += TimeUnit.MILLISECONDS.toNanos(Dialog.OWNER_FOCUS_WAIT_MILLIS);
+        runtime.drain();
+        focusedByTheDesktop(scene);
+        assertEquals(5, window.calls.size(), "sent away once: " + window.calls);
+    }
+
+    /**
+     * An owner that never reports the focus does not keep the window up: it goes when the wait
+     * runs out, and a report that comes later sends nothing away twice.
+     */
+    @Test
+    void aModalDialogsWindowGoesAnywayWhenTheOwnerNeverReportsTheFocus() {
+        long[] nanos = {0};
+        runtime.setDelayClock(() -> nanos[0]);
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        Dialog dialog = new Dialog("Rename", "A new name.")
+                .addPrimaryButton("Rename", "rename")
+                .setCancelResult("cancel");
+        dialog.show(scene);
+        window.calls.clear();
+
+        goFullscreen(scene, window);
+        nanos[0] += TimeUnit.MILLISECONDS.toNanos(Dialog.OWNER_FOCUS_WAIT_MILLIS - 1);
+        runtime.drain();
+
+        assertFalse(window.made.get(0).closeRequested, "still waiting for the owner");
+
+        nanos[0] += TimeUnit.MILLISECONDS.toNanos(1);
+        runtime.drain();
+
+        assertEquals(List.of("release Rename", "scene modal over owner", "focus owner",
+                "hide Rename", "close Rename"), window.calls);
+        focusedByTheDesktop(scene);
+        assertEquals(5, window.calls.size(), "sent away once: " + window.calls);
+    }
+
+    /**
+     * What the window still hears while it waits reaches nothing: the card answers to the owner's
+     * scene now, and a key or a frame there must not reach it through the scene it left.
+     */
+    @Test
+    void aModalDialogsWindowNeitherDrawsNorAnswersWhileItWaits() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        AtomicInteger answers = new AtomicInteger();
+        Dialog dialog = new Dialog("Rename", "A new name.")
+                .addPrimaryButton("Rename", "rename")
+                .setCancelResult("cancel");
+        dialog.show(scene).thenAccept(answer -> answers.incrementAndGet());
+        WindowHost.Made left = window.made.get(0);
+
+        goFullscreen(scene, window);
+        scene.layoutPass(400, 300);
+        Widget<?> card = dialog.contentRoot();
+        float[] placed = {card.x(), card.y(), card.width(), card.height()};
+        left.input.keyEvent(Keys.ESCAPE, true, false, 0);
+        left.input.keyEvent(Keys.ESCAPE, false, false, 0);
+        left.input.inputBatchEnded();
+        left.frames.onFrame(new GpuRenderer() {
+            private final Canvas canvas = new FakeCanvas(160, 90);
+            @Override public Canvas canvas() { return canvas; }
+            @Override public void clear(float red, float green, float blue, float alpha) { }
+            @Override public void captureFramebuffer(Consumer<Image> sink) { }
+        }, new FrameInfo(160, 90, 1f));
+
+        assertEquals(0, answers.get(), "a key in the window left behind answers nothing");
+        assertFalse(dialog.result().toCompletableFuture().isDone());
+        assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
+        assertEquals(java.util.Arrays.toString(placed), java.util.Arrays.toString(
+                new float[] {card.x(), card.y(), card.width(), card.height()}),
+                "a frame of the window left behind lays nothing out: the card is the owner's");
     }
 
     /** The same order on an ordinary answer, after the fade. */
