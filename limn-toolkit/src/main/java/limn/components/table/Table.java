@@ -30,6 +30,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.text.Collator;
 import java.util.Arrays;
@@ -949,7 +950,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * @return the text its footer cell shows, as computed by the last {@link #setRows} or
      *         {@link #refresh()}; {@code null} when the column puts nothing in the footer
      */
-    public String footerTextOf(Column<T> column) {
+    public @Nullable String footerTextOf(Column<T> column) {
         int c = columns.indexOf(column);
         return c < 0 || c >= footerTexts.length ? null : footerTexts[c];
     }
@@ -1081,7 +1082,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * @param key the function from a row to its key, or {@code null} for the record itself
      * @return this table
      */
-    public Table<T> rowKey(Function<? super T, ?> key) {
+    public Table<T> rowKey(@Nullable Function<? super T, ?> key) {
         Ui.checkUiThread();
         this.rowKey = key;
         // Before the records are read again: their ordinals come from the occurrences, which
@@ -1291,7 +1292,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * @return this table
      * @throws IllegalStateException if a handler is already registered
      */
-    public Table<T> onSelect(Runnable handler) {
+    public Table<T> onSelect(@Nullable Runnable handler) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, handler, "Table.onSelect");
         return this;
@@ -1306,7 +1307,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * @return this table
      * @throws IllegalStateException if a handler is already registered
      */
-    public Table<T> onActivate(IntConsumer handler) {
+    public Table<T> onActivate(@Nullable IntConsumer handler) {
         Ui.checkUiThread();
         this.onActivate = Checks.handlerSlot(onActivate, handler, "Table.onActivate");
         return this;
@@ -1531,7 +1532,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     /** @return the column the rows are ordered on, or {@code null} in the model's order */
-    public Column<T> sortColumn() {
+    public @Nullable Column<T> sortColumn() {
         return sortColumn;
     }
 
@@ -1559,7 +1560,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
      * @return this table
      * @throws IllegalStateException if a handler is already registered
      */
-    public Table<T> onSortRequest(BiConsumer<Column<T>, SortOrder> handler) {
+    public Table<T> onSortRequest(@Nullable BiConsumer<Column<T>, SortOrder> handler) {
         Ui.checkUiThread();
         boolean had = onSortRequest != null;
         this.onSortRequest = Checks.handlerSlot(onSortRequest, handler, "Table.onSortRequest");
@@ -3209,7 +3210,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     @Override
-    public Widget<?> hitTest(float localX, float localY) {
+    public @Nullable Widget<?> hitTest(float localX, float localY) {
         if (!isVisible() || !isEnabled()
                 || localX < 0 || localY < 0 || localX >= width() || localY >= height()) {
             return null;
@@ -3287,7 +3288,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     }
 
     @Override
-    public Cursor cursor() {
+    public @Nullable Cursor cursor() {
         return hoverDivider >= 0 || dragColumn >= 0 ? Cursor.RESIZE_EW : super.cursor();
     }
 

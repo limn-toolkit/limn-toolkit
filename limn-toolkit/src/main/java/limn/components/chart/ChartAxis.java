@@ -2,6 +2,7 @@ package limn.components.chart;
 
 import limn.i18n.NumberFormats;
 import limn.concurrent.Ui;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.function.DoubleFunction;
@@ -49,12 +50,12 @@ public final class ChartAxis {
     }
 
     /** The pinned lower bound, or {@code null} while it follows the data. */
-    public Double min() {
+    public @Nullable Double min() {
         return min;
     }
 
     /** Pins the lower bound; {@code null} hands it back to the data. */
-    public ChartAxis setMin(Double value) {
+    public ChartAxis setMin(@Nullable Double value) {
         Ui.checkUiThread();
         this.min = value;
         changed();
@@ -62,12 +63,12 @@ public final class ChartAxis {
     }
 
     /** The pinned upper bound, or {@code null} while it follows the data. */
-    public Double max() {
+    public @Nullable Double max() {
         return max;
     }
 
     /** Pins the upper bound; {@code null} hands it back to the data. */
-    public ChartAxis setMax(Double value) {
+    public ChartAxis setMax(@Nullable Double value) {
         Ui.checkUiThread();
         this.max = value;
         changed();
@@ -161,12 +162,12 @@ public final class ChartAxis {
     }
 
     /** The axis title, or {@code null} for none. */
-    public String title() {
+    public @Nullable String title() {
         return title;
     }
 
     /** Sets a title drawn beside the axis ({@code null} for none). */
-    public ChartAxis setTitle(String value) {
+    public ChartAxis setTitle(@Nullable String value) {
         Ui.checkUiThread();
         this.title = value;
         changed();

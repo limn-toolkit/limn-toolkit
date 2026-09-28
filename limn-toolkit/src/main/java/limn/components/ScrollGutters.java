@@ -3,6 +3,7 @@ package limn.components;
 import limn.concurrent.Ui;
 
 import limn.scene.Size;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -125,7 +126,7 @@ public final class ScrollGutters {
      * it did.
      */
     public Size resolve(float boxWidth, float boxHeight,
-                        ScrollBar vBar, ScrollBar hBar, Content content) {
+                        @Nullable ScrollBar vBar, @Nullable ScrollBar hBar, Content content) {
         Objects.requireNonNull(content, "content");
         verticalStrip = 0;
         horizontalStrip = 0;

@@ -23,6 +23,7 @@ import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -118,7 +119,7 @@ public final class Checkbox extends Widget<Checkbox> {
      * @return this checkbox
      * @throws IllegalStateException if a handler is already registered
      */
-    public Checkbox onChange(Consumer<Boolean> listener) {
+    public Checkbox onChange(@Nullable Consumer<Boolean> listener) {
         Ui.checkUiThread();
         this.onChange = Checks.handlerSlot(onChange, listener, "Checkbox.onChange");
         return this;

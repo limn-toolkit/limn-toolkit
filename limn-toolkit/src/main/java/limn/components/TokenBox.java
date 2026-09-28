@@ -6,6 +6,7 @@ import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.layout.SizedBox;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -69,7 +70,7 @@ public final class TokenBox extends Widget<TokenBox> {
      * @param fixedHeight the height to impose, or {@code null} to take the child's
      * @param child       the widget to size; never {@code null}
      */
-    public TokenBox(Extent fixedWidth, Extent fixedHeight, Widget<?> child) {
+    public TokenBox(@Nullable Extent fixedWidth, @Nullable Extent fixedHeight, Widget<?> child) {
         this.fixedWidth = fixedWidth;
         this.fixedHeight = fixedHeight;
         this.child = Objects.requireNonNull(child, "child");

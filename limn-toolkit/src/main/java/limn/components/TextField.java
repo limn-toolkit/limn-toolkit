@@ -28,6 +28,7 @@ import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import limn.scene.event.PreeditEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
@@ -155,7 +156,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * @param text the new contents; {@code null} is the empty string
      * @return this field
      */
-    public TextField setText(String text) {
+    public TextField setText(@Nullable String text) {
         Ui.checkUiThread();
         setText(text, Change.Origin.CODE);
         return this;
@@ -215,7 +216,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * @return this field
      * @throws IllegalStateException if a handler is already registered
      */
-    public TextField onChange(Consumer<String> listener) {
+    public TextField onChange(@Nullable Consumer<String> listener) {
         Ui.checkUiThread();
         this.onChange = Checks.handlerSlot(onChange, listener, "TextField.onChange");
         return this;
@@ -234,7 +235,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * @return this field
      * @throws IllegalStateException if a handler is already registered
      */
-    public TextField onSubmit(Consumer<String> listener) {
+    public TextField onSubmit(@Nullable Consumer<String> listener) {
         Ui.checkUiThread();
         this.onSubmit = Checks.handlerSlot(onSubmit, listener, "TextField.onSubmit");
         return this;
@@ -261,7 +262,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * Inserts {@code text} at the cursor (replacing any selection): a caller's write, announced
      * as a {@code TEXT} edit at {@code CODE}. UI thread.
      */
-    public TextField insertText(String text) {
+    public TextField insertText(@Nullable String text) {
         Ui.checkUiThread();
         if (text == null || text.isEmpty()) {
             return this;
@@ -287,7 +288,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * Drawn as authored whichever way the field reads; use
      * {@link #setLeadingIcon(Icon, Icon.Mirroring)} for an icon that means a direction.
      */
-    public TextField setLeadingIcon(Icon icon) {
+    public TextField setLeadingIcon(@Nullable Icon icon) {
         return setLeadingIcon(icon, Icon.Mirroring.NEVER);
     }
 
@@ -296,7 +297,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * placed an icon knows whether its arrow means "back" or "download", which is why this is a
      * flag here and never a classification inside the toolkit.
      */
-    public TextField setLeadingIcon(Icon icon, Icon.Mirroring mirroring) {
+    public TextField setLeadingIcon(@Nullable Icon icon, Icon.Mirroring mirroring) {
         Ui.checkUiThread();
         this.leadingIcon = icon;
         this.leadingMirroring = Objects.requireNonNull(mirroring, "mirroring");
@@ -312,7 +313,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * cannot leave it out, and an icon and a callback carry nothing to announce it by; use
      * {@link #setTrailingButton(Icon, I18nString, Runnable)} for a button a screen reader can name.
      */
-    public TextField setTrailingButton(Icon icon, Runnable action) {
+    public TextField setTrailingButton(@Nullable Icon icon, @Nullable Runnable action) {
         return setTrailingButton(icon, action, Icon.Mirroring.NEVER);
     }
 
@@ -322,7 +323,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      *
      * <p>The button it makes has no name; see {@link #setTrailingButton(Icon, Runnable)}.
      */
-    public TextField setTrailingButton(Icon icon, Runnable action, Icon.Mirroring mirroring) {
+    public TextField setTrailingButton(@Nullable Icon icon, @Nullable Runnable action, Icon.Mirroring mirroring) {
         return setTrailingButton(icon, null, action, mirroring);
     }
 
@@ -339,7 +340,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * @param action what to run when it is pressed; {@code null} for nothing
      * @return this field
      */
-    public TextField setTrailingButton(Icon icon, I18nString name, Runnable action) {
+    public TextField setTrailingButton(@Nullable Icon icon, @Nullable I18nString name, @Nullable Runnable action) {
         return setTrailingButton(icon, name, action, Icon.Mirroring.NEVER);
     }
 
@@ -358,7 +359,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * @return this field
      * @throws NullPointerException if {@code mirroring} is {@code null}
      */
-    public TextField setTrailingButton(Icon icon, I18nString name, Runnable action,
+    public TextField setTrailingButton(@Nullable Icon icon, @Nullable I18nString name, @Nullable Runnable action,
                                        Icon.Mirroring mirroring) {
         Ui.checkUiThread();
         Objects.requireNonNull(mirroring, "mirroring");
@@ -380,7 +381,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
      * @return what the trailing button does, said in words, or {@code null} when it has no name or
      *         there is no trailing button
      */
-    public I18nString trailingButtonName() {
+    public @Nullable I18nString trailingButtonName() {
         return trailingIcon == null ? null : trailingName;
     }
 
@@ -1440,7 +1441,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
     }
 
     @Override
-    protected Rect caretRect() {
+    protected @Nullable Rect caretRect() {
         Rect local = heldCaretBox();
         return local == null ? null
                 : new Rect(localToSceneX() + local.x(), localToSceneY() + local.y(),

@@ -29,6 +29,7 @@ import limn.scene.Widget;
 import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -357,7 +358,7 @@ public final class DatePicker extends Widget<DatePicker> {
     }
 
     /** @return the second field of a period, or {@code null} for a picker that is not one */
-    public DateField endField() {
+    public @Nullable DateField endField() {
         return endField;
     }
 
@@ -373,24 +374,24 @@ public final class DatePicker extends Widget<DatePicker> {
     // ------------------------------------------------------------------ the value
 
     /** @return the date, or {@code null} while the field is incomplete */
-    public LocalDate date() {
+    public @Nullable LocalDate date() {
         return field.date();
     }
 
     /** @return the time of day, or {@code null} unless this picker carries one and it is complete */
-    public LocalTime time() {
+    public @Nullable LocalTime time() {
         return field.time();
     }
 
     /** @return date and time together, or {@code null} unless both are complete */
-    public LocalDateTime dateTime() {
+    public @Nullable LocalDateTime dateTime() {
         return field.dateTime();
     }
 
     /**
      * @return the period, or {@code null} unless this is a range picker with both ends filled
      */
-    public DateRange range() {
+    public @Nullable DateRange range() {
         LocalDate start = field.date();
         LocalDate end = endField == null ? null : endField.date();
         if (start == null || end == null) {
@@ -411,7 +412,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @param date the date, or {@code null} to clear
      * @return this
      */
-    public DatePicker setDate(LocalDate date) {
+    public DatePicker setDate(@Nullable LocalDate date) {
         Ui.checkUiThread();
         field.setDate(date);
         return this;
@@ -423,7 +424,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @param value the moment, or {@code null} to clear
      * @return this
      */
-    public DatePicker setDateTime(LocalDateTime value) {
+    public DatePicker setDateTime(@Nullable LocalDateTime value) {
         Ui.checkUiThread();
         field.setDateTime(value);
         return this;
@@ -436,7 +437,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @return this
      * @throws IllegalStateException if this picker is not a range picker
      */
-    public DatePicker setRange(DateRange range) {
+    public DatePicker setRange(@Nullable DateRange range) {
         Ui.checkUiThread();
         if (endField == null) {
             throw new IllegalStateException("this DatePicker has one field; build it with ofRange()");
@@ -469,7 +470,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @param date the bound, or {@code null} for none
      * @return this
      */
-    public DatePicker setMinDate(LocalDate date) {
+    public DatePicker setMinDate(@Nullable LocalDate date) {
         Ui.checkUiThread();
         field.setMinDate(date);
         if (endField != null) {
@@ -485,7 +486,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @param date the bound, or {@code null} for none
      * @return this
      */
-    public DatePicker setMaxDate(LocalDate date) {
+    public DatePicker setMaxDate(@Nullable LocalDate date) {
         Ui.checkUiThread();
         field.setMaxDate(date);
         if (endField != null) {
@@ -503,7 +504,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @param filter the filter, or {@code null} to accept every date
      * @return this
      */
-    public DatePicker setDateFilter(Predicate<LocalDate> filter) {
+    public DatePicker setDateFilter(@Nullable Predicate<LocalDate> filter) {
         Ui.checkUiThread();
         field.setDateFilter(filter);
         if (endField != null) {
@@ -519,7 +520,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @param chronology the calendar, or {@code null} to follow the language
      * @return this
      */
-    public DatePicker setChronology(Chronology chronology) {
+    public DatePicker setChronology(@Nullable Chronology chronology) {
         Ui.checkUiThread();
         field.setChronology(chronology);
         if (endField != null) {
@@ -536,7 +537,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @param clock the clock, or {@code null} for the system's
      * @return this
      */
-    public DatePicker setClock(Clock clock) {
+    public DatePicker setClock(@Nullable Clock clock) {
         Ui.checkUiThread();
         this.clock = clock;
         field.setClock(clock);
@@ -715,7 +716,7 @@ public final class DatePicker extends Widget<DatePicker> {
      * @return this
      * @throws IllegalStateException if a handler is already registered
      */
-    public DatePicker onSelect(Runnable listener) {
+    public DatePicker onSelect(@Nullable Runnable listener) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, listener, "DatePicker.onSelect");
         return this;

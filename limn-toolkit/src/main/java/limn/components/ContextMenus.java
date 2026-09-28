@@ -9,6 +9,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -61,7 +62,7 @@ public final class ContextMenus {
      * @param source  consulted per gesture, on the UI thread, and may answer {@code null}
      * @return the widget to put in the tree in {@code content}'s place
      */
-    public static Widget<?> attach(Widget<?> content, Supplier<Menu> source) {
+    public static Widget<?> attach(Widget<?> content, Supplier<@Nullable Menu> source) {
         return new ContextRegion(Objects.requireNonNull(content, "content"),
                 Objects.requireNonNull(source, "source"));
     }
@@ -111,7 +112,7 @@ public final class ContextMenus {
      * column meets that point is {@link PopupMenu}'s decision and is already taken there.
      * Reflecting the point as well would move the menu away from the spot the user aimed at.
      */
-    public static void showAt(Widget<?> anchor, Menu menu, float localX, float localY) {
+    public static void showAt(Widget<?> anchor, @Nullable Menu menu, float localX, float localY) {
         Objects.requireNonNull(anchor, "anchor");
         if (menu == null || menu.items().isEmpty()) {
             return;
@@ -138,7 +139,7 @@ public final class ContextMenus {
      * popup is anchored on the same widget the corner came from, and its growth, its step and
      * its corner are one answer.
      */
-    public static void showForFocus(Widget<?> anchor, Menu menu) {
+    public static void showForFocus(Widget<?> anchor, @Nullable Menu menu) {
         Objects.requireNonNull(anchor, "anchor");
         if (menu == null || menu.items().isEmpty()) {
             return;

@@ -30,6 +30,7 @@ import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import limn.scene.event.PreeditEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Clock;
 import java.time.DateTimeException;
@@ -408,7 +409,7 @@ public final class DateField extends Widget<DateField> {
      *         {@link Granularity} coarser than a day this is the first day of the period named
      *         &mdash; the last day for the end field of a {@link DatePicker#ofRange()}
      */
-    public LocalDate date() {
+    public @Nullable LocalDate date() {
         return dateValue;
     }
 
@@ -417,7 +418,7 @@ public final class DateField extends Widget<DateField> {
      *         At {@link Granularity#HOUR} the minute is zero, and for the end field of a period
      *         the last one of the hour, with the seconds to match
      */
-    public LocalTime time() {
+    public @Nullable LocalTime time() {
         return timeValue;
     }
 
@@ -426,7 +427,7 @@ public final class DateField extends Widget<DateField> {
      *         complete. Never invented: a date-only field answers {@code null} here rather than
      *         midnight
      */
-    public LocalDateTime dateTime() {
+    public @Nullable LocalDateTime dateTime() {
         return dateValue != null && timeValue != null ? LocalDateTime.of(dateValue, timeValue) : null;
     }
 
@@ -436,7 +437,7 @@ public final class DateField extends Widget<DateField> {
      * @param date the date, or {@code null} to empty the date segments
      * @return this
      */
-    public DateField setDate(LocalDate date) {
+    public DateField setDate(@Nullable LocalDate date) {
         Ui.checkUiThread();
         LocalDate was = dateValue;
         if (Objects.equals(was, date)) {
@@ -459,7 +460,7 @@ public final class DateField extends Widget<DateField> {
      * @param time the time, or {@code null} to empty the time segments
      * @return this
      */
-    public DateField setTime(LocalTime time) {
+    public DateField setTime(@Nullable LocalTime time) {
         Ui.checkUiThread();
         writeTime(time, Change.Origin.CODE);
         return this;
@@ -493,7 +494,7 @@ public final class DateField extends Widget<DateField> {
      * @param value the moment, or {@code null} to empty every segment
      * @return this
      */
-    public DateField setDateTime(LocalDateTime value) {
+    public DateField setDateTime(@Nullable LocalDateTime value) {
         Ui.checkUiThread();
         LocalDate date = value == null ? null : value.toLocalDate();
         LocalTime time = value == null ? null : value.toLocalTime();
@@ -691,7 +692,7 @@ public final class DateField extends Widget<DateField> {
     // ------------------------------------------------------------------ bounds and validity
 
     /** @return the earliest acceptable date, or {@code null} for no lower bound */
-    public LocalDate minDate() {
+    public @Nullable LocalDate minDate() {
         return minDate;
     }
 
@@ -703,7 +704,7 @@ public final class DateField extends Widget<DateField> {
      * @param date the bound, or {@code null} for none
      * @return this
      */
-    public DateField setMinDate(LocalDate date) {
+    public DateField setMinDate(@Nullable LocalDate date) {
         Ui.checkUiThread();
         if (Objects.equals(minDate, date)) {
             return this;
@@ -715,7 +716,7 @@ public final class DateField extends Widget<DateField> {
     }
 
     /** @return the latest acceptable date, or {@code null} for no upper bound */
-    public LocalDate maxDate() {
+    public @Nullable LocalDate maxDate() {
         return maxDate;
     }
 
@@ -725,7 +726,7 @@ public final class DateField extends Widget<DateField> {
      * @param date the bound, or {@code null} for none
      * @return this
      */
-    public DateField setMaxDate(LocalDate date) {
+    public DateField setMaxDate(@Nullable LocalDate date) {
         Ui.checkUiThread();
         if (Objects.equals(maxDate, date)) {
             return this;
@@ -737,7 +738,7 @@ public final class DateField extends Widget<DateField> {
     }
 
     /** @return the filter, or {@code null} if every date inside the bounds is acceptable */
-    public Predicate<LocalDate> dateFilter() {
+    public @Nullable Predicate<LocalDate> dateFilter() {
         return dateFilter;
     }
 
@@ -749,7 +750,7 @@ public final class DateField extends Widget<DateField> {
      * @param filter answers whether a date is acceptable, or {@code null} to accept every date
      * @return this
      */
-    public DateField setDateFilter(Predicate<LocalDate> filter) {
+    public DateField setDateFilter(@Nullable Predicate<LocalDate> filter) {
         Ui.checkUiThread();
         dateFilter = filter;
         notifyChange(Change.of(Change.Aspect.RANGE, Change.Origin.CODE));
@@ -771,7 +772,7 @@ public final class DateField extends Widget<DateField> {
      *         This is what a screen reader is told after "invalid", and what an application shows
      *         beside the field if it does not have a message of its own
      */
-    public I18nString validationMessage() {
+    public @Nullable I18nString validationMessage() {
         return validity;
     }
 
@@ -827,7 +828,7 @@ public final class DateField extends Widget<DateField> {
      * @param chronology the calendar, or {@code null} to follow the language
      * @return this
      */
-    public DateField setChronology(Chronology chronology) {
+    public DateField setChronology(@Nullable Chronology chronology) {
         Ui.checkUiThread();
         if (Objects.equals(declaredChronology, chronology)) {
             return this;
@@ -854,7 +855,7 @@ public final class DateField extends Widget<DateField> {
      * @return this
      * @throws IllegalStateException if a handler is already registered
      */
-    public DateField onChange(Runnable listener) {
+    public DateField onChange(@Nullable Runnable listener) {
         Ui.checkUiThread();
         this.onChange = Checks.handlerSlot(onChange, listener, "DateField.onChange");
         return this;
@@ -1246,7 +1247,7 @@ public final class DateField extends Widget<DateField> {
      * @param newClock the clock, or {@code null} for the system's
      * @return this
      */
-    public DateField setClock(Clock newClock) {
+    public DateField setClock(@Nullable Clock newClock) {
         Ui.checkUiThread();
         clock = newClock;
         eraYearsFor = null; // today moved: see eraCalendar
@@ -2030,7 +2031,7 @@ public final class DateField extends Widget<DateField> {
      * @return the box, or {@code null} before the first layout and while no caret is shown
      */
     @Override
-    protected Rect caretRect() {
+    protected @Nullable Rect caretRect() {
         if (width() <= 0 || !caretShown()) {
             return null;
         }

@@ -15,6 +15,7 @@ import limn.i18n.I18nString;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -126,7 +127,7 @@ public final class DonutChart extends Chart<DonutChart> {
      * Pins the slice colors, in slice order; a shorter array leaves the rest to the
      * palette, and {@code null} hands all of them back to it.
      */
-    public DonutChart setSliceColors(Color... colors) {
+    public DonutChart setSliceColors(Color @Nullable ... colors) {
         Ui.checkUiThread();
         this.sliceColors = colors == null ? null : colors.clone();
         // The legend bakes the resolved colour into each entry, so a repaint alone would
@@ -144,7 +145,7 @@ public final class DonutChart extends Chart<DonutChart> {
     }
 
     /** The widget in the hole, or {@code null}. */
-    public Widget<?> center() {
+    public @Nullable Widget<?> center() {
         return center;
     }
 
@@ -154,7 +155,7 @@ public final class DonutChart extends Chart<DonutChart> {
      * a button, and it is measured against that square rather than against the chart.
      * {@code null} empties the hole.
      */
-    public DonutChart setCenter(Widget<?> widget) {
+    public DonutChart setCenter(@Nullable Widget<?> widget) {
         Ui.checkUiThread();
         if (center == widget) {
             return this;
@@ -369,7 +370,7 @@ public final class DonutChart extends Chart<DonutChart> {
     // ------------------------------------------------------------------ input
 
     @Override
-    protected ChartPoint pickAt(float localX, float localY) {
+    protected @Nullable ChartPoint pickAt(float localX, float localY) {
         int ring = ringIndex();
         if (ring < 0) {
             return null;
@@ -418,7 +419,7 @@ public final class DonutChart extends Chart<DonutChart> {
      * already much smaller than this widget, which also carries a title and a legend.
      */
     @Override
-    protected Rect hoverRegion(ChartPoint point) {
+    protected @Nullable Rect hoverRegion(ChartPoint point) {
         if (outerRadius <= 0) {
             return null;
         }
@@ -427,7 +428,7 @@ public final class DonutChart extends Chart<DonutChart> {
     }
 
     @Override
-    protected void onHoverChanged(ChartPoint picked) {
+    protected void onHoverChanged(@Nullable ChartPoint picked) {
         // One transition for whichever slice is hovered: the pop belongs to the pointer, not
         // to the slice, so moving between slices does not queue two animations.
         hoverPop.duration(animationDuration() <= 0 ? 0 : Theme.of(this).animHover)

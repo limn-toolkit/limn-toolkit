@@ -30,6 +30,7 @@ import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -105,7 +106,7 @@ public class Viewport3D extends Widget<Viewport3D> {
     }
 
     /** Sets the render callback; without one, the built-in demo cube is shown. */
-    public Viewport3D setRenderer(Renderer renderer) {
+    public Viewport3D setRenderer(@Nullable Renderer renderer) {
         Ui.checkUiThread();
         this.renderer = renderer;
         invalidate();
@@ -162,7 +163,7 @@ public class Viewport3D extends Widget<Viewport3D> {
     }
 
     /** Installs a camera controller (e.g. {@code new OrbitController(viewport.camera())}). */
-    public Viewport3D setController(CameraController controller) {
+    public Viewport3D setController(@Nullable CameraController controller) {
         Ui.checkUiThread();
         this.controller = controller;
         setCursor(controller != null ? Cursor.MOVE : null);
@@ -203,7 +204,7 @@ public class Viewport3D extends Widget<Viewport3D> {
      * @return this viewport
      * @throws IllegalStateException if a handler is already registered
      */
-    public Viewport3D onClick(Consumer<Ray> listener) {
+    public Viewport3D onClick(@Nullable Consumer<Ray> listener) {
         Ui.checkUiThread();
         this.onClick = Checks.handlerSlot(onClick, listener, "Viewport3D.onClick");
         return this;

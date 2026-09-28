@@ -26,6 +26,7 @@ import limn.scene.event.MouseEvent;
 import limn.scene.internal.SceneAccess;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Row;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -273,7 +274,7 @@ public final class Dialog {
      * @param widget the content, or {@code null} to remove it
      * @return this dialog
      */
-    public Dialog setContent(Widget<?> widget) {
+    public Dialog setContent(@Nullable Widget<?> widget) {
         Ui.checkUiThread();
         if (custom != null) {
             body.remove(custom);
@@ -294,7 +295,7 @@ public final class Dialog {
      * @param resultValue what the dialog resolves with when this button is pressed; may be null
      * @return this dialog
      */
-    public Dialog addButton(String text, String resultValue) {
+    public Dialog addButton(String text, @Nullable String resultValue) {
         Ui.checkUiThread();
         return addButton(I18nString.literal(text), resultValue, false);
     }
@@ -306,7 +307,7 @@ public final class Dialog {
      * @param resultValue what the dialog resolves with when this button is pressed; may be null
      * @return this dialog
      */
-    public Dialog addButton(I18nString text, String resultValue) {
+    public Dialog addButton(I18nString text, @Nullable String resultValue) {
         Ui.checkUiThread();
         return addButton(text, resultValue, false);
     }
@@ -323,7 +324,7 @@ public final class Dialog {
      * @param resultValue what the dialog resolves with when this button is pressed; may be null
      * @return this dialog
      */
-    public Dialog addPrimaryButton(String text, String resultValue) {
+    public Dialog addPrimaryButton(String text, @Nullable String resultValue) {
         Ui.checkUiThread();
         return addButton(I18nString.literal(text), resultValue, true);
     }
@@ -335,7 +336,7 @@ public final class Dialog {
      * @param resultValue what the dialog resolves with when this button is pressed; may be null
      * @return this dialog
      */
-    public Dialog addPrimaryButton(I18nString text, String resultValue) {
+    public Dialog addPrimaryButton(I18nString text, @Nullable String resultValue) {
         Ui.checkUiThread();
         return addButton(text, resultValue, true);
     }
@@ -368,7 +369,7 @@ public final class Dialog {
      * @param value what Escape or a dismissing scrim click resolves with; may be null
      * @return this dialog
      */
-    public Dialog setCancelResult(String value) {
+    public Dialog setCancelResult(@Nullable String value) {
         Ui.checkUiThread();
         this.cancelResult = value;
         return this;
@@ -385,7 +386,7 @@ public final class Dialog {
      * @param size the step, or {@code null} to inherit it from the owner
      * @return this dialog
      */
-    public Dialog setControlSize(ControlSize size) {
+    public Dialog setControlSize(@Nullable ControlSize size) {
         Ui.checkUiThread();
         panel.setControlSize(size);
         return this;
@@ -504,13 +505,13 @@ public final class Dialog {
      *
      * @param result what the dialog resolves with; may be null
      */
-    public void dismiss(String result) {
+    public void dismiss(@Nullable String result) {
         Ui.checkUiThread();
         resolve(result);
     }
 
     /** @return the stage that completes when the dialog closes (same as {@link #show}) */
-    public CompletionStage<String> result() {
+    public CompletionStage<@Nullable String> result() {
         return result;
     }
 
@@ -523,7 +524,7 @@ public final class Dialog {
      * @return the modal's native window while open (screenshots/tests), else null, which it also
      *         is once a modal dialog has moved into the scene of an owner that went fullscreen
      */
-    public NativeWindow modalWindow() {
+    public @Nullable NativeWindow modalWindow() {
         return modalWindow;
     }
 
@@ -543,7 +544,7 @@ public final class Dialog {
      * @return a stage that completes with the result when the dialog closes
      * @throws IllegalStateException if this dialog was already shown (dialogs are single-use)
      */
-    public CompletionStage<String> show(Scene owner) {
+    public CompletionStage<@Nullable String> show(Scene owner) {
         Ui.checkUiThread();
         return presentsModalInScene(owner)
                 ? presentInScene(owner, false)
@@ -559,7 +560,7 @@ public final class Dialog {
      * @return a stage that completes with the result when the dialog closes
      * @throws IllegalStateException if this dialog was already shown (dialogs are single-use)
      */
-    public CompletionStage<String> showToolkitModal(Scene owner) {
+    public CompletionStage<@Nullable String> showToolkitModal(Scene owner) {
         Ui.checkUiThread();
         return presentsModalInScene(owner)
                 ? presentInScene(owner, true)
@@ -581,7 +582,7 @@ public final class Dialog {
      * @throws IllegalStateException if the display mode is {@link DisplayMode#IN_SCENE},
      *                               or if this dialog was already shown (dialogs are single-use)
      */
-    public CompletionStage<String> showNonModal(Scene owner) {
+    public CompletionStage<@Nullable String> showNonModal(Scene owner) {
         Ui.checkUiThread();
         if (displayMode == DisplayMode.IN_SCENE) {
             throw new IllegalStateException(
@@ -601,7 +602,7 @@ public final class Dialog {
      * @return a stage that completes with the result when the dialog closes
      * @throws IllegalStateException if {@code owner} is not in a scene, or the dialog was already shown
      */
-    public CompletionStage<String> show(Widget<?> owner) {
+    public CompletionStage<@Nullable String> show(Widget<?> owner) {
         Ui.checkUiThread();
         Scene scene = adoptSizeHost(owner);
         return presentsModalInScene(scene)
@@ -615,7 +616,7 @@ public final class Dialog {
      * @param owner the widget whose scene the dialog opens over, and whose step it takes
      * @return a stage that completes with the result when the dialog closes
      */
-    public CompletionStage<String> showToolkitModal(Widget<?> owner) {
+    public CompletionStage<@Nullable String> showToolkitModal(Widget<?> owner) {
         Ui.checkUiThread();
         Scene scene = adoptSizeHost(owner);
         return presentsModalInScene(scene)
@@ -629,7 +630,7 @@ public final class Dialog {
      * @param owner the widget whose scene the dialog opens over, and whose step it takes
      * @return a stage that completes with the result when the dialog closes
      */
-    public CompletionStage<String> showNonModal(Widget<?> owner) {
+    public CompletionStage<@Nullable String> showNonModal(Widget<?> owner) {
         Ui.checkUiThread();
         Scene scene = adoptSizeHost(owner);
         if (displayMode == DisplayMode.IN_SCENE) {

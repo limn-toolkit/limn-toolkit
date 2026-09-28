@@ -15,6 +15,7 @@ import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18nString;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -681,7 +682,7 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
      * band's edge or on the plot's top reaches past it.
      */
     @Override
-    protected Rect hoverRegion(ChartPoint point) {
+    protected @Nullable Rect hoverRegion(ChartPoint point) {
         if (plotWidth <= 1 || plotHeight <= 1 || categoryCount() <= 0) {
             return null;
         }
@@ -878,7 +879,7 @@ public abstract class CartesianChart<W extends CartesianChart<W>> extends Chart<
     // ------------------------------------------------------------------ input
 
     @Override
-    protected ChartPoint pickAt(float localX, float localY) {
+    protected @Nullable ChartPoint pickAt(float localX, float localY) {
         // The pointer path resolves the same direction, the same scale and the same plot
         // rectangle the frame was drawn with; anything else would report a different bar than
         // the one aimed at, and a direction resolved on one path and not the other would report

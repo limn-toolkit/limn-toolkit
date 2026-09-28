@@ -3,6 +3,7 @@ package limn.components;
 import limn.concurrent.Ui;
 import limn.internal.lang.Checks;
 import limn.scene.Change;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,7 +83,7 @@ public final class ButtonGroup {
      * @return this group
      * @throws IllegalStateException if a handler is already registered
      */
-    public ButtonGroup onSelect(IntConsumer listener) {
+    public ButtonGroup onSelect(@Nullable IntConsumer listener) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, listener, "ButtonGroup.onSelect");
         return this;
@@ -98,7 +99,7 @@ public final class ButtonGroup {
     }
 
     /** @return the selected radio, or null when none. */
-    public RadioButton selected() {
+    public @Nullable RadioButton selected() {
         return current;
     }
 

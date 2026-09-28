@@ -31,6 +31,7 @@ import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
@@ -185,7 +186,7 @@ public final class ComboBox extends Widget<ComboBox> {
      * @return this combo
      * @throws IllegalStateException if a handler is already registered
      */
-    public ComboBox onSelect(IntConsumer listener) {
+    public ComboBox onSelect(@Nullable IntConsumer listener) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, listener, "ComboBox.onSelect");
         return this;
@@ -269,7 +270,7 @@ public final class ComboBox extends Widget<ComboBox> {
      *         while an open popup is drawn {@linkplain ComboBox in the scene}, where there is no
      *         window to return
      */
-    public NativeWindow popupWindow() {
+    public @Nullable NativeWindow popupWindow() {
         return popupWindow;
     }
 

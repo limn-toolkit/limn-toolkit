@@ -1,5 +1,7 @@
 package limn.components.date;
 
+import org.jspecify.annotations.Nullable;
+
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
@@ -61,7 +63,7 @@ public record DateRange(LocalDate start, LocalDate end) {
      * @return whether it falls inside this period, both ends included; {@code false} for
      *         {@code null}, so a caller holding an unset value needs no guard of its own
      */
-    public boolean contains(LocalDate day) {
+    public boolean contains(@Nullable LocalDate day) {
         return day != null && !day.isBefore(start) && !day.isAfter(end);
     }
 

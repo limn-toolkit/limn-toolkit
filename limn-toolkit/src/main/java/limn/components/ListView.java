@@ -16,6 +16,7 @@ import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -365,7 +366,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * @return this list
      * @throws IllegalStateException if a handler is already registered
      */
-    public ListView<T> onSelect(Runnable handler) {
+    public ListView<T> onSelect(@Nullable Runnable handler) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, handler, "ListView.onSelect");
         return this;
@@ -380,7 +381,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * @return this list
      * @throws IllegalStateException if a handler is already registered
      */
-    public ListView<T> onActivate(IntConsumer handler) {
+    public ListView<T> onActivate(@Nullable IntConsumer handler) {
         Ui.checkUiThread();
         this.onActivate = Checks.handlerSlot(onActivate, handler, "ListView.onActivate");
         return this;
@@ -459,7 +460,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * @param name the row's name for an item, or {@code null} for none
      * @return this list
      */
-    public ListView<T> setItemName(Function<? super T, ? extends I18nString> name) {
+    public ListView<T> setItemName(@Nullable Function<? super T, ? extends I18nString> name) {
         Ui.checkUiThread();
         this.itemName = name;
         invalidate(); // the names are published, and a publish rides on a damaged frame
@@ -535,7 +536,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     }
 
     /** @return the item at {@link #selectedIndex()}, or {@code null} when nothing is selected */
-    public T selectedItem() {
+    public @Nullable T selectedItem() {
         return lead >= 0 && lead < items.size() ? items.get(lead) : null;
     }
 
@@ -1449,7 +1450,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     }
 
     @Override
-    public Widget<?> hitTest(float localX, float localY) {
+    public @Nullable Widget<?> hitTest(float localX, float localY) {
         if (!isVisible() || !isEnabled()
                 || localX < 0 || localY < 0 || localX >= width() || localY >= height()) {
             return null;

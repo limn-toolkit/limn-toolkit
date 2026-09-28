@@ -24,6 +24,7 @@ import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -387,7 +388,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
      * @return this picker
      * @throws IllegalStateException if a handler is already registered
      */
-    public ColorPicker onChange(Consumer<Color> listener) {
+    public ColorPicker onChange(@Nullable Consumer<Color> listener) {
         Ui.checkUiThread();
         this.onChange = Checks.handlerSlot(onChange, listener, "ColorPicker.onChange");
         return this;
@@ -403,7 +404,7 @@ public final class ColorPicker extends Widget<ColorPicker> {
      * @return this picker
      * @throws IllegalStateException if a handler is already registered
      */
-    public ColorPicker onCommit(Consumer<Color> listener) {
+    public ColorPicker onCommit(@Nullable Consumer<Color> listener) {
         Ui.checkUiThread();
         this.onCommit = Checks.handlerSlot(onCommit, listener, "ColorPicker.onCommit");
         return this;

@@ -21,6 +21,7 @@ import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -94,7 +95,7 @@ public final class RadioButton extends Widget<RadioButton> {
      * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
      * throws {@link IllegalStateException}.
      */
-    public RadioButton onChange(Consumer<Boolean> listener) {
+    public RadioButton onChange(@Nullable Consumer<Boolean> listener) {
         Ui.checkUiThread();
         this.onChange = Checks.handlerSlot(onChange, listener, "RadioButton.onChange");
         return this;

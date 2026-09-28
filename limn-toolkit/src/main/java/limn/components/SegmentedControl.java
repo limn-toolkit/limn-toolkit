@@ -22,6 +22,7 @@ import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
@@ -192,7 +193,7 @@ public final class SegmentedControl extends Widget<SegmentedControl> {
      * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
      * throws {@link IllegalStateException}.
      */
-    public SegmentedControl onSelect(IntConsumer listener) {
+    public SegmentedControl onSelect(@Nullable IntConsumer listener) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, listener, "SegmentedControl.onSelect");
         return this;

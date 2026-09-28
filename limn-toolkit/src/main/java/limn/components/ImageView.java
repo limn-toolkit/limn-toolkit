@@ -9,6 +9,7 @@ import limn.graphics.Image;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -38,12 +39,12 @@ public final class ImageView extends Widget<ImageView> {
     private float preferredHeight = -1;
 
     /** Shows an image at its natural size until the layout says otherwise. */
-    public ImageView(Image image) {
+    public ImageView(@Nullable Image image) {
         this.image = image;
     }
 
     /** Replaces the image, re-measuring if its natural size differs. UI thread only. */
-    public ImageView setImage(Image newImage) {
+    public ImageView setImage(@Nullable Image newImage) {
         Ui.checkUiThread();
         this.image = newImage;
         markNeedsLayout();
@@ -59,7 +60,7 @@ public final class ImageView extends Widget<ImageView> {
     }
 
     /** Tints the image (icon mode); {@code null} draws it in full color. */
-    public ImageView setTint(Color newTint) {
+    public ImageView setTint(@Nullable Color newTint) {
         Ui.checkUiThread();
         this.tint = newTint;
         invalidate();

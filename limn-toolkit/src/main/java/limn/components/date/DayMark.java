@@ -2,6 +2,7 @@ package limn.components.date;
 
 import limn.graphics.Color;
 import limn.i18n.I18nString;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -26,7 +27,7 @@ import java.util.Objects;
  * @param description what a reader is told about the day, or {@code null} for a mark that is
  *                    decoration
  */
-public record DayMark(Color dot, I18nString description) {
+public record DayMark(Color dot, @Nullable I18nString description) {
 
     public DayMark {
         Objects.requireNonNull(dot, "dot");

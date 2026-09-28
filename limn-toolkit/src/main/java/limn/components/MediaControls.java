@@ -22,6 +22,7 @@ import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 import limn.sound.Playback;
 import limn.video.VideoStreamSource;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -270,7 +271,7 @@ public final class MediaControls extends Widget<MediaControls> {
      * nothing about, and a theme ink chosen for the theme's own surfaces can land near-black on
      * it. {@code null}s restore the theme's answer.
      */
-    public MediaControls setInk(Color newInk, Color newMutedInk) {
+    public MediaControls setInk(@Nullable Color newInk, @Nullable Color newMutedInk) {
         Ui.checkUiThread();
         ink = newInk;
         mutedInk = newMutedInk;

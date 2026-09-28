@@ -17,6 +17,7 @@ import limn.scene.Constraints;
 import limn.scene.LayoutDirection;
 import limn.scene.Size;
 import limn.scene.Widget;
+import org.jspecify.annotations.Nullable;
 
 import java.text.BreakIterator;
 import java.util.ArrayList;
@@ -185,7 +186,7 @@ public final class Label extends Widget<Label> {
      * @param target the widget this label names, or {@code null} to remove the link
      * @return this label, for chaining
      */
-    public Label setLabelFor(Widget<?> target) {
+    public Label setLabelFor(@Nullable Widget<?> target) {
         Ui.checkUiThread();
         if (labelFor == target) {
             return this;
@@ -201,7 +202,7 @@ public final class Label extends Widget<Label> {
     }
 
     /** The widget this label names, or {@code null}; see {@link #setLabelFor(Widget)}. */
-    public Widget<?> labelFor() {
+    public @Nullable Widget<?> labelFor() {
         return labelFor;
     }
 
@@ -225,7 +226,7 @@ public final class Label extends Widget<Label> {
      * @param target the widget this label describes, or {@code null} to remove the link
      * @return this label, for chaining
      */
-    public Label setDescriptionFor(Widget<?> target) {
+    public Label setDescriptionFor(@Nullable Widget<?> target) {
         Ui.checkUiThread();
         if (descriptionFor == target) {
             return this;
@@ -241,7 +242,7 @@ public final class Label extends Widget<Label> {
     }
 
     /** The widget this label describes, or {@code null}; see {@link #setDescriptionFor(Widget)}. */
-    public Widget<?> descriptionFor() {
+    public @Nullable Widget<?> descriptionFor() {
         return descriptionFor;
     }
 
@@ -376,7 +377,7 @@ public final class Label extends Widget<Label> {
      * box falls back to the font-derived formula, so an explicitly 14 pt label inside
      * an XLARGE subtree does not get a 24 pt icon. {@code null} restores the role.
      */
-    public Label setFont(Font newFont) {
+    public Label setFont(@Nullable Font newFont) {
         Ui.checkUiThread();
         if (Objects.equals(font, newFont)) {
             return this;
@@ -409,7 +410,7 @@ public final class Label extends Widget<Label> {
     }
 
     /** Pins the text colour; {@code null} restores the theme's, resolved at paint time. */
-    public Label setColor(Color newColor) {
+    public Label setColor(@Nullable Color newColor) {
         Ui.checkUiThread();
         this.color = newColor;
         invalidate();
@@ -486,7 +487,7 @@ public final class Label extends Widget<Label> {
      * reads. {@code null} clears it. <em>Leading</em> is the side reading starts on: the left edge
      * left to right, the right edge right to left.
      */
-    public Label setIcon(limn.graphics.Icon newIcon) {
+    public Label setIcon(limn.graphics.@Nullable Icon newIcon) {
         return setIcon(newIcon, limn.graphics.Icon.Mirroring.NEVER);
     }
 
@@ -502,7 +503,7 @@ public final class Label extends Widget<Label> {
      *                  directional; a wrong {@code NEVER} is one arrow pointing the wrong way,
      *                  and a wrong {@code IN_RTL} is a flipped brand mark
      */
-    public Label setIcon(limn.graphics.Icon newIcon, limn.graphics.Icon.Mirroring mirroring) {
+    public Label setIcon(limn.graphics.@Nullable Icon newIcon, limn.graphics.Icon.Mirroring mirroring) {
         Ui.checkUiThread();
         Objects.requireNonNull(mirroring, "mirroring");
         if (icon == newIcon && iconMirroring == mirroring) {

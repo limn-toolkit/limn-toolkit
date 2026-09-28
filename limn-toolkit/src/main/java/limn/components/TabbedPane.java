@@ -22,6 +22,7 @@ import limn.scene.Change;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -298,7 +299,7 @@ public final class TabbedPane extends Widget<TabbedPane> {
      * @return this pane
      * @throws IllegalStateException if a handler is already registered
      */
-    public TabbedPane onSelect(IntConsumer listener) {
+    public TabbedPane onSelect(@Nullable IntConsumer listener) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, listener, "TabbedPane.onSelect");
         return this;

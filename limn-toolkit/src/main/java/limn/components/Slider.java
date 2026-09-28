@@ -18,6 +18,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 
 /**
@@ -151,7 +152,7 @@ public final class Slider extends Widget<Slider> {
      * @return this slider
      * @throws IllegalStateException if a handler is already registered
      */
-    public Slider onChange(FloatConsumer listener) {
+    public Slider onChange(@Nullable FloatConsumer listener) {
         Ui.checkUiThread();
         this.onChange = Checks.handlerSlot(onChange, listener, "Slider.onChange");
         return this;
@@ -174,7 +175,7 @@ public final class Slider extends Widget<Slider> {
      * @return this slider
      * @throws IllegalStateException if a handler is already registered
      */
-    public Slider onCommit(FloatConsumer listener) {
+    public Slider onCommit(@Nullable FloatConsumer listener) {
         Ui.checkUiThread();
         this.onCommit = Checks.handlerSlot(onCommit, listener, "Slider.onCommit");
         return this;

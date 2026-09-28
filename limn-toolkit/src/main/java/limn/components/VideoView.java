@@ -19,6 +19,7 @@ import limn.video.VideoFrame;
 import limn.video.VideoStreamSource;
 import limn.video.VideoSurface;
 import limn.video.VideoSurfaces;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -212,7 +213,7 @@ public final class VideoView extends Widget<VideoView> {
      * <p>Paused, like {@link #setSource}: see {@link #setAutoplay}. It shows the first picture and
      * holds it.
      */
-    public VideoView(VideoStreamSource source) {
+    public VideoView(@Nullable VideoStreamSource source) {
         this.source = source;
         this.paused = true;
         clock.setPaused(true);
@@ -226,7 +227,7 @@ public final class VideoView extends Widget<VideoView> {
      *
      * <p>Re-measures, because the natural size is the stream's.
      */
-    public VideoView setSource(VideoStreamSource newSource) {
+    public VideoView setSource(@Nullable VideoStreamSource newSource) {
         Ui.checkUiThread();
         releasePictures();
         source = newSource;
@@ -267,7 +268,7 @@ public final class VideoView extends Widget<VideoView> {
     }
 
     /** @return the stream being shown directly, or null when there is none or a player holds it */
-    public VideoStreamSource source() {
+    public @Nullable VideoStreamSource source() {
         return source;
     }
 
@@ -282,7 +283,7 @@ public final class VideoView extends Widget<VideoView> {
      *
      * <p>Re-measures, because the natural size is the player's stream's.
      */
-    public VideoView setPlayer(MediaPlayer newPlayer) {
+    public VideoView setPlayer(@Nullable MediaPlayer newPlayer) {
         Ui.checkUiThread();
         releasePictures();
         player = newPlayer;
@@ -292,7 +293,7 @@ public final class VideoView extends Widget<VideoView> {
     }
 
     /** @return the player driving this view, or null when it is showing a stream directly */
-    public MediaPlayer player() {
+    public @Nullable MediaPlayer player() {
         return player;
     }
 
@@ -572,7 +573,7 @@ public final class VideoView extends Widget<VideoView> {
      *         stream and stops asking the source for anything; {@link #restart()} or a new source is
      *         what clears it.
      */
-    public RuntimeException failure() {
+    public @Nullable RuntimeException failure() {
         if (failure != null) {
             return failure; // an upload that threw is this view's own, player or no player
         }
