@@ -22,6 +22,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import limn.scene.internal.SceneAccess;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Row;
 
@@ -817,7 +818,7 @@ public final class Dialog {
         // With the keyboard, taken from the scene being left before its close could run the
         // widget's focus-lost path, and never put on the first stop as if by Tab: the one would
         // drop a selection and commit a half-typed entry, the other select all of a field's text.
-        owner.pushOverlay(overlay, leaving);
+        SceneAccess.pushMovedOverlay(owner, overlay, leaving);
         sceneModal = host.backend().pushSceneModal(host, toolkitScope);
         observeUnanswered(owner);
         fade = 0;

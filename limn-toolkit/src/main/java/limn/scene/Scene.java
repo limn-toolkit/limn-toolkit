@@ -700,10 +700,13 @@ public final class Scene {
      * tells it of a cancelled one. When nothing inside {@code overlay} held {@code movedFrom}'s
      * focus, the focus goes to the overlay's first stop, as with {@link #pushOverlay(Widget)}.
      *
+     * <p>Not API, since only the toolkit moves content between scenes: a component reaches it
+     * through {@link limn.scene.internal.SceneAccess#pushMovedOverlay}.
+     *
      * @param overlay   the overlay's root, holding content {@code movedFrom} drew until now
      * @param movedFrom the scene that content comes from, which lets go of its focus
      */
-    public void pushOverlay(Widget<?> overlay, Scene movedFrom) {
+    void pushOverlay(Widget<?> overlay, Scene movedFrom) {
         Ui.checkUiThread();
         Objects.requireNonNull(overlay, "overlay");
         Objects.requireNonNull(movedFrom, "movedFrom");
@@ -2971,6 +2974,11 @@ public final class Scene {
             @Override
             public Scene sceneOf(WindowInput input) {
                 return input instanceof Input own ? own.scene() : null;
+            }
+
+            @Override
+            public void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
+                scene.pushOverlay(overlay, movedFrom);
             }
         });
     }
