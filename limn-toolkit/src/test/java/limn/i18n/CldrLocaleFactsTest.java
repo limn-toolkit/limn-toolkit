@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CldrLocaleFactsTest {
 
-    private static final Path DUMP = Path.of("src/test/resources/limn/i18n/cldr-locale-facts.txt");
+    private static final Path DUMP = CldrAliasRows.FACTS;
 
     /**
      * Rows whose system this enum does not carry, a language's or one script's of it. They
@@ -105,7 +105,7 @@ class CldrLocaleFactsTest {
         }
         // A code ICU reads as one of those languages writes that language's digits, which the
         // alias tests below hold it to.
-        for (String[] alias : aliasRows()) {
+        for (String[] alias : CldrAliasRows.read()) {
             if (named.contains(Locale.forLanguageTag(alias[1]).getLanguage())) {
                 named.add(alias[0]);
             }
@@ -182,7 +182,7 @@ class CldrLocaleFactsTest {
      */
     @Test
     void anAliasWritesItsReplacementsDigits() throws Exception {
-        List<String[]> aliases = aliasRows();
+        List<String[]> aliases = CldrAliasRows.read();
         assertTrue(aliases.size() > 400, "the dump carries only " + aliases.size() + " aliases");
 
         List<String> wrong = new ArrayList<>();
@@ -209,7 +209,7 @@ class CldrLocaleFactsTest {
     void anAliasKeepsItsScriptAndRegion() throws Exception {
         List<String> wrong = new ArrayList<>();
         int asked = 0;
-        for (String[] alias : aliasRows()) {
+        for (String[] alias : CldrAliasRows.read()) {
             Locale replacement = Locale.forLanguageTag(alias[1]);
             for (String[] row : digitRows()) {
                 Locale written = Locale.forLanguageTag(row[0]);
@@ -428,18 +428,6 @@ class CldrLocaleFactsTest {
         List<String[]> rows = new ArrayList<>();
         for (String line : lines()) {
             if (line.startsWith("digits ")) {
-                String[] parts = line.split(" ");
-                rows.add(new String[]{parts[1], parts[2]});
-            }
-        }
-        return rows;
-    }
-
-    /** Each {@code alias} row as the code and the tag ICU replaces it with. */
-    private static List<String[]> aliasRows() throws Exception {
-        List<String[]> rows = new ArrayList<>();
-        for (String line : lines()) {
-            if (line.startsWith("alias ")) {
                 String[] parts = line.split(" ");
                 rows.add(new String[]{parts[1], parts[2]});
             }
