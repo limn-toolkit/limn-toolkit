@@ -15,6 +15,7 @@ import limn.graphics.Color;
 import limn.graphics.Image;
 import limn.input.Keys;
 import limn.scene.Scene;
+import limn.scene.Widget;
 import limn.scene.layout.Column;
 import limn.testing.StubWindow;
 import org.junit.jupiter.api.Test;
@@ -40,10 +41,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * What a fullscreen owner does to the surfaces that float above it. A fullscreen window is given
- * no second one: on a monitor it is minimized as soon as another window takes the focus, macOS
- * native fullscreen already covers the screen so a surface loses nothing drawn inside it, and on a
- * Mac without a GPU a window is slow to open. So every surface asked for
+ * What a fullscreen owner does to the surfaces that float above it. A fullscreen window is given no
+ * second one: at a named mode it is minimized as soon as another window takes the focus, at the
+ * mode the display is in it already covers the screen so a surface loses nothing drawn inside it,
+ * and on a Mac without a GPU a window is slow to open. So every surface asked for
  * {@link DisplayMode#NATIVE_WINDOW} is drawn in scene there, and each one's {@code displayMode()}
  * says so. The stub's fullscreen is of no particular kind; the rule is the same for both.
  *
@@ -100,7 +101,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
 
         assertTrue(combo.isOpen());
         assertTrue(combo.isInSceneForTest(),
-                "a list window would minimize an owner fullscreen on a monitor");
+                "a list window would minimize an owner fullscreen at a named mode");
         assertNull(combo.popupWindow(), "the in-scene list has no window of its own");
         assertEquals(DisplayMode.IN_SCENE, combo.displayMode(),
                 "displayMode() must answer what happened, not what was wished for");
@@ -149,7 +150,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
 
         assertTrue(picker.isOpen());
         assertEquals(DisplayMode.IN_SCENE, picker.displayMode(),
-                "a calendar window would minimize an owner fullscreen on a monitor");
+                "a calendar window would minimize an owner fullscreen at a named mode");
         assertNotNull(picker.calendar().parent(), "the grid is in the card that is showing");
 
         picker.close();
@@ -173,7 +174,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         dialog.show(scene);
 
         assertNull(dialog.modalWindow(),
-                "a dialog window would minimize an owner fullscreen on a monitor");
+                "a dialog window would minimize an owner fullscreen at a named mode");
         assertEquals(DisplayMode.IN_SCENE, dialog.displayMode(),
                 "displayMode() must answer what happened, not what was wished for");
         assertSame(window, window.sceneModalOwner,
@@ -219,7 +220,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         Dialog dialog = well.openDialog();
         assertNotNull(dialog, "the well did not raise a picker");
         assertNull(dialog.modalWindow(),
-                "a picker window would minimize an owner fullscreen on a monitor");
+                "a picker window would minimize an owner fullscreen at a named mode");
         assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
         assertEquals(DisplayMode.IN_SCENE, well.pickerDisplayMode(),
                 "while the picker is up the well answers how it is actually presented");
@@ -234,10 +235,11 @@ class FullscreenFallbackTest extends ComponentTestBase {
      * {@link #isModalBlocked()} while a native modal is up, as a real one does.
      *
      * <p>Everything that decides where the desktop sends the focus is written to {@link #calls} in
-     * the order it was asked: the owner's focus, a made window's focus, hide and close, and the
-     * native modals pushed and popped. The order is the point: a window holding the focus that is
-     * hidden or closed before the owner asks for it back leaves the choice of the next one to the
-     * desktop, and an owner fullscreen on a monitor that the desktop passes over is minimized.
+     * the order it was asked: the owner's focus, a made window's show (a dialog's window takes the
+     * focus as it is shown), focus, hide and close, and the native modals pushed and popped. The
+     * order is the point: a window holding the focus that is hidden or closed before the owner asks
+     * for it back leaves the choice of the next one to the desktop, and an owner the desktop passes
+     * over loses the keyboard, and is minimized when it is fullscreen at a named mode.
      */
     private static final class WindowHost extends StubWindow implements Backend {
         /** Every window made, in order. */
@@ -272,6 +274,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
                 closeRequested = true;
                 calls.add("close " + name);
             }
+            @Override public void show() { calls.add("show " + name); }
             @Override public void hide() { calls.add("hide " + name); }
             @Override public void focus() { calls.add("focus " + name); }
             @Override public void resetPreedit() { preeditReset = true; }
@@ -323,6 +326,12 @@ class FullscreenFallbackTest extends ComponentTestBase {
     private static void focusedByTheDesktop(WindowHost.Made window) {
         window.input.windowFocusChanged(true);
         window.input.inputBatchEnded();
+    }
+
+    /** The desktop gave the focus to the owner {@code scene} is bound to, as a backend says. */
+    private static void focusedByTheDesktop(Scene scene) {
+        drive(scene).windowFocusChanged(true);
+        drive(scene).inputBatchEnded();
     }
 
     /** The desktop took the focus from {@code window}, as a backend reports it. */
@@ -412,7 +421,8 @@ class FullscreenFallbackTest extends ComponentTestBase {
         goFullscreen(scene, window);
 
         assertFalse(popup.isOpen(), "a menu window is placed against the geometry the change "
-                + "took away, and holding the focus it minimizes an owner fullscreen on a monitor");
+                + "took away, and holding the focus it minimizes an owner fullscreen at a named "
+                + "mode");
         assertNull(popup.popupWindow());
         assertEquals(0, ran.get(), "a dismissal runs no item");
     }
@@ -469,7 +479,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         goFullscreen(scene, window);
 
         assertFalse(combo.isOpen(), "a list window is placed against the field's old position, "
-                + "and at a click it minimizes an owner fullscreen on a monitor");
+                + "and at a click it minimizes an owner fullscreen at a named mode");
         assertNull(combo.popupWindow());
         assertEquals(0, combo.selectedIndex(), "the highlight is not a choice");
         assertEquals(-1, selected.get(), "and nothing was reported as one");
@@ -532,7 +542,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         goFullscreen(scene, window);
 
         assertFalse(picker.isOpen(), "a calendar window is placed against the field's old "
-                + "position, and at a click it minimizes an owner fullscreen on a monitor");
+                + "position, and at a click it minimizes an owner fullscreen at a named mode");
         assertEquals(chosen, picker.date(), "the cursor is not a pick");
         assertEquals(0, picked.get());
     }
@@ -588,12 +598,14 @@ class FullscreenFallbackTest extends ComponentTestBase {
         drive(card).type("draft");
 
         goFullscreen(scene, window);
+        focusedByTheDesktop(scene);
 
         assertNull(dialog.modalWindow(), "a modal dialog over a fullscreen owner is drawn in "
-                + "scene, however it opened: the window would minimize an owner fullscreen on a "
-                + "monitor when the person reached it");
+                + "scene, however it opened: the window would minimize an owner fullscreen at a "
+                + "named mode when the person reached it");
         assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
-        assertTrue(window.made.get(0).closeRequested, "its window was asked to go");
+        assertTrue(window.made.get(0).closeRequested,
+                "its window was asked to go once the owner had the focus");
         assertEquals(List.of(), window.modals, "and let go of the owner");
         assertSame(window, window.sceneModalOwner, "the overlay is modal over the same owner");
         assertFalse(window.sceneModalToolkitScope, "and no wider than the window was");
@@ -854,9 +866,10 @@ class FullscreenFallbackTest extends ComponentTestBase {
 
     // A surface's window that holds the focus and is hidden or closed before its owner has asked
     // for the focus back leaves the desktop to choose the next window, and a desktop may choose
-    // itself: on GNOME over X11 it did, and GLFW minimizes a window fullscreen on a monitor that
-    // loses the focus, so the owner that had just gone fullscreen was minimized. Each test reads
-    // the order the host was asked in, from the moment before the close to the window's close.
+    // itself: on GNOME over X11 it did, which takes the keyboard from the owner, and GLFW
+    // minimized the owner that had just gone fullscreen, as it still minimizes one fullscreen at a
+    // named mode that loses the focus. Each test reads the order the host was asked in, from the
+    // moment before the close to the window's close.
 
     /** A menu's window takes the focus as it opens, and the change closes it holding it. */
     @Test
@@ -893,7 +906,8 @@ class FullscreenFallbackTest extends ComponentTestBase {
         runtime.drain();
         WindowHost.Made menu = window.made.get(0);
         fadeIn(menu, nanos);
-        assertEquals(List.of("block by menu"), window.calls, "sanity: the menu blocks its owner");
+        assertEquals(List.of("show menu", "block by menu"), window.calls,
+                "sanity: the menu blocks its owner");
         focusedByTheDesktop(menu);
         window.calls.clear();
 
@@ -903,14 +917,70 @@ class FullscreenFallbackTest extends ComponentTestBase {
         assertEquals(List.of("release menu", "focus owner", "close menu"), window.calls);
     }
 
-    /** The same order on an ordinary close: an item chosen from the keyboard. */
+    /**
+     * A choice hands the owner the keyboard at once, before the item runs, rather than at the end
+     * of the fade: the menu's window, fading for 0.16 s, held the keyboard until then, and a Tab
+     * pressed some 80 ms after choosing an item went to it and was lost, on Windows, macOS and X11.
+     */
     @Test
-    void theOwnerAsksForTheFocusBeforeAMenuWindowHoldingItClosesOnAChoice() {
+    void theOwnerHasTheFocusAsSoonAsAnItemIsChosenFromTheKeyboard() {
         long[] nanos = {0};
         WindowHost window = new WindowHost();
         Scene scene = sceneOver(window, new Label("root"), 400, 300, nanos);
-        AtomicInteger ran = new AtomicInteger();
-        PopupMenu popup = new PopupMenu(new Menu().addItem("One", ran::incrementAndGet));
+        PopupMenu popup = new PopupMenu(
+                new Menu().addItem("One", () -> window.calls.add("run One")));
+        popup.showAnchored(scene, 20, 20, 0, 0);
+        runtime.drain();
+        WindowHost.Made menu = window.made.get(0);
+        fadeIn(menu, nanos);
+        focusedByTheDesktop(menu);
+        window.calls.clear();
+
+        popup.keyForTest(Keys.DOWN);
+        popup.keyForTest(Keys.ENTER);
+
+        assertEquals(List.of("focus owner", "run One"), window.calls,
+                "the owner is asked as the item is chosen, before it runs");
+        fadeOut(menu, nanos);
+        assertEquals(List.of("focus owner", "run One", "close menu"), window.calls,
+                "and not again at the end of the fade");
+    }
+
+    /** The same at a click on the row. */
+    @Test
+    void theOwnerHasTheFocusAsSoonAsAnItemIsClicked() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300, nanos);
+        PopupMenu popup = new PopupMenu(
+                new Menu().addItem("One", () -> window.calls.add("run One")));
+        popup.showAnchored(scene, 20, 20, 0, 0);
+        runtime.drain();
+        WindowHost.Made menu = window.made.get(0);
+        fadeIn(menu, nanos);
+        focusedByTheDesktop(menu);
+        window.calls.clear();
+
+        float[] column = popup.columnRectForTest(0);
+        SizeTokens t = popup.tokensForTest();
+        popup.clickForTest(column[0] + 30, column[1] + t.menuPadV() + t.menuRowHeight() / 2);
+
+        assertEquals(List.of("focus owner", "run One"), window.calls);
+        fadeOut(menu, nanos);
+        assertEquals(List.of("focus owner", "run One", "close menu"), window.calls);
+    }
+
+    /**
+     * A modal menu lets go of its lock first, at the choice too, since a blocked owner hands the
+     * focus straight back to the modal over it.
+     */
+    @Test
+    void aModalMenuLetsGoOfItsOwnerAsSoonAsAnItemIsChosen() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300, nanos);
+        PopupMenu popup = new PopupMenu(
+                new Menu().addItem("One", () -> window.calls.add("run One"))).setModal(true);
         popup.showAnchored(scene, 20, 20, 0, 0);
         runtime.drain();
         WindowHost.Made menu = window.made.get(0);
@@ -922,13 +992,13 @@ class FullscreenFallbackTest extends ComponentTestBase {
         popup.keyForTest(Keys.ENTER);
         fadeOut(menu, nanos);
 
-        assertEquals(1, ran.get(), "sanity: the item ran");
-        assertEquals(List.of("focus owner", "close menu"), window.calls);
+        assertEquals(List.of("release menu", "focus owner", "run One", "close menu"),
+                window.calls);
     }
 
     /**
-     * The owner is not handed a focus the menu's window no longer holds: an item that opened a
-     * window of its own gave that window the focus during the fade, and it keeps it.
+     * The owner is asked once, at the choice, and never again: an item that opened a window of its
+     * own gave that window the focus during the fade, and it keeps it.
      */
     @Test
     void aMenuWindowThatLostTheFocusDoesNotTakeItBackForItsOwner() {
@@ -948,7 +1018,33 @@ class FullscreenFallbackTest extends ComponentTestBase {
         blurredByTheDesktop(menu); // the window the item opened took the focus
         fadeOut(menu, nanos);
 
-        assertEquals(List.of("close menu"), window.calls);
+        assertEquals(List.of("focus owner", "close menu"), window.calls);
+    }
+
+    /**
+     * An item that opens a non-modal dialog: the owner is asked before the item runs, so the
+     * dialog's window, shown after, is the one left with the focus, whatever the menu's scene last
+     * heard of its own.
+     */
+    @Test
+    void aMenuWhoseItemOpenedANonModalDialogLeavesTheFocusWithTheDialog() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300, nanos);
+        PopupMenu popup = new PopupMenu(new Menu().addItem("Find", () ->
+                new Dialog("Find", "").addButton("Close", "close").showNonModal(scene)));
+        popup.showAnchored(scene, 20, 20, 0, 0);
+        runtime.drain();
+        WindowHost.Made menu = window.made.get(0);
+        fadeIn(menu, nanos);
+        focusedByTheDesktop(menu);
+        window.calls.clear();
+
+        popup.keyForTest(Keys.DOWN);
+        popup.keyForTest(Keys.ENTER);
+        fadeOut(menu, nanos);
+
+        assertEquals(List.of("focus owner", "show Find", "close menu"), window.calls);
     }
 
     /** Nor one a modal dialog the item opened is holding, over an owner it blocks. */
@@ -971,15 +1067,185 @@ class FullscreenFallbackTest extends ComponentTestBase {
         popup.keyForTest(Keys.ENTER);
         fadeOut(menu, nanos);
 
-        assertEquals(List.of("block by Rename", "close menu"), window.calls);
+        assertEquals(List.of("focus owner", "show Rename", "block by Rename", "close menu"),
+                window.calls);
+    }
+
+    // ------------------------------------------------------------------ input during the fade
+
+    // A closed menu fades for 0.16 s, and its window, or its overlay in scene, still receives
+    // input meanwhile. None of it reaches the menu: an Enter or a click there ran the chosen item
+    // a second time. A key that follows a dismissal is given to the owner's scene, as if the menu
+    // were already gone; after a choice, or in scene, it is dropped.
+
+    /** A key pressed and released in {@code window}, then the batch ended, as a backend says. */
+    private static void keyIn(WindowHost.Made window, int key) {
+        window.input.keyEvent(key, true, false, 0);
+        window.input.keyEvent(key, false, false, 0);
+        window.input.inputBatchEnded();
+    }
+
+    /** A menu's window, faded in and holding the focus, over {@code scene}. */
+    private WindowHost.Made menuWindowUp(WindowHost window, PopupMenu popup, Scene scene,
+                                         long[] nanos) {
+        popup.showAnchored(scene, 20, 20, 0, 0);
+        runtime.drain();
+        WindowHost.Made menu = window.made.get(0);
+        fadeIn(menu, nanos);
+        focusedByTheDesktop(menu);
+        return menu;
+    }
+
+    @Test
+    void aSecondEnterWhileTheMenuFadesRunsTheItemOnce() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300, nanos);
+        AtomicInteger ran = new AtomicInteger();
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", ran::incrementAndGet));
+        WindowHost.Made menu = menuWindowUp(window, popup, scene, nanos);
+
+        keyIn(menu, Keys.DOWN);
+        keyIn(menu, Keys.ENTER);
+        assertEquals(1, ran.get(), "sanity: the item ran");
+        keyIn(menu, Keys.ENTER); // the fading window still has the keyboard
+        fadeOut(menu, nanos);
+
+        assertEquals(1, ran.get(), "a closed menu chooses nothing");
+    }
+
+    @Test
+    void aSecondClickWhileTheMenuFadesRunsTheItemOnce() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300, nanos);
+        AtomicInteger ran = new AtomicInteger();
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", ran::incrementAndGet));
+        WindowHost.Made menu = menuWindowUp(window, popup, scene, nanos);
+        float[] column = popup.columnRectForTest(0);
+        SizeTokens t = popup.tokensForTest();
+        float x = column[0] + 30;
+        float y = column[1] + t.menuPadV() + t.menuRowHeight() / 2;
+
+        popup.clickForTest(x, y);
+        assertEquals(1, ran.get(), "sanity: the item ran");
+        popup.clickForTest(x, y);
+        fadeOut(menu, nanos);
+
+        assertEquals(1, ran.get(), "a closed menu chooses nothing");
+    }
+
+    /** In scene too: the overlay keeps the owner's keyboard until its fade has ended. */
+    @Test
+    void aSecondEnterWhileAMenuInSceneFadesRunsTheItemOnce() {
+        StubWindow window = fullscreen(new StubWindow());
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        AtomicInteger ran = new AtomicInteger();
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", ran::incrementAndGet));
+        popup.showAnchored(scene, 20, 20, 0, 0);
+        scene.layoutPass(400, 300);
+        assertTrue(popup.isInSceneForTest(), "sanity: drawn in scene");
+
+        drive(scene).press(Keys.DOWN).press(Keys.ENTER);
+        assertEquals(1, ran.get(), "sanity: the item ran");
+        drive(scene).press(Keys.ENTER);
+
+        assertEquals(1, ran.get(), "a closed menu chooses nothing");
+    }
+
+    /**
+     * After a dismissal the owner is where the keyboard goes, and the menu's window holds it only
+     * until its fade ends: what is typed meanwhile reaches the owner's scene, as if the menu were
+     * already gone.
+     */
+    @Test
+    void keysTypedWhileADismissedMenuFadesReachTheOwner() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        TextField field = new TextField();
+        Button next = new Button("Next");
+        Column root = new Column();
+        root.add(field);
+        root.add(next);
+        Scene scene = sceneOver(window, root, 400, 300, nanos);
+        scene.requestFocus(field);
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", () -> { }));
+        WindowHost.Made menu = menuWindowUp(window, popup, scene, nanos);
+
+        keyIn(menu, Keys.ESCAPE);
+        assertFalse(popup.isOpen(), "sanity: Escape closed it");
+        menu.input.keyEvent(Keys.A, true, false, 0);
+        menu.input.charTyped('a');
+        menu.input.keyEvent(Keys.A, false, false, 0);
+        menu.input.inputBatchEnded();
+        keyIn(menu, Keys.TAB);
+        fadeOut(menu, nanos);
+
+        assertEquals("a", field.text(), "the character reached the owner's field");
+        assertSame(next, scene.focusedWidget(), "and Tab moved the owner's focus");
+    }
+
+    /** A modal menu's own lock, held until its fade ends, does not keep the owner from them. */
+    @Test
+    void keysTypedWhileADismissedModalMenuFadesReachTheOwner() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        TextField field = new TextField();
+        Scene scene = sceneOver(window, field, 400, 300, nanos);
+        scene.requestFocus(field);
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", () -> { })).setModal(true);
+        WindowHost.Made menu = menuWindowUp(window, popup, scene, nanos);
+
+        keyIn(menu, Keys.ESCAPE);
+        assertTrue(window.isModalBlocked(), "sanity: the lock goes at the end of the fade");
+        menu.input.charTyped('a');
+        menu.input.inputBatchEnded();
+        fadeOut(menu, nanos);
+
+        assertEquals("a", field.text());
+    }
+
+    /**
+     * After a choice the key is dropped: the window that has the keyboard once the menu is gone
+     * may be one the item opened, and an Enter given to the owner instead would press whatever
+     * the owner has focused, under a dialog the person is looking at.
+     */
+    @Test
+    void keysTypedWhileAChosenMenuFadesAreDropped() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        TextField field = new TextField();
+        Button next = new Button("Next");
+        Column root = new Column();
+        root.add(field);
+        root.add(next);
+        Scene scene = sceneOver(window, root, 400, 300, nanos);
+        scene.requestFocus(field);
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", () -> { }));
+        WindowHost.Made menu = menuWindowUp(window, popup, scene, nanos);
+
+        keyIn(menu, Keys.DOWN);
+        keyIn(menu, Keys.ENTER);
+        menu.input.charTyped('a');
+        menu.input.inputBatchEnded();
+        keyIn(menu, Keys.TAB);
+        fadeOut(menu, nanos);
+
+        assertEquals("", field.text());
+        assertSame(field, scene.focusedWidget());
     }
 
     /**
      * A modal dialog's window holds the focus over an owner it blocks, so the move lets go of the
-     * owner, the owner asks for the focus, and only then does the window go, at once.
+     * owner, moves the card, asks the owner for the focus, and sends the window away only once the
+     * owner reports having it. Hidden in the same instant the owner was asked, the window went
+     * before the window manager had given the owner the focus, and on GNOME over X11 the owner lost
+     * it again some 20 ms later.
      */
     @Test
-    void theOwnerAsksForTheFocusBeforeAModalDialogsWindowGoesIntoTheScene() {
+    void aModalDialogsWindowGoesOnlyOnceTheOwnerHasTheFocus() {
+        long[] nanos = {0};
+        runtime.setDelayClock(() -> nanos[0]);
         WindowHost window = new WindowHost();
         Scene scene = sceneOver(window, new Label("root"), 400, 300);
         Dialog dialog = new Dialog("Rename", "A new name.")
@@ -987,13 +1253,94 @@ class FullscreenFallbackTest extends ComponentTestBase {
                 .addPrimaryButton("Rename", "rename")
                 .setCancelResult("cancel");
         dialog.show(scene);
-        assertEquals(List.of("block by Rename"), window.calls, "sanity: it blocks its owner");
+        assertEquals(List.of("show Rename", "block by Rename"), window.calls,
+                "sanity: it blocks its owner");
         window.calls.clear();
 
         goFullscreen(scene, window);
 
-        assertEquals(List.of("release Rename", "focus owner", "hide Rename", "close Rename",
-                "scene modal over owner"), window.calls);
+        assertEquals(List.of("release Rename", "scene modal over owner", "focus owner"),
+                window.calls, "the window stays up while the owner is asked for the focus");
+        WindowHost.Made left = window.made.get(0);
+        assertEquals(0, left.opacity, "out of sight meanwhile");
+
+        focusedByTheDesktop(scene);
+
+        assertEquals(List.of("release Rename", "scene modal over owner", "focus owner",
+                "hide Rename", "close Rename"), window.calls);
+
+        nanos[0] += TimeUnit.MILLISECONDS.toNanos(Dialog.OWNER_FOCUS_WAIT_MILLIS);
+        runtime.drain();
+        focusedByTheDesktop(scene);
+        assertEquals(5, window.calls.size(), "sent away once: " + window.calls);
+    }
+
+    /**
+     * An owner that never reports the focus does not keep the window up: it goes when the wait
+     * runs out, and a report that comes later sends nothing away twice.
+     */
+    @Test
+    void aModalDialogsWindowGoesAnywayWhenTheOwnerNeverReportsTheFocus() {
+        long[] nanos = {0};
+        runtime.setDelayClock(() -> nanos[0]);
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        Dialog dialog = new Dialog("Rename", "A new name.")
+                .addPrimaryButton("Rename", "rename")
+                .setCancelResult("cancel");
+        dialog.show(scene);
+        window.calls.clear();
+
+        goFullscreen(scene, window);
+        nanos[0] += TimeUnit.MILLISECONDS.toNanos(Dialog.OWNER_FOCUS_WAIT_MILLIS - 1);
+        runtime.drain();
+
+        assertFalse(window.made.get(0).closeRequested, "still waiting for the owner");
+
+        nanos[0] += TimeUnit.MILLISECONDS.toNanos(1);
+        runtime.drain();
+
+        assertEquals(List.of("release Rename", "scene modal over owner", "focus owner",
+                "hide Rename", "close Rename"), window.calls);
+        focusedByTheDesktop(scene);
+        assertEquals(5, window.calls.size(), "sent away once: " + window.calls);
+    }
+
+    /**
+     * What the window still hears while it waits reaches nothing: the card answers to the owner's
+     * scene now, and a key or a frame there must not reach it through the scene it left.
+     */
+    @Test
+    void aModalDialogsWindowNeitherDrawsNorAnswersWhileItWaits() {
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        AtomicInteger answers = new AtomicInteger();
+        Dialog dialog = new Dialog("Rename", "A new name.")
+                .addPrimaryButton("Rename", "rename")
+                .setCancelResult("cancel");
+        dialog.show(scene).thenAccept(answer -> answers.incrementAndGet());
+        WindowHost.Made left = window.made.get(0);
+
+        goFullscreen(scene, window);
+        scene.layoutPass(400, 300);
+        Widget<?> card = dialog.contentRoot();
+        float[] placed = {card.x(), card.y(), card.width(), card.height()};
+        left.input.keyEvent(Keys.ESCAPE, true, false, 0);
+        left.input.keyEvent(Keys.ESCAPE, false, false, 0);
+        left.input.inputBatchEnded();
+        left.frames.onFrame(new GpuRenderer() {
+            private final Canvas canvas = new FakeCanvas(160, 90);
+            @Override public Canvas canvas() { return canvas; }
+            @Override public void clear(float red, float green, float blue, float alpha) { }
+            @Override public void captureFramebuffer(Consumer<Image> sink) { }
+        }, new FrameInfo(160, 90, 1f));
+
+        assertEquals(0, answers.get(), "a key in the window left behind answers nothing");
+        assertFalse(dialog.result().toCompletableFuture().isDone());
+        assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
+        assertEquals(java.util.Arrays.toString(placed), java.util.Arrays.toString(
+                new float[] {card.x(), card.y(), card.width(), card.height()}),
+                "a frame of the window left behind lays nothing out: the card is the owner's");
     }
 
     /** The same order on an ordinary answer, after the fade. */

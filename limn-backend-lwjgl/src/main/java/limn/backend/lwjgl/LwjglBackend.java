@@ -712,6 +712,9 @@ public final class LwjglBackend implements Backend {
                         // The poll just delivered AppKit's word on any native fullscreen
                         // transition; act on what was waiting for it (a no-op off macOS).
                         window.settleNativeFullscreen();
+                        // And the window manager's word on a window that left a fullscreen on the
+                        // monitor, which may have given it back elsewhere than it was.
+                        window.settleWindowedGeometry();
                         window.notifyInputBatchEnd();
                     } catch (Crashes.ShutdownRequested shutdown) {
                         throw shutdown;

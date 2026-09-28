@@ -182,9 +182,12 @@ public interface NativeWindow extends AutoCloseable {
      * change the display's mode, and there the window is fullscreen at the compositor's whatever
      * is named.
      *
-     * <p>On Windows and X11 a fullscreen window of either kind, and on macOS one at a named mode,
-     * is minimized when it loses the focus, and a switched mode is switched back until the window
-     * is restored. macOS native fullscreen is not: the person moves to another Space and back.
+     * <p><b>Losing the focus</b> tells the two apart. A window at a named mode is minimized when
+     * another window takes the focus, on every platform, and a switched mode is switched back until
+     * the window is restored, which is what a game wants when the person switches away from it. A
+     * window at the mode the display is in is not: on Windows, X11 and Wayland it stays fullscreen
+     * behind the window that took the focus, as a browser's fullscreen does, and the person comes
+     * back to it as they left it; on macOS the person moves to another Space and back.
      *
      * <p>A window already fullscreen one way and asked for the other leaves the first: a switched
      * mode is switched back before native fullscreen begins, and native fullscreen is left, with
@@ -200,8 +203,9 @@ public interface NativeWindow extends AutoCloseable {
     /**
      * Makes the window fullscreen without changing the display's mode: native fullscreen on macOS,
      * a borderless window covering the monitor at its current mode on Windows and X11, and the
-     * compositor's fullscreen on Wayland. See {@link #enterFullscreen(int, int, int)}. UI thread
-     * only.
+     * compositor's fullscreen on Wayland. The fullscreen of an application rather than a game: it
+     * is not minimized when another window takes the focus, but stays fullscreen behind it. See
+     * {@link #enterFullscreen(int, int, int)}. UI thread only.
      */
     default void enterFullscreen() {
         enterFullscreen(0, 0, 0);
@@ -213,7 +217,8 @@ public interface NativeWindow extends AutoCloseable {
      * The normalized form of {@link #enterFullscreen(int, int, int)} that takes a
      * {@link Resolution}, such as one from {@code display().availableResolutions()}. To keep the
      * display as it is, call {@link #enterFullscreen()} instead: on macOS a Retina display's current
-     * mode is usually not among those a switch can reach. UI thread only.
+     * mode is usually not among those a switch can reach. The window is minimized when another
+     * window takes the focus, and the display switched back until it is restored. UI thread only.
      *
      * @param mode the mode to switch to
      * @throws NullPointerException if {@code mode} is null, as it is from a display that lists none
@@ -225,9 +230,12 @@ public interface NativeWindow extends AutoCloseable {
 
     /**
      * Leaves fullscreen of either kind, and does nothing for a window that is not fullscreen. A
-     * switched mode is switched back and the windowed position and size restored before this
-     * returns; macOS native fullscreen is left with its animation, after this returns, and is left
-     * whether the application or the person entered it. UI thread only.
+     * switched mode is switched back and the windowed position and size asked for before this
+     * returns, and given back as the window had them: where the window manager answers later, as
+     * on X11, a window it gives back maximized when it was not, or elsewhere or at another size, is
+     * asked once more when the answer comes. macOS native fullscreen is left with its animation,
+     * after this returns, and is left whether the application or the person entered it. UI thread
+     * only.
      */
     void exitFullscreen();
 

@@ -19,11 +19,11 @@ public final class FloatingSurfaces {
 
     /**
      * Whether a surface anchored inside {@code owner} is given a window of its own there. Not while
-     * the owner is fullscreen: on a monitor a fullscreen window is minimized as soon as another
-     * takes the focus, and macOS native fullscreen already covers the screen, so a surface drawn
-     * inside it loses nothing and is spared the cost of opening a window, which on a Mac without a
-     * GPU held the UI for seconds when the colour picker opened as one. And not where the owner
-     * cannot be positioned, as on Wayland, where the window would open away from the anchor
+     * the owner is fullscreen: at a named mode a fullscreen window is minimized as soon as another
+     * takes the focus, and at the mode the display is in it already covers the screen, so a surface
+     * drawn inside it loses nothing and is spared the cost of opening a window, which on a Mac
+     * without a GPU held the UI for seconds when the colour picker opened as one. And not where the
+     * owner cannot be positioned, as on Wayland, where the window would open away from the anchor
      * wearing whatever frame the compositor puts on toplevels. Either way the surface is drawn in
      * scene instead.
      *

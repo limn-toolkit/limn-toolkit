@@ -1958,7 +1958,30 @@ public final class Scene {
     }
 
     private void notifyWindowBlurObservers() {
-        Runnable[] snapshot = windowBlurObservers;
+        runObservers(windowBlurObservers);
+    }
+
+    private Runnable[] windowFocusObservers;
+
+    /**
+     * Observes the bound window gaining OS focus, as the backend reports it: the other half of
+     * {@link #observeWindowBlur}. Told at the end of the input batch that brought the report.
+     *
+     * <p>Not API: only the toolkit waits on it, a modal dialog whose card has moved into this scene
+     * keeping its own window up until this one has the focus. A component reaches it through
+     * {@link limn.scene.internal.SceneAccess#observeWindowFocus}.
+     *
+     * @param observer told when the window gains focus; never null
+     * @return a handle that unregisters; cancelling it twice is a no-op. UI thread
+     */
+    Subscription observeWindowFocus(Runnable observer) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(observer, "observer");
+        windowFocusObservers = Listeners.added(windowFocusObservers, observer, NO_RUNNABLES);
+        return once(() -> windowFocusObservers = Listeners.removed(windowFocusObservers, observer));
+    }
+
+    private static void runObservers(Runnable[] snapshot) {
         if (snapshot == null) {
             return;
         }
@@ -1981,8 +2004,8 @@ public final class Scene {
      * Observes the bound window entering or leaving fullscreen, the cue that closes a surface open
      * in a window of its own over it (a menu, a drop-down list, a calendar), as the platforms
      * dismiss their own menus on a change of their window's state: the change resizes and moves
-     * the window under a surface placed against its old geometry, and a window fullscreen on a
-     * monitor is minimized as soon as another window takes the focus. The person can make the
+     * the window under a surface placed against its old geometry, and a window fullscreen at a
+     * named mode is minimized as soon as another window takes the focus. The person can make the
      * change on macOS with the green button or Control-Command-F while a list or a calendar is
      * open, because neither takes the focus from the window. A modal dialog's window hears it too,
      * and moves into the scene.
@@ -2980,6 +3003,11 @@ public final class Scene {
             public void pushMovedOverlay(Scene scene, Widget<?> overlay, Scene movedFrom) {
                 scene.pushOverlay(overlay, movedFrom);
             }
+
+            @Override
+            public Subscription observeWindowFocus(Scene scene, Runnable observer) {
+                return scene.observeWindowFocus(observer);
+            }
         });
     }
 
@@ -3195,6 +3223,8 @@ public final class Scene {
                         cancelKeyState();
                         notifyWindowBlurObservers();
                         invalidate = true;
+                    } else {
+                        runObservers(windowFocusObservers);
                     }
                 } else if (raw instanceof RawFullscreen change) {
                     // Nothing of its own to repaint: the resize that comes with it relays out, and

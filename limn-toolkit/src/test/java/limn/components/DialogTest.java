@@ -426,9 +426,9 @@ class DialogTest extends ComponentTestBase {
     /**
      * The promotion out of an overlay is for a host a modal has already locked, and it rests on a
      * native window stacking over the dialog already there. A fullscreen owner is the one case
-     * where no new window is offered: on a monitor it takes the focus and minimizes the owner, and
-     * native fullscreen already covers the screen. So there the fullscreen rule wins, and the
-     * dialog stays in scene.
+     * where no new window is offered: at a named mode it takes the focus and minimizes the owner,
+     * and at the mode the display is in the owner already covers the screen. So there the
+     * fullscreen rule wins, and the dialog stays in scene.
      */
     @Test
     void aFullscreenOwnerIsNotPromotedOutOfItsOverlay() {
@@ -444,7 +444,7 @@ class DialogTest extends ComponentTestBase {
         dialog.show(host);
 
         assertNull(dialog.modalWindow(),
-                "a window here would minimize an owner fullscreen on a monitor");
+                "a window here would minimize an owner fullscreen at a named mode");
         assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
     }
 

@@ -312,11 +312,11 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
      *
      * <p><b>A preference, not a guarantee</b>, and the dialog's own: over a fullscreen window the
      * picker is drawn in scene whatever was asked, for the reasons {@link DisplayMode} gives: an
-     * owner fullscreen on a monitor is minimized when the picker's window takes the focus, macOS
-     * native fullscreen already covers the screen, and on a Mac without a GPU the picker held the
-     * UI for 1.4 to 3.7 seconds as a window, against 0.6 to 0.7 in scene. A picker already up in a
-     * window moves into the scene when the owner goes fullscreen, the colour it holds unchanged.
-     * {@link #pickerDisplayMode()} answers what happened.
+     * owner fullscreen at a named mode is minimized when the picker's window takes the focus, one
+     * at the mode the display is in already covers the screen, and on a Mac without a GPU the
+     * picker held the UI for 1.4 to 3.7 seconds as a window, against 0.6 to 0.7 in scene. A picker
+     * already up in a window moves into the scene when the owner goes fullscreen, the colour it
+     * holds unchanged. {@link #pickerDisplayMode()} answers what happened.
      *
      * <p>Takes effect on the next {@link #openPicker()}; a picker already up is not moved by it.
      *

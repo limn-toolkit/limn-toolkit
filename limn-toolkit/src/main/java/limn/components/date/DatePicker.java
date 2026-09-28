@@ -945,10 +945,10 @@ public final class DatePicker extends Widget<DatePicker> {
             return; // headless: the state machine is the whole of what a test drives
         }
         blurHandle = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
-        // A fullscreen owner gets no calendar window (on a monitor it would be minimized at the
-        // first click in the calendar, and native fullscreen already covers the screen, so the
-        // calendar loses nothing inside it), and one that cannot be positioned would put it away
-        // from the field: both draw it in scene, whatever was asked.
+        // A fullscreen owner gets no calendar window (at a named mode it would be minimized at the
+        // first click in the calendar, and at the mode the display is in it already covers the
+        // screen, so the calendar loses nothing inside it), and one that cannot be positioned would
+        // put it away from the field: both draw it in scene, whatever was asked.
         NativeWindow window = scene.window();
         if (requested == DisplayMode.IN_SCENE
                 || (window != null && !FloatingSurfaces.anchoredWindowAvailable(window))) {
@@ -963,7 +963,7 @@ public final class DatePicker extends Widget<DatePicker> {
         // The owner going fullscreen, or leaving it, takes the calendar down as a platform's own
         // popup goes on a change of its window's state: the change resizes and moves the owner
         // under a calendar placed against the field's old position, and one left open over a
-        // fullscreen on a monitor would minimize it at the first click. Dismissed, so the grid's
+        // fullscreen at a named mode would minimize it at the first click. Dismissed, so the grid's
         // cursor is not a pick. An in-scene calendar is left alone: it is laid out again with the
         // window, against the field where it now is.
         fullscreenHandle = scene.observeWindowFullscreen(

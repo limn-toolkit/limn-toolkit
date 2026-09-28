@@ -28,6 +28,7 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.Objects;
 
+import static org.lwjgl.glfw.GLFW.GLFW_AUTO_ICONIFY;
 import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MAJOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MINOR;
@@ -44,6 +45,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_FOCUS_ON_SHOW;
 import static org.lwjgl.glfw.GLFW.GLFW_FORMAT_UNAVAILABLE;
 import static org.lwjgl.glfw.GLFW.GLFW_NO_API;
 import static org.lwjgl.glfw.GLFW.GLFW_IME;
+import static org.lwjgl.glfw.GLFW.GLFW_MAXIMIZED;
 import static org.lwjgl.glfw.GLFW.GLFW_RAW_MOUSE_MOTION;
 import static org.lwjgl.glfw.GLFW.GLFW_PRESS;
 import static org.lwjgl.glfw.GLFW.GLFW_RELEASE;
@@ -51,6 +53,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_REPEAT;
 import static org.lwjgl.glfw.GLFW.GLFW_OPENGL_CORE_PROFILE;
 import static org.lwjgl.glfw.GLFW.GLFW_OPENGL_FORWARD_COMPAT;
 import static org.lwjgl.glfw.GLFW.GLFW_OPENGL_PROFILE;
+import static org.lwjgl.glfw.GLFW.GLFW_PLATFORM_WIN32;
 import static org.lwjgl.glfw.GLFW.GLFW_RESIZABLE;
 import static org.lwjgl.glfw.GLFW.GLFW_SCALE_TO_MONITOR;
 import static org.lwjgl.glfw.GLFW.GLFW_TRANSPARENT_FRAMEBUFFER;
@@ -65,6 +68,7 @@ import static org.lwjgl.glfw.GLFW.glfwGetClipboardString;
 import static org.lwjgl.glfw.GLFW.glfwGetCursorPos;
 import static org.lwjgl.glfw.GLFW.glfwGetWindowAttrib;
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
+import static org.lwjgl.glfw.GLFW.glfwGetPlatform;
 import static org.lwjgl.glfw.GLFW.glfwGetMonitorPos;
 import static org.lwjgl.glfw.GLFW.glfwGetMonitors;
 import static org.lwjgl.glfw.GLFW.glfwGetPrimaryMonitor;
@@ -76,6 +80,7 @@ import static org.lwjgl.glfw.GLFW.glfwGetWindowSize;
 import static org.lwjgl.glfw.GLFW.glfwHideWindow;
 import static org.lwjgl.glfw.GLFW.glfwMakeContextCurrent;
 import static org.lwjgl.glfw.GLFW.glfwRequestWindowAttention;
+import static org.lwjgl.glfw.GLFW.glfwRestoreWindow;
 import static org.lwjgl.glfw.GLFW.glfwSetCharCallback;
 import static org.lwjgl.glfw.GLFW.glfwSetCursor;
 import static org.lwjgl.glfw.GLFW.glfwSetClipboardString;
@@ -102,6 +107,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_POSITION_X;
 import static org.lwjgl.glfw.GLFW.GLFW_POSITION_Y;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowPos;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowOpacity;
+import static org.lwjgl.glfw.GLFW.glfwSetWindowAttrib;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowShouldClose;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowSize;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowSizeLimits;
@@ -252,10 +258,11 @@ final class LwjglWindow implements NativeWindow {
      * {@link #reportFullscreen}.
      */
     private boolean reportedFullscreen;
-    private int windowedX;
-    private int windowedY;
-    private int windowedW;
-    private int windowedH;
+    /**
+     * The position, size and maximized state this window had before it went fullscreen on the
+     * monitor, and the watching of the window manager's answers when it leaves.
+     */
+    private final WindowedGeometry windowed = new WindowedGeometry();
 
     LwjglWindow(LwjglBackend backend, WindowConfig config) {
         this.backend = backend;
@@ -379,6 +386,7 @@ final class LwjglWindow implements NativeWindow {
         glfwSetFramebufferSizeCallback(handle, (win, width, height) -> {
             framebufferWidth = width;
             framebufferHeight = height;
+            windowed.answered(); // an answer to a window leaving fullscreen, while one is watched
             if (nsglContext != NULL) {
                 // GLFW resizes the drawables it owns; this one is ours to tell.
                 MacSoftwareGl.update(nsglContext);
@@ -784,6 +792,7 @@ final class LwjglWindow implements NativeWindow {
 
     /** Package-private seam for the position callback (and for reasoning about it in one place). */
     void windowMovedTo(int x, int y) {
+        windowed.answered(); // an answer to a window leaving fullscreen, while one is watched
         int dx = x - lastScreenX;
         int dy = y - lastScreenY;
         lastScreenX = x;
@@ -1473,6 +1482,10 @@ final class LwjglWindow implements NativeWindow {
      * sent; out of native fullscreen by its animation, with the fullscreen on the monitor made when
      * AppKit announces the window is out, because GLFW's rewrites the style mask of a window AppKit
      * may still be animating.
+     *
+     * <p>What losing the focus does to a fullscreen on the monitor is set on each entry, by whether
+     * the request names a mode: see {@link #minimizeOnFocusLoss} and
+     * {@link #stayBehindTheFocusedWindow}.
      */
     @Override
     public void enterFullscreen(int width, int height, int refreshRate) {
@@ -1490,6 +1503,7 @@ final class LwjglWindow implements NativeWindow {
             monitorFullscreenAfterNative = null; // the later request replaces the earlier one
             if (monitorFullscreen) {
                 leaveMonitorFullscreen();
+                windowed.entered(); // AppKit resizes it next, which is no answer to correct
             }
             nativeFullscreen.want(true);
             settleNativeFullscreen();
@@ -1516,20 +1530,9 @@ final class LwjglWindow implements NativeWindow {
             return;
         }
         if (!monitorFullscreen) {
-            // Remember the windowed geometry (screen coords) to restore later.
-            try (MemoryStack stack = MemoryStack.stackPush()) {
-                IntBuffer x = stack.mallocInt(1);
-                IntBuffer y = stack.mallocInt(1);
-                readWindowPos(x, y);
-                windowedX = x.get(0);
-                windowedY = y.get(0);
-                IntBuffer w = stack.mallocInt(1);
-                IntBuffer h = stack.mallocInt(1);
-                glfwGetWindowSize(handle, w, h);
-                windowedW = w.get(0);
-                windowedH = h.get(0);
-            }
+            saveWindowedGeometry(); // to restore later
         }
+        windowed.entered();
         // A width or height <= 0 asks for the current one, and GLFW then keeps the monitor's mode
         // wherever its mode list holds the current mode: Windows and X11 do. macOS never gets
         // here with no mode named, because its list lacks a Retina display's current mode and
@@ -1537,16 +1540,83 @@ final class LwjglWindow implements NativeWindow {
         int fw = width > 0 ? width : mode.width();
         int fh = height > 0 ? height : mode.height();
         int fr = refreshRate > 0 ? refreshRate : mode.refreshRate();
+        boolean namedMode = namesMode(width, height, refreshRate);
+        minimizeOnFocusLoss(namedMode);
         glfwSetWindowMonitor(handle, monitor, 0, 0, fw, fh, fr);
+        if (!namedMode) {
+            stayBehindTheFocusedWindow();
+        }
         monitorFullscreen = true;
         refreshFramebufferMetrics();
+    }
+
+    /**
+     * Whether a request for fullscreen names a display mode, a size or a refresh rate or both: the
+     * exclusive fullscreen a game asks for, rather than the application's fullscreen at the mode
+     * the display is in.
+     *
+     * @param width       the width asked for, or &le; 0 for none
+     * @param height      the height asked for, or &le; 0 for none
+     * @param refreshRate the refresh rate asked for, or &le; 0 for none
+     * @return whether the request names a mode
+     */
+    static boolean namesMode(int width, int height, int refreshRate) {
+        return width > 0 || height > 0 || refreshRate > 0;
+    }
+
+    /**
+     * Says whether this window, once GLFW holds it fullscreen on a monitor, is minimized when it
+     * loses the focus, which is GLFW's default, read by GLFW only while the window is fullscreen.
+     * Set on each entry, so a window that entered one way and then the other is never left with
+     * the first one's answer; a window out of fullscreen is not affected by it.
+     *
+     * <p>Yes at a named mode, the fullscreen a game asks for: a switched mode is switched back
+     * while the window is minimized, so the person reaches the desktop at the mode it was in. No at
+     * the mode the display is in, the fullscreen an application asks for: the window then stays
+     * fullscreen behind whatever took the focus, as a browser's does, and the person comes back to
+     * it as they left it. Minimized there, an owner that had gone fullscreen under an open menu or
+     * dialog was minimized on GNOME over X11 as the surface closed, the desktop having given the
+     * focus to a window of its own.
+     *
+     * <p>Package-private so that a test can read the attribute back on a hidden window, which is
+     * never made fullscreen.
+     *
+     * @param namedMode whether the fullscreen about to be entered is at a named mode
+     */
+    void minimizeOnFocusLoss(boolean namedMode) {
+        glfwSetWindowAttrib(handle, GLFW_AUTO_ICONIFY, namedMode ? GLFW_TRUE : GLFW_FALSE);
+    }
+
+    /**
+     * On Windows, takes back the always-on-top that GLFW gives every window it makes fullscreen,
+     * for the fullscreen at the mode the display is in. That window is not minimized when it loses
+     * the focus, and in the always-on-top band it would stay over the window the person switched
+     * to, which would get the keyboard while hidden behind it. Out of the band, the window the
+     * person switches to comes in front, as it does over a browser's fullscreen. A named mode keeps
+     * the band: that window is minimized when it loses the focus. Nothing elsewhere: on X11 the
+     * window manager stacks a fullscreen window, and GLFW puts it in no band of its own.
+     */
+    private void stayBehindTheFocusedWindow() {
+        if (glfwGetPlatform() != GLFW_PLATFORM_WIN32) {
+            return;
+        }
+        long hwnd = org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle);
+        if (hwnd != NULL) {
+            org.lwjgl.system.windows.User32.SetWindowPos(null, hwnd,
+                    org.lwjgl.system.windows.User32.HWND_NOTOPMOST, 0, 0, 0, 0,
+                    org.lwjgl.system.windows.User32.SWP_NOMOVE
+                            | org.lwjgl.system.windows.User32.SWP_NOSIZE
+                            | org.lwjgl.system.windows.User32.SWP_NOACTIVATE);
+        }
     }
 
     /**
      * {@inheritDoc}
      *
      * <p>Native fullscreen is left by its animation, after this returns, whether this window or
-     * the person entered it; a fullscreen on the monitor is left before this returns.
+     * the person entered it; a fullscreen on the monitor is left before this returns, and the
+     * window manager's answer, which may come after, is watched for half a second: see
+     * {@link #settleWindowedGeometry}.
      */
     @Override
     public void exitFullscreen() {
@@ -1566,10 +1636,94 @@ final class LwjglWindow implements NativeWindow {
     }
 
     private void leaveMonitorFullscreen() {
-        glfwSetWindowMonitor(handle, NULL, windowedX, windowedY,
-                Math.max(1, windowedW), Math.max(1, windowedH), GLFW_DONT_CARE);
+        glfwSetWindowMonitor(handle, NULL, windowed.x(), windowed.y(),
+                Math.max(1, windowed.width()), Math.max(1, windowed.height()), GLFW_DONT_CARE);
         monitorFullscreen = false;
+        watchTheAnswersToLeaving();
         refreshFramebufferMetrics();
+    }
+
+    /** Remembers the window's position, size and maximized state now, in screen coordinates. */
+    private void saveWindowedGeometry() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer x = stack.mallocInt(1);
+            IntBuffer y = stack.mallocInt(1);
+            readWindowPos(x, y);
+            IntBuffer w = stack.mallocInt(1);
+            IntBuffer h = stack.mallocInt(1);
+            glfwGetWindowSize(handle, w, h);
+            windowed.save(x.get(0), y.get(0), w.get(0), h.get(0),
+                    glfwGetWindowAttrib(handle, GLFW_MAXIMIZED) == GLFW_TRUE);
+        }
+    }
+
+    /**
+     * After the request to leave a fullscreen on the monitor: unmaximizes a window that was not
+     * maximized before and reports it now, and has the loop watch the window manager's answers,
+     * so that a window given back anywhere but where it was is asked once more for its position
+     * and size; see {@link WindowedGeometry} for what GNOME over X11 gave back, and
+     * {@link #settleWindowedGeometry} for the asking.
+     */
+    private void watchTheAnswersToLeaving() {
+        boolean maximizedNow = glfwGetWindowAttrib(handle, GLFW_MAXIMIZED) == GLFW_TRUE;
+        if (windowed.left(maximizedNow, System.nanoTime())) {
+            glfwRestoreWindow(handle);
+        }
+    }
+
+    /**
+     * Acts on the window manager's answer to a window that left a fullscreen on the monitor: asks
+     * once to unmaximize it, or once for its position and size again, as {@link WindowedGeometry}
+     * says. Run by the loop after every poll, where the size and position callbacks that carry the
+     * answer arrive; reads the window only while answers are watched, which is for half a second
+     * after leaving. Asked of GLFW directly rather than through {@link #setSize}, which draws a
+     * frame at once, from a loop turn that is about to draw one anyway.
+     */
+    void settleWindowedGeometry() {
+        if (destroyed || !windowed.watching() || isFullscreen()) {
+            return;
+        }
+        int x;
+        int y;
+        int w;
+        int h;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer px = stack.mallocInt(1);
+            IntBuffer py = stack.mallocInt(1);
+            readWindowPos(px, py);
+            IntBuffer pw = stack.mallocInt(1);
+            IntBuffer ph = stack.mallocInt(1);
+            glfwGetWindowSize(handle, pw, ph);
+            x = px.get(0);
+            y = py.get(0);
+            w = pw.get(0);
+            h = ph.get(0);
+        }
+        boolean positions = supportsAbsolutePositioning();
+        switch (windowed.settle(System.nanoTime(), x, y, w, h,
+                glfwGetWindowAttrib(handle, GLFW_MAXIMIZED) == GLFW_TRUE, positions)) {
+            case RESTORE -> glfwRestoreWindow(handle);
+            case APPLY -> {
+                if (positions) {
+                    glfwSetWindowPos(handle, windowed.x(), windowed.y());
+                }
+                glfwSetWindowSize(handle, Math.max(1, windowed.width()),
+                        Math.max(1, windowed.height()));
+                frameRequested = true;
+            }
+            case NONE -> {
+            }
+        }
+    }
+
+    /**
+     * Plays a leaving on a window that never went fullscreen, which a test must never make one: the
+     * geometry it has now is saved as if it had entered, and the answers are watched as after
+     * {@link #leaveMonitorFullscreen}, whose request to GLFW is the one step left out.
+     */
+    void leftMonitorFullscreenForTest() {
+        saveWindowedGeometry();
+        watchTheAnswersToLeaving();
     }
 
     /**
