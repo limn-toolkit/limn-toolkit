@@ -2,6 +2,7 @@ package limn.components.date;
 
 import limn.i18n.I18n;
 import limn.i18n.internal.LanguageAliases;
+import limn.i18n.internal.LocaleServices;
 
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
@@ -10,7 +11,6 @@ import java.time.chrono.ChronoLocalDate;
 import java.time.chrono.Chronology;
 import java.time.chrono.IsoChronology;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.FormatStyle;
 import java.time.format.TextStyle;
 import java.time.temporal.ChronoUnit;
@@ -63,7 +63,7 @@ final class CalendarChronology {
             return declared;
         }
         try {
-            return Chronology.ofLocale(locale);
+            return LocaleServices.chronology(locale);
         } catch (RuntimeException e) {
             // A locale naming a calendar the runtime does not carry. ISO is not a guess here: it
             // is what the same call answers for every locale that names nothing.
@@ -192,7 +192,7 @@ final class CalendarChronology {
                           boolean narrow) {
         DateTimeFormatter formatter = FORMATTERS.computeIfAbsent(
                 (narrow ? "eraN " : "era ") + locale.toLanguageTag() + ' ' + chronology.getId(),
-                key -> DateTimeFormatter.ofPattern(narrow ? "GGGGGy" : "GGGGy", locale)
+                key -> LocaleServices.formatter(narrow ? "GGGGGy" : "GGGGy", locale)
                         .withChronology(chronology));
         return I18n.localizeDigits(formatter.format(date));
     }
@@ -253,12 +253,13 @@ final class CalendarChronology {
     private static WeekFields readWeek(Locale locale) {
         String region = locale.getCountry().isEmpty() ? likelyRegion(locale) : null;
         if (region == null) {
-            return WeekFields.of(locale);
+            return LocaleServices.weekFields(locale);
         }
         try {
-            return WeekFields.of(new Locale.Builder().setLocale(locale).setRegion(region).build());
+            return LocaleServices.weekFields(
+                    new Locale.Builder().setLocale(locale).setRegion(region).build());
         } catch (java.util.IllformedLocaleException e) {
-            return WeekFields.of(locale); // a legacy variant the builder refuses: the JDK's reading
+            return LocaleServices.weekFields(locale); // a legacy variant the builder refuses
         }
     }
 
@@ -344,7 +345,7 @@ final class CalendarChronology {
     static String monthHeader(Chronology chronology, ChronoLocalDate month, Locale locale) {
         DateTimeFormatter formatter = FORMATTERS.computeIfAbsent(
                 "hdr " + locale.toLanguageTag() + ' ' + chronology.getId(),
-                key -> DateTimeFormatter.ofPattern(monthYearPattern(chronology, locale), locale)
+                key -> LocaleServices.formatter(monthYearPattern(chronology, locale), locale)
                         .withChronology(chronology));
         // ASCII out of the formatter, then the numbering system: ADR 033's one format-time seam.
         return I18n.localizeDigits(formatter.format(month));
@@ -364,8 +365,8 @@ final class CalendarChronology {
     static String fullDate(Chronology chronology, ChronoLocalDate date, Locale locale) {
         DateTimeFormatter formatter = FORMATTERS.computeIfAbsent(
                 "full " + locale.toLanguageTag() + ' ' + chronology.getId(),
-                key -> DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)
-                        .withLocale(locale).withChronology(chronology));
+                key -> LocaleServices.localizedDate(FormatStyle.LONG, locale)
+                        .withChronology(chronology));
         return I18n.localizeDigits(formatter.format(date));
     }
 
@@ -378,7 +379,7 @@ final class CalendarChronology {
      * @return its narrow name
      */
     static String narrowWeekday(DayOfWeek day, Locale locale) {
-        return day.getDisplayName(TextStyle.NARROW_STANDALONE, locale);
+        return LocaleServices.name(day, TextStyle.NARROW_STANDALONE, locale);
     }
 
     /**
@@ -390,7 +391,7 @@ final class CalendarChronology {
      * @return its full name
      */
     static String fullWeekday(DayOfWeek day, Locale locale) {
-        return day.getDisplayName(TextStyle.FULL_STANDALONE, locale);
+        return LocaleServices.name(day, TextStyle.FULL_STANDALONE, locale);
     }
 
     /**
@@ -410,8 +411,7 @@ final class CalendarChronology {
      */
     private static String monthYearPattern(Chronology chronology, Locale locale) {
         List<DatePattern.Part> parts = DatePattern.parse(
-                DateTimeFormatterBuilder.getLocalizedDateTimePattern(
-                        FormatStyle.LONG, null, chronology, locale));
+                LocaleServices.localizedPattern(FormatStyle.LONG, null, chronology, locale));
         int day = -1;
         for (int i = 0; i < parts.size(); i++) {
             if (parts.get(i) instanceof DatePattern.FieldPart f

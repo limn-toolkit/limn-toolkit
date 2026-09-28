@@ -3,6 +3,7 @@ package limn.backend.lwjgl.a11y.linux;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.TextFacet;
 import limn.accessibility.ValueFacet;
+import limn.i18n.internal.LocaleServices;
 
 import java.text.BreakIterator;
 import java.util.Locale;
@@ -215,7 +216,7 @@ final class AtspiText {
                 }
             }
             case Atspi.TEXT_BOUNDARY_WORD_START, Atspi.TEXT_BOUNDARY_WORD_END -> {
-                BreakIterator words = BreakIterator.getWordInstance(locale);
+                BreakIterator words = LocaleServices.wordBreaks(locale);
                 words.setText(text);
                 int start = words.first();
                 for (int end = words.next(); end != BreakIterator.DONE;
@@ -226,7 +227,7 @@ final class AtspiText {
                 }
             }
             case Atspi.TEXT_BOUNDARY_SENTENCE_START, Atspi.TEXT_BOUNDARY_SENTENCE_END -> {
-                BreakIterator sentences = BreakIterator.getSentenceInstance(locale);
+                BreakIterator sentences = LocaleServices.sentenceBreaks(locale);
                 sentences.setText(text);
                 for (int cut = sentences.first(); cut != BreakIterator.DONE; cut = sentences.next()) {
                     if (boundary == Atspi.TEXT_BOUNDARY_SENTENCE_START) {

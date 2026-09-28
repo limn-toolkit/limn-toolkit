@@ -19,6 +19,7 @@ import limn.graphics.TextMetrics;
 import limn.graphics.TextRuler;
 import limn.i18n.I18n;
 import limn.i18n.LanguageWitness;
+import limn.i18n.internal.LocaleServices;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
 import limn.scene.Change;
@@ -1547,8 +1548,7 @@ public final class CalendarView extends Widget<CalendarView> {
         if (view == View.MONTHS) {
             String[] names = new String[MONTHS_IN_YEAR];
             java.time.format.DateTimeFormatter format =
-                    java.time.format.DateTimeFormatter.ofPattern("MMM", locale)
-                            .withChronology(chronology);
+                    LocaleServices.formatter("MMM", locale).withChronology(chronology);
             for (int i = 0; i < MONTHS_IN_YEAR; i++) {
                 ChronoLocalDate month = monthCell(chronoFirst, i);
                 names[i] = month == null ? "" : capitalize(format.format(month));

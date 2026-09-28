@@ -1,5 +1,7 @@
 package limn.components.date;
 
+import limn.i18n.internal.LocaleServices;
+
 import java.time.chrono.Chronology;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.FormatStyle;
@@ -134,8 +136,7 @@ final class DatePattern {
      * @return the parts, in the order the locale writes them
      */
     static List<Part> shortDate(Chronology chronology, Locale locale) {
-        return parse(DateTimeFormatterBuilder.getLocalizedDateTimePattern(
-                FormatStyle.SHORT, null, chronology, locale));
+        return parse(LocaleServices.localizedPattern(FormatStyle.SHORT, null, chronology, locale));
     }
 
     /**
@@ -147,7 +148,7 @@ final class DatePattern {
      * @return the parts, in the order the locale writes them
      */
     static List<Part> time(boolean seconds, Locale locale) {
-        return parse(DateTimeFormatterBuilder.getLocalizedDateTimePattern(
+        return parse(LocaleServices.localizedPattern(
                 null, seconds ? FormatStyle.MEDIUM : FormatStyle.SHORT,
                 java.time.chrono.IsoChronology.INSTANCE, locale));
     }

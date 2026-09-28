@@ -19,6 +19,7 @@ import limn.graphics.TextRuler;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.i18n.LanguageWitness;
+import limn.i18n.internal.LocaleServices;
 import limn.input.Keys;
 import limn.internal.lang.Checks;
 import limn.scene.Change;
@@ -961,7 +962,7 @@ public final class DateField extends Widget<DateField> {
     private String widestMonthName(Locale locale) {
         String widest = "";
         for (java.time.Month month : java.time.Month.values()) {
-            String name = month.getDisplayName(TextStyle.FULL_STANDALONE, locale);
+            String name = LocaleServices.name(month, TextStyle.FULL_STANDALONE, locale);
             if (name.length() > widest.length()) {
                 widest = name;
             }
@@ -970,7 +971,7 @@ public final class DateField extends Widget<DateField> {
     }
 
     private String widestDayPeriod(Locale locale) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("a", locale);
+        DateTimeFormatter formatter = LocaleServices.formatter("a", locale);
         String am = formatter.format(LocalTime.of(6, 0));
         String pm = formatter.format(LocalTime.of(18, 0));
         return am.length() >= pm.length() ? am : pm;
@@ -980,7 +981,7 @@ public final class DateField extends Widget<DateField> {
         Chronology chronology = chronology();
         String widest = "";
         for (Era era : chronology.eras()) {
-            String name = era.getDisplayName(TextStyle.SHORT, locale);
+            String name = LocaleServices.name(era, TextStyle.SHORT, locale);
             if (name.length() > widest.length()) {
                 widest = name;
             }
@@ -1012,7 +1013,7 @@ public final class DateField extends Widget<DateField> {
             case MINUTE -> minute == UNSET ? "--" : pad(minute, 2);
             case SECOND -> second == UNSET ? "--" : pad(second, 2);
             case DAY_PERIOD -> hour == UNSET ? "--"
-                    : DateTimeFormatter.ofPattern(field.pattern(), locale())
+                    : LocaleServices.formatter(field.pattern(), locale())
                             .format(LocalTime.of(hour, 0));
             case ERA, OTHER -> readOnlyText(field);
         };
@@ -1030,10 +1031,10 @@ public final class DateField extends Widget<DateField> {
         ChronoLocalDate drawn = dateValue == null ? null
                 : CalendarChronology.date(chronology(), dateValue);
         if (drawn == null) {
-            return java.time.Month.of(Math.min(12, Math.max(1, month)))
-                    .getDisplayName(TextStyle.FULL_STANDALONE, locale());
+            return LocaleServices.name(java.time.Month.of(Math.min(12, Math.max(1, month))),
+                    TextStyle.FULL_STANDALONE, locale());
         }
-        return DateTimeFormatter.ofPattern(field.pattern(), locale())
+        return LocaleServices.formatter(field.pattern(), locale())
                 .withChronology(chronology()).format(drawn);
     }
 
@@ -1047,7 +1048,7 @@ public final class DateField extends Widget<DateField> {
             return "";
         }
         try {
-            return DateTimeFormatter.ofPattern(field.pattern(), locale())
+            return LocaleServices.formatter(field.pattern(), locale())
                     .withChronology(chronology()).format(drawn);
         } catch (DateTimeException e) {
             return "";
@@ -1597,8 +1598,8 @@ public final class DateField extends Widget<DateField> {
         for (java.time.format.FormatStyle style : new java.time.format.FormatStyle[]{
                 java.time.format.FormatStyle.SHORT, java.time.format.FormatStyle.MEDIUM}) {
             try {
-                LocalDate parsed = LocalDate.parse(text, DateTimeFormatter.ofLocalizedDate(style)
-                        .withLocale(locale()).withChronology(chronology()));
+                LocalDate parsed = LocalDate.parse(text, LocaleServices.localizedDate(style,
+                        locale()).withChronology(chronology()));
                 // The language's short pattern is 'dd/MM/y' in Portuguese, English and French,
                 // and 'y' parses "26" as the year 26: what was pasted meant this century. A
                 // year in the twenties with no four-digit run anywhere in the text is a
@@ -1681,7 +1682,7 @@ public final class DateField extends Widget<DateField> {
         java.util.Map<String, Integer> halves = new java.util.HashMap<>();
         java.util.Set<String> both = new java.util.HashSet<>();
         for (String pattern : patterns) {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern, locale());
+            DateTimeFormatter formatter = LocaleServices.formatter(pattern, locale());
             for (int h = 0; h < 24; h++) {
                 // At the hour, as segmentText draws the segment.
                 String word = foldDayPeriod(formatter.format(LocalTime.of(h, 0)));
