@@ -243,6 +243,11 @@ Maven Central say which number that was.
   application takes the focus, on Windows and Linux, as a browser's fullscreen does: Alt-Tab brings
   the other application in front of it instead of minimizing it. A fullscreen at a mode you name, the
   path for games, still minimizes when it loses the focus.
+- A `MenuBar` takes the whole width it is offered, as a native menu bar and Limn's own tab strip do,
+  so in a plain `Column` it spans the window with its bottom rule; it used to stop after its last
+  title unless the column stretched it. Past the titles the strip is not the bar's: a press there
+  reaches what is beneath and takes no focus. Where the width is unbounded, as in a `Row`, it stays
+  as wide as its titles.
 - `DatePicker.displayMode()` answers the presentation asked for while the picker is closed, as
   `ComboBox.displayMode()` does. It answered null.
 - A chart writes values of 1e15 and more in scientific notation by default, on its value axis and
