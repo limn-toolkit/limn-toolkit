@@ -140,6 +140,16 @@ the application is still waiting on, and is then presented as it would have been
 over the fullscreen owner, unless something is open over its own window; a non-modal dialog
 stays a window, as it does when it opens over a fullscreen owner.
 
+Whichever surface goes, the owner asks for the focus back before a window that holds it is
+hidden or closed. A window that goes with the focus leaves the desktop to choose the next one,
+and GNOME over X11 chose its own desktop: an owner that had just gone fullscreen under an open
+context menu (5 runs of 5) or a modal dialog (4 of 5) was minimized 0.2 to 0.6 seconds later,
+the list and the calendar, which never took the focus, never. A modal menu or dialog lets go of
+its lock first, since a blocked owner hands the focus straight back to the modal over it, and the
+dialog's window is hidden only after that. A menu asks at the end of its fade and only if its
+window still holds the focus then, so that a window a chosen item opened keeps the focus it was
+given; the list and the calendar ask as they close.
+
 ## What the in-scene fallback costs, and why it is not a second implementation
 
 The overlay is clamped to the **owner window** where the native presentation clamps to the

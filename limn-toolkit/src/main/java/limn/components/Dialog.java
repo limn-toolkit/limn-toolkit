@@ -806,8 +806,9 @@ public final class Dialog {
             unanswered.cancel();
             unanswered = null;
         }
-        modalWindow.hide(); // gone at once, not at the loop's next turn
-        closeWindow(); // lets go of the owner's lock and asks the window to close
+        // Lets go of the owner's lock and gives the owner the focus before the window goes, which
+        // it does at once rather than at the loop's next turn.
+        closeWindow(true);
         modalScene = null;
         displayMode = DisplayMode.IN_SCENE;
         hostScene = owner;
@@ -851,7 +852,21 @@ public final class Dialog {
                 Math.max(1, area.height() / factor - margin));
     }
 
-    private void closeWindow() {
+    /**
+     * Lets go of the owner's lock, gives the owner the focus back, and only then sends the window
+     * away, in that order.
+     *
+     * <p>The window holds the focus, and one that is hidden or closed with it leaves the desktop to
+     * choose the next window, which may be the desktop itself: on GNOME over X11 it was, and a
+     * window fullscreen on a monitor that loses the focus is minimized, so an owner that went
+     * fullscreen under a modal dialog was minimized as the dialog moved into its scene. The lock
+     * goes first because a blocked owner hands the focus straight back to the modal over it; and
+     * the owner is not asked while another modal still blocks it, which keeps the focus then.
+     *
+     * @param hideAtOnce whether the window is hidden now, rather than at the loop's next turn,
+     *                   where a close takes effect
+     */
+    private void closeWindow(boolean hideAtOnce) {
         if (fullscreenWatch != null) {
             fullscreenWatch.cancel();
             fullscreenWatch = null;
@@ -859,19 +874,21 @@ public final class Dialog {
         if (modalWindow == null) {
             return;
         }
+        NativeWindow closing = modalWindow;
+        modalWindow = null;
         if (modal) {
-            modalWindow.backend().popModal(modalWindow);
+            closing.backend().popModal(closing);
         }
         if (ownerWindow != null && !ownerWindow.isClosed()) {
-            ownerWindow.unregisterChildPopup(modalWindow);
+            ownerWindow.unregisterChildPopup(closing);
+            if (!ownerWindow.isModalBlocked()) {
+                ownerWindow.focus();
+            }
         }
-        modalWindow.requestClose();
-        modalWindow = null;
-        // Re-activate the parent window now that the dialog is gone, unless
-        // another modal still owns it (then that modal keeps focus).
-        if (ownerWindow != null && !ownerWindow.isClosed() && !ownerWindow.isModalBlocked()) {
-            ownerWindow.focus();
+        if (hideAtOnce) {
+            closing.hide();
         }
+        closing.requestClose();
     }
 
     // -------------------------------------------------------------- in-scene
@@ -1053,7 +1070,7 @@ public final class Dialog {
         if (modalWindow != null) {
             // Fade the whole modal window out, then tear it down + resolve.
             modalScene.fadeWindowOut(Theme.current().animWindow, () -> {
-                closeWindow();
+                closeWindow(false);
                 result.complete(value); // fully gone before callbacks run
             });
         } else if (overlay != null && hostScene != null) {
