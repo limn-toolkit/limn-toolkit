@@ -140,6 +140,12 @@ Maven Central say which number that was.
   where a line may break, and the language a Linux screen reader is given. `fra` wrote "2026 Mar 1"
   for "1 mars 2026", `tur` upper-cased "istanbul" without its dotted İ, and `tha` broke Thai
   mid-word.
+- A region named by its UN number (`de-276`, `ar-818`, `pa-586`) is read as the region the number
+  stands for, for its week, its digits and its direction; Java keeps the number, and nothing
+  recognised it. A language named alone by a three-letter code takes the week of the region it
+  most likely means: Central Kurdish (`ckb`) starts on Saturday as Iraq does, where 4,304 such
+  languages had the United States' week.
+- Text in the Garay and Sidetic scripts runs right to left.
 - A `DateField` tells the input method where the segment being typed is, so a Japanese or Chinese
   candidate window opens under it. It had no anchor.
 - A legacy or three-letter language code writes the digits of the language it stands for: `pes`
