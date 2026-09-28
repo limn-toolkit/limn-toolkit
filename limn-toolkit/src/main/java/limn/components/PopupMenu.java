@@ -60,13 +60,14 @@ import java.util.Objects;
  * rather than to the display, so a menu near the bottom edge has less room than it would
  * elsewhere. {@link #setDisplayMode} chooses; {@link #displayMode()} answers what was actually
  * used, which is not always the same thing. Two cases have no choice and always draw in scene: a
- * {@linkplain limn.backend.NativeWindow#isFullscreen() fullscreen} window, which on a monitor is
- * minimized as soon as another window takes the focus, as a menu's does at once, and which in
- * macOS native fullscreen already covers the screen, so the menu loses nothing inside it; and any
- * window reporting no {@link limn.backend.NativeWindow#supportsAbsolutePositioning()} (Wayland),
- * where a menu window would open somewhere other than the anchor. Both are asked when the menu
- * opens; a menu already open in a window of its own when the owner enters or leaves fullscreen
- * closes instead, cascade and all, as if dismissed, running no item: see {@link DisplayMode}.
+ * {@linkplain limn.backend.NativeWindow#isFullscreen() fullscreen} window, which at a named mode
+ * is minimized as soon as another window takes the focus, as a menu's does at once, and which at
+ * the mode the display is in already covers the screen, so the menu loses nothing inside it; and
+ * any window reporting no {@link limn.backend.NativeWindow#supportsAbsolutePositioning()}
+ * (Wayland), where a menu window would open somewhere other than the anchor. Both are asked when
+ * the menu opens; a menu already open in a window of its own when the owner enters or leaves
+ * fullscreen closes instead, cascade and all, as if dismissed, running no item: see
+ * {@link DisplayMode}.
  *
  * <pre>{@code
  * new PopupMenu(menu).showAt(grid, mouseX, mouseY); // context menu at the pointer
@@ -378,12 +379,12 @@ public final class PopupMenu {
         this.owner = ownerScene;
         beginOpen(ownerScene.textRuler(), host);
         // Two cases give a menu no window of its own. A fullscreen window: GLFW minimizes one
-        // fullscreen on a monitor when another window takes the focus, which the menu's does at
-        // once, and macOS native fullscreen already covers the screen, so the cascade loses
-        // nothing drawn inside it. And Wayland has no way to put one where the anchor is: the
-        // cascade would open near the middle of the display, wearing whatever frame the
-        // compositor decorates toplevels with. Both fall back to an in-scene overlay drawn inside
-        // the owner window.
+        // fullscreen at a named mode when another window takes the focus, which the menu's does at
+        // once, and one at the mode the display is in already covers the screen, so the cascade
+        // loses nothing drawn inside it. And Wayland has no way to put one where the anchor is: the
+        // cascade would open near the middle of the display, wearing whatever frame the compositor
+        // decorates toplevels with. Both fall back to an in-scene overlay drawn inside the owner
+        // window.
         if (requested == DisplayMode.IN_SCENE || !FloatingSurfaces.anchoredWindowAvailable(win)) {
             presentInScene(ax, ay, aw, ah);
         } else {
@@ -452,15 +453,15 @@ public final class PopupMenu {
                 }
                 if (parent != null && !parent.isClosed()) {
                     parent.unregisterChildPopup(closing);
-                    // The owner asks for the focus back before the window holding it goes. A
-                    // window closed with the focus leaves the desktop to choose the next one, and
-                    // it may choose itself: on GNOME over X11 it did, and a window fullscreen on a
-                    // monitor that loses the focus is minimized, so an owner that went fullscreen
-                    // under an open menu was minimized as the menu closed. Asked here, at the end
-                    // of the fade, rather than at the close: a chosen item may have opened a
-                    // window that has the focus by now, and the owner does not take it from that
-                    // one, nor from a modal dialog blocking it. A modal menu held the focus as the
-                    // top modal, whatever its scene last heard.
+                    // The owner asks for the focus back before the window holding it goes. A window
+                    // closed with the focus leaves the desktop to choose the next one, and it may
+                    // choose itself: GNOME over X11 did, which takes the keyboard from the owner
+                    // and minimizes one fullscreen at a named mode, as it minimized an owner that
+                    // went fullscreen under an open menu. Asked here, at the end of the fade,
+                    // rather than at the close: a chosen item may have opened a window that has the
+                    // focus by now, and the owner does not take it from that one, nor from a modal
+                    // dialog blocking it. A modal menu held the focus as the top modal, whatever
+                    // its scene last heard.
                     boolean heldFocus = modal
                             || (closingScene != null && closingScene.isWindowFocused());
                     if (heldFocus && !parent.isModalBlocked()) {
@@ -557,7 +558,7 @@ public final class PopupMenu {
         // The owner going fullscreen, or leaving it, takes the whole cascade down as a platform's
         // own menus go on a change of their window's state: the change resizes and moves the owner
         // under a cascade placed against its old geometry, and the menu's window, which holds the
-        // focus, would minimize an owner fullscreen on a monitor. Armed now rather than with the
+        // focus, would minimize an owner fullscreen at a named mode. Armed now rather than with the
         // window, so a change before the window exists closes the menu too, and modal or not: the
         // change is told to a blocked owner as well. No item runs. An in-scene menu is left alone.
         fullscreenHandle = owner.observeWindowFullscreen(fullscreen -> close());

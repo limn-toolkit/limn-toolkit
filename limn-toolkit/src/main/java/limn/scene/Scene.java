@@ -1981,8 +1981,8 @@ public final class Scene {
      * Observes the bound window entering or leaving fullscreen, the cue that closes a surface open
      * in a window of its own over it (a menu, a drop-down list, a calendar), as the platforms
      * dismiss their own menus on a change of their window's state: the change resizes and moves
-     * the window under a surface placed against its old geometry, and a window fullscreen on a
-     * monitor is minimized as soon as another window takes the focus. The person can make the
+     * the window under a surface placed against its old geometry, and a window fullscreen at a
+     * named mode is minimized as soon as another window takes the focus. The person can make the
      * change on macOS with the green button or Control-Command-F while a list or a calendar is
      * open, because neither takes the focus from the window. A modal dialog's window hears it too,
      * and moves into the scene.

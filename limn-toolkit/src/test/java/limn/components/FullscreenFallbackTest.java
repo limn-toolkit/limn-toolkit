@@ -40,10 +40,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * What a fullscreen owner does to the surfaces that float above it. A fullscreen window is given
- * no second one: on a monitor it is minimized as soon as another window takes the focus, macOS
- * native fullscreen already covers the screen so a surface loses nothing drawn inside it, and on a
- * Mac without a GPU a window is slow to open. So every surface asked for
+ * What a fullscreen owner does to the surfaces that float above it. A fullscreen window is given no
+ * second one: at a named mode it is minimized as soon as another window takes the focus, at the
+ * mode the display is in it already covers the screen so a surface loses nothing drawn inside it,
+ * and on a Mac without a GPU a window is slow to open. So every surface asked for
  * {@link DisplayMode#NATIVE_WINDOW} is drawn in scene there, and each one's {@code displayMode()}
  * says so. The stub's fullscreen is of no particular kind; the rule is the same for both.
  *
@@ -100,7 +100,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
 
         assertTrue(combo.isOpen());
         assertTrue(combo.isInSceneForTest(),
-                "a list window would minimize an owner fullscreen on a monitor");
+                "a list window would minimize an owner fullscreen at a named mode");
         assertNull(combo.popupWindow(), "the in-scene list has no window of its own");
         assertEquals(DisplayMode.IN_SCENE, combo.displayMode(),
                 "displayMode() must answer what happened, not what was wished for");
@@ -149,7 +149,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
 
         assertTrue(picker.isOpen());
         assertEquals(DisplayMode.IN_SCENE, picker.displayMode(),
-                "a calendar window would minimize an owner fullscreen on a monitor");
+                "a calendar window would minimize an owner fullscreen at a named mode");
         assertNotNull(picker.calendar().parent(), "the grid is in the card that is showing");
 
         picker.close();
@@ -173,7 +173,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         dialog.show(scene);
 
         assertNull(dialog.modalWindow(),
-                "a dialog window would minimize an owner fullscreen on a monitor");
+                "a dialog window would minimize an owner fullscreen at a named mode");
         assertEquals(DisplayMode.IN_SCENE, dialog.displayMode(),
                 "displayMode() must answer what happened, not what was wished for");
         assertSame(window, window.sceneModalOwner,
@@ -219,7 +219,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         Dialog dialog = well.openDialog();
         assertNotNull(dialog, "the well did not raise a picker");
         assertNull(dialog.modalWindow(),
-                "a picker window would minimize an owner fullscreen on a monitor");
+                "a picker window would minimize an owner fullscreen at a named mode");
         assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
         assertEquals(DisplayMode.IN_SCENE, well.pickerDisplayMode(),
                 "while the picker is up the well answers how it is actually presented");
@@ -237,7 +237,8 @@ class FullscreenFallbackTest extends ComponentTestBase {
      * the order it was asked: the owner's focus, a made window's focus, hide and close, and the
      * native modals pushed and popped. The order is the point: a window holding the focus that is
      * hidden or closed before the owner asks for it back leaves the choice of the next one to the
-     * desktop, and an owner fullscreen on a monitor that the desktop passes over is minimized.
+     * desktop, and an owner the desktop passes over loses the keyboard, and is minimized when it is
+     * fullscreen at a named mode.
      */
     private static final class WindowHost extends StubWindow implements Backend {
         /** Every window made, in order. */
@@ -412,7 +413,8 @@ class FullscreenFallbackTest extends ComponentTestBase {
         goFullscreen(scene, window);
 
         assertFalse(popup.isOpen(), "a menu window is placed against the geometry the change "
-                + "took away, and holding the focus it minimizes an owner fullscreen on a monitor");
+                + "took away, and holding the focus it minimizes an owner fullscreen at a named "
+                + "mode");
         assertNull(popup.popupWindow());
         assertEquals(0, ran.get(), "a dismissal runs no item");
     }
@@ -469,7 +471,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         goFullscreen(scene, window);
 
         assertFalse(combo.isOpen(), "a list window is placed against the field's old position, "
-                + "and at a click it minimizes an owner fullscreen on a monitor");
+                + "and at a click it minimizes an owner fullscreen at a named mode");
         assertNull(combo.popupWindow());
         assertEquals(0, combo.selectedIndex(), "the highlight is not a choice");
         assertEquals(-1, selected.get(), "and nothing was reported as one");
@@ -532,7 +534,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         goFullscreen(scene, window);
 
         assertFalse(picker.isOpen(), "a calendar window is placed against the field's old "
-                + "position, and at a click it minimizes an owner fullscreen on a monitor");
+                + "position, and at a click it minimizes an owner fullscreen at a named mode");
         assertEquals(chosen, picker.date(), "the cursor is not a pick");
         assertEquals(0, picked.get());
     }
@@ -590,8 +592,8 @@ class FullscreenFallbackTest extends ComponentTestBase {
         goFullscreen(scene, window);
 
         assertNull(dialog.modalWindow(), "a modal dialog over a fullscreen owner is drawn in "
-                + "scene, however it opened: the window would minimize an owner fullscreen on a "
-                + "monitor when the person reached it");
+                + "scene, however it opened: the window would minimize an owner fullscreen at a "
+                + "named mode when the person reached it");
         assertEquals(DisplayMode.IN_SCENE, dialog.displayMode());
         assertTrue(window.made.get(0).closeRequested, "its window was asked to go");
         assertEquals(List.of(), window.modals, "and let go of the owner");
@@ -854,8 +856,9 @@ class FullscreenFallbackTest extends ComponentTestBase {
 
     // A surface's window that holds the focus and is hidden or closed before its owner has asked
     // for the focus back leaves the desktop to choose the next window, and a desktop may choose
-    // itself: on GNOME over X11 it did, and GLFW minimizes a window fullscreen on a monitor that
-    // loses the focus, so the owner that had just gone fullscreen was minimized. Each test reads
+    // itself: on GNOME over X11 it did, which takes the keyboard from the owner, and GLFW
+    // minimized the owner that had just gone fullscreen, as it still minimizes one fullscreen at a
+    // named mode that loses the focus. Each test reads
     // the order the host was asked in, from the moment before the close to the window's close.
 
     /** A menu's window takes the focus as it opens, and the change closes it holding it. */

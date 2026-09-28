@@ -91,8 +91,9 @@ with the same keys, clamped to the window rather than to the screen. The same pr
 gets real popup windows.
 
 On any platform, a fullscreen window draws its popups and its modal dialogs inside itself too:
-fullscreen on a monitor is minimized as soon as a second window takes the focus, and macOS native
-fullscreen already covers the screen, so nothing is lost by drawing inside it. A popup already
+a window fullscreen at a named mode is minimized as soon as a second window takes the focus, and
+one made fullscreen with `enterFullscreen()` already covers the screen, so nothing is lost by
+drawing inside it. A popup already
 open as a window when the window goes fullscreen closes, and a modal dialog moves inside.
 
 ## Video or sound is unavailable

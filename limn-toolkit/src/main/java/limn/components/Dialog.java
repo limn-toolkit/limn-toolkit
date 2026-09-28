@@ -64,16 +64,16 @@ import java.util.concurrent.CompletionStage;
  * unsupported in-scene (use a native window for a non-modal dialog).
  *
  * <p><b>Over a fullscreen owner a modal dialog is drawn in scene</b>, whatever was asked, for the
- * reasons {@link DisplayMode} gives: an owner fullscreen on a monitor is minimized as soon as the
- * dialog's window takes the focus, which it does on opening; macOS native fullscreen already
- * covers the screen, so the card loses nothing drawn inside it; and on a Mac without a GPU the
- * colour picker's dialog held the UI for 1.4 to 3.7 seconds as a window, against 0.6 to 0.7 in
- * scene. Its scope is kept: {@code showToolkitModal} still locks every other
- * window. A <b>non-modal</b> dialog is the exception, and stays a window even there: an overlay
- * captures its window's input, and a non-modal dialog exists so that the owner stays usable,
- * which leaves it no in-scene form to fall back to. A window that cannot be positioned
- * (Wayland) changes nothing: a dialog has no anchor to line up with, so the compositor placing
- * it is where it belongs. {@link #displayMode()} answers what was chosen.
+ * reasons {@link DisplayMode} gives: an owner fullscreen at a named mode is minimized as soon as
+ * the dialog's window takes the focus, which it does on opening; one at the mode the display is in
+ * already covers the screen, so the card loses nothing drawn inside it; and on a Mac without a GPU
+ * the colour picker's dialog held the UI for 1.4 to 3.7 seconds as a window, against 0.6 to 0.7 in
+ * scene. Its scope is kept: {@code showToolkitModal} still locks every other window. A
+ * <b>non-modal</b> dialog is the exception, and stays a window even there: an overlay captures its
+ * window's input, and a non-modal dialog exists so that the owner stays usable, which leaves it no
+ * in-scene form to fall back to. A window that cannot be positioned (Wayland) changes nothing: a
+ * dialog has no anchor to line up with, so the compositor placing it is where it belongs.
+ * {@link #displayMode()} answers what was chosen.
  *
  * <p>The same holds for a modal dialog already open as a window when its owner goes fullscreen:
  * it moves into the scene then, card, contents, focus and scope, and is still waiting for its
@@ -566,7 +566,7 @@ public final class Dialog {
      * overlay always captures its scene's input. For the same reason it stays a window
      * even over a fullscreen owner, where every other floating surface is drawn in scene,
      * and when its owner goes fullscreen while it is open, and there it pays what a second
-     * window costs: an owner fullscreen on a monitor is minimized when the dialog takes the
+     * window costs: an owner fullscreen at a named mode is minimized when the dialog takes the
      * focus, and on a Mac without a GPU the window is slow to open.
      *
      * @param owner the scene the dialog opens over
@@ -647,11 +647,11 @@ public final class Dialog {
 
     /**
      * Whether a modal presentation over {@code owner} is an overlay: when one was asked for, and
-     * over a fullscreen window whatever was asked. A dialog window over an owner fullscreen on a
-     * monitor takes the focus on opening and so minimizes it, taking the person away from the very
-     * thing the dialog is asking about; macOS native fullscreen already covers the screen, so the
-     * card loses nothing drawn inside it and is spared the cost of a window, which on a Mac
-     * without a GPU held the UI for seconds when the colour picker's dialog opened as one.
+     * over a fullscreen window whatever was asked. A dialog window over an owner fullscreen at a
+     * named mode takes the focus on opening and so minimizes it, taking the person away from the
+     * very thing the dialog is asking about; one at the mode the display is in already covers the
+     * screen, so the card loses nothing drawn inside it and is spared the cost of a window, which
+     * on a Mac without a GPU held the UI for seconds when the colour picker's dialog opened as one.
      *
      * <p>Fullscreen only. A window that cannot be positioned keeps its dialogs as windows: a dialog
      * has no anchor inside its owner to line up with, so the compositor placing it is where it
@@ -781,13 +781,13 @@ public final class Dialog {
      *
      * <p>Moved rather than dismissed, because a modal dialog is a question the application is
      * waiting on, and a fullscreen change is no answer to it. Moved rather than left, for the
-     * reasons a dialog opened over a fullscreen owner is drawn in scene: an owner fullscreen on a
-     * monitor is minimized as soon as the person reaches the dialog's window, which takes the focus
-     * from it; and macOS native fullscreen covers the screen, so the card loses nothing inside it,
-     * while the transition resizes the owner under a window that was centred over its old frame.
-     * The card itself moves, so what the person typed in it and where the keyboard was come with
-     * it, the focused field keeping its caret and selection as they were, and the lock goes on the
-     * same windows the window's did.
+     * reasons a dialog opened over a fullscreen owner is drawn in scene: an owner fullscreen at a
+     * named mode is minimized as soon as the person reaches the dialog's window, which takes the
+     * focus from it; and one at the mode the display is in covers the screen, so the card loses
+     * nothing inside it, while the transition resizes the owner under a window that was centred
+     * over its old frame. The card itself moves, so what the person typed in it and where the
+     * keyboard was come with it, the focused field keeping its caret and selection as they were,
+     * and the lock goes on the same windows the window's did.
      *
      * <p>Not while an answer is on its way out, and not while something is open over the dialog's
      * own window, a second dialog or a modal menu: moving this one would close the window that one
@@ -857,11 +857,12 @@ public final class Dialog {
      * away, in that order.
      *
      * <p>The window holds the focus, and one that is hidden or closed with it leaves the desktop to
-     * choose the next window, which may be the desktop itself: on GNOME over X11 it was, and a
-     * window fullscreen on a monitor that loses the focus is minimized, so an owner that went
-     * fullscreen under a modal dialog was minimized as the dialog moved into its scene. The lock
-     * goes first because a blocked owner hands the focus straight back to the modal over it; and
-     * the owner is not asked while another modal still blocks it, which keeps the focus then.
+     * choose the next window, which may be the desktop itself: on GNOME over X11 it was, which
+     * takes the keyboard from the owner and minimizes one fullscreen at a named mode, as it
+     * minimized an owner that went fullscreen under a modal dialog as the dialog moved into its
+     * scene. The lock goes first because a blocked owner hands the focus straight back to the modal
+     * over it; and the owner is not asked while another modal still blocks it, which keeps the
+     * focus then.
      *
      * @param hideAtOnce whether the window is hidden now, rather than at the loop's next turn,
      *                   where a close takes effect
@@ -912,8 +913,9 @@ public final class Dialog {
         NativeWindow host = owner.window();
         // Never over a fullscreen host. The promotion rests on a new window stacking over the
         // dialog already there, and over a fullscreen window a new one is not offered, for the
-        // reasons that sent a dialog into the scene there at all: on a monitor it takes the focus
-        // and minimizes the host, and native fullscreen already covers the screen.
+        // reasons that sent a dialog into the scene there at all: at a named mode it takes the
+        // focus and minimizes the host, and at the mode the display is in the host already covers
+        // the screen.
         if (!keepInScene && host != null && host.isModalBlocked() && !host.isFullscreen()) {
             LOG.log(System.Logger.Level.WARNING,
                     "dialog \"{0}\" asked for IN_SCENE while a modal is already open over its "

@@ -13,12 +13,13 @@ import limn.backend.NativeWindow;
  *
  * <ul>
  *   <li><b>A {@linkplain NativeWindow#isFullscreen() fullscreen} window</b>, of either kind, for
- *       three reasons. Fullscreen on a monitor, which is every fullscreen on Windows and X11 and
- *       one at a named mode on macOS, is minimized as soon as another window takes the focus, on
- *       every platform, and a menu or a dialog takes it at once, a list or a calendar at the
- *       first click. macOS native fullscreen already covers the screen, so a surface drawn
- *       inside it loses nothing: the room past the owner's edge that a window of its own is for
- *       is not there. And on a Mac without a GPU opening a window is slow: raising the colour
+ *       three reasons. A window fullscreen at a named mode, the fullscreen a game asks for, is
+ *       minimized as soon as another window takes the focus, on every platform, and a menu or a
+ *       dialog takes it at once, a list or a calendar at the first click. A window fullscreen at
+ *       the mode the display is in, the fullscreen an application asks for, stays fullscreen when
+ *       it loses the focus, but it already covers the screen, so a surface drawn inside it loses
+ *       nothing: the room past the owner's edge that a window of its own is for is not there.
+ *       And on a Mac without a GPU opening a window is slow: raising the colour
  *       picker as a window held the UI for 1.4 to 3.7 seconds, against 0.6 to 0.7 in scene.
  *       Every one of these surfaces is drawn in scene there, with one exception: a
  *       <b>non-modal</b> dialog stays a window, because an overlay captures its window's input
@@ -44,7 +45,7 @@ import limn.backend.NativeWindow;
  * enters or leaves fullscreen while a surface is open in a window of its own, a menu, a drop-down
  * list or a calendar closes as if dismissed, choosing nothing. The change resizes and moves the
  * owner under a surface placed against its old geometry, which is why the platforms dismiss their
- * own menus on a change of their window's state, and a fullscreen on a monitor would also be
+ * own menus on a change of their window's state, and a fullscreen at a named mode would also be
  * minimized the moment the surface took the focus. On macOS the person can make that change with
  * the green button or Control-Command-F while a list or a calendar is open, since neither takes
  * the focus from the window. A modal dialog, the colour picker's included, is a question still

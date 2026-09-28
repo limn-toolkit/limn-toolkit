@@ -134,13 +134,13 @@ before styling or positioning the card on the assumption that it is an overlay;
 `keepInScene()` insists on the overlay and accepts the stacking that comes with it.
 
 A window is not a guarantee either. Over a fullscreen window a modal dialog draws in scene
-whatever it was asked; menus, combo box lists and date pickers do the same. A window fullscreen
-on a monitor, which is every fullscreen on Windows and X11 and one at a named mode on macOS, is
-minimized as soon as another window takes the focus. macOS native fullscreen already covers the
-screen, so nothing is lost by drawing inside it. And on a Mac without a GPU, opening the colour
-picker as a window held the UI for 1.4 to 3.7 seconds, against 0.6 to 0.7 in scene. A non-modal
-dialog is the one exception and stays a window, since an overlay would lock the very window it
-is meant to leave usable.
+whatever it was asked; menus, combo box lists and date pickers do the same. A window made
+fullscreen at a named mode, as a game asks with `enterFullscreen(Resolution)`, is minimized as
+soon as another window takes the focus. One made fullscreen with `enterFullscreen()` is not, but
+it already covers the screen, so nothing is lost by drawing inside it. And on a Mac without a
+GPU, opening the colour picker as a window held the UI for 1.4 to 3.7 seconds, against 0.6 to
+0.7 in scene. A non-modal dialog is the one exception and stays a window, since an overlay would
+lock the very window it is meant to leave usable.
 
 The choice is made when each one opens, and the window can go fullscreen afterwards: from your
 code, or on macOS from the green button while a combo box list or a date picker is open. A menu,
@@ -209,7 +209,10 @@ Fullscreen comes in two kinds, and which one a call makes depends on whether it 
 fullscreen of the green button, a Space of its own reached by an animation, with the menu bar a
 reach of the pointer away; on Windows and X11 a borderless window over the monitor; on Wayland the
 compositor's. `enterFullscreen(Resolution)`, or the integer form with a size, is the exclusive
-fullscreen a game wants: the display is switched to that mode until `exitFullscreen()`. Ask a
+fullscreen a game wants: the display is switched to that mode until `exitFullscreen()`. The two
+also part when another window takes the focus: a window at a named mode is minimized, with the
+display switched back until it is restored, and one made with `enterFullscreen()` stays fullscreen
+behind the window that took the focus, as a browser's does. Ask a
 Retina Mac for its `currentResolution()` and it switches anyway, because the mode it is in is not
 one it lists; to keep the display as it is, name no mode. `isFullscreen()` answers for both, and
 on macOS for the green button too.

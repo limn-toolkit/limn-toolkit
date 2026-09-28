@@ -105,10 +105,12 @@ clamp against the monitor's work area like a real OS menu. So the whole cascade 
 one undecorated, transparent native window, sized to the open cascade's bounding box and
 re-fit as submenus open and close.
 
-Two cases are not given one. A fullscreen window, of either kind: GLFW minimizes a window
-fullscreen on a monitor when another takes the focus, on Windows, X11 and macOS alike, and the
-menu's window takes it at once; macOS native fullscreen already covers the screen, so there is
-no edge for the cascade to overflow and nothing is lost by drawing it inside; and on a Mac
+Two cases are not given one. A fullscreen window, of either kind: at a named mode, the
+fullscreen a game asks for, GLFW minimizes the window when another takes the focus, on Windows,
+X11 and macOS alike, and the menu's window takes it at once; at the mode the display is in, the
+fullscreen an application asks for, the window stays fullscreen when it loses the focus, as a
+browser's does, but it already covers the screen, so there is no edge for the cascade to
+overflow and nothing is lost by drawing it inside; and on a Mac
 without a GPU a window is slow to open, the colour picker's having held the UI for 1.4 to 3.7
 seconds against 0.6 to 0.7 in scene. A window opened over native fullscreen does join its
 Space: measured on a macOS guest, a combo's list, a calendar, a modal dialog and the colour
@@ -131,8 +133,8 @@ answer, through `WindowInput.windowFullscreenChanged`, from `enterFullscreen`,
 transition that never finished, and the scene hands it to `observeWindowFullscreen`. A menu, a
 list or a calendar open in a window of its own closes on it as if dismissed, which is what the
 platforms' own menus do on a change of their window's state: the transition resizes and moves
-the owner under a surface placed against its old geometry, and over a fullscreen on a monitor
-the surface would also minimize the owner once it took the focus. One drawn in scene stays,
+the owner under a surface placed against its old geometry, and over a fullscreen at a named
+mode the surface would also minimize the owner once it took the focus. One drawn in scene stays,
 laid out again against the field where it now is. The turn
 that makes a popup's window asks again, for a change made between the open and that turn. A
 modal dialog moves its card into the owner's scene rather than closing, since it is a question
@@ -144,7 +146,10 @@ Whichever surface goes, the owner asks for the focus back before a window that h
 hidden or closed. A window that goes with the focus leaves the desktop to choose the next one,
 and GNOME over X11 chose its own desktop: an owner that had just gone fullscreen under an open
 context menu (5 runs of 5) or a modal dialog (4 of 5) was minimized 0.2 to 0.6 seconds later,
-the list and the calendar, which never took the focus, never. A modal menu or dialog lets go of
+the list and the calendar, which never took the focus, never. GLFW then minimized every window
+fullscreen on a monitor that lost the focus; since the application's fullscreen stays fullscreen
+when it loses the focus, only one at a named mode is minimized, but an owner passed over this way
+has lost the keyboard all the same. A modal menu or dialog lets go of
 its lock first, since a blocked owner hands the focus straight back to the modal over it, and the
 dialog's window is hidden only after that. A menu asks at the end of its fade and only if its
 window still holds the focus then, so that a window a chosen item opened keeps the focus it was
