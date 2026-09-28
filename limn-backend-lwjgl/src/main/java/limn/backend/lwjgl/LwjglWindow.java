@@ -9,6 +9,7 @@ import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.backend.WindowInput;
 import limn.internal.lang.Checks;
+import org.jspecify.annotations.Nullable;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFWDropCallback;
@@ -573,7 +574,7 @@ final class LwjglWindow implements NativeWindow {
             }
 
             @Override
-            public void set(String text) {
+            public void set(@Nullable String text) {
                 backend.uiRuntime().checkUiThread();
                 glfwSetClipboardString(clipboardWindow(), text == null ? "" : text);
             }

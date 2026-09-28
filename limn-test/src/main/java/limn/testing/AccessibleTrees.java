@@ -3,6 +3,7 @@ package limn.testing;
 import limn.accessibility.Accessible;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,7 +23,7 @@ public final class AccessibleTrees {
      * @param name a node's name, exactly
      * @return the first node with that name, or {@code null}
      */
-    public static AccessibleNode named(AccessibleTree tree, String name) {
+    public static @Nullable AccessibleNode named(AccessibleTree tree, String name) {
         for (int i = 0; i < tree.nodeCount(); i++) {
             if (tree.node(i).name().equals(name)) {
                 return tree.node(i);
@@ -36,7 +37,7 @@ public final class AccessibleTrees {
      * @param role a role
      * @return the first node with that role, or {@code null}
      */
-    public static AccessibleNode withRole(AccessibleTree tree, Accessible.Role role) {
+    public static @Nullable AccessibleNode withRole(AccessibleTree tree, Accessible.Role role) {
         for (int i = 0; i < tree.nodeCount(); i++) {
             if (tree.node(i).role() == role) {
                 return tree.node(i);

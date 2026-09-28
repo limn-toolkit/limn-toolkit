@@ -10,6 +10,7 @@ import limn.graphics.TextMetrics;
 import limn.scene.Change;
 import limn.scene.Scene;
 import limn.scene.Widget;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -94,7 +95,7 @@ public final class AccessibleHarness {
      * @param millis how far to move
      * @param damage the widget to invalidate each frame, or null
      */
-    public void advanceTime(long millis, Widget<?> damage) {
+    public void advanceTime(long millis, @Nullable Widget<?> damage) {
         long step = (long) (Scene.MAX_TICK_SECONDS * 1000);
         for (long left = millis; left > 0; left -= step) {
             nanos[0] += TimeUnit.MILLISECONDS.toNanos(Math.min(step, left));

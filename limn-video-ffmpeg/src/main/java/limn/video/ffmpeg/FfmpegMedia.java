@@ -5,6 +5,7 @@ import limn.sound.AudioStreamSource;
 import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoStreamSource;
+import org.jspecify.annotations.Nullable;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
@@ -299,7 +300,7 @@ public final class FfmpegMedia implements AutoCloseable {
      *                       throws rather than playing silence
      */
     public record AudioTrack(int index, int streamIndex, int channels, int sourceChannels,
-                             int sampleRate, String codec, String language, boolean isDefault,
+                             int sampleRate, String codec, @Nullable String language, boolean isDefault,
                              boolean decodable) {
     }
 
@@ -354,7 +355,7 @@ public final class FfmpegMedia implements AutoCloseable {
      *                    wants even with subtitles off, for the foreign-language lines inside a
      *                    film. Reported for an application that wants to honour it
      */
-    public record SubtitleTrack(int index, int streamIndex, String codec, String language,
+    public record SubtitleTrack(int index, int streamIndex, String codec, @Nullable String language,
                                 boolean text, boolean decodable, boolean isDefault,
                                 boolean forced) {
     }
@@ -530,7 +531,7 @@ public final class FfmpegMedia implements AutoCloseable {
      *         build was not compiled with is opened without it rather than refused, because a film
      *         with no sound is better than no film
      */
-    public synchronized AudioStreamSource audio() {
+    public synchronized @Nullable AudioStreamSource audio() {
         if (audio == null || selectedTrack < 0) {
             return audio;
         }
@@ -1074,7 +1075,7 @@ public final class FfmpegMedia implements AutoCloseable {
      * @param language the tag to write, or null to state none, which is what an MP4 records as the
      *                 undetermined code, and therefore what a reader gets back as no language
      */
-    public record ClipAudioTrack(int channels, String language) {
+    public record ClipAudioTrack(int channels, @Nullable String language) {
     }
 
     /**
@@ -1121,7 +1122,7 @@ public final class FfmpegMedia implements AutoCloseable {
      */
     public static void writeClip(Path path, ClipCodec codec, int width, int height, int frames,
                                  int rateNum, int rateDen, List<ClipAudioTrack> audio,
-                                 int sampleRate, List<String> subtitleLanguages) {
+                                 int sampleRate, List<@Nullable String> subtitleLanguages) {
         Objects.requireNonNull(path, "path");
         Objects.requireNonNull(codec, "codec");
         Objects.requireNonNull(audio, "audio");

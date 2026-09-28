@@ -4,6 +4,7 @@ import limn.backend.Backend;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.concurrent.UiRuntime;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -67,7 +68,7 @@ public final class HeadlessBackend implements Backend {
     }
 
     @Override
-    public void pushModal(NativeWindow modal, NativeWindow parent) {
+    public void pushModal(NativeWindow modal, @Nullable NativeWindow parent) {
         if (modal instanceof HeadlessWindow own) {
             own.modal = true;
         }

@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.function.Consumer;
 import limn.testing.NoopCanvas;
 import limn.testing.TestRulers;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A window with no platform behind it, whose accessibility bridge keeps the last tree it was
@@ -34,7 +35,7 @@ import limn.testing.TestRulers;
 public final class HeadlessWindow implements NativeWindow {
     // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
     @Override public boolean supportsAbsolutePositioning() { return true; }
-    @Override public void setCloseRequestHandler(java.util.function.BooleanSupplier handler) { }
+    @Override public void setCloseRequestHandler(java.util.function.@Nullable BooleanSupplier handler) { }
     @Override public void setImeEnabled(boolean enabled) { }
     @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
     @Override public void resetPreedit() { }
@@ -60,7 +61,7 @@ public final class HeadlessWindow implements NativeWindow {
         public int publishes;
 
         /** The scene-side half this bridge holds, through which a test performs a verb. */
-        public volatile Host host;
+        public volatile @Nullable Host host;
 
         @Override
         public void attach(Host newHost) {
@@ -188,7 +189,7 @@ public final class HeadlessWindow implements NativeWindow {
      *         popup, a dialog or a menu it opened as a window of its own — or {@code null} before
      *         one is bound
      */
-    public limn.scene.Scene scene() {
+    public limn.scene.@Nullable Scene scene() {
         return limn.scene.internal.SceneAccess.sceneOf(input);
     }
 

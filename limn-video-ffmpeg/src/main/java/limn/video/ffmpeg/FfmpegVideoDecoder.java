@@ -2,6 +2,7 @@ package limn.video.ffmpeg;
 
 import limn.video.VideoDecoder;
 import limn.video.VideoStreamSource;
+import org.jspecify.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.util.Locale;
@@ -68,7 +69,7 @@ public final class FfmpegVideoDecoder implements VideoDecoder {
      * the whole probe unusable for every decoder behind it, over one bad file.
      */
     @Override
-    public boolean supports(Path file) {
+    public boolean supports(@Nullable Path file) {
         if (file == null || !FfmpegLibrary.isAvailable()) {
             return false;
         }
@@ -154,7 +155,7 @@ public final class FfmpegVideoDecoder implements VideoDecoder {
      *         cannot be written to), or null when the library did load. For a status line or a
      *         log; nothing should branch on its text.
      */
-    public static String unavailableReason() {
+    public static @Nullable String unavailableReason() {
         return FfmpegLibrary.failure();
     }
 }
