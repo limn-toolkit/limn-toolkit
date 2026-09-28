@@ -62,9 +62,12 @@ import java.util.concurrent.CompletionStage;
  * popups, {@code showToolkitModal} locks every window. {@code showNonModal} is
  * unsupported in-scene (use a native window for a non-modal dialog).
  *
- * <p><b>Over a fullscreen owner a modal dialog is drawn in scene</b>, whatever was asked,
- * because a second window there would minimize the owner, or on macOS open outside the Space
- * the owner has to itself. Its scope is kept: {@code showToolkitModal} still locks every other
+ * <p><b>Over a fullscreen owner a modal dialog is drawn in scene</b>, whatever was asked, for the
+ * reasons {@link DisplayMode} gives: an owner fullscreen on a monitor is minimized as soon as the
+ * dialog's window takes the focus, which it does on opening; macOS native fullscreen already
+ * covers the screen, so the card loses nothing drawn inside it; and on a Mac without a GPU the
+ * colour picker's dialog held the UI for 1.4 to 3.7 seconds as a window, against 0.6 to 0.7 in
+ * scene. Its scope is kept: {@code showToolkitModal} still locks every other
  * window. A <b>non-modal</b> dialog is the exception, and stays a window even there: an overlay
  * captures its window's input, and a non-modal dialog exists so that the owner stays usable,
  * which leaves it no in-scene form to fall back to. A window that cannot be positioned
@@ -393,8 +396,8 @@ public final class Dialog {
      * raised while a modal is already open over its window is presented as a native one instead;
      * an overlay can only be brought to the front by raising its host, which would hide the dialog
      * already there. And a modal {@code NATIVE_WINDOW} dialog over a fullscreen window is drawn in
-     * scene, since a second window there would minimize the owner or open outside its Space, and
-     * one already a window moves into the scene when its owner goes fullscreen; a non-modal one
+     * scene, for the reasons {@link DisplayMode} gives, and one already a window moves into the
+     * scene when its owner goes fullscreen; a non-modal one
      * stays a window, having no in-scene form. {@link #displayMode()} answers what actually
      * happened; {@code keepInScene()} insists on the overlay.
      *
@@ -562,8 +565,8 @@ public final class Dialog {
      * overlay always captures its scene's input. For the same reason it stays a window
      * even over a fullscreen owner, where every other floating surface is drawn in scene,
      * and when its owner goes fullscreen while it is open, and there it pays what a second
-     * window costs: on a monitor the owner is minimized when the dialog takes the focus, and
-     * on macOS the dialog is outside the Space the owner has to itself.
+     * window costs: an owner fullscreen on a monitor is minimized when the dialog takes the
+     * focus, and on a Mac without a GPU the window is slow to open.
      *
      * @param owner the scene the dialog opens over
      * @return a stage that completes with the result when the dialog closes
@@ -643,9 +646,11 @@ public final class Dialog {
 
     /**
      * Whether a modal presentation over {@code owner} is an overlay: when one was asked for, and
-     * over a fullscreen window whatever was asked, because a dialog window there would minimize
-     * the owner or open outside its Space, taking the person away from the very thing the dialog
-     * is asking about.
+     * over a fullscreen window whatever was asked. A dialog window over an owner fullscreen on a
+     * monitor takes the focus on opening and so minimizes it, taking the person away from the very
+     * thing the dialog is asking about; macOS native fullscreen already covers the screen, so the
+     * card loses nothing drawn inside it and is spared the cost of a window, which on a Mac
+     * without a GPU held the UI for seconds when the colour picker's dialog opened as one.
      *
      * <p>Fullscreen only. A window that cannot be positioned keeps its dialogs as windows: a dialog
      * has no anchor inside its owner to line up with, so the compositor placing it is where it
@@ -774,11 +779,13 @@ public final class Dialog {
      * gone fullscreen: the presentation it would have had if it had opened there.
      *
      * <p>Moved rather than dismissed, because a modal dialog is a question the application is
-     * waiting on, and a fullscreen change is no answer to it. Left as a window it would be left
-     * behind: on a monitor the fullscreen owner covers it, and is minimized when the person
-     * reaches it, and macOS native fullscreen takes the owner to a Space of its own while the
-     * dialog stays on the desktop. The card itself moves, so what the person typed in it and where
-     * the keyboard was come with it, and the lock goes on the same windows the window's did.
+     * waiting on, and a fullscreen change is no answer to it. Moved rather than left, for the
+     * reasons a dialog opened over a fullscreen owner is drawn in scene: an owner fullscreen on a
+     * monitor is minimized as soon as the person reaches the dialog's window, which takes the focus
+     * from it; and macOS native fullscreen covers the screen, so the card loses nothing inside it,
+     * while the transition resizes the owner under a window that was centred over its old frame.
+     * The card itself moves, so what the person typed in it and where the keyboard was come with
+     * it, and the lock goes on the same windows the window's did.
      *
      * <p>Not while an answer is on its way out, and not while something is open over the dialog's
      * own window, a second dialog or a modal menu: moving this one would close the window that one
@@ -889,8 +896,9 @@ public final class Dialog {
         checkNotPresented();
         NativeWindow host = owner.window();
         // Never over a fullscreen host. The promotion rests on a new window stacking over the
-        // dialog already there, and over a fullscreen window a new one minimizes it or opens
-        // outside its Space instead, which is what sent a dialog into the scene there at all.
+        // dialog already there, and over a fullscreen window a new one is not offered, for the
+        // reasons that sent a dialog into the scene there at all: on a monitor it takes the focus
+        // and minimizes the host, and native fullscreen already covers the screen.
         if (!keepInScene && host != null && host.isModalBlocked() && !host.isFullscreen()) {
             LOG.log(System.Logger.Level.WARNING,
                     "dialog \"{0}\" asked for IN_SCENE while a modal is already open over its "

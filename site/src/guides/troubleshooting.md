@@ -90,8 +90,9 @@ lists, menus and date pickers draw inside the owner window there instead. It is 
 with the same keys, clamped to the window rather than to the screen. The same program under X11
 gets real popup windows.
 
-On any platform, a fullscreen window draws its popups and its modal dialogs inside itself too,
-because a second window would minimize it or take the person to another Space. A popup already
+On any platform, a fullscreen window draws its popups and its modal dialogs inside itself too:
+fullscreen on a monitor is minimized as soon as a second window takes the focus, and macOS native
+fullscreen already covers the screen, so nothing is lost by drawing inside it. A popup already
 open as a window when the window goes fullscreen closes, and a modal dialog moves inside.
 
 ## Video or sound is unavailable

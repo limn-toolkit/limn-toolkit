@@ -61,7 +61,8 @@ import java.util.Objects;
  * elsewhere. {@link #setDisplayMode} chooses; {@link #displayMode()} answers what was actually
  * used, which is not always the same thing. Two cases have no choice and always draw in scene: a
  * {@linkplain limn.backend.NativeWindow#isFullscreen() fullscreen} window, which on a monitor is
- * minimized when another window takes the focus and on macOS may be a Space of its own, and any
+ * minimized as soon as another window takes the focus, as a menu's does at once, and which in
+ * macOS native fullscreen already covers the screen, so the menu loses nothing inside it; and any
  * window reporting no {@link limn.backend.NativeWindow#supportsAbsolutePositioning()} (Wayland),
  * where a menu window would open somewhere other than the anchor. Both are asked when the menu
  * opens; a menu already open in a window of its own when the owner enters or leaves fullscreen
@@ -376,12 +377,13 @@ public final class PopupMenu {
         open = true;
         this.owner = ownerScene;
         beginOpen(ownerScene.textRuler(), host);
-        // Two cases cannot hold a menu in a window of its own. A fullscreen window has no room for
-        // a second one: GLFW minimizes one fullscreen on a monitor when another window takes the
-        // focus, and macOS native fullscreen puts the window in a Space of its own. And
-        // Wayland has no way to put one where the anchor is: the cascade would open near the
-        // middle of the display, wearing whatever frame the compositor decorates toplevels with.
-        // Both fall back to an in-scene overlay drawn inside the owner window.
+        // Two cases give a menu no window of its own. A fullscreen window: GLFW minimizes one
+        // fullscreen on a monitor when another window takes the focus, which the menu's does at
+        // once, and macOS native fullscreen already covers the screen, so the cascade loses
+        // nothing drawn inside it. And Wayland has no way to put one where the anchor is: the
+        // cascade would open near the middle of the display, wearing whatever frame the
+        // compositor decorates toplevels with. Both fall back to an in-scene overlay drawn inside
+        // the owner window.
         if (requested == DisplayMode.IN_SCENE || !FloatingSurfaces.anchoredWindowAvailable(win)) {
             presentInScene(ax, ay, aw, ah);
         } else {
@@ -542,10 +544,11 @@ public final class PopupMenu {
                 (screenAy - workAreaScreenY) / screenFactor,
                 aw, ah, boundsW, boundsH);
         // The owner going fullscreen, or leaving it, takes the whole cascade down as a platform's
-        // own menus go on a change of their window's state: left open it would minimize a
-        // fullscreen owner, or stay outside its Space. Armed now rather than with the window, so a
-        // change before the window exists closes the menu too, and modal or not: the change is
-        // told to a blocked owner as well. No item runs. An in-scene menu is left alone.
+        // own menus go on a change of their window's state: the change resizes and moves the owner
+        // under a cascade placed against its old geometry, and the menu's window, which holds the
+        // focus, would minimize an owner fullscreen on a monitor. Armed now rather than with the
+        // window, so a change before the window exists closes the menu too, and modal or not: the
+        // change is told to a blocked owner as well. No item runs. An in-scene menu is left alone.
         fullscreenHandle = owner.observeWindowFullscreen(fullscreen -> close());
         // Defer window creation: it switches the GL context, which must not happen
         // inside another window's frame callback. The outside-press dismiss is
@@ -692,8 +695,8 @@ public final class PopupMenu {
      *
      * <p><b>A preference, not a guarantee</b>, and only in one direction: a menu asked for
      * {@code NATIVE_WINDOW} still draws in scene on Wayland, where a menu window does not land
-     * where the anchor is, and in a fullscreen window, which has no room for a second one of any
-     * kind. {@code IN_SCENE} is always honoured; it needs nothing from the platform. Read
+     * where the anchor is, and in a fullscreen window, for the reasons {@link DisplayMode} gives.
+     * {@code IN_SCENE} is always honoured; it needs nothing from the platform. Read
      * {@link #displayMode()} for what happened.
      *
      * <p>Takes effect on the next open; a menu already on screen is not re-presented under it.

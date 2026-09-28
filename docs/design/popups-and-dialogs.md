@@ -105,9 +105,15 @@ clamp against the monitor's work area like a real OS menu. So the whole cascade 
 one undecorated, transparent native window, sized to the open cascade's bounding box and
 re-fit as submenus open and close.
 
-Two cases cannot hold one. A fullscreen window has no room for a second window: GLFW
-minimizes a window fullscreen on a monitor when another takes the focus, on Windows, X11
-and macOS alike, and macOS native fullscreen gives the window a Space of its own. And a
+Two cases are not given one. A fullscreen window, of either kind: GLFW minimizes a window
+fullscreen on a monitor when another takes the focus, on Windows, X11 and macOS alike, and the
+menu's window takes it at once; macOS native fullscreen already covers the screen, so there is
+no edge for the cascade to overflow and nothing is lost by drawing it inside; and on a Mac
+without a GPU a window is slow to open, the colour picker's having held the UI for 1.4 to 3.7
+seconds against 0.6 to 0.7 in scene. A window opened over native fullscreen does join its
+Space: measured on a macOS guest, a combo's list, a calendar, a modal dialog and the colour
+picker each opened on the fullscreen Space in 17 runs of 17, and the owner never left it. So
+the Space is no reason for the rule, and none is claimed. And a
 window reporting no `supportsAbsolutePositioning()` cannot say *where* the second window
 goes, so the menu
 would open near the middle of the display wearing whatever frame the compositor puts on
@@ -124,11 +130,15 @@ answer, through `WindowInput.windowFullscreenChanged`, from `enterFullscreen`,
 `exitFullscreen`, AppKit's four transition notifications and the loop's settling of a
 transition that never finished, and the scene hands it to `observeWindowFullscreen`. A menu, a
 list or a calendar open in a window of its own closes on it as if dismissed, which is what the
-platforms' own menus do on a change of their window's state; one drawn in scene stays. The turn
+platforms' own menus do on a change of their window's state: the transition resizes and moves
+the owner under a surface placed against its old geometry, and over a fullscreen on a monitor
+the surface would also minimize the owner once it took the focus. One drawn in scene stays,
+laid out again against the field where it now is. The turn
 that makes a popup's window asks again, for a change made between the open and that turn. A
 modal dialog moves its card into the owner's scene rather than closing, since it is a question
-the application is still waiting on, unless something is open over its own window; a non-modal
-dialog stays a window, as it does when it opens over a fullscreen owner.
+the application is still waiting on, and is then presented as it would have been had it opened
+over the fullscreen owner, unless something is open over its own window; a non-modal dialog
+stays a window, as it does when it opens over a fullscreen owner.
 
 ## What the in-scene fallback costs, and why it is not a second implementation
 

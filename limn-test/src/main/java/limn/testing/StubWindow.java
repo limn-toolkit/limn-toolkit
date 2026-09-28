@@ -133,8 +133,8 @@ public class StubWindow implements NativeWindow {
     /**
      * Whether this window claims to be fullscreen: set by {@link #enterFullscreen(int, int, int)},
      * cleared by {@link #exitFullscreen()}, and settable directly. It is the other question a
-     * popup asks before it opens a window of its own, since a fullscreen owner has no room for
-     * one, so a test of that fallback needs a window that can answer yes.
+     * popup asks before it opens a window of its own, since a fullscreen owner is given none, so a
+     * test of that fallback needs a window that can answer yes.
      *
      * <p>The two calls also tell a bound scene of the change, as a backend does, through
      * {@link WindowInput#windowFullscreenChanged}; a test ends the batch to have it acted on, with
