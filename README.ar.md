@@ -285,7 +285,7 @@ jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-e
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>مجموعة عناصر الواجهة، والتخطيط، ومخطط المشهد، وواجهات SPI للخلفية، ومفككات ترميز الفيديو المكتوبة بـ Java وحدها؛ لا يعتمد على شيء</td>
+    <td>مجموعة عناصر الواجهة، والتخطيط، ومخطط المشهد، وواجهات SPI للخلفية، ومفككات ترميز الفيديو المكتوبة بـ Java وحدها؛ لا يحتاج شيئًا وقت التشغيل، ولا يسمّي للترجمة سوى تعليقات JSpecify للقيم الفارغة</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>

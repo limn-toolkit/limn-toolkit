@@ -286,7 +286,7 @@ application.
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>the widget set, layout, the scene graph, the backend SPIs and the pure-Java video decoders; depends on nothing</td>
+    <td>the widget set, layout, the scene graph, the backend SPIs and the pure-Java video decoders; needs nothing at run time, and names only the JSpecify nullness annotations to compile against</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>

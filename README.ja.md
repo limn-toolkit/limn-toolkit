@@ -238,7 +238,7 @@ macOS のフラグは上と同じです。保存されるのは `.limntheme` フ
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>ウィジェット一式、レイアウト、シーングラフ、バックエンドの SPI、そして純 Java の動画デコーダー。何にも依存しません</td>
+    <td>ウィジェット一式、レイアウト、シーングラフ、バックエンドの SPI、そして純 Java の動画デコーダー。実行時には何も必要とせず、コンパイル用に JSpecify の null 注釈だけを参照します</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>

@@ -297,7 +297,7 @@ jamais une dépendance de votre application.
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>l’ensemble de widgets, la mise en page, le graphe de scène, les SPI des backends et les décodeurs vidéo en Java pur ; ne dépend de rien</td>
+    <td>l’ensemble de widgets, la mise en page, le graphe de scène, les SPI des backends et les décodeurs vidéo en Java pur ; n’a besoin de rien à l’exécution et ne nomme, pour compiler, que les annotations de nullité de JSpecify</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>

@@ -294,7 +294,7 @@ jbang --main limn.themeeditor.ThemeEditorApp io.github.limn-toolkit:limn-theme-e
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>виджеты, компоновка, граф сцены, SPI бэкендов и видеодекодеры на чистой Java; не зависит ни от чего</td>
+    <td>виджеты, компоновка, граф сцены, SPI бэкендов и видеодекодеры на чистой Java; во время выполнения не нужно ничего, а для компиляции указаны только аннотации null из JSpecify</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>

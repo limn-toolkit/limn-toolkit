@@ -283,7 +283,7 @@ macOS 플래그는 위와 같습니다. 저장되는 것은 `.limntheme` 파일,
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>위젯 모음, 레이아웃, 장면 그래프, 백엔드 SPI, 그리고 순수 자바 영상 디코더. 의존성 없음</td>
+    <td>위젯 모음, 레이아웃, 장면 그래프, 백엔드 SPI, 그리고 순수 자바 영상 디코더. 실행 시에는 아무것도 필요 없고, 컴파일용으로 JSpecify의 null 애너테이션만 참조합니다</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>

@@ -296,7 +296,7 @@ Abhängigkeit Ihrer Anwendung.
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>der Widget-Satz, Layout, der Szenengraph, die Backend-SPIs und die reinen Java-Video-Decoder; ohne jede Abhängigkeit</td>
+    <td>der Widget-Satz, Layout, der Szenengraph, die Backend-SPIs und die reinen Java-Video-Decoder; braucht zur Laufzeit nichts und nennt zum Kompilieren nur die JSpecify-Annotationen für null</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>

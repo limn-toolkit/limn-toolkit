@@ -292,7 +292,7 @@ aplicação.
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>o conjunto de widgets, o layout, o grafo de cena, as SPIs de backend e os decodificadores de vídeo em Java puro; não depende de nada</td>
+    <td>o conjunto de widgets, o layout, o grafo de cena, as SPIs de backend e os decodificadores de vídeo em Java puro; não precisa de nada em tempo de execução e só cita, para compilar, as anotações de nulidade do JSpecify</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>

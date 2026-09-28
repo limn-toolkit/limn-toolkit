@@ -294,7 +294,7 @@ tu aplicación.
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>el conjunto de widgets, la disposición, el grafo de escena, las SPI del backend y los decodificadores de vídeo en Java puro; no depende de nada</td>
+    <td>el conjunto de widgets, la disposición, el grafo de escena, las SPI del backend y los decodificadores de vídeo en Java puro; no necesita nada en tiempo de ejecución y solo nombra, para compilar, las anotaciones de nulidad de JSpecify</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>

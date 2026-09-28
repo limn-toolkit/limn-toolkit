@@ -238,7 +238,7 @@ macOS 的开关和上面一样。它存下来的是一个 `.limntheme` 文件，
 <table>
   <tr>
     <td nowrap><samp>limn-toolkit</samp></td>
-    <td>组件集、布局、场景图、后端 SPI 与纯 Java 视频解码器；不依赖任何东西</td>
+    <td>组件集、布局、场景图、后端 SPI 与纯 Java 视频解码器；运行时不需要任何东西，编译时只引用 JSpecify 的空值注解</td>
   </tr>
   <tr>
     <td nowrap><samp>limn-backend-lwjgl</samp></td>
