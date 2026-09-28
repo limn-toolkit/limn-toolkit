@@ -3471,7 +3471,7 @@ public final class Scene {
 
     private Widget<?> hitAt(float sceneX, float sceneY) {
         // A modal overlay owns all input; hit-testing never reaches the content,
-        // unless the overlay yields this point (e.g. the menu bar strip behind a
+        // unless the overlay yields this point (e.g. a menu bar's titles behind a
         // fullscreen in-scene menu), which then hit-tests the content below.
         Widget<?> top = topOverlay();
         if (top != null && !top.overlayPassesPointer(sceneX, sceneY)) {

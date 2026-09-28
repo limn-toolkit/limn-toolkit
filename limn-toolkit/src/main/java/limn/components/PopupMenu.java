@@ -279,7 +279,7 @@ public final class PopupMenu {
 
     /**
      * MenuBar-only: scene points the fullscreen in-scene overlay should NOT capture,
-     * letting them reach the content beneath (the bar strip), so hovering a sibling
+     * letting them reach the content beneath (the bar's titles), so hovering a sibling
      * title still switches menus and shows its cursor, matching the native window
      * mode, where the separate popup window never covers the bar. No effect on the
      * native presentation. UI thread only.
@@ -1348,7 +1348,7 @@ public final class PopupMenu {
 
         @Override
         protected boolean overlayPassesPointer(float sceneX, float sceneY) {
-            // Fullscreen fallback only: yield points over the MenuBar strip (never
+            // Fullscreen fallback only: yield points over a MenuBar title (never
             // over one of our columns) so the bar keeps hover-switching + its cursor.
             if (!fillScene || !inScenePassThrough.test(sceneX, sceneY)) {
                 return false;

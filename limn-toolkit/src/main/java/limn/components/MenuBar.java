@@ -10,7 +10,6 @@ import limn.concurrent.Subscription;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
-import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.graphics.TextMetrics;
 import limn.i18n.I18n;
@@ -54,6 +53,13 @@ import java.util.Objects;
  * visually-left title, which is then the <em>next</em> one in declaration order. The dropdown
  * inherits the direction through the anchor and mirrors with it. Accelerator labels do not
  * mirror: they name physical keys.
+ *
+ * <p><b>The strip takes the width it is offered</b>, as a platform's menu bar spans its window:
+ * at the top of a {@link limn.scene.layout.Column} it runs from edge to edge, bottom rule
+ * included, whatever the column's cross alignment, and its titles keep to the end reading starts
+ * from. Where no width is offered, in a {@link limn.scene.layout.Row} outside
+ * {@link limn.scene.layout.Expanded}, it is as wide as its titles. The stretch past the last title
+ * is drawn and not hit: a press there reaches whatever is beneath the bar.
  *
  * <p>The strip's height <em>is</em> the {@link limn.scene.ControlSize} step's
  * {@code controlHeight}, so a bar and the buttons beside it agree at every step, and the
@@ -341,14 +347,23 @@ public final class MenuBar extends Widget<MenuBar> {
     @Override
     protected Size onMeasure(Constraints constraints) {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        float total = 0;
-        for (int i = 0; i < entries.size(); i++) {
-            total += titleWidth(i, t);
+        // The strip spans the width it is offered, as a platform's menu bar spans its window; one
+        // that stopped at its last title ended its bottom rule a little way into the window, in
+        // any column not set to stretch. Only where no width is offered, a row child outside
+        // Expanded, is it as wide as its titles, which is then all it can say it needs.
+        float width;
+        if (constraints.hasBoundedWidth()) {
+            width = constraints.maxWidth();
+        } else {
+            width = 0;
+            for (int i = 0; i < entries.size(); i++) {
+                width += titleWidth(i, t);
+            }
         }
         // The strip is chrome, not a text-fit box: it takes the step's control height outright
         // so it lines up with the buttons and fields around it. (The text-fit floor would be
         // slack at every step anyway: 11pt body in a 24pt strip at XSMALL.)
-        return constraints.constrain(total, t.controlHeight());
+        return constraints.constrain(width, t.controlHeight());
     }
 
     /** The baseline BASELINE rows align on, the expression {@link #onPaint} draws titles with. */
@@ -413,6 +428,22 @@ public final class MenuBar extends Widget<MenuBar> {
     }
 
     // ------------------------------------------------------------------ input
+
+    /**
+     * The bar's own points are its titles'. The strip past the last one has nothing in it and is
+     * left to whatever is beneath, as it was when the bar ended at its last title and as a
+     * platform's empty menu-bar stretch is inert: a press there opens nothing and takes the
+     * keyboard from nobody, and the pointer over it is the one beneath rather than the hand the
+     * titles show.
+     */
+    @Override
+    public Widget<?> hitTest(float localX, float localY) {
+        Widget<?> hit = super.hitTest(localX, localY);
+        if (hit != this) {
+            return hit;
+        }
+        return titleAt(localX, Theme.of(this).tokensFor(this), isRightToLeft()) >= 0 ? this : null;
+    }
 
     @Override
     protected void onMouseEvent(MouseEvent event) {
@@ -679,9 +710,9 @@ public final class MenuBar extends Widget<MenuBar> {
         popup.onRootLeading(() -> openMenu((index - 1 + n) % n));
         popup.onRootTrailing(() -> openMenu((index + 1) % n));
         // Fullscreen fallback: the dropdown is an in-scene overlay covering the bar.
-        // Let pointer input over the strip fall through so hovering a sibling title
+        // Let pointer input over the titles fall through so hovering a sibling title
         // still switches menus (and shows the pointer cursor), as in native mode.
-        popup.inScenePassThrough(this::pointOverStrip);
+        popup.inScenePassThrough(this::pointOverTitle);
         openPopup = popup;
         invalidate();
         // Anchored on THIS widget, not on the scene: that is what makes a SMALL bar drop a
@@ -702,15 +733,20 @@ public final class MenuBar extends Widget<MenuBar> {
         openIndex = -1;
     }
 
-    /** @return whether the scene point lies within this bar's strip (its own bounds). */
-    private boolean pointOverStrip(float sceneX, float sceneY) {
+    /**
+     * @return whether the scene point lies on one of this bar's titles: the points it answers in
+     *         {@link #hitTest}, and so the only ones an in-scene dropdown lets through to it. The
+     *         empty strip past the last title stays the dropdown's, where a press is a press
+     *         outside the menu and closes it.
+     */
+    private boolean pointOverTitle(float sceneX, float sceneY) {
         float bx = 0;
         float by = 0;
         for (Widget<?> w = this; w != null; w = w.parent()) {
             bx += w.x();
             by += w.y();
         }
-        return Rect.contains(bx, by, width(), height(), sceneX, sceneY);
+        return hitTest(sceneX - bx, sceneY - by) == this;
     }
 
     /** Closes the dropdown as the user's doing: a press on the open title, a reader's collapse. */
