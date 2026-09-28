@@ -155,8 +155,14 @@ dialog moving into the scene keeps its window up, out of sight and inert, until 
 the focus, and only then hides it, or after 300 ms if the owner never does: hidden in the same
 instant the owner was asked, the window was unmapped before GNOME had registered the request, and
 the owner lost the focus again some 20 ms later (3 clean runs of 5, 13 traced of 13). A menu
-asks at the end of its fade and only if its window still holds the focus then, so that a window a
-chosen item opened keeps the focus it was given; the list and the calendar ask as they close.
+whose item is chosen asks at once, if its window holds the focus, and before the item runs, so
+that a window the item opens is asked for after the owner and keeps the focus; its fade then runs
+on a window without the keyboard. Asked at the end of the fade, as it first was, the owner got the
+keyboard back 0.16 seconds late, and a Tab pressed some 80 ms after a choice went to the fading
+menu and was lost, on Windows, macOS and X11 alike. Any other close still asks at the end of the
+fade, and only if the menu's window holds the focus then, since another window may have taken it
+since the close, such as the neighbouring menu of a menu bar walked across. The list and the
+calendar ask as they close.
 
 ## What the in-scene fallback costs, and why it is not a second implementation
 

@@ -188,6 +188,11 @@ public final class PopupMenu {
     private NativeWindow parentWindow;
     private NativeWindow popupWindow;
     private Scene popupScene;
+    /**
+     * Whether the menu's window gave the owner back the keyboard as an item was chosen, which
+     * leaves nothing for the end of its fade to do; see {@link #runChosen}.
+     */
+    private boolean keyboardHandedBack;
     private Subscription dismissHandle;
     private Subscription blurHandle;
     private Subscription popupBlurHandle;
@@ -447,24 +452,27 @@ public final class PopupMenu {
             NativeWindow parent = parentWindow;
             popupWindow = null;
             popupScene = null;
+            boolean handedBack = keyboardHandedBack;
             Runnable destroy = () -> {
-                if (modal && !closing.isClosed()) {
+                if (modal && !handedBack && !closing.isClosed()) {
                     closing.backend().popModal(closing); // release the owner lock
                 }
                 if (parent != null && !parent.isClosed()) {
                     parent.unregisterChildPopup(closing);
-                    // The owner asks for the focus back before the window holding it goes. A window
-                    // closed with the focus leaves the desktop to choose the next one, and it may
-                    // choose itself: GNOME over X11 did, which takes the keyboard from the owner
-                    // and minimizes one fullscreen at a named mode, as it minimized an owner that
-                    // went fullscreen under an open menu. Asked here, at the end of the fade,
-                    // rather than at the close: a chosen item may have opened a window that has the
-                    // focus by now, and the owner does not take it from that one, nor from a modal
-                    // dialog blocking it. A modal menu held the focus as the top modal, whatever
-                    // its scene last heard.
+                    // The owner asks for the focus back before the window holding it goes, when
+                    // no choice gave it back already. A window closed with the focus leaves the
+                    // desktop to choose the next one, and it may choose itself: GNOME over X11
+                    // did, which takes the keyboard from the owner and minimizes one fullscreen at
+                    // a named mode, as it minimized an owner that went fullscreen under an open
+                    // menu. Asked here, at the end of the fade, and only if the window still
+                    // holds the focus then: another window may have taken it since the close,
+                    // the neighbouring menu of a menu bar walked across or one the person clicked,
+                    // and the owner does not take it from that one, nor from a modal dialog
+                    // blocking it. A modal menu held the focus as the top modal, whatever its
+                    // scene last heard.
                     boolean heldFocus = modal
                             || (closingScene != null && closingScene.isWindowFocused());
-                    if (heldFocus && !parent.isModalBlocked()) {
+                    if (!handedBack && heldFocus && !parent.isModalBlocked()) {
                         parent.focus();
                     }
                 }
@@ -508,6 +516,39 @@ public final class PopupMenu {
                 }
             }
         }
+    }
+
+    /**
+     * Runs a chosen item and closes the menu, having first given the owner back the keyboard from
+     * the menu's window, at once and while that window is still up: lets go of a modal menu's lock,
+     * since a blocked owner hands the focus straight back to the modal over it, then asks for the
+     * owner's focus unless another modal blocks the owner. Only when the menu's window holds the
+     * focus, which a modal menu does as the top modal, whatever its scene last heard; one that does
+     * not, or not yet by its scene's account, is left to the end of its fade as any other close is.
+     * Nothing to give back for a menu drawn in scene.
+     *
+     * <p>At the choice rather than at the end of the fade, which is where every other close still
+     * asks. The window fades for {@code animWindow} after the close and held the keyboard until
+     * the owner asked for it there, so a key pressed meanwhile went to the fading menu: a Tab some
+     * 80 ms after choosing an item was lost, on Windows, macOS and X11 alike. And before the item
+     * runs, so that a window the item opens or focuses is asked for after the owner and keeps the
+     * focus, whether or not the menu's scene has heard by then that it lost it.
+     */
+    private void runChosen(MenuItem item) {
+        NativeWindow window = popupWindow;
+        boolean heldFocus = modal || (popupScene != null && popupScene.isWindowFocused());
+        if (window != null && heldFocus && !keyboardHandedBack) {
+            keyboardHandedBack = true;
+            if (modal && !window.isClosed()) {
+                window.backend().popModal(window); // release the owner lock
+            }
+            NativeWindow parent = parentWindow;
+            if (parent != null && !parent.isClosed() && !parent.isModalBlocked()) {
+                parent.focus();
+            }
+        }
+        item.activate(Change.Origin.USER);
+        close();
     }
 
     // --------------------------------------------------- in-scene fallback
@@ -585,6 +626,7 @@ public final class PopupMenu {
         int h = Math.max(1, (int) Math.ceil(box[3] - box[1]));
         surface.setRenderOffset(box[0], box[1]);
 
+        keyboardHandedBack = false;
         popupWindow = parentWindow.backend().createWindow(WindowConfig.of("menu", w, h).visible(false).resizable(false)
                 .decorated(false).floating(true).transparent(true)); // and it takes the focus: the menu owns the keys
         parentWindow.registerChildPopup(popupWindow);
@@ -1461,8 +1503,7 @@ public final class PopupMenu {
                 openSubmenu(c, i);
                 changed();
             } else {
-                item.activate(Change.Origin.USER); // a click on the row
-                close();
+                runChosen(item); // a click on the row
             }
         }
 
@@ -1550,8 +1591,7 @@ public final class PopupMenu {
                         if (item.hasSubmenu()) {
                             openSubmenu(deep, i);
                         } else {
-                            item.activate(Change.Origin.USER); // Enter or Space on the highlight
-                            close();
+                            runChosen(item); // Enter or Space on the highlight
                             return true;
                         }
                     }
