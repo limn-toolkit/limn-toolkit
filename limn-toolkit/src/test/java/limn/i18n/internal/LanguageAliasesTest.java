@@ -96,6 +96,10 @@ class LanguageAliasesTest {
     void aNumericRegionIsReadAsTheRegionIcuReadsItAs() throws Exception {
         List<String> wrong = new ArrayList<>();
         for (String[] row : CldrAliasRows.regions()) {
+            String[] parts = row[0].split("-");
+            if (!Character.isDigit(parts[parts.length - 1].charAt(0))) {
+                continue; // a retired two-letter region, asked below
+            }
             Locale asked = Locale.forLanguageTag(row[0].contains("-") ? row[0] : "und-" + row[0]);
             Locale expected = new Locale.Builder().setLocale(asked).setRegion(row[1]).build();
             Locale ours = LanguageAliases.resolve(asked);
@@ -117,10 +121,52 @@ class LanguageAliasesTest {
     }
 
     /**
+     * A two-letter region ISO 3166 retired is the current region ICU reads it as, as a number is:
+     * {@code SU}, the Soviet Union, is {@code RU}, {@code DD}, East Germany, {@code DE}, and
+     * {@code YD}, South Yemen, {@code YE}. {@link Locale} keeps the code as it is given, so a
+     * table keyed on the current regions answered it as a region nobody listed. A code that had
+     * several replacements is the one the language, in its script, is likely to mean:
+     * {@code uz-SU} is {@code UZ} and {@code ckb-NT}, Central Kurdish in the Neutral Zone,
+     * {@code IQ}. The {@code region} rows after the numeric ones.
+     */
+    @Test
+    void aRetiredTwoLetterRegionIsReadAsTheRegionIcuReadsItAs() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        int codes = 0;
+        for (String[] row : CldrAliasRows.regions()) {
+            String[] parts = row[0].split("-");
+            if (Character.isDigit(parts[parts.length - 1].charAt(0))) {
+                continue;
+            }
+            if (parts.length == 1) {
+                codes++;
+            }
+            Locale asked = Locale.forLanguageTag(parts.length > 1 ? row[0] : "und-" + row[0]);
+            Locale expected = new Locale.Builder().setLocale(asked).setRegion(row[1]).build();
+            Locale ours = LanguageAliases.resolve(asked);
+            if (!expected.equals(ours)) {
+                wrong.add(asked.toLanguageTag() + " is " + expected.toLanguageTag() + ", we read "
+                        + ours.toLanguageTag());
+            }
+        }
+        assertTrue(codes >= 20, "the dump names only " + codes + " retired regions");
+        assertEquals(List.of(), wrong);
+
+        assertEquals(Locale.forLanguageTag("ru-RU"), resolve("ru-SU"));
+        assertEquals(Locale.forLanguageTag("uz-UZ"), resolve("uz-SU"));
+        assertEquals(Locale.forLanguageTag("uz-Arab-RU"), resolve("uz-Arab-SU"));
+        assertEquals(Locale.forLanguageTag("ckb-IQ"), resolve("ckb-NT"));
+        assertEquals(Locale.forLanguageTag("sr-RS"), resolve("sr-YU"));
+        assertEquals(Locale.forLanguageTag("hy-AM"), resolve("hye-SU"),
+                "an alias picks as its replacement does");
+    }
+
+    /**
      * A code ICU reads as another language picks among a number's regions as its replacement
      * does, since ICU replaces the language first: {@code hye-172}, Armenian by its ISO 639-2
      * code, is {@code hy-AM}, and {@code prs-364}, Dari in Iran, is {@code fa-IR}. Asked of every
-     * alias in every number some row lets its replacement's language pick a region for.
+     * alias in every number, or retired two-letter region, some row lets its replacement's
+     * language pick a region for.
      */
     @Test
     void anAliasPicksANumbersRegionAsItsReplacementDoes() throws Exception {

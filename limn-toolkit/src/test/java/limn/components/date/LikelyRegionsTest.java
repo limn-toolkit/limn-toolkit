@@ -130,6 +130,35 @@ class LikelyRegionsTest {
     }
 
     /**
+     * A retired two-letter region keeps the week of the region ICU reads it as, as a number does:
+     * {@code DD}, East Germany, is Germany, whose first week needs four days, {@code UK} is
+     * {@code GB}, and {@code YD}, South Yemen, is Yemen. Asked of every retired region the dump
+     * names, in English and in Arabic, against the region it stands for.
+     */
+    @Test
+    void aRetiredRegionHasTheWeekOfTheRegionItStandsFor() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        for (String[] row : CldrAliasRows.regions()) {
+            if (row[0].contains("-") || Character.isDigit(row[0].charAt(0))) {
+                continue;
+            }
+            for (String language : List.of("en", "ar")) {
+                WeekFields cldr = WeekFields.of(new Locale.Builder()
+                        .setLanguage(language).setRegion(row[1]).build());
+                WeekFields ours = CalendarChronology.weekFields(new Locale.Builder()
+                        .setLanguage(language).setRegion(row[0]).build());
+                if (!cldr.equals(ours)) {
+                    wrong.add(language + "-" + row[0] + " is " + language + "-" + row[1]
+                            + ", whose week is " + cldr + ", we say " + ours);
+                }
+            }
+        }
+        assertEquals(List.of(), wrong, "a retired region has another week than its region");
+        assertEquals(WeekFields.of(Locale.forLanguageTag("de-DE")),
+                CalendarChronology.weekFields(Locale.forLanguageTag("de-DD")));
+    }
+
+    /**
      * What the table is for: a language named alone numbers its weeks as the region it means
      * does, for every language CLDR knows. Before the table the JDK answered the United States'
      * Sunday and one-day first week for all of them, which was wrong for 125.

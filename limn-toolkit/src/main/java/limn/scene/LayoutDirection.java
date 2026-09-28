@@ -225,18 +225,18 @@ public enum LayoutDirection {
      * script, written by {@code scripts/i18n/dump-cldr-locale-facts.mjs} from ICU 78.3 over every
      * two- and three-letter code in every two-letter region, and held to this table by
      * {@code CldrLocaleFactsTest}. A code ICU reads as one of these languages ({@code pan} is
-     * {@code pa}) and a region named by its UN number ({@code 586} is {@code PK}) have no key of
-     * their own, since {@link #forLocale} reads a locale through {@link LanguageAliases} first;
-     * the two retired regions, {@code NT} and {@code YD}, are there because neither
-     * {@link Locale} nor that reading replaces a two-letter region.
+     * {@code pa}), a region named by its UN number ({@code 586} is {@code PK}) and a retired
+     * region ({@code NT}, the Neutral Zone, is {@code SA}, and {@code YD}, South Yemen,
+     * {@code YE}) have no key of their own, since {@link #forLocale} reads a locale through
+     * {@link LanguageAliases} first.
      */
     private static final Set<String> RTL_IN_REGION = Set.of(
             "az-IQ", "az-IR", "ha-CM", "ha-SD", "kk-AF", "kk-CN", "kk-IR", "kk-MN", "ku-IQ",
             "ku-IR", "ku-LB", "ky-CN", "ms-CC", "pa-PK", "tg-PK", "uz-AF", "und-AE", "und-AF",
             "und-BH", "und-CC", "und-DZ", "und-EG", "und-EH", "und-IL", "und-IQ", "und-IR",
             "und-JO", "und-KM", "und-KW", "und-LB", "und-LY", "und-MA", "und-MR", "und-MV",
-            "und-NT", "und-OM", "und-PK", "und-PS", "und-QA", "und-SA", "und-SD", "und-SS",
-            "und-SY", "und-TD", "und-TN", "und-YD", "und-YE");
+            "und-OM", "und-PK", "und-PS", "und-QA", "und-SA", "und-SD", "und-SS", "und-SY",
+            "und-TD", "und-TN", "und-YE");
 
     /**
      * The regions that turn a right-to-left language left to right, the other half of
@@ -302,7 +302,8 @@ public enum LayoutDirection {
      * <p>The locale is read as ICU reads it before anything is decided: a code ICU replaces with
      * another language is that language ({@code pes}, Iranian Persian, is {@code fa} and
      * {@code pan-PK} is {@code pa-PK}), and a region named by its UN number is the region it
-     * stands for ({@code az-364} is {@code az-IR}). These are the same readings the digits, the
+     * stands for ({@code az-364} is {@code az-IR}), as a retired region is ({@code und-YD} is
+     * {@code und-YE}). These are the same readings the digits, the
      * plural rules, the string bundles and the calendars take.
      *
      * @param locale the locale to classify

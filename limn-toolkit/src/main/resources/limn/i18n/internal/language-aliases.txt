@@ -1,14 +1,17 @@
 # Every two- and three-letter code ICU reads as another language, and the tag it reads it as,
-# then every numeric region ICU reads as a two-letter one: the alias and region rows of
+# then every numeric region ICU reads as a two-letter one, then every retired two-letter region it
+# reads as a current one: the alias and region rows of
 # limn-toolkit/src/test/resources/limn/i18n/cldr-locale-facts.txt, which
 # scripts/i18n/dump-cldr-locale-facts.mjs asks ICU for, copied line for line.
 # LanguageAliasesTest holds the two files to the same rows in the same order.
 #
 # alias <code> <replacement>   the replacement's script or region fills in only what a locale
 #                              leaves out: prs is fa-AF, and prs-IR is fa-IR
-# region <code> <REGION>       a UN M.49 number read as a two-letter region: 364 is IR
+# region <code> <REGION>       a UN M.49 number read as a two-letter region: 364 is IR; or a
+#                              retired two-letter region read as a current one: SU is RU
 # region <language>-<code> <REGION>   a language that picks another of the regions that replaced
-#                              a number: 810, the Soviet Union, is RU, and uz-810 is UZ
+#                              a number or a retired region: 810, the Soviet Union, is RU, and
+#                              uz-810 is UZ, as uz-SU is
 # region <language>-<Script>-<code> <REGION>   the same language in a script that picks otherwise
 #                              (und: no language, in that script): uz-Arab-810 is RU
 #
@@ -930,3 +933,127 @@ region yah-172 TJ
 region yah-810 TJ
 region yai-172 TJ
 region yai-810 TJ
+region AN CW
+region BU MM
+region CS RS
+region CT KI
+region DD DE
+region DY BJ
+region FQ AQ
+region FX FR
+region HV BF
+region JT UM
+region MI UM
+region NH VU
+region NQ AQ
+region NT SA
+region PC FM
+region PU UM
+region PZ PA
+region QU EU
+region RH ZW
+region SU RU
+region TP TL
+region UK GB
+region VD VN
+region WK UM
+region YD YE
+region YU RS
+region ZR CD
+region ab-SU GE
+region az-SU AZ
+region az-Arab-SU RU
+region be-SU BY
+region et-SU EE
+region hy-SU AM
+region ie-SU EE
+region ka-SU GE
+region kk-SU KZ
+region kk-Arab-SU RU
+region ku-Arab-NT IQ
+region ku-Cyrl-SU AM
+region ku-Yezi-SU GE
+region ky-SU KG
+region ky-Arab-SU RU
+region ky-Latn-SU RU
+region lt-SU LT
+region lv-SU LV
+region mh-PC MH
+region os-SU GE
+region tg-SU TJ
+region tg-Arab-SU RU
+region tk-SU TM
+region ug-Cyrl-SU KZ
+region uk-SU UA
+region uz-SU UZ
+region uz-Arab-SU RU
+region yi-SU UA
+region abh-SU TJ
+region acm-NT IQ
+region aii-NT IQ
+region akk-NT IQ
+region arc-Hatr-NT IQ
+region auz-SU UZ
+region axm-SU AM
+region ayp-NT IQ
+region bbl-SU GE
+region bdk-SU AZ
+region bhn-SU GE
+region bjm-NT IQ
+region cal-PC MP
+region chg-SU TM
+region ckb-NT IQ
+region crh-SU UA
+region dng-SU KG
+region gag-SU MD
+region got-SU UA
+region hyw-SU AM
+region jct-SU UA
+region jge-SU GE
+region kaa-SU UZ
+region kdr-SU LT
+region kjj-SU AZ
+region kqd-NT IQ
+region kry-SU AZ
+region liv-SU LV
+region ltg-SU LV
+region lzz-Geor-SU GE
+region mid-NT IQ
+region oav-SU GE
+region olt-SU LT
+region paq-SU TJ
+region pau-PC PW
+region rmi-SU AM
+region rue-SU UA
+region sdb-NT IQ
+region sdf-NT IQ
+region sgh-SU TJ
+region sgs-SU LT
+region sog-SU UZ
+region sov-PC PW
+region sva-SU GE
+region syr-NT IQ
+region tkr-SU AZ
+region tly-SU AZ
+region tox-PC PW
+region tpv-PC MP
+region ttt-SU AZ
+region und-Aghb-SU AZ
+region und-Armn-SU AM
+region und-Chrs-SU UZ
+region und-Geor-SU GE
+region und-Goth-SU UA
+region und-Hatr-NT IQ
+region und-Sogd-SU UZ
+region und-Sogo-SU UZ
+region und-Syrc-NT IQ
+region und-Xsux-NT IQ
+region und-Yezi-SU GE
+region uum-SU GE
+region vic-AN SX
+region vro-SU EE
+region xag-SU AZ
+region xco-SU UZ
+region xmf-SU GE
+region yah-SU TJ
+region yai-SU TJ

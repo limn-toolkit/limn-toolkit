@@ -77,15 +77,15 @@ public enum NumberingSystem {
     }
 
     /**
-     * The twenty-three regions where CLDR writes Arabic in Arabic-Indic digits. Everywhere else,
-     * including the Maghreb, the Gulf's {@code AE} and a bare {@code ar} with no region at all,
-     * Arabic is written in Latin digits. Two of these are codes no country uses any more —
-     * {@code NT}, the Neutral Zone, and {@code YD}, South Yemen — and they are kept because the
-     * dump carries them and a table that quietly dropped rows would not be the dump's any more.
+     * The regions where CLDR writes Arabic in Arabic-Indic digits. Everywhere else, including the
+     * Maghreb, the Gulf's {@code AE} and a bare {@code ar} with no region at all, Arabic is written
+     * in Latin digits. The dump names two more, codes no country uses any more, {@code NT}, the
+     * Neutral Zone, and {@code YD}, South Yemen, which have no key here because the locale is read
+     * through {@link LanguageAliases} first and they arrive as {@code SA} and {@code YE}.
      */
     private static final java.util.Set<String> ARABIC_INDIC_REGIONS = java.util.Set.of(
-            "BH", "DJ", "EG", "ER", "IL", "IQ", "JO", "KM", "KW", "LB", "MR", "NT",
-            "OM", "PS", "QA", "SA", "SD", "SO", "SS", "SY", "TD", "YD", "YE");
+            "BH", "DJ", "EG", "ER", "IL", "IQ", "JO", "KM", "KW", "LB", "MR",
+            "OM", "PS", "QA", "SA", "SD", "SO", "SS", "SY", "TD", "YE");
 
     /**
      * CLDR's default system for {@code locale}, over the systems this enum carries.
@@ -116,6 +116,7 @@ public enum NumberingSystem {
      * {@code fa-IR}. The codes are every one ICU replaces, the same ones the plural rules, the
      * string bundles and the calendars read a locale through. A region named by its UN number is
      * read the same way, as the region it stands for: {@code ar-818} writes what {@code ar-EG}
+     * writes, and so is a retired one: {@code ar-YD}, South Yemen, writes what {@code ar-YE}
      * writes.
      *
      * @param locale the locale to classify
