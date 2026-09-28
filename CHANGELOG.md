@@ -216,6 +216,10 @@ Maven Central say which number that was.
   where a call passes or ignores one. `org.jspecify:jspecify` 1.0.1 comes with `limn-toolkit`, the
   backend, `limn-test` and `limn-video-ffmpeg` as an API dependency (`requires static transitive`
   in their modules), and nothing needs it at run time.
+- `I18n.canonical(Locale)` answers a locale the way the toolkit reads it, with legacy and
+  three-letter language codes and numbered or retired regions replaced as ICU replaces them
+  (`jpn` is `ja`, `prs-IR` is `fa-IR`, `de-276` is `de-DE`), so an application that picks fonts,
+  resources or layout by language decides as the toolkit does.
 - `StubWindow` in `limn-test` has a public `fullscreen` field, which `enterFullscreen` and
   `exitFullscreen` set and report to the scene, so a test can open a surface over a fullscreen
   window or change fullscreen under one.
