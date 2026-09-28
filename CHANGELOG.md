@@ -146,6 +146,10 @@ Maven Central say which number that was.
   most likely means: Central Kurdish (`ckb`) starts on Saturday as Iraq does, where 4,304 such
   languages had the United States' week.
 - Text in the Garay and Sidetic scripts runs right to left.
+- `jbang` can run the demo and the theme editor from Maven Central again. Their POMs named, for
+  every platform, a `lwjgl-egl` natives jar LWJGL does not publish, so 0.9.0 of both failed to
+  resolve anywhere (`Could not find artifact org.lwjgl:lwjgl-egl:jar:natives-macos-arm64:3.4.3`);
+  the fix reaches Central with the next release, and 0.9.0 stays as it is.
 - A retired two-letter region (`SU`, `YU`, `ZR`, `AN`, …) is read as the region ICU reads it as, for
   its week, digits and direction.
 - A key pressed while a menu bar walks from one menu to the next reaches the next menu: Right twice
