@@ -785,7 +785,8 @@ public final class Dialog {
      * from it; and macOS native fullscreen covers the screen, so the card loses nothing inside it,
      * while the transition resizes the owner under a window that was centred over its old frame.
      * The card itself moves, so what the person typed in it and where the keyboard was come with
-     * it, and the lock goes on the same windows the window's did.
+     * it, the focused field keeping its caret and selection as they were, and the lock goes on the
+     * same windows the window's did.
      *
      * <p>Not while an answer is on its way out, and not while something is open over the dialog's
      * own window, a second dialog or a modal menu: moving this one would close the window that one
@@ -799,10 +800,6 @@ public final class Dialog {
             return;
         }
         Scene leaving = modalScene;
-        Widget<?> keyboard = leaving.focusedWidget();
-        // Out of the scene being left first, through its own focus-lost path, so that scene holds
-        // nothing of the card and its close later has nothing of the card to let go of.
-        leaving.requestFocus(null);
         if (unanswered != null) {
             // The window goes and the dialog does not: its close must not answer for it.
             unanswered.cancel();
@@ -817,14 +814,14 @@ public final class Dialog {
         // and adopting it takes it out of that scene before pushOverlay puts it in this one.
         overlay = new SceneOverlay(panel);
         overlay.setInheritanceHost(inheritanceHostFor(owner));
-        owner.pushOverlay(overlay);
+        // With the keyboard, taken from the scene being left before its close could run the
+        // widget's focus-lost path, and never put on the first stop as if by Tab: the one would
+        // drop a selection and commit a half-typed entry, the other select all of a field's text.
+        owner.pushOverlay(overlay, leaving);
         sceneModal = host.backend().pushSceneModal(host, toolkitScope);
         observeUnanswered(owner);
         fade = 0;
         startFadeInScene();
-        if (keyboard != null) {
-            owner.requestFocus(keyboard); // pushOverlay put it on the first stop
-        }
     }
 
     /**

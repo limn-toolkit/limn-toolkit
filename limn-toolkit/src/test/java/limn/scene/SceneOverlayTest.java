@@ -11,6 +11,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static limn.testing.SceneDriver.drive;
@@ -222,5 +223,85 @@ class SceneOverlayTest extends SceneTestBase {
         drive(scene).inputBatchEnded();
         assertTrue(log.contains("second") && !log.contains("first"),
                 "only the topmost overlay gets input: " + log);
+    }
+
+    /** Focusable leaf that records the focus it is told it gained or lost. */
+    static final class FocusBox extends Widget<FocusBox> {
+        final String name;
+        final List<String> log;
+
+        FocusBox(String name, List<String> log) {
+            this.name = name;
+            this.log = log;
+            setFocusable(true);
+        }
+
+        @Override
+        protected Size onMeasure(Constraints c) {
+            return c.constrain(100, 20);
+        }
+
+        @Override
+        protected void onFocusGained() {
+            log.add("gained " + name + (focusArrivedByTraversal() ? " by traversal" : ""));
+        }
+
+        @Override
+        protected void onFocusLost() {
+            log.add("lost " + name);
+        }
+    }
+
+    /**
+     * Content moved from another scene brings its keyboard, and the widget holding it is told
+     * nothing: a loss would end what it was in the middle of, and a gain by traversal, which is how
+     * an overlay's first stop is focused, would make a field select all of its text.
+     */
+    @Test
+    void anOverlayMovedFromAnotherSceneKeepsItsKeyboardWithoutTellingIt() {
+        FocusBox opener = new FocusBox("opener", log);
+        Scene owner = new Scene(opener);
+        owner.layoutPass(200, 200);
+        owner.requestFocus(opener);
+        Column card = new Column();
+        FocusBox first = new FocusBox("first", log);
+        FocusBox typing = new FocusBox("typing", log);
+        card.add(first);
+        card.add(typing);
+        Scene window = new Scene(card);
+        window.layoutPass(200, 200);
+        window.requestFocus(typing);
+        log.clear();
+
+        Column overlay = new Column();
+        overlay.add(card); // out of the scene it was the root of
+        owner.pushOverlay(overlay, window);
+
+        assertSame(typing, owner.focusedWidget(), "the keyboard came with the content");
+        assertTrue(typing.isFocused());
+        assertNull(window.focusedWidget(), "and the scene left holds nothing of it");
+        assertEquals(List.of("lost opener"), log, "only this scene's own focus was told anything");
+
+        owner.removeOverlay(overlay);
+        assertSame(opener, owner.focusedWidget(), "closed, it gives the keyboard back as any does");
+    }
+
+    /** With nothing of the moved content focused where it was, the overlay's first stop is. */
+    @Test
+    void anOverlayMovedWithoutAKeyboardFocusesItsFirstStop() {
+        Scene owner = new Scene(new FocusBox("opener", log));
+        owner.layoutPass(200, 200);
+        Column card = new Column();
+        FocusBox first = new FocusBox("first", log);
+        card.add(first);
+        Scene window = new Scene(card);
+        window.layoutPass(200, 200);
+
+        Column overlay = new Column();
+        overlay.add(card);
+        owner.pushOverlay(overlay, window);
+
+        assertSame(first, owner.focusedWidget());
+        assertEquals(List.of("gained first by traversal"), log, "as pushOverlay(Widget) would");
     }
 }
