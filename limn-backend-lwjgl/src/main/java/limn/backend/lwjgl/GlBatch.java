@@ -28,6 +28,7 @@ import static org.lwjgl.opengl.GL33C.glBufferData;
 import static org.lwjgl.opengl.GL33C.glDeleteBuffers;
 import static org.lwjgl.opengl.GL33C.glDeleteVertexArrays;
 import static org.lwjgl.opengl.GL33C.glDisable;
+import static org.lwjgl.opengl.GL33C.glDrawArrays;
 import static org.lwjgl.opengl.GL33C.glDrawElements;
 import static org.lwjgl.opengl.GL33C.glEnable;
 import static org.lwjgl.opengl.GL33C.glEnableVertexAttribArray;
@@ -47,6 +48,12 @@ import static org.lwjgl.opengl.GL33C.glVertexAttribPointer;
  * texture-page switch ({@link #requireTexture}), and v1 virtually always
  * stays on one page. Buffers grow on demand and are reused across frames:
  * zero per-frame allocation on the hot path.
+ *
+ * <p>Beside it runs a second, minimal program for large flat rectangles ({@link #flatRect}):
+ * position and colour, no distance field. Pending geometry belongs to one program at a time, so
+ * a flat rectangle after anything else flushes it, and anything after a flat rectangle flushes
+ * that: one extra draw call per switch, which is why only rectangles large enough to repay it
+ * take this path (see {@code GlCanvas.emitFlatRect}).
  */
 final class GlBatch implements AutoCloseable {
 
@@ -68,6 +75,15 @@ final class GlBatch implements AutoCloseable {
     private final int vao;
     private final int vbo;
     private final int ebo;
+
+    /** Floats per flat vertex: device position, then straight-alpha colour. */
+    static final int FLAT_VERTEX_FLOATS = 6;
+    private final ShaderProgram flatProgram;
+    private final int flatUniformViewport;
+    private final int flatVao;
+    private final int flatVbo;
+    private FloatBuffer flatVertices = MemoryUtil.memAllocFloat(6 * 8 * FLAT_VERTEX_FLOATS);
+    private int flatVertexCount;
 
     private FloatBuffer vertices = MemoryUtil.memAllocFloat(INITIAL_VERTICES * VERTEX_FLOATS);
     private IntBuffer indices = MemoryUtil.memAllocInt(INITIAL_INDICES);
@@ -115,6 +131,19 @@ final class GlBatch implements AutoCloseable {
         glBindVertexArray(0);
         program.use();
         glUniform1i(program.uniformLocation("u_atlas"), 0);
+
+        flatProgram = ShaderProgram.fromResources(
+                "/limn/backend/lwjgl/shaders/canvas_flat.vert",
+                "/limn/backend/lwjgl/shaders/canvas_flat.frag");
+        flatUniformViewport = flatProgram.uniformLocation("u_viewport");
+        flatVao = glGenVertexArrays();
+        flatVbo = glGenBuffers();
+        glBindVertexArray(flatVao);
+        glBindBuffer(GL_ARRAY_BUFFER, flatVbo);
+        int flatStride = FLAT_VERTEX_FLOATS * Float.BYTES;
+        attribute(0, 2, flatStride, 0); // a_pos
+        attribute(1, 4, flatStride, 2); // a_color
+        glBindVertexArray(0);
     }
 
     private static void attribute(int location, int size, int strideBytes, int floatOffset) {
@@ -128,6 +157,8 @@ final class GlBatch implements AutoCloseable {
         vertices.clear();
         indices.clear();
         vertexCount = 0;
+        flatVertices.clear();
+        flatVertexCount = 0;
         drawCalls = 0;
         scissorEnabled = false; // per-frame: partial rendering re-hints each frame
     }
@@ -235,7 +266,7 @@ final class GlBatch implements AutoCloseable {
     void requireBlend(int srcRgb, int dstRgb, int srcAlpha, int dstAlpha) {
         boolean changed = srcRgb != blendSrcRgb || dstRgb != blendDstRgb
                 || srcAlpha != blendSrcAlpha || dstAlpha != blendDstAlpha;
-        if (changed && indices.position() > 0) {
+        if (changed && (indices.position() > 0 || flatVertexCount > 0)) {
             flush();
         }
         blendSrcRgb = srcRgb;
@@ -289,6 +320,9 @@ final class GlBatch implements AutoCloseable {
 
     /** Vertex with explicit atlas UV (glyph quads). */
     void vertex(float posX, float posY, float localX, float localY, float u, float v) {
+        if (flatVertexCount > 0) {
+            flushFlat(); // drawn before this primitive, which the canvas asked for after it
+        }
         vertices.put(posX).put(posY)
                 .put(localX).put(localY)
                 .put(halfW).put(halfH)
@@ -307,8 +341,38 @@ final class GlBatch implements AutoCloseable {
         indices.put(a).put(b).put(c);
     }
 
-    /** Uploads accumulated geometry and draws it (one draw call). */
+    /**
+     * Queues a solid rectangle for the flat program, in device pixels, with a straight-alpha
+     * colour whose alpha already carries the canvas opacity. Geometry pending for the main program
+     * is drawn first, so paint order holds.
+     */
+    void flatRect(float x0, float y0, float x1, float y1, float r, float g, float b, float a) {
+        if (indices.position() > 0) {
+            flushMain();
+        }
+        if (flatVertices.remaining() < 6 * FLAT_VERTEX_FLOATS) {
+            flatVertices = MemoryUtil.memRealloc(flatVertices, flatVertices.capacity() * 2);
+        }
+        flatVertex(x0, y0, r, g, b, a);
+        flatVertex(x1, y0, r, g, b, a);
+        flatVertex(x1, y1, r, g, b, a);
+        flatVertex(x0, y0, r, g, b, a);
+        flatVertex(x1, y1, r, g, b, a);
+        flatVertex(x0, y1, r, g, b, a);
+    }
+
+    private void flatVertex(float x, float y, float r, float g, float b, float a) {
+        flatVertices.put(x).put(y).put(r).put(g).put(b).put(a);
+        flatVertexCount++;
+    }
+
+    /** Uploads accumulated geometry and draws it: one draw call per program with any pending. */
     void flush() {
+        flushFlat();
+        flushMain();
+    }
+
+    private void flushMain() {
         int indexCount = indices.position();
         if (indexCount == 0) {
             return;
@@ -329,6 +393,36 @@ final class GlBatch implements AutoCloseable {
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, textureId);
         }
+        applyRasterState();
+        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+        drawCalls++;
+
+        vertices.clear();
+        indices.clear();
+        vertexCount = 0;
+    }
+
+    private void flushFlat() {
+        if (flatVertexCount == 0) {
+            return;
+        }
+        flatVertices.flip();
+        glBindVertexArray(flatVao);
+        glBindBuffer(GL_ARRAY_BUFFER, flatVbo);
+        glBufferData(GL_ARRAY_BUFFER, flatVertices, GL_STREAM_DRAW);
+        flatProgram.use();
+        glUniform2f(flatUniformViewport, fbWidth, fbHeight);
+        applyRasterState();
+        glDrawArrays(GL_TRIANGLES, 0, flatVertexCount);
+        glBindVertexArray(0);
+        drawCalls++;
+        flatVertices.clear();
+        flatVertexCount = 0;
+    }
+
+    /** Blend, depth, culling and the damage scissor: what both programs draw under. */
+    private void applyRasterState() {
         glEnable(GL_BLEND);
         // Premultiplied alpha; separate alpha factors (see requireBlend).
         glBlendFuncSeparate(blendSrcRgb, blendDstRgb, blendSrcAlpha, blendDstAlpha);
@@ -340,13 +434,6 @@ final class GlBatch implements AutoCloseable {
         } else {
             glDisable(GL_SCISSOR_TEST);
         }
-        glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-        drawCalls++;
-
-        vertices.clear();
-        indices.clear();
-        vertexCount = 0;
     }
 
     /** @return draw calls issued since {@link #beginFrame} (debug/perf stat) */
@@ -360,7 +447,11 @@ final class GlBatch implements AutoCloseable {
         glDeleteBuffers(ebo);
         glDeleteVertexArrays(vao);
         program.close();
+        glDeleteBuffers(flatVbo);
+        glDeleteVertexArrays(flatVao);
+        flatProgram.close();
         MemoryUtil.memFree(vertices);
         MemoryUtil.memFree(indices);
+        MemoryUtil.memFree(flatVertices);
     }
 }

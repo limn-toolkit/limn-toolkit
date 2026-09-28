@@ -696,6 +696,63 @@ class PartialRenderingTest extends SceneTestBase {
         assertTrue(canvas.fullFramePainted(), "age 0 from the FrameInfo repaints the window");
     }
 
+    /**
+     * A window a modal blocks repaints whole only while its scrim fades, then idles, and a change
+     * beneath the scrim repaints only itself. On a renderer without a GPU a full frame of a blocked
+     * window cost 170 ms at 1800 x 1200 on the macOS guest, so a scrim that kept the damage whole,
+     * or kept asking for frames once it had settled, would hold the window at a few frames a second
+     * while nothing in it moved.
+     */
+    @Test
+    void aWindowAModalBlocksIdlesOnceTheScrimHasSettled() {
+        java.util.concurrent.atomic.AtomicLong now = new java.util.concurrent.atomic.AtomicLong(1_000_000_000L);
+        PaintCountingBox changing = new PaintCountingBox(100, 50);
+        Column column = new Column();
+        column.add(changing);
+        column.add(new PaintCountingBox(100, 50));
+        Scene blocked = new Scene(column, now::get);
+        blocked.setPartialRendering(true);
+        limn.testing.StubWindow window = new limn.testing.StubWindow();
+        blocked.bind(window);
+        canvas.reset();
+        blocked.renderFrame(canvas);
+        blocked.renderFrame(canvas); // history settled
+
+        window.modalBlocked = true;
+        int fadeFrames = 0;
+        do {
+            now.addAndGet(16_000_000L);
+            canvas.reset();
+            int asked = window.framesRequested;
+            blocked.renderFrame(canvas);
+            assertTrue(canvas.fullFramePainted(), "a fading scrim retints the whole window");
+            fadeFrames++;
+            if (window.framesRequested == asked) {
+                break; // settled: it asked for no next frame
+            }
+        } while (fadeFrames < 100);
+        assertTrue(fadeFrames > 2 && fadeFrames < 20, "the fade took " + fadeFrames + " frames");
+
+        int asked = window.framesRequested;
+        for (int i = 0; i < 3; i++) {
+            now.addAndGet(16_000_000L);
+            canvas.reset();
+            blocked.renderFrame(canvas);
+            // Two presents: the frame that settled the fade still has to reach the other buffer.
+            if (i > 0) {
+                assertTrue(canvas.nothingPainted(), "an idle blocked window paints nothing: " + canvas.log);
+            }
+        }
+        assertEquals(asked, window.framesRequested, "and asks for no frames");
+
+        changing.invalidate();
+        canvas.reset();
+        blocked.renderFrame(canvas);
+        assertTrue(canvas.partialFramePainted(), "a change beneath the scrim repaints only itself");
+        assertEquals(1, canvas.clips.size(), canvas.clips.toString());
+        assertTrue(canvas.log.contains("fill"), "and the scrim over it, inside the pass");
+    }
+
     private static boolean coveredBy(List<Rect> clips, Rect r) {
         for (Rect c : clips) {
             if (c.x() <= r.x() + EPS && c.y() <= r.y() + EPS

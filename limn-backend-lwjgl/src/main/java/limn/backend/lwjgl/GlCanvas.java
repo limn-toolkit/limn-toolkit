@@ -57,6 +57,8 @@ final class GlCanvas implements Canvas {
     private static final float AA_PAD_DEVICE = 1.0f;
     private static final float FLATTEN_TOLERANCE_DEVICE = 0.25f;
     private static final float EPSILON = 1e-6f;
+    /** How far from a whole device pixel an edge may be and still count as on it (float noise). */
+    private static final float PIXEL_EDGE_TOLERANCE = 1e-3f;
 
     private static final class State {
         final Transform2D transform = new Transform2D();
@@ -101,6 +103,8 @@ final class GlCanvas implements Canvas {
     private ShapingRuler ownRuler;
     private float scale = 1;
     private boolean inFrame;
+    private int flatRects;
+    private long flatPixels;
 
     GlCanvas(FontStore fontStore) {
         this.fontStore = fontStore;
@@ -126,6 +130,8 @@ final class GlCanvas implements Canvas {
             batch.resetTexture();
         }
         batch.beginFrame(framebufferWidth, framebufferHeight);
+        flatRects = 0;
+        flatPixels = 0;
         inFrame = true;
         current = this;
     }
@@ -162,6 +168,16 @@ final class GlCanvas implements Canvas {
 
     int drawCallsLastFrame() {
         return batch.drawCalls();
+    }
+
+    /** @return how many rectangles this frame drew with the flat program (see {@link #emitFlatRect}) */
+    int flatRectsThisFrame() {
+        return flatRects;
+    }
+
+    /** @return how many device pixels those rectangles covered, after the clip cut them */
+    long flatPixelsThisFrame() {
+        return flatPixels;
     }
 
     /**
@@ -1324,11 +1340,78 @@ final class GlCanvas implements Canvas {
         if (halfW < 0 || halfH < 0 || (strokeHalfWidth < 0 && (halfW == 0 || halfH == 0))) {
             return;
         }
+        if (strokeWidth <= 0 && tl <= 0 && tr <= 0 && br <= 0 && bl <= 0
+                && emitFlatRect(s, x, y, x1, y1, paint)) {
+            return;
+        }
         float maxRadius = Math.min(halfW, halfH);
         emitSdfQuad(KIND_ROUND_RECT, x + halfW, y + halfH, halfW, halfH,
                 Math.min(tl, maxRadius), Math.min(tr, maxRadius),
                 Math.min(br, maxRadius), Math.min(bl, maxRadius),
                 strokeHalfWidth, 1, 0, paint);
+    }
+
+    /**
+     * Draws a large filled rectangle with the batch's flat program when that draws what the SDF
+     * quad would: a solid colour, an axis-aligned transform, no rounded clip, and every edge of the
+     * rectangle, as the clip rectangle cuts it, on a whole device pixel. The rectangle is sent
+     * already cut to the clip rectangle, and the flat program writes the colour with no distance
+     * field, no derivative and no clip test.
+     *
+     * <p>Under those conditions the SDF quad's coverage is one inside and zero outside: the pixel
+     * nearest an edge has its centre half a pixel in, where the clip's antialiasing is fully on and
+     * the shape's is on to within a ten-millionth, and the skirt past the edge is off. The one place
+     * the two differ is where the SDF was wrong: along the target's last column and row it left up
+     * to 33 of 255 of the colour out (a derivative taken across the edge of the target widens the
+     * ramp there), and the flat program covers those pixels fully, as the rectangle asks.
+     *
+     * <p>What it saves is work, and on a renderer that runs the fragment shader on the CPU (macOS's
+     * software fallback, a VM with no GPU) that work is the frame. The scrim over a window that a
+     * modal blocks was one SDF quad over the whole window, as expensive as every widget of a form
+     * beneath it together, so the blocked window's full frame cost twice the unblocked one; and a
+     * partial repaint drew the scrim once per pass over the bounding box of all of them, because the
+     * clip discarded its pixels only after the shader had run for each.
+     *
+     * <p>Only a rectangle covering at least a quarter of the target (before the cut) takes this
+     * path, because switching programs breaks the batch: a draw call more on each side of the flat
+     * rectangle, which a scrim, a page background or a letterbox repays many times over and a list
+     * row between two labels would not.
+     *
+     * @return whether the rectangle was drawn; {@code false} leaves it to the SDF path
+     */
+    private boolean emitFlatRect(State s, float x, float y, float x1, float y1, Paint paint) {
+        Transform2D t = s.transform;
+        if (!(paint instanceof Color c) || s.clip.radius > 0 || t.m01 != 0 || t.m10 != 0) {
+            return false;
+        }
+        float ax = t.x(x, y);
+        float bx = t.x(x1, y1);
+        float ay = t.y(x, y);
+        float by = t.y(x1, y1);
+        if (Math.abs((bx - ax) * (by - ay)) * 4 < (float) fbWidth * fbHeight) {
+            return false; // too small to repay the batch break
+        }
+        float dx0 = Math.max(Math.min(ax, bx), s.clip.x0);
+        float dx1 = Math.min(Math.max(ax, bx), s.clip.x1);
+        float dy0 = Math.max(Math.min(ay, by), s.clip.y0);
+        float dy1 = Math.min(Math.max(ay, by), s.clip.y1);
+        int px0 = Math.round(dx0);
+        int px1 = Math.round(dx1);
+        int py0 = Math.round(dy0);
+        int py1 = Math.round(dy1);
+        if (px1 <= px0 || py1 <= py0
+                || Math.abs(dx0 - px0) > PIXEL_EDGE_TOLERANCE || Math.abs(dx1 - px1) > PIXEL_EDGE_TOLERANCE
+                || Math.abs(dy0 - py0) > PIXEL_EDGE_TOLERANCE
+                || Math.abs(dy1 - py1) > PIXEL_EDGE_TOLERANCE) {
+            // Clipped away, or an edge that crosses pixels and so has a fractional coverage (a
+            // clip's fractional edge can even leave part of a pixel showing past an empty cut).
+            return false;
+        }
+        applyBlend(s);
+        batch.flatRect(px0, py0, px1, py1, c.r(), c.g(), c.b(), c.a() * s.opacity);
+        flatRects++;
+        flatPixels += (long) (px1 - px0) * (py1 - py0);
+        return true;
     }
 
     /**
