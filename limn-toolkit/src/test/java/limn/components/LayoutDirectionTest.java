@@ -362,7 +362,7 @@ class LayoutDirectionTest extends ComponentTestBase {
     // ------------------------------------------------------------ the bridge
 
     @Test
-    void forLocaleReadsTheScriptFirstAndTheLanguageOnlyWhenThereIsNone() {
+    void forLocaleReadsTheScriptFirstThenTheLanguageInItsRegion() {
         assertSame(LayoutDirection.RTL, LayoutDirection.forLocale(Locale.forLanguageTag("ar")));
         assertSame(LayoutDirection.RTL, LayoutDirection.forLocale(Locale.forLanguageTag("he-IL")));
         assertSame(LayoutDirection.RTL, LayoutDirection.forLocale(Locale.forLanguageTag("fa")));
@@ -375,6 +375,21 @@ class LayoutDirectionTest extends ComponentTestBase {
                 LayoutDirection.forLocale(Locale.forLanguageTag("az-Arab")));
         assertSame(LayoutDirection.LTR,
                 LayoutDirection.forLocale(Locale.forLanguageTag("az-Latn")));
+
+        // With no script the region can decide, because it decides the script: CLDR takes
+        // Punjabi in Pakistan to be written in Arabic and Sindhi in India in Devanagari. A named
+        // script still decides over the region.
+        assertSame(LayoutDirection.LTR, LayoutDirection.forLocale(Locale.forLanguageTag("pa")));
+        assertSame(LayoutDirection.RTL, LayoutDirection.forLocale(Locale.forLanguageTag("pa-PK")));
+        assertSame(LayoutDirection.LTR,
+                LayoutDirection.forLocale(Locale.forLanguageTag("pa-Guru-PK")));
+        assertSame(LayoutDirection.RTL, LayoutDirection.forLocale(Locale.forLanguageTag("sd")));
+        assertSame(LayoutDirection.LTR, LayoutDirection.forLocale(Locale.forLanguageTag("sd-IN")));
+        assertSame(LayoutDirection.RTL,
+                LayoutDirection.forLocale(Locale.forLanguageTag("sd-Arab-IN")));
+        // And a region named with no language is read for the language CLDR takes it to mean.
+        assertSame(LayoutDirection.RTL,
+                LayoutDirection.forLocale(new Locale.Builder().setRegion("SA").build()));
 
         // Locale still normalises Hebrew's modern tag to the historical one.
         assertSame(LayoutDirection.RTL, LayoutDirection.forLocale(new Locale("iw")));
