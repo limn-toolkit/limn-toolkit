@@ -7,9 +7,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,7 +42,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>Its fourth, the codes ICU reads as another language, is asked of the digits table here. The
  * direction search went through the same replacement, so a code whose replacement is written
- * right to left is itself a {@code rtl} row and the direction test already holds it.
+ * right to left is itself a {@code rtl} row, and one whose replacement a region turns is itself a
+ * {@code direction} row ({@code pan-PK} as {@code pa-PK}), and the direction tests already hold
+ * both.
+ *
+ * <p><b>The direction table ignored the region until 2026-09-28</b> (ICU 78.3): 78 of the 119
+ * {@code direction} rows are a language turned by its region, among them Punjabi in Pakistan,
+ * Uzbek in Afghanistan, Azerbaijani, Kazakh and Kurdish in Iran, and Sindhi in India, and every
+ * one of the 78 was laid out the way the language alone runs.
  */
 class CldrLocaleFactsTest {
 
@@ -258,6 +268,159 @@ class CldrLocaleFactsTest {
             }
         }
         assertEquals(List.of(), overreach, "languages we mirror and CLDR does not");
+    }
+
+    /**
+     * Where a region or a script turns a language the other way. CLDR reads a locale that names
+     * no script for the script its language is likely written in <em>there</em>: {@code pa-PK},
+     * Punjabi in Pakistan, is Punjabi in Arabic script and runs right to left where {@code pa}
+     * runs left to right, and {@code sd-IN}, Sindhi in India, is Devanagari and runs left to
+     * right where {@code sd} does not. A script, where one is named, decides over the region:
+     * {@code pa-Guru-PK} runs left to right.
+     */
+    @Test
+    void theDirectionRowsAreCldrs() throws Exception {
+        List<String[]> rows = directionRows();
+        assertTrue(rows.size() >= 100, "the dump carries only " + rows.size() + " direction rows");
+
+        List<String> wrong = new ArrayList<>();
+        for (String[] row : rows) {
+            LayoutDirection cldr = LayoutDirection.valueOf(row[1].toUpperCase(Locale.ROOT));
+            LayoutDirection ours = LayoutDirection.forLocale(Locale.forLanguageTag(row[0]));
+            if (ours != cldr) {
+                wrong.add(row[0] + ": CLDR says " + row[1] + ", we say " + ours);
+            }
+        }
+        assertEquals(List.of(), wrong, "LayoutDirection.forLocale disagrees with CLDR");
+    }
+
+    /**
+     * A region no row names leaves a language's direction where it was. Without this half a table
+     * that turned Punjabi in every region, or every language in Pakistan, would pass the rows
+     * above. Asked of every code the dump searched in every region some row names, and of every
+     * language a row or the JDK names in every region there is, as the dump asked them.
+     */
+    @Test
+    void aRegionTheDumpDoesNotNameLeavesADirectionAlone() throws Exception {
+        Set<String> tags = new HashSet<>();
+        Set<String> named = new TreeSet<>(List.of(Locale.getISOLanguages()));
+        Set<String> regions = new TreeSet<>();
+        for (String[] row : directionRows()) {
+            tags.add(row[0]);
+            named.add(row[0].split("-")[0]);
+            String region = Locale.forLanguageTag(row[0]).getCountry();
+            if (!region.isEmpty()) {
+                regions.add(region);
+            }
+        }
+        named.addAll(rightToLeftRows());
+        assertTrue(regions.size() >= 30, "the rows name only the regions " + regions);
+
+        List<String> everyRegion = new ArrayList<>();
+        for (char a = 'A'; a <= 'Z'; a++) {
+            for (char b = 'A'; b <= 'Z'; b++) {
+                everyRegion.add(new String(new char[]{a, b}));
+            }
+        }
+        Set<String> languages = new TreeSet<>(named);
+        for (char a = 'a'; a <= 'z'; a++) {
+            for (char b = 'a'; b <= 'z'; b++) {
+                languages.add(new String(new char[]{a, b}));
+                for (char c = 'a'; c <= 'z'; c++) {
+                    languages.add(new String(new char[]{a, b, c}));
+                }
+            }
+        }
+        List<String> wrong = new ArrayList<>();
+        for (String language : languages) {
+            LayoutDirection alone = LayoutDirection.forLocale(Locale.forLanguageTag(language));
+            for (String region : named.contains(language) ? everyRegion : regions) {
+                String tag = language + "-" + region;
+                if (tags.contains(tag)) {
+                    continue;
+                }
+                LayoutDirection ours = LayoutDirection.forLocale(Locale.forLanguageTag(tag));
+                if (ours != alone) {
+                    wrong.add(tag + ": " + language + " runs " + alone + ", we say " + ours);
+                }
+            }
+        }
+        assertEquals(List.of(), wrong, "a region the dump does not name turned a language");
+    }
+
+    /**
+     * A named script decides alone, whatever the language and the region: CLDR looks for the
+     * script a language is likely written in only when the locale names none. That is where
+     * direction parts from digits, whose script a language inherits when CLDR holds it in no
+     * data of its own: {@code sd-Latn} has no row, since ICU holds Sindhi in Arabic and
+     * Devanagari only, and runs left to right as every Latin tag does. So a script no row names
+     * for a language leaves it where it was when the script runs its way, and turns it when the
+     * script runs the other. Without this half a table that read the region first, or the
+     * language, would pass wherever no row happens to name the pair; asked of every language a
+     * row or the JDK names, in every script a row names, alone and in every region a row names.
+     */
+    @Test
+    void aScriptDecidesADirectionAlone() throws Exception {
+        Map<String, LayoutDirection> scripts = new TreeMap<>();
+        List<String> torn = new ArrayList<>();
+        Set<String> named = new TreeSet<>(List.of(Locale.getISOLanguages()));
+        Set<String> regions = new TreeSet<>(Set.of(""));
+        for (String[] row : directionRows()) {
+            Locale locale = Locale.forLanguageTag(row[0]);
+            named.add(row[0].split("-")[0]);
+            regions.add(locale.getCountry());
+            if (locale.getScript().isEmpty()) {
+                continue;
+            }
+            LayoutDirection cldr = LayoutDirection.valueOf(row[1].toUpperCase(Locale.ROOT));
+            LayoutDirection before = scripts.putIfAbsent(locale.getScript(), cldr);
+            if (before != null && before != cldr) {
+                torn.add(row[0] + " runs " + cldr + " where another row runs "
+                        + locale.getScript() + " " + before);
+            }
+        }
+        named.addAll(rightToLeftRows());
+        assertEquals(List.of(), torn, "the dump runs one script both ways");
+        assertTrue(scripts.size() >= 5, "the rows name only the scripts " + scripts.keySet());
+
+        List<String> wrong = new ArrayList<>();
+        for (String language : named) {
+            for (Map.Entry<String, LayoutDirection> script : scripts.entrySet()) {
+                for (String region : regions) {
+                    Locale tag = new Locale.Builder().setLanguageTag(language)
+                            .setScript(script.getKey()).setRegion(region).build();
+                    LayoutDirection ours = LayoutDirection.forLocale(tag);
+                    if (ours != script.getValue()) {
+                        wrong.add(tag.toLanguageTag() + ": " + script.getKey() + " runs "
+                                + script.getValue() + ", we say " + ours);
+                    }
+                }
+            }
+        }
+        assertEquals(List.of(), wrong, "a named script lost to the language or the region");
+    }
+
+    /** Each {@code direction} row as its tag and CLDR's {@code ltr} or {@code rtl} for it. */
+    private static List<String[]> directionRows() throws Exception {
+        List<String[]> rows = new ArrayList<>();
+        for (String line : lines()) {
+            if (line.startsWith("direction ")) {
+                String[] parts = line.split(" ");
+                rows.add(new String[]{parts[1], parts[2]});
+            }
+        }
+        return rows;
+    }
+
+    /** Every language subtag the {@code rtl} rows name. */
+    private static Set<String> rightToLeftRows() throws Exception {
+        Set<String> languages = new TreeSet<>();
+        for (String line : lines()) {
+            if (line.startsWith("rtl ")) {
+                languages.addAll(List.of(line.substring("rtl ".length()).split(" ")));
+            }
+        }
+        return languages;
     }
 
     /** Each {@code digits} row as its tag and CLDR's system for it. */

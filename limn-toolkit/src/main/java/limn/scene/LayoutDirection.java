@@ -157,7 +157,8 @@ public enum LayoutDirection {
 
     /**
      * The language subtags whose default script is written right to left, for the common case of
-     * a locale that names no script at all.
+     * a locale that names no script at all, and no region that turns the language the other way
+     * (the two tables below).
      *
      * <p><b>Measured, not listed from memory</b> (2026-09-21). Until that date this set had
      * fifteen entries, chosen by thinking of the languages one thinks of, and it was wrong about
@@ -199,6 +200,42 @@ public enum LayoutDirection {
             "xvi", "ydd", "ydg", "yhd", "yi", "yid", "yih", "yud", "zba", "zdj", "zrp", "zum");
 
     /**
+     * The regions that turn a language right to left, keyed {@code language-REGION}: where CLDR
+     * takes a language named with no script to be written in a right-to-left script because of
+     * the region it is named in. Punjabi is Gurmukhi and runs left to right, and Punjabi in
+     * Pakistan is Arabic; Azerbaijani, Kazakh and Kurdish are Arabic in Iran, Uzbek in
+     * Afghanistan. {@code und}, a locale that names a region and no language, is read for the
+     * language CLDR takes the region to mean: {@code und-SA} is Arabic.
+     *
+     * <p>The {@code direction} rows of {@code cldr-locale-facts.txt} that name a region and no
+     * script, written by {@code scripts/i18n/dump-cldr-locale-facts.mjs} from ICU 78.3 over every
+     * two- and three-letter code in every two-letter region, and held to this table by
+     * {@code CldrLocaleFactsTest}. The other three-letter codes are the ones ICU reads as one of
+     * these languages ({@code pan} is {@code pa}), listed as {@link #RTL_LANGUAGES} lists them;
+     * the two retired regions, {@code NT} and {@code YD}, are there because {@link Locale} keeps
+     * a region as it is given.
+     */
+    private static final Set<String> RTL_IN_REGION = Set.of(
+            "az-IQ", "az-IR", "aze-IQ", "aze-IR", "azj-IQ", "azj-IR", "ha-CM", "ha-SD",
+            "hau-CM", "hau-SD", "kaz-AF", "kaz-CN", "kaz-IR", "kaz-MN", "kir-CN", "kk-AF",
+            "kk-CN", "kk-IR", "kk-MN", "kmr-IQ", "kmr-IR", "kmr-LB", "ku-IQ", "ku-IR", "ku-LB",
+            "kur-IQ", "kur-IR", "kur-LB", "ky-CN", "may-CC", "ms-CC", "msa-CC", "pa-PK",
+            "pan-PK", "tg-PK", "tgk-PK", "uz-AF", "uzb-AF", "uzn-AF", "zsm-CC",
+            "und-AE", "und-AF", "und-BH", "und-CC", "und-DZ", "und-EG", "und-EH", "und-IL",
+            "und-IQ", "und-IR", "und-JO", "und-KM", "und-KW", "und-LB", "und-LY", "und-MA",
+            "und-MR", "und-MV", "und-NT", "und-OM", "und-PK", "und-PS", "und-QA", "und-SA",
+            "und-SD", "und-SS", "und-SY", "und-TD", "und-TN", "und-YD", "und-YE");
+
+    /**
+     * The regions that turn a right-to-left language left to right, the other half of
+     * {@link #RTL_IN_REGION} and from the same rows: Sindhi is Arabic and runs right to left, and
+     * Sindhi in India is Devanagari; Uyghur is Cyrillic in Kazakhstan and Mongolia, and Hassaniya
+     * is Latin in Senegal.
+     */
+    private static final Set<String> LTR_IN_REGION = Set.of(
+            "mey-SN", "sd-IN", "snd-IN", "ug-KZ", "ug-MN", "uig-KZ", "uig-MN");
+
+    /**
      * The script codes this class writes right to left, for {@code LayoutDirectionScriptsTest},
      * which holds them to the JDK's own Unicode data. Package-private: the table is an
      * implementation of {@link #forLocale} and not something to branch on.
@@ -221,9 +258,16 @@ public enum LayoutDirection {
      * starting point rather than a policy: an application whose user has chosen a direction should
      * honour that choice instead.
      *
-     * <p>The script is consulted first and the language only when the locale names no script,
-     * because a language can be written in either. Anything unrecognised is {@link #LTR}, which is
-     * the same fallback the first-strong rule makes for text with no strong character.
+     * <p>The script is consulted first, because a language can be written in either direction and
+     * only the script says which. A locale that names no script is read, as CLDR reads it, for
+     * the script its language is likely written in where the locale is: the language's own,
+     * except in the regions that change it. Punjabi runs left to right and {@code pa-PK},
+     * Punjabi in Pakistan, is written in Arabic and runs right to left; Sindhi runs right to
+     * left and {@code sd-IN} is Devanagari; a named script still decides over the region, so
+     * {@code pa-Guru-PK} runs left to right. A region named with no language is read for the
+     * language CLDR takes it to mean, so {@code und-SA} runs right to left. Anything
+     * unrecognised is {@link #LTR}, which is the same fallback the first-strong rule makes for
+     * text with no strong character.
      *
      * @param locale the locale to classify
      * @return {@link #RTL} when that locale's script is written right to left, else {@link #LTR}
@@ -235,6 +279,17 @@ public enum LayoutDirection {
         if (!script.isEmpty()) {
             return RTL_SCRIPTS.contains(script) ? RTL : LTR;
         }
-        return RTL_LANGUAGES.contains(locale.getLanguage()) ? RTL : LTR;
+        String language = locale.getLanguage();
+        String region = locale.getCountry();
+        if (!region.isEmpty()) {
+            String where = (language.isEmpty() ? "und" : language) + "-" + region;
+            if (RTL_IN_REGION.contains(where)) {
+                return RTL;
+            }
+            if (LTR_IN_REGION.contains(where)) {
+                return LTR;
+            }
+        }
+        return RTL_LANGUAGES.contains(language) ? RTL : LTR;
     }
 }

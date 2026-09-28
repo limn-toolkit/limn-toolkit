@@ -1,6 +1,6 @@
 // What CLDR says about a locale, for the tables this toolkit writes out by hand: which digits a
-// language writes numbers in, which direction its script runs, which region a language named
-// alone is taken to mean, and which codes are another language's.
+// language writes numbers in, which direction it runs in and where a region or a script turns it,
+// which region a language named alone is taken to mean, and which codes are another language's.
 //
 // The sibling of dump-cldr-plurals.mjs and the same argument: Node's Intl is CLDR through ICU,
 // so it is the source limn.i18n.NumberingSystem, limn.scene.LayoutDirection and the likely
@@ -19,6 +19,20 @@
 // is, 17,576 of them, asked one by one. That is how the 269 right-to-left languages the first
 // hand-written table missed were found; a list of "the ones we thought of" would have missed them
 // again.
+//
+// A language alone is half of it. ICU reads a direction off the locale's script, and a locale that
+// names none off the script its likely subtags give the language in the locale's region: pa-PK,
+// Punjabi in Pakistan, is Punjabi in Arabic script and runs right to left where pa runs left to
+// right, and sd-IN, Sindhi in India, is Devanagari and runs left to right where sd does not. So the
+// direction search also asks every one of those codes in every two-letter region, some 12 million
+// tags and nearly three minutes where the rest of the file takes seconds, and writes the regions
+// that turn a language the other way. It asks the codes ICU reads as another language too, as the
+// rtl search did, since pan-PK is pa-PK, and und, which names no language, since ICU gives a region
+// alone its likely language: und-SA is Arabic. Then it asks each language in the scripts ICU holds
+// it in and writes those that run the other way, where holding it means a script its likely
+// subtags give it in some region (az-IR is az-Arab) or one ICU has locale data for it in (ks-Deva,
+// ff-Adlm). A script ICU does not hold a language in is not asked: sd-Latn runs left to right as
+// every Latin tag does, and a row for it would say nothing about Sindhi.
 //
 // The digits search covers the same languages, and for each the scripts ICU holds it in, found
 // the same way: every four-letter code CLDR has a script name for, tried on every language. A
@@ -90,6 +104,37 @@ function direction(tag) {
     }
 }
 
+// The scripts ICU holds a language in, in SCRIPTS' order: each one its likely subtags give the
+// language, alone or in some region, and each one ICU keeps locale data for it in. Empty for a
+// code ICU reads as another language, whose likely subtags are its replacement's, and for und.
+function heldScripts(language) {
+    const likely = tag => {
+        try {
+            const maximized = new Intl.Locale(tag).maximize();
+            return maximized.language === language ? maximized.script : undefined;
+        } catch {
+            return undefined;
+        }
+    };
+    const held = new Set();
+    if (likely(language) !== undefined) {
+        for (const tag of [language, ...REGIONS.map(region => `${language}-${region}`)]) {
+            const script = likely(tag);
+            if (script !== undefined) {
+                held.add(script);
+            }
+        }
+    }
+    if (numbering(language) !== null) {
+        for (const script of SCRIPTS) {
+            if (numbering(`${language}-${script}`, script) !== null) {
+                held.add(script);
+            }
+        }
+    }
+    return SCRIPTS.filter(script => held.has(script));
+}
+
 // The numbering system ICU resolves for a tag, or null where ICU has no data for that language
 // and fell back to the default locale. Without that guard a tag ICU does not know answers "latn"
 // exactly as a language that really writes Latin digits does — and worse: the deprecated code
@@ -118,6 +163,12 @@ out.push(`# produced by scripts/i18n/dump-cldr-locale-facts.mjs on ${new Date().
 out.push("#");
 out.push("# rtl <language subtag> ...   every subtag ICU writes right to left, searched over all");
 out.push("#                             two- and three-letter codes");
+out.push("# direction <language>-<REGION> <ltr|rtl>   a region that differs from its language, of");
+out.push("#                             every code the rtl rows searched, und (no language) included");
+out.push("# direction <language>-<Script> <ltr|rtl>   a script ICU holds the language in that differs");
+out.push("#                             from the language");
+out.push("# direction <language>-<Script>-<REGION> <ltr|rtl>   a region that differs from its");
+out.push("#                             language in that script, or from a region row of the language");
 out.push("# digits <language> <system>  a language, of two letters or three, whose default digits");
 out.push("#                             are not latn");
 out.push("# digits <language>-<REGION> <system>   a region that differs from its language");
@@ -133,6 +184,43 @@ out.push("#                             and the script or region the replacement
 const rtl = [...TWO_LETTER, ...THREE_LETTER].filter(tag => direction(tag) === "rtl");
 for (let i = 0; i < rtl.length; i += 16) {
     out.push("rtl " + rtl.slice(i, i + 16).join(" "));
+}
+
+// A language's direction rows, in the digits rows' shape: the regions that turn it, then each
+// script ICU holds it in that runs the other way, and each region that differs from the script.
+// ICU 78.3 writes none of the last kind, since a named script decides alone, and the search asks
+// anyway so that the day one does the file says so. A script-and-region row is also written
+// wherever the script answers otherwise than a region row of the language, since that is where a
+// table that read the region first would go wrong: pa-PK runs right to left and pa-Guru-PK,
+// Gurmukhi in Pakistan, left to right.
+for (const language of [...TWO_LETTER, ...THREE_LETTER]) {
+    const base = direction(language);
+    if (base === null) {
+        continue;
+    }
+    const rows = [];
+    const byRegion = new Map();
+    for (const region of REGIONS) {
+        const here = direction(`${language}-${region}`);
+        if (here !== null && here !== base) {
+            byRegion.set(region, here);
+            rows.push(`direction ${language}-${region} ${here}`);
+        }
+    }
+    for (const script of heldScripts(language)) {
+        const written = direction(`${language}-${script}`);
+        if (written !== base) {
+            rows.push(`direction ${language}-${script} ${written}`);
+        }
+        for (const region of REGIONS) {
+            const here = direction(`${language}-${script}-${region}`);
+            const regionRow = byRegion.get(region);
+            if (here !== written || (regionRow !== undefined && here !== regionRow)) {
+                rows.push(`direction ${language}-${script}-${region} ${here}`);
+            }
+        }
+    }
+    out.push(...rows);
 }
 
 // A language's rows: its own system, the regions that differ from it, then each script ICU holds

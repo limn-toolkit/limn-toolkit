@@ -1,9 +1,15 @@
 # CLDR locale facts, dumped from ICU.
 # node v26.7.0, ICU 78.3, Unicode 17.0
-# produced by scripts/i18n/dump-cldr-locale-facts.mjs on 2026-09-27
+# produced by scripts/i18n/dump-cldr-locale-facts.mjs on 2026-09-28
 #
 # rtl <language subtag> ...   every subtag ICU writes right to left, searched over all
 #                             two- and three-letter codes
+# direction <language>-<REGION> <ltr|rtl>   a region that differs from its language, of
+#                             every code the rtl rows searched, und (no language) included
+# direction <language>-<Script> <ltr|rtl>   a script ICU holds the language in that differs
+#                             from the language
+# direction <language>-<Script>-<REGION> <ltr|rtl>   a region that differs from its
+#                             language in that script, or from a region row of the language
 # digits <language> <system>  a language, of two letters or three, whose default digits
 #                             are not latn
 # digits <language>-<REGION> <system>   a region that differs from its language
@@ -33,6 +39,125 @@ rtl siz skr smp smy snd sog sqo sqt srh srz ssh sts swb syc syn syr
 rtl tjo tks tmr tnf tov tra trg trm trw uig urd ush uzs vaf vgr vmh
 rtl wbk wlo wne wni wsv xco xhe xka xkc xkj xkp xld xly xmn xmr xna
 rtl xpr xsa xsd xvi ydd ydg yhd yid yih yud zba zdj zrp zum
+direction az-IQ rtl
+direction az-IR rtl
+direction az-Arab rtl
+direction az-Cyrl-IQ ltr
+direction az-Cyrl-IR ltr
+direction az-Latn-IQ ltr
+direction az-Latn-IR ltr
+direction ff-Adlm rtl
+direction ha-CM rtl
+direction ha-SD rtl
+direction ha-Arab rtl
+direction ha-Latn-CM ltr
+direction ha-Latn-SD ltr
+direction kk-AF rtl
+direction kk-CN rtl
+direction kk-IR rtl
+direction kk-MN rtl
+direction kk-Arab rtl
+direction kk-Cyrl-AF ltr
+direction kk-Cyrl-CN ltr
+direction kk-Cyrl-IR ltr
+direction kk-Cyrl-MN ltr
+direction ks-Deva ltr
+direction ku-IQ rtl
+direction ku-IR rtl
+direction ku-LB rtl
+direction ku-Arab rtl
+direction ku-Cyrl-IQ ltr
+direction ku-Cyrl-IR ltr
+direction ku-Cyrl-LB ltr
+direction ku-Latn-IQ ltr
+direction ku-Latn-IR ltr
+direction ku-Latn-LB ltr
+direction ky-CN rtl
+direction ky-Arab rtl
+direction ky-Cyrl-CN ltr
+direction ky-Latn-CN ltr
+direction ms-CC rtl
+direction ms-Arab rtl
+direction ms-Latn-CC ltr
+direction pa-PK rtl
+direction pa-Arab rtl
+direction pa-Guru-PK ltr
+direction sd-IN ltr
+direction sd-Arab-IN rtl
+direction sd-Deva ltr
+direction tg-PK rtl
+direction tg-Arab rtl
+direction tg-Cyrl-PK ltr
+direction ug-KZ ltr
+direction ug-MN ltr
+direction ug-Arab-KZ rtl
+direction ug-Arab-MN rtl
+direction ug-Cyrl ltr
+direction uz-AF rtl
+direction uz-Arab rtl
+direction uz-Cyrl-AF ltr
+direction uz-Latn-AF ltr
+direction aze-IQ rtl
+direction aze-IR rtl
+direction azj-IQ rtl
+direction azj-IR rtl
+direction hau-CM rtl
+direction hau-SD rtl
+direction kaz-AF rtl
+direction kaz-CN rtl
+direction kaz-IR rtl
+direction kaz-MN rtl
+direction kir-CN rtl
+direction kmr-IQ rtl
+direction kmr-IR rtl
+direction kmr-LB rtl
+direction kur-IQ rtl
+direction kur-IR rtl
+direction kur-LB rtl
+direction may-CC rtl
+direction mey-SN ltr
+direction mey-Arab-SN rtl
+direction mey-Latn ltr
+direction msa-CC rtl
+direction pan-PK rtl
+direction snd-IN ltr
+direction tgk-PK rtl
+direction uig-KZ ltr
+direction uig-MN ltr
+direction und-AE rtl
+direction und-AF rtl
+direction und-BH rtl
+direction und-CC rtl
+direction und-DZ rtl
+direction und-EG rtl
+direction und-EH rtl
+direction und-IL rtl
+direction und-IQ rtl
+direction und-IR rtl
+direction und-JO rtl
+direction und-KM rtl
+direction und-KW rtl
+direction und-LB rtl
+direction und-LY rtl
+direction und-MA rtl
+direction und-MR rtl
+direction und-MV rtl
+direction und-NT rtl
+direction und-OM rtl
+direction und-PK rtl
+direction und-PS rtl
+direction und-QA rtl
+direction und-SA rtl
+direction und-SD rtl
+direction und-SS rtl
+direction und-SY rtl
+direction und-TD rtl
+direction und-TN rtl
+direction und-YD rtl
+direction und-YE rtl
+direction uzb-AF rtl
+direction uzn-AF rtl
+direction zsm-CC rtl
 digits ar-BH arab
 digits ar-DJ arab
 digits ar-EG arab
