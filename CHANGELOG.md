@@ -146,6 +146,13 @@ Maven Central say which number that was.
   most likely means: Central Kurdish (`ckb`) starts on Saturday as Iraq does, where 4,304 such
   languages had the United States' week.
 - Text in the Garay and Sidetic scripts runs right to left.
+- A window gets the keyboard back as soon as an item of its menu is chosen, so a Tab pressed right
+  after moves its focus; the key went to the fading menu and was lost, and on macOS the window did
+  not get the keyboard back at all. A menu that is closing takes no more input, so a second Enter
+  or click during its fade no longer runs the item twice, and a key typed while a dismissed menu
+  fades reaches the window.
+- Leaving fullscreen on GNOME brings the window back at the size and place it had; it came back
+  maximized, or 37 points shorter, depending on where the desktop had first put it.
 - A `DateField` tells the input method where the segment being typed is, so a Japanese or Chinese
   candidate window opens under it. It had no anchor.
 - A legacy or three-letter language code writes the digits of the language it stands for: `pes`
@@ -232,6 +239,10 @@ Maven Central say which number that was.
   `align`, `footer`, and `footerSum` through `footerCount`) check the UI thread, as every other
   public mutator does. Build columns on the UI thread; with no backend started a setter throws
   `IllegalStateException`. The static factories (`Column.text`, `numeric`, …) do not check.
+- A window put in fullscreen with `enterFullscreen()`, without a mode, stays fullscreen when another
+  application takes the focus, on Windows and Linux, as a browser's fullscreen does: Alt-Tab brings
+  the other application in front of it instead of minimizing it. A fullscreen at a mode you name, the
+  path for games, still minimizes when it loses the focus.
 - `DatePicker.displayMode()` answers the presentation asked for while the picker is closed, as
   `ComboBox.displayMode()` does. It answered null.
 - A chart writes values of 1e15 and more in scientific notation by default, on its value axis and
