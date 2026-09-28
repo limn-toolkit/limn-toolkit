@@ -25,4 +25,7 @@
  * synthetic stream proves it against arithmetic, with no codec, no native and no committed media in
  * either direction.
  */
+@NullMarked
 package limn.video.decode;
+
+import org.jspecify.annotations.NullMarked;

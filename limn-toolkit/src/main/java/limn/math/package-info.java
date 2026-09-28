@@ -7,4 +7,7 @@
  * picking. {@link limn.math.MutMat4} is the deliberate exception to immutability, for
  * per-frame arithmetic where the allocation itself is the cost being avoided.
  */
+@NullMarked
 package limn.math;
+
+import org.jspecify.annotations.NullMarked;

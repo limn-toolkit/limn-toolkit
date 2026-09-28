@@ -30,4 +30,7 @@
  * what keeps it so. Nothing here may be built with {@code --enable-gpl}, and a test reads the
  * linked library's own configure line to make sure nothing has been.
  */
+@NullMarked
 package limn.video.ffmpeg;
+
+import org.jspecify.annotations.NullMarked;

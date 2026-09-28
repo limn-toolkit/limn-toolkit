@@ -3,6 +3,9 @@ lwjgl = "3.4.3"
 jlayer = "1.0.1"
 junit = "6.1.3"
 central-publish = "0.37.0"
+# The nullness annotations the public API is written in: four annotations and no code, read by
+# the compiler, an IDE, Kotlin and a checker such as NullAway, and by nothing at run time.
+jspecify = "1.0.1"
 # The faces, from the limn-fonts repository, where each versions with its font rather than with
 # this toolkit (ADR 036). Bumping one of these swaps megabytes of binary nobody reviews in a
 # one-line diff; VendoredFontsTest is what makes that diff fail until the new build's digests
@@ -41,6 +44,7 @@ limn-fonts-noto-emoji = { module = "io.github.limn-toolkit:limn-fonts-noto-emoji
 limn-fonts-noto-scripts = { module = "io.github.limn-toolkit:limn-fonts-noto-scripts", version.ref = "limn-fonts-noto-scripts" }
 limn-ffmpeg-natives = { module = "io.github.limn-toolkit:limn-ffmpeg-natives", version.ref = "limn-ffmpeg-natives" }
 limn-icons-tabler = { module = "io.github.limn-toolkit:limn-icons-tabler", version.ref = "limn-icons-tabler" }
+jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

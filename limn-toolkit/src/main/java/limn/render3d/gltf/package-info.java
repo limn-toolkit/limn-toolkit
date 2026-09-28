@@ -5,4 +5,7 @@
  * can run on a worker (the {@code loadAsync} forms are cancellable and report progress)
  * and the upload happens later, inside a frame.
  */
+@NullMarked
 package limn.render3d.gltf;
+
+import org.jspecify.annotations.NullMarked;

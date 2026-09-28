@@ -5,6 +5,8 @@
  */
 module limn.test {
     requires transitive limn.toolkit;
+    // The nullness annotations on this module's signatures, as limn.toolkit requires them.
+    requires static transitive org.jspecify;
     // AllocationProbe reads the allocated bytes of the current thread.
     requires jdk.management;
 

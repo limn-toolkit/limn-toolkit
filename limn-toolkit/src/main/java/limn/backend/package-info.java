@@ -8,4 +8,7 @@
  * what one owes the toolkit; an application constructs one at startup and otherwise
  * programs against the modules above, which never name a windowing library.
  */
+@NullMarked
 package limn.backend;
+
+import org.jspecify.annotations.NullMarked;

@@ -9,4 +9,7 @@
  * {@link limn.render3d.RenderTarget} the 2D pipeline composites like any other texture,
  * which is why a 3D viewport is just a widget.
  */
+@NullMarked
 package limn.render3d;
+
+import org.jspecify.annotations.NullMarked;

@@ -29,6 +29,8 @@ val lwjglTargets = mapOf(
 
 dependencies {
     api(project(":limn-toolkit"))
+    // The nullness annotations on this module's own signatures; see limn-toolkit's build.
+    api(libs.jspecify)
 
     // The faces, as artifacts (ADR 036): each versions with its font, so a toolkit release
     // stops re-shipping megabytes that did not change and an application's cache keeps them

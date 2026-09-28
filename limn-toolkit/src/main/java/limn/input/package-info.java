@@ -3,4 +3,7 @@
  * event carries and what an application binds a shortcut against, so no code above the
  * backend names a windowing library's constants.
  */
+@NullMarked
 package limn.input;
+
+import org.jspecify.annotations.NullMarked;

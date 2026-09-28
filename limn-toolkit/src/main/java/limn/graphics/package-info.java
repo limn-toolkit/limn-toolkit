@@ -7,4 +7,7 @@
  * {@link limn.graphics.Icon}s rasterized from SVG or bitmaps. Coordinates are logical
  * points and the backend supplies the pixels, so nothing here imports a graphics library.
  */
+@NullMarked
 package limn.graphics;
+
+import org.jspecify.annotations.NullMarked;

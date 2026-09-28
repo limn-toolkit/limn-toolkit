@@ -7,4 +7,7 @@
  * {@link limn.render3d.shader.StandardSurface} expresses the built-in metallic-roughness
  * surface in this IR, and is the model for writing a custom one.
  */
+@NullMarked
 package limn.render3d.shader;
+
+import org.jspecify.annotations.NullMarked;

@@ -9,6 +9,8 @@
  */
 module limn.backend.lwjgl {
     requires transitive limn.toolkit;
+    // The nullness annotations on this module's signatures, as limn.toolkit requires them.
+    requires static transitive org.jspecify;
     requires org.lwjgl;
     requires org.lwjgl.glfw;
     requires org.lwjgl.egl;

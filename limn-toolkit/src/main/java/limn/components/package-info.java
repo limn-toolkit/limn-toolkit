@@ -37,4 +37,7 @@
  * <p>Keyboard traversal is not bound by the first rule: arrowing past either end of a strip lands
  * on the end, because that is what the key means, not what an index means.
  */
+@NullMarked
 package limn.components;
+
+import org.jspecify.annotations.NullMarked;

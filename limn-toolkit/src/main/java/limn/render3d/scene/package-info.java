@@ -6,4 +6,7 @@
  * here when transforms nest; the guarantee worth knowing is that a declarative scene
  * renders identically to the equivalent imperative draws.
  */
+@NullMarked
 package limn.render3d.scene;
+
+import org.jspecify.annotations.NullMarked;

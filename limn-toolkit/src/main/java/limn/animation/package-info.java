@@ -10,4 +10,7 @@
  * animation" a test wants. Moving the target is UI-thread-confined like any widget
  * mutation.
  */
+@NullMarked
 package limn.animation;
+
+import org.jspecify.annotations.NullMarked;

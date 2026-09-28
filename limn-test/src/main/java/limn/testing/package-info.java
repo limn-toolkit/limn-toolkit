@@ -14,4 +14,7 @@
  * {@code AccessibleInvariants} returns its violations as text, and any framework can report
  * either.
  */
+@NullMarked
 package limn.testing;
+
+import org.jspecify.annotations.NullMarked;

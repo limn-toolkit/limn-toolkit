@@ -52,6 +52,8 @@ dependencies {
     // limn-toolkit, for the SPI (limn.video). The pure-Java decoders live there too now, and
     // this module uses none of them: what it implements is the same interface they do.
     api(project(":limn-toolkit"))
+    // The nullness annotations on this module's own signatures; see limn-toolkit's build.
+    api(libs.jspecify)
 
     // The shim, for every platform, from the payload's main jar: what makes "add
     // limn-video-ffmpeg" bring the native half of itself along. api rather than runtimeOnly
