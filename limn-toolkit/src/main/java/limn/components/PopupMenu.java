@@ -196,6 +196,11 @@ public final class PopupMenu {
      * leaves nothing for the end of its fade to do; see {@link #runChosen}.
      */
     private boolean keyboardHandedBack;
+    /**
+     * Keys a menu bar's walk passed on to this menu before its window was made, delivered in order
+     * once it is; see {@link #keyFromWalk}. Null while there are none.
+     */
+    private List<LateKey> keysBeforeWindow;
     private Subscription dismissHandle;
     private Subscription blurHandle;
     private Subscription popupBlurHandle;
@@ -435,7 +440,7 @@ public final class PopupMenu {
         open = false;
         if (surface != null) {
             // Its window or overlay fades from here on and still receives input, none of which
-            // the menu answers any more; see MenuSurface#passOnWhileClosing.
+            // the menu answers any more; see MenuSurface#lateKey.
             surface.closed(owner, modal && popupWindow != null && !keyboardHandedBack);
         }
         if (dismissHandle != null) {
@@ -514,6 +519,15 @@ public final class PopupMenu {
                 o.removeOverlay(s); // headless: no frame pump, remove at once
             }
         }
+        List<LateKey> held = keysBeforeWindow;
+        keysBeforeWindow = null;
+        if (held != null && surface != null) {
+            // Passed on by a walk to a menu closed before its window was made: they become what
+            // any key reaching this closed menu becomes.
+            for (LateKey key : held) {
+                surface.lateKey(key);
+            }
+        }
         Runnable[] closing = closeObservers;
         if (closing != null) {
             for (Runnable observer : closing) {
@@ -537,6 +551,61 @@ public final class PopupMenu {
             surface.keysGoToOwner = true;
         }
         close();
+    }
+
+    /**
+     * Passes the keys this closed menu's fading window still receives on to {@code next}, the menu
+     * a menu bar's walk opened from it with Left or Right. The walk hands the keyboard to the next
+     * menu's window, but the window walked away from keeps it until the window manager acts on
+     * that: a second Right 5 ms after the first reached it, where the menu answers nothing, and the
+     * bar walked one menu instead of two. MenuBar only; called after the walk has closed this menu.
+     */
+    void passKeysOnTo(PopupMenu next) {
+        if (!open && surface != null && next != this) {
+            surface.walkedTo = next;
+        }
+    }
+
+    /**
+     * A key or a character a menu bar's walk passed on to this menu, handled as if it had reached
+     * this menu's own window. Held until that window is made, which is a turn of the event loop
+     * after the open, so that the menu answers it with its cascade placed and its window up.
+     */
+    private void keyFromWalk(LateKey key) {
+        if (surface == null) {
+            return; // never shown: there is nothing the key could reach
+        }
+        if (open && popupWindow == null && !inScene) {
+            if (keysBeforeWindow == null) {
+                keysBeforeWindow = new ArrayList<>();
+            }
+            keysBeforeWindow.add(key);
+            return;
+        }
+        surface.keyArrived(key);
+    }
+
+    /**
+     * A key event, or with {@code codepoint >= 0} a typed character, as it reached a menu's surface.
+     */
+    private record LateKey(int key, boolean pressed, boolean repeat, int modifiers, int codepoint) {
+        static LateKey key(KeyEvent event) {
+            return new LateKey(event.key(), event.isPressed(), event.isRepeat(), event.modifiers(),
+                    -1);
+        }
+
+        static LateKey character(int codepoint) {
+            return new LateKey(0, false, false, 0, codepoint);
+        }
+
+        /** Replays it into {@code input}, as a backend would have delivered it there. */
+        void replay(WindowInput input) {
+            if (codepoint >= 0) {
+                input.charTyped(codepoint);
+            } else {
+                input.keyEvent(key, pressed, repeat, modifiers);
+            }
+        }
     }
 
     /**
@@ -675,6 +744,15 @@ public final class PopupMenu {
         }
         popupScene.focusTraverse(false); // focus the surface so it gets keys
         popupWindow.requestFrame();
+        List<LateKey> held = keysBeforeWindow;
+        keysBeforeWindow = null;
+        if (held != null) {
+            // Passed on by a menu bar's walk before this window existed. One of them may walk on
+            // in turn, closing this menu, and the rest then follow that walk.
+            for (LateKey key : held) {
+                surface.keyArrived(key);
+            }
+        }
         if (!modal) {
             // Non-modal: a press back in the owner window dismisses the menu (the
             // owner is not blocked, so it receives the press).
@@ -915,6 +993,8 @@ public final class PopupMenu {
         private boolean closed;
         /** Whether the menu was dismissed rather than chosen from or replaced. */
         boolean keysGoToOwner;
+        /** The menu a menu bar's walk opened from this one; see {@link #passKeysOnTo}. */
+        PopupMenu walkedTo;
         /** The scene the menu was opened over, as it was when the menu closed. */
         private Scene ownerAtClose;
         /** Whether the menu still held its own modal lock over the owner when it closed. */
@@ -1582,8 +1662,7 @@ public final class PopupMenu {
         @Override
         protected void onKeyEvent(KeyEvent event) {
             if (closed) {
-                passOnWhileClosing(input -> input.keyEvent(event.key(), event.isPressed(),
-                        event.isRepeat(), event.modifiers()));
+                lateKey(LateKey.key(event));
                 event.consume();
                 return;
             }
@@ -1595,8 +1674,32 @@ public final class PopupMenu {
         @Override
         protected void onCharTyped(CharEvent event) {
             if (closed) {
-                passOnWhileClosing(input -> input.charTyped(event.codepoint()));
+                lateKey(LateKey.character(event.codepoint()));
                 event.consume();
+            }
+        }
+
+        /** A key or a character this surface is handed as if it had reached it: see onKeyEvent. */
+        void keyArrived(LateKey key) {
+            if (closed) {
+                lateKey(key);
+            } else if (key.codepoint() < 0 && key.pressed()) {
+                handleKey(key.key(), key.modifiers());
+            }
+        }
+
+        /**
+         * What a key, or a character, that reaches this surface after its menu closed becomes. The
+         * menu answers none of it: a second Enter or Space there chose the highlighted item again,
+         * and so did a second click. After a menu bar's walk it goes to the menu walked to, as if
+         * it had reached that menu's window, and that menu's own rules decide it from there: it
+         * walks on, or, that menu having closed too, it is passed on or dropped as below.
+         */
+        void lateKey(LateKey key) {
+            if (walkedTo != null) {
+                walkedTo.keyFromWalk(key);
+            } else {
+                passOnWhileClosing(key);
             }
         }
 
@@ -1614,9 +1717,8 @@ public final class PopupMenu {
         }
 
         /**
-         * What a key, or a character, that reaches this surface after its menu closed becomes. The
-         * menu answers none of it: a second Enter or Space there chose the highlighted item again,
-         * and so did a second click.
+         * Where a key, or a character, that reaches this surface after its menu closed goes when
+         * no walk took the menu's place.
          *
          * <p>After a {@linkplain PopupMenu#dismiss dismissal}, in a window of its own, it goes to
          * the owner's scene, as if the menu were already gone: the owner is where the keyboard
@@ -1629,12 +1731,12 @@ public final class PopupMenu {
          * the owner was asked for it at once, and a key reaches the fading window only until the
          * window manager acts on that, while a window the item opened is asked after the owner and
          * is the one that should have it: an Enter given to the owner instead would press its
-         * focused button under the dialog the person is looking at. A menu of a menu bar walked to
-         * its neighbour hands the keyboard to the neighbour's window. And in scene the fading
-         * overlay still holds the owner scene's focus until the fade ends, so that scene's input
-         * would hand the key straight back to it.
+         * focused button under the dialog the person is looking at. A menu closed by the
+         * application gives no hint either. And in scene the fading overlay still holds the owner
+         * scene's focus until the fade ends, so that scene's input would hand the key straight
+         * back to it.
          */
-        private void passOnWhileClosing(java.util.function.Consumer<WindowInput> key) {
+        private void passOnWhileClosing(LateKey key) {
             Scene target = ownerAtClose;
             NativeWindow ownerWindow = target == null ? null : target.window();
             if (!keysGoToOwner || target == null || scene() == target || ownerWindow == null
@@ -1643,7 +1745,7 @@ public final class PopupMenu {
                 return;
             }
             WindowInput input = SceneAccess.input(target);
-            key.accept(input);
+            key.replay(input);
             input.inputBatchEnded();
         }
 

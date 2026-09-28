@@ -1235,6 +1235,92 @@ class FullscreenFallbackTest extends ComponentTestBase {
         assertSame(field, scene.focusedWidget());
     }
 
+    /** A bar of three menus, File, Edit and View, with the first one's window up and focused. */
+    private WindowHost.Made menuBarWalkFromFile(WindowHost window, long[] nanos) {
+        MenuBar bar = new MenuBar()
+                .addMenu("File", new Menu().addItem("New", () -> { }))
+                .addMenu("Edit", new Menu().addItem("Copy", () -> { }))
+                .addMenu("View", new Menu().addItem("Zoom", () -> { }));
+        Scene scene = sceneOver(window, bar, 400, 300, nanos);
+        scene.requestFocus(bar);
+        drive(scene).press(Keys.DOWN);
+        runtime.drain();
+        assertEquals(1, window.made.size(), "sanity: Down opened File in a window of its own");
+        WindowHost.Made file = window.made.get(0);
+        fadeIn(file, nanos);
+        focusedByTheDesktop(file);
+        return file;
+    }
+
+    /**
+     * Right twice in quick succession walks a menu bar two menus on. The second Right reaches the
+     * window of the menu the first one walked away from, which fades and still holds the focus,
+     * here before the next menu's window is even made.
+     */
+    @Test
+    void aSecondRightBeforeTheNextMenusWindowIsMadeWalksOnAgain() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        WindowHost.Made file = menuBarWalkFromFile(window, nanos);
+
+        keyIn(file, Keys.RIGHT);
+        keyIn(file, Keys.RIGHT);
+        runtime.drain(); // makes Edit's window, which is where the held Right is answered
+        runtime.drain(); // and makes View's, asked for as it was
+
+        assertEquals(3, window.made.size(), "the second Right walked from Edit to View");
+    }
+
+    /** And once the next menu's window is up, before the desktop has given it the focus. */
+    @Test
+    void aSecondRightWhileTheWalkedFromMenuFadesWalksOnAgain() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        WindowHost.Made file = menuBarWalkFromFile(window, nanos);
+
+        keyIn(file, Keys.RIGHT);
+        runtime.drain();
+        assertEquals(2, window.made.size(), "sanity: the first Right opened Edit");
+        keyIn(file, Keys.RIGHT);
+        runtime.drain();
+
+        assertEquals(3, window.made.size(), "the second Right walked from Edit to View");
+    }
+
+    /**
+     * A key reaching the walked-from menu's window after the menu walked to was dismissed goes where
+     * that menu's own keys go, the owner's scene: the walk passes keys on, it does not decide them.
+     */
+    @Test
+    void aKeyWhileTheWalkedFromMenuFadesFollowsTheWalkedToMenusDismissal() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        TextField field = new TextField();
+        MenuBar bar = new MenuBar()
+                .addMenu("File", new Menu().addItem("New", () -> { }))
+                .addMenu("Edit", new Menu().addItem("Copy", () -> { }));
+        Column root = new Column();
+        root.add(bar);
+        root.add(field);
+        Scene scene = sceneOver(window, root, 400, 300, nanos);
+        scene.requestFocus(bar);
+        drive(scene).press(Keys.DOWN);
+        runtime.drain();
+        WindowHost.Made file = window.made.get(0);
+        fadeIn(file, nanos);
+        focusedByTheDesktop(file);
+
+        keyIn(file, Keys.RIGHT);
+        keyIn(file, Keys.ESCAPE); // walked on to Edit, and Escape dismisses Edit
+        runtime.drain();
+        scene.requestFocus(field);
+        file.input.charTyped('a');
+        file.input.inputBatchEnded();
+        fadeOut(file, nanos);
+
+        assertEquals("a", field.text(), "the character reached the owner's field");
+    }
+
     /**
      * A modal dialog's window holds the focus over an owner it blocks, so the move lets go of the
      * owner, moves the card, asks the owner for the focus, and sends the window away only once the

@@ -39,8 +39,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * that stood for a country that split is the one of its replacements the language, in its
  * script, is likely to mean, else the first: {@code 810}, the Soviet Union, is {@code RU}, and
  * {@code uz-810} is {@code UZ}. A number that names an area and no country, {@code 001} or
- * {@code 419}, is kept, as ICU keeps it. These are the {@code region} rows of the same dump,
- * shipped in the same file.
+ * {@code 419}, is kept, as ICU keeps it. A two-letter region ISO 3166 retired is read the same
+ * way, as the current region ICU reads it as: {@code SU}, the Soviet Union, is {@code RU} and
+ * {@code uz-SU} is {@code UZ}, {@code YD}, South Yemen, is {@code YE}, {@code DD}, East Germany,
+ * is {@code DE}. These are the {@code region} rows of the same dump, shipped in the same file.
  */
 public final class LanguageAliases {
 
@@ -59,9 +61,9 @@ public final class LanguageAliases {
         /** The codes read as another language, keyed on the code. */
         static final Map<String, Replacement> ALIASES;
         /**
-         * The numbers read as a two-letter region, keyed {@code 364}, {@code uz-810} or
-         * {@code und-Armn-172}: the number alone, then where a language, or a language in a
-         * script, picks another of its replacements.
+         * The numbers and retired regions read as a current two-letter region, keyed {@code 364},
+         * {@code uz-810}, {@code und-Armn-172} or {@code SU}: the code alone, then where a
+         * language, or a language in a script, picks another of its replacements.
          */
         static final Map<String, String> REGIONS;
 
@@ -100,7 +102,9 @@ public final class LanguageAliases {
      * {@code prs} is {@code fa-AF}, {@code prs-IR} is {@code fa-IR}, {@code sh-RS} is
      * {@code sr-Latn-RS}; and a region named by its number as the two-letter region ICU reads it
      * as, for the language read that way: {@code az-364} is {@code az-IR}, {@code uz-810} is
-     * {@code uz-UZ}, {@code hye-172} is {@code hy-AM}. Variants and extensions are kept:
+     * {@code uz-UZ}, {@code hye-172} is {@code hy-AM}; and a retired two-letter region likewise:
+     * {@code ar-YD} is {@code ar-YE}, {@code uz-SU} is {@code uz-UZ}. Variants and extensions are
+     * kept:
      * {@code pes-u-nu-latn} is {@code fa-u-nu-latn}.
      *
      * <p>A variant only {@code Locale}'s constructors accept, which {@link Locale.Builder}
@@ -138,9 +142,9 @@ public final class LanguageAliases {
     }
 
     /**
-     * The two-letter region a number is read as, for a language in a script: the language's pick
-     * in that script, else the language's, else the number's own; or {@code region} itself when it
-     * is no number ICU replaces.
+     * The two-letter region a number or a retired region is read as, for a language in a script:
+     * the language's pick in that script, else the language's, else the code's own; or
+     * {@code region} itself when it is no code ICU replaces.
      */
     private static String region(String language, String script, String region) {
         String number = Table.REGIONS.get(region);

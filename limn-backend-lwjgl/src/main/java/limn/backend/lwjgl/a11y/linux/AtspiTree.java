@@ -7,6 +7,7 @@ import limn.accessibility.AccessibleTree;
 import limn.accessibility.CellFacet;
 import limn.backend.AccessibilityBridge;
 import limn.backend.lwjgl.a11y.PointLookup;
+import limn.i18n.I18n;
 import limn.i18n.internal.LocaleServices;
 
 import java.util.ArrayList;
@@ -403,9 +404,21 @@ final class AtspiTree {
      * @param m the call
      * @return its reply, or {@code null} for a member this object does not have
      */
+    // GetLocale takes one "u", lctype, and answers one "s", as the ATK bridge's compiled interface
+    // declares it (at-spi2-atk 2.60.6, readings/fedora-dbus-Application.xml), and as Atspi's
+    // XML_APPLICATION serves it. The lctype names a POSIX category, messages, collation, character
+    // classes, money, numbers or time; every one is answered with the one language the application
+    // runs in, the process's, since this toolkit takes all of them from that locale. It is told as
+    // each node's Locale property is told, the language its code stands for (pes-IR is fa-IR),
+    // so a client comparing the two compares the same spelling. Read on the reader thread from a
+    // volatile field, with no hop, as every answer here is.
     private DBus.Msg application(DBus.Msg m) {
         if ("GetApplicationBusAddress".equals(m.member)) {
             return DBus.Msg.ret(m, "s", "");
+        }
+        if ("GetLocale".equals(m.member)) {
+            arg(m, 0); // lctype, read so that a call without it is refused as InvalidArgs
+            return DBus.Msg.ret(m, "s", LocaleServices.languageTag(I18n.processLocale()));
         }
         return null;
     }

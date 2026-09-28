@@ -208,6 +208,10 @@ out.push("# region <language>-<code> <REGION>   a language that reads it as anot
 out.push("#                             that replaced it");
 out.push("# region <language>-<Script>-<code> <REGION>   a script ICU holds the language in (und: any");
 out.push("#                             script) that reads it otherwise than the language");
+out.push("# region <XX> <REGION>        after every numeric row, a retired two-letter region ICU reads as");
+out.push("#                             a current one, read with no language: SU is RU, YU is RS");
+out.push("# region <language>-<XX> <REGION>, region <language>-<Script>-<XX> <REGION>   where a");
+out.push("#                             language, or a script of it, picks otherwise, as for a number");
 
 const rtl = [...TWO_LETTER, ...THREE_LETTER].filter(tag => direction(tag) === "rtl");
 for (let i = 0; i < rtl.length; i += 16) {
@@ -367,32 +371,44 @@ function replaced(tag, language, script) {
         return undefined;
     }
 }
-const regionOf = new Map();
-for (const code of NUMERIC) {
-    const region = replaced(`und-${code}`, "und", undefined);
-    if (region !== undefined && region !== code) {
-        regionOf.set(code, region);
-        out.push(`region ${code} ${region}`);
-    }
-}
-for (const language of [...TWO_LETTER, ...THREE_LETTER]) {
-    const byLanguage = new Map();
-    for (const [code, region] of regionOf) {
-        const here = replaced(`${language}-${code}`, language, undefined);
-        if (here !== undefined && here !== region) {
-            byLanguage.set(code, here);
-            out.push(`region ${language}-${code} ${here}`);
+function regionRows(codes) {
+    const regionOf = new Map();
+    for (const code of codes) {
+        const region = replaced(`und-${code}`, "und", undefined);
+        if (region !== undefined && region !== code) {
+            regionOf.set(code, region);
+            out.push(`region ${code} ${region}`);
         }
     }
-    for (const script of language === "und" ? SCRIPTS : heldScripts(language)) {
+    for (const language of [...TWO_LETTER, ...THREE_LETTER]) {
+        const byLanguage = new Map();
         for (const [code, region] of regionOf) {
-            const here = replaced(`${language}-${script}-${code}`, language, script);
-            const languages = byLanguage.get(code) ?? region;
-            if (here !== undefined && here !== languages) {
-                out.push(`region ${language}-${script}-${code} ${here}`);
+            const here = replaced(`${language}-${code}`, language, undefined);
+            if (here !== undefined && here !== region) {
+                byLanguage.set(code, here);
+                out.push(`region ${language}-${code} ${here}`);
+            }
+        }
+        for (const script of language === "und" ? SCRIPTS : heldScripts(language)) {
+            for (const [code, region] of regionOf) {
+                const here = replaced(`${language}-${script}-${code}`, language, script);
+                const languages = byLanguage.get(code) ?? region;
+                if (here !== undefined && here !== languages) {
+                    out.push(`region ${language}-${script}-${code} ${here}`);
+                }
             }
         }
     }
 }
+regionRows(NUMERIC);
+
+// The same for the two-letter regions ISO 3166 retired and ICU still reads, as the current region
+// that replaced each: SU, the Soviet Union, is RU, DD, East Germany, is DE, ZR, Zaire, is CD, and
+// NT, the Saudi-Iraqi Neutral Zone, is SA. Java's Locale keeps them as it is given them, as it
+// keeps a number. A code with several replacements is picked as a number is: SU is RU and uz-SU
+// UZ, NT is SA and ckb-NT IQ, PC, the Pacific Islands, is FM and pau-PC PW; YU and CS, though
+// Yugoslavia and Serbia and Montenegro split, ICU reads as RS whatever the language. Every
+// two-letter code is asked, after every number, so the numeric rows above stay as they were.
+regionRows(REGIONS);
 
 process.stdout.write(out.join("\n") + "\n");

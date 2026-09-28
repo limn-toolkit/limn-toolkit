@@ -925,6 +925,32 @@ class AtspiTreeTest {
     }
 
     /**
+     * The application's own language, asked of the application object by {@code GetLocale}, is
+     * the process's, told as a node's is: the language its code stands for, {@code fa-IR} for an
+     * application running in {@code pes-IR}. The one language answers every category the
+     * argument can name, messages, collation, character classes, money, numbers and time alike.
+     */
+    @Test
+    void theApplicationsLocaleIsTheProcessLanguageItsCodeStandsFor() {
+        Locale before = limn.i18n.I18n.processLocale();
+        try {
+            limn.i18n.I18n.setLocale(Locale.forLanguageTag("pes-IR"));
+            for (int lctype = 0; lctype <= 5; lctype++) {
+                DBus.Msg reply = call(Atspi.PATH_ROOT, Atspi.I_APPLICATION, "GetLocale", "u",
+                        lctype);
+                assertNotNull(reply, "GetLocale is answered for lctype " + lctype);
+                assertEquals("s", reply.signature);
+                assertEquals("fa-IR", reply.body[0], "lctype " + lctype);
+            }
+            limn.i18n.I18n.setLocale(Locale.forLanguageTag("fr-CA"));
+            assertEquals("fr-CA", call(Atspi.PATH_ROOT, Atspi.I_APPLICATION, "GetLocale", "u", 0)
+                    .body[0], "and follows the process language when it changes");
+        } finally {
+            limn.i18n.I18n.setLocale(before);
+        }
+    }
+
+    /**
      * Thai named by its ISO 639-2 code, {@code tha}, is read a word at a time by the words the
      * Thai dictionary finds, as under {@code th}. The platform reaches that dictionary through the
      * language subtag, so under the code as written the whole run was one word.
@@ -1454,6 +1480,7 @@ class AtspiTreeTest {
         publishAWindowWithAButton();
         for (DBus.Msg call : List.of(
                 aCall(Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetChildAtIndex", null),
+                aCall(Atspi.PATH_ROOT, Atspi.I_APPLICATION, "GetLocale", null),
                 aCall(path(1001), Atspi.I_ACTION, "DoAction", "s", "press"),
                 aCall(path(1001), Atspi.I_COMPONENT, "Contains", "ii", 1, 2),
                 aCall(path(1001), Atspi.I_PROPS, "Get", "s", Atspi.I_ACCESSIBLE))) {

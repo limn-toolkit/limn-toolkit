@@ -412,6 +412,30 @@ class CldrLocaleFactsTest {
      */
     @Test
     void aNumericRegionRunsAsTheRegionItStandsFor() throws Exception {
+        int turned = replacedRegionsRunAsTheirRegions(true);
+        assertTrue(turned >= 50, "only " + turned + " numbered regions turn a language");
+    }
+
+    /**
+     * A retired two-letter region runs as the region ICU reads it as, as a number does:
+     * {@code und-NT}, the Neutral Zone named with no language, is Saudi Arabia's and runs right to
+     * left as {@code und-SA} does. The direction table names neither {@code NT} nor {@code YD},
+     * so only the reading gets them right.
+     */
+    @Test
+    void aRetiredRegionRunsAsTheRegionItStandsFor() throws Exception {
+        int turned = replacedRegionsRunAsTheirRegions(false);
+        assertTrue(turned >= 2, "only " + turned + " retired regions turn a language");
+    }
+
+    /**
+     * Asks every language a row or the JDK names in every number, or every retired two-letter
+     * region, ICU replaces, against the same language in the region the {@code region} rows give
+     * it there, and fails on any that runs otherwise.
+     *
+     * @return how many of them run otherwise than the language alone
+     */
+    private static int replacedRegionsRunAsTheirRegions(boolean numeric) throws Exception {
         Set<String> languages = new TreeSet<>(List.of(Locale.getISOLanguages()));
         languages.addAll(rightToLeftRows());
         for (String[] row : directionRows()) {
@@ -421,7 +445,8 @@ class CldrLocaleFactsTest {
         List<String> wrong = new ArrayList<>();
         int turned = 0;
         for (String language : languages) {
-            for (Map.Entry<String, String> number : numbers(regions, language).entrySet()) {
+            for (Map.Entry<String, String> number
+                    : numbers(regions, language, numeric).entrySet()) {
                 LayoutDirection cldr = LayoutDirection.forLocale(
                         Locale.forLanguageTag(language + "-" + number.getValue()));
                 LayoutDirection ours = LayoutDirection.forLocale(
@@ -435,8 +460,8 @@ class CldrLocaleFactsTest {
                 }
             }
         }
-        assertTrue(turned >= 50, "only " + turned + " numbered regions turn a language");
-        assertEquals(List.of(), wrong, "a numeric region runs otherwise than its region");
+        assertEquals(List.of(), wrong, "a replaced region runs otherwise than its region");
+        return turned;
     }
 
     /**
@@ -446,6 +471,28 @@ class CldrLocaleFactsTest {
      */
     @Test
     void aNumericRegionWritesTheDigitsOfTheRegionItStandsFor() throws Exception {
+        int differ = replacedRegionsWriteTheirRegionsDigits(true);
+        assertTrue(differ >= 25, "only " + differ + " numbered regions change a language's digits");
+    }
+
+    /**
+     * A retired two-letter region writes the digits of the region ICU reads it as:
+     * {@code ar-YD}, Arabic in South Yemen, writes Arabic-Indic digits as {@code ar-YE} does. The
+     * digits table names neither {@code NT} nor {@code YD}, so only the reading gets them right.
+     */
+    @Test
+    void aRetiredRegionWritesTheDigitsOfTheRegionItStandsFor() throws Exception {
+        int differ = replacedRegionsWriteTheirRegionsDigits(false);
+        assertTrue(differ >= 2, "only " + differ + " retired regions change a language's digits");
+    }
+
+    /**
+     * Asks every language a {@code digits} row names in every number, or every retired two-letter
+     * region, ICU replaces, and fails on any that writes otherwise than its region.
+     *
+     * @return how many of them write otherwise than the language alone
+     */
+    private static int replacedRegionsWriteTheirRegionsDigits(boolean numeric) throws Exception {
         Set<String> languages = new TreeSet<>();
         for (String[] row : digitRows()) {
             languages.add(row[0].split("-")[0]);
@@ -455,7 +502,8 @@ class CldrLocaleFactsTest {
         int differ = 0;
         for (String language : languages) {
             NumberingSystem alone = NumberingSystem.forLocale(Locale.forLanguageTag(language));
-            for (Map.Entry<String, String> number : numbers(regions, language).entrySet()) {
+            for (Map.Entry<String, String> number
+                    : numbers(regions, language, numeric).entrySet()) {
                 NumberingSystem cldr = NumberingSystem.forLocale(
                         Locale.forLanguageTag(language + "-" + number.getValue()));
                 NumberingSystem ours = NumberingSystem.forLocale(
@@ -469,20 +517,25 @@ class CldrLocaleFactsTest {
                 }
             }
         }
-        assertTrue(differ >= 25, "only " + differ + " numbered regions change a language's digits");
-        assertEquals(List.of(), wrong, "a numeric region writes other digits than its region");
+        assertEquals(List.of(), wrong, "a replaced region writes other digits than its region");
+        return differ;
     }
 
     /**
-     * Every number ICU reads as a two-letter region, and the region it reads it as for
+     * Every number ICU reads as a two-letter region, or with {@code numeric} false every retired
+     * two-letter region it reads as a current one, and the region it reads it as for
      * {@code language} named with no script: the language's own {@code region} row where it
-     * picks among the regions that replaced a number, else the number's.
+     * picks among the regions that replaced the code, else the code's.
      */
-    private static Map<String, String> numbers(List<String[]> regions, String language) {
+    private static Map<String, String> numbers(List<String[]> regions, String language,
+                                               boolean numeric) {
         Map<String, String> numbers = new TreeMap<>();
         Map<String, String> picked = new TreeMap<>();
         for (String[] row : regions) {
             String[] parts = row[0].split("-");
+            if (Character.isDigit(parts[parts.length - 1].charAt(0)) != numeric) {
+                continue;
+            }
             if (parts.length == 1) {
                 numbers.put(parts[0], row[1]);
             } else if (parts.length == 2 && parts[0].equals(language)) {

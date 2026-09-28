@@ -154,8 +154,9 @@ class AtspiConstantsTest {
     }
 
     /**
-     * The six sites the phase-3 critic listed as uncited, or as choices with no reasoning: the file,
-     * the declaration, and then every phrase the comment above it must carry, lower-cased.
+     * The six sites the phase-3 critic listed as uncited, or as choices with no reasoning, and the
+     * Application interface's methods, answered after it: the file, the declaration, and then
+     * every phrase the comment above it must carry, lower-cased.
      *
      * <p>Each site names what its own entry was written for, and not a word that was there anyway.
      * A choice must name <b>both</b> servers it read, because a choice is a disagreement and a
@@ -177,7 +178,9 @@ class AtspiConstantsTest {
             new String[] {"AtspiTree.java", "private DBus.Msg applicationComponent(",
                     "readings/", "choice", "gtk 3", "gtk 4", "unknownmethod"},
             new String[] {"AtspiText.java", "final class AtspiText",
-                    "readings/", "choice", "gtk 3", "gtk 4"});
+                    "readings/", "choice", "gtk 3", "gtk 4"},
+            new String[] {"AtspiTree.java", "private DBus.Msg application(",
+                    "readings/"});
 
     /**
      * Every platform fact this bridge answers from either cites the reading it came from or says,

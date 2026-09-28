@@ -707,8 +707,8 @@ public final class MenuBar extends Widget<MenuBar> {
         // Previous and next in declaration order, NOT left and right: PopupMenu has already
         // turned the physical arrow into a side, and flipping again here would cancel that and
         // walk the bar against the direction its own submenus open in.
-        popup.onRootLeading(() -> openMenu((index - 1 + n) % n));
-        popup.onRootTrailing(() -> openMenu((index + 1) % n));
+        popup.onRootLeading(() -> walk(popup, (index - 1 + n) % n));
+        popup.onRootTrailing(() -> walk(popup, (index + 1) % n));
         // Fullscreen fallback: the dropdown is an in-scene overlay covering the bar.
         // Let pointer input over the titles fall through so hovering a sibling title
         // still switches menus (and shows the pointer cursor), as in native mode.
@@ -720,6 +720,19 @@ public final class MenuBar extends Widget<MenuBar> {
         popup.showAnchored(this, sceneX, sceneY, titleWidth(index, t), height());
         if (!wasOpen && isOpen()) {
             notifyChange(Change.of(Change.Aspect.EXPANDED, Change.Origin.USER));
+        }
+    }
+
+    /**
+     * Walks from the dropdown {@code from}, whose Left or Right had nowhere to go, to the menu at
+     * {@code index}, and has the keys {@code from}'s fading window still receives passed on to the
+     * menu walked to: the window walked away from holds the keyboard until the window manager
+     * gives it to the next one, and a second Right pressed meanwhile would otherwise be lost.
+     */
+    private void walk(PopupMenu from, int index) {
+        openMenu(index);
+        if (openPopup != null) {
+            from.passKeysOnTo(openPopup);
         }
     }
 

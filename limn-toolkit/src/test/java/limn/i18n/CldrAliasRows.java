@@ -11,7 +11,8 @@ import java.util.List;
  * The {@code alias} rows of {@code cldr-locale-facts.txt}: every two- and three-letter code ICU
  * reads as another language, with the tag it reads it as ({@code pes fa}, {@code prs fa-AF},
  * {@code sh sr-Latn}); and its {@code region} rows, every numeric region ICU reads as a two-letter
- * one ({@code 364 IR}, and {@code uz-810 UZ} where the language picks among several).
+ * one ({@code 364 IR}, and {@code uz-810 UZ} where the language picks among several), then every
+ * retired two-letter region it reads as a current one ({@code SU RU}, {@code uz-SU UZ}).
  * {@code scripts/i18n/dump-cldr-locale-facts.mjs} asks ICU for both.
  *
  * <p>Read by every test that holds a decision made by language or region to what it decides for
@@ -40,10 +41,11 @@ public final class CldrAliasRows {
     }
 
     /**
-     * Each {@code region} row as the tag and the two-letter region ICU reads its number as, in the
+     * Each {@code region} row as the tag and the two-letter region ICU reads its code as, in the
      * dump's order: {@code 364} alone for the number read with no language, then
      * {@code language-code} and {@code language-Script-code} where the language, or its script,
-     * picks another of the regions that replaced the number.
+     * picks another of the regions that replaced the number; then the same for the retired
+     * two-letter regions, {@code SU} alone and {@code uz-SU}.
      *
      * @return the rows; the dump carries over three hundred
      * @throws IOException when the dump cannot be read
