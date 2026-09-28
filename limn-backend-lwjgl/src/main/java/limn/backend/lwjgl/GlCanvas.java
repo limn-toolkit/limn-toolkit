@@ -124,6 +124,14 @@ final class GlCanvas implements Canvas {
      */
     boolean splitRoundRects = true;
     /**
+     * Whether a large solid interior of a rounded fill is drawn by the flat program (see
+     * {@link #emitFlatInterior}): only where the renderer runs fragment shaders on the CPU, read from
+     * the context when the canvas is built. On a GPU the interior stays plain geometry in the same
+     * batch, because there the draw calls the flat program adds cost more than the pixels it
+     * spares. Tests set it to take either path on whatever device they run on.
+     */
+    boolean flatInteriors;
+    /**
      * The current shape's pieces (see {@link #emitRoundRectPieces}): each boundary's device
      * coordinate and local coordinate, in local order, and the cut to the clip in device pixels.
      */
@@ -141,6 +149,10 @@ final class GlCanvas implements Canvas {
     GlCanvas(FontStore fontStore) {
         this.fontStore = fontStore;
         states.add(new State());
+        // Built with its context current (the batch above has just made its buffers in it), and a
+        // context's renderer never changes, so it is read once.
+        flatInteriors = GraphicsProbe.isSoftwareRenderer(
+                org.lwjgl.opengl.GL33C.glGetString(org.lwjgl.opengl.GL33C.GL_RENDERER));
     }
 
     void beginFrame(int framebufferWidth, int framebufferHeight, float contentScale) {
@@ -1393,7 +1405,8 @@ final class GlCanvas implements Canvas {
      * draw, leaving out what needs no distance field: a stroke's interior, where its coverage is
      * zero, is not drawn at all, and a fill's interior, where its coverage is exactly the clip's,
      * is drawn as plain geometry that skips the distance field and its derivatives, or, for a large
-     * solid one, mostly by the flat program ({@link #emitFlatInterior}). Every piece is also cut to
+     * solid one on a software renderer, mostly by the flat program ({@link #emitFlatInterior}), all
+     * in the same batch otherwise. Every piece is also cut to
      * the clip rectangle, a device pixel wide of it.
      *
      * <p>Each pixel of the quad is drawn by exactly one piece (the pieces tile it, edge to edge on
@@ -1527,18 +1540,18 @@ final class GlCanvas implements Canvas {
      * quarters of the distance field.
      *
      * <p>The price is the batch: the flat program is a second draw call, and the geometry after it
-     * a third. Measured at 2604 x 1850 on a form of 28 rows (about 150 surfaces): with Apple Software
-     * Renderer the full frame costs 230 ms with plain interiors and 111 ms with flat ones at this
-     * threshold, 142 ms at 16384 pixels (only the fields' interiors) and 109 ms with every interior
-     * flat; on an Apple M5 Max the extra draw calls cost about 0.6 ms at this threshold against
-     * 0.54 ms for the whole frame before, 0.3 ms at 16384. A partial repaint pays it only for the
-     * surfaces it redraws.
+     * a third, so only a software renderer takes this path ({@link #flatInteriors}). Measured at
+     * 2604 x 1850 on a form of 28 rows (about 150 surfaces): with Apple Software Renderer the full
+     * frame costs 230 ms with plain interiors and 111 ms with flat ones at this threshold, 142 ms at
+     * 16384 pixels (only the fields' interiors) and 109 ms with every interior flat; on an Apple M5
+     * Max the 155 draw calls it would take there cost about 0.6 ms against 0.54 ms for the whole
+     * frame in one.
      *
      * @return whether it did; {@code false} leaves the whole interior to the plain pieces
      */
     private boolean emitFlatInterior(State s, Paint paint) {
         DeviceClip clip = s.clip;
-        if (!(paint instanceof Color c) || clip.radius > 0) {
+        if (!flatInteriors || !(paint instanceof Color c) || clip.radius > 0) {
             return false;
         }
         // The column between the corner squares, or the row between the side bands: the larger.

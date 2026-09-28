@@ -1,6 +1,7 @@
 package limn.backend.lwjgl;
 
 import limn.backend.GraphicsInfo;
+import org.jspecify.annotations.Nullable;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.opengl.GL33C;
 import org.lwjgl.opengl.GLCapabilities;
@@ -79,6 +80,29 @@ final class GraphicsProbe {
                 caps.OpenGL30 || extensions.contains("GL_EXT_texture_norm16"),
                 extensions,
                 null);
+    }
+
+    /**
+     * Whether a context's {@code GL_RENDERER} names a rasterizer that runs on the CPU rather than a
+     * GPU, where every fragment the shaders run is paid for in CPU time and a draw call is cheap by
+     * comparison. {@code GL_RENDERER} is the only handle the API offers: macOS names its fallback
+     * "Apple Software Renderer" (whichever way {@link MacSoftwareGl} came to it, or a VM's only
+     * renderer), Mesa says "llvmpipe", "softpipe" or "swrast", Windows' own fallback is "GDI
+     * Generic" (OpenGL 1.1, refused before a canvas exists, named for completeness) and Microsoft's
+     * WARP adapter "Microsoft Basic Render Driver", which is what Mesa's Direct3D 12 driver reports
+     * on a machine without a GPU. A name this misses is taken for a GPU.
+     *
+     * @param renderer the context's {@code GL_RENDERER}, or null when it answered none
+     */
+    static boolean isSoftwareRenderer(@Nullable String renderer) {
+        if (renderer == null) {
+            return false;
+        }
+        String name = renderer.toLowerCase(java.util.Locale.ROOT);
+        return name.contains("apple software renderer") || name.contains("llvmpipe")
+                || name.contains("softpipe") || name.contains("swrast")
+                || name.contains("software rasterizer") || name.contains("gdi generic")
+                || name.contains("microsoft basic render driver");
     }
 
     /** @return the windowing system GLFW selected at startup; never null */

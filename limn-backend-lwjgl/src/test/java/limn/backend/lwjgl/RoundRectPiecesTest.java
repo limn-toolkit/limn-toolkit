@@ -4,6 +4,17 @@ import limn.concurrent.UiRuntime;
 import limn.graphics.Color;
 import limn.graphics.LinearGradient;
 import limn.graphics.RoundRect;
+import limn.components.Button;
+import limn.components.Checkbox;
+import limn.components.ProgressBar;
+import limn.components.TextField;
+import limn.scene.Insets;
+import limn.scene.Scene;
+import limn.scene.layout.Column;
+import limn.scene.layout.Expanded;
+import limn.scene.layout.Flex;
+import limn.scene.layout.Padding;
+import limn.scene.layout.Row;
 import limn.testing.HeadlessUi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +23,9 @@ import org.lwjgl.opengl.GL33C;
 import org.lwjgl.system.MemoryUtil;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,6 +63,7 @@ class RoundRectPiecesTest {
     private FontStore fonts;
     private HeadlessUi ui;
     private UiRuntime runtime;
+    private final List<ShapingRuler> rulers = new ArrayList<>();
 
     @BeforeEach
     void openContext() {
@@ -61,6 +76,8 @@ class RoundRectPiecesTest {
 
     @AfterEach
     void closeContext() {
+        rulers.forEach(ShapingRuler::close);
+        rulers.clear();
         if (canvas != null) {
             canvas.dispose();
             canvas = null;
@@ -112,9 +129,11 @@ class RoundRectPiecesTest {
     }
 
     @Test
-    void aLargeSolidInteriorIsFlatAndNothingElseIs() {
-        // At 2x a 72 x 52 pt card's interior is about 136 x 96 device pixels, over the 64 x 64 the
-        // flat program has to repay its draw calls; a 30-point square's is under it.
+    void onASoftwareRendererALargeSolidInteriorIsFlatAndNothingElseIs() {
+        // The path a software renderer takes, forced whatever this device is. At 2x a 72 x 52 pt
+        // card's interior is about 136 x 96 device pixels, over the 64 x 64 the flat program has
+        // to repay its draw calls; a 30-point square's is under it.
+        canvas.flatInteriors = true;
         assertFlatInteriors(1, "a card's solid fill", c ->
                 c.fillRoundRectWithBorder(4.25f, 4.5f, 72, 52, 8, FILL, 1, BORDER));
         assertFlatInteriors(0, "a small fill", c -> c.fillRoundRect(4, 4, 30, 30, 4, FILL));
@@ -139,6 +158,82 @@ class RoundRectPiecesTest {
                 c.fillRoundRect(2, 2, 70, 50, 12, FILL);
             }, "flat interiors at " + scale + "x");
         }
+
+        canvas.flatInteriors = false;
+        assertFlatInteriors(0, "a card's solid fill, on a GPU", c ->
+                c.fillRoundRectWithBorder(4.25f, 4.5f, 72, 52, 8, FILL, 1, BORDER));
+    }
+
+    @Test
+    void aDenseFormIsOneDrawCallOnAGpuAndFlatInteriorsOnASoftwareRenderer() {
+        // The canvas reads its device when it is built, by the same rule this suite reads it by.
+        assertEquals(HeadlessGl.isSoftware(), canvas.flatInteriors,
+                "the canvas's reading of " + HeadlessGl.describe());
+
+        Scene form = form();
+        int formWidth = 600;
+        int formHeight = 400;
+        boolean[] software = {false, true};
+        int[] drawCalls = new int[2];
+        int[] flat = new int[2];
+        byte[][] pixels = new byte[2][];
+        for (int path = 0; path < 2; path++) {
+            canvas.flatInteriors = software[path];
+            int p = path;
+            withTarget(formWidth, formHeight, () -> {
+                canvas.beginFrame(formWidth, formHeight, 2);
+                form.renderFrame(canvas, false, Float.NaN, 0);
+                flat[p] = canvas.flatRectsThisFrame();
+                canvas.endFrame();
+                drawCalls[p] = canvas.drawCallsLastFrame();
+                pixels[p] = read(formWidth, formHeight);
+            });
+        }
+
+        assertEquals(1, drawCalls[0], "draw calls for a form of fields, checkboxes, bars and buttons "
+                + "on a GPU, where the flat program's draw calls cost more than the pixels it spares");
+        assertEquals(0, flat[0], "flat interiors on a GPU");
+        assertTrue(flat[1] >= 5, "a software renderer draws the fields' interiors flat, " + flat[1]);
+        assertTrue(drawCalls[1] > 1, "and pays a draw call for each switch, " + drawCalls[1]);
+        int differing = 0;
+        for (int i = 0; i < pixels[0].length; i++) {
+            if (pixels[0][i] != pixels[1][i]) {
+                differing++;
+            }
+        }
+        assertEquals(0, differing, "bytes that differ between the two paths' frames");
+    }
+
+    /** Five rows of a field, a checkbox, a bar and a button, settled past every transition. */
+    private Scene form() {
+        Column list = new Column();
+        list.gap(4);
+        for (int i = 0; i < 5; i++) {
+            Row row = new Row();
+            row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
+            row.add(Expanded.of(new TextField().setText("Value " + i), 1));
+            row.add(new Checkbox(Checkbox.Variant.BOX, "On").setChecked(i % 2 == 0));
+            ProgressBar bar = new ProgressBar();
+            bar.setProgress(i / 5f);
+            row.add(Expanded.of(bar, 1));
+            row.add(new Button("Open"));
+            list.add(row);
+        }
+        AtomicLong now = new AtomicLong(1_000_000_000L);
+        Scene scene = new Scene(new Padding(Insets.all(8), list), now::get);
+        ShapingRuler ruler = new ShapingRuler(fonts);
+        rulers.add(ruler);
+        scene.setTextRuler(ruler);
+        withTarget(600, 400, () -> {
+            for (int i = 0; i < 20; i++) {
+                now.addAndGet(50_000_000L);
+                runtime.drain();
+                canvas.beginFrame(600, 400, 2);
+                scene.renderFrame(canvas, false, Float.NaN, 0);
+                canvas.endFrame();
+            }
+        });
+        return scene;
     }
 
     @Test
@@ -297,6 +392,10 @@ class RoundRectPiecesTest {
     }
 
     private void withTarget(Runnable body) {
+        withTarget(WIDTH, HEIGHT, body);
+    }
+
+    private void withTarget(int width, int height, Runnable body) {
         int texture = GL33C.glGenTextures();
         int fbo = GL33C.glGenFramebuffers();
         int previousFbo = GL33C.glGetInteger(GL33C.GL_FRAMEBUFFER_BINDING);
@@ -305,14 +404,14 @@ class RoundRectPiecesTest {
         try {
             GL33C.glActiveTexture(GL33C.GL_TEXTURE0);
             GL33C.glBindTexture(GL33C.GL_TEXTURE_2D, texture);
-            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, WIDTH, HEIGHT, 0,
+            GL33C.glTexImage2D(GL33C.GL_TEXTURE_2D, 0, GL33C.GL_RGBA8, width, height, 0,
                     GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, (ByteBuffer) null);
             GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, fbo);
             GL33C.glFramebufferTexture2D(GL33C.GL_FRAMEBUFFER, GL33C.GL_COLOR_ATTACHMENT0,
                     GL33C.GL_TEXTURE_2D, texture, 0);
             assertEquals(GL33C.GL_FRAMEBUFFER_COMPLETE,
                     GL33C.glCheckFramebufferStatus(GL33C.GL_FRAMEBUFFER), "render target");
-            GL33C.glViewport(0, 0, WIDTH, HEIGHT);
+            GL33C.glViewport(0, 0, width, height);
             body.run();
         } finally {
             GL33C.glBindFramebuffer(GL33C.GL_FRAMEBUFFER, previousFbo);
@@ -324,11 +423,15 @@ class RoundRectPiecesTest {
     }
 
     private static byte[] read() {
-        ByteBuffer pixels = MemoryUtil.memAlloc(WIDTH * HEIGHT * 4);
+        return read(WIDTH, HEIGHT);
+    }
+
+    private static byte[] read(int width, int height) {
+        ByteBuffer pixels = MemoryUtil.memAlloc(width * height * 4);
         try {
             GL33C.glPixelStorei(GL33C.GL_PACK_ALIGNMENT, 1);
-            GL33C.glReadPixels(0, 0, WIDTH, HEIGHT, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
-            byte[] out = new byte[WIDTH * HEIGHT * 4];
+            GL33C.glReadPixels(0, 0, width, height, GL33C.GL_RGBA, GL33C.GL_UNSIGNED_BYTE, pixels);
+            byte[] out = new byte[width * height * 4];
             pixels.get(out);
             return out;
         } finally {
