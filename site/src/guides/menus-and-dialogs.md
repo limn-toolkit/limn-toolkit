@@ -24,7 +24,8 @@ MenuBar bar = new MenuBar();
 bar.addMenu("File", file);
 ```
 
-Arrow keys move between menus, Down or Enter opens one.
+It takes the width it is given, so at the top of a `Column` it spans the window the way
+a platform's menu bar does. Arrow keys move between menus, Down or Enter opens one.
 
 **As a dropdown**, with `PopupMenu`:
 

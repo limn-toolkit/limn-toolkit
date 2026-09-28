@@ -8,6 +8,7 @@ import limn.input.Keys;
 import limn.scene.ControlSize;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
+import limn.scene.layout.Column;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -18,6 +19,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static limn.testing.SceneDriver.drive;
 
@@ -456,6 +459,70 @@ class MenuMirroringTest extends ComponentTestBase {
         float[] rule = ink.lines.get(0);
         assertEquals(0, rule[0], EPS);
         assertEquals(BAR_W, rule[2], EPS);
+    }
+
+    /**
+     * A bar at the top of a right-to-left column, which offers it more width than its titles
+     * need: the case where the strip's right edge and the titles' run part company.
+     */
+    private void buildWideBar(float width) {
+        bar = new MenuBar();
+        bar.addMenu("File", new Menu().addItem("New", () -> { }));
+        bar.addMenu("Edit", new Menu().addItem("Undo", () -> { }));
+        bar.addMenu("View", new Menu().addItem("Zoom", () -> { }));
+        Column page = new Column();
+        page.setLayoutDirection(LayoutDirection.RTL);
+        page.add(bar);
+        barScene = new Scene(page);
+        barScene.setTextRuler(RULER);
+        barScene.layoutPass(width, 200);
+    }
+
+    @Test
+    void aBarWiderThanItsTitlesStartsThemAtItsOwnRightEdgeReadingRightToLeft() {
+        // The strip takes the column's width, and reading right to left the first title is
+        // against the right edge of that width rather than of the run the titles make: the
+        // stretch left over is on the trailing side, the left, and the rule spans all of it.
+        float w = 600;
+        buildWideBar(w);
+        assertEquals(0, bar.x(), EPS);
+        assertEquals(w, bar.width(), EPS, "the strip spans the column");
+
+        clickBar(w - TITLE_W / 2);
+        assertTrue(bar.isOpen(), "the rightmost box is a title");
+        InkCanvas ink = new InkCanvas(w, 200);
+        barScene.renderFrame(ink);
+        assertEquals(w - TITLE_W, chipX(ink), EPS, "and it is the first one");
+        assertEquals(w - TITLE_W + MEDIUM.menuBarPadH(), textX(ink, "File"), EPS);
+        assertEquals(w - 3 * TITLE_W + MEDIUM.menuBarPadH(), textX(ink, "View"), EPS,
+                "the last title ends the run three boxes in from the right");
+        float[] rule = ink.lines.get(0);
+        assertEquals(0, rule[0], EPS);
+        assertEquals(w, rule[2], EPS, "the rule spans the strip, the empty stretch included");
+
+        assertSame(bar, bar.hitTest(w - 3 * TITLE_W, 10), "the left edge of View is the bar's");
+        assertNull(bar.hitTest(w - 3 * TITLE_W - 1, 10), "and the empty stretch to its left is not");
+    }
+
+    @Test
+    void theArrowsWalkAWideBarFromItsRightEdgeReadingRightToLeft() {
+        float w = 600;
+        buildWideBar(w);
+        barScene.requestFocus(bar); // focus puts the cursor on the first title
+        assertEquals(w - TITLE_W, chipX(paintWideBar(w)), EPS, "File, against the right edge");
+        keyBar(Keys.LEFT);
+        assertEquals(w - 2 * TITLE_W, chipX(paintWideBar(w)), EPS,
+                "LEFT selects the visually-left title, which is the next one");
+        keyBar(Keys.RIGHT);
+        keyBar(Keys.RIGHT);
+        assertEquals(w - 3 * TITLE_W, chipX(paintWideBar(w)), EPS,
+                "RIGHT from File wraps to the last title, the leftmost box, not the empty stretch");
+    }
+
+    private InkCanvas paintWideBar(float width) {
+        InkCanvas canvas = new InkCanvas(width, 200);
+        barScene.renderFrame(canvas);
+        return canvas;
     }
 
     // ------------------------------- the arrow keys: one decision, two files
