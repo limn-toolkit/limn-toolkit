@@ -117,9 +117,29 @@ Maven Central say which number that was.
   Arabic-Indic digits with Latin ones everywhere else on screen.
 - A `ComboBox`'s list, a `DatePicker`'s calendar, a modal `Dialog` and the `ColorPickerButton`'s
   picker open inside a window that is fullscreen, as `PopupMenu` already did and `DisplayMode`
-  promised. A window of their own minimized a fullscreen owner on its monitor, and on macOS opened
-  outside the fullscreen Space. `displayMode()` says which happened; a non-modal dialog still opens
-  a window of its own, as does a dialog on Wayland.
+  promised. A window of their own minimized an owner fullscreen on a monitor as soon as it took the
+  focus; over macOS's own fullscreen the owner already covers the screen, and on a Mac without a GPU
+  the colour picker as a window held the UI for up to 3.7 s against 0.7 s drawn inside.
+  `displayMode()` says which happened; a non-modal dialog still opens a window of its own, as does a
+  dialog on Wayland.
+- An open menu, `ComboBox` list or `DatePicker` calendar that is a window of its own closes, choosing
+  nothing, when its owner enters or leaves fullscreen, as the platforms' own menus do; a native modal
+  `Dialog` (the `ColorPickerButton`'s picker too) moves into the fullscreen window with its typed
+  text and focus. They stayed as windows over an owner that had changed under them.
+- A fill inside a rounded border no longer shows past it, and no background shows between them, at
+  fractional positions: the renderer moved the border to whole device pixels and left the fill where
+  it was. 88 such pixels in 16 positions at 1x, 1.25x and 2x read 0 on every machine measured.
+- A `ScrollView` that scrolls both ways and, in one layout, moves and starts to overflow repaints
+  the focus ring it drew beside its old place; the ring stayed on screen.
+- A locale's text direction comes from its script, then its region, then its language, as CLDR
+  says: Punjabi in Pakistan (`pa-PK`), Uzbek in Afghanistan and Kurdish in Iraq read right to left,
+  Sindhi in India left to right. 78 locales were answered by their language alone.
+- A legacy or three-letter language code (`fra`, `deu`, `pes`, `heb`, `tha`, …) is read as the
+  language it stands for everywhere the toolkit decides by language: plural forms, translations,
+  the first day of the week, dates and the names in them, sorting, upper and lower case, numbers,
+  where a line may break, and the language a Linux screen reader is given. `fra` wrote "2026 Mar 1"
+  for "1 mars 2026", `tur` upper-cased "istanbul" without its dotted İ, and `tha` broke Thai
+  mid-word.
 - A `DateField` tells the input method where the segment being typed is, so a Japanese or Chinese
   candidate window opens under it. It had no anchor.
 - A legacy or three-letter language code writes the digits of the language it stands for: `pes`
@@ -163,7 +183,11 @@ Maven Central say which number that was.
   mesh without normals of about 2.8 million triangles; the ceiling is the defence against a small
   hostile file asking for gigabytes, so raise it for models you trust.
 - `StubWindow` in `limn-test` has a public `fullscreen` field, which `enterFullscreen` and
-  `exitFullscreen` set, so a test can open a surface over a fullscreen window.
+  `exitFullscreen` set and report to the scene, so a test can open a surface over a fullscreen
+  window or change fullscreen under one.
+- `Scene.observeWindowFullscreen(Consumer<Boolean>)` tells an application when its window enters or
+  leaves fullscreen, however it happened: a call, the green button or its menu on macOS. A backend
+  reports it through `WindowInput.windowFullscreenChanged`.
 - `NumberFormats.scientific(maxDecimals)` writes a number in scientific notation in the current
   language's terms: `1.2E25` in English, `1,2E25` in German, `1,2×10^25` in Swedish, with the
   language's own digits and minus sign.
