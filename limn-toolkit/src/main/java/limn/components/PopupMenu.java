@@ -63,7 +63,9 @@ import java.util.Objects;
  * {@linkplain limn.backend.NativeWindow#isFullscreen() fullscreen} window, which on a monitor is
  * minimized when another window takes the focus and on macOS may be a Space of its own, and any
  * window reporting no {@link limn.backend.NativeWindow#supportsAbsolutePositioning()} (Wayland),
- * where a menu window would open somewhere other than the anchor.
+ * where a menu window would open somewhere other than the anchor. Both are asked when the menu
+ * opens; a menu already open in a window of its own when the owner enters or leaves fullscreen
+ * closes instead, cascade and all, as if dismissed, running no item: see {@link DisplayMode}.
  *
  * <pre>{@code
  * new PopupMenu(menu).showAt(grid, mouseX, mouseY); // context menu at the pointer
@@ -187,6 +189,8 @@ public final class PopupMenu {
     private Subscription dismissHandle;
     private Subscription blurHandle;
     private Subscription popupBlurHandle;
+    /** Closes a menu that opened towards a window of its own when the owner changes fullscreen. */
+    private Subscription fullscreenHandle;
     private ScreenRect workArea;
     private float screenFactor = 1;
     private int workAreaScreenX;
@@ -430,6 +434,10 @@ public final class PopupMenu {
             popupBlurHandle.cancel();
             popupBlurHandle = null;
         }
+        if (fullscreenHandle != null) {
+            fullscreenHandle.cancel();
+            fullscreenHandle = null;
+        }
         if (popupWindow != null) {
             NativeWindow closing = popupWindow;
             Scene closingScene = popupScene;
@@ -533,6 +541,12 @@ public final class PopupMenu {
                 (screenAx - workAreaScreenX) / screenFactor,
                 (screenAy - workAreaScreenY) / screenFactor,
                 aw, ah, boundsW, boundsH);
+        // The owner going fullscreen, or leaving it, takes the whole cascade down as a platform's
+        // own menus go on a change of their window's state: left open it would minimize a
+        // fullscreen owner, or stay outside its Space. Armed now rather than with the window, so a
+        // change before the window exists closes the menu too, and modal or not: the change is
+        // told to a blocked owner as well. No item runs. An in-scene menu is left alone.
+        fullscreenHandle = owner.observeWindowFullscreen(fullscreen -> close());
         // Defer window creation: it switches the GL context, which must not happen
         // inside another window's frame callback. The outside-press dismiss is
         // armed there too, after the opening press has finished dispatching, so
@@ -542,6 +556,12 @@ public final class PopupMenu {
 
     private void createNativeWindow() {
         if (!open || popupWindow != null || parentWindow == null || parentWindow.isClosed()) {
+            return;
+        }
+        if (!FloatingSurfaces.anchoredWindowAvailable(parentWindow)) {
+            // The owner went fullscreen between the open and this turn, and the change has not
+            // been dispatched yet: the window it would have closed is never made.
+            close();
             return;
         }
         surface.reposition();

@@ -139,6 +139,13 @@ outside the owner's Space; menus, combo box lists and date pickers do the same. 
 dialog is the one exception and stays a window, since an overlay would lock the very window it
 is meant to leave usable.
 
+The choice is made when each one opens, and the window can go fullscreen afterwards: from your
+code, or on macOS from the green button while a combo box list or a date picker is open. A menu,
+a list or a date picker open as a window of its own then closes, as if dismissed, as the
+platform's own menus do; nothing is chosen. A modal dialog open as a window moves inside instead,
+still waiting for its answer, with what was typed in it and the focus where it was. It stays a
+window only while another dialog is open over it. Leaving fullscreen moves nothing back out.
+
 Either way, clicking outside a modal dialog is ignored and beeps, exactly as the platform
 does. `setDismissOnScrim(true)` turns the in-scene form into a light dismissable overlay
 instead.

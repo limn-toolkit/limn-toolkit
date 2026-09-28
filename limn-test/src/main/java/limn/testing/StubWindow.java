@@ -99,7 +99,11 @@ public class StubWindow implements NativeWindow {
 
     @Override public void requestFrame() { framesRequested++; }
     @Override public void setFrameCallback(FrameCallback callback) { }
-    @Override public void setInput(WindowInput input) { }
+
+    /** What a scene bound here handed the window, told of fullscreen changes; null unbound. */
+    private WindowInput input;
+
+    @Override public void setInput(WindowInput newInput) { input = newInput; }
     @Override public String title() { return ""; }
     @Override public void setTitle(String title) { }
     @Override public float logicalWidth() { return 400; }
@@ -131,12 +135,29 @@ public class StubWindow implements NativeWindow {
      * cleared by {@link #exitFullscreen()}, and settable directly. It is the other question a
      * popup asks before it opens a window of its own, since a fullscreen owner has no room for
      * one, so a test of that fallback needs a window that can answer yes.
+     *
+     * <p>The two calls also tell a bound scene of the change, as a backend does, through
+     * {@link WindowInput#windowFullscreenChanged}; a test ends the batch to have it acted on, with
+     * {@code SceneDriver.drive(scene).inputBatchEnded()}. Setting the field tells nothing, which is
+     * how a test starts with a window that was fullscreen before anything opened over it.
      */
     public boolean fullscreen;
 
-    @Override public void enterFullscreen(int width, int height, int refreshRate) { fullscreen = true; }
-    @Override public void exitFullscreen() { fullscreen = false; }
+    @Override public void enterFullscreen(int width, int height, int refreshRate) {
+        becomeFullscreen(true);
+    }
+    @Override public void exitFullscreen() { becomeFullscreen(false); }
     @Override public boolean isFullscreen() { return fullscreen; }
+
+    private void becomeFullscreen(boolean now) {
+        if (fullscreen == now) {
+            return; // the answer did not change, and a backend tells only a change
+        }
+        fullscreen = now;
+        if (input != null) {
+            input.windowFullscreenChanged(now);
+        }
+    }
     /** Whether this window claims to be an active modal, as a dialog's own native window is. */
     public boolean modal;
 

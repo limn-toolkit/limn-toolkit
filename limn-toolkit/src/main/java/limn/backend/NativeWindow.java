@@ -239,6 +239,10 @@ public interface NativeWindow extends AutoCloseable {
      * from the moment {@link #exitFullscreen()} returns or the person starts leaving. Elsewhere it
      * is whether this window was made fullscreen and has not been told to leave.
      *
+     * <p>Each change of this answer is told to the window's {@linkplain #setInput input}, through
+     * {@link WindowInput#windowFullscreenChanged}, including the changes the person makes on
+     * macOS. A window that can never be fullscreen never tells it.
+     *
      * @return whether the window is, or is going to be, fullscreen
      */
     boolean isFullscreen();

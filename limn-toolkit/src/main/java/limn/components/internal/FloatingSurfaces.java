@@ -24,6 +24,11 @@ public final class FloatingSurfaces {
      * away from the anchor wearing whatever frame the compositor puts on toplevels. Either way the
      * surface is drawn in scene instead.
      *
+     * <p>Asked when the surface opens, and again on the later turn that makes its window, since
+     * the owner can go fullscreen between the two before the change is dispatched; a surface that
+     * finds the answer changed there closes instead. A change after the window exists is heard
+     * through {@link limn.scene.Scene#observeWindowFullscreen} and closes the surface too.
+     *
      * <p>A dialog does not ask this. It has no anchor to line up with, so a window that cannot be
      * positioned is no reason to draw it in scene, and it applies the fullscreen half itself.
      *

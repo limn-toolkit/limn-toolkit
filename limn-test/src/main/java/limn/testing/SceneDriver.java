@@ -10,10 +10,10 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Drives a scene as a window would: pointer, keys, text, focus, resizes and the close, delivered to
- * the input the scene hands its window and dispatched when the batch ends. What a test of an
- * application's own UI uses in place of a display, and what the toolkit's own tests use, which is
- * what keeps it honest.
+ * Drives a scene as a window would: pointer, keys, text, focus, fullscreen, resizes and the close,
+ * delivered to the input the scene hands its window and dispatched when the batch ends. What a test
+ * of an application's own UI uses in place of a display, and what the toolkit's own tests use,
+ * which is what keeps it honest.
  *
  * <p>Two levels. The {@link WindowInput} methods are the raw calls a backend makes, one event each,
  * queued until {@link #inputBatchEnded()} dispatches them, exactly as a frame's input arrives. The
@@ -227,6 +227,11 @@ public final class SceneDriver implements WindowInput {
     @Override
     public void windowFocusChanged(boolean focused) {
         input.windowFocusChanged(focused);
+    }
+
+    @Override
+    public void windowFullscreenChanged(boolean fullscreen) {
+        input.windowFullscreenChanged(fullscreen);
     }
 
     @Override

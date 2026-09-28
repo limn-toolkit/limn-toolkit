@@ -116,6 +116,20 @@ than missing from an implementation. Both fall back to an in-scene overlay, with
 cascade, flip, clamp and navigation. A platform fallback, not a public mode: the API stays
 native and the application chooses nothing.
 
+The case is decided when the menu opens, and the first of the two can arrive later: the
+application can make its window fullscreen, and on macOS so can the person, with the green
+button or Control-Command-F while a combo's list or a date picker's calendar is open, since
+neither takes the focus. So the backend tells the scene each time `isFullscreen()` changes its
+answer, through `WindowInput.windowFullscreenChanged`, from `enterFullscreen`,
+`exitFullscreen`, AppKit's four transition notifications and the loop's settling of a
+transition that never finished, and the scene hands it to `observeWindowFullscreen`. A menu, a
+list or a calendar open in a window of its own closes on it as if dismissed, which is what the
+platforms' own menus do on a change of their window's state; one drawn in scene stays. The turn
+that makes a popup's window asks again, for a change made between the open and that turn. A
+modal dialog moves its card into the owner's scene rather than closing, since it is a question
+the application is still waiting on, unless something is open over its own window; a non-modal
+dialog stays a window, as it does when it opens over a fullscreen owner.
+
 ## What the in-scene fallback costs, and why it is not a second implementation
 
 The overlay is clamped to the **owner window** where the native presentation clamps to the
