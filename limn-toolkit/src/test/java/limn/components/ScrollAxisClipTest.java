@@ -9,6 +9,8 @@ import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Widget;
 import limn.scene.layout.Column;
+import limn.scene.layout.Flex;
+import limn.scene.layout.Grid;
 import limn.scene.layout.Padding;
 import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
@@ -581,6 +583,103 @@ class ScrollAxisClipTest extends ComponentTestBase {
         assertEquals(box.inflate(reach), rings.get(0).clip(),
                 "fitting again, the band is open on every side");
         assertWhole(rings, "focus ring over content that fits again");
+    }
+
+    // ------------------------------------------------------------------ the view moves
+
+    private Label caption;
+
+    /**
+     * A view scrolling vertically, and sideways when {@code horizontal}, in the second column of a
+     * grid, which takes what the first leaves; in the first, a caption, hidden, so that the view
+     * starts at the grid's leading edge. Its content is a focused button flush with its leading
+     * edge above a block that overflows it downwards and fits it across, so that the ring hangs
+     * past the view's leading edge. Shown, the caption moves the view along and narrows it past
+     * its content's width, though not past the button's, in one layout in place.
+     */
+    private void mountAViewBesideAHiddenCaption(boolean horizontal) {
+        button = new Button("Save");
+        Row row = new Row();
+        row.add(button);
+        Column content = new Column();
+        content.add(new Padding(Insets.symmetric(12, 0), row));
+        content.add(new SizedBox(160, 200));
+        view = new ScrollView(content, horizontal, true);
+        caption = new Label("Address");
+        caption.setVisible(false);
+        Grid grid = new Grid(2).expandedColumn(1).gap(8)
+                .crossAlignment(Flex.CrossAlignment.START);
+        grid.add(caption);
+        grid.add(view);
+        Stack centre = new Stack().alignment(Stack.Alignment.CENTER);
+        centre.add(new SizedBox(200, 80, grid));
+        mount(new Padding(Insets.all(INSET), centre), W, H);
+        button.requestFocus();
+        settle();
+    }
+
+    /**
+     * What a whole frame draws of the focus ring, antialiased edge included: its ink as far as the
+     * clip it was drawn in lets it, which is what a later frame has to repaint to wipe it.
+     */
+    private Rect drawnRingBox() {
+        wholeFrame();
+        Rect box = null;
+        for (InkRecorder.Ink ring : ringsOf(Strokes.FOCUS_RING)) {
+            Rect drawn = ring.ink().intersect(ring.clip());
+            if (drawn.width() > 0 && drawn.height() > 0) {
+                Rect inked = drawn.inflate(FEATHER);
+                box = box == null ? inked : box.union(inked);
+            }
+        }
+        assertNotNull(box, "the focused button drew no focus ring");
+        settle();
+        return box;
+    }
+
+    /**
+     * A view that moves in a layout in place and, in the same layout, starts to overflow on the
+     * axis whose band its ring hung into repaints the ring it drew beside its old box, and one
+     * that moves back and fits again draws its ring whole at once. A view scrolling both ways
+     * then clips on both, so it declares nothing past its box any more, and its old box, repainted
+     * grown by that nothing, left the part of the ring past it on screen; a view scrolling only
+     * vertically keeps its band across and had nothing to leave behind.
+     */
+    @Test
+    void aViewThatMovesAndStartsToOverflowRepaintsTheRingItDrewBesideItsOldBox() {
+        for (boolean horizontal : new boolean[] {true, false}) {
+            String what = horizontal ? "a view scrolling both ways" : "a view scrolling vertically";
+            mountAViewBesideAHiddenCaption(horizontal);
+            assertEquals(0, view.maxOffsetX(), 0, what + ": the content fits across");
+            assertTrue(view.maxOffsetY() > 0, what + ": the content overflows downwards");
+            Rect ring = drawnRingBox();
+            Rect was = sceneBox(view);
+            assertTrue(ring.x() < was.x() - FEATHER,
+                    what + ": the ring hangs past the view's leading edge");
+
+            caption.setVisible(true);
+            List<Rect> passes = passesUntilSettled();
+            Rect now = sceneBox(view);
+            assertTrue(now.x() > was.x() && now.width() < was.width(),
+                    what + ": the caption moves the view along and narrows it");
+            if (horizontal) {
+                assertTrue(view.maxOffsetX() > 0, what + ": narrowed, the content overflows it "
+                        + "across as well, so it clips on both axes");
+            }
+            assertRepainted(ring, new Rect(0, 0, 0, 0), passes, what + " moving along");
+            Rect moved = drawnRingBox();
+
+            caption.setVisible(false);
+            passes = passesUntilSettled();
+            assertEquals(was, sceneBox(view), what + ": back where it was");
+            assertEquals(0, view.maxOffsetX(), 0, what + ": the content fits across again");
+            assertRepainted(moved, new Rect(0, 0, 0, 0), passes, what + " moving back, the ring "
+                    + "it left");
+            assertRepainted(ring, new Rect(0, 0, 0, 0), passes, what + " moving back, the ring "
+                    + "it draws");
+            wholeFrame();
+            assertWhole(ringsOf(Strokes.FOCUS_RING), what + ": the focus ring moved back");
+        }
     }
 
     // ------------------------------------------------------------------ the dialog

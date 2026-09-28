@@ -2028,6 +2028,12 @@ public final class Scene {
      * still on screen. A child whose visibility changed during the pass counts as moved, since a
      * container may show or hide its own parts as it lays out (a scroll view's bars).
      *
+     * <p><b>An old box is grown by the {@code paintOutset()} its widget declared before the pass,
+     * and a new one by what it declares after</b>, because a layout can change how far a widget
+     * paints past its box as well as the box: a scroll view whose content starts to overflow it on
+     * the last axis it let a focus ring past declares nothing from then on, and its old box grown
+     * by that nothing left the part of the ring it had drawn beside the box on screen.
+     *
      * <p>Every case the comparison cannot vouch for falls back rather than guesses: a widget no
      * longer in this scene or with no parent, an ancestor never measured, a climb past the root,
      * all escalate to a full pass; a child list that changed during the pass, or a request
@@ -2074,13 +2080,16 @@ public final class Scene {
                 layoutDirty = true;
                 continue;
             }
-            // Where the widget is drawn now, in its parent's space, read before anything moves.
+            // Where the widget is drawn now, in its parent's space, and how far past that box it
+            // paints, read before anything moves: the reach belongs to the box it was drawn around.
             float wx = widget.x();
             float wy = widget.y();
             float ww = widget.width();
             float wh = widget.height();
+            float wo = 1 + widget.paintOutset();
             List<Widget<?>> children = List.copyOf(anchor.children());
             float[] was = new float[children.size() * 4];
+            float[] wasReach = new float[children.size()];
             boolean[] wasVisible = new boolean[children.size()];
             for (int i = 0; i < children.size(); i++) {
                 Widget<?> child = children.get(i);
@@ -2088,6 +2097,7 @@ public final class Scene {
                 was[i * 4 + 1] = child.y();
                 was[i * 4 + 2] = child.width();
                 was[i * 4 + 3] = child.height();
+                wasReach[i] = 1 + child.paintOutset();
                 wasVisible[i] = child.isVisible();
             }
             absorbedInsidePass = false;
@@ -2114,21 +2124,21 @@ public final class Scene {
                 if (!moved && wasVisible[i] == child.isVisible()) {
                     continue;
                 }
-                float o = 1 + child.paintOutset();
                 if (wasVisible[i]) {
+                    float o = wasReach[i];
                     damageInParent(anchor, child, was[i * 4] - o, was[i * 4 + 1] - o,
                             was[i * 4 + 2] + 2 * o, was[i * 4 + 3] + 2 * o);
                 }
                 if (child.isVisible()) {
+                    float o = 1 + child.paintOutset();
                     damageInParent(anchor, child, child.x() - o, child.y() - o,
                             child.width() + 2 * o, child.height() + 2 * o);
                 }
             }
-            float o = 1 + widget.paintOutset();
             if (widget.isVisible()) {
                 damageWidget(widget);
             } else {
-                damageInParent(parent, widget, wx - o, wy - o, ww + 2 * o, wh + 2 * o);
+                damageInParent(parent, widget, wx - wo, wy - wo, ww + 2 * wo, wh + 2 * wo);
             }
             markAccessibleNodesDirty();
         }
