@@ -7,6 +7,7 @@ import limn.components.internal.FloatingSurfaces;
 import limn.components.internal.a11y.MenuAccessibility;
 import limn.backend.CrashPhase;
 import limn.backend.NativeWindow;
+import limn.backend.WindowInput;
 import limn.backend.ScreenRect;
 import limn.backend.WindowConfig;
 import limn.concurrent.internal.Listeners;
@@ -31,6 +32,8 @@ import limn.scene.LayoutDirection;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.scene.internal.SceneAccess;
+import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 
@@ -430,6 +433,11 @@ public final class PopupMenu {
             return;
         }
         open = false;
+        if (surface != null) {
+            // Its window or overlay fades from here on and still receives input, none of which
+            // the menu answers any more; see MenuSurface#passOnWhileClosing.
+            surface.closed(owner, modal && popupWindow != null && !keyboardHandedBack);
+        }
         if (dismissHandle != null) {
             dismissHandle.cancel();
             dismissHandle = null;
@@ -519,6 +527,19 @@ public final class PopupMenu {
     }
 
     /**
+     * Closes the menu as the person dismissed it: Escape at the root, a press outside the
+     * cascade, a press back in the owner, an assistive technology's cancel, or the owner's
+     * fullscreen changing. The owner is where the keyboard goes next, so a key the fading window
+     * still receives is given to the owner's scene; see {@link MenuSurface#passOnWhileClosing}.
+     */
+    private void dismiss() {
+        if (open && surface != null) {
+            surface.keysGoToOwner = true;
+        }
+        close();
+    }
+
+    /**
      * Runs a chosen item and closes the menu, having first given the owner back the keyboard from
      * the menu's window, at once and while that window is still up: lets go of a modal menu's lock,
      * since a blocked owner hands the focus straight back to the modal over it, then asks for the
@@ -602,7 +623,7 @@ public final class PopupMenu {
         // focus, would minimize an owner fullscreen at a named mode. Armed now rather than with the
         // window, so a change before the window exists closes the menu too, and modal or not: the
         // change is told to a blocked owner as well. No item runs. An in-scene menu is left alone.
-        fullscreenHandle = owner.observeWindowFullscreen(fullscreen -> close());
+        fullscreenHandle = owner.observeWindowFullscreen(fullscreen -> dismiss());
         // Defer window creation: it switches the GL context, which must not happen
         // inside another window's frame callback. The outside-press dismiss is
         // armed there too, after the opening press has finished dispatching, so
@@ -657,7 +678,7 @@ public final class PopupMenu {
         if (!modal) {
             // Non-modal: a press back in the owner window dismisses the menu (the
             // owner is not blocked, so it receives the press).
-            dismissHandle = owner.observePresses(target -> close());
+            dismissHandle = owner.observePresses(target -> dismiss());
             // A press in another window/app never reaches observePresses: dismiss
             // when OS focus leaves the owner/menu pair, or the always-on-top menu
             // floats over foreign applications indefinitely.
@@ -890,6 +911,14 @@ public final class PopupMenu {
         // Fullscreen fallback: this surface is a scene overlay, so its bounds are
         // the scene (tracked from the widget size) and the offset is zero.
         boolean fillScene;
+        /** Whether the menu closed; the surface is only fading out. See {@link #closed}. */
+        private boolean closed;
+        /** Whether the menu was dismissed rather than chosen from or replaced. */
+        boolean keysGoToOwner;
+        /** The scene the menu was opened over, as it was when the menu closed. */
+        private Scene ownerAtClose;
+        /** Whether the menu still held its own modal lock over the owner when it closed. */
+        private boolean ownLockAtClose;
 
         MenuSurface(TextRuler ruler) {
             this.ruler = ruler;
@@ -1331,6 +1360,13 @@ public final class PopupMenu {
 
         @Override
         protected void onMouseEvent(MouseEvent event) {
+            if (closed) {
+                // Nothing is chosen, highlighted or scrolled on a closed menu. Dropped rather than
+                // passed on: its coordinates are the fading window's, or in scene the overlay's
+                // that still covers the owner until the fade ends.
+                event.consume();
+                return;
+            }
             rebuildStaleColumns(); // never hit-test against a live-mutated Menu
             float lx = sceneToLocalX(event.x()) + offsetX;
             float ly = sceneToLocalY(event.y()) + offsetY;
@@ -1416,6 +1452,9 @@ public final class PopupMenu {
 
         /** Hover in layout space: highlight (and open the submenu of) the item under the pointer. */
         void moveAt(float lx, float ly) {
+            if (closed) {
+                return;
+            }
             int[] target = hit(lx, ly);
             if (target != null && target[1] >= 0
                     && hintBandDirection(cols.get(target[0]), ly) == 0) {
@@ -1425,13 +1464,19 @@ public final class PopupMenu {
 
         /** Press in layout space: a press outside every column dismisses the menu. */
         void pressAt(float lx, float ly) {
+            if (closed) {
+                return;
+            }
             if (hit(lx, ly) == null) {
-                close();
+                dismiss();
             }
         }
 
         /** Click in layout space: choose (or open the submenu of) the item under the pointer. */
         void clickAt(float lx, float ly) {
+            if (closed) {
+                return; // a second click on the fading menu chooses nothing
+            }
             int[] target = hit(lx, ly);
             if (target == null) {
                 return;
@@ -1536,13 +1581,77 @@ public final class PopupMenu {
 
         @Override
         protected void onKeyEvent(KeyEvent event) {
+            if (closed) {
+                passOnWhileClosing(input -> input.keyEvent(event.key(), event.isPressed(),
+                        event.isRepeat(), event.modifiers()));
+                event.consume();
+                return;
+            }
             if (event.isPressed() && handleKey(event.key(), event.modifiers())) {
                 event.consume();
             }
         }
 
+        @Override
+        protected void onCharTyped(CharEvent event) {
+            if (closed) {
+                passOnWhileClosing(input -> input.charTyped(event.codepoint()));
+                event.consume();
+            }
+        }
+
+        /**
+         * Marks the menu this surface shows as closed. The surface goes on being drawn while its
+         * window or its overlay fades out, and goes on receiving input meanwhile.
+         *
+         * @param ownerScene the scene the menu was opened over
+         * @param ownLock    whether the menu still holds its own modal lock over the owner
+         */
+        void closed(Scene ownerScene, boolean ownLock) {
+            closed = true;
+            ownerAtClose = ownerScene;
+            ownLockAtClose = ownLock;
+        }
+
+        /**
+         * What a key, or a character, that reaches this surface after its menu closed becomes. The
+         * menu answers none of it: a second Enter or Space there chose the highlighted item again,
+         * and so did a second click.
+         *
+         * <p>After a {@linkplain PopupMenu#dismiss dismissal}, in a window of its own, it goes to
+         * the owner's scene, as if the menu were already gone: the owner is where the keyboard
+         * goes, and the fading window holds it until the end of its fade, when the owner asks for
+         * it back. A Tab or a letter typed right after Escape then lands where the person expects.
+         * Not while a modal other than the menu's own lock blocks the owner, which has the
+         * keyboard then.
+         *
+         * <p>Dropped everywhere else, because nothing says where the keyboard goes. After a choice
+         * the owner was asked for it at once, and a key reaches the fading window only until the
+         * window manager acts on that, while a window the item opened is asked after the owner and
+         * is the one that should have it: an Enter given to the owner instead would press its
+         * focused button under the dialog the person is looking at. A menu of a menu bar walked to
+         * its neighbour hands the keyboard to the neighbour's window. And in scene the fading
+         * overlay still holds the owner scene's focus until the fade ends, so that scene's input
+         * would hand the key straight back to it.
+         */
+        private void passOnWhileClosing(java.util.function.Consumer<WindowInput> key) {
+            Scene target = ownerAtClose;
+            NativeWindow ownerWindow = target == null ? null : target.window();
+            if (!keysGoToOwner || target == null || scene() == target || ownerWindow == null
+                    || ownerWindow.isClosed()
+                    || (ownerWindow.isModalBlocked() && !ownLockAtClose)) {
+                return;
+            }
+            WindowInput input = SceneAccess.input(target);
+            key.accept(input);
+            input.inputBatchEnded();
+        }
+
         /** Handles a navigation key in the deepest open column; {@code @return} whether handled. */
         boolean handleKey(int key, int modifiers) {
+            if (closed) {
+                return false;
+            }
             rebuildStaleColumns(); // never navigate against a live-mutated Menu
             int deep = cols.size() - 1;
             Column col = cols.get(deep); // deepest open column
@@ -1600,7 +1709,7 @@ public final class PopupMenu {
                     if (deep > 0) {
                         truncateTo(deep - 1);
                     } else {
-                        close();
+                        dismiss();
                         return true;
                     }
                 }
@@ -1917,10 +2026,10 @@ public final class PopupMenu {
         @Override
         protected boolean onAccessibilityAction(Accessible.Action action,
                                                 Accessible.Argument arg) {
-            if (action != Accessible.Action.CANCEL) {
+            if (action != Accessible.Action.CANCEL || closed) {
                 return false;
             }
-            PopupMenu.this.close();
+            dismiss();
             return true;
         }
 
@@ -1968,8 +2077,8 @@ public final class PopupMenu {
         @Override
         protected boolean onSyntheticAction(long key, Accessible.Action action,
                                             Accessible.Argument arg) {
-            if (key == COLUMN_KEY) {
-                return false;
+            if (key == COLUMN_KEY || closed) {
+                return false; // a closed menu chooses, opens and scrolls nothing
             }
             if (key < 0) {
                 return pressBand(key, action);

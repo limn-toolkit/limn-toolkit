@@ -1071,6 +1071,170 @@ class FullscreenFallbackTest extends ComponentTestBase {
                 window.calls);
     }
 
+    // ------------------------------------------------------------------ input during the fade
+
+    // A closed menu fades for 0.16 s, and its window, or its overlay in scene, still receives
+    // input meanwhile. None of it reaches the menu: an Enter or a click there ran the chosen item
+    // a second time. A key that follows a dismissal is given to the owner's scene, as if the menu
+    // were already gone; after a choice, or in scene, it is dropped.
+
+    /** A key pressed and released in {@code window}, then the batch ended, as a backend says. */
+    private static void keyIn(WindowHost.Made window, int key) {
+        window.input.keyEvent(key, true, false, 0);
+        window.input.keyEvent(key, false, false, 0);
+        window.input.inputBatchEnded();
+    }
+
+    /** A menu's window, faded in and holding the focus, over {@code scene}. */
+    private WindowHost.Made menuWindowUp(WindowHost window, PopupMenu popup, Scene scene,
+                                         long[] nanos) {
+        popup.showAnchored(scene, 20, 20, 0, 0);
+        runtime.drain();
+        WindowHost.Made menu = window.made.get(0);
+        fadeIn(menu, nanos);
+        focusedByTheDesktop(menu);
+        return menu;
+    }
+
+    @Test
+    void aSecondEnterWhileTheMenuFadesRunsTheItemOnce() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300, nanos);
+        AtomicInteger ran = new AtomicInteger();
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", ran::incrementAndGet));
+        WindowHost.Made menu = menuWindowUp(window, popup, scene, nanos);
+
+        keyIn(menu, Keys.DOWN);
+        keyIn(menu, Keys.ENTER);
+        assertEquals(1, ran.get(), "sanity: the item ran");
+        keyIn(menu, Keys.ENTER); // the fading window still has the keyboard
+        fadeOut(menu, nanos);
+
+        assertEquals(1, ran.get(), "a closed menu chooses nothing");
+    }
+
+    @Test
+    void aSecondClickWhileTheMenuFadesRunsTheItemOnce() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        Scene scene = sceneOver(window, new Label("root"), 400, 300, nanos);
+        AtomicInteger ran = new AtomicInteger();
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", ran::incrementAndGet));
+        WindowHost.Made menu = menuWindowUp(window, popup, scene, nanos);
+        float[] column = popup.columnRectForTest(0);
+        SizeTokens t = popup.tokensForTest();
+        float x = column[0] + 30;
+        float y = column[1] + t.menuPadV() + t.menuRowHeight() / 2;
+
+        popup.clickForTest(x, y);
+        assertEquals(1, ran.get(), "sanity: the item ran");
+        popup.clickForTest(x, y);
+        fadeOut(menu, nanos);
+
+        assertEquals(1, ran.get(), "a closed menu chooses nothing");
+    }
+
+    /** In scene too: the overlay keeps the owner's keyboard until its fade has ended. */
+    @Test
+    void aSecondEnterWhileAMenuInSceneFadesRunsTheItemOnce() {
+        StubWindow window = fullscreen(new StubWindow());
+        Scene scene = sceneOver(window, new Label("root"), 400, 300);
+        AtomicInteger ran = new AtomicInteger();
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", ran::incrementAndGet));
+        popup.showAnchored(scene, 20, 20, 0, 0);
+        scene.layoutPass(400, 300);
+        assertTrue(popup.isInSceneForTest(), "sanity: drawn in scene");
+
+        drive(scene).press(Keys.DOWN).press(Keys.ENTER);
+        assertEquals(1, ran.get(), "sanity: the item ran");
+        drive(scene).press(Keys.ENTER);
+
+        assertEquals(1, ran.get(), "a closed menu chooses nothing");
+    }
+
+    /**
+     * After a dismissal the owner is where the keyboard goes, and the menu's window holds it only
+     * until its fade ends: what is typed meanwhile reaches the owner's scene, as if the menu were
+     * already gone.
+     */
+    @Test
+    void keysTypedWhileADismissedMenuFadesReachTheOwner() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        TextField field = new TextField();
+        Button next = new Button("Next");
+        Column root = new Column();
+        root.add(field);
+        root.add(next);
+        Scene scene = sceneOver(window, root, 400, 300, nanos);
+        scene.requestFocus(field);
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", () -> { }));
+        WindowHost.Made menu = menuWindowUp(window, popup, scene, nanos);
+
+        keyIn(menu, Keys.ESCAPE);
+        assertFalse(popup.isOpen(), "sanity: Escape closed it");
+        menu.input.keyEvent(Keys.A, true, false, 0);
+        menu.input.charTyped('a');
+        menu.input.keyEvent(Keys.A, false, false, 0);
+        menu.input.inputBatchEnded();
+        keyIn(menu, Keys.TAB);
+        fadeOut(menu, nanos);
+
+        assertEquals("a", field.text(), "the character reached the owner's field");
+        assertSame(next, scene.focusedWidget(), "and Tab moved the owner's focus");
+    }
+
+    /** A modal menu's own lock, held until its fade ends, does not keep the owner from them. */
+    @Test
+    void keysTypedWhileADismissedModalMenuFadesReachTheOwner() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        TextField field = new TextField();
+        Scene scene = sceneOver(window, field, 400, 300, nanos);
+        scene.requestFocus(field);
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", () -> { })).setModal(true);
+        WindowHost.Made menu = menuWindowUp(window, popup, scene, nanos);
+
+        keyIn(menu, Keys.ESCAPE);
+        assertTrue(window.isModalBlocked(), "sanity: the lock goes at the end of the fade");
+        menu.input.charTyped('a');
+        menu.input.inputBatchEnded();
+        fadeOut(menu, nanos);
+
+        assertEquals("a", field.text());
+    }
+
+    /**
+     * After a choice the key is dropped: the window that has the keyboard once the menu is gone
+     * may be one the item opened, and an Enter given to the owner instead would press whatever
+     * the owner has focused, under a dialog the person is looking at.
+     */
+    @Test
+    void keysTypedWhileAChosenMenuFadesAreDropped() {
+        long[] nanos = {0};
+        WindowHost window = new WindowHost();
+        TextField field = new TextField();
+        Button next = new Button("Next");
+        Column root = new Column();
+        root.add(field);
+        root.add(next);
+        Scene scene = sceneOver(window, root, 400, 300, nanos);
+        scene.requestFocus(field);
+        PopupMenu popup = new PopupMenu(new Menu().addItem("One", () -> { }));
+        WindowHost.Made menu = menuWindowUp(window, popup, scene, nanos);
+
+        keyIn(menu, Keys.DOWN);
+        keyIn(menu, Keys.ENTER);
+        menu.input.charTyped('a');
+        menu.input.inputBatchEnded();
+        keyIn(menu, Keys.TAB);
+        fadeOut(menu, nanos);
+
+        assertEquals("", field.text());
+        assertSame(field, scene.focusedWidget());
+    }
+
     /**
      * A modal dialog's window holds the focus over an owner it blocks, so the move lets go of the
      * owner, moves the card, asks the owner for the focus, and sends the window away only once the

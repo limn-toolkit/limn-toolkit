@@ -164,6 +164,14 @@ fade, and only if the menu's window holds the focus then, since another window m
 since the close, such as the neighbouring menu of a menu bar walked across. The list and the
 calendar ask as they close.
 
+A closed menu answers no input while it fades: a second Enter or click on the fading window, or
+an assistive technology's press on a row it still publishes, ran the chosen item again. A key
+that reaches the fading window after a dismissal (Escape, a press outside, a cancel, the owner's
+fullscreen changing) is given to the owner's scene, as if the menu were already gone, since the
+owner is where the keyboard goes. After a choice, a walk to the next menu of a bar, or in scene,
+it is dropped: the window that should have it may be one the chosen item opened or the next
+menu, and in scene the fading overlay still holds the owner scene's focus.
+
 ## What the in-scene fallback costs, and why it is not a second implementation
 
 The overlay is clamped to the **owner window** where the native presentation clamps to the

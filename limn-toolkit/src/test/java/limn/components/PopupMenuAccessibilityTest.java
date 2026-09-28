@@ -746,6 +746,24 @@ class PopupMenuAccessibilityTest extends AccessibleComponentTestBase {
                         + "click chooses the first row" + describe(tree()));
     }
 
+    /**
+     * A row pressed again while the closed cascade fades out is refused: the overlay is still in
+     * the scene and the row is still in the tree a reader last read, but a closed menu chooses
+     * nothing, as a second click there chooses nothing.
+     */
+    @Test
+    void aRowPressedAgainWhileTheCascadeFadesRunsNothing() throws Exception {
+        open(everyShape());
+        AccessibleNode first = rowsOf(rootColumn()).get(0);
+
+        perform(first.id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+        assertEquals(List.of("New"), chosen, "sanity: the press chose the row");
+        assertFalse(popup.isOpen(), "sanity: and closed the menu");
+        perform(first.id(), Accessible.Action.PRESS, Accessible.Argument.NONE);
+
+        assertEquals(List.of("New"), chosen, describe(tree()));
+    }
+
     @Test
     void theBandAtTheFarClampStopsBeingPublishedWhenTheColumnReachesIt() throws Exception {
         open(thirtyRows());
