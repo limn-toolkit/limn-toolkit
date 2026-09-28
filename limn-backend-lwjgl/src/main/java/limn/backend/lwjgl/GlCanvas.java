@@ -88,6 +88,8 @@ final class GlCanvas implements Canvas {
     private final FontStore fontStore;
     private final List<State> states = new ArrayList<>();
     private final PathCollector pathCollector = new PathCollector();
+    /** {@link #snapToStrokeGrid}'s answer: left, top, right, bottom. Reused, as every shape is. */
+    private final float[] gridEdges = new float[4];
     private Gl3DContext gl3d; // lazy: only windows that use 3D pay for it
     private GlVideoContext glVideo; // lazy: only windows that play video pay for it
     private int depth;
@@ -674,6 +676,57 @@ final class GlCanvas implements Canvas {
                 rr.topLeft(), rr.topRight(), rr.bottomRight(), rr.bottomLeft(), strokeWidth, paint);
     }
 
+    /**
+     * The interface's geometry, with the fill's edge where the border's centre line is actually
+     * drawn. A stroke's centre line moves up to half a device pixel onto the grid and a fill's edge
+     * does not, so a fill stopping at the unmoved centre line of a border that moved inward
+     * reached past the border's outer edge at the corners, where the two arcs no longer shared a
+     * centre (at 1x a one-point border on a box half a point off the grid showed up to 35% of the
+     * fill on the pixels just outside it), and where the border moved outward the background
+     * showed between the two. Moving the fill's edges with the border's keeps the arcs concentric
+     * at every offset; the border itself is drawn exactly as before.
+     */
+    @Override
+    public void fillRoundRectInsideBorder(float x, float y, float width, float height, float radius,
+                                          float borderWidth, Paint paint) {
+        float half = borderWidth / 2;
+        float w = width - borderWidth;
+        float h = height - borderWidth;
+        if (w <= 0 || h <= 0) {
+            return; // what fillRoundRect does with the default's inset box
+        }
+        float r = uniformRadius(w, h, Math.max(0, radius - half));
+        emitRoundRect(x + half, y + half, w, h, r, r, r, r, -1, borderWidth, paint);
+    }
+
+    /**
+     * The interface's geometry, with the clip's edge where the border's centre line is actually
+     * drawn, for the reason {@link #fillRoundRectInsideBorder} gives: content painted under this
+     * clip then stays inside the border at every offset.
+     */
+    @Override
+    public void clipRoundRectInsideBorder(float x, float y, float width, float height, float radius,
+                                          float borderWidth) {
+        float half = borderWidth / 2;
+        float w = Math.max(0, width - borderWidth);
+        float h = Math.max(0, height - borderWidth);
+        // RoundRect.normalized()'s radius, which clipRoundRect would have taken from the default's
+        // RoundRect; the shader clamps it to the half extents of the rectangle it is given.
+        float r = uniformRadius(w, h, Math.max(0, radius - half));
+        float x0 = x + half;
+        float y0 = y + half;
+        float x1 = x0 + w;
+        float y1 = y0 + h;
+        Transform2D t = state().transform;
+        if (snapToStrokeGrid(t, x0, y0, x1, y1, borderWidth) > 0) {
+            x0 = gridEdges[0];
+            y0 = gridEdges[1];
+            x1 = gridEdges[2];
+            y1 = gridEdges[3];
+        }
+        intersectClip(x0, y0, x1 - x0, y1 - y0, r * t.approxScale());
+    }
+
     @Override
     public void fillCircle(float cx, float cy, float radius, Paint paint) {
         if (radius <= 0) {
@@ -1235,30 +1288,34 @@ final class GlCanvas implements Canvas {
     private void emitRoundRect(float x, float y, float width, float height,
                                float tl, float tr, float br, float bl,
                                float strokeWidth, Paint paint) {
+        emitRoundRect(x, y, width, height, tl, tr, br, bl, strokeWidth, strokeWidth, paint);
+    }
+
+    /**
+     * Emits a rounded rectangle, filled when {@code strokeWidth} is not positive and stroked
+     * otherwise, with its edges where a stroke {@code gridWidth} wide on them would have its
+     * centre lines (see {@link #snapToStrokeGrid}): a stroke passes its own width, the fill inside
+     * a border passes the border's, so the two share one outline, and a fill that stands alone
+     * passes no positive width and keeps its own edges.
+     */
+    private void emitRoundRect(float x, float y, float width, float height,
+                               float tl, float tr, float br, float bl,
+                               float strokeWidth, float gridWidth, Paint paint) {
         ensureInFrame();
         State s = state();
         Transform2D t = s.transform;
         float x1 = x + width;
         float y1 = y + height;
-        float strokeHalfWidth = -1;
+        float strokeHalfWidth = strokeWidth > 0 ? strokeWidth / 2f : -1;
 
-        if (strokeWidth > 0) {
-            if (t.isUniformAxisAligned()) {
-                // Snap the stroke centerlines (the rect edges) to the pixel
-                // grid. Uniform scale only: the odd/even parity rule assumes a
-                // single device width; anisotropic scale renders unsnapped.
-                int widthDev = Snapping.strokeWidthDev(strokeWidth, t.m00);
-                float dx0 = Snapping.snapCenter(t.x(x, y), widthDev);
-                float dy0 = Snapping.snapCenter(t.y(x, y), widthDev);
-                float dx1 = Snapping.snapCenter(t.x(x1, y1), widthDev);
-                float dy1 = Snapping.snapCenter(t.y(x1, y1), widthDev);
-                x = (dx0 - t.tx) / t.m00;
-                y = (dy0 - t.ty) / t.m11;
-                x1 = (dx1 - t.tx) / t.m00;
-                y1 = (dy1 - t.ty) / t.m11;
+        int widthDev = snapToStrokeGrid(t, x, y, x1, y1, gridWidth);
+        if (widthDev > 0) {
+            x = gridEdges[0];
+            y = gridEdges[1];
+            x1 = gridEdges[2];
+            y1 = gridEdges[3];
+            if (strokeWidth > 0) {
                 strokeHalfWidth = widthDev / t.m00 / 2f;
-            } else {
-                strokeHalfWidth = strokeWidth / 2f;
             }
         }
 
@@ -1272,6 +1329,30 @@ final class GlCanvas implements Canvas {
                 Math.min(tl, maxRadius), Math.min(tr, maxRadius),
                 Math.min(br, maxRadius), Math.min(bl, maxRadius),
                 strokeHalfWidth, 1, 0, paint);
+    }
+
+    /**
+     * Moves a rectangle's edges to where a stroke {@code strokeWidth} wide on them has its centre
+     * lines on the device grid, and writes them to {@link #gridEdges} in current coordinates
+     * (left, top, right, bottom). The stroke's width is rounded to whole device pixels (at least
+     * one) and each centre line goes to a half pixel when that width is odd and to a whole one when
+     * it is even, so an edge moves by up to half a device pixel either way. Uniform axis-aligned
+     * transforms only: the parity rule assumes one device width per stroke.
+     *
+     * @return the stroke's width in device pixels, or 0 when the edges stay where they are (no
+     *         stroke width, or a rotated or anisotropic transform), leaving {@link #gridEdges}
+     *         untouched
+     */
+    private int snapToStrokeGrid(Transform2D t, float x, float y, float x1, float y1, float strokeWidth) {
+        if (!(strokeWidth > 0) || !t.isUniformAxisAligned()) {
+            return 0;
+        }
+        int widthDev = Snapping.strokeWidthDev(strokeWidth, t.m00);
+        gridEdges[0] = (Snapping.snapCenter(t.x(x, y), widthDev) - t.tx) / t.m00;
+        gridEdges[1] = (Snapping.snapCenter(t.y(x, y), widthDev) - t.ty) / t.m11;
+        gridEdges[2] = (Snapping.snapCenter(t.x(x1, y1), widthDev) - t.tx) / t.m00;
+        gridEdges[3] = (Snapping.snapCenter(t.y(x1, y1), widthDev) - t.ty) / t.m11;
+        return widthDev;
     }
 
     private void emitCapsule(float x1, float y1, float x2, float y2, float halfWidth, Paint paint) {
