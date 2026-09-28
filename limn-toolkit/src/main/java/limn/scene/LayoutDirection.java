@@ -4,6 +4,7 @@ import limn.concurrent.internal.ChangeListeners;
 import limn.graphics.ShapedText;
 
 import limn.concurrent.Ui;
+import limn.i18n.internal.LanguageAliases;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -150,12 +151,24 @@ public enum LayoutDirection {
      * The four-letter script subtags written right to left. Checked before the language, because a
      * language can be written in either: {@code az-Arab} reads right to left and {@code az-Latn}
      * does not, and only the script says which.
+     *
+     * <p>Every script with a character of bidi class R or AL in the JDK's Unicode data, which
+     * {@code LayoutDirectionScriptsTest} asks, and every script ICU 78.3 runs right to left, the
+     * {@code rtl-script} rows of {@code cldr-locale-facts.txt} that
+     * {@code scripts/i18n/dump-cldr-locale-facts.mjs} writes and the same test holds this set to.
+     * The two agree but for scripts newer than the JDK's Unicode: Garay ({@code Gara}, Unicode 16)
+     * and Sidetic ({@code Sidt}, Unicode 17) are here on ICU's word alone.
+     *
+     * <p>{@code Aran}, Nastaliq, is this table's own and not ICU's, which runs {@code und-Aran}
+     * left to right: it is a style of Arabic with a code of its own and no characters of its own,
+     * and a locale that names it is Urdu or Persian written in Arabic script, which runs right to
+     * left.
      */
     private static final Set<String> RTL_SCRIPTS = Set.of(
-            "Adlm", "Arab", "Aran", "Armi", "Avst", "Chrs", "Cprt", "Elym", "Hatr", "Hebr",
-            "Hung", "Khar", "Lydi", "Mand", "Mani", "Mend", "Merc", "Mero", "Narb", "Nbat",
-            "Nkoo", "Orkh", "Ougr", "Palm", "Phli", "Phlp", "Phnx", "Prti", "Rohg", "Samr",
-            "Sarb", "Sogd", "Sogo", "Syrc", "Thaa", "Yezi");
+            "Adlm", "Arab", "Aran", "Armi", "Avst", "Chrs", "Cprt", "Elym", "Gara", "Hatr",
+            "Hebr", "Hung", "Khar", "Lydi", "Mand", "Mani", "Mend", "Merc", "Mero", "Narb",
+            "Nbat", "Nkoo", "Orkh", "Ougr", "Palm", "Phli", "Phlp", "Phnx", "Prti", "Rohg",
+            "Samr", "Sarb", "Sidt", "Sogd", "Sogo", "Syrc", "Thaa", "Yezi");
 
     /**
      * The language subtags whose default script is written right to left, for the common case of
@@ -170,36 +183,35 @@ public enum LayoutDirection {
      * ICU for the direction of every two-letter code ISO 639-1 has and all 17,576 three-letter
      * combinations; this is its answer, and {@code CldrLocaleFactsTest} holds the two together.
      *
-     * <p>Two entries are not CLDR's and are here because {@link Locale} is: {@code iw} and
-     * {@code ji}, which a JVM started with {@code java.locale.useOldISOCodes=true} still
-     * normalises {@code he} and {@code yi} to.
+     * <p>A code ICU reads as another language is not here, though the dump's {@code rtl} rows
+     * name it: {@link #forLocale} reads a locale through {@link LanguageAliases} first, so
+     * {@code pes} arrives as {@code fa}, and {@code iw} and {@code ji}, which a JVM started with
+     * {@code java.locale.useOldISOCodes=true} still spells Hebrew and Yiddish, as {@code he} and
+     * {@code yi}.
      */
     private static final Set<String> RTL_LANGUAGES = Set.of(
             "aao", "abh", "abv", "acm", "acq", "acw", "acx", "adf", "ae", "aeb", "aec", "aee",
-            "aeq", "afb", "aib", "aii", "aij", "aiq", "ajp", "ajt", "aju", "amw", "apc",
-            "apd", "ar", "ara", "arb", "arc", "arq", "ars", "ary", "arz", "ask", "atn", "auj",
-            "auz", "avd", "ave", "avl", "ayh", "ayl", "ayn", "ayp", "azb", "bal", "bcc",
-            "bdz", "bej", "bft", "bgn", "bgp", "bhe", "bhm", "bhn", "bjf", "bjm", "bqi",
-            "brh", "brk", "bsh", "bsk", "chg", "cja", "ckb", "cld", "clh", "czk", "dcc",
-            "def", "deh", "dgl", "div", "dmk", "dml", "drw", "dv", "ecy", "esh", "fa", "fas",
-            "fay", "faz", "fia", "fub", "gbz", "ggg", "gha", "ghr", "gig", "gjk", "gju",
-            "glh", "glk", "grr", "gwc", "gwf", "gwt", "gzi", "hac", "haz", "hbo", "he", "heb",
-            "hkh", "hnd", "hno", "hoh", "hrt", "hrz", "hss", "huy", "isk", "itk", "iw", "jad",
-            "jat", "jbe", "jbn", "jdg", "ji", "jnd", "jog", "jpa", "jpr", "jrb", "jye", "kas",
-            "kbu", "kby", "kcy", "kfm", "khw", "klj", "kmz", "kqd", "ks", "ktl", "kvx", "kxp",
-            "kzh", "lad", "lah", "lhs", "lki", "lrc", "lrk", "lrl", "lsa", "lsd", "lss",
-            "luv", "luz", "mby", "mde", "mey", "mfa", "mfi", "mhj", "mid", "mki", "mnj",
-            "mve", "mvy", "myz", "mzb", "mzn", "nli", "nlm", "nqo", "ntz", "nyq", "oar",
-            "obm", "odk", "oru", "ota", "otk", "oui", "pal", "pbt", "pbu", "per", "pes",
-            "pgd", "phl", "phn", "phr", "phv", "plk", "pmu", "pnb", "prc", "prd", "prs",
-            "prx", "ps", "psh", "psi", "pst", "pus", "qxq", "rdb", "rhg", "rmt", "sam", "sbn",
-            "scl", "sd", "sdb", "sdf", "sdg", "sdh", "sds", "sgl", "sgr", "sgy", "shd", "shm",
-            "shu", "shv", "siy", "siz", "skr", "smp", "smy", "snd", "sog", "sqo", "sqt",
-            "srh", "srz", "ssh", "sts", "swb", "syc", "syn", "syr", "tjo", "tks", "tmr",
-            "tnf", "tov", "tra", "trg", "trm", "trw", "ug", "uig", "ur", "urd", "ush", "uzs",
-            "vaf", "vgr", "vmh", "wbk", "wlo", "wne", "wni", "wsv", "xco", "xhe", "xka",
-            "xkc", "xkj", "xkp", "xld", "xly", "xmn", "xmr", "xna", "xpr", "xsa", "xsd",
-            "xvi", "ydd", "ydg", "yhd", "yi", "yid", "yih", "yud", "zba", "zdj", "zrp", "zum");
+            "aeq", "afb", "aib", "aii", "aij", "aiq", "amw", "apc", "apd", "ar", "arc", "arq",
+            "ars", "ary", "arz", "ask", "atn", "auj", "auz", "avd", "avl", "ayh", "ayl", "ayn",
+            "ayp", "azb", "bal", "bdz", "bej", "bft", "bgn", "bgp", "bhe", "bhm", "bhn", "bjf",
+            "bjm", "bqi", "brh", "brk", "bsh", "bsk", "chg", "cja", "ckb", "clh", "czk", "dcc",
+            "def", "deh", "dgl", "dmk", "dml", "dv", "ecy", "esh", "fa", "fay", "faz", "fia", "fub",
+            "gbz", "ggg", "gha", "ghr", "gig", "gjk", "gju", "glh", "glk", "grr", "gwc", "gwf",
+            "gwt", "gzi", "hac", "haz", "hbo", "he", "hkh", "hnd", "hno", "hoh", "hrt", "hrz",
+            "hss", "huy", "isk", "itk", "jad", "jat", "jbe", "jbn", "jdg", "jnd", "jog", "jpa",
+            "jpr", "jrb", "jye", "kbu", "kby", "kcy", "kfm", "khw", "klj", "kmz", "kqd", "ks",
+            "ktl", "kvx", "kxp", "lad", "lah", "lhs", "lki", "lrc", "lrk", "lrl", "lsa", "lsd",
+            "lss", "luv", "luz", "mby", "mde", "mey", "mfa", "mfi", "mhj", "mid", "mki", "mnj",
+            "mve", "mvy", "myz", "mzb", "mzn", "nli", "nlm", "nqo", "ntz", "nyq", "oar", "obm",
+            "odk", "oru", "ota", "otk", "oui", "pal", "pbt", "pgd", "phl", "phn", "phr", "phv",
+            "plk", "prc", "prd", "prx", "ps", "psh", "psi", "pst", "qxq", "rdb", "rhg", "rmt",
+            "sam", "sbn", "scl", "sd", "sdb", "sdf", "sdg", "sdh", "sds", "sgr", "sgy", "shd",
+            "shm", "shu", "shv", "siy", "siz", "skr", "smp", "smy", "sog", "sqo", "sqt", "srh",
+            "srz", "ssh", "sts", "swb", "syc", "syn", "syr", "tjo", "tks", "tmr", "tov", "tra",
+            "trg", "trm", "trw", "ug", "ur", "ush", "uzs", "vaf", "vgr", "vmh", "wbk", "wlo", "wne",
+            "wni", "wsv", "xco", "xhe", "xka", "xkc", "xkj", "xkp", "xld", "xly", "xmn", "xmr",
+            "xna", "xpr", "xsa", "xsd", "xvi", "ydg", "yhd", "yi", "yih", "yud", "zba", "zdj",
+            "zrp", "zum");
 
     /**
      * The regions that turn a language right to left, keyed {@code language-REGION}: where CLDR
@@ -212,21 +224,19 @@ public enum LayoutDirection {
      * <p>The {@code direction} rows of {@code cldr-locale-facts.txt} that name a region and no
      * script, written by {@code scripts/i18n/dump-cldr-locale-facts.mjs} from ICU 78.3 over every
      * two- and three-letter code in every two-letter region, and held to this table by
-     * {@code CldrLocaleFactsTest}. The other three-letter codes are the ones ICU reads as one of
-     * these languages ({@code pan} is {@code pa}), listed as {@link #RTL_LANGUAGES} lists them;
-     * the two retired regions, {@code NT} and {@code YD}, are there because {@link Locale} keeps
-     * a region as it is given.
+     * {@code CldrLocaleFactsTest}. A code ICU reads as one of these languages ({@code pan} is
+     * {@code pa}) and a region named by its UN number ({@code 586} is {@code PK}) have no key of
+     * their own, since {@link #forLocale} reads a locale through {@link LanguageAliases} first;
+     * the two retired regions, {@code NT} and {@code YD}, are there because neither
+     * {@link Locale} nor that reading replaces a two-letter region.
      */
     private static final Set<String> RTL_IN_REGION = Set.of(
-            "az-IQ", "az-IR", "aze-IQ", "aze-IR", "azj-IQ", "azj-IR", "ha-CM", "ha-SD",
-            "hau-CM", "hau-SD", "kaz-AF", "kaz-CN", "kaz-IR", "kaz-MN", "kir-CN", "kk-AF",
-            "kk-CN", "kk-IR", "kk-MN", "kmr-IQ", "kmr-IR", "kmr-LB", "ku-IQ", "ku-IR", "ku-LB",
-            "kur-IQ", "kur-IR", "kur-LB", "ky-CN", "may-CC", "ms-CC", "msa-CC", "pa-PK",
-            "pan-PK", "tg-PK", "tgk-PK", "uz-AF", "uzb-AF", "uzn-AF", "zsm-CC",
-            "und-AE", "und-AF", "und-BH", "und-CC", "und-DZ", "und-EG", "und-EH", "und-IL",
-            "und-IQ", "und-IR", "und-JO", "und-KM", "und-KW", "und-LB", "und-LY", "und-MA",
-            "und-MR", "und-MV", "und-NT", "und-OM", "und-PK", "und-PS", "und-QA", "und-SA",
-            "und-SD", "und-SS", "und-SY", "und-TD", "und-TN", "und-YD", "und-YE");
+            "az-IQ", "az-IR", "ha-CM", "ha-SD", "kk-AF", "kk-CN", "kk-IR", "kk-MN", "ku-IQ",
+            "ku-IR", "ku-LB", "ky-CN", "ms-CC", "pa-PK", "tg-PK", "uz-AF", "und-AE", "und-AF",
+            "und-BH", "und-CC", "und-DZ", "und-EG", "und-EH", "und-IL", "und-IQ", "und-IR",
+            "und-JO", "und-KM", "und-KW", "und-LB", "und-LY", "und-MA", "und-MR", "und-MV",
+            "und-NT", "und-OM", "und-PK", "und-PS", "und-QA", "und-SA", "und-SD", "und-SS",
+            "und-SY", "und-TD", "und-TN", "und-YD", "und-YE");
 
     /**
      * The regions that turn a right-to-left language left to right, the other half of
@@ -235,7 +245,7 @@ public enum LayoutDirection {
      * is Latin in Senegal.
      */
     private static final Set<String> LTR_IN_REGION = Set.of(
-            "mey-SN", "sd-IN", "snd-IN", "ug-KZ", "ug-MN", "uig-KZ", "uig-MN");
+            "mey-SN", "sd-IN", "ug-KZ", "ug-MN");
 
     /**
      * The script codes this class writes right to left, for {@code LayoutDirectionScriptsTest},
@@ -246,6 +256,23 @@ public enum LayoutDirection {
      */
     static Set<String> rightToLeftScripts() {
         return RTL_SCRIPTS;
+    }
+
+    /**
+     * Every language subtag the language and region tables are keyed on, {@code und} among them,
+     * for {@code LayoutDirectionTablesTest}, which holds that none is a code {@link #forLocale}
+     * reads as another language before it asks them.
+     *
+     * @return the subtags, sorted
+     */
+    static java.util.List<String> tableLanguages() {
+        java.util.SortedSet<String> languages = new java.util.TreeSet<>(RTL_LANGUAGES);
+        for (Set<String> table : java.util.List.of(RTL_IN_REGION, LTR_IN_REGION)) {
+            for (String key : table) {
+                languages.add(key.substring(0, key.indexOf('-')));
+            }
+        }
+        return java.util.List.copyOf(languages);
     }
 
     /**
@@ -272,18 +299,26 @@ public enum LayoutDirection {
      * unrecognised is {@link #LTR}, which is the same fallback the first-strong rule makes for
      * text with no strong character.
      *
+     * <p>The locale is read as ICU reads it before anything is decided: a code ICU replaces with
+     * another language is that language ({@code pes}, Iranian Persian, is {@code fa} and
+     * {@code pan-PK} is {@code pa-PK}), and a region named by its UN number is the region it
+     * stands for ({@code az-364} is {@code az-IR}). These are the same readings the digits, the
+     * plural rules, the string bundles and the calendars take.
+     *
      * @param locale the locale to classify
      * @return {@link #RTL} when that locale's script is written right to left, else {@link #LTR}
      * @throws NullPointerException if {@code locale} is null
      */
     public static LayoutDirection forLocale(Locale locale) {
         Objects.requireNonNull(locale, "locale");
-        String script = locale.getScript();
+        Locale read = LanguageAliases.resolve(locale);
+        String script = read.getScript();
         if (!script.isEmpty()) {
             return RTL_SCRIPTS.contains(script) ? RTL : LTR;
         }
-        String language = locale.getLanguage();
-        String region = locale.getCountry();
+        // language() again for the legacy spellings Locale keeps under useOldISOCodes: iw is he.
+        String language = LanguageAliases.language(read.getLanguage());
+        String region = read.getCountry();
         if (!region.isEmpty()) {
             String where = (language.isEmpty() ? "und" : language) + "-" + region;
             if (RTL_IN_REGION.contains(where)) {

@@ -390,6 +390,12 @@ class LayoutDirectionTest extends ComponentTestBase {
         // And a region named with no language is read for the language CLDR takes it to mean.
         assertSame(LayoutDirection.RTL,
                 LayoutDirection.forLocale(new Locale.Builder().setRegion("SA").build()));
+        // A region named by its UN number is that region, as ICU reads it: 364 is Iran.
+        assertSame(LayoutDirection.RTL, LayoutDirection.forLocale(Locale.forLanguageTag("az-364")));
+        assertSame(LayoutDirection.RTL, LayoutDirection.forLocale(Locale.forLanguageTag("pa-586")));
+        // A code ICU reads as another language is read as that language, in its region too.
+        assertSame(LayoutDirection.RTL, LayoutDirection.forLocale(Locale.forLanguageTag("pan-PK")));
+        assertSame(LayoutDirection.RTL, LayoutDirection.forLocale(Locale.forLanguageTag("pes")));
 
         // Locale still normalises Hebrew's modern tag to the historical one.
         assertSame(LayoutDirection.RTL, LayoutDirection.forLocale(new Locale("iw")));

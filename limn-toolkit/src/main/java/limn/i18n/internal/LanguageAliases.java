@@ -32,6 +32,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code -Djava.locale.useOldISOCodes=true}. {@link #language(String)} maps them to the current
  * codes, so a table read through it needs only those; a locale {@link #resolve} builds is still
  * spelled the old way under that flag, since {@code Locale} applies it to every instance.
+ *
+ * <p>A region named by its UN M.49 number is read as ICU reads it too: {@code az-364} is
+ * {@code az-IR} and {@code ar-818} is {@code ar-EG}, where {@code Locale} keeps the number as it
+ * is given and a table keyed on two-letter regions reads it as a region nobody listed. A number
+ * that stood for a country that split is the one of its replacements the language, in its
+ * script, is likely to mean, else the first: {@code 810}, the Soviet Union, is {@code RU}, and
+ * {@code uz-810} is {@code UZ}. A number that names an area and no country, {@code 001} or
+ * {@code 419}, is kept, as ICU keeps it. These are the {@code region} rows of the same dump,
+ * shipped in the same file.
  */
 public final class LanguageAliases {
 
@@ -47,11 +56,27 @@ public final class LanguageAliases {
 
     /** Read on first use and never again: the holder is initialized by the first lookup. */
     private static final class Table {
-        static final Map<String, Replacement> ALIASES = read();
+        /** The codes read as another language, keyed on the code. */
+        static final Map<String, Replacement> ALIASES;
+        /**
+         * The numbers read as a two-letter region, keyed {@code 364}, {@code uz-810} or
+         * {@code und-Armn-172}: the number alone, then where a language, or a language in a
+         * script, picks another of its replacements.
+         */
+        static final Map<String, String> REGIONS;
+
+        static {
+            Map<String, Replacement> aliases = new HashMap<>();
+            Map<String, String> regions = new HashMap<>();
+            read(aliases, regions);
+            ALIASES = Map.copyOf(aliases);
+            REGIONS = Map.copyOf(regions);
+        }
     }
 
     /**
-     * The locales already resolved, bounded by the aliased locales an application actually uses.
+     * The locales already resolved, bounded by the aliased or numbered locales an application
+     * actually uses.
      * A formatter asks on every number it writes, and building the locale again each time would
      * allocate on a paint path for exactly the locales this class exists for.
      */
@@ -73,41 +98,73 @@ public final class LanguageAliases {
      * {@code locale} with its language read as ICU reads it, and the script and region the
      * replacement carries filled in where {@code locale} names none: {@code pes} is {@code fa},
      * {@code prs} is {@code fa-AF}, {@code prs-IR} is {@code fa-IR}, {@code sh-RS} is
-     * {@code sr-Latn-RS}. Variants and extensions are kept: {@code pes-u-nu-latn} is
-     * {@code fa-u-nu-latn}.
+     * {@code sr-Latn-RS}; and a region named by its number as the two-letter region ICU reads it
+     * as, for the language read that way: {@code az-364} is {@code az-IR}, {@code uz-810} is
+     * {@code uz-UZ}, {@code hye-172} is {@code hy-AM}. Variants and extensions are kept:
+     * {@code pes-u-nu-latn} is {@code fa-u-nu-latn}.
      *
      * <p>A variant only {@code Locale}'s constructors accept, which {@link Locale.Builder}
      * refuses, is kept too, and the replacement's script is then dropped, since such a locale
      * cannot carry one.
      *
      * @param locale the locale to read
-     * @return the locale ICU reads, or {@code locale} itself when its language is no alias
+     * @return the locale ICU reads, or {@code locale} itself when ICU replaces neither its
+     *         language nor its region
      */
     public static Locale resolve(Locale locale) {
         Replacement replacement = Table.ALIASES.get(locale.getLanguage());
-        if (replacement == null) {
+        if (replacement == null && !Table.REGIONS.containsKey(locale.getCountry())) {
             return locale;
         }
         return RESOLVED.computeIfAbsent(locale, asked -> replace(asked, replacement));
     }
 
     private static Locale replace(Locale locale, Replacement replacement) {
-        String script = locale.getScript().isEmpty() ? replacement.script() : locale.getScript();
-        String region = locale.getCountry().isEmpty() ? replacement.region() : locale.getCountry();
+        String language = locale.getLanguage();
+        String script = locale.getScript();
+        String region = locale.getCountry();
+        if (replacement != null) {
+            language = replacement.language();
+            script = script.isEmpty() ? replacement.script() : script;
+            region = region.isEmpty() ? replacement.region() : region;
+        }
+        region = region(language, script, region);
         try {
-            return new Locale.Builder().setLocale(locale).setLanguage(replacement.language())
+            return new Locale.Builder().setLocale(locale).setLanguage(language)
                     .setScript(script).setRegion(region).build();
         } catch (IllformedLocaleException legacy) {
-            return new Locale(replacement.language(), region, locale.getVariant());
+            return new Locale(language, region, locale.getVariant());
         }
     }
 
-    private static Map<String, Replacement> read() {
+    /**
+     * The two-letter region a number is read as, for a language in a script: the language's pick
+     * in that script, else the language's, else the number's own; or {@code region} itself when it
+     * is no number ICU replaces.
+     */
+    private static String region(String language, String script, String region) {
+        String number = Table.REGIONS.get(region);
+        if (number == null) {
+            return region;
+        }
+        String key = language.isEmpty() ? "und" : language(language);
+        String picked = script.isEmpty()
+                ? null : Table.REGIONS.get(key + "-" + script + "-" + region);
+        if (picked == null) {
+            picked = Table.REGIONS.get(key + "-" + region);
+        }
+        return picked == null ? number : picked;
+    }
+
+    private static void read(Map<String, Replacement> aliases, Map<String, String> regions) {
         String text = Resources.text(LanguageAliases.class.getResourceAsStream(RESOURCE),
                 RESOURCE, "language aliases");
-        Map<String, Replacement> aliases = new HashMap<>();
         for (String line : text.split("\n")) {
             String[] row = line.strip().split(" ");
+            if (row.length == 3 && row[0].equals("region")) {
+                regions.put(row[1], row[2]);
+                continue;
+            }
             if (row.length != 3 || !row[0].equals("alias")) {
                 continue;
             }
@@ -123,6 +180,5 @@ public final class LanguageAliases {
             }
             aliases.put(row[1], new Replacement(subtags[0], script, region));
         }
-        return Map.copyOf(aliases);
     }
 }

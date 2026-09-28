@@ -114,7 +114,9 @@ public enum NumberingSystem {
      * {@code in} on its own. A replacement that carries a region or a script fills in only what
      * the locale leaves out: {@code prs}, Dari, is {@code fa-AF}, and {@code prs-IR} is
      * {@code fa-IR}. The codes are every one ICU replaces, the same ones the plural rules, the
-     * string bundles and the calendars read a locale through.
+     * string bundles and the calendars read a locale through. A region named by its UN number is
+     * read the same way, as the region it stands for: {@code ar-818} writes what {@code ar-EG}
+     * writes.
      *
      * @param locale the locale to classify
      * @return the system CLDR gives it, or {@link #LATN}

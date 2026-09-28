@@ -46,6 +46,11 @@ class NumberingSystemTest {
                 "the Maghreb writes Latin digits, along with the Gulf's AE and most of the world");
         assertEquals(NumberingSystem.LATN, NumberingSystem.forLocale(Locale.forLanguageTag("ar-AE")),
                 "the United Arab Emirates too, which the Maghreb-shaped exception got wrong");
+        assertEquals(NumberingSystem.ARAB, NumberingSystem.forLocale(Locale.forLanguageTag("ar-818")),
+                "Egypt by its UN number is Egypt, as ICU reads it");
+        assertEquals(NumberingSystem.ARABEXT,
+                NumberingSystem.forLocale(Locale.forLanguageTag("pa-586")),
+                "and Punjabi in Pakistan by its number writes Pakistan's Punjabi digits");
         assertEquals(NumberingSystem.ARABEXT, NumberingSystem.forLocale(Locale.forLanguageTag("fa")));
         assertEquals(NumberingSystem.ARABEXT, NumberingSystem.forLocale(Locale.forLanguageTag("ks")),
                 "Kashmiri, which the first table did not name at all");

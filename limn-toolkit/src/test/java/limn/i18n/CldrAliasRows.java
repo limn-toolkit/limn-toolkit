@@ -10,10 +10,12 @@ import java.util.List;
 /**
  * The {@code alias} rows of {@code cldr-locale-facts.txt}: every two- and three-letter code ICU
  * reads as another language, with the tag it reads it as ({@code pes fa}, {@code prs fa-AF},
- * {@code sh sr-Latn}). {@code scripts/i18n/dump-cldr-locale-facts.mjs} asks ICU for them.
+ * {@code sh sr-Latn}); and its {@code region} rows, every numeric region ICU reads as a two-letter
+ * one ({@code 364 IR}, and {@code uz-810 UZ} where the language picks among several).
+ * {@code scripts/i18n/dump-cldr-locale-facts.mjs} asks ICU for both.
  *
- * <p>Read by every test that holds a decision made by language to what it decides for the
- * replacement, in whichever package the decision lives.
+ * <p>Read by every test that holds a decision made by language or region to what it decides for
+ * the replacement, in whichever package the decision lives.
  */
 public final class CldrAliasRows {
 
@@ -30,18 +32,40 @@ public final class CldrAliasRows {
      * @throws IOException when the dump cannot be read
      */
     public static List<String[]> read() throws IOException {
+        List<String[]> rows = rows("alias ");
+        if (rows.size() < 400) {
+            throw new IOException("the dump carries only " + rows.size() + " aliases");
+        }
+        return rows;
+    }
+
+    /**
+     * Each {@code region} row as the tag and the two-letter region ICU reads its number as, in the
+     * dump's order: {@code 364} alone for the number read with no language, then
+     * {@code language-code} and {@code language-Script-code} where the language, or its script,
+     * picks another of the regions that replaced the number.
+     *
+     * @return the rows; the dump carries over three hundred
+     * @throws IOException when the dump cannot be read
+     */
+    public static List<String[]> regions() throws IOException {
+        List<String[]> rows = rows("region ");
+        if (rows.size() < 300) {
+            throw new IOException("the dump carries only " + rows.size() + " numeric regions");
+        }
+        return rows;
+    }
+
+    private static List<String[]> rows(String kind) throws IOException {
         if (!Files.exists(FACTS)) {
             throw new IOException("the CLDR dump is missing: " + FACTS.toAbsolutePath());
         }
         List<String[]> rows = new ArrayList<>();
         for (String line : Files.readAllLines(FACTS, StandardCharsets.UTF_8)) {
-            if (line.startsWith("alias ")) {
+            if (line.startsWith(kind)) {
                 String[] parts = line.split(" ");
                 rows.add(new String[]{parts[1], parts[2]});
             }
-        }
-        if (rows.size() < 400) {
-            throw new IOException("the dump carries only " + rows.size() + " aliases");
         }
         return rows;
     }

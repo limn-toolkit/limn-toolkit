@@ -375,7 +375,10 @@ inheritance chain as the shape the escape hatch would take.
 
 The bridge to `I18n` is a **convenience, at the application's call site, not in the axis**: a static
 `LayoutDirection.forLocale(Locale)` that an application may pass to `setProcessDefault`. It is a
-function from a locale to a direction and it is never called by the toolkit itself.
+function from a locale to a direction, and no widget and no scene calls it. (Since 2026-09-26 one
+caller outside the scene graph does: the native dialog the Windows backend shows when no window can
+be made at all, which has no scene to inherit a direction from and writes its text in the process
+locale.)
 
 ### 1.3 The eleven arrow-key decisions
 
@@ -1039,10 +1042,16 @@ to reach into every scene.
 
 **Should `forLocale` ship at all?** Yes, and the fear was worth taking seriously. §1.2's worry is
 that once it exists someone will call it from inside a widget. What makes that acceptable is that
-nothing in the toolkit calls it and a test says so, so the day someone does, it is a diff and not a
-discovery. The alternative — every application writing the same script table — is worse, and the
-table is not two lines: it is thirty-two right-to-left script subtags checked before the language,
-because a language can be written in either and only the script says which.
+no widget and no scene calls it, so the day one does, it is a diff and not a discovery. No test
+says so, though this paragraph once claimed one did: the only guard is review, and the one
+caller the toolkit's modules have, the Windows backend's no-driver dialog, runs where no scene
+exists. The alternative — every application writing the same script table — is worse, and the
+table is not two lines: with the locale first read as ICU reads its codes and region numbers
+(`pes` is `fa`, `az-364` is `az-IR`), it is the right-to-left script subtags, checked before
+anything else because a language can be written in either and only the script says which, then the
+regions that turn a language the other way (Punjabi in Pakistan is Arabic, Sindhi in India
+Devanagari), then the right-to-left languages, each measured against CLDR rather than listed from
+memory.
 
 ### 9.5 §8 re-read against what shipped
 
