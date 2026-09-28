@@ -2,6 +2,7 @@ package limn.components.date;
 
 import limn.i18n.I18n;
 import limn.i18n.internal.LanguageAliases;
+import limn.i18n.internal.LikelyRegions;
 
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
@@ -264,19 +265,19 @@ final class CalendarChronology {
 
     /**
      * The region a language named alone most likely means, by CLDR's likely subtags: Germany for
-     * "de", Brazil for "pt", Egypt for "ar", the world ("001") for Esperanto.
+     * "de", Brazil for "pt", Egypt for "ar", Iraq for "ckb", the world ("001") for Esperanto.
      *
-     * <p>Measured, not listed from memory: this is the {@code likely} rows of
-     * {@code cldr-locale-facts.txt}, which {@code scripts/i18n/dump-cldr-locale-facts.mjs} asks ICU
-     * for over every two-letter language, and {@code LikelyRegionsTest} holds the two together.
-     * The JDK carries the same data and does not expose it: {@link Locale} has no counterpart of
-     * ICU's {@code maximize}.
+     * <p>Measured, not listed from memory: {@link LikelyRegions}, the {@code likely} rows of
+     * {@code cldr-locale-facts.txt}, which {@code scripts/i18n/dump-cldr-locale-facts.mjs} asks
+     * ICU for over every two- and three-letter language, and {@code LikelyRegionsTest} holds the
+     * two together. The JDK carries the same data and does not expose it: {@link Locale} has no
+     * counterpart of ICU's {@code maximize}.
      *
      * @param language a language subtag
      * @return the region, or {@code null} for a language CLDR does not know
      */
     static String likelyRegion(String language) {
-        return LIKELY_REGIONS.get(language);
+        return LikelyRegions.of(language);
     }
 
     /**
@@ -295,35 +296,6 @@ final class CalendarChronology {
         }
         // language() again for the legacy spellings Locale keeps under useOldISOCodes: iw is he.
         return likelyRegion(LanguageAliases.language(read.getLanguage()));
-    }
-
-    private static final Map<String, String> LIKELY_REGIONS = likelyRegions(
-            "aa-ET ab-GE ae-IR af-ZA ak-GH am-ET an-ES ar-EG as-IN av-RU ay-BO az-AZ",
-            "ba-RU be-BY bg-BG bi-VU bm-ML bn-BD bo-CN br-FR bs-BA ca-ES ce-RU ch-GU",
-            "co-FR cr-CA cs-CZ cu-RU cv-RU cy-GB da-DK de-DE dv-MV dz-BT ee-GH el-GR",
-            "en-US eo-001 es-ES et-EE eu-ES fa-IR ff-SN fi-FI fj-FJ fo-FO fr-FR fy-NL",
-            "ga-IE gd-GB gl-ES gn-PY gu-IN gv-IM ha-NG he-IL hi-IN ho-PG hr-HR ht-HT",
-            "hu-HU hy-AM hz-NA ia-001 id-ID ie-EE ig-NG ii-CN ik-US io-001 is-IS it-IT",
-            "iu-CA ja-JP jv-ID ka-GE kg-CD ki-KE kj-NA kk-KZ kl-GL km-KH kn-IN ko-KR",
-            "kr-NG ks-IN ku-TR kv-RU kw-GB ky-KG la-VA lb-LU lg-UG li-NL ln-CD lo-LA",
-            "lt-LT lu-CD lv-LV mg-MG mh-MH mi-NZ mk-MK ml-IN mn-MN mr-IN ms-MY mt-MT",
-            "my-MM na-NR nb-NO nd-ZW ne-NP ng-NA nl-NL nn-NO no-NO nr-ZA nv-US ny-MW",
-            "oc-FR oj-CA om-ET or-IN os-GE pa-IN pi-GB pl-PL ps-AF pt-BR qu-PE rm-CH",
-            "rn-BI ro-RO ru-RU rw-RW sa-IN sc-IT sd-PK se-NO sg-CF si-LK sk-SK sl-SI",
-            "sm-WS sn-ZW so-SO sq-AL sr-RS ss-ZA st-ZA su-ID sv-SE sw-TZ ta-IN te-IN",
-            "tg-TJ th-TH ti-ET tk-TM tn-ZA to-TO tr-TR ts-ZA tt-RU ty-PF ug-CN uk-UA",
-            "ur-PK uz-UZ ve-ZA vi-VN vo-001 wa-BE wo-SN xh-ZA yi-UA yo-NG za-CN zh-CN",
-            "zu-ZA");
-
-    private static Map<String, String> likelyRegions(String... rows) {
-        Map<String, String> regions = new java.util.HashMap<>();
-        for (String row : rows) {
-            for (String pair : row.split(" ")) {
-                int dash = pair.indexOf('-');
-                regions.put(pair.substring(0, dash), pair.substring(dash + 1));
-            }
-        }
-        return Map.copyOf(regions);
     }
 
     /**

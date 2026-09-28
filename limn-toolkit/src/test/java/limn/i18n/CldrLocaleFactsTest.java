@@ -46,10 +46,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code direction} row ({@code pan-PK} as {@code pa-PK}), and the direction tests already hold
  * both.
  *
- * <p><b>The direction table ignored the region until 2026-09-28</b> (ICU 78.3): 78 of the 119
+ * <p><b>The direction table ignored the region until 2026-09-28</b> (ICU 78.3): 78 of the
  * {@code direction} rows are a language turned by its region, among them Punjabi in Pakistan,
  * Uzbek in Afghanistan, Azerbaijani, Kazakh and Kurdish in Iran, and Sindhi in India, and every
- * one of the 78 was laid out the way the language alone runs.
+ * one of the 78 was laid out the way the language alone runs. Both tables then read a region
+ * named by its UN number as a region nobody listed, {@code az-364} for Iran and {@code ar-818}
+ * for Egypt, until the {@code region} rows taught the language resolver to read it as ICU does.
  */
 class CldrLocaleFactsTest {
 
@@ -398,6 +400,97 @@ class CldrLocaleFactsTest {
             }
         }
         assertEquals(List.of(), wrong, "a named script lost to the language or the region");
+    }
+
+    /**
+     * A region named by its UN number runs as the region ICU reads the number as: {@code az-364}
+     * is Azerbaijani in Iran and runs right to left as {@code az-IR} does, {@code pa-586} is
+     * Punjabi in Pakistan. {@link Locale} keeps the number as it is given, so a table keyed on
+     * two-letter regions read every number as a region nobody listed. Asked of every language a
+     * row or the JDK names, in every number ICU replaces, against the same language in the region
+     * the {@code region} rows give it there.
+     */
+    @Test
+    void aNumericRegionRunsAsTheRegionItStandsFor() throws Exception {
+        Set<String> languages = new TreeSet<>(List.of(Locale.getISOLanguages()));
+        languages.addAll(rightToLeftRows());
+        for (String[] row : directionRows()) {
+            languages.add(row[0].split("-")[0]);
+        }
+        List<String[]> regions = CldrAliasRows.regions();
+        List<String> wrong = new ArrayList<>();
+        int turned = 0;
+        for (String language : languages) {
+            for (Map.Entry<String, String> number : numbers(regions, language).entrySet()) {
+                LayoutDirection cldr = LayoutDirection.forLocale(
+                        Locale.forLanguageTag(language + "-" + number.getValue()));
+                LayoutDirection ours = LayoutDirection.forLocale(
+                        Locale.forLanguageTag(language + "-" + number.getKey()));
+                if (cldr != LayoutDirection.forLocale(Locale.forLanguageTag(language))) {
+                    turned++;
+                }
+                if (ours != cldr) {
+                    wrong.add(language + "-" + number.getKey() + " is " + language + "-"
+                            + number.getValue() + ", which runs " + cldr + ", we say " + ours);
+                }
+            }
+        }
+        assertTrue(turned >= 50, "only " + turned + " numbered regions turn a language");
+        assertEquals(List.of(), wrong, "a numeric region runs otherwise than its region");
+    }
+
+    /**
+     * And writes the digits of the region it stands for: {@code ar-818}, Arabic in Egypt by its
+     * UN number, writes Arabic-Indic digits as {@code ar-EG} does. Asked of every language a
+     * {@code digits} row names, in every number ICU replaces.
+     */
+    @Test
+    void aNumericRegionWritesTheDigitsOfTheRegionItStandsFor() throws Exception {
+        Set<String> languages = new TreeSet<>();
+        for (String[] row : digitRows()) {
+            languages.add(row[0].split("-")[0]);
+        }
+        List<String[]> regions = CldrAliasRows.regions();
+        List<String> wrong = new ArrayList<>();
+        int differ = 0;
+        for (String language : languages) {
+            NumberingSystem alone = NumberingSystem.forLocale(Locale.forLanguageTag(language));
+            for (Map.Entry<String, String> number : numbers(regions, language).entrySet()) {
+                NumberingSystem cldr = NumberingSystem.forLocale(
+                        Locale.forLanguageTag(language + "-" + number.getValue()));
+                NumberingSystem ours = NumberingSystem.forLocale(
+                        Locale.forLanguageTag(language + "-" + number.getKey()));
+                if (cldr != alone) {
+                    differ++;
+                }
+                if (ours != cldr) {
+                    wrong.add(language + "-" + number.getKey() + " is " + language + "-"
+                            + number.getValue() + ", which writes " + cldr + ", we say " + ours);
+                }
+            }
+        }
+        assertTrue(differ >= 25, "only " + differ + " numbered regions change a language's digits");
+        assertEquals(List.of(), wrong, "a numeric region writes other digits than its region");
+    }
+
+    /**
+     * Every number ICU reads as a two-letter region, and the region it reads it as for
+     * {@code language} named with no script: the language's own {@code region} row where it
+     * picks among the regions that replaced a number, else the number's.
+     */
+    private static Map<String, String> numbers(List<String[]> regions, String language) {
+        Map<String, String> numbers = new TreeMap<>();
+        Map<String, String> picked = new TreeMap<>();
+        for (String[] row : regions) {
+            String[] parts = row[0].split("-");
+            if (parts.length == 1) {
+                numbers.put(parts[0], row[1]);
+            } else if (parts.length == 2 && parts[0].equals(language)) {
+                picked.put(parts[1], row[1]);
+            }
+        }
+        numbers.putAll(picked);
+        return numbers;
     }
 
     /** Each {@code direction} row as its tag and CLDR's {@code ltr} or {@code rtl} for it. */

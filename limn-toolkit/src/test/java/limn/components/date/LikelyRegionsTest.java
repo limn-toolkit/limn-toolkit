@@ -3,6 +3,7 @@ package limn.components.date;
 import limn.i18n.CldrAliasRows;
 import org.junit.jupiter.api.Test;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,6 +16,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -24,17 +26,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>{@link CalendarChronology#likelyRegion} is a copy of ICU's likely subtags, and the week of
  * every locale without a region is read through it. The same argument as
  * {@code CldrLocaleFactsTest}, whose dump this reads: a table copied into Java by a person drifts
- * unless something holds it to what it copied. Lives in this package because the table is not
+ * unless something holds it to what it copied. Lives in this package because the method is not
  * public.
+ *
+ * <p>The table covered the two-letter languages alone until 2026-09-28, so Central Kurdish
+ * ({@code ckb}), Najdi Arabic ({@code ars}), Filipino ({@code fil}), Cantonese ({@code yue}) and
+ * every other language with only a three-letter code had the week of no region at all.
  */
 class LikelyRegionsTest {
 
-    private static final Path DUMP = Path.of("src/test/resources/limn/i18n/cldr-locale-facts.txt");
+    private static final Path DUMP = CldrAliasRows.FACTS;
+
+    /** The copy the toolkit ships, beside the class that reads it. */
+    private static final String SHIPPED = "/limn/i18n/internal/likely-regions.txt";
 
     @Test
     void theTableIsCldrsAndHoldsNothingElse() throws Exception {
         Map<String, String> cldr = cldr();
-        assertTrue(cldr.size() > 150, "the dump carries only " + cldr.size() + " languages");
+        assertTrue(cldr.size() > 5000, "the dump carries only " + cldr.size() + " languages");
         List<String> wrong = new ArrayList<>();
         for (Map.Entry<String, String> row : cldr.entrySet()) {
             String ours = CalendarChronology.likelyRegion(row.getKey());
@@ -42,13 +51,66 @@ class LikelyRegionsTest {
                 wrong.add(row.getKey() + ": CLDR says " + row.getValue() + ", we say " + ours);
             }
         }
-        assertEquals(List.of(), wrong, "likely regions that disagree with CLDR");
-        for (String language : Locale.getISOLanguages()) {
+        assertEquals(List.of(), wrong.size() > 40 ? wrong.subList(0, 40) : wrong,
+                wrong.size() + " likely regions disagree with CLDR, the first 40 shown");
+
+        // And nothing else, over every code the dump asked, as the dump asked them.
+        List<String> languages = new ArrayList<>(List.of(Locale.getISOLanguages()));
+        for (char a = 'a'; a <= 'z'; a++) {
+            for (char b = 'a'; b <= 'z'; b++) {
+                for (char c = 'a'; c <= 'z'; c++) {
+                    languages.add(new String(new char[]{a, b, c}));
+                }
+            }
+        }
+        for (String language : languages) {
             if (!cldr.containsKey(language)) {
                 assertNull(CalendarChronology.likelyRegion(language),
                         language + " has no likely region in CLDR and gets one here");
             }
         }
+    }
+
+    /**
+     * The table ships as a resource, a copy of the dump's {@code likely} rows that the jar
+     * carries and the dump does not, and a copy drifts unless something holds it to what it
+     * copied.
+     */
+    @Test
+    void theShippedRowsAreTheDumpsLikelyRowsInItsOrder() throws Exception {
+        List<String> dump = new ArrayList<>();
+        for (String line : Files.readAllLines(DUMP, StandardCharsets.UTF_8)) {
+            if (line.startsWith("likely ")) {
+                dump.add(line);
+            }
+        }
+        List<String> shipped = new ArrayList<>();
+        try (InputStream in = LikelyRegionsTest.class.getResourceAsStream(SHIPPED)) {
+            assertNotNull(in, SHIPPED + " is not in the toolkit");
+            for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
+                if (!line.startsWith("#") && !line.isBlank()) {
+                    shipped.add(line);
+                }
+            }
+        }
+        assertEquals(dump, shipped);
+    }
+
+    /**
+     * A language with only a three-letter code has the week of the region it means too: Central
+     * Kurdish means Iraq, whose week starts on a Saturday, and Filipino the Philippines, whose
+     * starts on a Sunday.
+     */
+    @Test
+    void aThreeLetterLanguageAloneHasTheWeekOfItsLikelyRegion() {
+        assertEquals(WeekFields.of(Locale.forLanguageTag("ckb-IQ")),
+                CalendarChronology.weekFields(Locale.forLanguageTag("ckb")));
+        assertEquals(DayOfWeek.SATURDAY,
+                CalendarChronology.weekFields(Locale.forLanguageTag("ckb")).getFirstDayOfWeek());
+        assertEquals(WeekFields.of(Locale.forLanguageTag("ars-SA")),
+                CalendarChronology.weekFields(Locale.forLanguageTag("ars")));
+        assertEquals(WeekFields.of(Locale.forLanguageTag("fil-PH")),
+                CalendarChronology.weekFields(Locale.forLanguageTag("fil")));
     }
 
     /**

@@ -1,6 +1,7 @@
 // What CLDR says about a locale, for the tables this toolkit writes out by hand: which digits a
 // language writes numbers in, which direction it runs in and where a region or a script turns it,
-// which region a language named alone is taken to mean, and which codes are another language's.
+// which region a language named alone is taken to mean, and which codes are another language's
+// or another region's.
 //
 // The sibling of dump-cldr-plurals.mjs and the same argument: Node's Intl is CLDR through ICU,
 // so it is the source limn.i18n.NumberingSystem, limn.scene.LayoutDirection and the likely
@@ -10,8 +11,9 @@
 //   node scripts/i18n/dump-cldr-locale-facts.mjs > \
 //       limn-toolkit/src/test/resources/limn/i18n/cldr-locale-facts.txt
 //
-// CldrLocaleFactsTest compares the first two tables and the aliases against it, and
-// LikelyRegionsTest the third.
+// CldrLocaleFactsTest compares the digits and direction tables and the aliases against it,
+// LayoutDirectionScriptsTest the right-to-left scripts, LikelyRegionsTest the likely regions, and
+// LanguageAliasesTest the aliases and numeric regions the toolkit ships a copy of.
 // Nothing in the build runs Node.
 //
 // The direction search is exhaustive over the shape of a language subtag rather than over a list
@@ -30,9 +32,10 @@
 // rtl search did, since pan-PK is pa-PK, and und, which names no language, since ICU gives a region
 // alone its likely language: und-SA is Arabic. Then it asks each language in the scripts ICU holds
 // it in and writes those that run the other way, where holding it means a script its likely
-// subtags give it in some region (az-IR is az-Arab) or one ICU has locale data for it in (ks-Deva,
-// ff-Adlm). A script ICU does not hold a language in is not asked: sd-Latn runs left to right as
-// every Latin tag does, and a row for it would say nothing about Sindhi.
+// subtags give it in some region (az-IR is az-Arab), one they place in a region of its own
+// (ku-Yezi is Georgia's), or one ICU has locale data for it in (ks-Deva, ff-Adlm). A script ICU
+// does not hold a language in is not asked: sd-Latn runs left to right as every Latin tag does,
+// and a row for it would say nothing about Sindhi.
 //
 // The digits search covers the same languages, and for each the scripts ICU holds it in, found
 // the same way: every four-letter code CLDR has a script name for, tried on every language. A
@@ -107,20 +110,38 @@ function direction(tag) {
 // The scripts ICU holds a language in, in SCRIPTS' order: each one its likely subtags give the
 // language, alone or in some region, and each one ICU keeps locale data for it in. Empty for a
 // code ICU reads as another language, whose likely subtags are its replacement's, and for und.
+// Asked twice, by the direction search and the region search, and worked out once.
+const HELD = new Map();
 function heldScripts(language) {
-    const likely = tag => {
+    if (!HELD.has(language)) {
+        HELD.set(language, findHeldScripts(language));
+    }
+    return HELD.get(language);
+}
+
+function findHeldScripts(language) {
+    const maximize = tag => {
         try {
             const maximized = new Intl.Locale(tag).maximize();
-            return maximized.language === language ? maximized.script : undefined;
+            return maximized.language === language ? maximized : undefined;
         } catch {
             return undefined;
         }
     };
     const held = new Set();
-    if (likely(language) !== undefined) {
+    const alone = maximize(language);
+    if (alone !== undefined && alone.script !== undefined) {
         for (const tag of [language, ...REGIONS.map(region => `${language}-${region}`)]) {
-            const script = likely(tag);
+            const script = maximize(tag)?.script;
             if (script !== undefined) {
+                held.add(script);
+            }
+        }
+        // A script the likely subtags place somewhere of its own, which no region leads to:
+        // Kurdish in Yezidi script is Georgia's, where Kurdish in Georgia is Cyrillic.
+        for (const script of SCRIPTS) {
+            const maximized = maximize(`${language}-${script}`);
+            if (maximized?.script === script && maximized.region !== alone.region) {
                 held.add(script);
             }
         }
@@ -163,6 +184,7 @@ out.push(`# produced by scripts/i18n/dump-cldr-locale-facts.mjs on ${new Date().
 out.push("#");
 out.push("# rtl <language subtag> ...   every subtag ICU writes right to left, searched over all");
 out.push("#                             two- and three-letter codes");
+out.push("# rtl-script <Script> ...     every script CLDR names that ICU writes right to left");
 out.push("# direction <language>-<REGION> <ltr|rtl>   a region that differs from its language, of");
 out.push("#                             every code the rtl rows searched, und (no language) included");
 out.push("# direction <language>-<Script> <ltr|rtl>   a script ICU holds the language in that differs");
@@ -176,14 +198,29 @@ out.push("# digits <language>-<Script> <system>   a script ICU holds the languag
 out.push("#                             from the language");
 out.push("# digits <language>-<Script>-<REGION> <system>   a region that differs from its language");
 out.push("#                             in that script, or from a region row of the language");
-out.push("# likely <language>-<REGION> ...   the region ICU's likely subtags give a two-letter");
-out.push("#                             language named alone");
+out.push("# likely <language>-<REGION> ...   the region ICU's likely subtags give a language named");
+out.push("#                             alone, the two-letter ones first and then the three-letter ones");
 out.push("# alias <code> <replacement>   a two- or three-letter code ICU reads as another language,");
 out.push("#                             and the script or region the replacement carries");
+out.push("# region <code> <REGION>      a numeric region ICU reads as a two-letter one, read with no");
+out.push("#                             language");
+out.push("# region <language>-<code> <REGION>   a language that reads it as another of the regions");
+out.push("#                             that replaced it");
+out.push("# region <language>-<Script>-<code> <REGION>   a script ICU holds the language in (und: any");
+out.push("#                             script) that reads it otherwise than the language");
 
 const rtl = [...TWO_LETTER, ...THREE_LETTER].filter(tag => direction(tag) === "rtl");
 for (let i = 0; i < rtl.length; i += 16) {
     out.push("rtl " + rtl.slice(i, i + 16).join(" "));
+}
+
+// A named script decides a direction alone, whatever the language, so asking und in it asks the
+// script: und-Arab runs right to left and und-Latn left to right. The JDK's own Unicode data,
+// which LayoutDirectionScriptsTest also asks, is a version or two behind ICU's, and a script
+// Unicode added since, Garay or Sidetic, is one only this list names.
+const rtlScripts = SCRIPTS.filter(script => direction(`und-${script}`) === "rtl");
+for (let i = 0; i < rtlScripts.length; i += 16) {
+    out.push("rtl-script " + rtlScripts.slice(i, i + 16).join(" "));
 }
 
 // A language's direction rows, in the digits rows' shape: the regions that turn it, then each
@@ -270,22 +307,29 @@ for (const language of [...TWO_LETTER, ...THREE_LETTER]) {
 
 // The region a language named alone stands for: what the week of "de" or "fr" is, since a week's
 // first day and numbering are a region's and Java's Locale has no maximize() to find one. A code
-// ICU does not know maximizes to itself with no region and is left out, and so is an old code
-// that maximizes to another language ("iw" is "he"), which Locale normalizes on its own.
-const likely = [];
-for (const language of TWO_LETTER) {
-    try {
-        const maximized = new Intl.Locale(language).maximize();
-        if (maximized.language === language && maximized.region) {
-            likely.push(`${language}-${maximized.region}`);
+// ICU does not know maximizes to itself with no region and is left out, and so is a code that
+// maximizes to another language ("iw" is "he", "pes" is "fa"), which is read as that language
+// first. The three-letter languages follow the two-letter ones on lines of their own: Central
+// Kurdish (ckb) means Iraq and Najdi Arabic (ars) Saudi Arabia, and there are some seven thousand
+// such codes ICU gives a region.
+function likelyRegions(languages) {
+    const likely = [];
+    for (const language of languages) {
+        try {
+            const maximized = new Intl.Locale(language).maximize();
+            if (maximized.language === language && maximized.region) {
+                likely.push(`${language}-${maximized.region}`);
+            }
+        } catch {
+            // not a language subtag ICU accepts
         }
-    } catch {
-        // not a language subtag ICU accepts
+    }
+    for (let i = 0; i < likely.length; i += 12) {
+        out.push("likely " + likely.slice(i, i + 12).join(" "));
     }
 }
-for (let i = 0; i < likely.length; i += 12) {
-    out.push("likely " + likely.slice(i, i + 12).join(" "));
-}
+likelyRegions(TWO_LETTER);
+likelyRegions(THREE_LETTER);
 
 // Every code ICU replaces with another language, one to a row since each carries its replacement.
 for (const code of [...TWO_LETTER, ...THREE_LETTER]) {
@@ -297,6 +341,57 @@ for (const code of [...TWO_LETTER, ...THREE_LETTER]) {
     }
     if (replacement.split("-")[0] !== code) {
         out.push(`alias ${code} ${replacement}`);
+    }
+}
+
+// Every numeric region ICU reads as a two-letter one, and where the language or its script decides
+// which. UN M.49 gives a country a number as well as ISO 3166's letters, and ICU reads the number
+// as the letters before it looks anything up: az-364 is az-IR and runs right to left as az-IR
+// does, ar-818 is ar-EG and writes Arabic-Indic digits. Java's Locale keeps "364" as it is given.
+// A number that stood for a country that split has several replacements, and ICU takes the one
+// the language, in its script, is likely to mean, else the first: 810, the Soviet Union, is RU,
+// and uz-810 is UZ; 890, Yugoslavia, is RS, and hr-890 HR. A number that names an area and no
+// country, 001 the world or 419 Latin America, ICU keeps, and it has no row. Every language code
+// is asked, and every script ICU holds one in, und in every script there is (und-Armn-172 is AM);
+// a code ICU reads as another language is its replacement's business and left out, and so are the
+// sign languages, where the region picks the language itself (sgn-076 is bzs).
+const NUMERIC = [];
+for (let i = 0; i < 1000; i++) {
+    NUMERIC.push(String(i).padStart(3, "0"));
+}
+function replaced(tag, language, script) {
+    try {
+        const read = new Intl.Locale(tag);
+        return read.language === language && read.script === script ? read.region : undefined;
+    } catch {
+        return undefined;
+    }
+}
+const regionOf = new Map();
+for (const code of NUMERIC) {
+    const region = replaced(`und-${code}`, "und", undefined);
+    if (region !== undefined && region !== code) {
+        regionOf.set(code, region);
+        out.push(`region ${code} ${region}`);
+    }
+}
+for (const language of [...TWO_LETTER, ...THREE_LETTER]) {
+    const byLanguage = new Map();
+    for (const [code, region] of regionOf) {
+        const here = replaced(`${language}-${code}`, language, undefined);
+        if (here !== undefined && here !== region) {
+            byLanguage.set(code, here);
+            out.push(`region ${language}-${code} ${here}`);
+        }
+    }
+    for (const script of language === "und" ? SCRIPTS : heldScripts(language)) {
+        for (const [code, region] of regionOf) {
+            const here = replaced(`${language}-${script}-${code}`, language, script);
+            const languages = byLanguage.get(code) ?? region;
+            if (here !== undefined && here !== languages) {
+                out.push(`region ${language}-${script}-${code} ${here}`);
+            }
+        }
     }
 }
 

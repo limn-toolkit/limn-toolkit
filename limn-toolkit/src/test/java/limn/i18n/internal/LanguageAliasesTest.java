@@ -6,12 +6,15 @@ import org.junit.jupiter.api.Test;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The codes the toolkit reads as another language, against the dump that asked ICU for them.
@@ -24,10 +27,13 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 class LanguageAliasesTest {
 
     @Test
-    void theShippedRowsAreTheDumpsAliasRowsInItsOrder() throws Exception {
+    void theShippedRowsAreTheDumpsAliasAndRegionRowsInItsOrder() throws Exception {
         List<String> dump = new ArrayList<>();
         for (String[] row : CldrAliasRows.read()) {
             dump.add("alias " + row[0] + " " + row[1]);
+        }
+        for (String[] row : CldrAliasRows.regions()) {
+            dump.add("region " + row[0] + " " + row[1]);
         }
         List<String> shipped = new ArrayList<>();
         try (InputStream in = LanguageAliases.class.getResourceAsStream("language-aliases.txt")) {
@@ -77,6 +83,82 @@ class LanguageAliasesTest {
         assertEquals(Locale.forLanguageTag("fr-CA"), resolve("fra-CA"));
     }
 
+    /**
+     * A region named by its UN number is the two-letter region ICU reads the number as:
+     * {@code az-364} is {@code az-IR}, {@code ar-818} is {@code ar-EG}. {@link Locale} keeps the
+     * number as it is given, so a table keyed on the two-letter region, the toolkit's own or the
+     * platform's, answered such a locale as a region nobody listed. A number that stood for a
+     * country that split is the one of its replacements the language, in its script, is likely to
+     * mean: {@code 810}, the Soviet Union, is {@code RU}, {@code uz-810} is {@code UZ}, and
+     * {@code und-Armn-172} is {@code AM}. Asked of every {@code region} row.
+     */
+    @Test
+    void aNumericRegionIsReadAsTheRegionIcuReadsItAs() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        for (String[] row : CldrAliasRows.regions()) {
+            Locale asked = Locale.forLanguageTag(row[0].contains("-") ? row[0] : "und-" + row[0]);
+            Locale expected = new Locale.Builder().setLocale(asked).setRegion(row[1]).build();
+            Locale ours = LanguageAliases.resolve(asked);
+            if (!expected.equals(ours)) {
+                wrong.add(asked.toLanguageTag() + " is " + expected.toLanguageTag() + ", we read "
+                        + ours.toLanguageTag());
+            }
+        }
+        assertEquals(List.of(), wrong);
+
+        assertEquals(Locale.forLanguageTag("az-IR"), resolve("az-364"));
+        assertEquals(Locale.forLanguageTag("ar-EG"), resolve("ar-818"));
+        assertEquals(Locale.forLanguageTag("pa-PK"), resolve("pa-586"));
+        assertEquals(Locale.forLanguageTag("uz-UZ"), resolve("uz-810"));
+        assertEquals(Locale.forLanguageTag("uz-Arab-RU"), resolve("uz-Arab-810"),
+                "Uzbek in Arabic script means Afghanistan, which did not replace the Soviet Union");
+        assertEquals(Locale.forLanguageTag("qaa-Armn-RU"), resolve("qaa-Armn-172"),
+                "a language ICU does not know takes the first region, whatever its script");
+    }
+
+    /**
+     * A code ICU reads as another language picks among a number's regions as its replacement
+     * does, since ICU replaces the language first: {@code hye-172}, Armenian by its ISO 639-2
+     * code, is {@code hy-AM}, and {@code prs-364}, Dari in Iran, is {@code fa-IR}. Asked of every
+     * alias in every number some row lets its replacement's language pick a region for.
+     */
+    @Test
+    void anAliasPicksANumbersRegionAsItsReplacementDoes() throws Exception {
+        Map<String, String> picked = new HashMap<>();
+        for (String[] row : CldrAliasRows.regions()) {
+            String[] parts = row[0].split("-");
+            if (parts.length == 2) {
+                picked.put(row[0], row[1]);
+            }
+        }
+        List<String> wrong = new ArrayList<>();
+        int asked = 0;
+        for (String[] alias : CldrAliasRows.read()) {
+            Locale replacement = Locale.forLanguageTag(alias[1]);
+            if (!replacement.getScript().isEmpty()) {
+                continue;
+            }
+            for (Map.Entry<String, String> row : picked.entrySet()) {
+                String[] parts = row.getKey().split("-");
+                if (!parts[0].equals(replacement.getLanguage())) {
+                    continue;
+                }
+                asked++;
+                Locale ours = resolve(alias[0] + "-" + parts[1]);
+                Locale expected = new Locale.Builder().setLanguage(replacement.getLanguage())
+                        .setRegion(row.getValue()).build();
+                if (!expected.equals(ours)) {
+                    wrong.add(alias[0] + "-" + parts[1] + " is " + expected.toLanguageTag()
+                            + ", we read " + ours.toLanguageTag());
+                }
+            }
+        }
+        assertTrue(asked >= 20, "only " + asked + " aliased tags pick a number's region");
+        assertEquals(List.of(), wrong);
+        assertEquals(Locale.forLanguageTag("hy-AM"), resolve("hye-172"));
+        assertEquals(Locale.forLanguageTag("fa-IR"), resolve("prs-364"));
+    }
+
     @Test
     void variantsAndExtensionsAreKept() {
         assertEquals(Locale.forLanguageTag("fa-u-nu-latn"), resolve("pes-u-nu-latn"));
@@ -98,6 +180,9 @@ class LanguageAliasesTest {
     void aLanguageThatIsNoAliasIsReturnedAsItCame() {
         Locale french = Locale.forLanguageTag("fr-FR");
         assertSame(french, LanguageAliases.resolve(french));
+        Locale latinAmerica = Locale.forLanguageTag("es-419");
+        assertSame(latinAmerica, LanguageAliases.resolve(latinAmerica),
+                "a number that names an area and no country is kept, as ICU keeps it");
         assertSame(Locale.ROOT, LanguageAliases.resolve(Locale.ROOT));
         assertEquals("fr", LanguageAliases.language("fr"));
         assertEquals("", LanguageAliases.language(""));

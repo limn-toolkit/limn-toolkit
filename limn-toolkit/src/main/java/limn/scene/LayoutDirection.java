@@ -151,12 +151,24 @@ public enum LayoutDirection {
      * The four-letter script subtags written right to left. Checked before the language, because a
      * language can be written in either: {@code az-Arab} reads right to left and {@code az-Latn}
      * does not, and only the script says which.
+     *
+     * <p>Every script with a character of bidi class R or AL in the JDK's Unicode data, which
+     * {@code LayoutDirectionScriptsTest} asks, and every script ICU 78.3 runs right to left, the
+     * {@code rtl-script} rows of {@code cldr-locale-facts.txt} that
+     * {@code scripts/i18n/dump-cldr-locale-facts.mjs} writes and the same test holds this set to.
+     * The two agree but for scripts newer than the JDK's Unicode: Garay ({@code Gara}, Unicode 16)
+     * and Sidetic ({@code Sidt}, Unicode 17) are here on ICU's word alone.
+     *
+     * <p>{@code Aran}, Nastaliq, is this table's own and not ICU's, which runs {@code und-Aran}
+     * left to right: it is a style of Arabic with a code of its own and no characters of its own,
+     * and a locale that names it is Urdu or Persian written in Arabic script, which runs right to
+     * left.
      */
     private static final Set<String> RTL_SCRIPTS = Set.of(
-            "Adlm", "Arab", "Aran", "Armi", "Avst", "Chrs", "Cprt", "Elym", "Hatr", "Hebr",
-            "Hung", "Khar", "Lydi", "Mand", "Mani", "Mend", "Merc", "Mero", "Narb", "Nbat",
-            "Nkoo", "Orkh", "Ougr", "Palm", "Phli", "Phlp", "Phnx", "Prti", "Rohg", "Samr",
-            "Sarb", "Sogd", "Sogo", "Syrc", "Thaa", "Yezi");
+            "Adlm", "Arab", "Aran", "Armi", "Avst", "Chrs", "Cprt", "Elym", "Gara", "Hatr",
+            "Hebr", "Hung", "Khar", "Lydi", "Mand", "Mani", "Mend", "Merc", "Mero", "Narb",
+            "Nbat", "Nkoo", "Orkh", "Ougr", "Palm", "Phli", "Phlp", "Phnx", "Prti", "Rohg",
+            "Samr", "Sarb", "Sidt", "Sogd", "Sogo", "Syrc", "Thaa", "Yezi");
 
     /**
      * The language subtags whose default script is written right to left, for the common case of
@@ -213,9 +225,10 @@ public enum LayoutDirection {
      * script, written by {@code scripts/i18n/dump-cldr-locale-facts.mjs} from ICU 78.3 over every
      * two- and three-letter code in every two-letter region, and held to this table by
      * {@code CldrLocaleFactsTest}. A code ICU reads as one of these languages ({@code pan} is
-     * {@code pa}) has no key of its own, since {@link #forLocale} reads a locale through
-     * {@link LanguageAliases} first; the two retired regions, {@code NT} and {@code YD}, are
-     * there because neither {@link Locale} nor that reading replaces a two-letter region.
+     * {@code pa}) and a region named by its UN number ({@code 586} is {@code PK}) have no key of
+     * their own, since {@link #forLocale} reads a locale through {@link LanguageAliases} first;
+     * the two retired regions, {@code NT} and {@code YD}, are there because neither
+     * {@link Locale} nor that reading replaces a two-letter region.
      */
     private static final Set<String> RTL_IN_REGION = Set.of(
             "az-IQ", "az-IR", "ha-CM", "ha-SD", "kk-AF", "kk-CN", "kk-IR", "kk-MN", "ku-IQ",
@@ -286,10 +299,11 @@ public enum LayoutDirection {
      * unrecognised is {@link #LTR}, which is the same fallback the first-strong rule makes for
      * text with no strong character.
      *
-     * <p>The locale is read as ICU reads it before anything is decided, so a code ICU replaces
-     * with another language is that language: {@code pes}, Iranian Persian, is {@code fa} and
-     * {@code pan-PK} is {@code pa-PK}. These are the same readings the digits, the plural rules,
-     * the string bundles and the calendars take.
+     * <p>The locale is read as ICU reads it before anything is decided: a code ICU replaces with
+     * another language is that language ({@code pes}, Iranian Persian, is {@code fa} and
+     * {@code pan-PK} is {@code pa-PK}), and a region named by its UN number is the region it
+     * stands for ({@code az-364} is {@code az-IR}). These are the same readings the digits, the
+     * plural rules, the string bundles and the calendars take.
      *
      * @param locale the locale to classify
      * @return {@link #RTL} when that locale's script is written right to left, else {@link #LTR}
