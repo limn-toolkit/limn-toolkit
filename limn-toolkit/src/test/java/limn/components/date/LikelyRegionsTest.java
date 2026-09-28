@@ -1,10 +1,12 @@
 package limn.components.date;
 
+import limn.i18n.CldrAliasRows;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.DayOfWeek;
 import java.time.temporal.WeekFields;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,6 +68,36 @@ class LikelyRegionsTest {
             }
         }
         assertEquals(List.of(), wrong);
+    }
+
+    /**
+     * A code ICU reads as another language, named alone, has the week of the language it stands
+     * for: {@code fra}, the ISO 639-2 code for French, starts on a Monday and numbers its weeks
+     * the way France does, {@code pes}, Iranian Persian, starts on a Saturday as Iran does, and
+     * {@code prs}, Dari, which ICU reads as {@code fa-AF}, has Afghanistan's week, the region its
+     * code carries rather than Persian's likely one. Java's {@link Locale} keeps these codes as
+     * they are and the likely-region table is keyed on the language, so every one of them fell to
+     * the United States' Sunday and one-day first week. Asked of every {@code alias} row of
+     * {@code cldr-locale-facts.txt}.
+     */
+    @Test
+    void anAliasAloneHasItsReplacementsWeek() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        for (String[] alias : CldrAliasRows.read()) {
+            WeekFields expected = CalendarChronology.weekFields(Locale.forLanguageTag(alias[1]));
+            WeekFields ours = CalendarChronology.weekFields(Locale.forLanguageTag(alias[0]));
+            if (!expected.equals(ours)) {
+                wrong.add(alias[0] + " is " + alias[1] + ", which is " + expected + ", we say " + ours);
+            }
+        }
+        assertEquals(List.of(), wrong, "an alias alone has another week than its replacement");
+
+        assertEquals(WeekFields.of(DayOfWeek.MONDAY, 4),
+                CalendarChronology.weekFields(Locale.forLanguageTag("fra")));
+        assertEquals(WeekFields.of(DayOfWeek.SATURDAY, 1),
+                CalendarChronology.weekFields(Locale.forLanguageTag("pes")));
+        assertEquals(WeekFields.of(Locale.forLanguageTag("fa-AF")),
+                CalendarChronology.weekFields(Locale.forLanguageTag("prs")));
     }
 
     private static Map<String, String> cldr() throws Exception {

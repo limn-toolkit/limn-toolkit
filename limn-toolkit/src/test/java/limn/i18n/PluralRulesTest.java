@@ -200,6 +200,40 @@ class PluralRulesTest {
         assertEquals(EnumSet.of(ONE, OTHER), PluralRules.integerCategories(swahili));
     }
 
+    /**
+     * A code ICU reads as another language counts as that language does: {@code fra}, the ISO
+     * 639-2 code for French, has French's form for a round million, {@code heb} Hebrew's dual,
+     * {@code arb}, Standard Arabic, all six of Arabic's forms. Java's {@link Locale} replaces only
+     * {@code iw}, {@code ji} and {@code in} itself, so a rule keyed on the language subtag as
+     * {@code Locale} hands it over answered every other alias as a language it never heard of.
+     * Asked of every {@code alias} row of {@code cldr-locale-facts.txt}, including the ones whose
+     * replacement takes the English-shaped fallback, so that a rule that read an alias as a
+     * language it is not would be caught as well.
+     */
+    @Test
+    void anAliasCountsAsItsReplacementDoes() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        for (String[] alias : CldrAliasRows.read()) {
+            Locale ours = Locale.forLanguageTag(alias[0]);
+            Locale replacement = Locale.forLanguageTag(alias[1]);
+            boolean same = PluralRules.integerCategories(ours)
+                    .equals(PluralRules.integerCategories(replacement));
+            // Every integer to 200 tells the ten rules apart but for the Romance millions form,
+            // which a round million does.
+            for (long n = 0; same && n <= 200; n++) {
+                same = PluralRules.select(ours, n) == PluralRules.select(replacement, n);
+            }
+            same = same && PluralRules.select(ours, 1_000_000)
+                    == PluralRules.select(replacement, 1_000_000);
+            if (!same) {
+                wrong.add(alias[0] + " is " + alias[1] + ", which has "
+                        + PluralRules.integerCategories(replacement) + ", we say "
+                        + PluralRules.integerCategories(ours));
+            }
+        }
+        assertEquals(List.of(), wrong, "an alias counts otherwise than its replacement");
+    }
+
     /** A count's sign is not grammar: -3 items reads as 3 do. */
     @Test
     void aNegativeCountIsReadByItsMagnitude() {

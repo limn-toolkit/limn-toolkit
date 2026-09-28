@@ -2,8 +2,10 @@ package limn.i18n;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -80,6 +82,66 @@ class PropertyBundleTest {
         assertEquals("Wert", map.lookup("k", Locale.GERMAN));
         assertEquals("Wert", map.lookup("k", Locale.forLanguageTag("de-AT")));
         assertNull(map.lookup("k", Locale.FRENCH));
+    }
+
+    /**
+     * Persian named by one of its other codes reads the Persian files: {@code pes}, the ISO
+     * 639-3 code for Iranian Persian, is {@code fa} to ICU, and {@code prs}, Dari, is
+     * {@code fa-AF}, which a translation for Afghanistan is filed under. Java's {@link Locale}
+     * keeps both codes as they are, so a family that built its file names from the language
+     * subtag looked for {@code _pes} and {@code _prs} files nobody writes, and the English stood.
+     * The fixtures carry the word Iran and Afghanistan write differently, hospital, so the
+     * regional file shows whether it was read.
+     */
+    @Test
+    void persianNamedByAnotherCodeReadsThePersianFiles() {
+        Locale pes = Locale.forLanguageTag("pes");
+        assertEquals("ذخیره", bundle.lookup("test.shared", pes));
+        assertEquals("بیمارستان", bundle.lookup("test.regional", pes));
+
+        Locale prs = Locale.forLanguageTag("prs");
+        assertEquals("ذخیره", bundle.lookup("test.shared", prs),
+                "Dari reads the Persian file first");
+        assertEquals("شفاخانه", bundle.lookup("test.regional", prs),
+                "and Afghanistan's on top of it, since prs is fa-AF");
+
+        Locale prsInIran = Locale.forLanguageTag("prs-IR");
+        assertEquals("بیمارستان", bundle.lookup("test.regional", prsInIran),
+                "a region the locale names wins over the one its code stands for: prs-IR is fa-IR");
+    }
+
+    /**
+     * And every other code ICU reads as another language reads that language's files, in the
+     * order the replacement would: {@code heb} finds the Hebrew catalogs this module ships,
+     * {@code cmn} the Simplified Chinese ones, {@code sh} the Serbian in Latin script an
+     * application files under {@code sr-Latn}. Asked of every {@code alias} row of
+     * {@code cldr-locale-facts.txt}.
+     */
+    @Test
+    void anAliasReadsItsReplacementsFiles() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        for (String[] alias : CldrAliasRows.read()) {
+            List<String> ours = candidates(alias[0]);
+            List<String> replacement = candidates(alias[1]);
+            if (!ours.equals(replacement)) {
+                wrong.add(alias[0] + " is " + alias[1] + ", which reads " + replacement
+                        + ", we read " + ours);
+            }
+        }
+        assertEquals(List.of(), wrong, "an alias reads other files than its replacement");
+    }
+
+    @Test
+    void aDirectMapBundleAnswersItsLanguageUnderAnyOfItsCodes() {
+        StringBundle persian = PropertyBundle.of(Locale.forLanguageTag("fa"), Map.of("k", "ذخیره"));
+        assertEquals("ذخیره", persian.lookup("k", Locale.forLanguageTag("pes")));
+        assertEquals("ذخیره", persian.lookup("k", Locale.forLanguageTag("prs-AF")));
+
+        StringBundle filedUnderAnAlias = PropertyBundle.of(Locale.forLanguageTag("fas"),
+                Map.of("k", "ذخیره"));
+        assertEquals("ذخیره", filedUnderAnAlias.lookup("k", Locale.forLanguageTag("fa-IR")),
+                "a bundle built under an alias answers for the language it stands for");
+        assertNull(filedUnderAnAlias.lookup("k", Locale.forLanguageTag("ar")));
     }
 
     @Test

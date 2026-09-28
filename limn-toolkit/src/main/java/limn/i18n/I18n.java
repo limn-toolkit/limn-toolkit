@@ -2,6 +2,7 @@ package limn.i18n;
 
 import limn.concurrent.internal.ChangeListeners;
 import limn.concurrent.Ui;
+import limn.i18n.internal.LanguageAliases;
 
 import java.text.Collator;
 import java.util.Collections;
@@ -485,24 +486,28 @@ public final class I18n {
      * names.sort(I18n.collator());
      * items.sort(Comparator.comparing(Item::label, I18n.collator()));
      * }</pre>
+     *
+     * <p>The language is read as ICU reads its code, as it is for case mapping: {@code swe}
+     * orders as Swedish and {@code fra} as French, where the platform, which knows neither code,
+     * would order both as no language at all.
      */
     public static Collator collator() {
-        return Collator.getInstance(textLocale());
+        return Collator.getInstance(LanguageAliases.resolve(textLocale()));
     }
 
     /**
      * {@code text} upper-cased in the {@linkplain #textLocale() text locale}: the case
      * mapping for something a user reads. A machine format keeps {@code Locale.ROOT} — under
      * Turkish this maps {@code i} to {@code İ}, which is exactly right in a list of cities
-     * and exactly wrong in a hex color.
+     * and exactly wrong in a hex color. Turkish named {@code tur} maps it the same way.
      */
     public static String toUpperCase(String text) {
-        return text.toUpperCase(textLocale());
+        return text.toUpperCase(LanguageAliases.resolve(textLocale()));
     }
 
     /** The lower-case twin of {@link #toUpperCase}, in the same locale. */
     public static String toLowerCase(String text) {
-        return text.toLowerCase(textLocale());
+        return text.toLowerCase(LanguageAliases.resolve(textLocale()));
     }
 
     /** Records a key and catches the one mistake that would surface as a mistranslation. */
@@ -553,7 +558,8 @@ public final class I18n {
     }
 
     private static void reportUnresolved(String key, String english, Locale target) {
-        String language = target.getLanguage();
+        // eng is English too, and the English shown is what it reads.
+        String language = LanguageAliases.language(target.getLanguage());
         if (language.isEmpty() || language.equals("en")) {
             return;
         }

@@ -4,6 +4,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -67,6 +69,44 @@ class NumberFormatsDigitsTest {
 
         I18n.setLocale(Locale.forLanguageTag("ar-EG"));
         assertEquals("١٫٢اس٢٥", one.apply(1.2e25), "the language's digits, separator and sign");
+    }
+
+    /**
+     * A code ICU reads as another language writes numbers as that language does, separators as
+     * well as digits: {@code deu}, the ISO 639-2 code for German, groups with a point and writes
+     * a decimal comma, and {@code rus} groups with a space and writes a decimal comma as Russian
+     * does. The platform's number symbols choose by the language subtag, and Java's
+     * {@link Locale} keeps these codes as they are, so each of them wrote the root locale's
+     * grouping comma and decimal point. Asked of every {@code alias} row of
+     * {@code cldr-locale-facts.txt}.
+     */
+    @Test
+    void anAliasWritesNumbersAsItsReplacementDoes() throws Exception {
+        List<String> wrong = new ArrayList<>();
+        for (String[] alias : CldrAliasRows.read()) {
+            String ours = written(Locale.forLanguageTag(alias[0]));
+            String replacement = written(Locale.forLanguageTag(alias[1]));
+            if (!ours.equals(replacement)) {
+                wrong.add(alias[0] + " is " + alias[1] + ", which writes " + replacement
+                        + ", we write " + ours);
+            }
+        }
+        assertEquals(List.of(), wrong, "an alias writes numbers otherwise than its replacement");
+
+        I18n.setLocale(Locale.forLanguageTag("deu"));
+        assertEquals("1.234.567,25", NumberFormats.number().apply(1234567.25), "deu is German");
+    }
+
+    /** A grouped decimal, a percentage and a large number in scientific notation, under {@code locale}. */
+    private static String written(Locale locale) {
+        Locale enclosing = I18n.pushScope(locale);
+        try {
+            return NumberFormats.number().apply(-1234567.25) + ' '
+                    + NumberFormats.percent(1).apply(0.125) + ' '
+                    + NumberFormats.scientific(2).apply(1.25e25);
+        } finally {
+            I18n.popScope(enclosing);
+        }
     }
 
     @Test

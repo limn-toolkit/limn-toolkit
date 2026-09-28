@@ -68,6 +68,18 @@ class UnresolvedKeyTest {
         assertEquals(List.of(), heard);
     }
 
+    /**
+     * English named by its ISO 639-2 code, {@code eng}, which ICU reads as {@code en} and Java's
+     * {@link Locale} keeps as it is, is English too: its declared text is what it reads.
+     */
+    @Test
+    void englishUnderItsThreeLetterCodeIsNeverAMiss() {
+        I18nString plain = new I18nString("test.unresolved.eng", "Plain");
+        I18n.setLocale(Locale.forLanguageTag("eng-GB"));
+        assertEquals("Plain", plain.get());
+        assertEquals(List.of(), heard);
+    }
+
     @Test
     void aMissingPluralFormFallsBackQuietlyAndOnlyNoFormAtAllIsReported() {
         register(PropertyBundle.of(PT_BR, Map.of(

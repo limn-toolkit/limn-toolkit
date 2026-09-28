@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.concurrent.ConcurrentHashMap;
+import limn.i18n.internal.LanguageAliases;
 import limn.io.Resources;
 
 /**
@@ -29,7 +30,10 @@ import limn.io.Resources;
  * locale is served by <b>merging</b> them least-specific first ({@code base}, then
  * {@code _pt}, then {@code _pt-BR}), so a regional file carries only what it changes
  * and a language file carries the rest. Underscores are accepted in place of the
- * hyphen ({@code _pt_BR}), since that is how the JDK spells the same thing.
+ * hyphen ({@code _pt_BR}), since that is how the JDK spells the same thing. A locale named by
+ * another code for a language reads that language's files, as ICU reads the code: {@code pes}
+ * and {@code fas} read {@code _fa}, and {@code prs}, Dari, reads {@code _fa} and then
+ * {@code _fa-AF}.
  *
  * <p>Files are read in {@link #prepare}, which {@link I18n} calls before anything can
  * ask for a string; {@link #lookup} is then a hash get. A missing file is not an
@@ -121,12 +125,17 @@ public final class PropertyBundle implements StringBundle {
     /**
      * A bundle holding one locale's strings directly, for translations that were
      * downloaded, generated, or assembled in a test rather than shipped as a file.
+     *
+     * <p>It answers for its locale's language under any code that names it: a bundle built for
+     * {@code fa} answers a {@code pes} or {@code prs} locale, and one built for {@code fas} a
+     * {@code fa-IR} one.
      */
     public static StringBundle of(Locale locale, Map<String, String> strings) {
         Objects.requireNonNull(locale, "locale");
         Map<String, String> copy = Map.copyOf(strings);
-        String language = locale.getLanguage();
-        return (key, asked) -> language.equals(asked.getLanguage()) ? copy.get(key) : null;
+        String language = LanguageAliases.language(locale.getLanguage());
+        return (key, asked) -> language.equals(LanguageAliases.language(asked.getLanguage()))
+                ? copy.get(key) : null;
     }
 
     @Override
@@ -169,8 +178,14 @@ public final class PropertyBundle implements StringBundle {
         return tables.size();
     }
 
-    /** The classpath resources this family would read for {@code locale}, most general first. */
-    List<String> candidates(Locale locale) {
+    /**
+     * The classpath resources this family would read for {@code asked}, most general first, with
+     * its language read as ICU reads the code, since a translation is filed under the code
+     * everyone uses: {@code pes} reads the {@code _fa} file, and {@code prs}, Dari, the {@code _fa}
+     * file and the {@code _fa-AF} one on top of it.
+     */
+    List<String> candidates(Locale asked) {
+        Locale locale = LanguageAliases.resolve(asked);
         String language = locale.getLanguage();
         if (language.isEmpty()) {
             return List.of(base + ".properties");

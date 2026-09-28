@@ -1,6 +1,7 @@
 package limn.components.date;
 
 import limn.i18n.I18n;
+import limn.i18n.internal.LanguageAliases;
 
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
@@ -214,9 +215,11 @@ final class CalendarChronology {
      * one of them the other's number would be showing a number that is wrong where they work.
      *
      * <p>A week is a region's and not a language's, so a locale that names no region is read for
-     * the region its language most likely means ({@link #likelyRegion}): the JDK reads every such
-     * locale as the United States, and "de", "fr" and "ru" started their weeks on a Sunday and
-     * numbered them the American way until 2026-09-24.
+     * the region its language most likely means ({@link #likelyRegion(Locale)}): the JDK reads
+     * every such locale as the United States, and "de", "fr" and "ru" started their weeks on a
+     * Sunday and numbered them the American way until 2026-09-24. A code ICU reads as another
+     * language is read for that language's region, so "fra" and "deu" have the week "fr" and "de"
+     * have.
      *
      * @param locale the language in effect
      * @return its week fields
@@ -248,7 +251,7 @@ final class CalendarChronology {
     private static final Map<Locale, WeekFields> WEEKS = new ConcurrentHashMap<>();
 
     private static WeekFields readWeek(Locale locale) {
-        String region = locale.getCountry().isEmpty() ? likelyRegion(locale.getLanguage()) : null;
+        String region = locale.getCountry().isEmpty() ? likelyRegion(locale) : null;
         if (region == null) {
             return WeekFields.of(locale);
         }
@@ -274,6 +277,24 @@ final class CalendarChronology {
      */
     static String likelyRegion(String language) {
         return LIKELY_REGIONS.get(language);
+    }
+
+    /**
+     * The region a locale that names none most likely means, with its language read as ICU reads
+     * the code: {@code fra} is French and means France, {@code pes}, Iranian Persian, means Iran,
+     * and {@code prs}, Dari, which ICU reads as {@code fa-AF}, means Afghanistan, the region its
+     * code carries, rather than Persian's likely Iran.
+     *
+     * @param locale a locale with no region
+     * @return the region, or {@code null} for a language CLDR does not know
+     */
+    private static String likelyRegion(Locale locale) {
+        Locale read = LanguageAliases.resolve(locale);
+        if (!read.getCountry().isEmpty()) {
+            return read.getCountry();
+        }
+        // language() again for the legacy spellings Locale keeps under useOldISOCodes: iw is he.
+        return likelyRegion(LanguageAliases.language(read.getLanguage()));
     }
 
     private static final Map<String, String> LIKELY_REGIONS = likelyRegions(

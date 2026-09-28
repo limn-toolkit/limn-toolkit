@@ -1,7 +1,8 @@
 package limn.i18n;
 
+import limn.i18n.internal.LanguageAliases;
+
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * The digits a formatted number is written in: one zero code point and its nine successors,
@@ -87,34 +88,6 @@ public enum NumberingSystem {
             "OM", "PS", "QA", "SA", "SD", "SO", "SS", "SY", "TD", "YD", "YE");
 
     /**
-     * The codes ICU reads as a language the table below decides, each with the tag it reads it
-     * as; every pair is an {@code alias} row of {@code cldr-locale-facts.txt}. The dump names
-     * every code ICU replaces, over four hundred, and only these change an answer here: every
-     * other one names a language this table answers Latin for, because CLDR writes it in Latin
-     * digits or in a system this enum does not carry. {@code CldrLocaleFactsTest} asks all of
-     * them.
-     */
-    private static final Map<String, Locale> ALIASES = Map.ofEntries(
-            alias("ara", "ar"), alias("arb", "ar"),
-            alias("bh", "bho"), alias("bih", "bho"),
-            alias("cls", "sa"), alias("san", "sa"),
-            alias("drw", "fa-AF"), alias("prs", "fa-AF"), alias("tnf", "fa-AF"),
-            alias("fas", "fa"), alias("per", "fa"), alias("pes", "fa"),
-            alias("kas", "ks"),
-            alias("mar", "mr"),
-            alias("mup", "raj"),
-            alias("nep", "ne"), alias("npi", "ne"),
-            alias("pan", "pa"),
-            alias("pbu", "ps"), alias("pus", "ps"),
-            alias("snd", "sd"),
-            alias("urd", "ur"),
-            alias("uzb", "uz"), alias("uzn", "uz"));
-
-    private static Map.Entry<String, Locale> alias(String code, String replacement) {
-        return Map.entry(code, Locale.forLanguageTag(replacement));
-    }
-
-    /**
      * CLDR's default system for {@code locale}, over the systems this enum carries.
      *
      * <p>Every branch is a row of {@code cldr-locale-facts.txt} and none of it is reasoned from
@@ -140,21 +113,17 @@ public enum NumberingSystem {
      * Egypt, what {@code ar-EG} writes. {@link Locale} replaces only {@code iw}, {@code ji} and
      * {@code in} on its own. A replacement that carries a region or a script fills in only what
      * the locale leaves out: {@code prs}, Dari, is {@code fa-AF}, and {@code prs-IR} is
-     * {@code fa-IR}.
+     * {@code fa-IR}. The codes are every one ICU replaces, the same ones the plural rules, the
+     * string bundles and the calendars read a locale through.
      *
      * @param locale the locale to classify
      * @return the system CLDR gives it, or {@link #LATN}
      */
     public static NumberingSystem forLocale(Locale locale) {
-        String language = locale.getLanguage();
-        String script = locale.getScript();
-        String region = locale.getCountry();
-        Locale replacement = ALIASES.get(language);
-        if (replacement != null) {
-            language = replacement.getLanguage();
-            script = script.isEmpty() ? replacement.getScript() : script;
-            region = region.isEmpty() ? replacement.getCountry() : region;
-        }
+        Locale read = LanguageAliases.resolve(locale);
+        String language = read.getLanguage();
+        String script = read.getScript();
+        String region = read.getCountry();
         return switch (language) {
             case "ar" -> ARABIC_INDIC_REGIONS.contains(region) ? ARAB : LATN;
             case "ars", "ckb" -> ARAB;
