@@ -305,7 +305,8 @@ public interface Canvas {
      *
      * <p>The defaults here build on the scalar {@code fillRoundRect} and
      * {@code drawRoundRect}, so they allocate nothing. A renderer may draw the pair
-     * in one pass instead, as long as it keeps the geometry the defaults define.
+     * in one pass instead, as long as it keeps the geometry the defaults define,
+     * moved onto its pixel grid as the two halves say.
      */
     default void fillRoundRectWithBorder(float x, float y, float width, float height, float radius,
                                          Paint fill, float borderWidth, Paint border) {
@@ -352,6 +353,13 @@ public interface Canvas {
      * a strong fill under a grey border shows as a coloured rim. Draw the border
      * after it.
      *
+     * <p>A renderer that moves a stroke's centre line onto its pixel grid (see the
+     * class notes) moves this fill's edge with it, to where the border's centre
+     * line is drawn rather than where it was asked for: left behind, the fill's
+     * corner arc no longer shares a centre with the border's: wherever the border
+     * moved inward the fill shows past it on the diagonal, and wherever it moved
+     * outward the background shows between the two.
+     *
      * <p>A border that fades out, leaving the fill to stand alone, is the one case
      * this is wrong for: the fill has to reach the box then, and is a plain
      * {@link #fillRoundRect(float, float, float, float, float, Paint)} of it.
@@ -367,7 +375,9 @@ public interface Canvas {
      * Intersects the clip with the shape {@link #fillRoundRectInsideBorder}
      * fills, for a surface whose fill is a gradient, an image or several shapes:
      * clip, paint them over the whole box, restore, then draw the border. Builds
-     * one {@link RoundRect}, as {@link #clipRoundRect} needs.
+     * one {@link RoundRect}, as {@link #clipRoundRect} needs. A renderer that moves
+     * strokes onto its pixel grid moves this clip's edge with the border's centre
+     * line, as {@link #fillRoundRectInsideBorder} explains.
      */
     default void clipRoundRectInsideBorder(float x, float y, float width, float height, float radius,
                                            float borderWidth) {
