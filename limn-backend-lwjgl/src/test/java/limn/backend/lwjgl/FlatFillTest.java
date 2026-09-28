@@ -199,17 +199,27 @@ class FlatFillTest {
 
     // --------------------------------------------------------------- helpers
 
+    /**
+     * Counts the rectangles drawn flat whole. A rounded rectangle's interior can take the flat
+     * program too, cut to where its coverage is one; that rule is RoundRectPiecesTest's, so the
+     * pieces are off here and only the whole-rectangle rule is counted.
+     */
     private void assertFlat(int expected, String what, Consumer<GlCanvas> paint) {
         int[] drawn = new int[1];
-        render(c -> {
-            c.beginFrame(WIDTH, HEIGHT, SCALE);
-            c.clear(BACKGROUND);
-            c.save();
-            paint.accept(c);
-            c.restore();
-            drawn[0] = c.flatRectsThisFrame();
-            c.endFrame();
-        });
+        canvas.splitRoundRects = false;
+        try {
+            render(c -> {
+                c.beginFrame(WIDTH, HEIGHT, SCALE);
+                c.clear(BACKGROUND);
+                c.save();
+                paint.accept(c);
+                c.restore();
+                drawn[0] = c.flatRectsThisFrame();
+                c.endFrame();
+            });
+        } finally {
+            canvas.splitRoundRects = true;
+        }
         assertEquals(expected, drawn[0], what);
     }
 

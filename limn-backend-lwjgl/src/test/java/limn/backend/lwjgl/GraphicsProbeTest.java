@@ -136,4 +136,20 @@ class GraphicsProbeTest {
             }
         }
     }
+
+    @Test
+    void aRendererOnTheCpuIsToldApartFromAGpuByItsName() {
+        // Verbatim GL_RENDERER strings: what the canvas decides its draw path by.
+        for (String software : new String[] {"Apple Software Renderer",
+                "llvmpipe (LLVM 17.0.6, 256 bits)", "softpipe", "Mesa X11 swrast",
+                "GDI Generic", "D3D12 (Microsoft Basic Render Driver)"}) {
+            assertTrue(GraphicsProbe.isSoftwareRenderer(software), software);
+        }
+        for (String gpu : new String[] {"Apple M5 Max", "NVIDIA GeForce RTX 4070/PCIe/SSE2",
+                "AMD Radeon RX 7800 XT (radeonsi, navi32, LLVM 17.0.6, DRM 3.54)",
+                "Mesa Intel(R) UHD Graphics 620 (KBL GT2)", "D3D12 (Intel(R) Iris(R) Xe Graphics)", ""}) {
+            assertFalse(GraphicsProbe.isSoftwareRenderer(gpu), gpu);
+        }
+        assertFalse(GraphicsProbe.isSoftwareRenderer(null), "no answer");
+    }
 }

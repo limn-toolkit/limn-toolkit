@@ -59,6 +59,18 @@ final class GlCanvas implements Canvas {
     private static final float EPSILON = 1e-6f;
     /** How far from a whole device pixel an edge may be and still count as on it (float noise). */
     private static final float PIXEL_EDGE_TOLERANCE = 1e-3f;
+    /** How far past the antialiasing ramp's reach a rounded rectangle's interior starts, device px. */
+    private static final float RING_MARGIN_DEVICE = 1f / 16;
+    /**
+     * The smallest interior, in device pixels, worth splitting a rounded rectangle's quad for: below
+     * it the extra pieces cost more to set up than the pixels they spare the fragment shader.
+     */
+    private static final float MIN_HOLE_DEVICE_PIXELS = 256;
+    /**
+     * The smallest part of a solid fill's interior, in device pixels, drawn with the flat program
+     * (see {@code emitFlatInterior}); 64 x 64, a 32-point square at 2x.
+     */
+    static final float FLAT_INTERIOR_MIN_DEVICE_PIXELS = 4096;
 
     private static final class State {
         final Transform2D transform = new Transform2D();
@@ -105,10 +117,42 @@ final class GlCanvas implements Canvas {
     private boolean inFrame;
     private int flatRects;
     private long flatPixels;
+    /**
+     * Whether rounded rectangles are drawn in pieces (see {@link #emitRoundRectPieces}); off, each
+     * is the single quad over its box. Tests turn it off to render the reference the pieces must
+     * match.
+     */
+    boolean splitRoundRects = true;
+    /**
+     * Whether a large solid interior of a rounded fill is drawn by the flat program (see
+     * {@link #emitFlatInterior}): only where the renderer runs fragment shaders on the CPU, read from
+     * the context when the canvas is built. On a GPU the interior stays plain geometry in the same
+     * batch, because there the draw calls the flat program adds cost more than the pixels it
+     * spares. Tests set it to take either path on whatever device they run on.
+     */
+    boolean flatInteriors;
+    /**
+     * The current shape's pieces (see {@link #emitRoundRectPieces}): each boundary's device
+     * coordinate and local coordinate, in local order, and the cut to the clip in device pixels.
+     */
+    private final float[] pieceDevX = new float[6];
+    private final float[] pieceLocX = new float[6];
+    private final float[] pieceDevY = new float[6];
+    private final float[] pieceLocY = new float[6];
+    private float cutX0;
+    private float cutY0;
+    private float cutX1;
+    private float cutY1;
+    private float cutCentreX;
+    private float cutCentreY;
 
     GlCanvas(FontStore fontStore) {
         this.fontStore = fontStore;
         states.add(new State());
+        // Built with its context current (the batch above has just made its buffers in it), and a
+        // context's renderer never changes, so it is read once.
+        flatInteriors = GraphicsProbe.isSoftwareRenderer(
+                org.lwjgl.opengl.GL33C.glGetString(org.lwjgl.opengl.GL33C.GL_RENDERER));
     }
 
     void beginFrame(int framebufferWidth, int framebufferHeight, float contentScale) {
@@ -1345,10 +1389,317 @@ final class GlCanvas implements Canvas {
             return;
         }
         float maxRadius = Math.min(halfW, halfH);
-        emitSdfQuad(KIND_ROUND_RECT, x + halfW, y + halfH, halfW, halfH,
-                Math.min(tl, maxRadius), Math.min(tr, maxRadius),
-                Math.min(br, maxRadius), Math.min(bl, maxRadius),
-                strokeHalfWidth, 1, 0, paint);
+        tl = Math.min(tl, maxRadius);
+        tr = Math.min(tr, maxRadius);
+        br = Math.min(br, maxRadius);
+        bl = Math.min(bl, maxRadius);
+        if (!emitRoundRectPieces(s, x + halfW, y + halfH, halfW, halfH, tl, tr, br, bl,
+                strokeHalfWidth, paint)) {
+            emitSdfQuad(KIND_ROUND_RECT, x + halfW, y + halfH, halfW, halfH, tl, tr, br, bl,
+                    strokeHalfWidth, 1, 0, paint);
+        }
+    }
+
+    /**
+     * Emits an axis-aligned rounded rectangle as pieces of the quad {@link #emitSdfQuad} would
+     * draw, leaving out what needs no distance field: a stroke's interior, where its coverage is
+     * zero, is not drawn at all, and a fill's interior, where its coverage is exactly the clip's,
+     * is drawn as plain geometry that skips the distance field and its derivatives, or, for a large
+     * solid one on a software renderer, mostly by the flat program ({@link #emitFlatInterior}), all
+     * in the same batch otherwise. Every piece is also cut to
+     * the clip rectangle, a device pixel wide of it.
+     *
+     * <p>Each pixel of the quad is drawn by exactly one piece (the pieces tile it, edge to edge on
+     * shared coordinates) with the same attributes, so it gets the colour the quad gave it, to
+     * within the rounding of interpolating those attributes over other triangles (a channel off by
+     * one on a GPU, rarely); the fragment shader just no longer runs where that colour was already
+     * known. On a renderer that runs it on the CPU (macOS's software fallback, a VM with no GPU)
+     * that is the cost: a one-point border around a card shaded every pixel of the card to discard
+     * all but its edge, as much as the card's fill. Such a renderer also takes its derivatives
+     * beside a primitive's edge from something other than the primitive's plane, so there the
+     * antialiasing beside a piece's edge moves, as it always did beside the quad's diagonal. The
+     * quad's own edges keep the positions it had, and every edge a piece adds lies on a whole
+     * device pixel, so no pixel centre sits on one and no piece is a sliver whose interpolation the
+     * rasterizer's snapping would skew.
+     *
+     * <p>Where the interior starts: outside the four corner squares, which are as large as the
+     * largest radius, the distance field is the distance to the nearest edge, and the shader's
+     * antialiasing ramp reaches at most one device pixel (its width is half the field's screen
+     * gradient, which a distance field bounds by one pixel on each axis). So a point further in
+     * than half the stroke plus that pixel lies where the stroke's coverage is zero and the fill's
+     * is one. The margin past it absorbs float rounding.
+     *
+     * @return whether the rectangle was emitted; {@code false} (a rotated or skewed transform)
+     *         leaves it to the single quad
+     */
+    private boolean emitRoundRectPieces(State s, float cx, float cy, float halfW, float halfH,
+                                        float tl, float tr, float br, float bl,
+                                        float strokeHalfWidth, Paint paint) {
+        Transform2D t = s.transform;
+        if (!splitRoundRects || t.m01 != 0 || t.m10 != 0 || t.m00 == 0 || t.m11 == 0) {
+            return false;
+        }
+        DeviceClip clip = s.clip;
+        if (clip.isEmpty()) {
+            return true; // fully clipped out, as emitSdfQuad has it
+        }
+        float stroke = Math.max(strokeHalfWidth, 0);
+        // The quad's corners, with emitSdfQuad's expressions, so its outer edges are the same.
+        float pad = AA_PAD_DEVICE / t.minScale() + stroke;
+        float ex = halfW + pad;
+        float ey = halfH + pad;
+        pieceDevX[0] = t.x(cx + -ex, cy + -ey);
+        pieceLocX[0] = -ex;
+        pieceDevX[5] = t.x(cx + ex, cy + -ey);
+        pieceLocX[5] = ex;
+        pieceDevY[0] = t.y(cx + -ex, cy + -ey);
+        pieceLocY[0] = -ey;
+        pieceDevY[5] = t.y(cx + -ex, cy + ey);
+        pieceLocY[5] = ey;
+        // A pixel whose centre lies more than half a pixel outside the clip rectangle has a clip
+        // coverage of zero (the clip's ramp is a pixel wide, centred on its edge), so cutting a
+        // pixel beyond the clip's outermost whole pixels leaves out nothing that showed.
+        cutX0 = (float) Math.floor(clip.x0) - 1;
+        cutX1 = (float) Math.ceil(clip.x1) + 1;
+        cutY0 = (float) Math.floor(clip.y0) - 1;
+        cutY1 = (float) Math.ceil(clip.y1) + 1;
+        cutCentreX = cx;
+        cutCentreY = cy;
+        if (Math.max(pieceDevX[0], pieceDevX[5]) <= cutX0 || Math.min(pieceDevX[0], pieceDevX[5]) >= cutX1
+                || Math.max(pieceDevY[0], pieceDevY[5]) <= cutY0
+                || Math.min(pieceDevY[0], pieceDevY[5]) >= cutY1) {
+            return true; // wholly outside the clip: every pixel's coverage was zero
+        }
+
+        int paintType = applyPaint(paint, cx, cy, 1, 0, 0, 1, s.opacity);
+        applyBlend(s);
+        batch.setShape(halfW, halfH, tl, tr, br, bl, strokeHalfWidth, KIND_ROUND_RECT, paintType);
+        batch.setClip(clip);
+        batch.ensure(4 * 11, 6 * 11);
+
+        float reach = stroke + (1 + RING_MARGIN_DEVICE) / t.minScale() + 1e-4f;
+        float corner = Math.max(Math.max(Math.max(tl, tr), Math.max(br, bl)), reach);
+        float holeW = 2 * (halfW - reach);
+        float holeH = 2 * (halfH - reach);
+        float holeDevice = (holeW * holeH - 4 * (corner - reach) * (corner - reach))
+                * Math.abs(t.m00 * t.m11);
+        if (corner > halfW || corner > halfH || !(holeDevice >= MIN_HOLE_DEVICE_PIXELS)) {
+            piece(0, 0, 5, 5); // no interior worth leaving out
+            return true;
+        }
+        // The band's inner edge and the corner squares' inner edge on each side, each moved onto
+        // the device grid towards the interior, which only ever widens the pieces around it.
+        pieceBoundary(t, cx, cy, true, 1, -halfW + reach, true);
+        pieceBoundary(t, cx, cy, true, 2, -halfW + corner, true);
+        pieceBoundary(t, cx, cy, true, 3, halfW - corner, false);
+        pieceBoundary(t, cx, cy, true, 4, halfW - reach, false);
+        pieceBoundary(t, cx, cy, false, 1, -halfH + reach, true);
+        pieceBoundary(t, cx, cy, false, 2, -halfH + corner, true);
+        pieceBoundary(t, cx, cy, false, 3, halfH - corner, false);
+        pieceBoundary(t, cx, cy, false, 4, halfH - reach, false);
+        if (!(pieceLocX[1] < pieceLocX[4]) || !(pieceLocY[1] < pieceLocY[4])) {
+            piece(0, 0, 5, 5); // the grid swallowed the interior
+            return true;
+        }
+        if (pieceLocX[3] < pieceLocX[2]) { // the corner squares met: the arms stay, no column
+            pieceDevX[3] = pieceDevX[2];
+            pieceLocX[3] = pieceLocX[2];
+        }
+        if (pieceLocY[3] < pieceLocY[2]) {
+            pieceDevY[3] = pieceDevY[2];
+            pieceLocY[3] = pieceLocY[2];
+        }
+        // Five rows, top to bottom: the band, the corner squares with the interior's column
+        // between them, the side bands with the interior's full width between them, and again.
+        piece(0, 0, 5, 1);
+        piece(0, 1, 2, 2);
+        piece(3, 1, 5, 2);
+        piece(0, 2, 1, 3);
+        piece(4, 2, 5, 3);
+        piece(0, 3, 2, 4);
+        piece(3, 3, 5, 4);
+        piece(0, 4, 5, 5);
+        if (strokeHalfWidth < 0) {
+            batch.setShape(halfW, halfH, tl, tr, br, bl, strokeHalfWidth, KIND_PLAIN, paintType);
+            if (!emitFlatInterior(s, paint)) {
+                piece(2, 1, 3, 2);
+                piece(1, 2, 4, 3);
+                piece(2, 3, 3, 4);
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Draws the largest rectangle of a solid fill's interior with the flat program, and the rest of
+     * the interior as plain pieces around it, when that rectangle, cut to the clip's whole pixels,
+     * covers at least {@link #FLAT_INTERIOR_MIN_DEVICE_PIXELS}. Inside the clip's whole pixels and
+     * under no rounded clip, the plain pieces' coverage is exactly one, so the flat program writes
+     * the same colour; it just skips the clip test and the attributes the main program interpolates
+     * for every pixel, which on a renderer running fragment shaders on the CPU still cost three
+     * quarters of the distance field.
+     *
+     * <p>The price is the batch: the flat program is a second draw call, and the geometry after it
+     * a third, so only a software renderer takes this path ({@link #flatInteriors}). Measured at
+     * 2604 x 1850 on a form of 28 rows (about 150 surfaces): with Apple Software Renderer the full
+     * frame costs 230 ms with plain interiors and 111 ms with flat ones at this threshold, 142 ms at
+     * 16384 pixels (only the fields' interiors) and 109 ms with every interior flat; on an Apple M5
+     * Max the 155 draw calls it would take there cost about 0.6 ms against 0.54 ms for the whole
+     * frame in one.
+     *
+     * @return whether it did; {@code false} leaves the whole interior to the plain pieces
+     */
+    private boolean emitFlatInterior(State s, Paint paint) {
+        DeviceClip clip = s.clip;
+        if (!flatInteriors || !(paint instanceof Color c) || clip.radius > 0) {
+            return false;
+        }
+        // The column between the corner squares, or the row between the side bands: the larger.
+        float colArea = Math.abs((pieceDevX[3] - pieceDevX[2]) * (pieceDevY[4] - pieceDevY[1]));
+        float rowArea = Math.abs((pieceDevX[4] - pieceDevX[1]) * (pieceDevY[3] - pieceDevY[2]));
+        boolean column = colArea >= rowArea;
+        int xa = column ? 2 : 1;
+        int xb = column ? 3 : 4;
+        int ya = column ? 1 : 2;
+        int yb = column ? 4 : 3;
+        float px0 = Math.min(pieceDevX[xa], pieceDevX[xb]);
+        float px1 = Math.max(pieceDevX[xa], pieceDevX[xb]);
+        float py0 = Math.min(pieceDevY[ya], pieceDevY[yb]);
+        float py1 = Math.max(pieceDevY[ya], pieceDevY[yb]);
+        // Inside the clip's whole pixels, where its coverage is exactly one.
+        float fx0 = Math.max(px0, (float) Math.ceil(clip.x0));
+        float fx1 = Math.min(px1, (float) Math.floor(clip.x1));
+        float fy0 = Math.max(py0, (float) Math.ceil(clip.y0));
+        float fy1 = Math.min(py1, (float) Math.floor(clip.y1));
+        if (!(fx1 > fx0) || !(fy1 > fy0) || (fx1 - fx0) * (fy1 - fy0) < FLAT_INTERIOR_MIN_DEVICE_PIXELS) {
+            return false;
+        }
+        if (column) {
+            piece(1, 2, 2, 3);
+            piece(3, 2, 4, 3);
+        } else {
+            piece(2, 1, 3, 2);
+            piece(2, 3, 3, 4);
+        }
+        pieceBetween(px0, px1, py0, fy0);
+        pieceBetween(px0, px1, fy1, py1);
+        pieceBetween(px0, fx0, fy0, fy1);
+        pieceBetween(fx1, px1, fy0, fy1);
+        batch.flatRect(fx0, fy0, fx1, fy1, c.r(), c.g(), c.b(), c.a() * s.opacity);
+        flatRects++;
+        flatPixels += (long) ((fx1 - fx0) * (fy1 - fy0));
+        return true;
+    }
+
+    /**
+     * Sets boundary {@code index} of the current shape's pieces, on the x axis or the y axis, to the
+     * whole device pixel nearest {@code local} on the side of increasing local coordinates when
+     * {@code forward} holds and decreasing ones otherwise.
+     */
+    private void pieceBoundary(Transform2D t, float cx, float cy, boolean xAxis, int index, float local,
+                               boolean forward) {
+        float scale = xAxis ? t.m00 : t.m11;
+        float origin = xAxis ? t.tx : t.ty;
+        float centre = xAxis ? cx : cy;
+        float device = scale * (centre + local) + origin;
+        float snapped = (float) (forward == scale > 0 ? Math.ceil(device) : Math.floor(device));
+        float snappedLocal = (snapped - origin) / scale - centre;
+        if (xAxis) {
+            pieceDevX[index] = snapped;
+            pieceLocX[index] = snappedLocal;
+        } else {
+            pieceDevY[index] = snapped;
+            pieceLocY[index] = snappedLocal;
+        }
+    }
+
+    /**
+     * Emits the piece of the current shape between boundaries {@code x0}..{@code x1} and
+     * {@code y0}..{@code y1} (indices in local order), cut to {@link #cutX0}..{@link #cutY1};
+     * nothing when it is empty or the cut empties it.
+     */
+    private void piece(int x0, int y0, int x1, int y1) {
+        pieceAt(pieceDevX[x0], pieceLocX[x0], pieceDevX[x1], pieceLocX[x1],
+                pieceDevY[y0], pieceLocY[y0], pieceDevY[y1], pieceLocY[y1]);
+    }
+
+    /**
+     * Emits the piece of the current shape between two whole device columns and two whole device
+     * rows, given in either order; see {@link #piece}.
+     */
+    private void pieceBetween(float devX0, float devX1, float devY0, float devY1) {
+        Transform2D t = state().transform;
+        float lx0 = (devX0 - t.tx) / t.m00 - cutCentreX;
+        float lx1 = (devX1 - t.tx) / t.m00 - cutCentreX;
+        float ly0 = (devY0 - t.ty) / t.m11 - cutCentreY;
+        float ly1 = (devY1 - t.ty) / t.m11 - cutCentreY;
+        pieceAt(lx0 <= lx1 ? devX0 : devX1, Math.min(lx0, lx1), lx0 <= lx1 ? devX1 : devX0, Math.max(lx0, lx1),
+                ly0 <= ly1 ? devY0 : devY1, Math.min(ly0, ly1), ly0 <= ly1 ? devY1 : devY0, Math.max(ly0, ly1));
+    }
+
+    private void pieceAt(float dx0, float lx0, float dx1, float lx1,
+                         float dy0, float ly0, float dy1, float ly1) {
+        if (!(lx0 < lx1) || !(ly0 < ly1)) {
+            return;
+        }
+        Transform2D t = state().transform;
+        // The cut, on whichever end each side of the clip falls in a mirrored transform.
+        boolean xRising = dx0 < dx1;
+        float lowX = xRising ? dx0 : dx1;
+        float highX = xRising ? dx1 : dx0;
+        float lowY = dy0 < dy1 ? dy0 : dy1;
+        float highY = dy0 < dy1 ? dy1 : dy0;
+        if (highX <= cutX0 || lowX >= cutX1 || highY <= cutY0 || lowY >= cutY1) {
+            return;
+        }
+        if (lowX < cutX0) {
+            float l = (cutX0 - t.tx) / t.m00 - cutCentreX;
+            if (xRising) {
+                dx0 = cutX0;
+                lx0 = l;
+            } else {
+                dx1 = cutX0;
+                lx1 = l;
+            }
+        }
+        if (highX > cutX1) {
+            float l = (cutX1 - t.tx) / t.m00 - cutCentreX;
+            if (xRising) {
+                dx1 = cutX1;
+                lx1 = l;
+            } else {
+                dx0 = cutX1;
+                lx0 = l;
+            }
+        }
+        boolean yRising = dy0 < dy1;
+        if (lowY < cutY0) {
+            float l = (cutY0 - t.ty) / t.m11 - cutCentreY;
+            if (yRising) {
+                dy0 = cutY0;
+                ly0 = l;
+            } else {
+                dy1 = cutY0;
+                ly1 = l;
+            }
+        }
+        if (highY > cutY1) {
+            float l = (cutY1 - t.ty) / t.m11 - cutCentreY;
+            if (yRising) {
+                dy1 = cutY1;
+                ly1 = l;
+            } else {
+                dy0 = cutY1;
+                ly0 = l;
+            }
+        }
+        int base = batch.baseVertex();
+        batch.vertex(dx0, dy0, lx0, ly0);
+        batch.vertex(dx1, dy0, lx1, ly0);
+        batch.vertex(dx1, dy1, lx1, ly1);
+        batch.vertex(dx0, dy1, lx0, ly1);
+        batch.triangle(base, base + 1, base + 2);
+        batch.triangle(base, base + 2, base + 3);
     }
 
     /**
