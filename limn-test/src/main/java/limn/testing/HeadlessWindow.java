@@ -274,7 +274,8 @@ public final class HeadlessWindow implements NativeWindow {
     @Override public void setFrameCallback(FrameCallback newCallback) { callback = newCallback; }
     @Override public void setInput(WindowInput newInput) { input = newInput; }
     @Override public Backend backend() { return backend; }
-    @Override public Clipboard clipboard() { return null; }
+    /** The backend's clipboard, which all its windows share; never null, as a window's is not. */
+    @Override public Clipboard clipboard() { return backend.clipboard; }
     @Override public int screenX() { return 0; }
     @Override public int screenY() { return 0; }
     @Override public void setScreenPosition(int x, int y) { }
