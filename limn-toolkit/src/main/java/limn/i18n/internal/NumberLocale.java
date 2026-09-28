@@ -27,6 +27,11 @@ import java.util.Locale;
  * came, and that is a correctness rule rather than an economy: naming a system on some locales
  * makes the platform answer another locale's symbols. Serbian in Bosnia ({@code sr-BA}) writes a
  * decimal comma, and {@code sr-BA-u-nu-latn} answers a point.
+ *
+ * <p>The language is read as ICU reads its code before the platform is asked anything, since the
+ * platform knows a language by one code only: {@code deu} writes German's grouping point and
+ * decimal comma, and {@code rus} Russian's grouping space and decimal comma, where the platform
+ * answers the root locale's comma and point for both. See {@link LanguageAliases}.
  */
 public final class NumberLocale {
 
@@ -71,12 +76,13 @@ public final class NumberLocale {
     }
 
     /**
-     * {@code locale} with {@code system} named as its numbering system, or {@code locale} itself
-     * when the platform already writes that system's digits for it, or when it is a legacy form
-     * the builder cannot carry an extension on, in which case the platform's own default system
-     * for it decides the separators.
+     * {@code asked}, with its language read as ICU reads the code, and with {@code system} named
+     * as its numbering system unless the platform already writes that system's digits for it, or
+     * it is a legacy form the builder cannot carry an extension on, in which case the platform's
+     * own default system for it decides the separators.
      */
-    private static Locale resolve(Locale locale, NumberingSystem system) {
+    private static Locale resolve(Locale asked, NumberingSystem system) {
+        Locale locale = LanguageAliases.resolve(asked);
         if (DecimalFormatSymbols.getInstance(locale).getZeroDigit() == system.digit(0)) {
             return locale;
         }

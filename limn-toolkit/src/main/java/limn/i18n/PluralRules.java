@@ -1,5 +1,7 @@
 package limn.i18n;
 
+import limn.i18n.internal.LanguageAliases;
+
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
@@ -106,7 +108,8 @@ public final class PluralRules {
     /**
      * The form {@code count} takes in {@code locale}.
      *
-     * @param locale the language to ask; only its language subtag is read
+     * @param locale the language to ask; only its language subtag is read, as ICU reads the code,
+     *               so {@code fra} is French and {@code heb} Hebrew
      * @param count  how many, as a whole number; negative counts are read by their magnitude,
      *               because a language inflects for the quantity and not for the sign
      * @return the category, never {@code null}
@@ -171,15 +174,6 @@ public final class PluralRules {
     }
 
     /**
-     * The rule for a locale's language.
-     *
-     * <p>Both spellings of the two languages Java rewrote are accepted. {@code new
-     * Locale("he")} answers {@code "iw"} on a JVM started with {@code
-     * java.locale.useOldISOCodes=true}, and Indonesian answers {@code "in"} the same way, so a
-     * table keyed on the modern tag alone would silently drop Hebrew and Indonesian into the
-     * fallback on such a JVM — and the fallback is wrong for Hebrew.
-     */
-    /**
      * A non-zero multiple of a million exactly: CLDR's {@code i % 1000000 = 0} for the Romance
      * {@code many}, which is the form "un millón <b>de</b> elementos" takes.
      */
@@ -187,13 +181,24 @@ public final class PluralRules {
         return n != 0 && n % 1_000_000 == 0;
     }
 
+    /**
+     * The rule for a locale's language, with the language read as ICU reads its code: {@code fra}
+     * and {@code fre} count as French, {@code heb} as Hebrew, {@code cmn} as Chinese. Java's
+     * {@link Locale} hands those codes over as they were written, and each of them took the
+     * English-shaped fallback in place of its language's rule.
+     *
+     * <p>The same reading covers the spellings {@code Locale} answers for Hebrew and Indonesian,
+     * {@code iw} and {@code in}, on a JVM started with {@code java.locale.useOldISOCodes=true}, so
+     * the table names only the current codes and neither language drops into the fallback on
+     * such a JVM, which for Hebrew would be wrong.
+     */
     private static Rule ruleFor(Locale locale) {
-        return switch (locale.getLanguage()) {
-            case "ja", "ko", "vi", "zh", "id", "in", "th", "my", "km", "lo" -> Rule.OTHER_ONLY;
+        return switch (LanguageAliases.language(locale.getLanguage())) {
+            case "ja", "ko", "vi", "zh", "id", "th", "my", "km", "lo" -> Rule.OTHER_ONLY;
             case "hi" -> Rule.ZERO_OR_ONE_IS_ONE;
             case "es", "it", "ca", "gl" -> Rule.ONE_OTHER_AND_MILLIONS;
             case "fr", "pt" -> Rule.ZERO_OR_ONE_AND_MILLIONS;
-            case "he", "iw" -> Rule.ONE_TWO_OTHER;
+            case "he" -> Rule.ONE_TWO_OTHER;
             case "cs", "sk" -> Rule.CZECH;
             case "pl" -> Rule.POLISH;
             case "ru", "uk", "be" -> Rule.EAST_SLAVIC;
