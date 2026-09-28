@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.lwjgl.glfw.GLFW.glfwGetWindowSize;
-import static org.lwjgl.glfw.GLFW.glfwPollEvents;
+import static org.lwjgl.glfw.GLFW.glfwWaitEventsTimeout;
 import static org.lwjgl.glfw.GLFW.glfwSetWindowSize;
 
 /**
@@ -219,20 +219,32 @@ class WindowedGeometryTest {
 
                 window.leftMonitorFullscreenForTest();
                 glfwSetWindowSize(window.handle(), 320, 180);
-                glfwPollEvents();
+                awaitAnswers();
                 System.out.println("answered wrong: " + size(window));
                 window.settleWindowedGeometry();
-                glfwPollEvents();
+                awaitAnswers();
                 System.out.println("after the settling: " + size(window));
 
                 glfwSetWindowSize(window.handle(), 320, 180);
-                glfwPollEvents();
+                awaitAnswers();
                 System.out.println("answered wrong again: " + size(window));
                 window.settleWindowedGeometry();
-                glfwPollEvents();
+                awaitAnswers();
                 System.out.println("after a second settling: " + size(window));
             }
             System.out.println("done");
+        }
+
+        /**
+         * Lets the display server's answers arrive and the size callback run. One poll is enough on
+         * macOS, where a resize is answered in the call; X11 answers with a ConfigureNotify that can
+         * land a poll later (seen under Xvfb, CI's display), and a test that read the window before
+         * it would be reading the question rather than the answer.
+         */
+        private static void awaitAnswers() {
+            for (int i = 0; i < 10; i++) {
+                glfwWaitEventsTimeout(0.02);
+            }
         }
 
         private static String size(LwjglWindow window) {
