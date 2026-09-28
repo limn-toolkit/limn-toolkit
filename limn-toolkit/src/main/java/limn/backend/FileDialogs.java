@@ -1,5 +1,7 @@
 package limn.backend;
 
+import org.jspecify.annotations.Nullable;
+
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
@@ -86,7 +88,7 @@ public interface FileDialogs {
      * @param filter  name filter, or null for all files
      * @return the chosen file, or empty if cancelled
      */
-    Optional<Path> openFile(String title, Path initial, Filter filter);
+    Optional<Path> openFile(String title, @Nullable Path initial, @Nullable Filter filter);
 
     /** Like {@link #openFile} allowing multiple selection; empty list if cancelled. */
     List<Path> openFiles(String title, Path initial, Filter filter);

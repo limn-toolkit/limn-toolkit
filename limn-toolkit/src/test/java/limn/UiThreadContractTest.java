@@ -52,9 +52,13 @@ class UiThreadContractTest {
             "TextArea#scrollXOffset", "a getter whose name starts with a verb",
             "TextArea#scrollYOffset", "a getter whose name starts with a verb");
 
-    /** The return type, then the name. */
+    /**
+     * The return type, then the name. The type may carry a type annotation, as a nullable one's
+     * {@code @Nullable} does: without the {@code @} here, every such method left the check
+     * silently.
+     */
     private static final Pattern METHOD = Pattern.compile(
-            "\\n    public (?!static )(?!abstract )(?:final )?(?:<[^>]+>\\s+)?([\\w<>?,.\\[\\] ]+?)\\s+(\\w+)\\(");
+            "\\n    public (?!static )(?!abstract )(?:final )?(?:<[^>]+>\\s+)?([\\w<>?,.\\[\\] @]+?)\\s+(\\w+)\\(");
 
     @Test
     void everyPublicMutatorChecksTheUiThread() throws IOException {
@@ -150,7 +154,8 @@ class UiThreadContractTest {
      * variables, or the self type {@code W} of a widget or a layout. A wildcard is not one:
      * {@code Widget<?>} is what a query such as {@code hitTest} answers with.
      */
-    private static boolean answersWithItself(String returnType, String type) {
+    private static boolean answersWithItself(String annotatedReturnType, String type) {
+        String returnType = annotatedReturnType.replaceAll("@\\w+\\s*", "");
         return returnType.equals(type) || returnType.equals("W")
                 || returnType.matches(Pattern.quote(type) + "<[A-Z]\\w*(?:, ?[A-Z]\\w*)*>");
     }

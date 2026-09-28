@@ -1,5 +1,7 @@
 package limn.backend;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.Objects;
 
 /**
@@ -38,7 +40,7 @@ public final class Installed<T> {
      * @param absent  what the slot holds when nothing is installed; may be null
      * @param missing what {@link #require()} says when nothing is installed
      */
-    public Installed(T absent, String missing) {
+    public Installed(@Nullable T absent, String missing) {
         this.absent = absent;
         this.missing = Objects.requireNonNull(missing, "missing");
         this.current = absent;
@@ -71,7 +73,7 @@ public final class Installed<T> {
     }
 
     /** @return what is installed, or the empty state */
-    public T current() {
+    public @Nullable T current() {
         return current;
     }
 

@@ -1,5 +1,7 @@
 package limn.video;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * A pull source of decoded pictures: the video counterpart of an incrementally decoded audio
  * stream, obtained from a {@link VideoDecoder} and driven one picture at a time.
@@ -157,7 +159,7 @@ public interface VideoStreamSource extends AutoCloseable {
      * @return the borrowed picture, or null before the first {@link Read#FRAME} and after
      *         {@link #close()}
      */
-    VideoFrame frame();
+    @Nullable VideoFrame frame();
 
     /**
      * Rewinds to the first picture: how a player loops seamlessly, and the only repositioning this

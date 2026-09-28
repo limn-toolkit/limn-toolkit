@@ -10,6 +10,7 @@ import limn.backend.NativeWindow;
 import limn.backend.Resolution;
 import limn.backend.ScreenRect;
 import limn.backend.WindowInput;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 
@@ -65,7 +66,7 @@ public class StubWindow implements NativeWindow {
     @Override public boolean supportsAbsolutePositioning() { return canPosition; }
     /** A stub window has no close gesture of its own, so the handler is kept and never asked. */
     private java.util.function.BooleanSupplier closeRequestHandler;
-    @Override public void setCloseRequestHandler(java.util.function.BooleanSupplier handler) {
+    @Override public void setCloseRequestHandler(java.util.function.@Nullable BooleanSupplier handler) {
         closeRequestHandler = handler;
     }
     /** @return the close handler a scene or an application registered, for a test to ask */
@@ -126,7 +127,7 @@ public class StubWindow implements NativeWindow {
     @Override public void focus() { }
     @Override public boolean isVisible() { return true; }
     @Override public void setOpacity(float value) { }
-    @Override public void setCursor(Cursor value) { }
+    @Override public void setCursor(@Nullable Cursor value) { }
     @Override public boolean isClosed() { return false; }
     @Override public void requestClose() { }
     @Override public void close() { }

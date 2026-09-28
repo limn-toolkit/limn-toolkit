@@ -1,6 +1,7 @@
 package limn.backend;
 
 import limn.concurrent.UiRuntime;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Service-provider interface for a native platform backend (windows, input,
@@ -59,7 +60,7 @@ public interface Backend extends AutoCloseable {
      * several open, only the top one is usable and the non-modal windows are
      * released only after the whole modal stack closes. UI thread only.
      */
-    void pushModal(NativeWindow modal, NativeWindow parent);
+    void pushModal(NativeWindow modal, @Nullable NativeWindow parent);
 
     /** Removes {@code modal} from the modal stack, releasing what it locked. UI thread only. */
     void popModal(NativeWindow modal);
@@ -136,7 +137,7 @@ public interface Backend extends AutoCloseable {
      *         Default: the display that reports {@link Display#isPrimary()}, else
      *         the first of {@link #displays()}. UI thread only.
      */
-    default Display primaryDisplay() {
+    default @Nullable Display primaryDisplay() {
         java.util.List<Display> all = displays();
         for (Display display : all) {
             if (display.isPrimary()) {

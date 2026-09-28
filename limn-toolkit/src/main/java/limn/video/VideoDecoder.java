@@ -1,6 +1,7 @@
 package limn.video;
 
 import limn.concurrent.Progress;
+import org.jspecify.annotations.Nullable;
 
 import java.nio.file.Path;
 
@@ -101,7 +102,7 @@ public interface VideoDecoder {
      * @return the open source, or null if and only if {@code progress.isCancelled()} answers true
      * @throws RuntimeException if the input cannot be opened or holds no usable video
      */
-    default VideoStreamSource openStream(Path file, Progress progress) {
+    default @Nullable VideoStreamSource openStream(Path file, Progress progress) {
         return openStream(file);
     }
 

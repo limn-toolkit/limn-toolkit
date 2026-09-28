@@ -8,6 +8,7 @@ import limn.render3d.IrradianceSh;
 import limn.render3d.Light;
 import limn.render3d.Material;
 import limn.render3d.RenderPass;
+import org.jspecify.annotations.Nullable;
 import org.lwjgl.opengl.GL33C;
 
 import java.util.ArrayList;
@@ -129,7 +130,7 @@ final class GlRenderPass implements RenderPass {
     }
 
     @Override
-    public RenderPass environment(Environment environment, IrradianceSh irradiance) {
+    public RenderPass environment(@Nullable Environment environment, @Nullable IrradianceSh irradiance) {
         this.environment = environment;
         this.irradianceSh = irradiance;
         return this;

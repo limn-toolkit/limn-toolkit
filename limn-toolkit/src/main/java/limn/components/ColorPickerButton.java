@@ -21,6 +21,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -145,7 +146,7 @@ public final class ColorPickerButton extends Widget<ColorPickerButton> {
      * @return this button
      * @throws IllegalStateException if a handler is already registered
      */
-    public ColorPickerButton onChange(Consumer<Color> listener) {
+    public ColorPickerButton onChange(@Nullable Consumer<Color> listener) {
         Ui.checkUiThread();
         this.onChange = Checks.handlerSlot(onChange, listener, "ColorPickerButton.onChange");
         return this;

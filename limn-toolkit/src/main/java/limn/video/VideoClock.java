@@ -1,5 +1,7 @@
 package limn.video;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -180,7 +182,7 @@ public final class VideoClock {
      * instead would have the resume add a span that had already elapsed before the master arrived,
      * and the first reading afterwards would be scored against it and counted as a seek.
      */
-    public void setMaster(MasterClock newMaster) {
+    public void setMaster(@Nullable MasterClock newMaster) {
         long wall = paused ? pauseWallMicros : nanoClock.getAsLong() / 1_000L;
         if (newMaster != null) {
             lastMasterMicros = newMaster.positionMicros();

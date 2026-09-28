@@ -1,5 +1,7 @@
 package limn.graphics;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Immediate-mode 2D drawing API: what every widget paints through. All
  * coordinates are <em>logical points</em>; the backend multiplies by the
@@ -175,7 +177,7 @@ public interface Canvas {
      * subtree scrolled entirely out of a viewport; nothing may draw <em>more</em> because of it.
      * The default is the null answer, so a canvas that inherits it simply paints everything.
      */
-    default Rect clipBounds() {
+    default @Nullable Rect clipBounds() {
         return null;
     }
 

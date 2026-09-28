@@ -2,6 +2,7 @@ package limn.sound;
 
 import limn.internal.lang.Checks;
 import limn.math.Vec3;
+import org.jspecify.annotations.Nullable;
 
 /**
  * How to play a sound: volume, pitch, stereo pan or 3D position, looping,
@@ -31,7 +32,7 @@ import limn.math.Vec3;
  *                 pair with {@link Sounds#setListener}. Overrides {@code pan}
  */
 public record PlayOptions(float gain, float pitch, float pan, boolean loop,
-                          AudioBus bus, Priority priority, Vec3 position) {
+                          AudioBus bus, Priority priority, @Nullable Vec3 position) {
 
     /** Voice-steal class; see {@link PlayOptions#priority}. */
     public enum Priority { LOW, NORMAL, HIGH }

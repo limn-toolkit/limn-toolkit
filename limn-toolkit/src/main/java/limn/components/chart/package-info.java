@@ -16,4 +16,7 @@
  * chart.onPointClick(point -> status.setText(point.label()));
  * }</pre>
  */
+@NullMarked
 package limn.components.chart;
+
+import org.jspecify.annotations.NullMarked;

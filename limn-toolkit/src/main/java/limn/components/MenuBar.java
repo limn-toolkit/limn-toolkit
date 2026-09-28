@@ -21,6 +21,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -437,7 +438,7 @@ public final class MenuBar extends Widget<MenuBar> {
      * titles show.
      */
     @Override
-    public Widget<?> hitTest(float localX, float localY) {
+    public @Nullable Widget<?> hitTest(float localX, float localY) {
         Widget<?> hit = super.hitTest(localX, localY);
         if (hit != this) {
             return hit;

@@ -18,6 +18,7 @@ import limn.sound.AudioDecoder;
 import limn.sound.AudioEngine;
 import limn.sound.Sounds;
 import limn.video.VideoSurfaces;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Everything a {@link Backend} provides to the toolkit besides its windows, named in one place and
@@ -46,9 +47,9 @@ import limn.video.VideoSurfaces;
  */
 public record BackendServices(UiRuntime ui, TextRuler textRuler, FontCatalog fontCatalog,
                               FontLoader fontLoader, ImageDecoder imageDecoder,
-                              SvgRasterizer svgRasterizer, Graphics3D.Provider graphics3d,
-                              VideoSurfaces.Provider videoSurfaces, AudioEngine audioEngine,
-                              AudioDecoder audioDecoder) {
+                              SvgRasterizer svgRasterizer, Graphics3D.@Nullable Provider graphics3d,
+                              VideoSurfaces.@Nullable Provider videoSurfaces, @Nullable AudioEngine audioEngine,
+                              @Nullable AudioDecoder audioDecoder) {
 
     public BackendServices {
         Objects.requireNonNull(ui, "ui: a backend must provide the user-interface runtime");

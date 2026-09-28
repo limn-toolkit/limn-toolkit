@@ -5,6 +5,7 @@ import java.util.Objects;
 import limn.backend.Installed;
 import limn.concurrent.internal.ChangeListeners;
 import limn.concurrent.Subscription;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Process-wide font configuration (mirrors the {@link TextRulers} / {@code Ui}
@@ -32,7 +33,7 @@ public final class Fonts {
     }
 
     /** Installs the backend's CATALOG.current() (e.g. once system-font enumeration completes). */
-    public static void installCatalog(FontCatalog newCatalog) {
+    public static void installCatalog(@Nullable FontCatalog newCatalog) {
         CATALOG.install(newCatalog == null ? FontCatalog.EMPTY : newCatalog);
         listeners.fire();
     }
@@ -43,7 +44,7 @@ public final class Fonts {
     }
 
     /** Installs the backend's file LOADER.current() (backend startup). */
-    public static void installLoader(FontLoader newLoader) {
+    public static void installLoader(@Nullable FontLoader newLoader) {
         LOADER.install(newLoader == null ? FontLoader.UNAVAILABLE : newLoader);
     }
 
@@ -116,7 +117,7 @@ public final class Fonts {
      * animation, a drag, or anything that must stay at frame rate. It costs once per face; the
      * second switch back to a family already read is cheap.
      */
-    public static void setDefaultFamily(String family) {
+    public static void setDefaultFamily(@Nullable String family) {
         String value = family == null || family.isBlank() ? Font.DEFAULT_FAMILY : family;
         if (value.equals(defaultFamily)) {
             return;

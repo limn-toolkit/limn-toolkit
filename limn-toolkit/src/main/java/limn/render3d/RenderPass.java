@@ -2,6 +2,7 @@ package limn.render3d;
 
 import limn.math.Mat4;
 import limn.math.Vec3;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The draw interface handed to a render callback (see
@@ -81,7 +82,7 @@ public interface RenderPass {
      * baked {@code irradiance} (SH), specular from the environment's analytic sky,
      * plus a skybox background. Pass {@code null} to disable (flat ambient is used).
      */
-    RenderPass environment(Environment environment, IrradianceSh irradiance);
+    RenderPass environment(@Nullable Environment environment, @Nullable IrradianceSh irradiance);
 
     /** Draws {@code mesh} with {@code material} at the world transform {@code model}. */
     void draw(GpuMesh mesh, Material material, Mat4 model);

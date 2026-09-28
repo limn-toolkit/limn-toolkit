@@ -3,6 +3,7 @@ package limn.components.chart;
 import limn.concurrent.Ui;
 import limn.graphics.Color;
 import limn.i18n.I18nString;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -149,12 +150,12 @@ public final class ChartSeries {
     }
 
     /** The color the application pinned, or {@code null} while the palette decides. */
-    public Color color() {
+    public @Nullable Color color() {
         return color;
     }
 
     /** Pins this series' color; {@code null} hands it back to the chart's palette. */
-    public ChartSeries setColor(Color value) {
+    public ChartSeries setColor(@Nullable Color value) {
         Ui.checkUiThread();
         this.color = value;
         changed(false);

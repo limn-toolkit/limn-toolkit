@@ -4,6 +4,7 @@ import limn.concurrent.Ui;
 import limn.scene.Change;
 
 import limn.i18n.I18nString;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -115,12 +116,12 @@ public final class MenuItem {
     // ------------------------------------------------------------------- API
 
     /** The label as it currently reads, or {@code null} for a separator. */
-    public String label() {
+    public @Nullable String label() {
         return label == null ? null : label.get();
     }
 
     /** The localizable value behind {@link #label()}; {@code null} for a separator. */
-    public I18nString labelSource() {
+    public @Nullable I18nString labelSource() {
         return label;
     }
 
@@ -149,7 +150,7 @@ public final class MenuItem {
     }
 
     /** The keyboard shortcut shown at the right of the row and dispatched while closed, or null. */
-    public Accelerator accelerator() {
+    public @Nullable Accelerator accelerator() {
         return accelerator;
     }
 
@@ -163,7 +164,7 @@ public final class MenuItem {
      *         submenu a shortcut, because a shortcut runs a command and opening a submenu is not
      *         one; a shortcut on the <em>items inside</em> it is what was meant.
      */
-    public MenuItem setAccelerator(Accelerator value) {
+    public MenuItem setAccelerator(@Nullable Accelerator value) {
         Ui.checkUiThread();
         if (kind == Kind.SUBMENU || kind == Kind.SEPARATOR) {
             throw new IllegalStateException("a " + kind + " item cannot carry an accelerator");

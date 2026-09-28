@@ -2,6 +2,7 @@ package limn.testing.a11y;
 
 import limn.accessibility.CellFacet;
 import limn.scene.Widget;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 
@@ -32,5 +33,5 @@ public interface GridSubject {
      * The cell the widget's cursor is on, as {@code {row, column}} in the published grid's
      * coordinates, or {@code null} while it is on no cell.
      */
-    int[] cursor();
+    int @Nullable [] cursor();
 }

@@ -1,9 +1,11 @@
 package limn.testing;
 
 import limn.backend.Backend;
+import limn.backend.Clipboard;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.concurrent.UiRuntime;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,6 +23,25 @@ public final class HeadlessBackend implements Backend {
 
     private final UiRuntime runtime;
     private final List<HeadlessWindow> windows = new ArrayList<>();
+
+    /**
+     * The clipboard every window of this backend hands out, as a desktop has one for all of an
+     * application's windows: text copied in a dialog pastes in its owner. Empty at first, and this
+     * backend's own, so one test's copy never reaches another's paste.
+     */
+    final Clipboard clipboard = new Clipboard() {
+        private String text = "";
+
+        @Override
+        public String get() {
+            return text;
+        }
+
+        @Override
+        public void set(@Nullable String newText) {
+            text = newText == null ? "" : newText;
+        }
+    };
 
     /**
      * @param runtime the runtime the test installed, which is what {@link #uiRuntime()} answers
@@ -67,7 +88,7 @@ public final class HeadlessBackend implements Backend {
     }
 
     @Override
-    public void pushModal(NativeWindow modal, NativeWindow parent) {
+    public void pushModal(NativeWindow modal, @Nullable NativeWindow parent) {
         if (modal instanceof HeadlessWindow own) {
             own.modal = true;
         }

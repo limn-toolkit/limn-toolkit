@@ -23,6 +23,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -92,7 +93,7 @@ public final class Button extends Widget<Button> {
      * caption when the button reads right to left; the glyph inside it is drawn as authored.
      * Use {@link #setIcon(Icon, Icon.Mirroring)} for an icon that means a direction.
      */
-    public Button setIcon(Icon newIcon) {
+    public Button setIcon(@Nullable Icon newIcon) {
         return setIcon(newIcon, Icon.Mirroring.NEVER);
     }
 
@@ -104,7 +105,7 @@ public final class Button extends Widget<Button> {
      * @param mirroring {@link Icon.Mirroring#NEVER} unless this glyph is directional; the
      *                  square's own end of the block moves either way
      */
-    public Button setIcon(Icon newIcon, Icon.Mirroring mirroring) {
+    public Button setIcon(@Nullable Icon newIcon, Icon.Mirroring mirroring) {
         Ui.checkUiThread();
         Objects.requireNonNull(mirroring, "mirroring");
         if (icon == newIcon && iconMirroring == mirroring) {
@@ -150,7 +151,7 @@ public final class Button extends Widget<Button> {
      * @return this button
      * @throws IllegalStateException if a handler is already registered
      */
-    public Button onAction(Runnable newAction) {
+    public Button onAction(@Nullable Runnable newAction) {
         Ui.checkUiThread();
         this.action = Checks.handlerSlot(action, newAction, "Button.onAction");
         return this;

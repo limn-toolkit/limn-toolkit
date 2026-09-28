@@ -10,4 +10,7 @@
  * enforces, so nothing above the backend can acquire a dependency on the windowing
  * library by accident.
  */
+@NullMarked
 package limn.backend.lwjgl;
+
+import org.jspecify.annotations.NullMarked;

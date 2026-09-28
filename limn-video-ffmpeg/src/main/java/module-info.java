@@ -4,6 +4,8 @@
  */
 module limn.video.ffmpeg {
     requires transitive limn.toolkit;
+    // The nullness annotations on this module's signatures, as limn.toolkit requires them.
+    requires static transitive org.jspecify;
     // The JNI shim's jar. Required so that on the module path it is loaded at all, and loading it
     // loads the platform jars (limn.ffmpeg.natives.<os>.<arch>) on the path with it.
     requires limn.ffmpeg.natives;

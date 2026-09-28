@@ -28,6 +28,7 @@ import limn.scene.Widget;
 import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -312,7 +313,7 @@ public final class Spinner extends Widget<Spinner> {
      * @return this spinner
      * @throws IllegalStateException if a handler is already registered
      */
-    public Spinner onChange(DoubleConsumer listener) {
+    public Spinner onChange(@Nullable DoubleConsumer listener) {
         Ui.checkUiThread();
         this.onChange = Checks.handlerSlot(onChange, listener, "Spinner.onChange");
         return this;

@@ -91,8 +91,16 @@ Tabler Icons (via limn-icons-tabler, which the demo jar attached to a release bu
   and so the runnable demo jar on a GitHub release contains it.
 
 --------------------------------------------------------------------------------
-Dependencies (limn-backend-lwjgl only; limn-toolkit has none beyond the JDK)
+Dependencies (limn-toolkit has none beyond the JDK and JSpecify's annotations;
+the rest are limn-backend-lwjgl's)
 --------------------------------------------------------------------------------
+
+JSpecify 1.0.1 (org.jspecify:jspecify), the nullness annotations of every API module
+  Copyright The JSpecify Authors
+  Apache License 2.0: https://github.com/jspecify/jspecify/blob/main/LICENSE
+  Four annotations and no code: compilers read them, and nothing needs them at
+  run time. The runnable demo jar attached to a GitHub release carries their
+  classes, under the same licence as Limn's own (LICENSE).
 
 LWJGL 3 (org.lwjgl:lwjgl, -glfw, -opengl, -openal, -stb, -harfbuzz, -nanovg, -tinyfd)
   Copyright Lightweight Java Game Library contributors

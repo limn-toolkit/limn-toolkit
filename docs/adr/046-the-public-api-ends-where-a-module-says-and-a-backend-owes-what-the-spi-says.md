@@ -323,3 +323,27 @@ ones that change API are recorded here as they land.
   and nothing else. `GraphicsInfo` keeps its field names and says they are the backend API's
   vocabulary. `ModalStack`, the modality rules the LWJGL backend kept privately, is public in
   `limn.backend`, so a second backend inherits them instead of rewriting them.
+- **Nullness, the item API-14 deferred (road map, 0.10 "API shape").** The API says where null is
+  allowed in JSpecify 1.0's annotations. Every package the four API modules export is `@NullMarked`
+  (28 packages); `@Nullable` marks each public or protected parameter, return value, public field and
+  type argument that takes or answers null. `limn-toolkit`, `limn-backend-lwjgl`, `limn-video-ffmpeg`
+  and `limn-test` depend on `org.jspecify:jspecify` as `api` (compile scope in the POM, so a class-path
+  consumer's compiler, IDE, Kotlin or NullAway sees the annotations) and declare
+  `requires static transitive org.jspecify`. Static, because an annotation is read by a compiler and
+  a missing one is no error when the program runs: a modular application starts without the jar.
+  Transitive, because it is what lets a module that requires Limn read the annotations at all; a
+  control compiled against a module that required it `static` alone could not see the package
+  ("package org.jspecify.annotations is not visible"), where `static transitive` compiled, and at
+  run time only a plain `requires transitive` refused to start without the jar. JUnit 6 ships the same
+  pair. `NullnessAnnotatedTest` holds the line from the sources: an exported package that is not
+  marked, and a parameter or return value whose documentation, description or body lets null through
+  without a `@Nullable`, fail it, as do an override that narrows what the method it overrides takes or
+  widens what it answers, an overload that hands a nullable argument to one that does not say so, an
+  `equals` that does not take a nullable `Object`, and a public field its file sets to null. Three
+  things are left as they are, on purpose: the internal packages are not marked, private fields are not
+  annotated (no checker runs in this build, and the API is what a caller reads), and a record's compact
+  constructor that turns a null into a default stays lenient under a non-null component, because the
+  one type a component has is also its accessor's, which never answers null. Annotating found one
+  contract broken: `limn-test`'s `HeadlessWindow.clipboard()` answered null where every window's
+  clipboard is a clipboard, so a text field's copy in a scene bound to one threw; it now answers its
+  backend's, one for all its windows.

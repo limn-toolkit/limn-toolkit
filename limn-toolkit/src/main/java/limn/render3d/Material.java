@@ -3,6 +3,7 @@ package limn.render3d;
 import limn.graphics.BlendMode;
 import limn.math.Vec3;
 import limn.math.Vec4;
+import org.jspecify.annotations.Nullable;
 
 /**
  * How a surface is shaded. Ships built-in {@link Unlit}, {@link SimpleLit} and
@@ -43,7 +44,7 @@ public sealed interface Material
      * <p>There is deliberately no alpha-test mode. Cutout foliage stays opaque
      * (depth-writing and shadow-casting) and discards in its surface function.
      */
-    default BlendMode blend() {
+    default @Nullable BlendMode blend() {
         return null;
     }
 
@@ -61,7 +62,7 @@ public sealed interface Material
         }
 
         /** {@code null} restores opaque. */
-        public Unlit blend(BlendMode blend) {
+        public Unlit blend(@Nullable BlendMode blend) {
             return new Unlit(color, blend);
         }
     }
@@ -161,13 +162,13 @@ public sealed interface Material
         }
 
         /** {@code null} clears the map and shades with the geometric normal. */
-        public Pbr normalMapped(NormalMap normalMap) {
+        public Pbr normalMapped(@Nullable NormalMap normalMap) {
             return new Pbr(baseColor, metallic, roughness, emissive, baseColorTexture,
                     normalMap, blend);
         }
 
         /** {@code null} restores opaque. */
-        public Pbr blend(BlendMode blend) {
+        public Pbr blend(@Nullable BlendMode blend) {
             return new Pbr(baseColor, metallic, roughness, emissive, baseColorTexture,
                     normalMap, blend);
         }
@@ -224,7 +225,7 @@ public sealed interface Material
      */
     record Surface(String key, limn.render3d.shader.SurfaceOutputs outputs,
                    java.util.List<Texture> textures, java.util.List<Value> values,
-                   BlendMode blend) implements Material {
+                   @Nullable BlendMode blend) implements Material {
 
         public Surface {
             java.util.Objects.requireNonNull(key, "key");
@@ -244,7 +245,7 @@ public sealed interface Material
         }
 
         /** {@code null} restores opaque. */
-        public Surface blend(BlendMode blend) {
+        public Surface blend(@Nullable BlendMode blend) {
             return new Surface(key, outputs, textures, values, blend);
         }
 

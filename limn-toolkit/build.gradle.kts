@@ -4,9 +4,12 @@
 // a backend implements, namely audio (limn.sound), video (limn.video) and the window and
 // renderer contracts (limn.backend).
 //
-// It depends on NOTHING, and that is the boundary the whole stack rests on: no
-// LWJGL, no AWT, no third-party anything. A dependency added here is a dependency
-// every application carries, which is why checkArchitecture fails the build over it.
+// It depends on NOTHING that runs, and that is the boundary the whole stack rests on: no
+// LWJGL, no AWT, no third-party code. A dependency added here is a dependency every
+// application carries. The one exception is JSpecify, whose four annotations say where the
+// public API takes or answers null: no class of it is loaded at run time, and module-info
+// requires it `static`, so a modular application that leaves it off its path starts all the
+// same.
 
 plugins {
     `java-library`
@@ -18,6 +21,12 @@ plugins {
 }
 
 dependencies {
+    // api, so the POM names it at compile scope: an application's compiler, IDE, Kotlin or
+    // NullAway reads @Nullable on this module's signatures only with the annotations on its own
+    // compile path. module-info's `requires static transitive` is the module path's half of the
+    // same promise.
+    api(libs.jspecify)
+
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(project(":limn-test"))

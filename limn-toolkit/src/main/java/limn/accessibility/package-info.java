@@ -10,4 +10,7 @@
  * state bit and an action row on Linux, an attribute on macOS &mdash; so behaviour is carried by
  * typed <em>facets</em> and every platform's view is derived from the same one.
  */
+@NullMarked
 package limn.accessibility;
+
+import org.jspecify.annotations.NullMarked;

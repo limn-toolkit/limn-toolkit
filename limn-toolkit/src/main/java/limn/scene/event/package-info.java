@@ -6,4 +6,7 @@
  * consumption: a handler that fully processed an event consumes it, and bubbling stops
  * there.
  */
+@NullMarked
 package limn.scene.event;
+
+import org.jspecify.annotations.NullMarked;

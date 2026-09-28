@@ -1,5 +1,7 @@
 package limn.io;
 
+import org.jspecify.annotations.Nullable;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -89,7 +91,7 @@ public final class Resources {
      * @return the bytes, or null if the resource is absent
      * @throws UncheckedIOException if reading it fails
      */
-    public static byte[] bytesIfPresent(Class<?> owner, String resource, String what) {
+    public static byte @Nullable [] bytesIfPresent(Class<?> owner, String resource, String what) {
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(resource, "resource");
         InputStream opened = owner.getResourceAsStream(resource);
@@ -123,7 +125,7 @@ public final class Resources {
      * @return the bytes, or null if the resource is absent
      * @throws UncheckedIOException if reading it fails
      */
-    public static byte[] bytesIfPresent(ClassLoader loader, String resource, String what) {
+    public static byte @Nullable [] bytesIfPresent(ClassLoader loader, String resource, String what) {
         Objects.requireNonNull(loader, "loader");
         Objects.requireNonNull(resource, "resource");
         return readAll(loader.getResourceAsStream(resource), resource, what);
@@ -152,7 +154,7 @@ public final class Resources {
      * @return the text, or null if the resource is absent
      * @throws UncheckedIOException if reading it fails
      */
-    public static String textIfPresent(Class<?> owner, String resource, String what) {
+    public static @Nullable String textIfPresent(Class<?> owner, String resource, String what) {
         byte[] bytes = bytesIfPresent(owner, resource, what);
         return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
     }
@@ -167,7 +169,7 @@ public final class Resources {
      * @return the text, or null if the resource is absent
      * @throws UncheckedIOException if reading it fails
      */
-    public static String textIfPresent(ClassLoader loader, String resource, String what) {
+    public static @Nullable String textIfPresent(ClassLoader loader, String resource, String what) {
         byte[] bytes = bytesIfPresent(loader, resource, what);
         return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
     }
@@ -185,7 +187,7 @@ public final class Resources {
      * @throws IllegalStateException if {@code opened} is null
      * @throws UncheckedIOException  if reading it fails
      */
-    public static byte[] bytes(InputStream opened, String resource, String what) {
+    public static byte[] bytes(@Nullable InputStream opened, String resource, String what) {
         byte[] bytes = bytesIfPresent(opened, resource, what);
         if (bytes == null) {
             throw missing(what, resource);
@@ -202,7 +204,7 @@ public final class Resources {
      * @return the bytes, or null if there was nothing to read
      * @throws UncheckedIOException if reading it fails
      */
-    public static byte[] bytesIfPresent(InputStream opened, String resource, String what) {
+    public static byte @Nullable [] bytesIfPresent(@Nullable InputStream opened, String resource, String what) {
         Objects.requireNonNull(resource, "resource");
         return readAll(opened, resource, what);
     }
@@ -217,7 +219,7 @@ public final class Resources {
      * @throws IllegalStateException if {@code opened} is null
      * @throws UncheckedIOException  if reading it fails
      */
-    public static String text(InputStream opened, String resource, String what) {
+    public static String text(@Nullable InputStream opened, String resource, String what) {
         return new String(bytes(opened, resource, what), StandardCharsets.UTF_8);
     }
 

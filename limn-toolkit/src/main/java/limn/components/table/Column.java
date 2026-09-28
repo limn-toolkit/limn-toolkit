@@ -4,6 +4,7 @@ import limn.i18n.NumberFormats;
 import limn.concurrent.Ui;
 import limn.i18n.I18nString;
 import limn.scene.Widget;
+import org.jspecify.annotations.Nullable;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -107,7 +108,7 @@ public final class Column<T> {
      * @param <T>   the row type
      * @return the column
      */
-    public static <T> Column<T> text(I18nString title, Function<T, String> value) {
+    public static <T> Column<T> text(I18nString title, Function<T, @Nullable String> value) {
         Objects.requireNonNull(value, "value");
         return new Column<>(title, value::apply, (v, locale) -> v == null ? "" : (String) v, null);
     }
@@ -121,7 +122,7 @@ public final class Column<T> {
      * @param <T>   the row type
      * @return the column
      */
-    public static <T> Column<T> text(String title, Function<T, String> value) {
+    public static <T> Column<T> text(String title, Function<T, @Nullable String> value) {
         return text(I18nString.literal(title), value);
     }
 
@@ -232,7 +233,7 @@ public final class Column<T> {
      * @return the column
      */
     @SuppressWarnings("unchecked")
-    public static <T, V> Column<T> of(I18nString title, Function<T, V> value,
+    public static <T, V> Column<T> of(I18nString title, Function<T, @Nullable V> value,
                                       BiFunction<V, Locale, String> format) {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(format, "format");
@@ -250,7 +251,7 @@ public final class Column<T> {
      * @param <V>    the value type
      * @return the column
      */
-    public static <T, V> Column<T> of(String title, Function<T, V> value,
+    public static <T, V> Column<T> of(String title, Function<T, @Nullable V> value,
                                       BiFunction<V, Locale, String> format) {
         return of(I18nString.literal(title), value, format);
     }
@@ -299,7 +300,7 @@ public final class Column<T> {
      * @param comparator the order; {@code null} restores the derived one
      * @return this column
      */
-    public Column<T> comparator(Comparator<T> comparator) {
+    public Column<T> comparator(@Nullable Comparator<T> comparator) {
         Ui.checkUiThread();
         this.comparator = comparator;
         return this;
@@ -425,7 +426,7 @@ public final class Column<T> {
      * @param text what the footer cell says; {@code null} removes the footer cell
      * @return this column
      */
-    public Column<T> footer(I18nString text) {
+    public Column<T> footer(@Nullable I18nString text) {
         Ui.checkUiThread();
         this.footerText = text;
         this.footer = null;
@@ -451,7 +452,7 @@ public final class Column<T> {
      * @param summary the footer value from the rows; {@code null} removes the footer cell
      * @return this column
      */
-    public Column<T> footer(Function<List<T>, ?> summary) {
+    public Column<T> footer(@Nullable Function<List<T>, ?> summary) {
         Ui.checkUiThread();
         this.footerText = null;
         this.footer = summary == null ? null : summary::apply;

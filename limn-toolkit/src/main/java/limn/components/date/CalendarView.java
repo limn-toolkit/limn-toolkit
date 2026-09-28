@@ -29,6 +29,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Clock;
 import java.time.DayOfWeek;
@@ -443,7 +444,7 @@ public final class CalendarView extends Widget<CalendarView> {
     // ------------------------------------------------------------------ selection
 
     /** @return the selected day, or {@code null} if none is; always {@code null} in RANGE mode */
-    public LocalDate selectedDate() {
+    public @Nullable LocalDate selectedDate() {
         return selected;
     }
 
@@ -458,7 +459,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * @param day the day, or {@code null} to clear
      * @return this
      */
-    public CalendarView setSelectedDate(LocalDate day) {
+    public CalendarView setSelectedDate(@Nullable LocalDate day) {
         Ui.checkUiThread();
         if (day != null) {
             day = periodStart(day); // a month picker told 15 June holds June, and answers the 1st
@@ -480,7 +481,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * @return the selected period, or {@code null} if none is complete. A period being built &mdash;
      *         one end chosen and the other not &mdash; is not a period and is not answered here
      */
-    public DateRange selectedRange() {
+    public @Nullable DateRange selectedRange() {
         return selectedRange;
     }
 
@@ -490,7 +491,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * @param range the period, or {@code null} to clear
      * @return this
      */
-    public CalendarView setSelectedRange(DateRange range) {
+    public CalendarView setSelectedRange(@Nullable DateRange range) {
         Ui.checkUiThread();
         if (range != null) {
             range = periodRange(range.start(), range.end());
@@ -519,7 +520,7 @@ public final class CalendarView extends Widget<CalendarView> {
      *
      * @return the day the cursor is on, or {@code null} before the grid has had focus
      */
-    public LocalDate focusedDate() {
+    public @Nullable LocalDate focusedDate() {
         return cursor;
     }
 
@@ -747,7 +748,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * @param newClock the clock, or {@code null} for the system's
      * @return this
      */
-    public CalendarView setClock(Clock newClock) {
+    public CalendarView setClock(@Nullable Clock newClock) {
         Ui.checkUiThread();
         clock = newClock;
         if (!monthChosen) {
@@ -809,7 +810,7 @@ public final class CalendarView extends Widget<CalendarView> {
     // ------------------------------------------------------------------ bounds and marks
 
     /** @return the earliest selectable day, or {@code null} for no lower bound */
-    public LocalDate minDate() {
+    public @Nullable LocalDate minDate() {
         return minDate;
     }
 
@@ -821,7 +822,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * @param day the bound, or {@code null} for none
      * @return this
      */
-    public CalendarView setMinDate(LocalDate day) {
+    public CalendarView setMinDate(@Nullable LocalDate day) {
         Ui.checkUiThread();
         if (Objects.equals(minDate, day)) {
             return this;
@@ -833,7 +834,7 @@ public final class CalendarView extends Widget<CalendarView> {
     }
 
     /** @return the latest selectable day, or {@code null} for no upper bound */
-    public LocalDate maxDate() {
+    public @Nullable LocalDate maxDate() {
         return maxDate;
     }
 
@@ -843,7 +844,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * @param day the bound, or {@code null} for none
      * @return this
      */
-    public CalendarView setMaxDate(LocalDate day) {
+    public CalendarView setMaxDate(@Nullable LocalDate day) {
         Ui.checkUiThread();
         if (Objects.equals(maxDate, day)) {
             return this;
@@ -855,7 +856,7 @@ public final class CalendarView extends Widget<CalendarView> {
     }
 
     /** @return the filter, or {@code null} if every day inside the bounds may be picked */
-    public Predicate<LocalDate> dateFilter() {
+    public @Nullable Predicate<LocalDate> dateFilter() {
         return dateFilter;
     }
 
@@ -874,7 +875,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * @param filter answers whether a day may be picked, or {@code null} to allow every day
      * @return this
      */
-    public CalendarView setDateFilter(Predicate<LocalDate> filter) {
+    public CalendarView setDateFilter(@Nullable Predicate<LocalDate> filter) {
         Ui.checkUiThread();
         if (filter == dateFilter) {
             return this;
@@ -895,7 +896,7 @@ public final class CalendarView extends Widget<CalendarView> {
      *              {@code null} for a day with nothing to say
      * @return this
      */
-    public CalendarView setDayMarks(Function<LocalDate, DayMark> marks) {
+    public CalendarView setDayMarks(@Nullable Function<LocalDate, @Nullable DayMark> marks) {
         Ui.checkUiThread();
         dayMarks = marks;
         invalidate();
@@ -944,7 +945,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * @param chronology the calendar to draw, or {@code null} to follow the language again
      * @return this
      */
-    public CalendarView setChronology(Chronology chronology) {
+    public CalendarView setChronology(@Nullable Chronology chronology) {
         Ui.checkUiThread();
         if (Objects.equals(declaredChronology, chronology)) {
             return this;
@@ -968,7 +969,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * @param day the first day of a week, or {@code null} to follow the language
      * @return this
      */
-    public CalendarView setFirstDayOfWeek(DayOfWeek day) {
+    public CalendarView setFirstDayOfWeek(@Nullable DayOfWeek day) {
         Ui.checkUiThread();
         if (declaredFirstDayOfWeek == day) {
             return this;
@@ -994,7 +995,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * @return this
      * @throws IllegalStateException if a handler is already registered
      */
-    public CalendarView onSelect(Runnable listener) {
+    public CalendarView onSelect(@Nullable Runnable listener) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, listener, "CalendarView.onSelect");
         return this;
@@ -1027,7 +1028,7 @@ public final class CalendarView extends Widget<CalendarView> {
      * @param day the day
      * @return whether a click on it would do anything
      */
-    public boolean isSelectable(LocalDate day) {
+    public boolean isSelectable(@Nullable LocalDate day) {
         if (day == null || selectionMode == SelectionMode.NONE) {
             return false;
         }

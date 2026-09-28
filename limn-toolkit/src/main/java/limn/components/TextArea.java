@@ -27,6 +27,7 @@ import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import limn.scene.event.PreeditEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.text.BreakIterator;
 import java.util.Arrays;
@@ -308,7 +309,7 @@ public final class TextArea extends Widget<TextArea> {
      * @return this area
      * @throws IllegalStateException if a handler is already registered
      */
-    public TextArea onChange(Consumer<String> listener) {
+    public TextArea onChange(@Nullable Consumer<String> listener) {
         Ui.checkUiThread();
         this.onChange = Checks.handlerSlot(onChange, listener, "TextArea.onChange");
         return this;
@@ -329,7 +330,7 @@ public final class TextArea extends Widget<TextArea> {
      * Inserts {@code text} at the cursor (replacing any selection): a caller's write, announced
      * as a {@code TEXT} edit at {@code CODE}. UI thread.
      */
-    public TextArea insertText(String text) {
+    public TextArea insertText(@Nullable String text) {
         Ui.checkUiThread();
         if (text == null || text.isEmpty()) {
             return this;
@@ -2426,7 +2427,7 @@ public final class TextArea extends Widget<TextArea> {
     }
 
     @Override
-    protected Rect caretRect() {
+    protected @Nullable Rect caretRect() {
         // Its own resolve: the scene also calls this from the async blink chain, where there
         // is no enclosing measure/paint pass to thread tokens down from.
         Rect local = heldCaretBox(tokens());

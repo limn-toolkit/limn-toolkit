@@ -7,4 +7,7 @@
  * OpenAL engine and the file decoder. The system alert beep is just an
  * {@code AudioClip.tone(...)} played through this package.
  */
+@NullMarked
 package limn.sound;
+
+import org.jspecify.annotations.NullMarked;

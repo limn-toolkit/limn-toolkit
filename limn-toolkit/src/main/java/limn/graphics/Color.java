@@ -1,6 +1,7 @@
 package limn.graphics;
 
 import limn.math.Scalars;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Immutable straight-alpha RGBA color, channels in {@code [0..1]}.
@@ -168,7 +169,7 @@ public record Color(float r, float g, float b, float a) implements Paint {
      *         a field being typed into is half-written most of the time, and an
      *         exception per keystroke is not a parser, it is a nuisance
      */
-    public static Color fromHex(String text) {
+    public static @Nullable Color fromHex(@Nullable String text) {
         if (text == null) {
             return null;
         }

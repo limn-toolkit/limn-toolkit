@@ -15,4 +15,7 @@
  * a permutation over the application's list and never reorders it, so the selection &mdash; a set
  * of model rows &mdash; survives a sort.
  */
+@NullMarked
 package limn.components.table;
+
+import org.jspecify.annotations.NullMarked;

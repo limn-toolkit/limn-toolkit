@@ -4,6 +4,7 @@ import limn.video.PixelFormat;
 import limn.video.VideoColor;
 import limn.video.VideoDecoder;
 import limn.video.VideoStreamSource;
+import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -65,7 +66,7 @@ public final class Y4mDecoder implements VideoDecoder {
      *
      * @param color the interpretation every stream reports; null for what the header implies
      */
-    public Y4mDecoder(VideoColor color) {
+    public Y4mDecoder(@Nullable VideoColor color) {
         this.override = color;
     }
 
@@ -81,7 +82,7 @@ public final class Y4mDecoder implements VideoDecoder {
      *         behind this one.
      */
     @Override
-    public boolean supports(Path file) {
+    public boolean supports(@Nullable Path file) {
         if (file == null) {
             return false;
         }

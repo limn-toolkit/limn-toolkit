@@ -10,4 +10,7 @@
  * spaces rigidly. All of them are plain widgets: a container an application writes
  * participates in measure and layout on the same terms.
  */
+@NullMarked
 package limn.scene.layout;
+
+import org.jspecify.annotations.NullMarked;

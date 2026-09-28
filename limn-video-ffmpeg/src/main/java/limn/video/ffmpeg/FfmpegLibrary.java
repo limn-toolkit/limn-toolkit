@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Set;
 import limn.backend.Platform;
 import limn.io.Resources;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Finds and loads the native library the FFmpeg decoder needs, and answers whether it is there.
@@ -175,7 +176,7 @@ public final class FfmpegLibrary {
      * @return why {@link #isAvailable()} is false, in one sentence naming the platform looked for
      *         and what went wrong, or null when the library did load
      */
-    public static String failure() {
+    public static @Nullable String failure() {
         isAvailable();
         synchronized (LOCK) {
             return failure;

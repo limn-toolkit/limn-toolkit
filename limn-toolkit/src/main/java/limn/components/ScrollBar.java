@@ -14,6 +14,7 @@ import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -426,7 +427,7 @@ public final class ScrollBar extends Widget<ScrollBar> {
 
     /** Transparent to events while effectively invisible, so it never blocks the content. */
     @Override
-    public Widget<?> hitTest(float localX, float localY) {
+    public @Nullable Widget<?> hitTest(float localX, float localY) {
         if (effectiveOpacity() < 0.05f) {
             return null;
         }

@@ -4,6 +4,7 @@ import limn.graphics.Rect;
 import limn.graphics.ShapedText;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -462,7 +463,7 @@ public final class Accessibility {
      *               publishes it in
      * @throws NullPointerException if {@code from} is {@code null}
      */
-    public void name(I18nString source, Accessible.NameFrom from) {
+    public void name(@Nullable I18nString source, Accessible.NameFrom from) {
         Objects.requireNonNull(from, "from");
         Slot s = slot();
         s.nameWitness = 0;
@@ -497,7 +498,7 @@ public final class Accessibility {
      *
      * @param source the widget's own string; {@code null} clears the name
      */
-    public void name(I18nString source) {
+    public void name(@Nullable I18nString source) {
         name(source, Accessible.NameFrom.CONTENT);
     }
 
@@ -518,7 +519,7 @@ public final class Accessibility {
      * @param from    where the name came from
      * @throws NullPointerException if {@code from} is {@code null}
      */
-    public void name(String cached, long witness, Accessible.NameFrom from) {
+    public void name(@Nullable String cached, long witness, Accessible.NameFrom from) {
         Objects.requireNonNull(from, "from");
         Slot s = slot();
         s.nameSource = null;
@@ -535,7 +536,7 @@ public final class Accessibility {
      *
      * @param source the widget's own string; {@code null} clears the description
      */
-    public void description(I18nString source) {
+    public void description(@Nullable I18nString source) {
         Slot s = slot();
         s.descriptionWitness = 0;
         if (source == null) {
@@ -567,7 +568,7 @@ public final class Accessibility {
      * @param cached  the string; {@code null} clears the description
      * @param witness a value that changes whenever {@code cached} does
      */
-    public void description(String cached, long witness) {
+    public void description(@Nullable String cached, long witness) {
         Slot s = slot();
         s.descriptionSource = null;
         s.descriptionWitness = witness;
@@ -636,7 +637,7 @@ public final class Accessibility {
      *
      * @param state whether it is off, on, or neither; {@code null} removes the facet
      */
-    public void toggle(ToggleFacet.State state) {
+    public void toggle(ToggleFacet.@Nullable State state) {
         Slot s = slot();
         s.toggle = state == null ? -1 : state.ordinal();
         if (state == ToggleFacet.State.ON) {
@@ -751,7 +752,7 @@ public final class Accessibility {
      * @param cached  the displayed string; {@code null} means the number is the whole of it
      * @param witness a value that changes whenever {@code cached} does
      */
-    public void valueText(String cached, long witness) {
+    public void valueText(@Nullable String cached, long witness) {
         Slot s = slot();
         s.valueText = cached;
         s.valueWitness = witness;
@@ -872,9 +873,9 @@ public final class Accessibility {
      * @param readOnly       whether the text may be read and not written
      * @throws NullPointerException if {@code caretAffinity} is {@code null}
      */
-    public void text(String cached, long witness, int caretOffset,
+    public void text(@Nullable String cached, long witness, int caretOffset,
                      ShapedText.Affinity caretAffinity, int selectionStart, int selectionEnd,
-                     int lineCount, Rect caretRect, boolean readOnly) {
+                     int lineCount, @Nullable Rect caretRect, boolean readOnly) {
         Objects.requireNonNull(caretAffinity, "caretAffinity");
         Slot s = slot();
         long bit = 1L << Accessible.State.READ_ONLY.ordinal();
@@ -1181,7 +1182,7 @@ public final class Accessibility {
      *
      * @param display the accelerator's display form, or {@code null} for none
      */
-    public void keyBinding(String display) {
+    public void keyBinding(@Nullable String display) {
         slot().keyBinding = display;
     }
 
@@ -1198,7 +1199,7 @@ public final class Accessibility {
      *               resolves to no node and the relation is dropped.
      * @throws NullPointerException if {@code kind} is {@code null}
      */
-    public void relation(Accessible.Relation kind, Object target) {
+    public void relation(Accessible.Relation kind, @Nullable Object target) {
         Objects.requireNonNull(kind, "kind");
         if (target != null) {
             slot().addRelation(kind, target);
@@ -1819,7 +1820,7 @@ public final class Accessibility {
      * @param target the widget at the other end, resolved at publish time
      * @throws NullPointerException if {@code kind} is {@code null}
      */
-    public void relationAt(int index, Accessible.Relation kind, Object target) {
+    public void relationAt(int index, Accessible.Relation kind, @Nullable Object target) {
         Objects.requireNonNull(kind, "kind");
         if (target != null) {
             slots[index].addRelation(kind, target);

@@ -15,4 +15,7 @@
  * is the day the anchor walk this package copies from {@code ListView} and {@code Table} collapses
  * into one engine the three of them share.
  */
+@NullMarked
 package limn.components.tree;
+
+import org.jspecify.annotations.NullMarked;

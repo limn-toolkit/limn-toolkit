@@ -26,6 +26,7 @@ import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -109,7 +110,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
          *         node of the tree: a node is unique by {@code equals} within a tree, and the
          *         tree refuses a duplicate as soon as both are visible.
          */
-        List<T> children(T node);
+        @Nullable List<T> children(T node);
 
         /**
          * @param node a node the tree is showing
@@ -139,7 +140,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
          * @param node the node being opened
          * @return the job, or {@code null} when this model has nothing to load
          */
-        default Work<List<T>> load(T node) {
+        default @Nullable Work<List<T>> load(T node) {
             return null;
         }
 
@@ -170,7 +171,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
          *
          * @return the name, or {@code null} when the model has none to give
          */
-        default I18nString nameOf(T node) {
+        default @Nullable I18nString nameOf(T node) {
             return null;
         }
 
@@ -1163,7 +1164,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      *         on. It moves in every mode, {@link SelectionMode#NONE} included, and is not the
      *         selection; see {@link #leadNode()} for that.
      */
-    public T cursorNode() {
+    public @Nullable T cursorNode() {
         return cursor;
     }
 
@@ -1174,7 +1175,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      *         in {@code MULTI}, where a row toggled off keeps the cursor and loses the lead, and in
      *         {@code NONE}, where the cursor moves and this is always {@code null}.
      */
-    public T leadNode() {
+    public @Nullable T leadNode() {
         return lead;
     }
 
@@ -1184,7 +1185,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * selected — and neither revealed nor made the cursor, which stays on a row the user can see.
      * {@code null} clears the selection and leaves the cursor where it is.
      */
-    public Tree<T> setSelected(T node) {
+    public Tree<T> setSelected(@Nullable T node) {
         Ui.checkUiThread();
         selectOnly(node, true, Change.Origin.CODE);
         return this;
@@ -1702,7 +1703,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * @return this tree
      * @throws IllegalStateException if a handler is already registered
      */
-    public Tree<T> onSelect(Runnable handler) {
+    public Tree<T> onSelect(@Nullable Runnable handler) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, handler, "Tree.onSelect");
         return this;
@@ -1719,7 +1720,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * @return this tree
      * @throws IllegalStateException if a handler is already registered
      */
-    public Tree<T> onActivate(Consumer<T> handler) {
+    public Tree<T> onActivate(@Nullable Consumer<T> handler) {
         Ui.checkUiThread();
         this.onActivate = Checks.handlerSlot(onActivate, handler, "Tree.onActivate");
         return this;
@@ -1731,7 +1732,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
      * throws {@link IllegalStateException}.
      */
-    public Tree<T> onExpand(Consumer<T> handler) {
+    public Tree<T> onExpand(@Nullable Consumer<T> handler) {
         Ui.checkUiThread();
         this.onExpand = Checks.handlerSlot(onExpand, handler, "Tree.onExpand");
         return this;
@@ -1743,7 +1744,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
      * throws {@link IllegalStateException}.
      */
-    public Tree<T> onCollapse(Consumer<T> handler) {
+    public Tree<T> onCollapse(@Nullable Consumer<T> handler) {
         Ui.checkUiThread();
         this.onCollapse = Checks.handlerSlot(onCollapse, handler, "Tree.onCollapse");
         return this;
@@ -2714,7 +2715,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     }
 
     @Override
-    public Widget<?> hitTest(float localX, float localY) {
+    public @Nullable Widget<?> hitTest(float localX, float localY) {
         if (!isVisible() || !isEnabled()
                 || localX < 0 || localY < 0 || localX >= width() || localY >= height()) {
             return null;

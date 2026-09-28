@@ -4,6 +4,7 @@ import limn.accessibility.AccessibleEvent;
 import limn.accessibility.AccessibleNode;
 import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -59,7 +60,7 @@ public final class RecordingAccessibilityBridge implements AccessibilityBridge {
 
     /** How many hosts it has been given, and the one it holds. */
     public int attachments;
-    public Host host;
+    public @Nullable Host host;
 
     @Override
     public boolean isListening() {
@@ -171,7 +172,7 @@ public final class RecordingAccessibilityBridge implements AccessibilityBridge {
      * @param type the kind to look for
      * @return the first event of that kind, or {@code null}
      */
-    public AccessibleEvent first(AccessibleEvent.Type type) {
+    public @Nullable AccessibleEvent first(AccessibleEvent.Type type) {
         for (AccessibleEvent event : events) {
             if (event.type() == type) {
                 return event;

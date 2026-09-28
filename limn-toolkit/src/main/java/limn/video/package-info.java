@@ -12,4 +12,7 @@
  * borrowed and returned rather than allocated, because a picture is millions of bytes arriving tens
  * of times a second.
  */
+@NullMarked
 package limn.video;
+
+import org.jspecify.annotations.NullMarked;

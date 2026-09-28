@@ -9,4 +9,7 @@
  * draws Latin, Greek, Cyrillic and CJK; scripts needing shaping or bidi do not render
  * correctly yet, whatever translations are registered.
  */
+@NullMarked
 package limn.i18n;
+
+import org.jspecify.annotations.NullMarked;

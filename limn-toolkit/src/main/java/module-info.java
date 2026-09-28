@@ -1,15 +1,25 @@
 /**
  * The widget set, layout, the scene graph, the backend SPIs and the pure-Java video decoders.
- * It depends on nothing outside the JDK's base module.
+ * At run time it depends on nothing outside the JDK's base module.
  *
  * <p>Every package is exported except those named {@code internal}, which are shared with the
  * other Limn modules and exported to them alone. On the class path the boundary is a naming
  * convention; on the module path the compiler and the runtime enforce it.
+ *
+ * <p>Every exported package is {@code @NullMarked}: a type in its signatures is never null unless
+ * it says {@code @Nullable}. The annotations are JSpecify's, required {@code static transitive}:
+ * a module that requires this one reads them while it compiles, and none of them is needed when
+ * it runs.
  */
 // The qualified exports name the modules that share the internal packages, which this module
 // does not depend on; "module" is the warning that says a named module is not on this build's path.
 @SuppressWarnings("module")
 module limn.toolkit {
+    // Static: annotations are read by a compiler, and a missing one is no error at run time.
+    // Transitive: a module that requires this one reads them too, which is what lets its compiler
+    // and its checker see the @Nullable on these signatures.
+    requires static transitive org.jspecify;
+
     exports limn.accessibility;
     exports limn.animation;
     exports limn.backend;

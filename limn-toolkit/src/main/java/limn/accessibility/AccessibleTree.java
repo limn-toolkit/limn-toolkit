@@ -1,5 +1,7 @@
 package limn.accessibility;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -122,7 +124,7 @@ public final class AccessibleTree {
     }
 
     /** @return the root node, or {@code null} when this tree is empty */
-    public AccessibleNode root() {
+    public @Nullable AccessibleNode root() {
         return nodes.length == 0 ? null : nodes[0];
     }
 
@@ -145,7 +147,7 @@ public final class AccessibleTree {
      * @param id the identifier to look for
      * @return the node carrying it, or {@code null}
      */
-    public AccessibleNode find(long id) {
+    public @Nullable AccessibleNode find(long id) {
         int index = indexOf(id);
         return index == AccessibleNode.NONE ? null : nodes[index];
     }

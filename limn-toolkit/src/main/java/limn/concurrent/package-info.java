@@ -11,4 +11,7 @@
  * every success, failure and progress callback this package delivers runs where touching
  * widgets is legal.
  */
+@NullMarked
 package limn.concurrent;
+
+import org.jspecify.annotations.NullMarked;

@@ -10,4 +10,7 @@
  * framework's dynamic tests in one line. The toolkit's own components are held to these same
  * contracts.
  */
+@NullMarked
 package limn.testing.a11y;
+
+import org.jspecify.annotations.NullMarked;

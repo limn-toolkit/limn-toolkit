@@ -1,5 +1,7 @@
 package limn.accessibility;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Set;
@@ -18,7 +20,7 @@ import java.util.Set;
  * @param actions    the verbs, in no particular order; never empty and never modifiable
  * @param keyBinding the accelerator that performs this node's primary action, or {@code null}
  */
-public record ActionFacet(Set<Accessible.Action> actions, String keyBinding) {
+public record ActionFacet(Set<Accessible.Action> actions, @Nullable String keyBinding) {
 
     /**
      * @throws NullPointerException     if {@code actions} is {@code null}

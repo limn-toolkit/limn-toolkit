@@ -36,6 +36,7 @@ import limn.scene.internal.SceneAccess;
 import limn.scene.event.CharEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -261,7 +262,7 @@ public final class PopupMenu {
      * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
      * throws {@link IllegalStateException}.
      */
-    public PopupMenu onRootLeading(Runnable listener) {
+    public PopupMenu onRootLeading(@Nullable Runnable listener) {
         Ui.checkUiThread();
         this.onRootLeading = Checks.handlerSlot(onRootLeading, listener, "PopupMenu.onRootLeading");
         return this;
@@ -276,7 +277,7 @@ public final class PopupMenu {
      * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
      * throws {@link IllegalStateException}.
      */
-    public PopupMenu onRootTrailing(Runnable listener) {
+    public PopupMenu onRootTrailing(@Nullable Runnable listener) {
         Ui.checkUiThread();
         this.onRootTrailing = Checks.handlerSlot(onRootTrailing, listener, "PopupMenu.onRootTrailing");
         return this;
@@ -312,7 +313,7 @@ public final class PopupMenu {
      * geometry snapshots were built from the row captured at open (see {@link #tokens}).
      * {@code null} restores inheritance. UI thread only.
      */
-    public PopupMenu setControlSize(ControlSize size) {
+    public PopupMenu setControlSize(@Nullable ControlSize size) {
         Ui.checkUiThread();
         this.declaredSize = size;
         return this;
@@ -331,7 +332,7 @@ public final class PopupMenu {
      * @return this menu's native window while open, else {@code null}, which is also the
      *         answer while the menu is drawn in the scene
      */
-    public NativeWindow popupWindow() {
+    public @Nullable NativeWindow popupWindow() {
         return popupWindow;
     }
 

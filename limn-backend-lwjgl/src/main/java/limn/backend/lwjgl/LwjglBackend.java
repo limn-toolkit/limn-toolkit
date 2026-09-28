@@ -13,6 +13,7 @@ import limn.concurrent.UiRuntime;
 import limn.internal.lang.Checks;
 import limn.sound.AudioClip;
 import limn.sound.Sounds;
+import org.jspecify.annotations.Nullable;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFWErrorCallback;
 
@@ -884,7 +885,7 @@ public final class LwjglBackend implements Backend {
     }
 
     @Override
-    public void pushModal(NativeWindow modal, NativeWindow parent) {
+    public void pushModal(NativeWindow modal, @Nullable NativeWindow parent) {
         uiRuntime.checkUiThread();
         modalStack.push(modal, parent);
         focusTopModal();
@@ -1044,7 +1045,7 @@ public final class LwjglBackend implements Backend {
     }
 
     @Override
-    public limn.backend.Display primaryDisplay() {
+    public limn.backend.@Nullable Display primaryDisplay() {
         uiRuntime.checkUiThread();
         long primary = glfwGetPrimaryMonitor();
         return primary == NULL ? null : displayFor(primary);

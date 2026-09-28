@@ -1,5 +1,7 @@
 package limn.accessibility;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.List;
 
 /**
@@ -187,7 +189,7 @@ public final class AccessibleEvent {
      * @throws NullPointerException if {@code type} is {@code null}
      */
     public static AccessibleEvent property(Type type, long nodeId,
-                                           Object oldValue, Object newValue) {
+                                           @Nullable Object oldValue, @Nullable Object newValue) {
         java.util.Objects.requireNonNull(type, "type");
         return new AccessibleEvent(type, nodeId, null, null, oldValue, newValue, 0, 0, 0);
     }
@@ -304,7 +306,7 @@ public final class AccessibleEvent {
      * @return which state flipped, for a {@link Type#STATE_CHANGED}; {@code null} for every other
      *         kind
      */
-    public Accessible.State state() {
+    public Accessible.@Nullable State state() {
         return state;
     }
 
@@ -312,7 +314,7 @@ public final class AccessibleEvent {
      * @return whether an announcement interrupts, for a {@link Type#ANNOUNCEMENT}; {@code null} for
      *         every other kind
      */
-    public Accessible.Politeness politeness() {
+    public Accessible.@Nullable Politeness politeness() {
         return politeness;
     }
 
@@ -321,12 +323,12 @@ public final class AccessibleEvent {
      *         {@link Boolean} for a state, a {@link String} for a name, a description or a text, a
      *         {@link Double} for a value, a {@link limn.graphics.Rect} for a box.
      */
-    public Object oldValue() {
+    public @Nullable Object oldValue() {
         return oldValue;
     }
 
     /** @return what the property is now, in the same types {@link #oldValue()} lists */
-    public Object newValue() {
+    public @Nullable Object newValue() {
         return newValue;
     }
 

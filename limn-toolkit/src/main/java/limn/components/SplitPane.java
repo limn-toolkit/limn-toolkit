@@ -17,6 +17,7 @@ import limn.scene.FloatConsumer;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -128,7 +129,7 @@ public final class SplitPane extends Widget<SplitPane> {
      * point of the band; everywhere else the panes as ever.
      */
     @Override
-    public Widget<?> hitTest(float localX, float localY) {
+    public @Nullable Widget<?> hitTest(float localX, float localY) {
         Widget<?> hit = super.hitTest(localX, localY);
         if (hit == null) {
             return null;
@@ -215,7 +216,7 @@ public final class SplitPane extends Widget<SplitPane> {
      * @return this split
      * @throws IllegalStateException if a handler is already registered
      */
-    public SplitPane onRatioChange(FloatConsumer listener) {
+    public SplitPane onRatioChange(@Nullable FloatConsumer listener) {
         Ui.checkUiThread();
         this.onRatioChange = Checks.handlerSlot(onRatioChange, listener, "SplitPane.onRatioChange");
         return this;

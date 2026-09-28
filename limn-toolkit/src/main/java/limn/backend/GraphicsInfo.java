@@ -1,5 +1,7 @@
 package limn.backend;
 
+import org.jspecify.annotations.Nullable;
+
 import java.util.List;
 
 /**
@@ -57,11 +59,11 @@ import java.util.List;
  *                        when there is no context
  * @param failure         why no context exists, or {@code null} when one does
  */
-public record GraphicsInfo(String windowPlatform, String windowLibrary, String api,
+public record GraphicsInfo(@Nullable String windowPlatform, String windowLibrary, String api,
                            String contextApi, String vendor, String renderer, String version,
                            String shadingLanguage, int maxSamples, boolean timerQueries,
                            boolean floatColorBuffer, boolean norm16Textures,
-                           List<String> extensions, String failure) {
+                           List<String> extensions, @Nullable String failure) {
 
     /** What a backend that cannot describe its graphics stack reports. */
     public static final GraphicsInfo NONE =

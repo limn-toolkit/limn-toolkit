@@ -26,6 +26,7 @@ import limn.scene.ControlSize;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.MouseEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -419,7 +420,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
      * Pins the palette; {@code null} hands it back to {@link ChartPalette#defaultFor},
      * which follows the active theme's light/dark mode.
      */
-    public W setPalette(ChartPalette value) {
+    public W setPalette(@Nullable ChartPalette value) {
         Ui.checkUiThread();
         this.palette = value;
         legendCache = null;
@@ -434,22 +435,22 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
     }
 
     /** The chart title as it currently reads, or {@code null} when there is none. */
-    public String title() {
+    public @Nullable String title() {
         return title == null ? null : title.get();
     }
 
     /** The localizable value behind {@link #title()}, or {@code null}. */
-    public I18nString titleSource() {
+    public @Nullable I18nString titleSource() {
         return title;
     }
 
     /** Sets a title drawn above the plot ({@code null} for none). */
-    public W setTitle(String value) {
+    public W setTitle(@Nullable String value) {
         return setTitle(value == null ? null : I18nString.literal(value));
     }
 
     /** Sets a title that follows the UI language ({@code null} for none). */
-    public W setTitle(I18nString value) {
+    public W setTitle(@Nullable I18nString value) {
         Ui.checkUiThread();
         this.title = value;
         markNeedsLayout();
@@ -457,7 +458,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
     }
 
     /** The panel color behind the chart, or {@code null} when it paints on what is below. */
-    public Color background() {
+    public @Nullable Color background() {
         return background;
     }
 
@@ -466,7 +467,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
      * {@code null} (the default) paints nothing, letting the chart sit on the surface it
      * was placed on.
      */
-    public W setBackground(Color color) {
+    public W setBackground(@Nullable Color color) {
         Ui.checkUiThread();
         this.background = color;
         invalidate();
@@ -586,7 +587,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
      * scannable; a formatter set here produces the whole row as one string instead.
      * {@code null} restores the default.
      */
-    public W setTooltipFormat(Function<ChartPoint, String> format) {
+    public W setTooltipFormat(@Nullable Function<ChartPoint, String> format) {
         Ui.checkUiThread();
         this.tooltipFormat = format;
         invalidate();
@@ -637,7 +638,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
      * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
      * throws {@link IllegalStateException}.
      */
-    public W onPointClick(Consumer<ChartPoint> listener) {
+    public W onPointClick(@Nullable Consumer<ChartPoint> listener) {
         Ui.checkUiThread();
         this.onPointClick = Checks.handlerSlot(onPointClick, listener, "Chart.onPointClick");
         return self();
@@ -650,7 +651,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
      * <p>One handler at a time: {@code null} clears it, and setting a second while one is set
      * throws {@link IllegalStateException}.
      */
-    public W onPointHover(Consumer<ChartPoint> listener) {
+    public W onPointHover(@Nullable Consumer<@Nullable ChartPoint> listener) {
         Ui.checkUiThread();
         this.onPointHover = Checks.handlerSlot(onPointHover, listener, "Chart.onPointHover");
         return self();
@@ -678,7 +679,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
     }
 
     /** The datum under the pointer, or {@code null}. */
-    public ChartPoint hoveredPoint() {
+    public @Nullable ChartPoint hoveredPoint() {
         return hovered;
     }
 
@@ -694,7 +695,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
      * The datum under a point in the chart's local coordinates, or {@code null} when the
      * pointer is not over the marks. Called for hover and for clicks, so it decides both.
      */
-    protected abstract ChartPoint pickAt(float localX, float localY);
+    protected abstract @Nullable ChartPoint pickAt(float localX, float localY);
 
     /**
      * The rows a tooltip shows for {@code picked}. The default is
@@ -766,7 +767,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
      * the hook for a chart that animates something on hover. The application-facing
      * callback is {@link #onPointHover(Consumer)}; this is for subclasses.
      */
-    protected void onHoverChanged(ChartPoint picked) {
+    protected void onHoverChanged(@Nullable ChartPoint picked) {
     }
 
     /** Recomputes the title/legend/plot split. For a subclass laying out in {@code onLayout}. */
@@ -1387,7 +1388,7 @@ public abstract class Chart<W extends Chart<W>> extends Widget<W> {
      * @param point the hovered datum, never {@code null}
      * @return the region in widget coordinates, or {@code null} for "all of it"
      */
-    protected Rect hoverRegion(ChartPoint point) {
+    protected @Nullable Rect hoverRegion(ChartPoint point) {
         return null;
     }
 

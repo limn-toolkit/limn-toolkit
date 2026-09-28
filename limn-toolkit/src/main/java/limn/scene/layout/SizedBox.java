@@ -6,6 +6,7 @@ import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.internal.LayoutOverflow;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Forces a fixed width and/or height (unset dimensions pass through to the
@@ -42,7 +43,7 @@ public final class SizedBox extends Widget<SizedBox> {
      * @param child  what the box holds, or {@code null} for a spacer
      * @throws IllegalArgumentException when a dimension is {@code NaN} or infinite
      */
-    public SizedBox(float width, float height, Widget<?> child) {
+    public SizedBox(float width, float height, @Nullable Widget<?> child) {
         this.fixedWidth = dimension(width, "width");
         this.fixedHeight = dimension(height, "height");
         this.child = child;

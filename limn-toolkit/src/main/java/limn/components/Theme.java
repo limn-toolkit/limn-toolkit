@@ -15,6 +15,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import limn.internal.lang.Checks;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Central design tokens: colors, corner radii, typography and spacing.
@@ -887,7 +888,7 @@ public final class Theme {
         }
 
         /** @return the token whose {@link #key()} is {@code key}, or {@code null} if none is */
-        public static Token byKey(String key) {
+        public static @Nullable Token byKey(String key) {
             for (Token token : values()) {
                 if (token.key.equals(key)) {
                     return token;
@@ -1009,7 +1010,7 @@ public final class Theme {
          * embedded face when it is applied (see {@link Theme#applyFontFamily()}) rather than
          * being rejected here, which would make a palette unloadable on the wrong laptop.
          */
-        public Builder fontFamily(String value) {
+        public Builder fontFamily(@Nullable String value) {
             this.fontFamily = value == null || value.isBlank() ? Font.DEFAULT_FAMILY : value;
             return this;
         }
@@ -1228,7 +1229,7 @@ public final class Theme {
      * to a round trip. The toolkit itself still compares the active palette by identity.
      */
     @Override
-    public boolean equals(Object other) {
+    public boolean equals(@Nullable Object other) {
         if (this == other) {
             return true;
         }

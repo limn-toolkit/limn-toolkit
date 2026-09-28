@@ -18,4 +18,7 @@
  * {@link limn.components.date.DayMark} is what is true of one day beyond its number, as a dot and
  * as a phrase a screen reader hears.
  */
+@NullMarked
 package limn.components.date;
+
+import org.jspecify.annotations.NullMarked;

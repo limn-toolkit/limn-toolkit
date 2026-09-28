@@ -4,4 +4,7 @@
  * refused" are reported the same way by every loader that meets them. Nothing here decodes
  * anything; the image, audio, font and model loaders that call it live with their formats.
  */
+@NullMarked
 package limn.io;
+
+import org.jspecify.annotations.NullMarked;

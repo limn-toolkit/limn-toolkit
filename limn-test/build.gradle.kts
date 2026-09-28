@@ -22,4 +22,6 @@ plugins {
 
 dependencies {
     api(project(":limn-toolkit"))
+    // The nullness annotations on this module's own signatures; see limn-toolkit's build.
+    api(libs.jspecify)
 }

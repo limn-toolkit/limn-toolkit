@@ -7,6 +7,7 @@ import limn.graphics.SvgIcon;
 import limn.input.Keys;
 import limn.scene.Change;
 import limn.scene.event.KeyEvent;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -39,7 +40,7 @@ public final class SearchField extends TextField {
      * @throws IllegalStateException if a handler is already registered
      */
     @Override
-    public SearchField onSubmit(Consumer<String> listener) {
+    public SearchField onSubmit(@Nullable Consumer<String> listener) {
         Ui.checkUiThread();
         super.onSubmit(listener);
         return this;

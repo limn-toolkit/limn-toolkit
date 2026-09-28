@@ -2,6 +2,7 @@ package limn.animation;
 
 import limn.concurrent.Ui;
 import limn.scene.Widget;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
 
@@ -91,7 +92,7 @@ public final class Transition {
      * @param region invalidates the part this animation draws, or {@code null} for the owner
      * @return this
      */
-    public Transition damages(Runnable region) {
+    public Transition damages(@Nullable Runnable region) {
         this.damage = region;
         return this;
     }
