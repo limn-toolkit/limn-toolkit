@@ -55,12 +55,14 @@ import java.util.function.IntConsumer;
  * <p><b>In-scene fallback.</b> Where the window reports no
  * {@link limn.backend.NativeWindow#supportsAbsolutePositioning()} (Wayland), a list in a window
  * of its own would open somewhere other than under the field, and over a
- * {@linkplain limn.backend.NativeWindow#isFullscreen() fullscreen} window it would minimize the
- * owner or open outside its Space, so in both the list is drawn as an overlay inside the owner
- * window instead. Same rows, same keys, same type-ahead; the difference is that
- * it is clamped to that window rather than to the display, so a combo near the bottom edge shows
- * fewer rows and scrolls sooner. Chosen by the platform, not by the application, and
- * {@link #popupWindow()} is {@code null} throughout. Chosen when the list opens; a list already
+ * {@linkplain limn.backend.NativeWindow#isFullscreen() fullscreen} window it would minimize an
+ * owner fullscreen on a monitor at the first click, while macOS native fullscreen already covers
+ * the screen and leaves a list window no edge to reach past, so in both the list is drawn as an
+ * overlay inside the owner window instead (see {@link DisplayMode}). Same rows, same keys, same
+ * type-ahead; the difference is that it is clamped to that window rather than to the display, so
+ * a combo near the bottom edge shows fewer rows and scrolls sooner. Chosen by the platform, not
+ * by the application, and {@link #popupWindow()} is {@code null} throughout. Chosen when the list
+ * opens; a list already
  * open in a window of its own when the owner enters or leaves fullscreen closes instead, as if
  * dismissed, with the selection as it was: see {@link DisplayMode}.
  *
@@ -306,8 +308,9 @@ public final class ComboBox extends Widget<ComboBox> {
         // instead, or the always-on-top popup floats over foreign applications indefinitely.
         // In-scene the same rule reads as "the application went away", which closes it too.
         blurHandle = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
-        // A fullscreen owner has no room for a list window (it would minimize the owner, or open
-        // outside its Space), and one that cannot be positioned would put the list away from the
+        // A fullscreen owner gets no list window (on a monitor it would be minimized at the first
+        // click in the list, and native fullscreen already covers the screen, so the list loses
+        // nothing inside it), and one that cannot be positioned would put the list away from the
         // field: both draw it in scene, whatever was asked.
         if (requested == DisplayMode.IN_SCENE || (scene.window() != null
                 && !FloatingSurfaces.anchoredWindowAvailable(scene.window()))) {
@@ -324,9 +327,11 @@ public final class ComboBox extends Widget<ComboBox> {
             }
         });
         // The owner going fullscreen, or leaving it, takes the list down as a platform's own
-        // drop-down goes on a change of its window's state: left open it would minimize a
-        // fullscreen owner, or stay outside its Space. Dismissed, so the highlight is not chosen.
-        // An in-scene list is left alone: it is inside the window whatever the window does.
+        // drop-down goes on a change of its window's state: the change resizes and moves the owner
+        // under a list placed against the field's old position, and one left open over a
+        // fullscreen on a monitor would minimize it at the first click. Dismissed, so the
+        // highlight is not chosen. An in-scene list is left alone: it is laid out again with the
+        // window, against the field where it now is.
         fullscreenHandle = scene.observeWindowFullscreen(
                 fullscreen -> close(Change.Origin.ADJUSTMENT));
         if (scene.window() != null && popupWindow == null) {
@@ -351,7 +356,7 @@ public final class ComboBox extends Widget<ComboBox> {
      *
      * <p><b>A preference, not a guarantee.</b> A list asked for {@code NATIVE_WINDOW} is still
      * drawn in scene on a window that cannot be positioned at an anchor (Wayland), and over a
-     * fullscreen window, which has no room for a second one. {@code IN_SCENE}
+     * fullscreen window, for the reasons {@link DisplayMode} gives. {@code IN_SCENE}
      * is always honoured, and it is the choice to make when the window has to contain everything
      * it shows: a screenshot, a recording or a screen share of the owner window captures an
      * in-scene list and never a native one.

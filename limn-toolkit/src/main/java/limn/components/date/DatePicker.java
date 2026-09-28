@@ -72,8 +72,8 @@ import java.util.function.Predicate;
  * keyboard back.
  *
  * <p>The presentation follows {@link DisplayMode}: a window of its own where the platform can place
- * one, an overlay inside the owner window where it cannot or where the owner is fullscreen, which
- * has no room for a second window &mdash; and an application that documents
+ * one, an overlay inside the owner window where it cannot or where the owner is fullscreen, for the
+ * reasons that type gives &mdash; and an application that documents
  * itself with screenshots asks for {@link DisplayMode#IN_SCENE} on purpose, because a native popup
  * is absent from a capture of the window. The presentation is chosen when the popup opens; one
  * already open in a window of its own when the owner enters or leaves fullscreen closes instead, as
@@ -564,7 +564,8 @@ public final class DatePicker extends Widget<DatePicker> {
      *
      * <p><b>A preference, not a guarantee.</b> A calendar asked for {@code NATIVE_WINDOW} is still
      * drawn in scene on a window that cannot be positioned at an anchor (Wayland), and over a
-     * fullscreen window, which has no room for a second one. {@code IN_SCENE} is always honoured.
+     * fullscreen window, for the reasons {@link DisplayMode} gives. {@code IN_SCENE} is always
+     * honoured.
      * Read {@link #displayMode()} for what happened. Takes effect on the next open.
      *
      * @param mode what to ask for
@@ -944,9 +945,10 @@ public final class DatePicker extends Widget<DatePicker> {
             return; // headless: the state machine is the whole of what a test drives
         }
         blurHandle = scene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
-        // A fullscreen owner has no room for a calendar window (it would minimize the owner, or
-        // open outside its Space), and one that cannot be positioned would put it away from the
-        // field: both draw it in scene, whatever was asked.
+        // A fullscreen owner gets no calendar window (on a monitor it would be minimized at the
+        // first click in the calendar, and native fullscreen already covers the screen, so the
+        // calendar loses nothing inside it), and one that cannot be positioned would put it away
+        // from the field: both draw it in scene, whatever was asked.
         NativeWindow window = scene.window();
         if (requested == DisplayMode.IN_SCENE
                 || (window != null && !FloatingSurfaces.anchoredWindowAvailable(window))) {
@@ -959,9 +961,11 @@ public final class DatePicker extends Widget<DatePicker> {
             }
         });
         // The owner going fullscreen, or leaving it, takes the calendar down as a platform's own
-        // popup goes on a change of its window's state: left open it would minimize a fullscreen
-        // owner, or stay outside its Space. Dismissed, so the grid's cursor is not a pick. An
-        // in-scene calendar is left alone: it is inside the window whatever the window does.
+        // popup goes on a change of its window's state: the change resizes and moves the owner
+        // under a calendar placed against the field's old position, and one left open over a
+        // fullscreen on a monitor would minimize it at the first click. Dismissed, so the grid's
+        // cursor is not a pick. An in-scene calendar is left alone: it is laid out again with the
+        // window, against the field where it now is.
         fullscreenHandle = scene.observeWindowFullscreen(
                 fullscreen -> setOpen(false, Change.Origin.ADJUSTMENT));
         if (window != null && popupWindow == null) {

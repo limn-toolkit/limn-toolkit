@@ -88,8 +88,8 @@ public interface WindowInput {
      * {@code enterFullscreen} and {@code exitFullscreen}, and on macOS the person's green button,
      * Control-Command-F or menu item. It is told when the answer changes, which for macOS native
      * fullscreen is when the animation starts rather than when it ends. On the scene it closes a
-     * menu, a drop-down list or a calendar that is open in a window of its own, which a
-     * fullscreen owner has no room for, and moves a modal dialog's window into the scene.
+     * menu, a drop-down list or a calendar that is open in a window of its own, placed against the
+     * geometry the change is taking away, and moves a modal dialog's window into the scene.
      *
      * <p>Told even while a modal blocks the window, as a focus change is: the dialog that blocks
      * it is one of the surfaces that has to hear it. Arrives during the native poll, or from

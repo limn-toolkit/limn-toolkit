@@ -1909,12 +1909,13 @@ public final class Scene {
 
     /**
      * Observes the bound window entering or leaving fullscreen, the cue that closes a surface open
-     * in a window of its own over it (a menu, a drop-down list, a calendar), since a fullscreen
-     * window has no room for a second one: on a monitor it is minimized when another window takes
-     * the focus, and macOS native fullscreen is a Space of its own. The person can make the change
-     * on macOS with the green button or Control-Command-F while a list or a calendar is open,
-     * because neither takes the focus from the window. A modal dialog's window hears it too, and
-     * moves into the scene.
+     * in a window of its own over it (a menu, a drop-down list, a calendar), as the platforms
+     * dismiss their own menus on a change of their window's state: the change resizes and moves
+     * the window under a surface placed against its old geometry, and a window fullscreen on a
+     * monitor is minimized as soon as another window takes the focus. The person can make the
+     * change on macOS with the green button or Control-Command-F while a list or a calendar is
+     * open, because neither takes the focus from the window. A modal dialog's window hears it too,
+     * and moves into the scene.
      *
      * <p>Told once per change, at the end of the input batch that brought it, even while a modal
      * blocks the window; see {@link WindowInput#windowFullscreenChanged}.

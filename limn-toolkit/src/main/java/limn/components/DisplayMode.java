@@ -8,18 +8,22 @@ import limn.backend.NativeWindow;
  * {@link ColorPickerButton} and {@link limn.components.date.DatePicker} all answer this question,
  * and they answer it by the same rules.
  *
- * <p><b>It is a preference, never a guarantee.</b> Two kinds of window cannot hold one of these
- * in a window of its own, and over them {@link #NATIVE_WINDOW} is not available at all:
+ * <p><b>It is a preference, never a guarantee.</b> Over two kinds of window
+ * {@link #NATIVE_WINDOW} is not offered at all:
  *
  * <ul>
- *   <li><b>A {@linkplain NativeWindow#isFullscreen() fullscreen} window</b>, of either kind. On a
- *       monitor a fullscreen window is minimized when another window takes the focus, and macOS
- *       native fullscreen is a Space of its own that a new window opens outside of, so a second
- *       window would take the person away from the one they were using. Every one of these
- *       surfaces is drawn in scene there, with one exception: a <b>non-modal</b> dialog stays a
- *       window, because an overlay captures its window's input and a non-modal dialog exists so
- *       that the window behind it stays usable, which leaves it no in-scene form to fall back
- *       to.</li>
+ *   <li><b>A {@linkplain NativeWindow#isFullscreen() fullscreen} window</b>, of either kind, for
+ *       three reasons. Fullscreen on a monitor, which is every fullscreen on Windows and X11 and
+ *       one at a named mode on macOS, is minimized as soon as another window takes the focus, on
+ *       every platform, and a menu or a dialog takes it at once, a list or a calendar at the
+ *       first click. macOS native fullscreen already covers the screen, so a surface drawn
+ *       inside it loses nothing: the room past the owner's edge that a window of its own is for
+ *       is not there. And on a Mac without a GPU opening a window is slow: raising the colour
+ *       picker as a window held the UI for 1.4 to 3.7 seconds, against 0.6 to 0.7 in scene.
+ *       Every one of these surfaces is drawn in scene there, with one exception: a
+ *       <b>non-modal</b> dialog stays a window, because an overlay captures its window's input
+ *       and a non-modal dialog exists so that the window behind it stays usable, which leaves it
+ *       no in-scene form to fall back to.</li>
  *   <li><b>Wayland</b>, or any window that cannot be
  *       {@linkplain NativeWindow#supportsAbsolutePositioning() positioned}, where a client cannot
  *       place a toplevel at an anchor. A menu window would open near the middle of the display
@@ -38,14 +42,17 @@ import limn.backend.NativeWindow;
  *
  * <p><b>And a window of its own does not outlive a change that rules it out.</b> When the owner
  * enters or leaves fullscreen while a surface is open in a window of its own, a menu, a drop-down
- * list or a calendar closes as if dismissed, choosing nothing, as the platform's own menus close
- * on a change of their window's state; on macOS the person can make that change with the green
- * button or Control-Command-F while a list or a calendar is open, since neither takes the focus
- * from the window. A modal dialog, the colour picker's included, is a question still waiting for
- * its answer, so it moves into the scene instead, with what was typed in it. Two stay windows: a
- * non-modal dialog, for the reason above, and a modal one with another dialog or a modal menu open
- * over it, since moving it would close the window that one belongs to. A surface drawn in scene
- * stays where it is, and nothing moves back into a window when the owner leaves fullscreen.
+ * list or a calendar closes as if dismissed, choosing nothing. The change resizes and moves the
+ * owner under a surface placed against its old geometry, which is why the platforms dismiss their
+ * own menus on a change of their window's state, and a fullscreen on a monitor would also be
+ * minimized the moment the surface took the focus. On macOS the person can make that change with
+ * the green button or Control-Command-F while a list or a calendar is open, since neither takes
+ * the focus from the window. A modal dialog, the colour picker's included, is a question still
+ * waiting for its answer, so it moves into the scene instead, with what was typed in it, and is
+ * presented as it would have been had it opened there. Two stay windows: a non-modal dialog, for
+ * the reason above, and a modal one with another dialog or a modal menu open over it, since
+ * moving it would close the window that one belongs to. A surface drawn in scene stays where it
+ * is, and nothing moves back into a window when the owner leaves fullscreen.
  *
  * <p><b>Why it is worth choosing rather than inheriting.</b> An in-scene surface is contained by
  * the window: it cannot extend past the edge, it composites with what is behind it, and a

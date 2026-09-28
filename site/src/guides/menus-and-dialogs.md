@@ -134,17 +134,22 @@ before styling or positioning the card on the assumption that it is an overlay;
 `keepInScene()` insists on the overlay and accepts the stacking that comes with it.
 
 A window is not a guarantee either. Over a fullscreen window a modal dialog draws in scene
-whatever it was asked, because a second window there would minimize its owner, or on macOS open
-outside the owner's Space; menus, combo box lists and date pickers do the same. A non-modal
+whatever it was asked; menus, combo box lists and date pickers do the same. A window fullscreen
+on a monitor, which is every fullscreen on Windows and X11 and one at a named mode on macOS, is
+minimized as soon as another window takes the focus. macOS native fullscreen already covers the
+screen, so nothing is lost by drawing inside it. And on a Mac without a GPU, opening the colour
+picker as a window held the UI for 1.4 to 3.7 seconds, against 0.6 to 0.7 in scene. A non-modal
 dialog is the one exception and stays a window, since an overlay would lock the very window it
 is meant to leave usable.
 
 The choice is made when each one opens, and the window can go fullscreen afterwards: from your
 code, or on macOS from the green button while a combo box list or a date picker is open. A menu,
 a list or a date picker open as a window of its own then closes, as if dismissed, as the
-platform's own menus do; nothing is chosen. A modal dialog open as a window moves inside instead,
-still waiting for its answer, with what was typed in it and the focus where it was. It stays a
-window only while another dialog is open over it. Leaving fullscreen moves nothing back out.
+platform's own menus do when their window changes state, since the change moves and resizes the
+window under a popup placed against its old frame; nothing is chosen. A modal dialog open as a
+window moves inside instead, still waiting for its answer, with what was typed in it and the
+focus where it was. It stays a window only while another dialog is open over it. Leaving
+fullscreen moves nothing back out.
 
 Either way, clicking outside a modal dialog is ignored and beeps, exactly as the platform
 does. `setDismissOnScrim(true)` turns the in-scene form into a light dismissable overlay
