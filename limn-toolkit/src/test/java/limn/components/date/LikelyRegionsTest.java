@@ -114,6 +114,22 @@ class LikelyRegionsTest {
     }
 
     /**
+     * A region named by its UN number keeps the week of the region the number stands for, as ICU
+     * reads it: 276 is Germany, whose first week needs four days, 818 Egypt, whose week starts on
+     * a Saturday, and 840 the United States. The JDK takes the number for a region it does not
+     * know and answers Monday and a one-day first week for all three.
+     */
+    @Test
+    void aNumberedRegionHasTheWeekOfTheRegionItStandsFor() {
+        assertEquals(WeekFields.of(Locale.forLanguageTag("de-DE")),
+                CalendarChronology.weekFields(Locale.forLanguageTag("de-276")));
+        assertEquals(WeekFields.of(Locale.forLanguageTag("ar-EG")),
+                CalendarChronology.weekFields(Locale.forLanguageTag("ar-818")));
+        assertEquals(WeekFields.of(Locale.forLanguageTag("en-US")),
+                CalendarChronology.weekFields(Locale.forLanguageTag("en-840")));
+    }
+
+    /**
      * What the table is for: a language named alone numbers its weeks as the region it means
      * does, for every language CLDR knows. Before the table the JDK answered the United States'
      * Sunday and one-day first week for all of them, which was wrong for 125.
