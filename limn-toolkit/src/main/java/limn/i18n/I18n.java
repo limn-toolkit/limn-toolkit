@@ -128,6 +128,38 @@ public final class I18n {
     }
 
     /**
+     * {@code locale} with its language and region read as ICU reads them: a code that is another
+     * code for the same language, or a region that another region replaced, becomes the code ICU
+     * uses. {@code jpn} is {@code ja}, {@code fra-CA} is {@code fr-CA}, {@code prs}, Dari, is
+     * {@code fa-AF} and {@code prs-IR} is {@code fa-IR}, {@code de-276} is {@code de-DE},
+     * {@code uz-SU} is {@code uz-UZ}. Where the replacement carries a script or a region, it fills
+     * in only what the locale leaves out; the locale's variants and extensions are kept.
+     *
+     * <p>This is the reading the toolkit applies wherever it decides by language: translations,
+     * plural forms, digits, separators, order, case, calendars, line breaking and layout
+     * direction. {@link Locale} replaces only {@code iw}, {@code ji} and {@code in} by itself, so
+     * code that compares {@link Locale#getLanguage()} with {@code "ja"} treats {@code jpn} as a
+     * language nobody listed. An application that chooses a font, a resource or a layout by
+     * language reads the locale through here first and gets the same answer the toolkit does.
+     *
+     * <p>A locale ICU replaces nothing in, whether its codes are current or unknown, comes back
+     * as the same instance. Nothing is validated and nothing is added that the locale does not
+     * name: {@code jpn} is {@code ja}, not {@code ja-Jpan-JP}. On a JVM started with
+     * {@code -Djava.locale.useOldISOCodes=true}, {@code Locale} spells Hebrew, Yiddish and
+     * Indonesian with their old codes in every instance, including the ones answered here.
+     *
+     * <p>Safe from any thread. The first call in a process reads the table of codes, which the
+     * toolkit has usually read already; after that a call costs two map lookups, and a replaced
+     * locale is built once and kept, so asking again answers the same instance.
+     *
+     * @param locale the locale to read
+     * @return the locale ICU reads, or {@code locale} itself when ICU replaces nothing in it
+     */
+    public static Locale canonical(Locale locale) {
+        return LanguageAliases.resolve(locale);
+    }
+
+    /**
      * Switches the UI language. No-op when unchanged. Every registered bundle is
      * {@linkplain StringBundle#prepare prepared} first (so a file-backed bundle
      * reads from disk here rather than inside the next measure pass), then the epoch

@@ -53,6 +53,11 @@ component text) already ship translated for a long list of language tags, so swi
 locale translates the parts you did not write as well. A language the toolkit has no file
 for falls back to English, by the same rule your own bundles follow.
 
+A language often has more than one code: `jpn` and `ja` are both Japanese, and `prs` is Persian
+as written in Afghanistan, `fa-AF`. The toolkit reads every such code as the one ICU reads it as
+before it translates, formats or lays anything out, and `I18n.canonical(locale)` hands your
+code the same reading, so a font, a resource or a layout you choose by language agrees with it.
+
 ## Finding a key nothing translates
 
 A key no bundle has, because of a typo, a rename, or a file that has not caught up, shows its
