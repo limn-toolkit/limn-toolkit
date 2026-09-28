@@ -452,8 +452,19 @@ public final class PopupMenu {
                 }
                 if (parent != null && !parent.isClosed()) {
                     parent.unregisterChildPopup(closing);
-                    if (modal && !parent.isModalBlocked()) {
-                        parent.focus(); // re-activate the owner now the modal is gone
+                    // The owner asks for the focus back before the window holding it goes. A
+                    // window closed with the focus leaves the desktop to choose the next one, and
+                    // it may choose itself: on GNOME over X11 it did, and a window fullscreen on a
+                    // monitor that loses the focus is minimized, so an owner that went fullscreen
+                    // under an open menu was minimized as the menu closed. Asked here, at the end
+                    // of the fade, rather than at the close: a chosen item may have opened a
+                    // window that has the focus by now, and the owner does not take it from that
+                    // one, nor from a modal dialog blocking it. A modal menu held the focus as the
+                    // top modal, whatever its scene last heard.
+                    boolean heldFocus = modal
+                            || (closingScene != null && closingScene.isWindowFocused());
+                    if (heldFocus && !parent.isModalBlocked()) {
+                        parent.focus();
                     }
                 }
                 closing.requestClose();
