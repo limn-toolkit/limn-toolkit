@@ -158,6 +158,11 @@ Maven Central say which number that was.
   than it did unblocked on a machine without a GPU: the dimming layer took as long as every widget
   of the window together (366 ms at 2604 × 1850 on the software renderer, now 10 ms), and a partial
   repaint drew it over the whole window.
+- Rounded borders and fills cost a fraction of what they did on a machine without a GPU: a form of
+  fields and buttons drew a full frame in 361 ms on macOS's software renderer and now does in 110 ms,
+  a card with a border in 6 ms instead of 104. The shape is drawn in pieces, so the per-pixel work
+  runs only where its edge can be; on a GPU the frame is still one draw call and its pixels are the
+  same but for rounding in about 0.01% of them.
 - Linux screen readers get the application's language from `Application.GetLocale`, which answered
   nothing.
 - `limn-test`'s headless window has a clipboard: a copy in a text field of a scene bound to one
