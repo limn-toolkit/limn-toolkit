@@ -2279,7 +2279,7 @@ public final class DateField extends Widget<DateField> {
         typedRun.setLength(0); // a key is not part of a typed run
         boolean command = (event.modifiers() & (Keys.MOD_CONTROL | Keys.MOD_SUPER)) != 0;
         if (command) {
-            switch (event.key()) {
+            switch (event.shortcutKey()) {
                 case Keys.C -> {
                     clipboard().set(text());
                     event.consume();

@@ -1226,7 +1226,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         boolean shortcut = (mods & Keys.MOD_SUPER) != 0
                 || (!altGr && (mods & Keys.MOD_CONTROL) != 0);
         boolean handled = true;
-        switch (event.key()) {
+        switch (event.shortcutKey()) {
             // Left and Right are VISUAL: the keys are named for a direction on the screen, so they
             // step one cluster left or right ON THE LINE whatever direction the text under them
             // runs. Home, End and the word jumps stay LOGICAL, and in right-to-left text that means
@@ -1360,21 +1360,18 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         event.consume();
     }
 
-    /** Resolves the focused block's code-point range to a char range within the preedit. */
+    /** Resolves the target's code-point range to a char range within the preedit. */
     private void computeFocusedBlock(PreeditEvent event) {
         preeditFocusStart = 0;
         preeditFocusEnd = 0;
-        int[] blocks = event.blockSizes();
-        int focused = event.focusedBlock();
-        if (focused < 0 || focused >= blocks.length) {
+        int count = preedit.codePointCount(0, preedit.length());
+        int start = event.targetStart();
+        int end = start + event.targetLength();
+        if (event.targetLength() <= 0 || start < 0 || end > count) {
             return;
         }
-        int cpStart = 0;
-        for (int i = 0; i < focused; i++) {
-            cpStart += blocks[i];
-        }
-        preeditFocusStart = CodePoints.charIndex(preedit, cpStart);
-        preeditFocusEnd = CodePoints.charIndex(preedit, cpStart + blocks[focused]);
+        preeditFocusStart = CodePoints.charIndex(preedit, start);
+        preeditFocusEnd = CodePoints.charIndex(preedit, end);
     }
 
 

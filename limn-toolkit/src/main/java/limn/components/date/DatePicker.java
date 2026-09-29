@@ -39,6 +39,7 @@ import java.time.chrono.Chronology;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import limn.backend.spi.WindowPeer;
 
 /**
  * A date field with a calendar to pick from: the field is a real child, the calendar is a
@@ -1053,7 +1054,6 @@ public final class DatePicker extends Widget<DatePicker> {
         float factor = parent.logicalToScreenFactor();
         Size content = popupContentSize();
 
-        int screenX = parent.screenX() + Math.round(localToSceneX() * factor);
         int anchorTop = parent.screenY() + Math.round(localToSceneY() * factor);
         int anchorBottom = parent.screenY()
                 + Math.round((localToSceneY() + height() + gap) * factor);
@@ -1067,10 +1067,12 @@ public final class DatePicker extends Widget<DatePicker> {
         // run past the work area, which is what every platform picker does with a short screen.
         boolean above = content.height() > spaceBelow && spaceAbove > spaceBelow;
 
-        popupWindow = parent.backend().createWindow(WindowConfig.popup(
+        float ownerY = above
+                ? localToSceneY() - gap - content.height()
+                : localToSceneY() + height() + gap;
+        popupWindow = parent.backend().createWindow(WindowConfig.popup(parent,
                 Math.max(1, Math.round(content.width())),
-                Math.max(1, Math.round(content.height()))));
-        parent.registerChildPopup(popupWindow);
+                Math.max(1, Math.round(content.height()))).atInOwner(localToSceneX(), ownerY));
         releaseCalendar();
         popupPanel = new PopupPanel();
         popupPanel.setInheritanceHost(filling()); // the opener a reader sees: see presentInScene
@@ -1084,10 +1086,6 @@ public final class DatePicker extends Widget<DatePicker> {
         popupScene.bind(popupWindow);
         popupBlurHandle = popupScene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
         popupScene.setBackground(Color.TRANSPARENT);
-        int screenY = above
-                ? anchorTop - Math.round((gap + content.height()) * factor)
-                : anchorBottom;
-        popupWindow.setScreenPosition(screenX, screenY);
         if (parent.isVisible()) {
             popupScene.fadeWindowIn(limn.animation.Motion.duration(Theme.of(this).animWindow));
             popupWindow.show();
@@ -1182,7 +1180,7 @@ public final class DatePicker extends Widget<DatePicker> {
             }
             Runnable destroy = () -> {
                 if (parent != null && !parent.isClosed()) {
-                    parent.unregisterChildPopup(closing);
+                    WindowPeer.of(parent).unregisterChildPopup(closing);
                 }
                 closing.requestClose();
             };

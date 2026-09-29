@@ -104,6 +104,9 @@ class ScenePreeditTest extends SceneTestBase {
         scene.requestFocus(text);
         scene.requestFocus(button);
         assertFalse(win.imeEnabled, "IME off while a non-text widget is focused");
+        // Characters, not none: a list's type-ahead hears letters with the input method off. A
+        // platform that delivers no characters while composition is off broke every type-ahead.
+        assertEquals(limn.backend.spi.TextInput.CHARACTERS, win.textInput);
     }
 
     @Test
@@ -112,13 +115,14 @@ class ScenePreeditTest extends SceneTestBase {
         scene.requestFocus(text);
         scene.requestFocus(null);
         assertFalse(win.imeEnabled, "IME off with nothing focused");
+        assertEquals(limn.backend.spi.TextInput.CHARACTERS, win.textInput);
     }
 
     @Test
     void preeditGoesToTheFocusedTextWidget() {
         build();
         scene.requestFocus(text);
-        drive(scene).preeditChanged("あ", new int[]{1}, 0, 1);
+        drive(scene).preeditChanged("あ", 1, 0, 1);
         drive(scene).inputBatchEnded();
         assertEquals("あ", text.lastPreedit.text());
         assertEquals(1, text.lastPreedit.caret());
@@ -128,7 +132,7 @@ class ScenePreeditTest extends SceneTestBase {
     void preeditWithNothingFocusedIsDropped() {
         build();
         text.lastPreedit = null;
-        drive(scene).preeditChanged("あ", new int[]{1}, 0, 1);
+        drive(scene).preeditChanged("あ", 1, 0, 1);
         drive(scene).inputBatchEnded();
         assertNull(text.lastPreedit, "no focus → composition has nowhere to go");
     }
@@ -137,7 +141,7 @@ class ScenePreeditTest extends SceneTestBase {
     void focusLeavingATextWidgetCancelsTheOsComposition() {
         build();
         scene.requestFocus(text);
-        drive(scene).preeditChanged("にほん", new int[]{3}, 0, 3);
+        drive(scene).preeditChanged("にほん", 3, 0, 3);
         drive(scene).inputBatchEnded();
         scene.requestFocus(button);
         assertEquals(1, win.preeditResets,

@@ -1,9 +1,13 @@
 package limn.input;
 
 /**
- * Toolkit key codes and modifier bits. Values are numerically compatible with
- * GLFW so the LWJGL backend maps for free, but these constants are the public
- * contract; application code never touches backend types.
+ * Toolkit key codes and modifier bits.
+ *
+ * <p>A key code names a <b>physical key</b>: a place on the keyboard, named after the key at that
+ * place on a US layout, whatever the active layout prints there. Letters and digits are their ASCII
+ * values ({@code Keys.A} is {@code 'A'}), and the other values happen to be GLFW's, but they are
+ * this toolkit's own: a backend translates its platform's key to these. What the layout prints on
+ * the key is the event's {@code layoutCodePoint}, and a shortcut reads {@code shortcutKey()}.
  */
 public final class Keys {
 
@@ -116,4 +120,43 @@ public final class Keys {
     public static final int MOUSE_LEFT = 0;
     public static final int MOUSE_RIGHT = 1;
     public static final int MOUSE_MIDDLE = 2;
+
+    /**
+     * What a US layout types at a physical key with no modifier held: a letter in lower case, a
+     * digit, or the punctuation printed there; {@code 0} for a key that types nothing.
+     *
+     * @param key a key code
+     * @return the code point, or {@code 0}
+     */
+    public static int usLayoutCodePoint(int key) {
+        if (key >= A && key <= Z) {
+            return Character.toLowerCase(key);
+        }
+        if (key >= NUM_0 && key <= NUM_9 || key == SPACE || key == COMMA || key == MINUS
+                || key == PERIOD || key == SLASH || key == EQUAL) {
+            return key;
+        }
+        return 0;
+    }
+
+    /**
+     * The key a shortcut is read from: the Latin letter or the digit a layout types at a physical
+     * key, as that letter's or digit's key code, and the physical key otherwise.
+     *
+     * @param key             the physical key
+     * @param layoutCodePoint what the layout types there with no modifier held, or {@code 0}
+     * @return a key code
+     */
+    public static int shortcutKeyOf(int key, int layoutCodePoint) {
+        if (layoutCodePoint >= 'a' && layoutCodePoint <= 'z') {
+            return A + (layoutCodePoint - 'a');
+        }
+        if (layoutCodePoint >= 'A' && layoutCodePoint <= 'Z') {
+            return layoutCodePoint;
+        }
+        if (layoutCodePoint >= '0' && layoutCodePoint <= '9') {
+            return layoutCodePoint;
+        }
+        return key;
+    }
 }

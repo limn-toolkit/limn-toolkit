@@ -266,7 +266,7 @@ because a gap that reads as compliant is the one nobody fixes.
 
 | Member | What the calling thread pays | Asynchronous form, or why none |
 | --- | --- | --- |
-| `FileDialogs.openFile`, `openFiles`, `saveFile`, `chooseFolder` | Everything until the user answers: on macOS and Linux a helper process, on Windows an in-process chooser; no frames run meanwhile | **Excused**: a system-modal panel's contract is that the application is unusable while it is up, and the wait is the user's rather than the disk's |
+| `FileDialogs.openFile`, `openFiles`, `saveFile`, `chooseFolder` | Nothing: each returns a `CompletionStage` at once, and the platform's chooser (a sheet on macOS, a dialog on a thread of its own on Windows, the desktop portal on Linux) answers it on the UI thread | **Compliant**: asynchronous, and says which thread the answer lands on |
 
 ## The trap: an asynchronous form the reader cannot find
 

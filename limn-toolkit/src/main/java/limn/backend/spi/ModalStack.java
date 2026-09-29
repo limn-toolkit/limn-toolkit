@@ -1,4 +1,4 @@
-package limn.backend;
+package limn.backend.spi;
 
 import org.jspecify.annotations.Nullable;
 
@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiPredicate;
+import limn.backend.spi.ModalStack;
 
 /**
  * Modality bookkeeping for a backend: a stack of active modals and the decision of whether a

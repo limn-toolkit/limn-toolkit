@@ -8,6 +8,7 @@ import limn.concurrent.Ui;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import static limn.testing.SceneDriver.drive;
+import limn.backend.spi.WindowPeer;
 
 /**
  * Limn UI demo. Scenes: {@code testcard} (shapes, gradients, clip,
@@ -544,7 +545,7 @@ public final class Main {
             } else {
                 fontFallbacksSettled = () -> true;
             }
-            window.setFrameCallback((renderer, frame) -> {
+            WindowPeer.of(window).setFrameCallback((renderer, frame) -> {
                 if (boundScene != null) {
                     // The whole FrameInfo, as Scene.bind forwards it: the re-present flag,
                     // the GPU-time sample and the back buffer's age. Forwarding the fields one by

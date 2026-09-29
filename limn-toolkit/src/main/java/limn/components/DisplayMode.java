@@ -26,7 +26,7 @@ import limn.backend.NativeWindow;
  *       and a non-modal dialog exists so that the window behind it stays usable, which leaves it
  *       no in-scene form to fall back to.</li>
  *   <li><b>Wayland</b>, or any window that cannot be
- *       {@linkplain NativeWindow#supportsAbsolutePositioning() positioned}, where a client cannot
+ *       {@linkplain limn.backend.spi.WindowPeer#supportsAbsolutePositioning() positioned}, where a client cannot
  *       place a toplevel at an anchor. A menu window would open near the middle of the display
  *       wearing whatever frame the compositor puts on toplevels, which is worse than any overlay.
  *       This one holds only for the surfaces anchored inside their owner: a menu, a drop-down

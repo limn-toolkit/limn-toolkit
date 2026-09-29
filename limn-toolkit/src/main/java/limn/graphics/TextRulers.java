@@ -1,6 +1,6 @@
 package limn.graphics;
 
-import limn.backend.Installed;
+import limn.backend.spi.Installed;
 
 /**
  * Process-wide {@link TextRuler} registry, installed by the running backend

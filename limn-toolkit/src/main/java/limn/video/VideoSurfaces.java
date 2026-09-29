@@ -1,6 +1,6 @@
 package limn.video;
 
-import limn.backend.Installed;
+import limn.backend.spi.Installed;
 import limn.concurrent.Ui;
 
 

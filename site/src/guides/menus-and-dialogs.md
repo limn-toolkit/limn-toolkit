@@ -212,17 +212,22 @@ tray keeps running with no window open after
 
 ## Native file dialogs
 
-`Backend.fileDialogs()` gives you the platform's own chooser: the real one, not a
-reimplementation:
+`window.fileDialogs()` gives you the platform's own chooser, owned by that window: the real one,
+not a reimplementation. On macOS it slides down as a sheet from the window, on Windows it is a
+dialog the window owns, and on Linux it is the desktop's chooser through the desktop portal,
+which also works inside a Flatpak or Snap sandbox.
 
 ```java
-Optional<Path> chosen = backend.fileDialogs().openFile(
-        "Open image", lastFolder, FileDialogs.Filter.of("Images", "*.png", "*.jpg"));
+window.fileDialogs()
+        .openFile("Open image", lastFolder, FileDialogs.Filter.of("Images", "*.png", "*.jpg"))
+        .thenAccept(chosen -> chosen.ifPresent(this::load));
 ```
 
-These block the UI thread while they are open, which is what every native application does
-and what users expect. On a headless machine there is no chooser, and every call resolves
-empty, exactly as a cancel does, so your code does not need a special case.
+The call returns at once and the answer arrives later, on the UI thread, so your application
+keeps drawing, animating and running its timers while the user browses. An empty answer means
+cancelled. A window shows one chooser at a time; asking again while one is open answers empty.
+On a headless machine there is no chooser, and every call resolves empty, exactly as a cancel
+does, so your code does not need a special case.
 
 ## Files dropped onto your window
 

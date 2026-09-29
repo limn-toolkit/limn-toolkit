@@ -5,21 +5,24 @@ import limn.backend.Backend;
 import limn.backend.Clipboard;
 import limn.backend.Cursor;
 import limn.backend.Display;
-import limn.backend.FrameCallback;
+import limn.backend.spi.FrameCallback;
 import limn.backend.NativeWindow;
 import limn.backend.Resolution;
 import limn.backend.ScreenRect;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import java.util.List;
+import limn.backend.spi.WindowPeer;
 
 /** A window that is not a window: the scene needs one to bind to, and this probe needs no pixels. */
-public final class ProbeWindow implements NativeWindow {
+public final class ProbeWindow implements WindowPeer {
     // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
     @Override public void setCloseRequestHandler(limn.backend.CloseRequestHandler handler) { }
     @Override public limn.backend.CloseRequestHandler closeRequestHandler() { return null; }
     @Override public void setClosePolicy(limn.backend.ClosePolicy policy) { }
     @Override public limn.backend.ClosePolicy closePolicy() { return limn.backend.ClosePolicy.DISPOSE; }
-    @Override public void setImeEnabled(boolean enabled) { }
+    /** No chooser here: every dialog answers empty, as if cancelled. */
+    @Override public limn.backend.FileDialogs fileDialogs() { return limn.backend.FileDialogs.NONE; }
+    @Override public void setTextInput(limn.backend.spi.TextInput input) { }
     @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
     @Override public void resetPreedit() { }
 

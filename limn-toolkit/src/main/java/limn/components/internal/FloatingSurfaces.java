@@ -1,6 +1,7 @@
 package limn.components.internal;
 
 import limn.backend.NativeWindow;
+import limn.backend.spi.WindowPeer;
 
 /**
  * The rule the surfaces anchored inside their owner, a menu, a drop-down list and a calendar
@@ -40,6 +41,6 @@ public final class FloatingSurfaces {
      * @return whether a window of its own is given there
      */
     public static boolean anchoredWindowAvailable(NativeWindow owner) {
-        return !owner.isFullscreen() && owner.supportsAbsolutePositioning();
+        return !owner.isFullscreen() && WindowPeer.of(owner).supportsAbsolutePositioning();
     }
 }

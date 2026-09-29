@@ -3,14 +3,15 @@ package limn.backend.lwjgl;
 import limn.backend.Backend;
 import limn.backend.Clipboard;
 import limn.backend.Cursor;
-import limn.backend.FrameCallback;
+import limn.backend.spi.FrameCallback;
 import limn.backend.NativeWindow;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import limn.backend.spi.WindowPeer;
 
 /**
  * The owner-to-popup bookkeeping, driven with fake windows so it needs no GLFW.
@@ -22,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ChildPopupsTest {
 
     /** A window that only knows where it is, whether it is closed, and how to be moved. */
-    private static final class FakeWindow implements NativeWindow {
+    private static final class FakeWindow implements WindowPeer {
         // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
         @Override public boolean supportsAbsolutePositioning() { return true; }
         @Override public void setCloseRequestHandler(limn.backend.CloseRequestHandler handler) { }
@@ -92,7 +93,9 @@ class ChildPopupsTest {
         @Override public void setImageCursor(limn.backend.ImageCursor value) { }
         @Override public void setPointerMode(limn.backend.PointerMode mode) { }
         @Override public limn.backend.PointerMode pointerMode() { return limn.backend.PointerMode.NORMAL; }
-        @Override public void setImeEnabled(boolean enabled) { }
+        /** No chooser here: every dialog answers empty, as if cancelled. */
+        @Override public limn.backend.FileDialogs fileDialogs() { return limn.backend.FileDialogs.NONE; }
+        @Override public void setTextInput(limn.backend.spi.TextInput input) { }
         @Override public void setPreeditCaretRect(float px, float py, float w, float h) { }
         @Override public void resetPreedit() { }
     }
@@ -102,8 +105,8 @@ class ChildPopupsTest {
         ChildPopups popups = new ChildPopups();
         FakeWindow dropdown = new FakeWindow(120, 300);
         FakeWindow menu = new FakeWindow(400, 180);
-        popups.add(dropdown, NativeWindow.PopupKind.TRANSIENT);
-        popups.add(menu, NativeWindow.PopupKind.TRANSIENT);
+        popups.add(dropdown, WindowPeer.PopupKind.TRANSIENT);
+        popups.add(menu, WindowPeer.PopupKind.TRANSIENT);
 
         popups.moveBy(-40, 25); // the owner was dragged left and down
 
@@ -119,7 +122,7 @@ class ChildPopupsTest {
         // placement. Re-positioning a window costs a round trip to the compositor.
         ChildPopups popups = new ChildPopups();
         FakeWindow dropdown = new FakeWindow(10, 10);
-        popups.add(dropdown, NativeWindow.PopupKind.TRANSIENT);
+        popups.add(dropdown, WindowPeer.PopupKind.TRANSIENT);
 
         popups.moveBy(0, 0);
 
@@ -133,8 +136,8 @@ class ChildPopupsTest {
         ChildPopups popups = new ChildPopups();
         FakeWindow dying = new FakeWindow(10, 10);
         FakeWindow live = new FakeWindow(50, 50);
-        popups.add(dying, NativeWindow.PopupKind.TRANSIENT);
-        popups.add(live, NativeWindow.PopupKind.TRANSIENT);
+        popups.add(dying, WindowPeer.PopupKind.TRANSIENT);
+        popups.add(live, WindowPeer.PopupKind.TRANSIENT);
         dying.close();
 
         popups.moveBy(5, 5);
@@ -151,7 +154,7 @@ class ChildPopupsTest {
         FakeWindow menu = new FakeWindow(200, 200);
         FakeWindow submenu = new FakeWindow(340, 240);
         menu.follower = submenu;
-        popups.add(menu, NativeWindow.PopupKind.TRANSIENT);
+        popups.add(menu, WindowPeer.PopupKind.TRANSIENT);
 
         popups.moveBy(-100, 0);
 
@@ -164,7 +167,7 @@ class ChildPopupsTest {
     void aPopupUnregisteredBeforeTheMoveStaysWhereItIs() {
         ChildPopups popups = new ChildPopups();
         FakeWindow gone = new FakeWindow(10, 10);
-        popups.add(gone, NativeWindow.PopupKind.TRANSIENT);
+        popups.add(gone, WindowPeer.PopupKind.TRANSIENT);
         popups.remove(gone);
 
         popups.moveBy(30, 30);
@@ -180,8 +183,8 @@ class ChildPopupsTest {
         ChildPopups popups = new ChildPopups();
         FakeWindow dropdown = new FakeWindow(0, 0);
         FakeWindow menu = new FakeWindow(0, 0);
-        popups.add(dropdown, NativeWindow.PopupKind.TRANSIENT);
-        popups.add(menu, NativeWindow.PopupKind.TRANSIENT);
+        popups.add(dropdown, WindowPeer.PopupKind.TRANSIENT);
+        popups.add(menu, WindowPeer.PopupKind.TRANSIENT);
 
         popups.closeAll();
 

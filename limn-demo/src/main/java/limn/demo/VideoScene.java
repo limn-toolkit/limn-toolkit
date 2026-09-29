@@ -295,16 +295,17 @@ final class VideoScene {
 
     /**
      * The platform's chooser, or a sentence in {@code caption} when there is no native window to
-     * put one over, which is every headless and screenshot run, where a dialog that blocked the UI
-     * thread waiting for a click nobody can make would hang the capture.
+     * put one over, which is every headless and screenshot run, where a chooser waiting for a click
+     * nobody can make would leave the capture waiting too.
      */
-    private static java.util.Optional<Path> pick(Widget<?> host, Label caption) {
+    private static java.util.concurrent.CompletionStage<java.util.Optional<Path>> pick(Widget<?> host,
+                                                                                        Label caption) {
         Scene scene = host.scene();
         if (scene == null || scene.window() == null) {
             caption.setText("No native window: the platform's file chooser is unavailable here.");
-            return java.util.Optional.empty();
+            return java.util.concurrent.CompletableFuture.completedFuture(java.util.Optional.empty());
         }
-        return scene.window().backend().fileDialogs().openFile("Open a video", null, PLAYABLE);
+        return scene.window().fileDialogs().openFile("Open a video", null, PLAYABLE);
     }
 
     /**
@@ -383,17 +384,16 @@ final class VideoScene {
         int[] box = windowBox(view, parent);
         NativeWindow window = parent.backend().createWindow(WindowConfig.of(
                 file.getFileName().toString(), box[0], box[1])
-                .visible(false) /* shown below, after binding; resizable, the point of this */);
+                .visible(false) /* shown below, after binding; resizable, the point of this */
+                .ownedBy(parent) /* never outlives the application window */);
         // A picture has an aspect ratio but no minimum; this one is the transport's, below which
         // the bar and the button overlap each other rather than the window refusing to shrink.
         window.setSizeLimits(240, 135, -1, -1);
-        parent.registerChildPopup(window); // never outlives the application window
         scene.bind(window);
         window.setCloseRequestHandler(request -> {
             view.setPlayer(null);
             view.setSource(null);
             open.closeAll(); // the player first, then the stream it was reading
-            parent.unregisterChildPopup(window);
             request.allow();
         });
         window.show();
@@ -2218,19 +2218,19 @@ final class VideoScene {
         // switch work on it with no special case anywhere.
         Button openFile = new Button("Open…").setSecondary(true);
         openFile.setTooltip("Play a file from this machine through the installed decoders");
-        openFile.onAction(() -> pick(openFile, caption).ifPresent(file -> {
+        openFile.onAction(() -> pick(openFile, caption).thenAccept(picked -> picked.ifPresent(file -> {
             current[0] = ownFile(file);
             caption.setText(current[0].caption());
             play(pane, view, facts, open, current[0], sound[0]);
-        }));
+        })));
 
         // The same file, in a window of its own with nothing else in it, which is the shape a
         // player actually is, and the one thing a tab cannot show: a resizable window whose whole
         // content is the picture.
         Button openWindow = new Button("Open in window…").setSecondary(true);
         openWindow.setTooltip("Play a file in a resizable window of its own");
-        openWindow.onAction(() -> pick(openWindow, caption).ifPresent(file ->
-                openInOwnWindow(openWindow.scene().window(), file, sound[0], caption)));
+        openWindow.onAction(() -> pick(openWindow, caption).thenAccept(picked -> picked.ifPresent(file ->
+                openInOwnWindow(openWindow.scene().window(), file, sound[0], caption))));
 
         // In a row rather than in the stretched column, which would blow the picture up to the
         // panel's width and letterbox it against its own aspect ratio.

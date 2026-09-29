@@ -57,9 +57,8 @@ public final class ThemeEditorFiles {
     }
 
     /**
-     * Asks for a palette file and loads it into {@code editor}. The chooser blocks; the
-     * read does not. A cancelled chooser does nothing at all, silently, which is what
-     * cancelling means.
+     * Asks for a palette file and loads it into {@code editor}. Neither the chooser nor the read
+     * blocks. A cancelled chooser does nothing at all, silently, which is what cancelling means.
      */
     public static void open(ThemeEditor editor) {
         Ui.checkUiThread();
@@ -68,11 +67,11 @@ public final class ThemeEditorFiles {
         if (dialogs == null) {
             return;
         }
-        Optional<Path> chosen = dialogs.openFile(ThemeEditorStrings.OPEN.get(), null, filter());
-        if (chosen.isEmpty()) {
-            return;
-        }
-        Path path = chosen.get();
+        dialogs.openFile(ThemeEditorStrings.OPEN.get(), null, filter())
+                .thenAccept(chosen -> chosen.ifPresent(path -> load(editor, path)));
+    }
+
+    private static void load(ThemeEditor editor, Path path) {
         Ui.<Theme>work(progress -> ThemeFormat.load(path))
                 .deliverIf(editor::isShowing)
                 .onSuccess(theme -> {
@@ -101,13 +100,12 @@ public final class ThemeEditorFiles {
             return;
         }
         Theme theme = editor.theme();
-        Optional<Path> chosen = dialogs.saveFile(ThemeEditorStrings.SAVE.get(),
-                Path.of(fileNameFor(theme)), filter());
-        if (chosen.isEmpty()) {
-            return;
-        }
+        dialogs.saveFile(ThemeEditorStrings.SAVE.get(), Path.of(fileNameFor(theme)), filter())
+                .thenAccept(chosen -> chosen.ifPresent(path -> write(editor, theme, path)));
+    }
+
+    private static void write(ThemeEditor editor, Theme theme, Path path) {
         String text = ThemeFormat.write(theme);
-        Path path = chosen.get();
         Ui.<Path>work(progress -> {
             Files.writeString(path, text, StandardCharsets.UTF_8);
             return path;
@@ -151,7 +149,7 @@ public final class ThemeEditorFiles {
             editor.setStatus(ThemeEditorStrings.NO_FILE_DIALOGS);
             return null;
         }
-        return scene.window().backend().fileDialogs();
+        return scene.window().fileDialogs();
     }
 
     /** The sentence a user should see, not the stack the exception came wrapped in. */

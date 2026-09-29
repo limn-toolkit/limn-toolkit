@@ -24,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static limn.testing.SceneDriver.drive;
+import limn.backend.spi.WindowPeer;
+import limn.backend.spi.BackendPeer;
 
 /**
  * Dialog resolution logic driven headlessly through its panel
@@ -1047,7 +1049,7 @@ class DialogTest extends ComponentTestBase {
      * promoted to a native window has something to be created by. Everything else
      * is the smallest answer that keeps a presentation from touching an OS.
      */
-    private static final class BlockedWindow implements limn.backend.NativeWindow, limn.backend.Backend {
+    private static final class BlockedWindow implements WindowPeer, BackendPeer {
         // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
         @Override public boolean supportsAbsolutePositioning() { return canPosition; }
         /** What {@link #supportsAbsolutePositioning()} answers; {@code false} reproduces Wayland. */
@@ -1058,7 +1060,9 @@ class DialogTest extends ComponentTestBase {
         @Override public limn.backend.CloseRequestHandler closeRequestHandler() { return null; }
         @Override public void setClosePolicy(limn.backend.ClosePolicy policy) { }
         @Override public limn.backend.ClosePolicy closePolicy() { return limn.backend.ClosePolicy.DISPOSE; }
-        @Override public void setImeEnabled(boolean enabled) { }
+        /** No chooser here: every dialog answers empty, as if cancelled. */
+        @Override public limn.backend.FileDialogs fileDialogs() { return limn.backend.FileDialogs.NONE; }
+        @Override public void setTextInput(limn.backend.spi.TextInput input) { }
         @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
         @Override public void resetPreedit() { }
         private final boolean blocked;
@@ -1102,8 +1106,13 @@ class DialogTest extends ComponentTestBase {
 
         // The promoted dialog's own window: never blocked, so it cannot recurse.
         // Born at the size it was asked for, which is what makes a refit visible.
-        @Override public limn.backend.NativeWindow createWindow(limn.backend.WindowConfig config) {
-            return new BlockedWindow(false, config.width(), config.height());
+        @Override public WindowPeer createWindow(limn.backend.WindowConfig config) {
+            BlockedWindow made = new BlockedWindow(false, config.width(), config.height());
+            if (config.owner() != null) { // owned from creation, as every backend registers it
+                WindowPeer.of(config.owner()).registerChildPopup(made, config.isPopup()
+                        ? WindowPeer.PopupKind.TRANSIENT : WindowPeer.PopupKind.OWNED_WINDOW);
+            }
+            return made;
         }
 
         @Override public void pushModal(limn.backend.NativeWindow modal, limn.backend.NativeWindow parent) { }
@@ -1134,9 +1143,9 @@ class DialogTest extends ComponentTestBase {
 
         @Override public void requestFrame() { }
 
-        @Override public void setFrameCallback(limn.backend.FrameCallback callback) { }
+        @Override public void setFrameCallback(limn.backend.spi.FrameCallback callback) { }
 
-        @Override public void setInput(limn.backend.WindowInput input) { }
+        @Override public void setInput(limn.backend.spi.WindowInput input) { }
 
         @Override public String title() {
             return "";

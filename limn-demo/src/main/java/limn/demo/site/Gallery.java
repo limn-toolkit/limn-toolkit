@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import static limn.testing.SceneDriver.drive;
+import limn.backend.spi.WindowPeer;
 
 /**
  * Renders every gallery entry twice (once in {@code Limn}, once in {@code Limn Light})
@@ -792,7 +793,7 @@ public final class Gallery {
 
         private void installCallback() {
             NativeWindow owner = window;
-            window.setFrameCallback((renderer, frame) -> {
+            WindowPeer.of(window).setFrameCallback((renderer, frame) -> {
                 // Only the current shot's window may run this body. The other window
                 // keeps the callback from ITS last shot, and leaked timers from scenes
                 // bound there keep delivering late frames for minutes; a body that ran

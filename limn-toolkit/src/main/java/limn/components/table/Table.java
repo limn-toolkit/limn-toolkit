@@ -3433,7 +3433,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             onHeaderKeyEvent(event, mods, rtl);
             return;
         }
-        switch (event.key()) {
+        switch (event.shortcutKey()) {
             case Keys.DOWN -> consumeAnd(event, () -> moveFocusRow(
                     focusRow < 0 ? anchorIndex : focusRow + 1, mods));
             case Keys.UP -> consumeAnd(event, () -> moveFocusRow(

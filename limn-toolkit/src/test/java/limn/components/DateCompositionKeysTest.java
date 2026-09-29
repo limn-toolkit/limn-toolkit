@@ -160,8 +160,8 @@ class DateCompositionKeysTest extends ComponentTestBase {
     }
 
     private static void preedit(Fixture f, String text) {
-        drive(f.scene).preeditChanged(text, text.isEmpty() ? new int[0] : new int[] {1},
-                text.isEmpty() ? -1 : 0, text.codePointCount(0, text.length()));
+        drive(f.scene).preeditChanged(text, text.codePointCount(0, text.length()), 0,
+                text.isEmpty() ? 0 : 1);
         drive(f.scene).inputBatchEnded();
     }
 

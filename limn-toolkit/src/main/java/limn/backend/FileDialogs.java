@@ -6,53 +6,25 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 /**
- * Native system file/folder dialogs, obtained via {@link Backend#fileDialogs()}.
- * Each call opens the <em>platform's</em> chooser and blocks the UI thread until
- * the user picks or cancels (system-modal, like every native app). UI thread
- * only. Headless/embedded backends return {@link #NONE}, whose dialogs resolve
- * empty; callers must treat "empty" as "cancelled" and need no headless branch.
+ * The platform's own file and folder choosers, owned by a window: {@link NativeWindow#fileDialogs()}.
+ * Each call opens the chooser tied to that window (a sheet on macOS, a dialog owned by it on
+ * Windows, the desktop portal's chooser parented to it on Linux) and returns at once; the answer
+ * completes the returned stage on the UI thread when the user picks or cancels. The application
+ * keeps running meanwhile: its windows draw, animations advance, timers fire. UI thread only.
  *
- * <p><b>The application stops while the panel is up, and the first call is
- * dearer than the rest.</b> On macOS and Linux the chooser is not drawn by this
- * process at all: a command goes to a helper program ({@code osascript} on
- * macOS, zenity or kdialog on Linux) and one line of its output is the answer.
- * So while the panel is open, this process runs no frames: its windows keep
- * showing the frame presented just before the call, animations do not advance,
- * and no timer or posted task runs until the user is done. That last frame is
- * drawn immediately before blocking, so what stays on screen reflects whatever
- * the calling handler already changed: a button that renders released, not one
- * frozen mid-press. Starting the helper costs tens of milliseconds on every
- * call, and the first call in a process pays a further one-off setup (on the
- * order of a quarter of a second) before any panel appears. A caller that
- * cannot afford that pause on a click, such as a game loop or a video that must
- * keep playing, should not open a file dialog from one. On Windows the chooser
- * runs inside this process instead, on the calling thread, so its own message
- * loop can still service window repaints there; the thread is unavailable to
- * the toolkit either way.
+ * <p>An empty answer means cancelled, and is also what a headless or embedded backend answers
+ * ({@link #NONE}), so a caller needs no headless branch.
  *
- * <p><b>No asynchronous form, and none would be right.</b> A system-modal
- * panel's whole contract is that the application is unusable while it is up, so
- * a chooser opened from a worker would leave this process drawing frames and
- * taking clicks behind a panel the platform believes is blocking them. What is
- * being waited for is the user, not a disk, so there is no work here to move
- * off the thread, only a pause to keep off a click that cannot afford one.
+ * <p><b>One at a time per window.</b> A window shows one chooser, as the platforms do; a request
+ * made while one is open on the same window completes empty at once.
  *
- * <p><b>One at a time.</b> The chooser is not reentrant, and a second one opened
- * before the first returns is undefined. This is reachable only through code
- * that runs while the call is on the stack, which is why the Windows difference
- * above is worth knowing.
- *
- * <p>These are the platform's own panels, so how they look, where they appear,
- * and which shortcuts and sidebar places they offer are the platform's to
- * decide, not the toolkit theme's, and not this API's.
- *
- * <p><b>Title and initial path are bounded on macOS and Linux.</b> There the
- * helper's command line has a fixed size, so a title and an initial path that
- * would not fit it together are shortened before the call: the path is dropped
- * in favour of the panel's own default folder first, and only a title too long
- * on its own is cut. A few hundred bytes between them always fit.
+ * <p>These are the platform's own panels, so how they look, where they appear, and which shortcuts
+ * and sidebar places they offer are the platform's to decide, not the toolkit theme's, and not this
+ * API's.
  */
 public interface FileDialogs {
 
@@ -84,46 +56,58 @@ public interface FileDialogs {
      * Asks for one existing file to open.
      *
      * @param title   dialog title
-     * @param initial initial path (a directory, or a file to preselect); null for the platform default
-     * @param filter  name filter, or null for all files
-     * @return the chosen file, or empty if cancelled
+     * @param initial initial path (a directory, or a file to preselect); {@code null} for the
+     *                platform's default
+     * @param filter  name filter, or {@code null} for all files
+     * @return the chosen file, or empty if cancelled, on the UI thread
      */
-    Optional<Path> openFile(String title, @Nullable Path initial, @Nullable Filter filter);
-
-    /** Like {@link #openFile} allowing multiple selection; empty list if cancelled. */
-    List<Path> openFiles(String title, Path initial, Filter filter);
+    CompletionStage<Optional<Path>> openFile(String title, @Nullable Path initial, @Nullable Filter filter);
 
     /**
-     * Asks for a destination file to save to (the platform dialog handles the
-     * overwrite confirmation).
+     * Like {@link #openFile} allowing several files.
      *
-     * @return the chosen destination, or empty if cancelled
+     * @return the chosen files, or an empty list if cancelled, on the UI thread
      */
-    Optional<Path> saveFile(String title, Path initial, Filter filter);
+    CompletionStage<List<Path>> openFiles(String title, @Nullable Path initial, @Nullable Filter filter);
 
-    /** Asks for an existing directory. @return the chosen folder, or empty if cancelled */
-    Optional<Path> chooseFolder(String title, Path initial);
+    /**
+     * Asks for a destination file to save to; the platform's chooser asks about overwriting.
+     *
+     * @param initial a directory, or a file name or path to suggest; {@code null} for the default
+     * @return the chosen destination, or empty if cancelled, on the UI thread
+     */
+    CompletionStage<Optional<Path>> saveFile(String title, @Nullable Path initial, @Nullable Filter filter);
 
-    /** Headless/embedded implementation: every dialog resolves empty (as if cancelled). */
+    /**
+     * Asks for an existing folder.
+     *
+     * @return the chosen folder, or empty if cancelled, on the UI thread
+     */
+    CompletionStage<Optional<Path>> chooseFolder(String title, @Nullable Path initial);
+
+    /** Headless/embedded implementation: every dialog resolves empty at once, as if cancelled. */
     FileDialogs NONE = new FileDialogs() {
         @Override
-        public Optional<Path> openFile(String title, Path initial, Filter filter) {
-            return Optional.empty();
+        public CompletionStage<Optional<Path>> openFile(String title, @Nullable Path initial,
+                                                        @Nullable Filter filter) {
+            return CompletableFuture.completedFuture(Optional.empty());
         }
 
         @Override
-        public List<Path> openFiles(String title, Path initial, Filter filter) {
-            return List.of();
+        public CompletionStage<List<Path>> openFiles(String title, @Nullable Path initial,
+                                                     @Nullable Filter filter) {
+            return CompletableFuture.completedFuture(List.of());
         }
 
         @Override
-        public Optional<Path> saveFile(String title, Path initial, Filter filter) {
-            return Optional.empty();
+        public CompletionStage<Optional<Path>> saveFile(String title, @Nullable Path initial,
+                                                        @Nullable Filter filter) {
+            return CompletableFuture.completedFuture(Optional.empty());
         }
 
         @Override
-        public Optional<Path> chooseFolder(String title, Path initial) {
-            return Optional.empty();
+        public CompletionStage<Optional<Path>> chooseFolder(String title, @Nullable Path initial) {
+            return CompletableFuture.completedFuture(Optional.empty());
         }
     };
 }

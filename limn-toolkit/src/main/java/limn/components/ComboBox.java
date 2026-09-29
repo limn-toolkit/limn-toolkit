@@ -36,6 +36,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.IntConsumer;
+import limn.backend.spi.WindowPeer;
 
 /**
  * Dropdown selector. The popup is a real native window: undecorated,
@@ -54,7 +55,7 @@ import java.util.function.IntConsumer;
  * open/highlight/commit state machine without a native window.
  *
  * <p><b>In-scene fallback.</b> Where the window reports no
- * {@link limn.backend.NativeWindow#supportsAbsolutePositioning()} (Wayland), a list in a window of
+ * {@link limn.backend.spi.WindowPeer#supportsAbsolutePositioning()} (Wayland), a list in a window of
  * its own would open somewhere other than under the field, and over a
  * {@linkplain limn.backend.NativeWindow#isFullscreen() fullscreen} window it would minimize an
  * owner fullscreen at a named mode at the first click, while one at the mode the display is in
@@ -441,7 +442,7 @@ public final class ComboBox extends Widget<ComboBox> {
             }
             Runnable destroy = () -> {
                 if (parent != null && !parent.isClosed()) {
-                    parent.unregisterChildPopup(closing);
+                    WindowPeer.of(parent).unregisterChildPopup(closing);
                 }
                 closing.requestClose();
             };
@@ -595,7 +596,6 @@ public final class ComboBox extends Widget<ComboBox> {
         SizeTokens t = Theme.of(this).tokensFor(this);
         float gap = t.popupGap();
         float factor = parent.logicalToScreenFactor();
-        int screenX = parent.screenX() + Math.round(localToSceneX() * factor);
         int anchorTop = parent.screenY() + Math.round(localToSceneY() * factor);
         int anchorBottom = parent.screenY() + Math.round((localToSceneY() + height() + gap) * factor);
 
@@ -612,11 +612,13 @@ public final class ComboBox extends Widget<ComboBox> {
 
         int popupWidth = Math.max(1, Math.round(width()));
         int popupHeight = Math.max(1, Math.round(drop.height()));
-        int screenY = drop.above()
-                ? anchorTop - Math.round(gap * factor) - Math.round(drop.height() * factor)
-                : anchorBottom;
-        popupWindow = parent.backend().createWindow(WindowConfig.popup(popupWidth, popupHeight));
-        parent.registerChildPopup(popupWindow); // parent close ⇒ popup close
+        // Placed against the field in the owner's own points, and owned from creation: the parent
+        // closing closes the list, and a platform that places a child against its parent can.
+        float ownerY = drop.above()
+                ? localToSceneY() - gap - drop.height()
+                : localToSceneY() + height() + gap;
+        popupWindow = parent.backend().createWindow(WindowConfig.popup(parent, popupWidth, popupHeight)
+                .atInOwner(localToSceneX(), ownerY));
         popupStep = controlSize();
         popupRtl = isRightToLeft();
 
@@ -638,7 +640,6 @@ public final class ComboBox extends Widget<ComboBox> {
         popupBlurHandle = popupScene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
         popupScene.setBackground(Color.TRANSPARENT); // the translucent-window core
 
-        popupWindow.setScreenPosition(screenX, screenY);
         // Screenshot mode keeps everything hidden; interactive mode shows the
         // popup without stealing focus (WindowConfig.popup → focusOnShow=false).
         if (parent.isVisible()) {

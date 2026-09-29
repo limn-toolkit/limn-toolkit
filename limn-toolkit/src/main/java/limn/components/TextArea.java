@@ -2093,7 +2093,7 @@ public final class TextArea extends Widget<TextArea> {
                 ? caretRect() : null;
         float scrollXWas = scrollX;
         float scrollYWas = scrollY;
-        switch (event.key()) {
+        switch (event.shortcutKey()) {
             // Left/Right are VISUAL and Ctrl/Alt+Left/Right are LOGICAL, so in right-to-left text
             // the two move the caret in OPPOSITE directions. That is deliberate, it is what
             // Windows and GTK do, and it is forced: deleteWordBackward has to remove a contiguous
@@ -2349,21 +2349,18 @@ public final class TextArea extends Widget<TextArea> {
         event.consume();
     }
 
-    /** Resolves the focused block's code-point range to a char range within the preedit. */
+    /** Resolves the target's code-point range to a char range within the preedit. */
     private void computeFocusedBlock(PreeditEvent event) {
         preeditFocusStart = 0;
         preeditFocusEnd = 0;
-        int[] blocks = event.blockSizes();
-        int focused = event.focusedBlock();
-        if (focused < 0 || focused >= blocks.length) {
+        int count = preedit.codePointCount(0, preedit.length());
+        int start = event.targetStart();
+        int end = start + event.targetLength();
+        if (event.targetLength() <= 0 || start < 0 || end > count) {
             return;
         }
-        int cpStart = 0;
-        for (int i = 0; i < focused; i++) {
-            cpStart += blocks[i];
-        }
-        preeditFocusStart = CodePoints.charIndex(preedit, cpStart);
-        preeditFocusEnd = CodePoints.charIndex(preedit, cpStart + blocks[focused]);
+        preeditFocusStart = CodePoints.charIndex(preedit, start);
+        preeditFocusEnd = CodePoints.charIndex(preedit, end);
     }
 
 

@@ -1,8 +1,13 @@
 # ADR 022: A file chooser is another program, so the frame before it is the one that matters
 
-- **Status:** Accepted, 2026-08-06. The two movable parts are implemented in
-  `LwjglBackend.presentBeforeBlocking` and `TinyFdDialogs.warmNative`; §6 is explicitly *not*
-  decided.
+- **Status:** Accepted, 2026-08-06; **superseded for macOS and Windows, and for Linux wherever a
+  desktop portal answers, in theme 0.11 (2026-09-29).** The owner chose asynchronous choosers owned
+  by a window, with the platform's own implementation: an `NSOpenPanel` or `NSSavePanel` sheet on
+  macOS, an `IFileDialog` on a thread of its own on Windows, and the XDG desktop portal on Linux.
+  §6's open question is answered by that: the application keeps running while a chooser is up. What
+  this record says still holds for the one place tinyfd remains, Linux on a desktop with no portal,
+  where the chooser is another program again. The two movable parts are implemented in
+  `LwjglBackend.presentBeforeBlocking` and `TinyFdDialogs.warmNative`.
 - **Date:** 2026-08-06
 - **Scope:** what actually happens when application code calls `FileDialogs`, what that costs, which
   parts of the cost can be moved and which cannot, and what an asynchronous form would first have to

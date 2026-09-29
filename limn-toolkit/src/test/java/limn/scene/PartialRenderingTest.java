@@ -684,15 +684,15 @@ class PartialRenderingTest extends SceneTestBase {
         frame(); // history settled
         top.invalidate();
         canvas.reset();
-        scene.renderFrame(canvas, new limn.backend.FrameInfo(400, 300, 1f, false, Float.NaN, 1));
+        scene.renderFrame(canvas, new limn.backend.spi.FrameInfo(400, 300, 1f, false, Float.NaN, 1));
         bottom.invalidate();
         canvas.reset();
-        scene.renderFrame(canvas, new limn.backend.FrameInfo(400, 300, 1f, false, Float.NaN, 3));
+        scene.renderFrame(canvas, new limn.backend.spi.FrameInfo(400, 300, 1f, false, Float.NaN, 3));
         assertTrue(coveredBy(canvas.clips, expectedDamage(top)) && coveredBy(canvas.clips, expectedDamage(bottom)),
                 "age 3 from the FrameInfo repaints two presents back: " + canvas.clips);
         bottom.invalidate();
         canvas.reset();
-        scene.renderFrame(canvas, new limn.backend.FrameInfo(400, 300, 1f, false, Float.NaN, 0));
+        scene.renderFrame(canvas, new limn.backend.spi.FrameInfo(400, 300, 1f, false, Float.NaN, 0));
         assertTrue(canvas.fullFramePainted(), "age 0 from the FrameInfo repaints the window");
     }
 

@@ -86,7 +86,7 @@ class SoftwareGlExitTest {
             }
             try (backend) {
                 NativeWindow main = backend.createWindow(WindowConfig.of("main", 200, 120));
-                NativeWindow popup = backend.createWindow(WindowConfig.popup(120, 80));
+                NativeWindow popup = backend.createWindow(WindowConfig.popup(main, 120, 80));
                 System.out.println("renderer=" + backend.graphicsInfo().renderer());
                 main.show();
                 popup.show();

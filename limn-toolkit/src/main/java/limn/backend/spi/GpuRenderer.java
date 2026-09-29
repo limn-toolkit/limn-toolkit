@@ -1,4 +1,4 @@
-package limn.backend;
+package limn.backend.spi;
 
 import limn.graphics.Canvas;
 import limn.graphics.Color;
@@ -8,6 +8,8 @@ import limn.graphics.Images;
 
 import java.nio.file.Path;
 import java.util.function.Consumer;
+import limn.backend.spi.FrameCallback;
+import limn.backend.spi.GpuRenderer;
 
 /**
  * GPU rendering entry point for one window. Hands out the high-level

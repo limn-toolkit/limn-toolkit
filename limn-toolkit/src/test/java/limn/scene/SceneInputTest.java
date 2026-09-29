@@ -412,11 +412,12 @@ class SceneInputTest extends SceneTestBase {
     @Test
     void droppedFilesDispatchToTheWidgetUnderThePointer() {
         buildScene(null);
-        drive(scene).mouseMoved(10, 150); // the platform moves the cursor onto the window before dropping
+        drive(scene).mouseMoved(10, 10); // elsewhere: the drop says where it landed
         drive(scene).inputBatchEnded();
         log.clear();
 
-        drive(scene).filesDropped(List.of(java.nio.file.Path.of("a.txt"), java.nio.file.Path.of("b.png")));
+        drive(scene).filesDropped(List.of(java.nio.file.Path.of("a.txt"), java.nio.file.Path.of("b.png")),
+                10, 150);
         drive(scene).inputBatchEnded();
 
         assertEquals(List.of("b:DROP2"), log, "the drop bubbles from the widget under the pointer");

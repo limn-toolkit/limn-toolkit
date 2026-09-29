@@ -14,20 +14,17 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Native file/folder dialogs via tinyfiledialogs (bundled with LWJGL; no AWT):
- * the platform's own chooser on Windows, macOS and Linux (zenity/kdialog).
- * Calls block the UI thread while the system dialog is open (system-modal,
- * exactly like any native application's file chooser).
+ * The fallback chooser, through tinyfiledialogs (bundled with LWJGL; no AWT): what a window's
+ * dialogs use on Linux when no desktop portal answers, as on a desktop that runs none. There it
+ * runs zenity, kdialog, yad or Xdialog as another program and reads one line back, and the call
+ * blocks the UI thread until the user is done, which is why every entry point presents first. The
+ * platforms' own choosers ({@link MacFileDialogs}, {@link WindowsFileDialogs} and the portal's) are
+ * what every other case uses, and none of them blocks.
  *
- * <p>Only on Windows is the chooser ours: there tinyfd calls a Win32 common
- * dialog, which pumps its own message loop on this thread. On macOS it writes
- * an AppleScript {@code choose file} command and reads one line back from a
- * child {@code osascript}; on Linux it runs zenity, kdialog, yad or Xdialog the
- * same way. On both, the panel belongs to another process; nothing here can
- * reach into it, and while it is up this process draws nothing at all, which is
- * why every entry point presents first.
+ * <p>The macOS half of this class, which translated patterns for tinyfd's osascript command, is no
+ * longer reached: a Mac uses its own panels.
  */
-final class TinyFdDialogs implements FileDialogs {
+final class TinyFdDialogs {
 
     private static final System.Logger LOG = System.getLogger(TinyFdDialogs.class.getName());
 
@@ -55,7 +52,7 @@ final class TinyFdDialogs implements FileDialogs {
      * not describe this as pre-warming the dialog.
      */
     static void warmNative() {
-        if (!limn.concurrent.Ui.isInstalled()) {
+        if (!limn.backend.Platform.current().isLinux() || !limn.concurrent.Ui.isInstalled()) {
             return;
         }
         limn.concurrent.Ui.async(() -> TinyFileDialogs.tinyfd_getGlobalChar("tinyfd_version"))
@@ -85,8 +82,7 @@ final class TinyFdDialogs implements FileDialogs {
         backend.presentBeforeBlocking();
     }
 
-    @Override
-    public Optional<Path> openFile(String title, Path initial, Filter filter) {
+    Optional<Path> openFile(String title, Path initial, FileDialogs.Filter filter) {
         beforeBlockingCall();
         try (MemoryStack stack = MemoryStack.stackPush()) {
             MacFilterPatterns.Bounded in = bound(title, initial);
@@ -97,8 +93,7 @@ final class TinyFdDialogs implements FileDialogs {
         }
     }
 
-    @Override
-    public List<Path> openFiles(String title, Path initial, Filter filter) {
+    List<Path> openFiles(String title, Path initial, FileDialogs.Filter filter) {
         beforeBlockingCall();
         try (MemoryStack stack = MemoryStack.stackPush()) {
             MacFilterPatterns.Bounded in = bound(title, initial);
@@ -116,8 +111,7 @@ final class TinyFdDialogs implements FileDialogs {
         }
     }
 
-    @Override
-    public Optional<Path> saveFile(String title, Path initial, Filter filter) {
+    Optional<Path> saveFile(String title, Path initial, FileDialogs.Filter filter) {
         beforeBlockingCall();
         try (MemoryStack stack = MemoryStack.stackPush()) {
             MacFilterPatterns.Bounded in = bound(title, initial);
@@ -127,8 +121,7 @@ final class TinyFdDialogs implements FileDialogs {
         }
     }
 
-    @Override
-    public Optional<Path> chooseFolder(String title, Path initial) {
+    Optional<Path> chooseFolder(String title, Path initial) {
         beforeBlockingCall();
         MacFilterPatterns.Bounded in = bound(title, initial);
         String picked = TinyFileDialogs.tinyfd_selectFolderDialog(in.title(), in.location());
@@ -161,7 +154,7 @@ final class TinyFdDialogs implements FileDialogs {
                 : text;
     }
 
-    private static PointerBuffer patterns(MemoryStack stack, Filter filter,
+    private static PointerBuffer patterns(MemoryStack stack, FileDialogs.Filter filter,
                                           MacFilterPatterns.Bounded in) {
         if (filter == null || filter.patterns().isEmpty()) {
             return null;
@@ -187,7 +180,7 @@ final class TinyFdDialogs implements FileDialogs {
         return buffer.flip();
     }
 
-    private static String description(Filter filter) {
+    private static String description(FileDialogs.Filter filter) {
         return filter == null ? null : filter.description();
     }
 }

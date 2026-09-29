@@ -629,7 +629,7 @@ class TextFieldTest extends ComponentTestBase {
         ShapeRecorder ruler = buildRecording();
         field.setText("ab");
         field.model().setCursor(1, false);
-        drive(scene).preeditChanged("XY", new int[]{2}, 0, 2);
+        drive(scene).preeditChanged("XY", 2, 0, 2);
         drive(scene).inputBatchEnded();
         scene.renderFrame(new FakeCanvas(240, 32));
 
@@ -647,7 +647,7 @@ class TextFieldTest extends ComponentTestBase {
         build();
         field.setText("ab");
         field.model().setCursor(1, false);
-        drive(scene).preeditChanged("XY", new int[]{2}, 0, 2);
+        drive(scene).preeditChanged("XY", 2, 0, 2);
         drive(scene).inputBatchEnded();
 
         AnchorCanvas canvas = new AnchorCanvas(240, 32);
@@ -682,7 +682,7 @@ class TextFieldTest extends ComponentTestBase {
         assertEquals(List.of("abc"), submitted, "Enter hands the handler the text");
         assertTrue(heard.contains("SUBMITTED/USER"), "announced to the watchers too: " + heard);
 
-        drive(scene).preeditChanged("xy", new int[] {2}, 0, 2);
+        drive(scene).preeditChanged("xy", 2, 0, 2);
         key(Keys.ENTER, 0);
         assertEquals(List.of("abc"), submitted, "while composing, Enter is the input method's");
     }

@@ -1,4 +1,6 @@
-package limn.backend;
+package limn.backend.spi;
+
+import limn.backend.spi.WindowInput;
 
 /**
  * Receives a window's translated native input on the UI thread, in logical
@@ -17,7 +19,7 @@ public interface WindowInput {
 
     /**
      * Relative pointer motion while the window is in
-     * {@link PointerMode#RELATIVE}: unbounded deltas in logical points
+     * {@link limn.backend.PointerMode#RELATIVE}: unbounded deltas in logical points
      * (raw/unaccelerated where the platform supports it), replacing
      * {@link #mouseMoved} for the duration of the capture. The receiver may
      * coalesce by summing. Default: ignored.
@@ -41,23 +43,47 @@ public interface WindowInput {
     /** Wheel/trackpad scroll; deltas in native notches (positive = up/left). */
     void scrolled(float deltaX, float deltaY, float x, float y);
 
-    void keyEvent(int key, boolean pressed, boolean repeat, int modifiers);
+    /**
+     * A key went down, repeated or came up.
+     *
+     * @param key             the physical key, a {@code Keys} constant
+     * @param layoutCodePoint what the active layout types at that key with no modifier held, as a
+     *                        code point, or {@code 0} for a key that types nothing; shortcuts are
+     *                        read from it
+     * @param pressed         a press or an auto-repeat rather than a release
+     * @param repeat          an auto-repeat
+     * @param modifiers       the {@code Keys.MOD_*} bits held
+     */
+    void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers);
+
+    /**
+     * A key on a US layout, where the key printed on a keycap is the physical key's name: what a
+     * test drives.
+     */
+    default void keyEvent(int key, boolean pressed, boolean repeat, int modifiers) {
+        keyEvent(key, limn.input.Keys.usLayoutCodePoint(key), pressed, repeat, modifiers);
+    }
 
     /** Committed text input, one code point (IME/layout-aware, after key events). */
     void charTyped(int codepoint);
 
     /**
      * In-progress IME composition ("preedit") for the focused text input: the
-     * still-composing text plus its styled blocks and caret, shown inline but
-     * not yet committed (the commit arrives later via {@link #charTyped}). An
-     * empty {@code text} clears the composition. Default: ignored.
+     * still-composing text, its caret, and the stretch of it the input method is converting
+     * now (the target the user is choosing a candidate for), shown inline but not yet
+     * committed (the commit arrives later via {@link #charTyped}). An empty {@code text}
+     * clears the composition. Every index is in code points. Default: ignored.
+     *
+     * <p>What it means, rather than one platform's shape of it: GLFW reports styled blocks and
+     * the focused one, SDL a string and a selection; a backend turns either into the target's
+     * start and length.
      *
      * @param text         the composing text ({@code ""} clears it)
-     * @param blockSizes   code-point length of each styled block (tiles {@code text})
-     * @param focusedBlock index of the block being converted, or {@code -1}
-     * @param caret        caret position within {@code text}, in code points
+     * @param caret        caret position within {@code text}
+     * @param targetStart  where the stretch being converted starts within {@code text}
+     * @param targetLength how long it is; {@code 0} when nothing is being converted
      */
-    default void preeditChanged(String text, int[] blockSizes, int focusedBlock, int caret) {
+    default void preeditChanged(String text, int caret, int targetStart, int targetLength) {
     }
 
     /** Cursor entered ({@code true}) or left the window's content area. */
@@ -67,11 +93,16 @@ public interface WindowInput {
     void windowResized(float logicalWidth, float logicalHeight);
 
     /**
-     * Files dragged from the OS and dropped on the window. The drop lands at
-     * the current pointer position (the platform moves the cursor onto the
-     * window before dropping). Default: ignored.
+     * Files dragged from the OS and dropped on the window, at a point of its content area in
+     * logical points: the widget under that point receives them. The point is the platform's where
+     * it says one (SDL does), and the pointer's at the drop where it does not (GLFW). Default:
+     * ignored.
+     *
+     * @param paths the files, in the order the platform listed them
+     * @param x     where they were dropped, in logical points
+     * @param y     where they were dropped, in logical points
      */
-    default void filesDropped(java.util.List<java.nio.file.Path> paths) {
+    default void filesDropped(java.util.List<java.nio.file.Path> paths, float x, float y) {
     }
 
     /**
@@ -83,7 +114,7 @@ public interface WindowInput {
     }
 
     /**
-     * The window entered ({@code true}) or left fullscreen: {@link NativeWindow#isFullscreen()}
+     * The window entered ({@code true}) or left fullscreen: {@link limn.backend.NativeWindow#isFullscreen()}
      * changed its answer. Every change is told once, whoever made it: the application's
      * {@code enterFullscreen} and {@code exitFullscreen}, and on macOS the person's green button,
      * Control-Command-F or menu item. It is told when the answer changes, which for macOS native

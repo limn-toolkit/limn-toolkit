@@ -1,4 +1,4 @@
-package limn.backend;
+package limn.backend.spi;
 
 import java.util.Objects;
 
@@ -19,9 +19,10 @@ import limn.sound.AudioEngine;
 import limn.sound.Sounds;
 import limn.video.VideoSurfaces;
 import org.jspecify.annotations.Nullable;
+import limn.backend.spi.BackendServices;
 
 /**
- * Everything a {@link Backend} provides to the toolkit besides its windows, named in one place and
+ * Everything a {@link limn.backend.Backend} provides to the toolkit besides its windows, named in one place and
  * installed by one call.
  *
  * <p>Until 2026-09-22 a backend installed each of these through a static setter of its own, and

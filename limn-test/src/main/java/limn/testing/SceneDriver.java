@@ -1,6 +1,6 @@
 package limn.testing;
 
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import limn.input.Keys;
 import limn.scene.Scene;
 import limn.scene.Widget;
@@ -195,8 +195,8 @@ public final class SceneDriver implements WindowInput {
     }
 
     @Override
-    public void keyEvent(int key, boolean pressed, boolean repeat, int modifiers) {
-        input.keyEvent(key, pressed, repeat, modifiers);
+    public void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers) {
+        input.keyEvent(key, layoutCodePoint, pressed, repeat, modifiers);
     }
 
     @Override
@@ -205,8 +205,8 @@ public final class SceneDriver implements WindowInput {
     }
 
     @Override
-    public void preeditChanged(String text, int[] blockSizes, int focusedBlock, int caret) {
-        input.preeditChanged(text, blockSizes, focusedBlock, caret);
+    public void preeditChanged(String text, int caret, int targetStart, int targetLength) {
+        input.preeditChanged(text, caret, targetStart, targetLength);
     }
 
     @Override
@@ -220,8 +220,8 @@ public final class SceneDriver implements WindowInput {
     }
 
     @Override
-    public void filesDropped(List<java.nio.file.Path> paths) {
-        input.filesDropped(paths);
+    public void filesDropped(List<java.nio.file.Path> paths, float x, float y) {
+        input.filesDropped(paths, x, y);
     }
 
     @Override

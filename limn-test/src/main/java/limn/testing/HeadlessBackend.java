@@ -14,6 +14,8 @@ import org.jspecify.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import limn.backend.spi.WindowPeer;
+import limn.backend.spi.BackendPeer;
 
 /**
  * A backend that mints {@link HeadlessWindow}s and remembers them, so that a dialog, a menu or a
@@ -23,7 +25,7 @@ import java.util.List;
  * <p>Modality is the two bits the toolkit asks a window about and nothing more: the modal's own
  * bit and its owner's blocked bit, set and cleared exactly as a platform would.
  */
-public final class HeadlessBackend implements Backend {
+public final class HeadlessBackend implements BackendPeer {
 
     private final UiRuntime runtime;
     private final List<HeadlessWindow> windows = new ArrayList<>();
@@ -107,8 +109,13 @@ public final class HeadlessBackend implements Backend {
     }
 
     @Override
-    public NativeWindow createWindow(WindowConfig config) {
+    public WindowPeer createWindow(WindowConfig config) {
         HeadlessWindow window = open(config.title(), config.width(), config.height());
+        NativeWindow owner = config.owner();
+        if (owner != null) {
+            WindowPeer.of(owner).registerChildPopup(window,
+                    config.isPopup() ? WindowPeer.PopupKind.TRANSIENT : WindowPeer.PopupKind.OWNED_WINDOW);
+        }
         limn.backend.SizeLimits limits = config.sizeLimits();
         window.setSizeLimits(limits.minWidth(), limits.minHeight(), limits.maxWidth(), limits.maxHeight());
         return window;

@@ -2446,7 +2446,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         int mods = event.modifiers();
         // Shift extends a range in MULTI, from the anchor to wherever the key lands (decision 31).
         boolean extend = selectionMode == SelectionMode.MULTI && (mods & Keys.MOD_SHIFT) != 0;
-        switch (event.key()) {
+        switch (event.shortcutKey()) {
             case Keys.DOWN -> consumeAnd(event, () -> moveLead(1, extend));
             case Keys.UP -> consumeAnd(event, () -> moveLead(-1, extend));
             case Keys.PAGE_DOWN -> consumeAnd(event, () -> moveLead(rowsPerPage(tokens()), extend));

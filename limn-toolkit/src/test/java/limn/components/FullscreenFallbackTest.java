@@ -1,12 +1,12 @@
 package limn.components;
 
 import limn.backend.Backend;
-import limn.backend.FrameCallback;
-import limn.backend.FrameInfo;
-import limn.backend.GpuRenderer;
+import limn.backend.spi.FrameCallback;
+import limn.backend.spi.FrameInfo;
+import limn.backend.spi.GpuRenderer;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import limn.components.date.DateField;
 import limn.components.date.DatePicker;
 import limn.concurrent.UiRuntime;
@@ -39,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import limn.backend.spi.WindowPeer;
+import limn.backend.spi.BackendPeer;
 
 /**
  * What a fullscreen owner does to the surfaces that float above it. A fullscreen window is given no
@@ -241,7 +243,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
      * for it back leaves the choice of the next one to the desktop, and an owner the desktop passes
      * over loses the keyboard, and is minimized when it is fullscreen at a named mode.
      */
-    private static final class WindowHost extends StubWindow implements Backend {
+    private static final class WindowHost extends StubWindow implements BackendPeer {
         /** Every window made, in order. */
         final List<Made> made = new ArrayList<>();
         /** The native modals pushed and not yet popped. */
@@ -298,7 +300,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         @Override public boolean isModalBlocked() { return modalBlocked || !modals.isEmpty(); }
         @Override public Backend backend() { return this; }
         @Override public UiRuntime uiRuntime() { return null; }
-        @Override public NativeWindow createWindow(WindowConfig config) {
+        @Override public WindowPeer createWindow(WindowConfig config) {
             Made window = new Made(config.title());
             made.add(window);
             return window;
@@ -671,7 +673,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         dialog.show(scene);
         Scene card = dialog.contentRoot().scene();
         drive(card).type("hello");
-        drive(card).preeditChanged("か", new int[]{1}, 0, 1);
+        drive(card).preeditChanged("か", 1, 0, 1);
         drive(card).inputBatchEnded();
         assertEquals("か", name.composingText(), "sanity: a composition is open");
 

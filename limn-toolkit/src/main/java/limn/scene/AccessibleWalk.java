@@ -9,6 +9,7 @@ import java.lang.System.Logger.Level;
 import java.util.List;
 import java.util.Locale;
 import java.util.WeakHashMap;
+import limn.backend.spi.WindowPeer;
 
 /**
  * Walks one scene into the accessible tree, and remembers which widget each published node came
@@ -204,7 +205,7 @@ final class AccessibleWalk {
             // The window's own bit -- whether it blocks what it owns -- and not isModalBlocked(),
             // which is its owner's. Filled from the latter, a native dialog published itself
             // non-modal and the window it had frozen as the modal one.
-            builder.window(window.isModal(), true, true,
+            builder.window(WindowPeer.of(window).isModal(), true, true,
                     limn.accessibility.WindowFacet.State.NORMAL);
         }
         if (scene.isWindowFocused()) {

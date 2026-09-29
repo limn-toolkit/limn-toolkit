@@ -3,11 +3,11 @@ package limn.backend.lwjgl;
 import limn.backend.lwjgl.internal.ObjC;
 
 import limn.backend.Cursor;
-import limn.backend.FrameCallback;
-import limn.backend.FrameInfo;
+import limn.backend.spi.FrameCallback;
+import limn.backend.spi.FrameInfo;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import limn.internal.lang.Checks;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.PointerBuffer;
@@ -63,7 +63,6 @@ import static org.lwjgl.glfw.GLFW.GLFW_VISIBLE;
 import static org.lwjgl.glfw.GLFW.glfwCreateWindow;
 import static org.lwjgl.glfw.GLFW.glfwDefaultWindowHints;
 import static org.lwjgl.glfw.GLFW.glfwDestroyWindow;
-import static org.lwjgl.glfw.GLFW.GLFW_VISIBLE;
 import static org.lwjgl.glfw.GLFW.glfwFocusWindow;
 import static org.lwjgl.glfw.GLFW.glfwGetClipboardString;
 import static org.lwjgl.glfw.GLFW.glfwGetCursorPos;
@@ -120,6 +119,7 @@ import static org.lwjgl.glfw.GLFW.glfwWindowHint;
 import static org.lwjgl.glfw.GLFW.glfwWindowShouldClose;
 import static org.lwjgl.opengl.GL11.glViewport;
 import static org.lwjgl.system.MemoryUtil.NULL;
+import limn.backend.spi.WindowPeer;
 
 /**
  * GLFW-backed {@link NativeWindow} with an OpenGL 3.3 core (forward-compatible)
@@ -127,7 +127,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  * refresh/framebuffer-size callbacks so the content stays live during native
  * resize drags (where {@code glfwPollEvents} blocks on Windows/macOS).
  */
-final class LwjglWindow implements NativeWindow {
+final class LwjglWindow implements WindowPeer {
 
     private static final System.Logger LOG = System.getLogger(LwjglWindow.class.getName());
 
@@ -169,6 +169,9 @@ final class LwjglWindow implements NativeWindow {
     private FrameCallback frameCallback;
     private ContentScaleListener contentScaleListener;
     private limn.backend.@Nullable CloseRequestHandler closeRequestHandler;
+    /** Whether typed characters go to the scene: every request but {@code TextInput.NONE}. */
+    private boolean charactersWanted = true;
+    private @Nullable WindowFileDialogs fileDialogs;
     private limn.backend.ClosePolicy closePolicy = limn.backend.ClosePolicy.DISPOSE;
     private WindowInput input;
     private int framebufferWidth;
@@ -454,12 +457,15 @@ final class LwjglWindow implements NativeWindow {
         });
         glfwSetKeyCallback(handle, (win, key, scancode, action, mods) -> {
             if (input != null && !inputBlocked()) {
-                input.keyEvent(key, action != GLFW_RELEASE, action == GLFW_REPEAT, mods);
+                input.keyEvent(key, layoutCodePoint(key, scancode), action != GLFW_RELEASE,
+                        action == GLFW_REPEAT, mods);
             }
         });
         glfwSetCharCallback(handle, (win, codepoint) -> {
             if (input != null && !inputBlocked()) {
-                input.charTyped(codepoint);
+                if (charactersWanted) {
+                    input.charTyped(codepoint);
+                }
             }
         });
         // IME composition (LWJGL bundles GLFW's preedit patch): the still-composing
@@ -471,7 +477,17 @@ final class LwjglWindow implements NativeWindow {
             if (input != null && !inputBlocked()) {
                 String text = preeditCount <= 0 ? "" : decodeCodePoints(preeditString, preeditCount);
                 int[] blocks = blockCount <= 0 ? EMPTY_BLOCKS : decodeInts(blockSizes, blockCount);
-                input.preeditChanged(text, blocks, focusedBlock, caret);
+                // GLFW's styled blocks and the focused one, told as what they mean: the stretch
+                // being converted, as a start and a length in code points.
+                int targetStart = 0;
+                int targetLength = 0;
+                if (focusedBlock >= 0 && focusedBlock < blocks.length) {
+                    for (int i = 0; i < focusedBlock; i++) {
+                        targetStart += blocks[i];
+                    }
+                    targetLength = blocks[focusedBlock];
+                }
+                input.preeditChanged(text, caret, targetStart, targetLength);
                 frameRequested = true;
             }
         });
@@ -544,7 +560,14 @@ final class LwjglWindow implements NativeWindow {
                 for (int i = 0; i < count; i++) {
                     paths.add(java.nio.file.Path.of(GLFWDropCallback.getName(names, i)));
                 }
-                input.filesDropped(paths);
+                // GLFW says nothing of where: the pointer, which the platform moved onto the
+                // window to drop, is there.
+                try (MemoryStack stack = MemoryStack.stackPush()) {
+                    java.nio.DoubleBuffer cx = stack.mallocDouble(1);
+                    java.nio.DoubleBuffer cy = stack.mallocDouble(1);
+                    org.lwjgl.glfw.GLFW.glfwGetCursorPos(handle, cx, cy);
+                    input.filesDropped(paths, toLogical(cx.get(0)), toLogical(cy.get(0)));
+                }
             }
         });
         glfwSetWindowCloseCallback(handle, win -> {
@@ -1437,6 +1460,45 @@ final class LwjglWindow implements NativeWindow {
         relativeJump = pointerMode == limn.backend.PointerMode.RELATIVE;
     }
 
+    /**
+     * What the active layout types at a physical key with no modifier held: GLFW's name for a
+     * printable key, which it reads from the layout (on AZERTY the key GLFW calls W is named "z"),
+     * as one code point; {@code 0} for a key GLFW names nothing, which is every key that types
+     * nothing.
+     */
+    private static int layoutCodePoint(int key, int scancode) {
+        String name = org.lwjgl.glfw.GLFW.glfwGetKeyName(key, scancode);
+        return name == null || name.isEmpty() ? 0 : name.codePointAt(0);
+    }
+
+    /** @return this window's {@code NSWindow}, or {@code 0} off macOS or once destroyed */
+    long cocoaWindow() {
+        if (!MACOS || destroyed) {
+            return NULL;
+        }
+        return org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle);
+    }
+
+    /**
+     * @return what the XDG desktop portal calls this window: {@code x11:} and its id in hex under
+     *         X11, and {@code ""} elsewhere, where GLFW gives no name the portal can take
+     */
+    String portalParent() {
+        if (destroyed || org.lwjgl.glfw.GLFW.glfwGetPlatform() != org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11) {
+            return "";
+        }
+        return "x11:" + Long.toHexString(org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle));
+    }
+
+    @Override
+    public limn.backend.FileDialogs fileDialogs() {
+        backend.uiRuntime().checkUiThread();
+        if (fileDialogs == null) {
+            fileDialogs = new WindowFileDialogs(this, backend);
+        }
+        return fileDialogs;
+    }
+
     @Override
     public void focus() {
         backend.uiRuntime().checkUiThread();
@@ -1444,11 +1506,15 @@ final class LwjglWindow implements NativeWindow {
     }
 
     @Override
-    public void setImeEnabled(boolean enabled) {
+    public void setTextInput(limn.backend.spi.TextInput input) {
+        java.util.Objects.requireNonNull(input, "input");
         backend.uiRuntime().checkUiThread();
         if (destroyed) {
             return;
         }
+        // GLFW delivers characters whatever the input method does; NONE drops them here.
+        charactersWanted = input != limn.backend.spi.TextInput.NONE;
+        boolean enabled = input == limn.backend.spi.TextInput.COMPOSITION;
         if (MACOS) {
             // Never GLFW's switch here, which selects another input source for the whole system;
             // see MacInputContextGate. Without the gate the input method simply stays on.

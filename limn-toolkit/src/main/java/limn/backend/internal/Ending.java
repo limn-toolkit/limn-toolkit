@@ -32,7 +32,8 @@ public final class Ending {
 
         /**
          * @return every open window that no other window owns (through
-         *         {@link NativeWindow#registerChildPopup}), the window used last first
+         *         {@link limn.backend.WindowConfig#popup(NativeWindow, int, int)} or
+         *         {@link limn.backend.WindowConfig#ownedBy}), the window used last first
          */
         List<? extends NativeWindow> topLevelFrontToBack();
 

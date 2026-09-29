@@ -13,29 +13,31 @@ import org.jspecify.annotations.Nullable;
  * committed or cancelled it). Routed to the focused widget only; a preedit
  * with nothing focused is dropped.
  *
- * <p>The composing text is split into styled <b>blocks</b> (clauses the IME
- * draws differently); {@link #blockSizes()} gives each block's length in code
- * points, tiling {@link #text()} in order, and {@link #focusedBlock()} marks the
- * one currently being converted. Indices carried here ({@code caret},
- * block sizes) are in <b>code points</b>, matching the platform IME.
+ * <p>Part of the composing text may be the <b>target</b>: the stretch the input method is
+ * converting now, which the user picks a candidate for, drawn differently from the rest.
+ * {@link #targetStart()} and {@link #targetLength()} say where it is. Every index carried here
+ * ({@code caret}, the target) is in <b>code points</b>, matching the platform IME.
  */
 public final class PreeditEvent extends InputEvent {
 
     private final String text;
-    private final int[] blockSizes;
-    private final int focusedBlock;
     private final int caret;
+    private final int targetStart;
+    private final int targetLength;
 
     /**
-     * An IME composition update. {@code blockSizes} splits {@code text} into conversion
-     * blocks, {@code focusedBlock} is the one being converted, and the caret is a char
-     * offset into {@code text}. Empty text ends the composition.
+     * An IME composition update. Empty text ends the composition.
+     *
+     * @param text         the composing text; {@code null} is empty
+     * @param caret        caret position within {@code text}, in code points
+     * @param targetStart  where the stretch being converted starts, in code points
+     * @param targetLength its length in code points; {@code 0} when nothing is being converted
      */
-    public PreeditEvent(@Nullable String text, int @Nullable [] blockSizes, int focusedBlock, int caret) {
+    public PreeditEvent(@Nullable String text, int caret, int targetStart, int targetLength) {
         this.text = text == null ? "" : text;
-        this.blockSizes = blockSizes == null ? new int[0] : blockSizes.clone();
-        this.focusedBlock = focusedBlock;
         this.caret = caret;
+        this.targetStart = targetStart;
+        this.targetLength = targetLength;
     }
 
     /** The composing text; empty when the composition ends (commit or cancel). */
@@ -43,14 +45,14 @@ public final class PreeditEvent extends InputEvent {
         return text;
     }
 
-    /** Length in <b>code points</b> of each styled block; blocks tile {@link #text()} in order. */
-    public int[] blockSizes() {
-        return blockSizes.clone();
+    /** Where the stretch being converted starts within {@link #text()}, in <b>code points</b>. */
+    public int targetStart() {
+        return targetStart;
     }
 
-    /** Index into {@link #blockSizes()} of the block being converted, or {@code -1} if none. */
-    public int focusedBlock() {
-        return focusedBlock;
+    /** How long the stretch being converted is, in <b>code points</b>; {@code 0} when there is none. */
+    public int targetLength() {
+        return targetLength;
     }
 
     /** Caret position within {@link #text()}, in <b>code points</b>. */
@@ -65,6 +67,6 @@ public final class PreeditEvent extends InputEvent {
 
     @Override
     public String toString() {
-        return "PreeditEvent[\"" + text + "\" caret=" + caret + " focus=" + focusedBlock + "]";
+        return "PreeditEvent[\"" + text + "\" caret=" + caret + " target=" + targetStart + "+" + targetLength + "]";
     }
 }
