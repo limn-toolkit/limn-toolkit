@@ -170,7 +170,7 @@ class VerbPolicyRatchetTest {
      * presentation can be asked of them first, and stay windows of their own.
      */
     static final Set<String> IN_SCENE_OVERLAYS = Set.of(
-            "Combo box, open", "Date picker, open", "Menu bar", "Dialog, in the scene",
+            "Combo box, open", "Date picker, open", "Menu bar", "Menu bar, driven", "Dialog, in the scene",
             "Colour picker button, open");
 
     /**

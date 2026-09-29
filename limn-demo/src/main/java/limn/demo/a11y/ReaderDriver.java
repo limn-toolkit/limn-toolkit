@@ -236,7 +236,12 @@ public final class ReaderDriver {
                 Step step = steps.get(i);
                 int number = i + 1;
                 Ui.postDelayed(() -> {
-                    window.focus();
+                    // Real keys go where the desktop sends them, which is a menu's own window
+                    // while one is open: asking for the entry's window before each would close
+                    // the menu. Before the first, the window is still asked for.
+                    if (!options.realKeys() || number == 1) {
+                        window.focus();
+                    }
                     if (options.realKeys()) {
                         System.out.println("--- press " + number + " " + step.keys());
                         Ui.postDelayed(() -> System.out.println(

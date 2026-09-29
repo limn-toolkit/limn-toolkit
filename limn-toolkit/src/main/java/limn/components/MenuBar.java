@@ -86,6 +86,8 @@ public final class MenuBar extends Widget<MenuBar> {
     private final List<Entry> entries = new ArrayList<>();
     private int hoverIndex = -1;
     private int openIndex = -1;
+    /** What held the keyboard when Alt or F10 moved it here, and gets it back when the bar is left. */
+    private @Nullable Widget<?> focusBeforeBar;
     private PopupMenu openPopup;
     /** Handed to every dropdown this bar opens; see {@link #setDisplayMode}. */
     private DisplayMode displayMode = PopupMenu.defaultDisplayMode();
@@ -512,10 +514,9 @@ public final class MenuBar extends Widget<MenuBar> {
             case Keys.DOWN, Keys.ENTER, Keys.SPACE -> openMenu(hoverIndex < 0 ? 0 : hoverIndex);
             case Keys.ESCAPE -> {
                 // The way out of the keyboard mode Alt/F10 entered: the bar keeps focus until
-                // something takes it, and without this the only exit is Tab or the pointer.
-                if (scene() != null) {
-                    scene().requestFocus(null);
-                }
+                // something takes it, and without this the only exit is Tab or the pointer. The
+                // keyboard goes back where it was, as a native menu bar gives it back.
+                leaveBar();
             }
             default -> {
                 // A bare access letter while the bar is focused, the other half of Alt+letter.
@@ -628,8 +629,32 @@ public final class MenuBar extends Widget<MenuBar> {
         if (scene == null) {
             return false;
         }
-        scene.requestFocus(isFocused() ? null : this);
+        if (isFocused()) {
+            leaveBar();
+        } else {
+            Widget<?> before = scene.focusedWidget();
+            focusBeforeBar = before == this ? null : before;
+            scene.requestFocus(this);
+        }
         return true;
+    }
+
+    /**
+     * Gives the keyboard back to what held it before Alt or F10 moved it here, when that is still
+     * in this scene and can take it, and to nothing otherwise. A bar that gave nothing back left a
+     * keyboard user who pressed F10 in a field and then Escape with no focus at all, where Windows,
+     * GTK and Qt return them to the field.
+     */
+    private void leaveBar() {
+        Scene scene = scene();
+        Widget<?> back = focusBeforeBar;
+        focusBeforeBar = null;
+        if (scene == null) {
+            return;
+        }
+        boolean usable = back != null && back.scene() == scene && back.isFocusable()
+                && back.isVisible() && back.isEnabled();
+        scene.requestFocus(usable ? back : null);
     }
 
     /**

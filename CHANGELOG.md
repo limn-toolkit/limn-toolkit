@@ -10,6 +10,12 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- Leaving a menu bar with Escape, or with F10 pressed again, gives the keyboard back to the
+  widget that had it when Alt or F10 moved it to the bar, as Windows, GTK and Qt do. It went
+  nowhere, so a keyboard user who opened the bar from a field had to Tab back into the form.
+- A menu bar drawn in the scene keeps the keyboard when a dropdown reached with Left or Right is
+  closed with Escape. The dropdown walked to had saved the one walked from, still fading, as
+  where the keyboard went back to, so nothing was focused after it closed.
 - A menu's separators at its start or end, or right after another separator, are no longer drawn,
   as `Menu.addSeparator` always promised, so a menu built with conditions shows no double or
   dangling rule. The model keeps them.

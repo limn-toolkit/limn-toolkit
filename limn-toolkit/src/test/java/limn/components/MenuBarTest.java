@@ -315,6 +315,81 @@ class MenuBarTest extends ComponentTestBase {
         assertFalse(bar.isOpen(), "a press on the empty strip reached the dropdown and closed it");
     }
 
+    @Test
+    void escapeGivesTheKeyboardBackToTheFieldF10CameFrom() {
+        bar = threeTitles();
+        TextField notes = new TextField();
+        Column page = new Column();
+        page.add(bar);
+        page.add(notes);
+        scene = new Scene(page);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(400, 200);
+        scene.requestFocus(notes);
+
+        key(Keys.F10);
+        assertSame(bar, scene.focusedWidget(), "F10 moves the keyboard to the bar");
+        key(Keys.ESCAPE);
+        assertSame(notes, scene.focusedWidget(),
+                "Escape gives it back to the field, as a native menu bar does; it went nowhere");
+
+        key(Keys.F10);
+        key(Keys.F10);
+        assertSame(notes, scene.focusedWidget(), "and so does F10 pressed again");
+    }
+
+    @Test
+    void escapeAfterWalkingToANeighbourDrawnInTheSceneLeavesTheBarFocused() {
+        // Right from an open dropdown closes it and opens the next, and the one walked from is
+        // still fading beneath when the next is pushed, holding the keyboard: the next saved that
+        // fading menu as where the keyboard goes back to, and its Escape focused nothing.
+        bar = threeTitles().setDisplayMode(DisplayMode.IN_SCENE);
+        TextField notes = new TextField();
+        Column page = new Column();
+        page.add(bar);
+        page.add(notes);
+        scene = new Scene(page);
+        scene.setTextRuler(RULER);
+        StubWindow window = new StubWindow();
+        scene.bind(window);
+        FakeCanvas canvas = new FakeCanvas(window.framebufferWidth(), window.framebufferHeight());
+        scene.renderFrame(canvas);
+        scene.requestFocus(notes);
+
+        key(Keys.F10);
+        key(Keys.DOWN);
+        scene.renderFrame(canvas);
+        assertTrue(bar.isOpen(), "File is down");
+        key(Keys.RIGHT);
+        scene.renderFrame(canvas);
+        key(Keys.ESCAPE);
+        settle(canvas);
+        assertFalse(bar.isOpen(), "Escape closed Edit");
+        assertSame(bar, scene.focusedWidget(), "and the keyboard is on the bar again");
+        key(Keys.ESCAPE);
+        assertSame(notes, scene.focusedWidget(), "and a second Escape leaves it for the field");
+    }
+
+    private void key(int key) {
+        drive(scene).keyEvent(key, true, false, 0);
+        drive(scene).keyEvent(key, false, false, 0);
+        drive(scene).inputBatchEnded();
+    }
+
+    /** Renders until every dropdown's fade has ended, in wall time, as the fades are. */
+    private void settle(FakeCanvas canvas) {
+        long until = System.currentTimeMillis() + 1_000;
+        while (System.currentTimeMillis() < until) {
+            scene.renderFrame(canvas);
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
     private void pressAndFrame(float x, FakeCanvas canvas) {
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, x, 16);
         drive(scene).inputBatchEnded();

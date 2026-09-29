@@ -7,14 +7,18 @@ import limn.input.Keys;
 import java.util.List;
 
 import static limn.accessibility.Accessible.Role.BUTTON;
+import static limn.accessibility.Accessible.Role.CHECK_MENU_ITEM;
 import static limn.accessibility.Accessible.Role.CELL;
 import static limn.accessibility.Accessible.Role.COMBO_BOX;
 import static limn.accessibility.Accessible.Role.COLUMN_HEADER;
 import static limn.accessibility.Accessible.Role.GROUP;
 import static limn.accessibility.Accessible.Role.LIST_ITEM;
+import static limn.accessibility.Accessible.Role.MENU_ITEM;
 import static limn.accessibility.Accessible.Role.SPIN_BUTTON;
 import static limn.accessibility.Accessible.Role.SWITCH;
+import static limn.accessibility.Accessible.Role.TEXT_FIELD;
 import static limn.accessibility.Accessible.Role.TREE_ITEM;
+import static limn.accessibility.Accessible.State.CHECKED;
 import static limn.accessibility.Accessible.State.ENABLED;
 import static limn.accessibility.Accessible.State.EXPANDABLE;
 import static limn.accessibility.Accessible.State.EXPANDED;
@@ -186,6 +190,52 @@ public final class ReaderScripts {
             Step.press(Keys.ESCAPE, "closes the list and keeps Atlas")
                     .expecting(cursor(COMBO_BOX, "Mountain ranges").valued("Atlas")
                             .without(EXPANDED))));
+
+    /**
+     * "Menu bar, driven": F10 from a text field into the bar, a menu opened and walked past its
+     * separator, the neighbour opened with an arrow, and both ways out. A menu drawn in a window of
+     * its own holds the OS keyboard while it is open, which a combo's list does not, so this is
+     * the run that hears whether a reader follows it there (2026-09-29).
+     */
+    public static final ReaderScript MENU_BAR = new ReaderScript("menu-bar", List.of(
+            Step.press(Keys.F10, "moves the keyboard to the menu bar, on File")
+                    .expecting(cursor(MENU_ITEM, "File").without(EXPANDED)),
+            Step.press(Keys.DOWN, "opens File on New")
+                    .expecting(shown(MENU_ITEM, "File").with(EXPANDED), cursor(MENU_ITEM, "New")),
+            Step.press(Keys.DOWN, "moves to Open…")
+                    .expecting(cursor(MENU_ITEM, "Open…")),
+            Step.press(Keys.DOWN, "skips the separator to Quit")
+                    .expecting(cursor(MENU_ITEM, "Quit")),
+            Step.press(Keys.RIGHT, "closes File and opens View on Status bar, checked")
+                    .expecting(shown(MENU_ITEM, "View").with(EXPANDED),
+                            cursor(CHECK_MENU_ITEM, "Status bar").with(CHECKED)),
+            Step.press(Keys.ESCAPE, "closes View and stays on it in the bar")
+                    .expecting(cursor(MENU_ITEM, "View").without(EXPANDED)),
+            Step.press(Keys.ESCAPE, "leaves the bar for Notes")
+                    .expecting(focused(TEXT_FIELD, "Notes"))));
+
+    /**
+     * "Context menu, driven": the keyboard's request for a context menu (Shift+F10) on a button,
+     * walked down to its submenu, the submenu opened and closed with the arrows, and the menu
+     * dismissed back to the button. The same window-of-its-own question as {@link #MENU_BAR}, for
+     * the menu a pointer or the Menu key raises.
+     */
+    public static final ReaderScript CONTEXT_MENU = new ReaderScript("context-menu", List.of(
+            Step.chord(Keys.F10, Keys.MOD_SHIFT, "opens the context menu on Cut")
+                    .expecting(cursor(MENU_ITEM, "Cut")),
+            Step.press(Keys.DOWN, "moves to Copy")
+                    .expecting(cursor(MENU_ITEM, "Copy")),
+            Step.press(Keys.DOWN, "moves to Paste")
+                    .expecting(cursor(MENU_ITEM, "Paste")),
+            Step.press(Keys.DOWN, "skips the separator to Transform, which has a submenu")
+                    .expecting(cursor(MENU_ITEM, "Transform").without(EXPANDED)),
+            Step.press(Keys.RIGHT, "opens Transform on Upper case")
+                    .expecting(shown(MENU_ITEM, "Transform").with(EXPANDED),
+                            cursor(MENU_ITEM, "Upper case")),
+            Step.press(Keys.LEFT, "closes Transform and stays on it")
+                    .expecting(cursor(MENU_ITEM, "Transform").without(EXPANDED)),
+            Step.press(Keys.ESCAPE, "closes the menu, the keyboard back on Draft")
+                    .expecting(focused(BUTTON, "Draft"))));
 
     /**
      * "Announcements": the application speaking. Nothing else in the gallery calls

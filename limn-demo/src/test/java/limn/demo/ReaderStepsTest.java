@@ -74,7 +74,10 @@ class ReaderStepsTest {
             // Added 2026-09-23: the list's MULTI mode (decision 136), owed a reader run before 0.8.0.
             "list-multi",
             // Added 2026-09-23: the combo's open list, never driven by a reader before.
-            "combo");
+            "combo",
+            // Added 2026-09-29: menus, which take the OS keyboard in a window of their own; heard
+            // beside native menus before deciding whether to graft them as the combo's list is.
+            "menu-bar", "context-menu");
 
     /** The widgets H2 (with DT8, B9 and T7) found no reader run could be pointed at. */
     private static final List<Class<?>> WIDGETS_A_READER_MUST_HEAR = List.of(
@@ -329,20 +332,22 @@ class ReaderStepsTest {
             List<String> silent = new ArrayList<>();
             List<String> untrue = new ArrayList<>();
             List<Step> steps = entry.reader().steps();
+            KeyboardWindow keyboard = new KeyboardWindow(harness);
             for (int i = 0; i < steps.size(); i++) {
                 Step step = steps.get(i);
                 Snapshot before = Snapshot.of(harness);
-                step.sendTo(scene);
+                step.sendTo(keyboard.scene());
                 harness.settle();
                 waitWhileBusy(harness);
                 waitForWindowFades(harness);
+                keyboard.follow();
                 Snapshot after = Snapshot.of(harness);
                 String line = "step " + (i + 1) + " " + step.keys() + " - " + step.label();
                 if (before.equals(after)) {
                     silent.add(line + " (keyboard in " + describe(scene.focusedWidget()) + ")");
                 }
                 for (Fact fact : step.facts()) {
-                    String unmet = unmet(fact, harness, locale == null);
+                    String unmet = unmet(fact, harness, keyboard.current, locale == null);
                     if (unmet != null) {
                         untrue.add(line + ": expected " + fact + ", but " + unmet);
                     }
@@ -366,6 +371,48 @@ class ReaderStepsTest {
             }
         } finally {
             I18n.setLocale(Locale.ENGLISH);
+        }
+    }
+
+    /**
+     * Where the desktop sends the next key: the window that last asked for the keyboard, as a menu
+     * in a window of its own does when it opens ({@code focusOnShow}; the harness never shows the
+     * entry's window, so the menu's is never shown either), and the entry's window again once that
+     * one has closed. A combo's list or a calendar never asks, so their steps stay with the entry's scene,
+     * as they always did; a menu's steps follow it into its window, as a real key does.
+     */
+    private static final class KeyboardWindow {
+        private final Harness harness;
+        private final java.util.Map<HeadlessWindow, Integer> asked = new java.util.HashMap<>();
+        HeadlessWindow current;
+
+        KeyboardWindow(Harness harness) {
+            this.harness = harness;
+            this.current = harness.windows().get(0);
+            count();
+        }
+
+        Scene scene() {
+            return current.scene();
+        }
+
+        void follow() {
+            HeadlessWindow next = current.isClosed() ? harness.windows().get(0) : current;
+            for (HeadlessWindow window : harness.windows()) {
+                boolean opened = !asked.containsKey(window) && window.focusOnShow();
+                if (!window.isClosed()
+                        && (opened || window.focusRequests() > asked.getOrDefault(window, 0))) {
+                    next = window; // windows() is in creation order, so the newest asker wins
+                }
+            }
+            current = next;
+            count();
+        }
+
+        private void count() {
+            for (HeadlessWindow window : harness.windows()) {
+                asked.put(window, window.focusRequests());
+            }
         }
     }
 
@@ -415,7 +462,8 @@ class ReaderStepsTest {
      * @param english whether the run is built in the language the facts' names are written in
      * @return what the trees hold instead, or {@code null} when the fact is true
      */
-    private static String unmet(Fact fact, Harness harness, boolean english) {
+    private static String unmet(Fact fact, Harness harness, HeadlessWindow keyboard,
+                                boolean english) {
         List<AccessibleTree> open = new ArrayList<>();
         for (HeadlessWindow window : harness.windows()) {
             if (!window.isClosed()) {
@@ -423,9 +471,12 @@ class ReaderStepsTest {
             }
         }
         AccessibleTree host = open.get(0);
+        // A menu in a window of its own holds the desktop's keyboard, and a reader stands where
+        // that is: in the menu's own tree, whatever the entry's window says.
+        AccessibleTree cursorTree = keyboard.isClosed() ? host : keyboard.bridge().tree();
         switch (fact.subject()) {
             case CURSOR, FOCUSED -> {
-                long id = fact.subject() == Fact.Subject.CURSOR ? host.effectiveFocus()
+                long id = fact.subject() == Fact.Subject.CURSOR ? cursorTree.effectiveFocus()
                         : host.focused();
                 for (AccessibleTree tree : open) {
                     AccessibleNode node = tree.find(id);

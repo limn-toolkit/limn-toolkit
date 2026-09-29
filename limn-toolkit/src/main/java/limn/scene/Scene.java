@@ -867,6 +867,15 @@ public final class Scene {
         boolean wasTop = index == overlays.size() - 1;
         overlays.remove(index);
         Widget<?> restore = overlayFocusReturn.remove(index);
+        // An overlay opened over this one while it held the focus saved a widget inside it (the
+        // menu a menu bar's arrow walked to, opened while the one walked from was fading): that
+        // overlay's way back now goes where this one's would have, or its close focused nothing.
+        for (int i = index; i < overlayFocusReturn.size(); i++) {
+            Widget<?> saved = overlayFocusReturn.get(i);
+            if (saved != null && isInSubtree(saved, overlay)) {
+                overlayFocusReturn.set(i, restore);
+            }
+        }
         onWidgetDetached(overlay);
         overlay.setSceneRecursively(null);
         layoutDirty = true;

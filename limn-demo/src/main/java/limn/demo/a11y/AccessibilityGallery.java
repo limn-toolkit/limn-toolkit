@@ -622,6 +622,15 @@ public final class AccessibilityGallery {
                 new Entry("Menu bar", List.of(MenuBar.class),
                         List.of(Role.MENU_BAR, Role.MENU_ITEM),
                         AccessibilityGallery::menuBar),
+                // Menus in a window of their own take the OS keyboard, where a combo's list and a
+                // calendar do not; these two are what the reader runs hear that on (2026-09-29),
+                // beside a native menu, before anything is grafted.
+                new Entry("Menu bar, driven", List.of(MenuBar.class),
+                        List.of(Role.MENU_BAR, Role.MENU_ITEM),
+                        AccessibilityGallery::menuBarDriven, ReaderScripts.MENU_BAR),
+                new Entry("Context menu, driven", List.of(ContextMenus.class, PopupMenu.class),
+                        List.of(Role.GROUP),
+                        AccessibilityGallery::contextMenuDriven, ReaderScripts.CONTEXT_MENU),
                 new Entry("Context menu region", List.of(ContextMenus.class),
                         List.of(Role.GROUP),
                         AccessibilityGallery::contextRegion),
@@ -1264,6 +1273,46 @@ public final class AccessibilityGallery {
         page.add(bar);
         page.add(new Label("Alt or F10 moves to the menu bar.").setMuted(true));
         return new Built(page);
+    }
+
+    private static Built menuBarDriven() {
+        Column page = page();
+        Menu file = new Menu();
+        file.addItem(GalleryStrings.NEW.get(), () -> { });
+        file.addItem(GalleryStrings.OPEN_FILE.get(), () -> { });
+        file.addSeparator();
+        file.addItem(GalleryStrings.QUIT.get(), () -> { });
+        Menu view = new Menu();
+        view.addCheck(GalleryStrings.STATUS_BAR.get(), true, shown -> { });
+        MenuBar bar = new MenuBar();
+        String fileTitle = GalleryStrings.FILE.get();
+        String viewTitle = GalleryStrings.VIEW.get();
+        bar.addMenu(fileTitle, fileTitle.charAt(0), file);
+        bar.addMenu(viewTitle, viewTitle.charAt(0), view);
+        TextField notes = new TextField();
+        page.add(bar);
+        page.add(Labelled.above(GalleryStrings.NOTES, notes));
+        return Built.focusing(page, notes);
+    }
+
+    private static Built contextMenuDriven() {
+        Column page = page();
+        Button draft = new Button(GalleryStrings.DRAFT.get());
+        Widget<?> region = ContextMenus.attach(draft,
+                () -> {
+                    Menu menu = new Menu();
+                    menu.addItem(GalleryStrings.CUT.get(), () -> { });
+                    menu.addItem(GalleryStrings.COPY.get(), () -> { });
+                    menu.addItem(GalleryStrings.PASTE.get(), () -> { });
+                    menu.addSeparator();
+                    Menu transform = new Menu();
+                    transform.addItem(GalleryStrings.UPPER_CASE.get(), () -> { });
+                    transform.addItem(GalleryStrings.LOWER_CASE.get(), () -> { });
+                    menu.addSubmenu(GalleryStrings.TRANSFORM.get(), transform);
+                    return menu;
+                });
+        page.add(region);
+        return Built.focusing(page, draft);
     }
 
     private static Built contextRegion() {

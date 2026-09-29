@@ -126,6 +126,8 @@ public final class HeadlessWindow implements WindowPeer {
     private boolean closed;
     private boolean bridgeAsked;
     private int focusRequests;
+    /** Whether the window was created asking for the keyboard when shown ({@code WindowConfig#focusOnShow}). */
+    boolean focusOnShow;
     private @Nullable CloseRequestHandler closeRequestHandler;
     private ClosePolicy closePolicy = ClosePolicy.DISPOSE;
     /** The windows registered as this one's, which close with it. */
@@ -269,20 +271,36 @@ public final class HeadlessWindow implements WindowPeer {
         sizeLimits = new limn.backend.SizeLimits(minWidth, minHeight, maxWidth, maxHeight);
     }
     @Override public limn.backend.SizeLimits sizeLimits() { return sizeLimits; }
-    @Override public void show() { visible = true; }
+    @Override public void show() {
+        if (!visible && focusOnShow) {
+            focusRequests++; // what a desktop does with such a window: it takes the keyboard
+        }
+        visible = true;
+    }
     @Override public void hide() { visible = false; }
     @Override public void focus() {
         focusRequests++;
     }
 
     /**
-     * How many times something asked this window for the input focus. Nothing moves it here, as
-     * nothing moves a desktop's without its window manager; {@link #desktopFocus} is that.
+     * How many times something asked this window for the input focus: a {@code focus()} call, and
+     * showing a window created with {@code WindowConfig#focusOnShow}, as a menu in a window of its
+     * own is. Nothing moves it here, as nothing moves a desktop's without its window manager;
+     * {@link #desktopFocus} is that.
      *
      * @return the count of {@code focus()} calls
      */
     public int focusRequests() {
         return focusRequests;
+    }
+
+    /**
+     * @return whether the window was created asking for the keyboard as it is shown
+     *         ({@code WindowConfig#focusOnShow}), as a menu in a window of its own is: the window a
+     *         desktop sends the next key to, once it is up
+     */
+    public boolean focusOnShow() {
+        return focusOnShow;
     }
     @Override public boolean isVisible() { return visible; }
     @Override public boolean isClosed() { return closed; }

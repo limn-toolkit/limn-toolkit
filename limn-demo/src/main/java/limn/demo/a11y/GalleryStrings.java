@@ -67,6 +67,12 @@ public final class GalleryStrings {
     /** "Combo box, driven". */
     public static final I18nString ENTRY_COMBO =
             new I18nString("gallery.entry.combo", "Combo box, driven");
+    /** "Menu bar, driven". */
+    public static final I18nString ENTRY_MENU_BAR =
+            new I18nString("gallery.entry.menuBar", "Menu bar, driven");
+    /** "Context menu, driven". */
+    public static final I18nString ENTRY_CONTEXT_MENU =
+            new I18nString("gallery.entry.contextMenu", "Context menu, driven");
     /** "List view, several selected". */
     public static final I18nString ENTRY_LIST_MULTI =
             new I18nString("gallery.entry.listMulti", "List view, several selected");
@@ -117,12 +123,43 @@ public final class GalleryStrings {
     /** The caption of the picker entry's range picker. */
     public static final I18nString STAY = new I18nString("gallery.date.stay", "Stay");
 
+    /** The field the menu bar entry's keyboard starts in. */
+    public static final I18nString NOTES = new I18nString("gallery.menu.notes", "Notes");
+    /** The menu bar's first menu. */
+    public static final I18nString FILE = new I18nString("gallery.menu.file", "File");
+    /** Its first item. */
+    public static final I18nString NEW = new I18nString("gallery.menu.new", "New");
+    /** Its second. */
+    public static final I18nString OPEN_FILE = new I18nString("gallery.menu.open", "Open…");
+    /** Its last, after a separator. */
+    public static final I18nString QUIT = new I18nString("gallery.menu.quit", "Quit");
+    /** The menu bar's second menu. */
+    public static final I18nString VIEW = new I18nString("gallery.menu.view", "View");
+    /** Its one item, a check. */
+    public static final I18nString STATUS_BAR = new I18nString("gallery.menu.statusBar", "Status bar");
+    /** The name of the region the context menu is asked of. */
+    public static final I18nString DRAFT = new I18nString("gallery.menu.draft", "Draft");
+    /** The context menu's items. */
+    public static final I18nString CUT = new I18nString("gallery.menu.cut", "Cut");
+    /** The context menu's items. */
+    public static final I18nString COPY = new I18nString("gallery.menu.copy", "Copy");
+    /** The context menu's items. */
+    public static final I18nString PASTE = new I18nString("gallery.menu.paste", "Paste");
+    /** The context menu's submenu. */
+    public static final I18nString TRANSFORM = new I18nString("gallery.menu.transform", "Transform");
+    /** The submenu's items. */
+    public static final I18nString UPPER_CASE = new I18nString("gallery.menu.upperCase", "Upper case");
+    /** The submenu's items. */
+    public static final I18nString LOWER_CASE = new I18nString("gallery.menu.lowerCase", "Lower case");
+
     /** Every constant above, for a test that holds the catalogue to both languages. */
     public static final List<I18nString> ALL = List.of(
             ENTRY_TABLE, ENTRY_TREE_LOADING, ENTRY_ANNOUNCEMENTS, ENTRY_CALENDAR, ENTRY_DATE_FIELD,
-            ENTRY_DATE_PICKER_CLOSED, ENTRY_LIST_MULTI, ENTRY_COMBO, MOUNTAIN_RANGES, RANGE, CONTINENT, SUMMIT,
+            ENTRY_DATE_PICKER_CLOSED, ENTRY_LIST_MULTI, ENTRY_COMBO, ENTRY_MENU_BAR, ENTRY_CONTEXT_MENU,
+            MOUNTAIN_RANGES, RANGE, CONTINENT, SUMMIT,
             VISITED, FILES, OPEN, SAVE, SAVED, STOP, STOPPED, DELIVERY_DATE, HOLIDAY, INVOICE_DATE, APPOINTMENT,
-            DUE_DATE, STAY);
+            DUE_DATE, STAY, NOTES, FILE, NEW, OPEN_FILE, QUIT, VIEW, STATUS_BAR, DRAFT, CUT, COPY,
+            PASTE, TRANSFORM, UPPER_CASE, LOWER_CASE);
 
     /**
      * The name of every entry a reader run drives, keyed by the English name
@@ -139,7 +176,9 @@ public final class GalleryStrings {
             ENTRY_DATE_FIELD.english(), ENTRY_DATE_FIELD,
             ENTRY_DATE_PICKER_CLOSED.english(), ENTRY_DATE_PICKER_CLOSED,
             ENTRY_LIST_MULTI.english(), ENTRY_LIST_MULTI,
-            ENTRY_COMBO.english(), ENTRY_COMBO);
+            ENTRY_COMBO.english(), ENTRY_COMBO,
+            ENTRY_MENU_BAR.english(), ENTRY_MENU_BAR,
+            ENTRY_CONTEXT_MENU.english(), ENTRY_CONTEXT_MENU);
 
     /**
      * @param name an entry's name, the English one it is identified by

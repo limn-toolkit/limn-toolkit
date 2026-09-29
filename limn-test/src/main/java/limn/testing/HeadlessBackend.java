@@ -111,6 +111,7 @@ public final class HeadlessBackend implements BackendPeer {
     @Override
     public WindowPeer createWindow(WindowConfig config) {
         HeadlessWindow window = open(config.title(), config.width(), config.height());
+        window.focusOnShow = config.focusOnShow();
         NativeWindow owner = config.owner();
         if (owner != null) {
             WindowPeer.of(owner).registerChildPopup(window,
