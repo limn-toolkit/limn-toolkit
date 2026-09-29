@@ -385,6 +385,14 @@ Maven Central say which number that was.
   through `WindowConfig`; code that called `registerChildPopup` or `unregisterChildPopup` for its
   own windows passes the owner to `WindowConfig.popup` or `ownedBy` instead.
 
+### Known, and left for later
+
+- Orca reads a calendar's whole week, with "not selected" after each day, when the cursor moves
+  to another week (Up, Down, a page): Orca speaks the full row of a table by default ("Speak full
+  row in GUI tables") and says "not selected" of every selectable cell that is not, and a
+  calendar's cursor is not its selection. Left and Right read the day alone. Turning that Orca
+  setting off reads one day on every move.
+
 ## After 0.8.0
 
 ### Fixed
