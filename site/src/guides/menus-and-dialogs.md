@@ -156,6 +156,60 @@ Either way, clicking outside a modal dialog is ignored and beeps, exactly as the
 does. `setDismissOnScrim(true)` turns the in-scene form into a light dismissable overlay
 instead.
 
+## Closing a window, and ending the application
+
+A window asks its close handler before it closes, and the handler may answer later, which
+is what an "unsaved changes" dialog needs:
+
+```java
+window.setCloseRequestHandler(request -> {
+    if (!document.isDirty()) {
+        request.allow();
+        return;
+    }
+    new Dialog("Save changes?", "Your edits will be lost otherwise.")
+            .addButton("Cancel", "cancel")
+            .addButton("Don't save", "discard")
+            .addPrimaryButton("Save", "save")
+            .setCancelResult("cancel")
+            .show(scene)
+            .thenAccept(result -> {
+                if ("cancel".equals(result)) {
+                    request.refuse();
+                } else {
+                    if ("save".equals(result)) {
+                        document.save();
+                    }
+                    request.allow();
+                }
+            });
+});
+```
+
+Answer each request once, with `allow()` or `refuse()`. While a request is unanswered, a
+second click on the close button asks nothing new, so the user never sees two dialogs. A
+window with no handler simply closes. Your own `window.requestClose()` asks nothing: once
+your code has decided, the window closes.
+
+What an allowed close does is the window's policy. `setClosePolicy(ClosePolicy.HIDE)`
+keeps the window to show again, which suits a palette or a preferences window.
+`ClosePolicy.END_APPLICATION` makes the close button end the whole application, which suits
+a main window.
+
+To end the application from a Quit item, call `backend.requestQuit()`. It asks every window,
+the one the user worked in last first, and one at a time, so at most one question is on
+screen. If any window refuses, nothing closes. Once all of them agree, every window closes
+and `runEventLoop()` returns `LoopEnd.QUIT`. On macOS, Cmd-Q, the application menu and the
+Dock's Quit make the same request for you. `backend.setQuitHandler(...)` is asked before
+any window, for what belongs to no window, such as a download still running. A dialog or
+menu that opened as a window of its own is not asked; its owner answers for it and it closes
+with the owner.
+
+By default the loop ends when the last window closes. An application that lives in the
+tray keeps running with no window open after
+`backend.setLoopLifetime(LoopLifetime.UNTIL_QUIT)`, and then ends only through
+`requestQuit()` or `stop()`.
+
 ## Native file dialogs
 
 `Backend.fileDialogs()` gives you the platform's own chooser: the real one, not a

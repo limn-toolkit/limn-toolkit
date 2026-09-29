@@ -234,6 +234,15 @@ Maven Central say which number that was.
 - `NumberFormats.scientific(maxDecimals)` writes a number in scientific notation in the current
   language's terms: `1.2E25` in English, `1,2E25` in German, `1,2×10^25` in Swedish, with the
   language's own digits and minus sign.
+- `Backend.requestQuit()` ends the application by asking once: the quit handler
+  (`Backend.setQuitHandler`) first, then every open window's close handler, the window used last
+  first and one at a time. A refusal anywhere keeps every window open; once all agree, every window
+  closes and `runEventLoop()` returns `LoopEnd.QUIT`. A dialog or menu open as a window of its own
+  is not asked and closes with its owner.
+- `NativeWindow.setClosePolicy(ClosePolicy)` says what an allowed user's close does: dispose the
+  window (the default), hide it (`HIDE`), or end the application (`END_APPLICATION`).
+- `Backend.setLoopLifetime(LoopLifetime.UNTIL_QUIT)` keeps the loop running with no window open,
+  as a tray application needs, until `requestQuit()` or `stop()`.
 
 ### Changed
 
@@ -280,6 +289,18 @@ Maven Central say which number that was.
   as wide as its titles.
 - `DatePicker.displayMode()` answers the presentation asked for while the picker is closed, as
   `ComboBox.displayMode()` does. It answered null.
+- A window's close handler answers later: `setCloseRequestHandler` takes a `CloseRequestHandler`,
+  which is handed a `CloseRequest` to `allow()` or `refuse()` once, now or from a dialog's result,
+  instead of a `BooleanSupplier` answered on the spot. The old way to confirm with a dialog (veto,
+  show the dialog, call `requestClose()` from the answer) becomes answering the request from the
+  answer; a second click on the close button while the question is open asks nothing new. To
+  move, turn `() -> { …; return ok; }` into `request -> { …; if (ok) request.allow(); else
+  request.refuse(); }`. The handler is also asked when the application ends.
+- `Backend.runEventLoop()` returns why it ended: `LAST_WINDOW_CLOSED`, `STOPPED` or `QUIT`. Code
+  that ignores it compiles as before; a backend of your own returns it.
+- On macOS, Cmd-Q, the application menu's Quit and the Dock's Quit make the same request as
+  `requestQuit()`. They used to close every window whose handler agreed, newest first, even when
+  another refused, so a refusal left the application with some windows gone.
 - A chart writes values of 1e15 and more in scientific notation by default, on its value axis and
   in its tooltip and the names a screen reader hears: `0, 2E299, … 1E300` rather than 401
   characters a tick, and `1.235E20` rather than `123,456,000,000,000,000,000`. The axis picks the

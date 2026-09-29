@@ -146,7 +146,9 @@ Four things are happening:
 2. **Widgets are objects you construct.** `Column`, `Label` and `Button` are ordinary
    classes; a screen is whatever tree you build out of them.
 3. **A `Scene` is a widget tree bound to a window.** It handles layout, input and painting.
-4. **`runEventLoop()` blocks** until the last window closes.
+4. **`runEventLoop()` blocks** until the last window closes, and says why it returned.
+   [Closing a window, and ending the application](/docs/menus-and-dialogs/#closing-a-window-and-ending-the-application)
+   covers "unsaved changes" and Quit.
 
 ## Where to go next
 
