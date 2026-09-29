@@ -347,3 +347,25 @@ ones that change API are recorded here as they land.
   contract broken: `limn-test`'s `HeadlessWindow.clipboard()` answered null where every window's
   clipboard is a clipboard, so a text field's copy in a scene bound to one threw; it now answers its
   backend's, one for all its windows.
+
+## 12. Where the SPI's line falls in the 1.0 contract (gate G1, decided 2026-09-29)
+
+The road map to 1.0 left one question to the owner at the end of the API-shape release: what of
+`limn.backend` the 1.0 contract freezes. The SDL3 spike of 2026-09-25 wrote a second backend beside
+this one and measured which types moved. The owner chose its recommendation, **two layers**:
+
+- **The application's layer is frozen with the rest of the public API.** An application creates
+  a `Backend` and its windows and asks them things. `Backend`, `NativeWindow`, `WindowConfig`,
+  `FileDialogs`, `Display`, `Clipboard`, `Cursor` and `Keys` are frozen, and so is what ADR 048
+  added for the application (`ClosePolicy`, `CloseRequest`, `CloseRequestHandler`, `QuitRequest`,
+  `QuitHandler`, `LoopLifetime`, `LoopEnd`). The README's hello world already names three of them.
+- **The layer a backend implements stays incubating through 1.x.** That is what a backend owes the
+  toolkit: `WindowInput`, `FrameInfo`, `GpuRenderer`, `BackendServices` and the services it
+  installs. This is the layer that moved most in the spike. Frozen, it would hold a second backend
+  in 1.x (SDL or another) to an SPI written for one implementer. It may change in a minor release,
+  and each change is listed in the CHANGELOG with its migration.
+
+Theme 0.11 applies the line: the module exports each layer with its status, and the application
+layer's corrections that the spike measured (the popup's owner at creation, an asynchronous owned
+file dialog, text and composition as separate requests of an input method, `Keys` with a written
+meaning) land before it freezes.
