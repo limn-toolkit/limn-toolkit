@@ -14,18 +14,15 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Native file/folder dialogs via tinyfiledialogs (bundled with LWJGL; no AWT):
- * the platform's own chooser on Windows, macOS and Linux (zenity/kdialog).
- * Calls block the UI thread while the system dialog is open (system-modal,
- * exactly like any native application's file chooser).
+ * The fallback chooser, through tinyfiledialogs (bundled with LWJGL; no AWT): what a window's
+ * dialogs use on Linux when no desktop portal answers, as on a desktop that runs none. There it
+ * runs zenity, kdialog, yad or Xdialog as another program and reads one line back, and the call
+ * blocks the UI thread until the user is done, which is why every entry point presents first. The
+ * platforms' own choosers ({@link MacFileDialogs}, {@link WindowsFileDialogs} and the portal's) are
+ * what every other case uses, and none of them blocks.
  *
- * <p>Only on Windows is the chooser ours: there tinyfd calls a Win32 common
- * dialog, which pumps its own message loop on this thread. On macOS it writes
- * an AppleScript {@code choose file} command and reads one line back from a
- * child {@code osascript}; on Linux it runs zenity, kdialog, yad or Xdialog the
- * same way. On both, the panel belongs to another process; nothing here can
- * reach into it, and while it is up this process draws nothing at all, which is
- * why every entry point presents first.
+ * <p>The macOS half of this class, which translated patterns for tinyfd's osascript command, is no
+ * longer reached: a Mac uses its own panels.
  */
 final class TinyFdDialogs {
 
@@ -55,7 +52,7 @@ final class TinyFdDialogs {
      * not describe this as pre-warming the dialog.
      */
     static void warmNative() {
-        if (!limn.concurrent.Ui.isInstalled()) {
+        if (!limn.backend.Platform.current().isLinux() || !limn.concurrent.Ui.isInstalled()) {
             return;
         }
         limn.concurrent.Ui.async(() -> TinyFileDialogs.tinyfd_getGlobalChar("tinyfd_version"))

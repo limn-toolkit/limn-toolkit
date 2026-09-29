@@ -6,6 +6,57 @@ Each section is named after the release it follows. It is complete on the day th
 tagged, and no release has to edit this file to rename it; the release on GitHub and the version on
 Maven Central say which number that was.
 
+## After 0.10.0
+
+### New
+
+- The file choosers are the platform's own and no longer stop the application:
+  `window.fileDialogs()` (on `NativeWindow`, which replaces `Backend.fileDialogs()`) opens a sheet
+  on macOS (`NSOpenPanel`, `NSSavePanel`), a dialog the window owns on Windows (`IFileOpenDialog`,
+  `IFileSaveDialog`) and the desktop's chooser through the XDG desktop portal on Linux, which also
+  works inside Flatpak and Snap. While one is up, every window keeps drawing and timers keep
+  running. A window shows one chooser at a time; a second request answers empty at once. On a
+  Linux desktop with no portal the old tinyfd chooser remains, and there it still blocks.
+- A key event says what the active keyboard layout types at the key: `KeyEvent.layoutCodePoint()`,
+  and `KeyEvent.shortcutKey()`, the Latin letter or digit printed on the keycap, or the physical key
+  when the layout prints none there. Every built-in shortcut matches the keycap, so Ctrl+Z on a
+  French AZERTY keyboard is the key printed Z (it was the key printed W), and a Cyrillic layout
+  keeps Ctrl+Z where it is, as native applications do. Alt and F10 in a menu bar stay physical.
+- `PreeditEvent` names the part of a composition the input method is converting:
+  `targetStart()` and `targetLength()`, in code points, beside the caret.
+- A window can be created with its owner: `WindowConfig.popup(owner, width, height)` for a popup
+  drawn outside the owner's frame, `WindowConfig.ownedBy(owner)` for a window of its own that closes
+  and moves with the owner, `atInOwner(x, y)` to place either in the owner's logical points, and
+  `title(String)` to name a popup for assistive technologies. The backend registers the owner when
+  it creates the window and forgets it when the window closes.
+
+### Breaking, and how to move
+
+- `FileDialogs`' methods return a `CompletionStage`, completed on the UI thread, and are reached
+  through a window: `backend.fileDialogs().openFile(title, folder, filter)` becomes
+  `window.fileDialogs().openFile(title, folder, filter).thenAccept(chosen -> …)`. An empty answer
+  is still a cancel, and a headless backend still answers empty.
+- The interfaces only a backend implements moved to `limn.backend.spi`, a package marked
+  incubating: `WindowInput`, `FrameInfo`, `FrameCallback`, `GpuRenderer`, `BackendServices`,
+  `ModalStack` and `Installed`. `NativeWindow` and `Backend` are sealed; a backend implements
+  `WindowPeer` and `BackendPeer`, which carry what the toolkit asks of a platform (text input,
+  the preedit caret, child popups, the frame callback, modal stacks). `WindowPeer.of(window)` and
+  `BackendPeer.of(backend)` reach them from the application type. An application that only uses a
+  backend changes nothing but imports.
+- `setImeEnabled(boolean)` is `WindowPeer.setTextInput(TextInput)`: `NONE`, `CHARACTERS` or
+  `COMPOSITION`. The scene asks for characters, not nothing, when the focus is not text, so a
+  list's type-ahead works on a platform that sends no characters otherwise.
+- `WindowInput.preeditChanged(text, caret, targetStart, targetLength)` replaces the form that took
+  GLFW's styled blocks and focused block; `PreeditEvent`'s constructor takes the same four values.
+- `WindowInput.keyEvent(key, layoutCodePoint, pressed, repeat, modifiers)` is the method a backend
+  implements; the four-argument form remains as a US layout, for tests.
+- `WindowInput.filesDropped(paths, x, y)` takes the point of the drop in logical points, and the
+  files go to the widget there. GLFW's backend, which is told no point, reads the pointer at the
+  drop.
+- `ComboBox`, `DatePicker`, `PopupMenu` and the native `Dialog` register as their window's popups
+  through `WindowConfig`; code that called `registerChildPopup` or `unregisterChildPopup` for its
+  own windows passes the owner to `WindowConfig.popup` or `ownedBy` instead.
+
 ## After 0.9.0
 
 ### Fixed

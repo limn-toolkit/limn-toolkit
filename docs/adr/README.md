@@ -33,7 +33,7 @@ has changed it yet.
 | [019](019-a-shape-can-be-made-of-what-is-behind-it.md) | A shape can be made of what is behind it | Accepted, 2026-08-05; first step implemented, §7 lists what is not | — |
 | [020](020-background-work-is-a-job-with-a-lifecycle.md) | Background work is a job with a lifecycle, and cancelling it stops the delivery rather than the thread | Accepted, 2026-08-06; implemented | — |
 | [021](021-opening-a-container-is-not-a-frame-of-work.md) | Opening a container is not a frame of work | Accepted, 2026-08-06; implemented | — |
-| [022](022-a-file-chooser-is-another-program.md) | A file chooser is another program, so the frame before it is the one that matters | Accepted, 2026-08-06; implemented | — |
+| [022](022-a-file-chooser-is-another-program.md) | A file chooser is another program, so the frame before it is the one that matters | Accepted, 2026-08-06; superseded in 0.11 except for Linux without a portal | — |
 | [023](023-a-posted-task-is-not-a-frame.md) | A posted task is not a frame | Accepted, 2026-08-06; implemented | — |
 | [024](024-a-chart-is-a-widget-that-animates-values.md) | A chart is a widget, and what it animates is values | Accepted, 2026-08-10; implemented | — |
 | [025](025-a-layout-can-be-contained.md) | A layout can be contained | Accepted, 2026-08-11; implemented | — |

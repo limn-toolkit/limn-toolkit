@@ -42,9 +42,6 @@ final class MacFileDialogs {
 
     private static final System.Logger LOG = System.getLogger(MacFileDialogs.class.getName());
 
-    /** What is asked for. */
-    enum Kind { OPEN, OPEN_MANY, SAVE, FOLDER }
-
     /** {@code NSModalResponseOK}. */
     private static final long RESPONSE_OK = 1;
     /** {@code BLOCK_IS_GLOBAL}. */
@@ -58,7 +55,7 @@ final class MacFileDialogs {
     private static long descriptor = NULL;
     private static long globalBlockIsa = NULL;
 
-    private record Pending(long panel, Kind kind, Consumer<List<Path>> answer) {
+    private record Pending(long panel, WindowFileDialogs.Kind kind, Consumer<List<Path>> answer) {
     }
 
     private MacFileDialogs() {
@@ -73,13 +70,13 @@ final class MacFileDialogs {
      *                 event that answered
      * @return whether a panel opened; {@code false} is logged, and the caller answers empty
      */
-    static boolean open(long nsWindow, boolean onScreen, Kind kind, String title, @Nullable Path initial,
+    static boolean open(long nsWindow, boolean onScreen, WindowFileDialogs.Kind kind, String title, @Nullable Path initial,
                         FileDialogs.@Nullable Filter filter, Consumer<List<Path>> answer) {
         try {
             if (!ready()) {
                 return false;
             }
-            long panel = kind == Kind.SAVE
+            long panel = kind == WindowFileDialogs.Kind.SAVE
                     ? ObjC.msg(ObjC.cls("NSSavePanel"), "savePanel")
                     : ObjC.msg(ObjC.cls("NSOpenPanel"), "openPanel");
             if (panel == NULL) {
@@ -88,16 +85,16 @@ final class MacFileDialogs {
             ObjC.msg(panel, "retain"); // held until it answers
             ObjC.msgVoid(panel, "setTitle:", string(title));
             ObjC.msgVoid(panel, "setMessage:", string(title)); // a sheet shows no title
-            if (kind != Kind.SAVE) {
-                ObjC.msgVoid(panel, "setCanChooseFiles:", kind == Kind.FOLDER ? 0L : 1L);
-                ObjC.msgVoid(panel, "setCanChooseDirectories:", kind == Kind.FOLDER ? 1L : 0L);
-                ObjC.msgVoid(panel, "setAllowsMultipleSelection:", kind == Kind.OPEN_MANY ? 1L : 0L);
-                ObjC.msgVoid(panel, "setCanCreateDirectories:", kind == Kind.FOLDER ? 1L : 0L);
+            if (kind != WindowFileDialogs.Kind.SAVE) {
+                ObjC.msgVoid(panel, "setCanChooseFiles:", kind == WindowFileDialogs.Kind.FOLDER ? 0L : 1L);
+                ObjC.msgVoid(panel, "setCanChooseDirectories:", kind == WindowFileDialogs.Kind.FOLDER ? 1L : 0L);
+                ObjC.msgVoid(panel, "setAllowsMultipleSelection:", kind == WindowFileDialogs.Kind.OPEN_MANY ? 1L : 0L);
+                ObjC.msgVoid(panel, "setCanCreateDirectories:", kind == WindowFileDialogs.Kind.FOLDER ? 1L : 0L);
             } else {
                 ObjC.msgVoid(panel, "setCanCreateDirectories:", 1L);
             }
             place(panel, kind, initial);
-            if (kind == Kind.OPEN || kind == Kind.OPEN_MANY) {
+            if (kind == WindowFileDialogs.Kind.OPEN || kind == WindowFileDialogs.Kind.OPEN_MANY) {
                 restrict(panel, filter);
             }
             long block = MemoryUtil.nmemCallocChecked(1, BLOCK_SIZE);
@@ -153,7 +150,7 @@ final class MacFileDialogs {
         List<Path> chosen = new ArrayList<>();
         try {
             if (response == RESPONSE_OK) {
-                if (pending.kind == Kind.SAVE) {
+                if (pending.kind == WindowFileDialogs.Kind.SAVE) {
                     addPath(chosen, ObjC.msg(pending.panel, "URL"));
                 } else {
                     long urls = ObjC.msg(pending.panel, "URLs");
@@ -188,7 +185,7 @@ final class MacFileDialogs {
     }
 
     /** Where the panel opens, and for a save panel the name it suggests. */
-    private static void place(long panel, Kind kind, @Nullable Path initial) {
+    private static void place(long panel, WindowFileDialogs.Kind kind, @Nullable Path initial) {
         if (initial == null) {
             return;
         }
@@ -204,7 +201,7 @@ final class MacFileDialogs {
             long url = ObjC.msg(ObjC.cls("NSURL"), "fileURLWithPath:", string(folder.toAbsolutePath().toString()));
             ObjC.msgVoid(panel, "setDirectoryURL:", url);
         }
-        if (kind == Kind.SAVE && name != null) {
+        if (kind == WindowFileDialogs.Kind.SAVE && name != null) {
             ObjC.msgVoid(panel, "setNameFieldStringValue:", string(name));
         }
     }

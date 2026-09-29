@@ -1479,6 +1479,17 @@ final class LwjglWindow implements WindowPeer {
         return org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle);
     }
 
+    /**
+     * @return what the XDG desktop portal calls this window: {@code x11:} and its id in hex under
+     *         X11, and {@code ""} elsewhere, where GLFW gives no name the portal can take
+     */
+    String portalParent() {
+        if (destroyed || org.lwjgl.glfw.GLFW.glfwGetPlatform() != org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11) {
+            return "";
+        }
+        return "x11:" + Long.toHexString(org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle));
+    }
+
     @Override
     public limn.backend.FileDialogs fileDialogs() {
         backend.uiRuntime().checkUiThread();

@@ -369,3 +369,18 @@ Theme 0.11 applies the line: the module exports each layer with its status, and 
 layer's corrections that the spike measured (the popup's owner at creation, an asynchronous owned
 file dialog, text and composition as separate requests of an input method, `Keys` with a written
 meaning) land before it freezes.
+
+**Built as (theme 0.11, 2026-09-29).** The implementer's layer is `limn.backend.spi`, exported
+and marked incubating in its `package-info`: `WindowInput`, `FrameInfo`, `FrameCallback`,
+`GpuRenderer`, `BackendServices`, `ModalStack` and `Installed`, with `WindowPeer` and `BackendPeer`
+for what the toolkit asks of a platform's window and backend (text input and the preedit caret,
+child popups, the frame callback, modal stacks). `NativeWindow` and `Backend` are sealed and permit
+only those two, so an application's type cannot grow an implementer's method by accident, and
+`WindowPeer.of` and `BackendPeer.of` are casts. The four corrections landed first, each measured
+on the guests: `WindowConfig.popup(owner, …)`, `ownedBy` and `atInOwner` place a child in its
+owner's points (the same offsets as before on all four); `NativeWindow.fileDialogs()` answers a
+`CompletionStage` on the UI thread from the platform's own chooser (a sheet on macOS, `IFileDialog`
+on Windows, the desktop portal on Linux, tinyfd only where no portal answers), timers running
+throughout; `TextInput` separates characters from composition and a preedit names its target in
+code points; `KeyEvent.shortcutKey()` reads the keycap, checked with AZERTY on macOS and X11. The
+point of a file drop joined them, from the same spike.

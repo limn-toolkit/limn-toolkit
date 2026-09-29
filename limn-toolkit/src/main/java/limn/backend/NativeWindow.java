@@ -95,8 +95,8 @@ public sealed interface NativeWindow extends AutoCloseable permits WindowPeer {
      * once or later, so an "unsaved changes" dialog can decide. With no handler, the window agrees.
      * A program's {@link #requestClose()} bypasses it. {@code null} clears. UI thread only.
      *
-     * <p>A window registered with an owner through {@link WindowPeer#registerChildPopup} (a native dialog, a
-     * menu) is not asked when the application ends: its owner speaks for it, and it closes with it.
+     * <p>A window created with an owner ({@link WindowConfig#popup(NativeWindow, int, int)} or
+     * {@link WindowConfig#ownedBy}: a native dialog, a menu) is not asked when the application ends: its owner speaks for it, and it closes with it.
      *
      * <p>No default: a backend that ignored it lost an application's "unsaved changes"
      * veto silently. A backend with no close gesture of its own (headless, embedded) keeps the
