@@ -38,6 +38,8 @@ import limn.backend.spi.WindowPeer;
 public final class HeadlessWindow implements WindowPeer {
     // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
     @Override public boolean supportsAbsolutePositioning() { return true; }
+    /** No chooser here: every dialog answers empty, as if cancelled. */
+    @Override public limn.backend.FileDialogs fileDialogs() { return limn.backend.FileDialogs.NONE; }
     @Override public void setTextInput(limn.backend.spi.TextInput input) { }
     @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
     @Override public void resetPreedit() { }

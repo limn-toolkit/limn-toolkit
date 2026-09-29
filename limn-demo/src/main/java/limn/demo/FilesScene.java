@@ -112,8 +112,8 @@ final class FilesScene {
                 .setRole(Label.Role.TITLE).setStrong(true));
 
         col.add(new Label("Native file dialogs").setRole(Label.Role.TITLE));
-        col.add(new Label("The platform's own chooser (tinyfiledialogs via LWJGL, no AWT). "
-                + "Each call blocks the UI thread while the system dialog is open, like any native app.")
+        col.add(new Label("The platform's own chooser, owned by this window. The answer arrives "
+                + "later; the application keeps running while the chooser is open.")
                 .setMuted(true).setWrap(true));
 
         Label status = new Label("No dialog shown yet.").setMuted(true).setWrap(true);
@@ -122,19 +122,18 @@ final class FilesScene {
         Row buttons = new Row();
         buttons.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
         buttons.add(new Button("Open file…").onAction(() -> dialogs(status).ifPresent(d ->
-                status.setText(d.openFile("Open image", null, images)
-                        .map(p -> "Open: " + p).orElse("Open: cancelled")))));
-        buttons.add(new Button("Open files…").onAction(() -> dialogs(status).ifPresent(d -> {
-            List<Path> picked = d.openFiles("Open images", null, images);
-            status.setText(picked.isEmpty() ? "Open multiple: cancelled"
-                    : "Open multiple: " + picked.size() + " file(s) " + picked);
-        })));
+                d.openFile("Open image", null, images).thenAccept(picked -> status.setText(
+                        picked.map(p -> "Open: " + p).orElse("Open: cancelled"))))));
+        buttons.add(new Button("Open files…").onAction(() -> dialogs(status).ifPresent(d ->
+                d.openFiles("Open images", null, images).thenAccept(picked -> status.setText(
+                        picked.isEmpty() ? "Open multiple: cancelled"
+                                : "Open multiple: " + picked.size() + " file(s) " + picked)))));
         buttons.add(new Button("Save file…").onAction(() -> dialogs(status).ifPresent(d ->
-                status.setText(d.saveFile("Save as", Path.of("untitled.png"), images)
-                        .map(p -> "Save: " + p).orElse("Save: cancelled")))));
+                d.saveFile("Save as", Path.of("untitled.png"), images).thenAccept(picked -> status.setText(
+                        picked.map(p -> "Save: " + p).orElse("Save: cancelled"))))));
         buttons.add(new Button("Choose folder…").onAction(() -> dialogs(status).ifPresent(d ->
-                status.setText(d.chooseFolder("Choose a folder", null)
-                        .map(p -> "Folder: " + p).orElse("Folder: cancelled")))));
+                d.chooseFolder("Choose a folder", null).thenAccept(picked -> status.setText(
+                        picked.map(p -> "Folder: " + p).orElse("Folder: cancelled"))))));
         col.add(buttons);
 
         col.add(new Label("The sketch filter below uses a made-up extension (*.limn) that no "
@@ -149,8 +148,8 @@ final class FilesScene {
         sketchRow.add(new Button("Open sketch (*.limn)…").onAction(() -> dialogs(status).ifPresent(d -> {
             Path samples = sampleSketchFolder(status);
             if (samples != null) {
-                status.setText(d.openFile("Open sketch", samples, sketches)
-                        .map(p -> "Sketch: " + p).orElse("Sketch: cancelled"));
+                d.openFile("Open sketch", samples, sketches).thenAccept(picked -> status.setText(
+                        picked.map(p -> "Sketch: " + p).orElse("Sketch: cancelled")));
             }
         })));
         col.add(sketchRow);
@@ -179,7 +178,7 @@ final class FilesScene {
             status.setText("No native window (headless): dialogs unavailable.");
             return Optional.empty();
         }
-        return Optional.of(scene.window().backend().fileDialogs());
+        return Optional.of(scene.window().fileDialogs());
     }
 
     /**

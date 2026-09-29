@@ -266,6 +266,14 @@ public sealed interface NativeWindow extends AutoCloseable permits WindowPeer {
     /** @return the backend that owns this window (popup creation, shutdown) */
     Backend backend();
 
+    /**
+     * @return the platform's file and folder choosers, owned by this window; {@link FileDialogs#NONE}
+     *         for a window with none (headless, embedded). No default: a backend that answered
+     *         {@code NONE} by omission made every "Open…" in an application silently do nothing.
+     *         UI thread only.
+     */
+    FileDialogs fileDialogs();
+
     /** @return the system clipboard */
     Clipboard clipboard();
 

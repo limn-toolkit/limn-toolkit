@@ -31,6 +31,8 @@ final class RecordingWindow implements WindowPeer {
     limn.graphics.Rect lastCaretRect;
     private boolean closed;
 
+    /** No chooser here: every dialog answers empty, as if cancelled. */
+    @Override public limn.backend.FileDialogs fileDialogs() { return limn.backend.FileDialogs.NONE; }
     @Override
     public void setTextInput(limn.backend.spi.TextInput input) {
         imeEnabled = input == limn.backend.spi.TextInput.COMPOSITION;

@@ -148,15 +148,6 @@ public sealed interface Backend extends AutoCloseable permits BackendPeer {
         return all.isEmpty() ? null : all.get(0);
     }
 
-    /**
-     * @return the platform's native file/folder dialogs. Headless/embedded
-     *         backends return {@link FileDialogs#NONE} (every dialog resolves
-     *         empty, as if cancelled). UI thread only.
-     */
-    default FileDialogs fileDialogs() {
-        return FileDialogs.NONE;
-    }
-
     /** Asks the loop to exit. Safe to call from any thread. */
     void stop();
 

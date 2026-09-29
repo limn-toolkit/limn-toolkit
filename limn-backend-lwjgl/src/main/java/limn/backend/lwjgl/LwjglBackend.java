@@ -507,8 +507,8 @@ public final class LwjglBackend implements BackendPeer {
         return uiRuntime;
     }
 
-    @Override
-    public limn.backend.FileDialogs fileDialogs() {
+    /** The blocking chooser behind a window's dialogs where no native one is written yet. */
+    TinyFdDialogs tinyFd() {
         return fileDialogs;
     }
 

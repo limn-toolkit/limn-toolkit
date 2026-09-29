@@ -358,7 +358,7 @@
 357     scroll pane "" [disabled, hidden, offscreen] scroll none
 358       heading "OS files: dialogs, drop, window extras" [disabled, hidden, offscreen]
 359       heading "Native file dialogs" [disabled, hidden, offscreen]
-360       label "The platform's own chooser (tinyfiledialogs via LWJGL, no AWT). Each call blocks the UI thread while the system dialog is open, like any native app." [disabled, hidden, offscreen]
+360       label "The platform's own chooser, owned by this window. The answer arrives later; the application keeps running while the chooser is open." [disabled, hidden, offscreen]
 361       button "Open file…" [disabled, hidden, offscreen]
 362       button "Open files…" [disabled, hidden, offscreen]
 363       button "Save file…" [disabled, hidden, offscreen]

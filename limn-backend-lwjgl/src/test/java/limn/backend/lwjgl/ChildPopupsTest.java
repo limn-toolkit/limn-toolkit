@@ -93,6 +93,8 @@ class ChildPopupsTest {
         @Override public void setImageCursor(limn.backend.ImageCursor value) { }
         @Override public void setPointerMode(limn.backend.PointerMode mode) { }
         @Override public limn.backend.PointerMode pointerMode() { return limn.backend.PointerMode.NORMAL; }
+        /** No chooser here: every dialog answers empty, as if cancelled. */
+        @Override public limn.backend.FileDialogs fileDialogs() { return limn.backend.FileDialogs.NONE; }
         @Override public void setTextInput(limn.backend.spi.TextInput input) { }
         @Override public void setPreeditCaretRect(float px, float py, float w, float h) { }
         @Override public void resetPreedit() { }

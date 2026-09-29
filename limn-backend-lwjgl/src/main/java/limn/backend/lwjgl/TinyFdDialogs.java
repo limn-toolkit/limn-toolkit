@@ -27,7 +27,7 @@ import java.util.Optional;
  * reach into it, and while it is up this process draws nothing at all, which is
  * why every entry point presents first.
  */
-final class TinyFdDialogs implements FileDialogs {
+final class TinyFdDialogs {
 
     private static final System.Logger LOG = System.getLogger(TinyFdDialogs.class.getName());
 
@@ -85,8 +85,7 @@ final class TinyFdDialogs implements FileDialogs {
         backend.presentBeforeBlocking();
     }
 
-    @Override
-    public Optional<Path> openFile(String title, Path initial, Filter filter) {
+    Optional<Path> openFile(String title, Path initial, FileDialogs.Filter filter) {
         beforeBlockingCall();
         try (MemoryStack stack = MemoryStack.stackPush()) {
             MacFilterPatterns.Bounded in = bound(title, initial);
@@ -97,8 +96,7 @@ final class TinyFdDialogs implements FileDialogs {
         }
     }
 
-    @Override
-    public List<Path> openFiles(String title, Path initial, Filter filter) {
+    List<Path> openFiles(String title, Path initial, FileDialogs.Filter filter) {
         beforeBlockingCall();
         try (MemoryStack stack = MemoryStack.stackPush()) {
             MacFilterPatterns.Bounded in = bound(title, initial);
@@ -116,8 +114,7 @@ final class TinyFdDialogs implements FileDialogs {
         }
     }
 
-    @Override
-    public Optional<Path> saveFile(String title, Path initial, Filter filter) {
+    Optional<Path> saveFile(String title, Path initial, FileDialogs.Filter filter) {
         beforeBlockingCall();
         try (MemoryStack stack = MemoryStack.stackPush()) {
             MacFilterPatterns.Bounded in = bound(title, initial);
@@ -127,8 +124,7 @@ final class TinyFdDialogs implements FileDialogs {
         }
     }
 
-    @Override
-    public Optional<Path> chooseFolder(String title, Path initial) {
+    Optional<Path> chooseFolder(String title, Path initial) {
         beforeBlockingCall();
         MacFilterPatterns.Bounded in = bound(title, initial);
         String picked = TinyFileDialogs.tinyfd_selectFolderDialog(in.title(), in.location());
@@ -161,7 +157,7 @@ final class TinyFdDialogs implements FileDialogs {
                 : text;
     }
 
-    private static PointerBuffer patterns(MemoryStack stack, Filter filter,
+    private static PointerBuffer patterns(MemoryStack stack, FileDialogs.Filter filter,
                                           MacFilterPatterns.Bounded in) {
         if (filter == null || filter.patterns().isEmpty()) {
             return null;
@@ -187,7 +183,7 @@ final class TinyFdDialogs implements FileDialogs {
         return buffer.flip();
     }
 
-    private static String description(Filter filter) {
+    private static String description(FileDialogs.Filter filter) {
         return filter == null ? null : filter.description();
     }
 }

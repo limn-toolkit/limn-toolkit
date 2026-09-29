@@ -171,6 +171,7 @@ final class LwjglWindow implements WindowPeer {
     private limn.backend.@Nullable CloseRequestHandler closeRequestHandler;
     /** Whether typed characters go to the scene: every request but {@code TextInput.NONE}. */
     private boolean charactersWanted = true;
+    private @Nullable WindowFileDialogs fileDialogs;
     private limn.backend.ClosePolicy closePolicy = limn.backend.ClosePolicy.DISPOSE;
     private WindowInput input;
     private int framebufferWidth;
@@ -1468,6 +1469,23 @@ final class LwjglWindow implements WindowPeer {
     private static int layoutCodePoint(int key, int scancode) {
         String name = org.lwjgl.glfw.GLFW.glfwGetKeyName(key, scancode);
         return name == null || name.isEmpty() ? 0 : name.codePointAt(0);
+    }
+
+    /** @return this window's {@code NSWindow}, or {@code 0} off macOS or once destroyed */
+    long cocoaWindow() {
+        if (!MACOS || destroyed) {
+            return NULL;
+        }
+        return org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle);
+    }
+
+    @Override
+    public limn.backend.FileDialogs fileDialogs() {
+        backend.uiRuntime().checkUiThread();
+        if (fileDialogs == null) {
+            fileDialogs = new WindowFileDialogs(this, backend);
+        }
+        return fileDialogs;
     }
 
     @Override

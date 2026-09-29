@@ -80,6 +80,8 @@ public class StubWindow implements WindowPeer {
     }
     @Override public limn.backend.ClosePolicy closePolicy() { return closePolicy; }
     /** No input method in a stub: the three IME calls are no-ops, on purpose. */
+    /** No chooser here: every dialog answers empty, as if cancelled. */
+    @Override public limn.backend.FileDialogs fileDialogs() { return limn.backend.FileDialogs.NONE; }
     @Override public void setTextInput(limn.backend.spi.TextInput input) { }
     @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
     @Override public void resetPreedit() { }
