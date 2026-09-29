@@ -52,6 +52,42 @@ public final class SceneAccess {
          * @return a handle that unregisters
          */
         Subscription observeWindowFocus(Scene scene, Runnable observer);
+
+        /**
+         * Routes {@code scene}'s keyboard to {@code route}; see {@link SceneAccess#routeKeyboard}.
+         *
+         * @param scene the scene whose window keeps the desktop's keyboard
+         * @param route where its keys and characters go instead of its focus
+         * @return a handle that ends the route
+         */
+        Subscription routeKeyboard(Scene scene, KeyRoute route);
+    }
+
+    /**
+     * Where a scene's keys go while a menu it opened in a window of its own is up: the menu, which
+     * draws in that window and publishes in this scene's tree, and never takes the desktop's
+     * keyboard, as a Win32 menu and an AppKit menu never do.
+     */
+    public interface KeyRoute {
+        /**
+         * A key the scene's window received, as the window delivered it.
+         *
+         * @param key             the physical key
+         * @param layoutCodePoint what the active layout types at it, or 0
+         * @param pressed         press or release
+         * @param repeat          an auto-repeat
+         * @param modifiers       the modifier bits
+         */
+        void key(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers);
+
+        /** @param codepoint a character the scene's window received */
+        void character(int codepoint);
+
+        /**
+         * @return the grafted popup the keys drive, whose cursor is then this scene's, or
+         *         {@code null} while it has no window yet
+         */
+        @org.jspecify.annotations.Nullable Scene popup();
     }
 
     private static volatile Hook hook;
@@ -120,6 +156,23 @@ public final class SceneAccess {
     public static Subscription observeWindowFocus(Scene scene, Runnable observer) {
         java.util.Objects.requireNonNull(scene, "scene");
         return hook().observeWindowFocus(scene, observer);
+    }
+
+    /**
+     * Sends every key and character {@code scene}'s window receives to {@code route} instead of
+     * the scene's focus, at the end of the input batch that brought them, until the handle is
+     * cancelled; a later route replaces an earlier one. While the route names a grafted popup, the
+     * popup's cursor is where this scene's tree says the keyboard is. A key that arrives after the
+     * route ended, in the batch that ended it, goes to the scene's own focus.
+     *
+     * @param scene the scene whose window keeps the desktop's keyboard
+     * @param route where its keys go
+     * @return a handle that ends the route, if it is still the scene's; twice is a no-op. UI thread
+     */
+    public static Subscription routeKeyboard(Scene scene, KeyRoute route) {
+        java.util.Objects.requireNonNull(scene, "scene");
+        java.util.Objects.requireNonNull(route, "route");
+        return hook().routeKeyboard(scene, route);
     }
 
     private static Hook hook() {

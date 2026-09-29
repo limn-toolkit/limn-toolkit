@@ -209,6 +209,11 @@ public final class PopupMenu {
     private Subscription popupBlurHandle;
     /** Closes a menu that opened towards a window of its own when the owner changes fullscreen. */
     private Subscription fullscreenHandle;
+    /**
+     * The owner's keys, routed here while a menu in a window of its own is open: that window never
+     * takes the desktop's keyboard, as a Win32 or an AppKit menu does not; see {@link #keyFromOwner}.
+     */
+    private Subscription keyRouteHandle;
     private ScreenRect workArea;
     private float screenFactor = 1;
     /**
@@ -448,6 +453,12 @@ public final class PopupMenu {
             return;
         }
         open = false;
+        if (keyRouteHandle != null) {
+            // First: a key that arrives after this, in the batch that closed the menu, is the
+            // owner's again, or the menu a menu bar walked to takes it.
+            keyRouteHandle.cancel();
+            keyRouteHandle = null;
+        }
         if (surface != null) {
             // Its window or overlay fades from here on and still receives input, none of which
             // the menu answers any more; see MenuSurface#lateKey.
@@ -596,6 +607,32 @@ public final class PopupMenu {
     }
 
     /**
+     * A key the owner's window received while this menu is open in a window of its own, which never
+     * holds the keyboard: held until the window is made, then handed to the menu's scene as if it
+     * had reached that window.
+     */
+    private void keyFromOwner(LateKey key) {
+        if (!open || surface == null) {
+            return;
+        }
+        if (popupScene == null) {
+            if (keysBeforeWindow == null) {
+                keysBeforeWindow = new ArrayList<>();
+            }
+            keysBeforeWindow.add(key);
+            return;
+        }
+        deliver(key);
+    }
+
+    /** Hands a key to the menu's own scene, as its window would, layout and all. */
+    private void deliver(LateKey key) {
+        WindowInput input = SceneAccess.input(popupScene);
+        key.replay(input);
+        input.inputBatchEnded();
+    }
+
+    /**
      * A key event, or with {@code codepoint >= 0} a typed character, as it reached a menu's surface.
      */
     private record LateKey(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers,
@@ -704,6 +741,27 @@ public final class PopupMenu {
         // window, so a change before the window exists closes the menu too, and modal or not: the
         // change is told to a blocked owner as well. No item runs. An in-scene menu is left alone.
         fullscreenHandle = owner.observeWindowFullscreen(fullscreen -> dismiss());
+        if (!modal) {
+            // From the open on, before the window exists: a key pressed meanwhile, the second Down
+            // of two, or the Right a menu bar walks on with, is held for the menu and not given to
+            // whatever the owner has focused.
+            keyRouteHandle = SceneAccess.routeKeyboard(owner, new SceneAccess.KeyRoute() {
+                @Override
+                public void key(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers) {
+                    keyFromOwner(new LateKey(key, layoutCodePoint, pressed, repeat, modifiers, -1));
+                }
+
+                @Override
+                public void character(int codepoint) {
+                    keyFromOwner(LateKey.character(codepoint));
+                }
+
+                @Override
+                public @Nullable Scene popup() {
+                    return popupScene;
+                }
+            });
+        }
         // Defer window creation: it switches the GL context, which must not happen
         // inside another window's frame callback. The outside-press dismiss is
         // armed there too, after the opening press has finished dispatching, so
@@ -734,8 +792,11 @@ public final class PopupMenu {
         appliedY = workAreaScreenY + Math.round(box[1] * screenFactor);
         // Owned from creation, and placed in the owner's points: the cascade is computed against the
         // work area, and the same point is handed over relative to the window that opened it.
+        // The owner keeps the desktop's keyboard and hands its keys here (keyFromOwner), which is
+        // how a Win32 menu and an AppKit menu work; only a modal menu, which blocks its owner,
+        // takes the focus as a dialog does.
         popupWindow = parentWindow.backend().createWindow(WindowConfig.popup(parentWindow, w, h)
-                .title("menu").focusOnShow(true) // the menu owns the keys
+                .title("menu").focusOnShow(modal)
                 .atInOwner((appliedX - parentWindow.screenX()) / screenFactor,
                         (appliedY - parentWindow.screenY()) / screenFactor));
         // The owner's clock as well as its rendering flags: this scene owns the fade-out that
@@ -743,6 +804,13 @@ public final class PopupMenu {
         // never ends (Scene#clock).
         popupScene = new Scene(surface, owner.clock());
         popupScene.inheritRenderingFlags(owner); // partial/debug follow the owner window
+        if (!modal) {
+            // Published in the owner's tree, under the widget that opened it, as the combo box's
+            // list is: the reader never leaves the owner's window, where the keyboard stays, and
+            // the menu's window publishes nothing of its own. A modal menu holds the keyboard in
+            // its own window, and keeps its own tree there.
+            owner.graftPopup(popupScene);
+        }
         popupScene.bind(popupWindow);
         popupScene.setBackground(Color.TRANSPARENT);
 
@@ -767,10 +835,14 @@ public final class PopupMenu {
         List<LateKey> held = keysBeforeWindow;
         keysBeforeWindow = null;
         if (held != null) {
-            // Passed on by a menu bar's walk before this window existed. One of them may walk on
-            // in turn, closing this menu, and the rest then follow that walk.
+            // Held from the open, or passed on by a menu bar's walk, before this window existed.
+            // One of them may close this menu, or walk on in turn, and the rest then follow.
             for (LateKey key : held) {
-                surface.keyArrived(key);
+                if (!open || popupScene == null) {
+                    surface.lateKey(key);
+                } else {
+                    deliver(key);
+                }
             }
         }
         if (!modal) {

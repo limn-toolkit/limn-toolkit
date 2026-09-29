@@ -323,6 +323,8 @@ final class AccessibleWalk {
         // reads what this fills in.
         builder.resolveRelations(resolver);
         builder.foreignActiveDescendant(popupCursorOfFocused());
+        builder.keyboardPopupAt(keyboardPopupSlot);
+        keyboardPopupSlot = -1;
     }
 
     /**
@@ -724,6 +726,9 @@ final class AccessibleWalk {
             graftDx = (window.screenX() - home.screenX()) / factor;
             graftDy = (window.screenY() - home.screenY()) / factor;
             beneathOnlyPopups = false;
+            if (popup == this.scene.keyboardPopup()) {
+                keyboardPopupSlot = builder.nodeCount(); // the slot its root is about to take
+            }
             try {
                 // Its own layer, in a window of its own: enabled, visible and reachable by its own
                 // widgets' flags, as an overlay is, and never shadowed by this scene's layers.
@@ -828,6 +833,8 @@ final class AccessibleWalk {
      */
     private float graftDx;
     private float graftDy;
+    /** The slot the grafted popup the keyboard drives was published at in this walk, or -1. */
+    private int keyboardPopupSlot = -1;
 
     private void walkChildren(Scene scene, Widget<?> widget, int into, int ownSlot, long ownId,
                               long scope, boolean enabled, boolean visible, boolean reachable) {

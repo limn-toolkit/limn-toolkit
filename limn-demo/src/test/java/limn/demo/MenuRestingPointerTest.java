@@ -37,29 +37,32 @@ class MenuRestingPointerTest {
             List<Step> steps = entry.reader().steps();
             steps.get(0).sendTo(harness.scenes.get(0)); // Shift+F10: the menu, on Cut
             harness.settle();
+            HeadlessWindow host = harness.windows().get(0);
             HeadlessWindow menu = harness.windows().get(1);
+            Scene hostScene = harness.scenes.get(0);
             Scene menuScene = menu.scene();
-            Rect cut = bounds(menu.bridge().tree(), "Cut");
-            float x = cut.x() + cut.width() / 2;
-            float y = cut.y() + cut.height() / 2;
+            // Published in the host's tree, in the host's points: the pointer is the menu window's.
+            Rect cut = bounds(host.bridge().tree(), "Cut");
+            float x = cut.x() + cut.width() / 2 - (menu.screenX() - host.screenX());
+            float y = cut.y() + cut.height() / 2 - (menu.screenY() - host.screenY());
             drive(menuScene).mouseMoved(x, y); // the pointer resting on Cut
             drive(menuScene).inputBatchEnded();
             harness.settle();
             for (int i = 1; i <= 4; i++) { // down to Transform, and Right into its submenu
-                steps.get(i).sendTo(menuScene);
+                steps.get(i).sendTo(hostScene); // the keyboard stays with the host, as a Win32 menu's does
                 harness.settle();
             }
-            assertEquals("Upper case", cursor(menu), "the submenu is open on its first row");
+            assertEquals("Upper case", cursor(host), "the submenu is open on its first row");
 
             drive(menuScene).mouseMoved(x, y); // the window grew; the pointer did not move
             drive(menuScene).inputBatchEnded();
             harness.settle();
-            assertEquals("Upper case", cursor(menu), "a pointer that did not move takes nothing");
+            assertEquals("Upper case", cursor(host), "a pointer that did not move takes nothing");
 
             drive(menuScene).mouseMoved(x, y + 1); // and one that does, does
             drive(menuScene).inputBatchEnded();
             harness.settle();
-            assertEquals("Cut", cursor(menu), "the pointer moving on Cut highlights it");
+            assertEquals("Cut", cursor(host), "the pointer moving on Cut highlights it");
         }
     }
 
