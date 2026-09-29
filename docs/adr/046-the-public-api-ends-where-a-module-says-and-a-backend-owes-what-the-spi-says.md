@@ -356,7 +356,7 @@ this one and measured which types moved. The owner chose its recommendation, **t
 
 - **The application's layer is frozen with the rest of the public API.** An application creates
   a `Backend` and its windows and asks them things. `Backend`, `NativeWindow`, `WindowConfig`,
-  `FileDialogs`, `Display`, `Clipboard`, `Cursor` and `Keys` are frozen, and so is what ADR 048
+  `FileDialogs`, `Display`, `Clipboard`, `Cursor` and `limn.input.Keys` are frozen, and so is what ADR 048
   added for the application (`ClosePolicy`, `CloseRequest`, `CloseRequestHandler`, `QuitRequest`,
   `QuitHandler`, `LoopLifetime`, `LoopEnd`). The README's hello world already names three of them.
 - **The layer a backend implements stays incubating through 1.x.** That is what a backend owes the
