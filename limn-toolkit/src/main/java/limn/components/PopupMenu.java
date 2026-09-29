@@ -211,6 +211,13 @@ public final class PopupMenu {
     private Subscription fullscreenHandle;
     private ScreenRect workArea;
     private float screenFactor = 1;
+    /**
+     * Where the pointer was last seen on the desktop, in the screen coordinates the window is
+     * placed in; {@code NaN} while unknown. A pointer event at the same place is not the pointer
+     * moving: see {@link #pointerMoved}.
+     */
+    private float pointerScreenX = Float.NaN;
+    private float pointerScreenY = Float.NaN;
     private int workAreaScreenX;
     private int workAreaScreenY;
     // Last size/position applied to the popup window, so a highlight-only change
@@ -743,6 +750,13 @@ public final class PopupMenu {
             popupScene.fadeWindowIn(limn.animation.Motion.duration(Theme.current().animWindow));
             popupWindow.show();
         }
+        // Where the pointer rests as the menu opens, so the event a window appearing or growing
+        // under it produces is known for what it is (the keyboard opened this menu, and a
+        // resting pointer takes nothing from it). Polled from the owner, which is on screen.
+        float restX = parentWindow.cursorX();
+        float restY = parentWindow.cursorY();
+        pointerScreenX = Float.isNaN(restX) ? Float.NaN : parentWindow.screenX() + restX * screenFactor;
+        pointerScreenY = Float.isNaN(restY) ? Float.NaN : parentWindow.screenY() + restY * screenFactor;
         if (modal) {
             // Backend-enforced window-modal (like Dialog): the owner ignores input
             // and beeps on a click; the menu closes only on a choice or Escape.
@@ -1457,7 +1471,11 @@ public final class PopupMenu {
             float lx = sceneToLocalX(event.x()) + offsetX;
             float ly = sceneToLocalY(event.y()) + offsetY;
             switch (event.type()) {
-                case MOVE, ENTER, DRAG -> moveAt(lx, ly);
+                case MOVE, ENTER, DRAG -> {
+                    if (pointerMoved(event)) {
+                        moveAt(lx, ly);
+                    }
+                }
                 case WHEEL -> {
                     Column col = columnAt(lx, ly);
                     if (col != null && col.maxScroll() > 0 && event.scrollY() != 0) {
@@ -1534,6 +1552,24 @@ public final class PopupMenu {
                 invalidate();
                 return;
             }
+        }
+
+        /**
+         * Whether a pointer event is the pointer moving, rather than the menu's window appearing,
+         * growing or moving under a pointer that stayed where it was. Windows reports a window
+         * that changes under the cursor as a mouse move, and the menu took it for the user
+         * pointing: a submenu opened from the keyboard over a resting pointer closed again at
+         * once, the highlight jumping to the row under the pointer, and NVDA read that row
+         * (measured on the Windows guest, 2026-09-29). A native menu follows the mouse only once
+         * it moves. The first event, when nothing is known of where the pointer was, counts.
+         */
+        private boolean pointerMoved(MouseEvent event) {
+            float sx = popupWindow != null ? popupWindow.screenX() + event.x() * screenFactor : event.x();
+            float sy = popupWindow != null ? popupWindow.screenY() + event.y() * screenFactor : event.y();
+            boolean still = Math.abs(sx - pointerScreenX) < 0.5f && Math.abs(sy - pointerScreenY) < 0.5f;
+            pointerScreenX = sx;
+            pointerScreenY = sy;
+            return !still;
         }
 
         /** Hover in layout space: highlight (and open the submenu of) the item under the pointer. */

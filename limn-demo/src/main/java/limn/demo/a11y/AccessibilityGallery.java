@@ -272,6 +272,7 @@ public final class AccessibilityGallery {
                 case limn.input.Keys.DELETE -> "DELETE";
                 case limn.input.Keys.BACKSPACE -> "BACKSPACE";
                 case limn.input.Keys.F4 -> "F4";
+                case limn.input.Keys.F10 -> "F10";
                 default -> key >= limn.input.Keys.A && key <= limn.input.Keys.Z
                         ? Character.toString(key) : "KEY" + key;
             };

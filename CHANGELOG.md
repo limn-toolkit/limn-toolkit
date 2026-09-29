@@ -10,6 +10,10 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- A menu in a window of its own follows the pointer only when the pointer moves. On Windows a
+  submenu opened from the keyboard over a pointer resting on the menu closed again at once,
+  because Windows reports a window that grows under a still cursor as a mouse move; the highlight
+  jumped to the row under the pointer, and NVDA read that row instead of the submenu's first.
 - Leaving a menu bar with Escape, or with F10 pressed again, gives the keyboard back to the
   widget that had it when Alt or F10 moved it to the bar, as Windows, GTK and Qt do. It went
   nowhere, so a keyboard user who opened the bar from a field had to Tab back into the form.
