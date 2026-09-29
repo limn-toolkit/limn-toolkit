@@ -362,6 +362,12 @@ public final class Main {
             } else if (scene.startsWith("kitchen")) {
                 KitchenSinkScene.Built built = KitchenSinkScene.create(scene.equals("kitchen-light"));
                 widgetScene = built.scene();
+                // Opened with no scene named, the kitchen follows the system's appearance until the
+                // user picks a theme; a named scene, a capture or --theme keeps the palette it asked
+                // for, and a desktop with no preference keeps the light one it opens with.
+                if (options.scene().equals("default") && !screenshotMode && options.theme() == null) {
+                    built.followSystemAppearance().run();
+                }
                 dialogOpener = built.openDialog();
                 dialogComboRef = built.dialogCombo();
                 loadTrigger = built.triggerLoad();

@@ -34,6 +34,7 @@ import limn.scene.Constraints;
 import limn.scene.ControlSize;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
+import limn.scene.SystemPreferences;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.MouseEvent;
@@ -81,7 +82,7 @@ final class KitchenSinkScene {
                  Runnable triggerLoad, Runnable toggleTheme, Runnable openThreeDTab,
                  Runnable openVideoTab, Runnable openFilesTab,
                  Runnable openIconsTab, Runnable useInSceneDialogs,
-                 Supplier<ComboBox> dialogCombo) {
+                 Supplier<ComboBox> dialogCombo, Runnable followSystemAppearance) {
     }
 
     private KitchenSinkScene() {
@@ -541,7 +542,17 @@ final class KitchenSinkScene {
             root.markNeedsLayout();
             status.setText(KitchenStrings.STATUS_THEME_CHANGED.format(t.displayName().get()));
         };
-        themePicker.onSelect(i -> applyTheme.accept(Theme.builtins().get(i)));
+        // The demo follows the system's light or dark appearance until the user picks a theme
+        // (followSystemAppearance, below); a pick from the picker or the menu ends that. The
+        // picker's echo of a theme applied for the system is not a pick, hence the flag.
+        boolean[] userPicked = {false};
+        boolean[] applyingSystem = {false};
+        themePicker.onSelect(i -> {
+            if (!applyingSystem[0]) {
+                userPicked[0] = true;
+            }
+            applyTheme.accept(Theme.builtins().get(i));
+        });
         // No relayout call here: Scene subscribes a listener to ControlSize in its CONSTRUCTOR,
         // so every live scene (this window, any open popup, any unbound one) re-measures
         // itself. Doing it by hand would miss the popups, which is the bug the subscription
@@ -555,8 +566,31 @@ final class KitchenSinkScene {
         directionPicker.onSelect(i ->
                 LayoutDirection.setProcessDefault(LayoutDirection.values()[i]));
         // The "Toggle theme" menu item flips between light and dark.
-        Runnable toggleTheme = () ->
-                applyTheme.accept(Theme.current() == Theme.dark() ? Theme.light() : Theme.dark());
+        Runnable toggleTheme = () -> {
+            userPicked[0] = true;
+            applyTheme.accept(Theme.current() == Theme.dark() ? Theme.light() : Theme.dark());
+        };
+        // What the system says, while the user has not picked: dark or light, and nothing for a
+        // desktop with no preference, which keeps the theme the demo opened with.
+        Runnable applySystemAppearance = () -> {
+            SystemPreferences.ColorScheme scheme = SystemPreferences.current().colorScheme();
+            if (userPicked[0] || scheme == SystemPreferences.ColorScheme.NO_PREFERENCE) {
+                return;
+            }
+            Theme wanted = scheme == SystemPreferences.ColorScheme.DARK ? Theme.dark() : Theme.light();
+            if (wanted != Theme.current()) {
+                applyingSystem[0] = true;
+                try {
+                    applyTheme.accept(wanted);
+                } finally {
+                    applyingSystem[0] = false;
+                }
+            }
+        };
+        Runnable followSystemAppearance = () -> {
+            applySystemAppearance.run();
+            SystemPreferences.observeChanges(applySystemAppearance); // for the life of the demo
+        };
 
         // --- MenuBar (top): wired now that load/theme/tabs/fullscreen exist ---
         // "Open recent" is a menu whose contents are DATA: every load pushes an
@@ -635,7 +669,7 @@ final class KitchenSinkScene {
 
         return new Built(scene, openDialog, doLoad, toggleTheme, openThreeDTab, openVideoTab,
                 openFilesTab, openIconsTab, () -> dialogInScene.setChecked(true),
-                lastDialogCombo::get);
+                lastDialogCombo::get, followSystemAppearance);
     }
 
     private static Column tabColumn() {
