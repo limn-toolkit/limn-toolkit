@@ -3,6 +3,8 @@ package limn.backend;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -60,10 +62,31 @@ class DisplayTypesTest {
         WindowConfig plain = WindowConfig.of("w", 100, 100);
         assertEquals(WindowConfig.ANY_POSITION, plain.screenX(), "the desktop places it");
         assertEquals(WindowConfig.ANY_POSITION, plain.screenY());
-        // Every factory, including the nine-part form the popups use.
-        assertEquals(WindowConfig.ANY_POSITION, WindowConfig.popup(10, 10).screenX());
-        assertEquals(WindowConfig.ANY_POSITION,
-                WindowConfig.popup(1, 1).screenX());
+        // Every factory, including the popups' form.
+        NativeWindow owner = new limn.testing.StubWindow(true);
+        assertEquals(WindowConfig.ANY_POSITION, WindowConfig.popup(owner, 10, 10).screenX());
+        assertEquals(WindowConfig.ANY_POSITION, WindowConfig.popup(owner, 1, 1).screenX());
+    }
+
+    @Test
+    void aPopupAndAnOwnedWindowKnowTheirOwnerFromTheStart() {
+        NativeWindow owner = new limn.testing.StubWindow(true);
+        WindowConfig popup = WindowConfig.popup(owner, 120, 80).atInOwner(12.5f, -40);
+        assertSame(owner, popup.owner());
+        assertTrue(popup.isPopup());
+        assertTrue(popup.hasPositionInOwner());
+        assertEquals(12.5f, popup.ownerX());
+        assertEquals(-40f, popup.ownerY(), "a point outside the owner is allowed: a list above it");
+        assertEquals(popup, popup.visible(true).visible(false), "the owner survives a copy");
+
+        WindowConfig owned = WindowConfig.of("palette", 200, 300).ownedBy(owner);
+        assertSame(owner, owned.owner());
+        assertFalse(owned.isPopup());
+        assertFalse(owned.hasPositionInOwner());
+
+        assertNull(WindowConfig.of("main", 10, 10).owner());
+        assertThrows(IllegalStateException.class, () -> WindowConfig.of("main", 10, 10).atInOwner(0, 0));
+        assertThrows(IllegalArgumentException.class, () -> owned.atInOwner(Float.NaN, 0));
     }
 
     @Test

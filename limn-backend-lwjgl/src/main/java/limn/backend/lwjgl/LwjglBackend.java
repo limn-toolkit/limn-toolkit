@@ -647,9 +647,21 @@ public final class LwjglBackend implements BackendPeer {
             // Before the window exists, so the name its own bridge is opened with is already this.
             firstWindowTitle = config.title();
         }
+        NativeWindow owner = config.owner();
+        if (owner != null && config.hasPositionInOwner()) {
+            // A point in the owner's logical points, made a screen position before the window
+            // exists: a window's scale is the scale of the monitor it is created on.
+            float factor = owner.logicalToScreenFactor();
+            config = config.at(owner.screenX() + Math.round(config.ownerX() * factor),
+                    owner.screenY() + Math.round(config.ownerY() * factor));
+        }
         LwjglWindow window = new LwjglWindow(this, config);
         windows.add(window);
         frontToBack.add(0, window);
+        if (owner != null) {
+            WindowPeer.of(owner).registerChildPopup(window,
+                    config.isPopup() ? WindowPeer.PopupKind.TRANSIENT : WindowPeer.PopupKind.OWNED_WINDOW);
+        }
         if (graphicsInfo == null) {
             graphicsInfo = window.readGraphicsInfo();
         }
@@ -1031,6 +1043,9 @@ public final class LwjglBackend implements BackendPeer {
             poppedModal |= modalStack.removeOwnedBy(window);
             window.destroy();
             ending.forget(window); // a question it never answered counts as allowed
+            for (LwjglWindow owner : windows) {
+                owner.unregisterChildPopup(window); // an owned window that closed leaves its owner's list
+            }
         }
         if (poppedModal) {
             focusTopModal();

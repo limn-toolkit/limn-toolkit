@@ -334,6 +334,9 @@ public final class HeadlessWindow implements WindowPeer {
         if (input != null) {
             input.windowClosed();
         }
+        for (HeadlessWindow owner : backend.windows()) {
+            owner.owned.remove(this); // an owned window that closed leaves its owner's list
+        }
         backend.ending.forget(this);
     }
 }

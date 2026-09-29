@@ -111,6 +111,11 @@ public final class HeadlessBackend implements BackendPeer {
     @Override
     public WindowPeer createWindow(WindowConfig config) {
         HeadlessWindow window = open(config.title(), config.width(), config.height());
+        NativeWindow owner = config.owner();
+        if (owner != null) {
+            WindowPeer.of(owner).registerChildPopup(window,
+                    config.isPopup() ? WindowPeer.PopupKind.TRANSIENT : WindowPeer.PopupKind.OWNED_WINDOW);
+        }
         limn.backend.SizeLimits limits = config.sizeLimits();
         window.setSizeLimits(limits.minWidth(), limits.minHeight(), limits.maxWidth(), limits.maxHeight());
         return window;

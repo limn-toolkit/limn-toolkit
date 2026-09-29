@@ -1105,7 +1105,12 @@ class DialogTest extends ComponentTestBase {
         // The promoted dialog's own window: never blocked, so it cannot recurse.
         // Born at the size it was asked for, which is what makes a refit visible.
         @Override public WindowPeer createWindow(limn.backend.WindowConfig config) {
-            return new BlockedWindow(false, config.width(), config.height());
+            BlockedWindow made = new BlockedWindow(false, config.width(), config.height());
+            if (config.owner() != null) { // owned from creation, as every backend registers it
+                WindowPeer.of(config.owner()).registerChildPopup(made, config.isPopup()
+                        ? WindowPeer.PopupKind.TRANSIENT : WindowPeer.PopupKind.OWNED_WINDOW);
+            }
+            return made;
         }
 
         @Override public void pushModal(limn.backend.NativeWindow modal, limn.backend.NativeWindow parent) { }

@@ -596,7 +596,6 @@ public final class ComboBox extends Widget<ComboBox> {
         SizeTokens t = Theme.of(this).tokensFor(this);
         float gap = t.popupGap();
         float factor = parent.logicalToScreenFactor();
-        int screenX = parent.screenX() + Math.round(localToSceneX() * factor);
         int anchorTop = parent.screenY() + Math.round(localToSceneY() * factor);
         int anchorBottom = parent.screenY() + Math.round((localToSceneY() + height() + gap) * factor);
 
@@ -613,11 +612,13 @@ public final class ComboBox extends Widget<ComboBox> {
 
         int popupWidth = Math.max(1, Math.round(width()));
         int popupHeight = Math.max(1, Math.round(drop.height()));
-        int screenY = drop.above()
-                ? anchorTop - Math.round(gap * factor) - Math.round(drop.height() * factor)
-                : anchorBottom;
-        popupWindow = parent.backend().createWindow(WindowConfig.popup(popupWidth, popupHeight));
-        WindowPeer.of(parent).registerChildPopup(popupWindow); // parent close ⇒ popup close
+        // Placed against the field in the owner's own points, and owned from creation: the parent
+        // closing closes the list, and a platform that places a child against its parent can.
+        float ownerY = drop.above()
+                ? localToSceneY() - gap - drop.height()
+                : localToSceneY() + height() + gap;
+        popupWindow = parent.backend().createWindow(WindowConfig.popup(parent, popupWidth, popupHeight)
+                .atInOwner(localToSceneX(), ownerY));
         popupStep = controlSize();
         popupRtl = isRightToLeft();
 
@@ -639,7 +640,6 @@ public final class ComboBox extends Widget<ComboBox> {
         popupBlurHandle = popupScene.observeWindowBlur(() -> Ui.post(this::closeUnlessRefocused));
         popupScene.setBackground(Color.TRANSPARENT); // the translucent-window core
 
-        popupWindow.setScreenPosition(screenX, screenY);
         // Screenshot mode keeps everything hidden; interactive mode shows the
         // popup without stealing focus (WindowConfig.popup → focusOnShow=false).
         if (parent.isVisible()) {

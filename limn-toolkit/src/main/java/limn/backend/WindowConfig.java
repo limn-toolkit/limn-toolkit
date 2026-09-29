@@ -39,10 +39,22 @@ public final class WindowConfig {
     private final int screenX;
     private final int screenY;
     private final SizeLimits sizeLimits;
+    private final @Nullable NativeWindow owner;
+    private final boolean popupOfOwner;
+    private final float ownerX;
+    private final float ownerY;
 
     private WindowConfig(String title, int width, int height, boolean visible, boolean resizable,
                          boolean decorated, boolean floating, boolean transparent,
                          boolean focusOnShow, int screenX, int screenY, SizeLimits sizeLimits) {
+        this(title, width, height, visible, resizable, decorated, floating, transparent, focusOnShow,
+                screenX, screenY, sizeLimits, null, false, Float.NaN, Float.NaN);
+    }
+
+    private WindowConfig(String title, int width, int height, boolean visible, boolean resizable,
+                         boolean decorated, boolean floating, boolean transparent,
+                         boolean focusOnShow, int screenX, int screenY, SizeLimits sizeLimits,
+                         @Nullable NativeWindow owner, boolean popupOfOwner, float ownerX, float ownerY) {
         this.title = Objects.requireNonNull(title, "title");
         Checks.positiveSize(width, height, "window size");
         this.width = width;
@@ -56,6 +68,10 @@ public final class WindowConfig {
         this.screenX = screenX;
         this.screenY = screenY;
         this.sizeLimits = sizeLimits;
+        this.owner = owner;
+        this.popupOfOwner = popupOfOwner;
+        this.ownerX = ownerX;
+        this.ownerY = ownerY;
     }
 
     /**
@@ -74,11 +90,21 @@ public final class WindowConfig {
 
     /**
      * Undecorated, floating, transparent, non-focus-stealing window, created hidden so it can be
-     * positioned before {@link NativeWindow#show()}: the shape of a combo/menu popup.
+     * positioned before {@link NativeWindow#show()}: the shape of a combo/menu popup. It is
+     * {@code owner}'s own content drawn outside its frame, so it closes and moves with the owner and
+     * stays usable under a modal the owner hosts in its scene; place it with {@link #atInOwner}.
+     *
+     * @param owner  the window whose content this popup is
+     * @param width  initial width in logical points
+     * @param height initial height in logical points
+     * @return the configuration
+     * @throws NullPointerException if {@code owner} is {@code null}
      */
-    public static WindowConfig popup(int width, int height) {
-        return of("popup", width, height).visible(false).resizable(false).decorated(false)
+    public static WindowConfig popup(NativeWindow owner, int width, int height) {
+        Objects.requireNonNull(owner, "owner");
+        WindowConfig shape = of("popup", width, height).visible(false).resizable(false).decorated(false)
                 .floating(true).transparent(true).focusOnShow(false);
+        return shape.withOwner(owner, true);
     }
 
     /**
@@ -181,7 +207,7 @@ public final class WindowConfig {
     public WindowConfig minSize(int width, int height) {
         return new WindowConfig(title, this.width, this.height, visible, resizable, decorated, floating,
                 transparent, focusOnShow, screenX, screenY,
-                new SizeLimits(width, height, sizeLimits.maxWidth(), sizeLimits.maxHeight()));
+                new SizeLimits(width, height, sizeLimits.maxWidth(), sizeLimits.maxHeight()), owner, popupOfOwner, ownerX, ownerY);
     }
 
     /**
@@ -196,43 +222,54 @@ public final class WindowConfig {
     public WindowConfig maxSize(int width, int height) {
         return new WindowConfig(title, this.width, this.height, visible, resizable, decorated, floating,
                 transparent, focusOnShow, screenX, screenY,
-                new SizeLimits(sizeLimits.minWidth(), sizeLimits.minHeight(), width, height));
+                new SizeLimits(sizeLimits.minWidth(), sizeLimits.minHeight(), width, height), owner, popupOfOwner, ownerX, ownerY);
+    }
+
+    /**
+     * @param newTitle title bar text, and what a window without one is called where the platform
+     *                 names windows (an accessibility tree, a window list)
+     * @return a copy with that title
+     * @throws NullPointerException if {@code newTitle} is {@code null}
+     */
+    public WindowConfig title(String newTitle) {
+        return new WindowConfig(newTitle, width, height, visible, resizable, decorated, floating,
+                transparent, focusOnShow, screenX, screenY, sizeLimits, owner, popupOfOwner, ownerX, ownerY);
     }
 
     /** @return a copy that starts shown or hidden */
     public WindowConfig visible(boolean newVisible) {
         return new WindowConfig(title, width, height, newVisible, resizable, decorated, floating,
-                transparent, focusOnShow, screenX, screenY, sizeLimits);
+                transparent, focusOnShow, screenX, screenY, sizeLimits, owner, popupOfOwner, ownerX, ownerY);
     }
 
     /** @return a copy the user may, or may not, resize */
     public WindowConfig resizable(boolean newResizable) {
         return new WindowConfig(title, width, height, visible, newResizable, decorated, floating,
-                transparent, focusOnShow, screenX, screenY, sizeLimits);
+                transparent, focusOnShow, screenX, screenY, sizeLimits, owner, popupOfOwner, ownerX, ownerY);
     }
 
     /** @return a copy with, or without, the native title bar and border */
     public WindowConfig decorated(boolean newDecorated) {
         return new WindowConfig(title, width, height, visible, resizable, newDecorated, floating,
-                transparent, focusOnShow, screenX, screenY, sizeLimits);
+                transparent, focusOnShow, screenX, screenY, sizeLimits, owner, popupOfOwner, ownerX, ownerY);
     }
 
     /** @return a copy that stays, or does not stay, above other windows */
     public WindowConfig floating(boolean newFloating) {
         return new WindowConfig(title, width, height, visible, resizable, decorated, newFloating,
-                transparent, focusOnShow, screenX, screenY, sizeLimits);
+                transparent, focusOnShow, screenX, screenY, sizeLimits, owner, popupOfOwner, ownerX, ownerY);
     }
 
     /** @return a copy with a transparent, or opaque, framebuffer */
     public WindowConfig transparent(boolean newTransparent) {
         return new WindowConfig(title, width, height, visible, resizable, decorated, floating,
-                newTransparent, focusOnShow, screenX, screenY, sizeLimits);
+                newTransparent, focusOnShow, screenX, screenY, sizeLimits, owner, popupOfOwner, ownerX, ownerY);
     }
 
     /** @return a copy that does, or does not, take the input focus when shown */
     public WindowConfig focusOnShow(boolean newFocusOnShow) {
         return new WindowConfig(title, width, height, visible, resizable, decorated, floating,
-                transparent, newFocusOnShow, screenX, screenY, sizeLimits);
+                transparent, newFocusOnShow, screenX, screenY, sizeLimits, owner, popupOfOwner, ownerX, ownerY);
     }
 
     /**
@@ -257,7 +294,7 @@ public final class WindowConfig {
      */
     public WindowConfig at(int x, int y) {
         return new WindowConfig(title, width, height, visible, resizable, decorated, floating,
-                transparent, focusOnShow, x, y, sizeLimits);
+                transparent, focusOnShow, x, y, sizeLimits, owner, popupOfOwner, ownerX, ownerY);
     }
 
     /**
@@ -281,19 +318,93 @@ public final class WindowConfig {
         return at(area.x(), area.y());
     }
 
+    /**
+     * A copy owned by {@code owner}: a window in its own right that closes when the owner closes and
+     * moves when it moves, and that a modal over the owner blocks like any other window. A
+     * non-modal dialog, a floating palette, a video opened from a document. Given at creation, so
+     * a platform that makes a child window from its parent has it then.
+     *
+     * @param owner the window this one belongs to
+     * @return a copy owned by it
+     * @throws NullPointerException if {@code owner} is {@code null}
+     */
+    public WindowConfig ownedBy(NativeWindow owner) {
+        return withOwner(Objects.requireNonNull(owner, "owner"), false);
+    }
+
+    private WindowConfig withOwner(NativeWindow newOwner, boolean asPopup) {
+        return new WindowConfig(title, width, height, visible, resizable, decorated, floating,
+                transparent, focusOnShow, screenX, screenY, sizeLimits, newOwner, asPopup, ownerX, ownerY);
+    }
+
+    /**
+     * A copy created with its top-left corner at a point of its owner's content area, in the
+     * owner's logical points: the way a popup is placed against the widget that opened it. The
+     * point may lie outside the owner, as a list dropping below the window's bottom edge does. The
+     * backend turns it into the platform's position, relative where the platform places a child
+     * against its parent, as Wayland does.
+     *
+     * @param x left edge, in the owner's logical points from its content area's left
+     * @param y top edge, in the owner's logical points from its content area's top
+     * @return a copy carrying the position
+     * @throws IllegalStateException if this configuration has no owner
+     * @throws IllegalArgumentException if a coordinate is NaN or infinite
+     */
+    public WindowConfig atInOwner(float x, float y) {
+        if (owner == null) {
+            throw new IllegalStateException("atInOwner needs an owner: use popup(owner, …) or ownedBy(owner)");
+        }
+        if (!Float.isFinite(x) || !Float.isFinite(y)) {
+            throw new IllegalArgumentException("a position in the owner must be finite: " + x + ", " + y);
+        }
+        return new WindowConfig(title, width, height, visible, resizable, decorated, floating,
+                transparent, focusOnShow, screenX, screenY, sizeLimits, owner, popupOfOwner, x, y);
+    }
+
+    /** @return the window this one belongs to, or {@code null} for a window of the application's own */
+    public @Nullable NativeWindow owner() {
+        return owner;
+    }
+
+    /**
+     * @return whether this is its owner's content drawn outside its frame ({@link #popup}), rather
+     *         than a window in its own right that the owner merely owns ({@link #ownedBy})
+     */
+    public boolean isPopup() {
+        return popupOfOwner;
+    }
+
+    /** @return whether {@link #atInOwner} placed it; {@link #ownerX()} and {@link #ownerY()} answer then */
+    public boolean hasPositionInOwner() {
+        return !Float.isNaN(ownerX);
+    }
+
+    /** @return the left edge in the owner's logical points, or NaN when {@link #atInOwner} was not given */
+    public float ownerX() {
+        return ownerX;
+    }
+
+    /** @return the top edge in the owner's logical points, or NaN when {@link #atInOwner} was not given */
+    public float ownerY() {
+        return ownerY;
+    }
+
     @Override
     public boolean equals(@Nullable Object o) {
         return o instanceof WindowConfig c && c.width == width && c.height == height
                 && c.visible == visible && c.resizable == resizable && c.decorated == decorated
                 && c.floating == floating && c.transparent == transparent
                 && c.focusOnShow == focusOnShow && c.screenX == screenX && c.screenY == screenY
-                && c.title.equals(title) && c.sizeLimits.equals(sizeLimits);
+                && c.title.equals(title) && c.sizeLimits.equals(sizeLimits) && c.owner == owner
+                && c.popupOfOwner == popupOfOwner && Float.compare(c.ownerX, ownerX) == 0
+                && Float.compare(c.ownerY, ownerY) == 0;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(title, width, height, visible, resizable, decorated, floating,
-                transparent, focusOnShow, screenX, screenY, sizeLimits);
+                transparent, focusOnShow, screenX, screenY, sizeLimits, System.identityHashCode(owner),
+                popupOfOwner, ownerX, ownerY);
     }
 
     @Override
@@ -303,6 +414,8 @@ public final class WindowConfig {
                 + (floating ? ", floating" : "") + (transparent ? ", transparent" : "")
                 + (focusOnShow ? "" : ", no focus") + (screenX == ANY_POSITION ? "" : ", at "
                 + screenX + "," + screenY) + (sizeLimits.equals(SizeLimits.NONE) ? "" : ", " + sizeLimits)
+                + (owner == null ? "" : (popupOfOwner ? ", popup of " : ", owned by ") + owner.title())
+                + (hasPositionInOwner() ? " at " + ownerX + "," + ownerY : "")
                 + "]";
     }
 }

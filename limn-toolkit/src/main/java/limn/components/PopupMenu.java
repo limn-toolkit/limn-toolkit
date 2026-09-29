@@ -720,9 +720,16 @@ public final class PopupMenu {
         surface.setRenderOffset(box[0], box[1]);
 
         keyboardHandedBack = false;
-        popupWindow = parentWindow.backend().createWindow(WindowConfig.of("menu", w, h).visible(false).resizable(false)
-                .decorated(false).floating(true).transparent(true)); // and it takes the focus: the menu owns the keys
-        WindowPeer.of(parentWindow).registerChildPopup(popupWindow);
+        appliedW = w;
+        appliedH = h;
+        appliedX = workAreaScreenX + Math.round(box[0] * screenFactor);
+        appliedY = workAreaScreenY + Math.round(box[1] * screenFactor);
+        // Owned from creation, and placed in the owner's points: the cascade is computed against the
+        // work area, and the same point is handed over relative to the window that opened it.
+        popupWindow = parentWindow.backend().createWindow(WindowConfig.popup(parentWindow, w, h)
+                .title("menu").focusOnShow(true) // the menu owns the keys
+                .atInOwner((appliedX - parentWindow.screenX()) / screenFactor,
+                        (appliedY - parentWindow.screenY()) / screenFactor));
         // The owner's clock as well as its rendering flags: this scene owns the fade-out that
         // destroys the window, and a fade on the wall clock under an opener on an injected one
         // never ends (Scene#clock).
@@ -731,11 +738,6 @@ public final class PopupMenu {
         popupScene.bind(popupWindow);
         popupScene.setBackground(Color.TRANSPARENT);
 
-        appliedW = w;
-        appliedH = h;
-        appliedX = workAreaScreenX + Math.round(box[0] * screenFactor);
-        appliedY = workAreaScreenY + Math.round(box[1] * screenFactor);
-        popupWindow.setScreenPosition(appliedX, appliedY);
         if (parentWindow.isVisible()) {
             popupScene.fadeWindowIn(limn.animation.Motion.duration(Theme.current().animWindow));
             popupWindow.show();

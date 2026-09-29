@@ -741,20 +741,13 @@ public final class Dialog {
         int h = Math.max(1, Math.round(Math.min(panelSize.height(), budget.height())));
 
         // Floating (optional) focus-stealing modal window in the requested style.
-        modalWindow = backend.createWindow(
-                WindowConfig.styled(title.get(), w, h, style, alwaysOnTop, true));
-        // OWNED_WINDOW, not transient: this closes and moves with the owner like a dropdown,
-        // but it is a window in its own right, and an in-scene modal over the owner must lock it
-        // the way a native modal would. Registering it as transient is what let a non-modal
-        // dialog stay clickable under a modal.
-        WindowPeer.of(window).registerChildPopup(modalWindow, WindowPeer.PopupKind.OWNED_WINDOW);
+        // Owned, not a popup: this closes and moves with the owner like a dropdown, but it is a
+        // window in its own right, and an in-scene modal over the owner must lock it the way a
+        // native modal would. Owning it as a popup is what let a non-modal dialog stay clickable
+        // under a modal. Centred over the owner, in the owner's points.
+        modalWindow = backend.createWindow(WindowConfig.styled(title.get(), w, h, style, alwaysOnTop, true)
+                .ownedBy(window).atInOwner((window.logicalWidth() - w) / 2f, (window.logicalHeight() - h) / 2f));
         modalScene.bind(modalWindow);
-
-        // Center over the owner window.
-        float factor = window.logicalToScreenFactor();
-        int sx = window.screenX() + Math.round((window.logicalWidth() - w) / 2f * factor);
-        int sy = window.screenY() + Math.round((window.logicalHeight() - h) / 2f * factor);
-        modalWindow.setScreenPosition(sx, sy);
 
         // Show before pushing the modal so it can take native focus (offscreen
         // screenshot mode keeps it hidden and captures via captureNextFrame).

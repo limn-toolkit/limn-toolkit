@@ -29,7 +29,6 @@ import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 
 import java.util.List;
-import limn.backend.spi.WindowPeer;
 
 /**
  * Animation showcase: an easing playground (pick the curve, the timing and
@@ -168,22 +167,13 @@ final class AnimationsScene {
 
         Scene scene = new Scene(new FloatingPanel(new Padding(Insets.all(18), body)));
         scene.setBackground(Color.TRANSPARENT);
+        // Owned by the host, so it closes when the host closes, and centred over it.
         NativeWindow win = parent.backend().createWindow(WindowConfig.styled(
-                "Window", w, h, WindowStyle.UNDECORATED_TRANSLUCENT, true, true));
-        WindowPeer.of(parent).registerChildPopup(win); // closes if the host closes
+                "Window", w, h, WindowStyle.UNDECORATED_TRANSLUCENT, true, true)
+                .ownedBy(parent).atInOwner((parent.logicalWidth() - w) / 2f, (parent.logicalHeight() - h) / 2f));
         scene.bind(win);
 
-        float factor = parent.logicalToScreenFactor();
-        int sx = parent.screenX() + Math.round((parent.logicalWidth() - w) / 2f * factor);
-        int sy = parent.screenY() + Math.round((parent.logicalHeight() - h) / 2f * factor);
-        win.setScreenPosition(sx, sy);
-
-        close.onAction(() -> scene.fadeWindowOut(Theme.current().animWindow, () -> {
-            if (!parent.isClosed()) {
-                WindowPeer.of(parent).unregisterChildPopup(win);
-            }
-            win.requestClose();
-        }));
+        close.onAction(() -> scene.fadeWindowOut(Theme.current().animWindow, win::requestClose));
 
         scene.fadeWindowIn(Theme.current().animWindow); // transparent before it maps
         win.show();
