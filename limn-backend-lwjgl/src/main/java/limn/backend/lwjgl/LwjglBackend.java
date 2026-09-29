@@ -123,6 +123,12 @@ public final class LwjglBackend implements Backend {
             wakeLoop();
         }
     });
+    // What a platform's signal that a system preference changed does: a new reading, after the poll.
+    /** How long the constructor waits for the desktop portal's first answer on Linux. */
+    private static final long PORTAL_FIRST_READING_MILLIS = 500;
+    private final Runnable preferencesChanged = () -> uiRuntime().post(this::readSystemPreferences);
+    private @Nullable WindowsSystemPreferences windowsPreferences;
+    private limn.backend.lwjgl.a11y.linux.@Nullable PortalAppearanceWatch portalWatch;
     // What macOS's Quit command does here: the request, after the event that carried it.
     private final Runnable quitCommand = () -> uiRuntime().post(this::requestQuit);
     // Standard cursors are window-independent shared GLFW objects: create each
@@ -236,6 +242,7 @@ public final class LwjglBackend implements Backend {
         // wants a chooser. It buys back milliseconds, not the panel's real
         // startup cost (see TinyFdDialogs.warmNative).
         TinyFdDialogs.warmNative();
+        followSystemPreferences();
         LOG.log(Level.INFO, "GLFW {0} initialized; UI thread = ''{1}''",
                 glfwGetVersionString(), Thread.currentThread().getName());
     }
@@ -861,6 +868,57 @@ public final class LwjglBackend implements Backend {
         ending.setQuitHandler(handler);
     }
 
+    /**
+     * Reads the appearance, reduced motion and contrast the user chose, reports them, and follows
+     * them as they change: AppKit on macOS, the registry and a hidden window's broadcasts on Windows,
+     * the desktop portal on its own thread on Linux. A platform that cannot be read leaves the
+     * preferences at {@code NONE}, which is logged.
+     */
+    private void followSystemPreferences() {
+        try {
+            if (Platform.current().isMacOs()) {
+                limn.scene.SystemPreferences.report(MacSystemPreferences.read());
+                MacSystemPreferences.follow(preferencesChanged);
+            } else if (Platform.current().isWindows()) {
+                limn.scene.SystemPreferences.report(WindowsSystemPreferences.read());
+                windowsPreferences = WindowsSystemPreferences.follow(preferencesChanged);
+            } else {
+                String bus = System.getenv("DBUS_SESSION_BUS_ADDRESS");
+                if (limn.backend.lwjgl.a11y.linux.PortalAppearanceWatch.canWatch(bus)) {
+                    portalWatch = new limn.backend.lwjgl.a11y.linux.PortalAppearanceWatch(bus,
+                            read -> uiRuntime.post(() -> {
+                                if (!terminated) {
+                                    limn.scene.SystemPreferences.report(read);
+                                }
+                            }));
+                    limn.concurrent.internal.Threads.daemon(
+                            limn.backend.lwjgl.a11y.linux.PortalAppearanceWatch.THREAD_NAME, portalWatch);
+                    // The portal answers in milliseconds; waiting for it here is what lets an
+                    // application read the desktop's preferences right after this constructor.
+                    limn.scene.SystemPreferences first = portalWatch.awaitFirst(PORTAL_FIRST_READING_MILLIS);
+                    if (first != null) {
+                        limn.scene.SystemPreferences.report(first);
+                    }
+                }
+            }
+        } catch (RuntimeException | LinkageError error) {
+            LOG.log(Level.WARNING, "the system's appearance and motion preferences cannot be read", error);
+        }
+    }
+
+    /** A new reading after the platform said a preference changed (macOS and Windows). */
+    private void readSystemPreferences() {
+        if (terminated) {
+            return;
+        }
+        try {
+            limn.scene.SystemPreferences.report(Platform.current().isMacOs()
+                    ? MacSystemPreferences.read() : WindowsSystemPreferences.read());
+        } catch (RuntimeException | LinkageError error) {
+            LOG.log(Level.WARNING, "the system's preferences could not be read again", error);
+        }
+    }
+
     /** The user closed {@code window}: its handler and policy decide, after the poll that said so. */
     void userClosed(LwjglWindow window) {
         if (!terminated) {
@@ -1174,7 +1232,17 @@ public final class LwjglBackend implements Backend {
         running = false;
         if (Platform.current().isMacOs()) {
             MacQuitCommand.forget(quitCommand);
+            MacSystemPreferences.forget(preferencesChanged);
         }
+        if (windowsPreferences != null) {
+            windowsPreferences.close();
+            windowsPreferences = null;
+        }
+        if (portalWatch != null) {
+            portalWatch.stop();
+            portalWatch = null;
+        }
+        limn.scene.SystemPreferences.report(limn.scene.SystemPreferences.NONE);
         for (LwjglWindow window : windows) {
             window.destroy();
         }

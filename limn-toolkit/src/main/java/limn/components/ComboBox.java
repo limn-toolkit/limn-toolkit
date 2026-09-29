@@ -446,7 +446,7 @@ public final class ComboBox extends Widget<ComboBox> {
                 closing.requestClose();
             };
             if (closingScene != null) {
-                closingScene.fadeWindowOut(Theme.of(this).animWindow, destroy);
+                closingScene.fadeWindowOut(limn.animation.Motion.duration(Theme.of(this).animWindow), destroy);
             } else {
                 destroy.run();
             }
@@ -468,7 +468,7 @@ public final class ComboBox extends Widget<ComboBox> {
             // holding input capture and focus. Frozen, the list would stay open over a paused
             // application with the field underneath unreachable.
             owner.addRealTimeTicker(dt -> {
-                sceneFade = (float) Math.max(0, sceneFade - dt / Theme.of(this).animWindow);
+                sceneFade = (float) Math.max(0, sceneFade - limn.animation.Motion.progress(dt, Theme.of(this).animWindow));
                 closing.invalidate();
                 if (sceneFade > 0) {
                     return true;
@@ -561,7 +561,7 @@ public final class ComboBox extends Widget<ComboBox> {
         // Assigned before pushOverlay, which moves focus off the field: onFocusLost reads this
         // field to tell "the user clicked elsewhere" from "our own overlay took the keyboard",
         // and the second one must not close the popup it is opening.
-        boolean animate = owner.window() != null;
+        boolean animate = owner.window() != null && !limn.animation.Motion.reduced();
         sceneFade = animate ? 0f : 1f;
         owner.pushPopup(scenePopup);
         if (animate) {
@@ -570,7 +570,7 @@ public final class ComboBox extends Widget<ComboBox> {
                 if (!open) {
                     return false; // closed mid-fade: the fade-out ticker takes over
                 }
-                sceneFade = (float) Math.min(1, sceneFade + dt / Theme.of(this).animWindow);
+                sceneFade = (float) Math.min(1, sceneFade + limn.animation.Motion.progress(dt, Theme.of(this).animWindow));
                 fading.invalidate();
                 return sceneFade < 1;
             });
@@ -642,7 +642,7 @@ public final class ComboBox extends Widget<ComboBox> {
         // Screenshot mode keeps everything hidden; interactive mode shows the
         // popup without stealing focus (WindowConfig.popup → focusOnShow=false).
         if (parent.isVisible()) {
-            popupScene.fadeWindowIn(Theme.of(this).animWindow); // transparent → visible
+            popupScene.fadeWindowIn(limn.animation.Motion.duration(Theme.of(this).animWindow)); // transparent → visible
             popupWindow.show();
         }
         popupWindow.requestFrame();

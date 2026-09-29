@@ -1014,7 +1014,7 @@ public final class DatePicker extends Widget<DatePicker> {
         // overlay. Without it the grid resolves the scene's defaults instead of the picker's, and
         // opens at a different density, direction or language from the field that opened it.
         scenePopup.setInheritanceHost(filling());
-        boolean animate = owner.window() != null;
+        boolean animate = owner.window() != null && !limn.animation.Motion.reduced();
         sceneFade = animate ? 0f : 1f;
         // Before the overlay takes the focus: the field keeps its caret drawn and published,
         // because that is still where the digits land, and a field that knows a picker is aiming at
@@ -1028,7 +1028,7 @@ public final class DatePicker extends Widget<DatePicker> {
                 if (!open) {
                     return false;
                 }
-                sceneFade = (float) Math.min(1, sceneFade + dt / Theme.of(this).animWindow);
+                sceneFade = (float) Math.min(1, sceneFade + limn.animation.Motion.progress(dt, Theme.of(this).animWindow));
                 fading.invalidate();
                 return sceneFade < 1;
             });
@@ -1089,7 +1089,7 @@ public final class DatePicker extends Widget<DatePicker> {
                 : anchorBottom;
         popupWindow.setScreenPosition(screenX, screenY);
         if (parent.isVisible()) {
-            popupScene.fadeWindowIn(Theme.of(this).animWindow);
+            popupScene.fadeWindowIn(limn.animation.Motion.duration(Theme.of(this).animWindow));
             popupWindow.show();
         }
         popupWindow.requestFrame();
@@ -1187,7 +1187,7 @@ public final class DatePicker extends Widget<DatePicker> {
                 closing.requestClose();
             };
             if (closingScene != null) {
-                closingScene.fadeWindowOut(Theme.of(this).animWindow, () -> {
+                closingScene.fadeWindowOut(limn.animation.Motion.duration(Theme.of(this).animWindow), () -> {
                     destroy.run();
                     releaseCalendar();
                 });
@@ -1212,7 +1212,7 @@ public final class DatePicker extends Widget<DatePicker> {
             DateField pending = refocus; // the fade's end is where the focus can move: closeTo
             refocus = null;
             owner.addRealTimeTicker(dt -> {
-                sceneFade = (float) Math.max(0, sceneFade - dt / Theme.of(this).animWindow);
+                sceneFade = (float) Math.max(0, sceneFade - limn.animation.Motion.progress(dt, Theme.of(this).animWindow));
                 closing.invalidate();
                 if (sceneFade > 0) {
                     return true;

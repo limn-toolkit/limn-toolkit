@@ -50,6 +50,8 @@ public final class ProgressBar extends Widget<ProgressBar> {
 
     private float progress;
     private boolean indeterminate;
+    /** The sweep's time held since its last step, while motion is reduced. */
+    private double sweepHeld;
     private boolean animating;
     private int sweepGeneration; // invalidates a stale ticker after detach (blink-generation idiom)
     private double sweepPhase;
@@ -96,7 +98,11 @@ public final class ProgressBar extends Widget<ProgressBar> {
         return indeterminate;
     }
 
-    /** Switches to (or from) the animated indeterminate sweep. */
+    /**
+     * Switches to (or from) the animated indeterminate sweep. While the user has asked the system
+     * for less motion ({@link limn.animation.Motion#reduced()}), the sweep steps: it moves four
+     * times a second instead of every frame, and never stops, since it says the work goes on.
+     */
     public ProgressBar setIndeterminate(boolean value) {
         Ui.checkUiThread();
         if (this.indeterminate == value) {
@@ -154,7 +160,15 @@ public final class ProgressBar extends Widget<ProgressBar> {
                 animating = false; // re-armed by onAttached/onPaint when relevant again
                 return false;
             }
-            sweepPhase = (sweepPhase + dt / SWEEP_SECONDS) % 1.0;
+            // Stepped, not stopped, for a user who asked for less motion: the sweep is what says
+            // the work goes on, so it moves four times a second instead of every frame.
+            double moved = limn.animation.Motion.stepped(dt, sweepHeld);
+            if (moved == 0) {
+                sweepHeld += dt;
+                return true;
+            }
+            sweepHeld = 0;
+            sweepPhase = (sweepPhase + moved / SWEEP_SECONDS) % 1.0;
             invalidate();
             return true;
         });

@@ -18,6 +18,10 @@ import java.util.Objects;
  * whether it {@link #repeat}s, for any property, since the value is just a
  * number the widget maps onto whatever it draws.
  *
+ * <p><b>Reduced motion</b>: while the user has asked the system for less motion
+ * ({@link limn.scene.SystemPreferences#reduceMotion()}), {@link #to} jumps as a disabled
+ * transition does, so every animation built on this class honours it without a line.
+ *
  * <p><b>Optimized</b>: it drives itself off the scene's frame ticker only while
  * moving and unregisters the instant it settles, so an idle widget costs nothing.
  * <b>Safe</b>: {@link #to} / {@link #snap} are UI-thread-confined, and when the
@@ -156,11 +160,12 @@ public final class Transition {
 
     /**
      * Animates the value toward {@code target}. Jumps immediately (no animation)
-     * when disabled, zero-duration, or the owner is detached from a scene. UI thread.
+     * when disabled, zero-duration, the owner is detached from a scene, or the user
+     * asked the system for less motion ({@link Motion#reduced()}). UI thread.
      */
     public void to(float target) {
         Ui.checkUiThread();
-        if (!enabled || duration <= 0 || owner.scene() == null) {
+        if (!enabled || duration <= 0 || owner.scene() == null || Motion.reduced()) {
             snap(target);
             return;
         }

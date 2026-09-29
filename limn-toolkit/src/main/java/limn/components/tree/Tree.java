@@ -58,10 +58,12 @@ import java.util.function.Consumer;
  * <p><b>A row may promise children before it can name them.</b> {@link Model#children} answers
  * {@code null} for a node whose children are not known yet, and {@link Model#load} hands back a
  * {@link Work} that fetches them: the row opens, shows that it is working, and fills in when the
- * job lands on the UI thread. Collapsing a row that is still loading cancels the job, because a
- * result nobody is looking at is a result nobody should pay for. A directory that has not been read
- * is therefore not a leaf — it has a triangle, and pressing it is what reads it — and one that
- * turns out to hold nothing stays open, with a muted "Empty" line where its children would be.
+ * job lands on the UI thread; its spinner steps four times a second instead of turning smoothly
+ * while the user has asked the system for less motion. Collapsing a row that is still loading
+ * cancels the job, because a result nobody is looking at is a result nobody should pay for. A
+ * directory that has not been read is therefore not a leaf — it has a triangle, and pressing it is
+ * what reads it — and one that turns out to hold nothing stays open, with a muted "Empty" line
+ * where its children would be.
  *
  * <p><b>Rows are realized where the viewport reaches</b>, by the anchor-and-walk this toolkit's
  * list and table already use: a row's height is measured when it is first needed, the mean seeds
@@ -2910,8 +2912,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
      * load that hung. The progress bar's sweep, for its reasons.
      *
      * <p>Only the bands of the loading rows are damaged per frame, not the tree: the arc is the
-     * only thing that moves.
+     * only thing that moves. While motion is reduced it steps, four times a second.
      */
+    /** The spin's time held since its last step, while motion is reduced. */
+    private double spinHeld;
+
     private void startSpinning() {
         if (spinning || loading.isEmpty() || scene() == null || !isShowing()) {
             return;
@@ -2926,7 +2931,14 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 spinning = false; // re-armed by the next load, attach or paint of a loading row
                 return false;
             }
-            spinPhase = (spinPhase + dt / SPIN_SECONDS) % 1.0;
+            // Stepped, not stopped, while motion is reduced: the spin says the load goes on.
+            double moved = limn.animation.Motion.stepped(dt, spinHeld);
+            if (moved == 0) {
+                spinHeld += dt;
+                return true;
+            }
+            spinHeld = 0;
+            spinPhase = (spinPhase + moved / SPIN_SECONDS) % 1.0;
             damageSpinners();
             return true;
         });

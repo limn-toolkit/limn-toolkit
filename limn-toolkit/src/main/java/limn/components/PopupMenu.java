@@ -493,7 +493,7 @@ public final class PopupMenu {
                 closing.requestClose();
             };
             if (closingScene != null) {
-                closingScene.fadeWindowOut(Theme.current().animWindow, destroy);
+                closingScene.fadeWindowOut(limn.animation.Motion.duration(Theme.current().animWindow), destroy);
             } else {
                 destroy.run();
             }
@@ -508,7 +508,7 @@ public final class PopupMenu {
                 // Wall time: this fade's last frame is what removes the overlay that is holding
                 // input capture and focus. Frozen, the menu would stay open over a paused app.
                 o.addRealTimeTicker(dt -> {
-                    sceneFade = (float) Math.max(0, sceneFade - dt / Theme.current().animWindow);
+                    sceneFade = (float) Math.max(0, sceneFade - limn.animation.Motion.progress(dt, Theme.current().animWindow));
                     s.invalidate();
                     if (sceneFade > 0) {
                         return true;
@@ -655,7 +655,7 @@ public final class PopupMenu {
         // There is no separate window here, so the overlay content itself fades in,
         // matching the native popup's compositor fade. Headless scenes (tests) have no
         // frame pump to advance the ticker, so they snap straight to fully shown.
-        boolean animate = owner.window() != null;
+        boolean animate = owner.window() != null && !limn.animation.Motion.reduced();
         sceneFade = animate ? 0f : 1f;
         owner.pushPopup(surface);          // captures input + focuses the surface
         if (animate) {
@@ -663,7 +663,7 @@ public final class PopupMenu {
                 if (!open) {
                     return false; // closed mid-fade: let the fade-out ticker take over
                 }
-                sceneFade = (float) Math.min(1, sceneFade + dt / Theme.current().animWindow);
+                sceneFade = (float) Math.min(1, sceneFade + limn.animation.Motion.progress(dt, Theme.current().animWindow));
                 surface.invalidate();
                 return sceneFade < 1;
             });
@@ -735,7 +735,7 @@ public final class PopupMenu {
         appliedY = workAreaScreenY + Math.round(box[1] * screenFactor);
         popupWindow.setScreenPosition(appliedX, appliedY);
         if (parentWindow.isVisible()) {
-            popupScene.fadeWindowIn(Theme.current().animWindow);
+            popupScene.fadeWindowIn(limn.animation.Motion.duration(Theme.current().animWindow));
             popupWindow.show();
         }
         if (modal) {

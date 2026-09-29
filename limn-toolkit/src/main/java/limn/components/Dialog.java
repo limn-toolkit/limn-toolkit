@@ -759,7 +759,7 @@ public final class Dialog {
         if (window.isVisible()) {
             // Whole-window compositor fade, uniform across decorated, opaque and
             // translucent styles (the OS frame fades too). Snap transparent first.
-            modalScene.fadeWindowIn(Theme.current().animWindow);
+            modalScene.fadeWindowIn(limn.animation.Motion.duration(Theme.current().animWindow));
             modalWindow.show();
         }
         if (modal) {
@@ -1046,9 +1046,16 @@ public final class Dialog {
     }
 
     private void startFadeInScene() {
+        if (limn.animation.Motion.reduced()) {
+            fade = 1; // no fade for a user who asked for less motion: the card is there at once
+            if (overlay != null) {
+                overlay.invalidate();
+            }
+            return;
+        }
         // Wall time: a dialog is shell, and its twin fade-out completes the result future.
         hostScene.addRealTimeTicker(dt -> {
-            fade = (float) Math.min(1, fade + dt / Theme.current().animWindow);
+            fade = (float) Math.min(1, fade + limn.animation.Motion.progress(dt, Theme.current().animWindow));
             if (overlay != null) {
                 overlay.invalidate();
             }
@@ -1161,7 +1168,7 @@ public final class Dialog {
         }
         if (modalWindow != null) {
             // Fade the whole modal window out, then tear it down + resolve.
-            modalScene.fadeWindowOut(Theme.current().animWindow, () -> {
+            modalScene.fadeWindowOut(limn.animation.Motion.duration(Theme.current().animWindow), () -> {
                 closeWindow();
                 result.complete(value); // fully gone before callbacks run
             });
@@ -1177,7 +1184,7 @@ public final class Dialog {
             // Wall time, and load-bearing: this ticker's last frame is what removes the overlay
             // and completes `result`. On scene time a paused app could never close a dialog.
             hostScene.addRealTimeTicker(dt -> {
-                fade = (float) Math.max(0, fade - dt / Theme.current().animWindow);
+                fade = (float) Math.max(0, fade - limn.animation.Motion.progress(dt, Theme.current().animWindow));
                 if (overlay != null) {
                     overlay.invalidate();
                 }

@@ -97,6 +97,31 @@ class ProgressBarAndImageTest extends ComponentTestBase {
     }
 
     @Test
+    void anIndeterminateSweepStepsWhileMotionIsReduced() {
+        limn.scene.SystemPreferences.report(new limn.scene.SystemPreferences(
+                limn.scene.SystemPreferences.ColorScheme.LIGHT, true, false));
+        try {
+            ProgressBar bar = new ProgressBar();
+            Scene scene = new Scene(bar, clock::get);
+            scene.setTextRuler(RULER);
+            FakeCanvas canvas = barCanvas(bar);
+            scene.renderFrame(canvas);
+            bar.setIndeterminate(true);
+            scene.renderFrame(canvas); // register + first tick
+            for (int frame = 0; frame < 5; frame++) { // 200 ms of frames: held
+                clock.addAndGet(TimeUnit.MILLISECONDS.toNanos(40));
+                scene.renderFrame(canvas);
+            }
+            assertEquals(0, bar.sweepPhase(), 0, "the sweep holds between steps");
+            clock.addAndGet(TimeUnit.MILLISECONDS.toNanos(60));
+            scene.renderFrame(canvas);
+            assertTrue(bar.sweepPhase() > 0, "and moves by everything held once a step is due");
+        } finally {
+            limn.scene.SystemPreferences.report(limn.scene.SystemPreferences.NONE);
+        }
+    }
+
+    @Test
     void indeterminateBeforeAttachStillAnimates() {
         // Regression (code review): the natural configure-then-add order left a
         // permanently frozen empty track (startSweep no-oped with no scene and
