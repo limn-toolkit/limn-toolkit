@@ -382,5 +382,5 @@ owner's points (the same offsets as before on all four); `NativeWindow.fileDialo
 `CompletionStage` on the UI thread from the platform's own chooser (a sheet on macOS, `IFileDialog`
 on Windows, the desktop portal on Linux, tinyfd only where no portal answers), timers running
 throughout; `TextInput` separates characters from composition and a preedit names its target in
-code points; `KeyEvent.shortcutKey()` reads the keycap, checked with AZERTY on macOS and X11. The
+code points; `KeyEvent.shortcutKey()` reads the keycap, checked with AZERTY on macOS, X11 and Windows (the physical Q, A, W, Z and M keys read a, q, z, w and a comma, with the shortcut keys A, Q, Z, W and M, on each). The
 point of a file drop joined them, from the same spike.
