@@ -1459,7 +1459,7 @@ public final class Spinner extends Widget<Spinner> {
         if (shortcut) {
             // A shortcut this widget does not know stays unconsumed rather than
             // falling through to the stepper: Cmd+Home is not End.
-            if (handleShortcut(event.key(), (mods & Keys.MOD_SHIFT) != 0)) {
+            if (handleShortcut(event.shortcutKey(), (mods & Keys.MOD_SHIFT) != 0)) {
                 event.consume();
             }
             return;

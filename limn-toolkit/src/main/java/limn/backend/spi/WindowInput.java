@@ -43,7 +43,26 @@ public interface WindowInput {
     /** Wheel/trackpad scroll; deltas in native notches (positive = up/left). */
     void scrolled(float deltaX, float deltaY, float x, float y);
 
-    void keyEvent(int key, boolean pressed, boolean repeat, int modifiers);
+    /**
+     * A key went down, repeated or came up.
+     *
+     * @param key             the physical key, a {@code Keys} constant
+     * @param layoutCodePoint what the active layout types at that key with no modifier held, as a
+     *                        code point, or {@code 0} for a key that types nothing; shortcuts are
+     *                        read from it
+     * @param pressed         a press or an auto-repeat rather than a release
+     * @param repeat          an auto-repeat
+     * @param modifiers       the {@code Keys.MOD_*} bits held
+     */
+    void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers);
+
+    /**
+     * A key on a US layout, where the key printed on a keycap is the physical key's name: what a
+     * test drives.
+     */
+    default void keyEvent(int key, boolean pressed, boolean repeat, int modifiers) {
+        keyEvent(key, limn.input.Keys.usLayoutCodePoint(key), pressed, repeat, modifiers);
+    }
 
     /** Committed text input, one code point (IME/layout-aware, after key events). */
     void charTyped(int codepoint);

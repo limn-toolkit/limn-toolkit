@@ -456,7 +456,8 @@ final class LwjglWindow implements WindowPeer {
         });
         glfwSetKeyCallback(handle, (win, key, scancode, action, mods) -> {
             if (input != null && !inputBlocked()) {
-                input.keyEvent(key, action != GLFW_RELEASE, action == GLFW_REPEAT, mods);
+                input.keyEvent(key, layoutCodePoint(key, scancode), action != GLFW_RELEASE,
+                        action == GLFW_REPEAT, mods);
             }
         });
         glfwSetCharCallback(handle, (win, codepoint) -> {
@@ -1449,6 +1450,17 @@ final class LwjglWindow implements WindowPeer {
         realCursorX = sx;
         realCursorY = sy;
         relativeJump = pointerMode == limn.backend.PointerMode.RELATIVE;
+    }
+
+    /**
+     * What the active layout types at a physical key with no modifier held: GLFW's name for a
+     * printable key, which it reads from the layout (on AZERTY the key GLFW calls W is named "z"),
+     * as one code point; {@code 0} for a key GLFW names nothing, which is every key that types
+     * nothing.
+     */
+    private static int layoutCodePoint(int key, int scancode) {
+        String name = org.lwjgl.glfw.GLFW.glfwGetKeyName(key, scancode);
+        return name == null || name.isEmpty() ? 0 : name.codePointAt(0);
     }
 
     @Override

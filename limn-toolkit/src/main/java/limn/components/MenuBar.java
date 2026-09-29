@@ -603,8 +603,11 @@ public final class MenuBar extends Widget<MenuBar> {
         if (key == Keys.F10 && mods == 0) {
             return toggleBarFocus();
         }
+        // A mnemonic and an accelerator are read off the keycap, as the user reads them: the
+        // layout's letter (Alt+F is the key printed F), while Alt and F10 above are the keys.
+        int shortcut = event.shortcutKey();
         if (mods == Keys.MOD_ALT) {
-            int index = titleForMnemonic(key);
+            int index = titleForMnemonic(shortcut);
             if (index >= 0) {
                 openMenu(index);
                 return true;
@@ -612,7 +615,7 @@ public final class MenuBar extends Widget<MenuBar> {
         }
         // Auto-repeat is deliberately not an accelerator: a held Ctrl+W would close a document a
         // frame at a time, and a held chord on a check item would flip it at the repeat rate.
-        return !event.isRepeat() && runAccelerator(key, mods);
+        return !event.isRepeat() && runAccelerator(shortcut, mods);
     }
 
     private static boolean isAltKey(int key) {

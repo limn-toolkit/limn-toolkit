@@ -100,7 +100,7 @@ public final class Scene {
     private record RawScroll(float dx, float dy, float x, float y) implements Raw {
     }
 
-    private record RawKey(int key, boolean pressed, boolean repeat, int mods) implements Raw {
+    private record RawKey(int key, int layoutCodePoint, boolean pressed, boolean repeat, int mods) implements Raw {
     }
 
     private record RawChar(int codepoint) implements Raw {
@@ -2965,8 +2965,9 @@ public final class Scene {
         @Override public void scrolled(float deltaX, float deltaY, float x, float y) {
             Scene.this.scrolled(deltaX, deltaY, x, y);
         }
-        @Override public void keyEvent(int key, boolean pressed, boolean repeat, int modifiers) {
-            Scene.this.keyEvent(key, pressed, repeat, modifiers);
+        @Override public void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat,
+                                       int modifiers) {
+            Scene.this.keyEvent(key, layoutCodePoint, pressed, repeat, modifiers);
         }
         @Override public void charTyped(int codepoint) { Scene.this.charTyped(codepoint); }
         @Override public void preeditChanged(String text, int caret, int targetStart, int targetLength) {
@@ -3079,8 +3080,8 @@ public final class Scene {
         }
     }
 
-    private void keyEvent(int key, boolean pressed, boolean repeat, int modifiers) {
-        queue.add(new RawKey(key, pressed, repeat, modifiers)); // never dropped
+    private void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers) {
+        queue.add(new RawKey(key, layoutCodePoint, pressed, repeat, modifiers)); // never dropped
     }
 
     private void charTyped(int codepoint) {
@@ -3337,7 +3338,7 @@ public final class Scene {
                 keysDown.clear(key.key);
             }
         }
-        KeyEvent event = new KeyEvent(key.key, key.pressed, key.repeat, key.mods);
+        KeyEvent event = new KeyEvent(key.key, key.layoutCodePoint, key.pressed, key.repeat, key.mods);
         // Keys go to the focused widget, else the topmost modal layer (so a
         // dialog can handle ESC even with nothing focused).
         Widget<?> keyTarget = focused != null ? focused : inputRoot();

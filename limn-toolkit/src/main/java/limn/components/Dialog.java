@@ -898,7 +898,8 @@ public final class Dialog {
         @Override public void mouseButton(int button, boolean pressed, int modifiers, float x,
                                           float y, int clickCount) { }
         @Override public void scrolled(float deltaX, float deltaY, float x, float y) { }
-        @Override public void keyEvent(int key, boolean pressed, boolean repeat, int modifiers) { }
+        @Override public void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat,
+                                       int modifiers) { }
         @Override public void charTyped(int codepoint) { }
         @Override public void pointerEntered(boolean entered) { }
         @Override public void windowResized(float logicalWidth, float logicalHeight) { }

@@ -2093,7 +2093,7 @@ public final class TextArea extends Widget<TextArea> {
                 ? caretRect() : null;
         float scrollXWas = scrollX;
         float scrollYWas = scrollY;
-        switch (event.key()) {
+        switch (event.shortcutKey()) {
             // Left/Right are VISUAL and Ctrl/Alt+Left/Right are LOGICAL, so in right-to-left text
             // the two move the caret in OPPOSITE directions. That is deliberate, it is what
             // Windows and GTK do, and it is forced: deleteWordBackward has to remove a contiguous

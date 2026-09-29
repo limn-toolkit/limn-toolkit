@@ -1553,7 +1553,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         // Shift extends a range in MULTI, from the anchor to wherever the key lands, as it does
         // in Table and Tree.
         boolean extend = selectionMode == SelectionMode.MULTI && (mods & Keys.MOD_SHIFT) != 0;
-        switch (event.key()) {
+        switch (event.shortcutKey()) {
             case Keys.DOWN -> consumeAnd(event, () -> moveSelection(1, extend));
             case Keys.UP -> consumeAnd(event, () -> moveSelection(-1, extend));
             // The page size is resolved inside the branch that needs it: the other keys never

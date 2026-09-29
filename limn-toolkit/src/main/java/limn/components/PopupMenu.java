@@ -591,22 +591,23 @@ public final class PopupMenu {
     /**
      * A key event, or with {@code codepoint >= 0} a typed character, as it reached a menu's surface.
      */
-    private record LateKey(int key, boolean pressed, boolean repeat, int modifiers, int codepoint) {
+    private record LateKey(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers,
+                           int codepoint) {
         static LateKey key(KeyEvent event) {
-            return new LateKey(event.key(), event.isPressed(), event.isRepeat(), event.modifiers(),
-                    -1);
+            return new LateKey(event.key(), event.layoutCodePoint(), event.isPressed(), event.isRepeat(),
+                    event.modifiers(), -1);
         }
 
         static LateKey character(int codepoint) {
-            return new LateKey(0, false, false, 0, codepoint);
+            return new LateKey(0, 0, false, false, 0, codepoint);
         }
 
-        /** Replays it into {@code input}, as a backend would have delivered it there. */
+        /** Replays it into {@code input}, as a backend would have delivered it there, layout and all. */
         void replay(WindowInput input) {
             if (codepoint >= 0) {
                 input.charTyped(codepoint);
             } else {
-                input.keyEvent(key, pressed, repeat, modifiers);
+                input.keyEvent(key, layoutCodePoint, pressed, repeat, modifiers);
             }
         }
     }
@@ -1671,7 +1672,7 @@ public final class PopupMenu {
                 event.consume();
                 return;
             }
-            if (event.isPressed() && handleKey(event.key(), event.modifiers())) {
+            if (event.isPressed() && handleKey(event.shortcutKey(), event.modifiers())) {
                 event.consume();
             }
         }

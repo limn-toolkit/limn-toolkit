@@ -1226,7 +1226,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         boolean shortcut = (mods & Keys.MOD_SUPER) != 0
                 || (!altGr && (mods & Keys.MOD_CONTROL) != 0);
         boolean handled = true;
-        switch (event.key()) {
+        switch (event.shortcutKey()) {
             // Left and Right are VISUAL: the keys are named for a direction on the screen, so they
             // step one cluster left or right ON THE LINE whatever direction the text under them
             // runs. Home, End and the word jumps stay LOGICAL, and in right-to-left text that means

@@ -195,8 +195,8 @@ public final class SceneDriver implements WindowInput {
     }
 
     @Override
-    public void keyEvent(int key, boolean pressed, boolean repeat, int modifiers) {
-        input.keyEvent(key, pressed, repeat, modifiers);
+    public void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat, int modifiers) {
+        input.keyEvent(key, layoutCodePoint, pressed, repeat, modifiers);
     }
 
     @Override
