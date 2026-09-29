@@ -601,7 +601,11 @@ final class AccessibleWalk {
         }
         // Operable and not merely enabled: what is published focusable is what the keyboard can
         // reach, and beneath a popup it reaches nothing.
-        boolean focusable = widget.isFocusable() && operable && ownVisible;
+        boolean focusable = widget.isFocusable() && operable && ownVisible
+                // The root of a grafted popup the keyboard drives is focusable in its own scene,
+                // where the keys are handed to it, and nowhere a reader can put the focus: the
+                // keyboard is this window's, and the popup's rows are reached as its cursor.
+                && widget != keyboardPopupRoot;
         if (builder.declaresNothing() && !focusable && !builder.hasChildren()) {
             warnIfItPaints(widget);
             builder.drop();
@@ -726,14 +730,17 @@ final class AccessibleWalk {
             graftDx = (window.screenX() - home.screenX()) / factor;
             graftDy = (window.screenY() - home.screenY()) / factor;
             beneathOnlyPopups = false;
-            if (popup == this.scene.keyboardPopup()) {
+            boolean drivesKeys = popup == this.scene.keyboardPopup();
+            if (drivesKeys) {
                 keyboardPopupSlot = builder.nodeCount(); // the slot its root is about to take
+                keyboardPopupRoot = root;
             }
             try {
                 // Its own layer, in a window of its own: enabled, visible and reachable by its own
                 // widgets' flags, as an overlay is, and never shadowed by this scene's layers.
                 walkWidget(popup, root, null, into, ownSlot, ownId, scope, true, true, true);
             } finally {
+                keyboardPopupRoot = null;
                 graftDx = dx;
                 graftDy = dy;
                 beneathOnlyPopups = beneath;
@@ -835,6 +842,8 @@ final class AccessibleWalk {
     private float graftDy;
     /** The slot the grafted popup the keyboard drives was published at in this walk, or -1. */
     private int keyboardPopupSlot = -1;
+    /** That popup's root widget, while it is being walked. */
+    private Widget<?> keyboardPopupRoot;
 
     private void walkChildren(Scene scene, Widget<?> widget, int into, int ownSlot, long ownId,
                               long scope, boolean enabled, boolean visible, boolean reachable) {

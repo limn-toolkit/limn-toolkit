@@ -137,6 +137,12 @@ final class AxNotifications {
         // sweep over its registry, not the notification. On the window, because the event names
         // no node.
         postToWindow(AccessibleEvent.Type.INVALIDATED, "NSAccessibilityLayoutChangedNotification");
+        // A menu popping up and going away, as an AppKit menu tells VoiceOver: it says the menu
+        // and its count on the first ("menu, 4 itens") and "closing menu" on the second. Posted
+        // on the menu that opened; the one that closed has left the tree, so its notice goes on
+        // the window, which is what still stands.
+        post(AccessibleEvent.Type.MENU_OPENED, "AXMenuOpened");
+        postToWindow(AccessibleEvent.Type.MENU_CLOSED, "AXMenuClosed");
 
         // Deliberately absent, each for a stated reason. They are put in the map as nulls rather
         // than left out, so that a reader of this file sees the decision instead of a gap, and so

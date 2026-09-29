@@ -625,6 +625,11 @@ public final class PopupMenu {
         deliver(key);
     }
 
+    /** Whether the open menu is a grafted window of its own that the owner's keyboard drives. */
+    private boolean drivenFromOwner() {
+        return open && popupScene != null && keyRouteHandle != null;
+    }
+
     /** Hands a key to the menu's own scene, as its window would, layout and all. */
     private void deliver(LateKey key) {
         WindowInput input = SceneAccess.input(popupScene);
@@ -2025,7 +2030,13 @@ public final class PopupMenu {
         @Override
         protected void onAccessibility(Accessibility a) {
             a.role(Accessible.Role.GROUP);
-            a.name(ComponentStrings.MENU_POPUP, Accessible.NameFrom.CONTENT);
+            if (!drivenFromOwner()) {
+                a.name(ComponentStrings.MENU_POPUP, Accessible.NameFrom.CONTENT);
+            }
+            // Published in the opener's tree and driven from the opener's keyboard, it is never
+            // focused and names nothing: an unnamed grouping is what NVDA and VoiceOver pass over,
+            // where this one's "Menu, grupo" was read before every menu's first row (2026-09-29).
+            // The menu's own column carries the role a reader announces.
             // No selection facet of its own (decision 106, 2026-09-22): the rows are members of
             // the MENU column below, which publishes the selection they resolve to, and until
             // then this panel published a second one above it that no member belonged to (ADR

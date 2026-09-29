@@ -671,6 +671,11 @@ public final class UiaBridge extends PlatformBridge {
             raiseValue(event);
             return;
         }
+        if (event.type() == AccessibleEvent.Type.MENU_OPENED
+                || event.type() == AccessibleEvent.Type.MENU_CLOSED) {
+            raiseMenu(event);
+            return;
+        }
         int eventId = switch (event.type()) {
             case INVOKED -> UiaIds.INVOKE_INVOKED;
             case WINDOW_OPENED -> UiaIds.WINDOW_OPENED;
@@ -809,6 +814,37 @@ public final class UiaBridge extends PlatformBridge {
      * @param reannouncement whether this follows a collapse or the model's INVALIDATED, and is
      *                       raised even on the element already announced
      */
+    /**
+     * {@code MenuOpened} on a menu that entered the tree, minting its element, since no client has
+     * asked for a node that has just arrived; it is what a Win32 menu raises as it pops up, and
+     * what NVDA announces a menu by before its first row. {@code MenuClosed} on one that left,
+     * only while a client still holds its element: the node is gone, and nothing would be minted
+     * for it.
+     */
+    private void raiseMenu(AccessibleEvent event) {
+        long nodeId = event.nodeId();
+        long started = System.nanoTime();
+        if (event.type() == AccessibleEvent.Type.MENU_OPENED) {
+            long raised = raiseOnElement(nodeId, true, false,
+                    element -> Uia.raiseAutomationEvent(element.pointer(), UiaIds.MENU_OPENED));
+            if (UiaTrace.on() && raised != NOT_RAISED) {
+                UiaTrace.raised("UiaRaiseAutomationEvent", UiaTrace.event(UiaIds.MENU_OPENED), tree(),
+                        nodeId, true, hresultOf(raised));
+            }
+            UiaWindow.say("MenuOpened on node " + nodeId + (raised == NOT_RAISED ? " not raised" : "")
+                    + " in " + microsSince(started) + " us");
+            return;
+        }
+        UiaElement element = elements.peek(nodeId);
+        if (element == null) {
+            UiaWindow.say("MenuClosed for node " + nodeId + " not raised: no client holds it");
+            return;
+        }
+        int hresult = Uia.raiseAutomationEvent(element.pointer(), UiaIds.MENU_CLOSED);
+        UiaWindow.say("MenuClosed on node " + nodeId + " -> 0x" + Integer.toHexString(hresult)
+                + " in " + microsSince(started) + " us");
+    }
+
     private void raiseFocus(String cause, boolean reannouncement) {
         AccessibleTree tree = tree();
         long target = tree.effectiveFocus();

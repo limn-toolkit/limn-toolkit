@@ -371,6 +371,8 @@ public final class Accessibility {
      * per-node loop skipped with the rest of a new node's bits. Zero when the focus stood.
      */
     private long focusArrived;
+    /** Menus that entered and left the tree in the publish in progress, for the reserved tail. */
+    private final java.util.List<AccessibleEvent> menuChanges = new java.util.ArrayList<>(2);
 
     // What a parent says about a child's identity before the child is begun (ADR 039 §1.3, rule
     // 1, amended 2026-09-14): held here between the identity hook and begin(), because there is
@@ -2302,6 +2304,9 @@ public final class Accessibility {
             Slot was = previousOf(now.id, i);
             if (was == null) {
                 noteArrival(i);
+                if (now.role == Accessible.Role.MENU) {
+                    menuChanges.add(AccessibleEvent.of(AccessibleEvent.Type.MENU_OPENED, now.id));
+                }
                 if ((now.states & (1L << Accessible.State.FOCUSED.ordinal())) != 0) {
                     // A node that arrives holding the focus is a focus change like any other:
                     // a dialog's first field, a popup's list. Its states are
@@ -2386,6 +2391,9 @@ public final class Accessibility {
             if (currentOf(gone.id, i) == null) {
                 add(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, gone.id));
                 noteDeparture(i);
+                if (gone.role == Accessible.Role.MENU) {
+                    menuChanges.add(AccessibleEvent.of(AccessibleEvent.Type.MENU_CLOSED, gone.id));
+                }
                 if (gone.hasSelectionItem && gone.selected
                         && gone.selectionContainer != AccessibleNode.NONE) {
                     // A selected member that left the tree left its container's selection too,
@@ -2400,6 +2408,13 @@ public final class Accessibility {
         // The reserved tail, in this order: what a reader is directed by, kept outside the
         // budget so that a collapse never loses it (semantics 7).
         addStructureChanges();
+        // A menu that opened or closed, before the focus and the cursor that moved with it: the
+        // order Windows raises MenuOpened and macOS AXMenuOpened in, so that a reader hears the
+        // menu before its first row, and a menu closing before where the keyboard went.
+        for (int m = 0; m < menuChanges.size(); m++) {
+            reserve(menuChanges.get(m));
+        }
+        menuChanges.clear();
         if (focusArrived != 0) {
             reserve(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, focusArrived));
             focusArrived = 0;

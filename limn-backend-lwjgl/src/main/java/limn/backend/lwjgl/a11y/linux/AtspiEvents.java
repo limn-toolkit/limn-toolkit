@@ -175,6 +175,9 @@ final class AtspiEvents {
             case WINDOW_ACTIVATED -> window(context, path, "Activate", nameOf(event, context));
             case WINDOW_DEACTIVATED -> window(context, path, "Deactivate", nameOf(event, context));
             case ANNOUNCEMENT -> announcement(event, context, path);
+            // AT-SPI has no menu-opened signal: GTK's menus are read through the focus and the
+            // showing state their rows arrive with, which the other events already carry.
+            case MENU_OPENED, MENU_CLOSED -> null;
             // Everything else is the toolkit's own bookkeeping. Nothing approximate is sent.
             default -> null;
         };

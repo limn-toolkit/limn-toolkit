@@ -77,6 +77,18 @@ public final class AccessibleEvent {
         BOUNDS_CHANGED,
         /** This node has left the tree, and anything a client holds for it is now stale. */
         NODE_DESTROYED,
+        /**
+         * A menu opened: a {@code MENU} node entered the tree (a context menu, a menu bar's
+         * dropdown, a submenu). Raised before the focus or the cursor moves into it, as Windows'
+         * {@code MenuOpened} and macOS's {@code AXMenuOpened} are, so a reader hears that a menu
+         * is up and then where it stands. A menu bar is not a menu.
+         */
+        MENU_OPENED,
+        /**
+         * A menu closed: a {@code MENU} node left the tree. Carries the identifier it had, which
+         * names nothing any more; a bridge that says so addresses what it still holds for it.
+         */
+        MENU_CLOSED,
         /** A window's tree became readable. Raised by a bridge as it takes its scene. */
         WINDOW_OPENED,
         /** A window's tree is going away. Raised by a bridge as it lets its scene go. */
