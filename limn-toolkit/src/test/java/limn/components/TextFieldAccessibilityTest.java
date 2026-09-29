@@ -185,7 +185,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Opens a composition of {@code text} with its caret at the end, as the platform does. */
     private void compose(String text) {
-        drive(scene).preeditChanged(text, new int[] {text.length()}, 0, text.length());
+        drive(scene).preeditChanged(text, text.length(), 0, text.length());
         drive(scene).inputBatchEnded();
         frame();
     }
@@ -685,7 +685,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
         scene.requestFocus(field);
         field.model().setCursor(2, false);
         frame();
-        drive(scene).preeditChanged("XY", new int[] {2}, 0, 2);
+        drive(scene).preeditChanged("XY", 2, 0, 2);
         drive(scene).inputBatchEnded();
         frame();
 

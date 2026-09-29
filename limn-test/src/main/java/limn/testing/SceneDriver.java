@@ -205,8 +205,8 @@ public final class SceneDriver implements WindowInput {
     }
 
     @Override
-    public void preeditChanged(String text, int[] blockSizes, int focusedBlock, int caret) {
-        input.preeditChanged(text, blockSizes, focusedBlock, caret);
+    public void preeditChanged(String text, int caret, int targetStart, int targetLength) {
+        input.preeditChanged(text, caret, targetStart, targetLength);
     }
 
     @Override

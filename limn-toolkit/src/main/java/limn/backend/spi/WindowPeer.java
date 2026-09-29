@@ -23,15 +23,19 @@ public non-sealed interface WindowPeer extends NativeWindow {
     }
 
     /**
-     * Enables or disables the platform input method (IME) for this window. The
-     * scene turns it on while a text-editing widget holds focus and off
-     * otherwise, so composition keys never leak into non-text UI. UI thread only.
+     * Says what text this window wants from the platform: none, typed characters with the input
+     * method off, or characters and the input method's composition. The scene asks for composition
+     * while a text-editing widget holds focus and for characters otherwise, so composition keys
+     * never leak into a control that is not text, and a list's type-ahead still hears letters.
+     * UI thread only.
      *
-     * <p>No default, nor for the two IME methods below: a backend that ignored them
-     * broke Chinese, Japanese and Korean input without a word. A backend with no input method
-     * (headless) implements them as no-ops, on purpose and in writing.
+     * <p>No default, nor for the two IME methods below: a backend that ignored them broke Chinese,
+     * Japanese and Korean input without a word. A backend with no input method (headless)
+     * implements them as no-ops, on purpose and in writing.
+     *
+     * @param input what the window wants; never {@code null}
      */
-    void setImeEnabled(boolean enabled);
+    void setTextInput(TextInput input);
 
     /**
      * Positions the IME candidate/composition window at the caret, so it follows

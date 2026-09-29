@@ -28,8 +28,8 @@ class TextFieldImeTest extends ComponentTestBase {
         scene.requestFocus(field);
     }
 
-    private void preedit(String text, int[] blocks, int focusedBlock, int caret) {
-        drive(scene).preeditChanged(text, blocks, focusedBlock, caret);
+    private void preedit(String text, int caret, int targetStart, int targetLength) {
+        drive(scene).preeditChanged(text, caret, targetStart, targetLength);
         drive(scene).inputBatchEnded();
     }
 
@@ -55,7 +55,7 @@ class TextFieldImeTest extends ComponentTestBase {
         passwordScene.requestFocus(password);
         assertFalse(password.acceptsTextInput());
 
-        drive(passwordScene).preeditChanged("秘密", new int[]{2}, 0, 2);
+        drive(passwordScene).preeditChanged("秘密", 2, 0, 2);
         drive(passwordScene).inputBatchEnded();
         assertEquals("", password.composingText(), "composition must never reach a password field");
         assertEquals("", password.text());
@@ -63,23 +63,23 @@ class TextFieldImeTest extends ComponentTestBase {
 
     @Test
     void preeditIsShownButNotCommitted() {
-        preedit("に", new int[]{1}, 0, 1);
+        preedit("に", 1, 0, 1);
         assertEquals("に", field.composingText());
         assertEquals("", field.text(), "composition must not enter the model");
     }
 
     @Test
     void preeditReplacesRatherThanAppends() {
-        preedit("n", new int[]{1}, 0, 1);
-        preedit("に", new int[]{1}, 0, 1);
+        preedit("n", 1, 0, 1);
+        preedit("に", 1, 0, 1);
         assertEquals("に", field.composingText());
         assertEquals("", field.text());
     }
 
     @Test
     void emptyPreeditClearsComposition() {
-        preedit("に", new int[]{1}, 0, 1);
-        preedit("", new int[]{}, -1, 0);
+        preedit("に", 1, 0, 1);
+        preedit("", 0, 0, 0);
         assertEquals("", field.composingText());
         assertEquals("", field.text());
     }
@@ -88,9 +88,9 @@ class TextFieldImeTest extends ComponentTestBase {
     void commitInsertsAndComposingClears() {
         // Compose, then commit: the IME sends the committed chars (char callback)
         // and a following empty preedit to clear the composition.
-        preedit("にほn", new int[]{3}, 0, 3);
+        preedit("にほn", 3, 0, 3);
         commit("日本");
-        preedit("", new int[]{}, -1, 0);
+        preedit("", 0, 0, 0);
         assertEquals("日本", field.text());
         assertEquals("", field.composingText());
     }
@@ -99,15 +99,15 @@ class TextFieldImeTest extends ComponentTestBase {
     void commitLandsAtTheCaretInExistingText() {
         field.setText("[]");
         field.model().setCursor(1, false); // between the brackets
-        preedit("あ", new int[]{1}, 0, 1);
+        preedit("あ", 1, 0, 1);
         commit("亜");
-        preedit("", new int[]{}, -1, 0);
+        preedit("", 0, 0, 0);
         assertEquals("[亜]", field.text());
     }
 
     @Test
     void losingFocusDropsComposition() {
-        preedit("に", new int[]{1}, 0, 1);
+        preedit("に", 1, 0, 1);
         scene.requestFocus(null);
         assertEquals("", field.composingText());
         assertFalse(field.isFocused());

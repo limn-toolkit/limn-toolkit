@@ -25,14 +25,16 @@ final class RecordingWindow implements WindowPeer {
     limn.backend.ImageCursor imageCursor;
     limn.backend.PointerMode pointerMode = limn.backend.PointerMode.NORMAL;
     boolean imeEnabled;
+    limn.backend.spi.TextInput textInput;
     int imeEnabledCalls;
     int preeditResets;
     limn.graphics.Rect lastCaretRect;
     private boolean closed;
 
     @Override
-    public void setImeEnabled(boolean enabled) {
-        imeEnabled = enabled;
+    public void setTextInput(limn.backend.spi.TextInput input) {
+        imeEnabled = input == limn.backend.spi.TextInput.COMPOSITION;
+        textInput = input;
         imeEnabledCalls++;
     }
 

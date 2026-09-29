@@ -673,7 +673,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         dialog.show(scene);
         Scene card = dialog.contentRoot().scene();
         drive(card).type("hello");
-        drive(card).preeditChanged("か", new int[]{1}, 0, 1);
+        drive(card).preeditChanged("か", 1, 0, 1);
         drive(card).inputBatchEnded();
         assertEquals("か", name.composingText(), "sanity: a composition is open");
 

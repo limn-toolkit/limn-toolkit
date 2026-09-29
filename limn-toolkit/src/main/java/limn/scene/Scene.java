@@ -106,7 +106,7 @@ public final class Scene {
     private record RawChar(int codepoint) implements Raw {
     }
 
-    private record RawPreedit(String text, int[] blockSizes, int focusedBlock, int caret) implements Raw {
+    private record RawPreedit(String text, int caret, int targetStart, int targetLength) implements Raw {
     }
 
     private record RawPointer(boolean entered) implements Raw {
@@ -721,7 +721,7 @@ public final class Scene {
         stackOverlay(overlay);
         boolean composed = movedFrom.letGoOfMovedFocus();
         if (composed) {
-            dispatchBubbling(keyboard, new PreeditEvent("", null, -1, 0));
+            dispatchBubbling(keyboard, new PreeditEvent("", 0, 0, 0));
         }
         // CODE, the origin of pushOverlay(Widget)'s traversal: the widget this scene had focused is
         // told of its loss exactly as that traversal would tell it.
@@ -2655,13 +2655,17 @@ public final class Scene {
     /** Last caret rect pushed to the window, so we only re-push on change. */
     private limn.graphics.Rect lastCaretRect;
 
-    /** Enables the IME iff a text-editing widget is focused, and seeds its caret. */
+    /**
+     * Asks for composition iff a text-editing widget is focused, and for characters otherwise, and
+     * seeds the caret.
+     */
     private void updateImeState() {
         if (window == null) {
             return; // headless: no platform IME
         }
         boolean textInput = focused != null && focused.acceptsTextInputInternal();
-        WindowPeer.of(window).setImeEnabled(textInput);
+        WindowPeer.of(window).setTextInput(
+                textInput ? limn.backend.spi.TextInput.COMPOSITION : limn.backend.spi.TextInput.CHARACTERS);
         lastCaretRect = null; // force the next sync to push afresh
         if (textInput) {
             syncImeCaret();
@@ -2965,8 +2969,8 @@ public final class Scene {
             Scene.this.keyEvent(key, pressed, repeat, modifiers);
         }
         @Override public void charTyped(int codepoint) { Scene.this.charTyped(codepoint); }
-        @Override public void preeditChanged(String text, int[] blockSizes, int focusedBlock, int caret) {
-            Scene.this.preeditChanged(text, blockSizes, focusedBlock, caret);
+        @Override public void preeditChanged(String text, int caret, int targetStart, int targetLength) {
+            Scene.this.preeditChanged(text, caret, targetStart, targetLength);
         }
         @Override public void pointerEntered(boolean entered) { Scene.this.pointerEntered(entered); }
         @Override public void windowResized(float logicalWidth, float logicalHeight) {
@@ -3083,8 +3087,8 @@ public final class Scene {
         queue.add(new RawChar(codepoint));
     }
 
-    private void preeditChanged(String text, int[] blockSizes, int focusedBlock, int caret) {
-        queue.add(new RawPreedit(text, blockSizes, focusedBlock, caret));
+    private void preeditChanged(String text, int caret, int targetStart, int targetLength) {
+        queue.add(new RawPreedit(text, caret, targetStart, targetLength));
     }
 
     private void pointerEntered(boolean entered) {
@@ -3185,8 +3189,8 @@ public final class Scene {
                     // show it, so drop it.
                     if (focused != null && focused.acceptsTextInputInternal()) {
                         Widget<?> target = focused;
-                        PreeditEvent event = new PreeditEvent(preedit.text, preedit.blockSizes,
-                                preedit.focusedBlock, preedit.caret);
+                        PreeditEvent event = new PreeditEvent(preedit.text, preedit.caret,
+                                preedit.targetStart, preedit.targetLength);
                         dispatchBubbling(target, event);
                         if (focused == target) { // a handler that moved the focus ended it
                             composing = !event.isEmpty();

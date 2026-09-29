@@ -169,6 +169,8 @@ final class LwjglWindow implements WindowPeer {
     private FrameCallback frameCallback;
     private ContentScaleListener contentScaleListener;
     private limn.backend.@Nullable CloseRequestHandler closeRequestHandler;
+    /** Whether typed characters go to the scene: every request but {@code TextInput.NONE}. */
+    private boolean charactersWanted = true;
     private limn.backend.ClosePolicy closePolicy = limn.backend.ClosePolicy.DISPOSE;
     private WindowInput input;
     private int framebufferWidth;
@@ -459,7 +461,9 @@ final class LwjglWindow implements WindowPeer {
         });
         glfwSetCharCallback(handle, (win, codepoint) -> {
             if (input != null && !inputBlocked()) {
-                input.charTyped(codepoint);
+                if (charactersWanted) {
+                    input.charTyped(codepoint);
+                }
             }
         });
         // IME composition (LWJGL bundles GLFW's preedit patch): the still-composing
@@ -471,7 +475,17 @@ final class LwjglWindow implements WindowPeer {
             if (input != null && !inputBlocked()) {
                 String text = preeditCount <= 0 ? "" : decodeCodePoints(preeditString, preeditCount);
                 int[] blocks = blockCount <= 0 ? EMPTY_BLOCKS : decodeInts(blockSizes, blockCount);
-                input.preeditChanged(text, blocks, focusedBlock, caret);
+                // GLFW's styled blocks and the focused one, told as what they mean: the stretch
+                // being converted, as a start and a length in code points.
+                int targetStart = 0;
+                int targetLength = 0;
+                if (focusedBlock >= 0 && focusedBlock < blocks.length) {
+                    for (int i = 0; i < focusedBlock; i++) {
+                        targetStart += blocks[i];
+                    }
+                    targetLength = blocks[focusedBlock];
+                }
+                input.preeditChanged(text, caret, targetStart, targetLength);
                 frameRequested = true;
             }
         });
@@ -1444,11 +1458,15 @@ final class LwjglWindow implements WindowPeer {
     }
 
     @Override
-    public void setImeEnabled(boolean enabled) {
+    public void setTextInput(limn.backend.spi.TextInput input) {
+        java.util.Objects.requireNonNull(input, "input");
         backend.uiRuntime().checkUiThread();
         if (destroyed) {
             return;
         }
+        // GLFW delivers characters whatever the input method does; NONE drops them here.
+        charactersWanted = input != limn.backend.spi.TextInput.NONE;
+        boolean enabled = input == limn.backend.spi.TextInput.COMPOSITION;
         if (MACOS) {
             // Never GLFW's switch here, which selects another input source for the whole system;
             // see MacInputContextGate. Without the gate the input method simply stays on.

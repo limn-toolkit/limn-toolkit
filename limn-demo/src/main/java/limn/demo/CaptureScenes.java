@@ -85,7 +85,7 @@ final class CaptureScenes {
         // Latin glyphs keep the capture legible: the render path is glyph-agnostic,
         // so it exercises the underline/focused-block/caret exactly as CJK would.
         Runnable afterLayout = () -> {
-            drive(scene).preeditChanged("konnichiwa", new int[] {8, 2}, 1, 10);
+            drive(scene).preeditChanged("konnichiwa", 10, 8, 2);
             drive(scene).inputBatchEnded();
         };
         return new Built(scene, afterLayout);
@@ -138,7 +138,7 @@ final class CaptureScenes {
         Runnable afterLayout = () -> {
             // Put the caret mid-way on the second line, then inject a composition.
             area.setCaretPosition("first line\n".length() + 6);
-            drive(scene).preeditChanged("konnichiwa", new int[] {8, 2}, 1, 10);
+            drive(scene).preeditChanged("konnichiwa", 10, 8, 2);
             drive(scene).inputBatchEnded();
         };
         return new Built(scene, afterLayout);

@@ -39,8 +39,8 @@ class TextAreaImeTest extends ComponentTestBase {
         scene.requestFocus(area);
     }
 
-    private void preedit(String text, int[] blocks, int focusedBlock, int caret) {
-        drive(scene).preeditChanged(text, blocks, focusedBlock, caret);
+    private void preedit(String text, int caret, int targetStart, int targetLength) {
+        drive(scene).preeditChanged(text, caret, targetStart, targetLength);
         drive(scene).inputBatchEnded();
     }
 
@@ -56,16 +56,16 @@ class TextAreaImeTest extends ComponentTestBase {
 
     @Test
     void preeditIsShownButNotCommitted() {
-        preedit("に", new int[]{1}, 0, 1);
+        preedit("に", 1, 0, 1);
         assertEquals("に", area.composingText());
         assertEquals("", area.text(), "composition must not enter the model");
     }
 
     @Test
     void commitInsertsAndComposingClears() {
-        preedit("にほn", new int[]{3}, 0, 3);
+        preedit("にほn", 3, 0, 3);
         commit("日本");
-        preedit("", new int[]{}, -1, 0);
+        preedit("", 0, 0, 0);
         assertEquals("日本", area.text());
         assertEquals("", area.composingText());
     }
@@ -74,15 +74,15 @@ class TextAreaImeTest extends ComponentTestBase {
     void commitLandsOnTheCursorLine() {
         area.setText("first\nsecond");
         area.model().moveHome(false); // start of the last line ("second")
-        preedit("あ", new int[]{1}, 0, 1);
+        preedit("あ", 1, 0, 1);
         commit("亜");
-        preedit("", new int[]{}, -1, 0);
+        preedit("", 0, 0, 0);
         assertEquals("first\n亜second", area.text());
     }
 
     @Test
     void losingFocusDropsComposition() {
-        preedit("に", new int[]{1}, 0, 1);
+        preedit("に", 1, 0, 1);
         scene.requestFocus(null);
         assertEquals("", area.composingText());
     }
@@ -124,7 +124,7 @@ class TextAreaImeTest extends ComponentTestBase {
     void theCompositionUnderlineFollowsWhereTheTextIsDrawnAndNotWhereItsPrefixMeasures() {
         area.setText(HEB);
         area.model().setCursor(1, false); // compose between alef and bet
-        preedit(HEB.substring(0, 2), new int[]{2}, -1, 2); // no focused block: one underline
+        preedit(HEB.substring(0, 2), 2, 0, 0); // no focused block: one underline
 
         UnderlineRecorder canvas = new UnderlineRecorder(320, 140);
         scene.renderFrame(canvas);
@@ -150,7 +150,7 @@ class TextAreaImeTest extends ComponentTestBase {
         // This is the N > 1 branch of the loop; the case above exercises only N == 1.
         area.setText("a" + HEB);
         area.model().setCursor(1, false);      // compose between 'a' and alef
-        preedit("X" + HEB.charAt(0), new int[]{2}, -1, 2); // Latin then alef: one run each
+        preedit("X" + HEB.charAt(0), 2, 0, 0); // Latin then alef: one run each
 
         UnderlineRecorder canvas = new UnderlineRecorder(320, 140);
         scene.renderFrame(canvas);
@@ -189,7 +189,7 @@ class TextAreaImeTest extends ComponentTestBase {
             SizeTokens t = SizeTokens.of(step);
             host.layoutPass(t.areaWidth(), t.areaHeight());
             host.requestFocus(a);
-            drive(host).preeditChanged("にほn", new int[]{3}, 0, 3);
+            drive(host).preeditChanged("にほn", 3, 0, 3);
             drive(host).inputBatchEnded();
 
             UnderlineRecorder canvas = new UnderlineRecorder(t.areaWidth(), t.areaHeight());

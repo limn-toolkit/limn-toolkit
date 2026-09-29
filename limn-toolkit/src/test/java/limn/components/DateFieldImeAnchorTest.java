@@ -66,8 +66,8 @@ class DateFieldImeAnchorTest extends AccessibleComponentTestBase {
         Rect anchor;
 
         @Override
-        public void setImeEnabled(boolean enabled) {
-            imeEnabled = enabled;
+        public void setTextInput(limn.backend.spi.TextInput input) {
+            imeEnabled = input == limn.backend.spi.TextInput.COMPOSITION;
         }
 
         @Override
@@ -175,13 +175,13 @@ class DateFieldImeAnchorTest extends AccessibleComponentTestBase {
     void aCommittedDayMovesTheAnchorOnWithTheCaret() {
         DateField field = bindField(LayoutDirection.LTR);
         focus(field);
-        drive(scene).preeditChanged("０３", new int[] {2}, 0, 2);
+        drive(scene).preeditChanged("０３", 2, 0, 2);
         drive(scene).inputBatchEnded();
         frame();
         assertAnchoredOver(0);
 
         drive(scene).type("０３");
-        drive(scene).preeditChanged("", new int[0], -1, 0);
+        drive(scene).preeditChanged("", 0, 0, 0);
         drive(scene).inputBatchEnded();
         frame();
         assertEquals("03/09/2026", field.text());

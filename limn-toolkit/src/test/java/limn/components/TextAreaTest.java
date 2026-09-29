@@ -1045,7 +1045,7 @@ class TextAreaTest extends ComponentTestBase {
     void softWrapComposingGrowsARowAndTheLinesBelowMoveHonestly() {
         buildWrapped("aaaa bbbb cccc\nzzz"); // both lines fit: one row each
         area.model().setCursor(14, false);   // end of the first line
-        drive(scene).preeditChanged("ddddd", new int[]{5}, 0, 5);
+        drive(scene).preeditChanged("ddddd", 5, 0, 5);
         drive(scene).inputBatchEnded();
         // The composed first line, "aaaa bbbb ccccddddd" (190 pt), wraps to [0, 10), [10, 19):
         // the caret sits after the preedit on the second row, and "zzz" paints a row lower.
@@ -1055,7 +1055,7 @@ class TextAreaTest extends ComponentTestBase {
         scene.renderFrame(composing);
         assertEquals(PAD_Y + 2 * 12 + 8, yOf(composing, "zzz"), EPS);
         // The composition ends: the committed line is one row again and "zzz" moves back up.
-        drive(scene).preeditChanged("", new int[]{}, -1, 0);
+        drive(scene).preeditChanged("", 0, 0, 0);
         drive(scene).inputBatchEnded();
         TextCanvas committed = new TextCanvas(200, 100);
         scene.renderFrame(committed);

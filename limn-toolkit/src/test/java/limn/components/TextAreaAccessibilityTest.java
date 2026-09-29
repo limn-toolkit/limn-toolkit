@@ -222,7 +222,7 @@ class TextAreaAccessibilityTest extends AccessibleComponentTestBase {
 
     /** Opens a composition of {@code text} with its caret at the end, as the platform does. */
     private void compose(String text) {
-        drive(scene).preeditChanged(text, new int[] {text.length()}, 0, text.length());
+        drive(scene).preeditChanged(text, text.length(), 0, text.length());
         drive(scene).inputBatchEnded();
         frame();
     }

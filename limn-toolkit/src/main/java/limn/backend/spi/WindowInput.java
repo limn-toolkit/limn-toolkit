@@ -50,16 +50,21 @@ public interface WindowInput {
 
     /**
      * In-progress IME composition ("preedit") for the focused text input: the
-     * still-composing text plus its styled blocks and caret, shown inline but
-     * not yet committed (the commit arrives later via {@link #charTyped}). An
-     * empty {@code text} clears the composition. Default: ignored.
+     * still-composing text, its caret, and the stretch of it the input method is converting
+     * now (the target the user is choosing a candidate for), shown inline but not yet
+     * committed (the commit arrives later via {@link #charTyped}). An empty {@code text}
+     * clears the composition. Every index is in code points. Default: ignored.
+     *
+     * <p>What it means, rather than one platform's shape of it: GLFW reports styled blocks and
+     * the focused one, SDL a string and a selection; a backend turns either into the target's
+     * start and length.
      *
      * @param text         the composing text ({@code ""} clears it)
-     * @param blockSizes   code-point length of each styled block (tiles {@code text})
-     * @param focusedBlock index of the block being converted, or {@code -1}
-     * @param caret        caret position within {@code text}, in code points
+     * @param caret        caret position within {@code text}
+     * @param targetStart  where the stretch being converted starts within {@code text}
+     * @param targetLength how long it is; {@code 0} when nothing is being converted
      */
-    default void preeditChanged(String text, int[] blockSizes, int focusedBlock, int caret) {
+    default void preeditChanged(String text, int caret, int targetStart, int targetLength) {
     }
 
     /** Cursor entered ({@code true}) or left the window's content area. */
