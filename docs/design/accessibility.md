@@ -520,5 +520,6 @@ container in all three: `PRESS` is published where there is a cursor and acts on
 a reader opens the row it is standing on and not an arbitrary one. No data table behind a chart; no
 occlusion model, so a scrim hand-rolled
 inside a `Stack` is not modal to a reader where `pushOverlay`, `pushPopup` and `Dialog` are; no MSAA; and the
-system accessibility *settings* — high contrast, reduced motion, a system text scale — which are a
-different decision with a different shape and would tangle a tree with a theme.
+system accessibility *settings*, which are a different decision with a different shape and would
+tangle a tree with a theme: reduced motion and increased contrast reach the toolkit through
+`SystemPreferences`, outside the tree, and a system text scale not at all.

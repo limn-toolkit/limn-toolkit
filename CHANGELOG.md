@@ -243,6 +243,15 @@ Maven Central say which number that was.
   window (the default), hide it (`HIDE`), or end the application (`END_APPLICATION`).
 - `Backend.setLoopLifetime(LoopLifetime.UNTIL_QUIT)` keeps the loop running with no window open,
   as a tray application needs, until `requestQuit()` or `stop()`.
+- `SystemPreferences` tells an application the appearance, reduced motion and increased contrast the
+  user chose for every application: read with `SystemPreferences.current()`, followed with
+  `observeChanges`, once per change. The backend reads them from AppKit on macOS, the registry and
+  system parameters on Windows, and the desktop portal on Linux, with GNOME's animation switch where
+  the portal has no reduced-motion key. A desktop that says nothing, as Ubuntu's default appearance
+  does, answers `ColorScheme.NO_PREFERENCE`. The toolkit does not switch the theme; the theming
+  guide shows the few lines that do.
+- `Motion` answers how long the toolkit's motion takes given what the user asked for, for an
+  animation that drives its own clock.
 
 ### Changed
 
@@ -301,6 +310,12 @@ Maven Central say which number that was.
 - On macOS, Cmd-Q, the application menu's Quit and the Dock's Quit make the same request as
   `requestQuit()`. They used to close every window whose handler agreed, newest first, even when
   another refused, so a refusal left the application with some windows gone.
+- While the user has asked the system for less motion, animations finish at once: a `Transition`
+  jumps to its target, and menus, combo box lists, date pickers and dialogs open and close without
+  fading. The indeterminate `ProgressBar` sweep and a `Tree`'s loading spinner keep moving, since
+  they say that work goes on, but in steps, four times a second.
+- The demo opened with no scene named follows the system's light or dark appearance until a theme
+  is picked.
 - A chart writes values of 1e15 and more in scientific notation by default, on its value axis and
   in its tooltip and the names a screen reader hears: `0, 2E299, … 1E300` rather than 401
   characters a tick, and `1.235E20` rather than `123,456,000,000,000,000,000`. The axis picks the

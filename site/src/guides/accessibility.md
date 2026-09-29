@@ -198,10 +198,11 @@ whose window takes the keyboard for itself, keeps a tree of its own.
 Text is read and set whole. A reader can hear a field's contents and its caret, move the caret
 and set the text; review by character and braille cursor routing inside a field are not supported,
 because no platform is given the rectangle of a range. A list publishes the rows it has realized
-rather than all of them, so a reader's own list navigation stops at what is on screen. The system
-accessibility settings — high contrast, reduced motion, a system text scale — are not surfaced to
-the toolkit; a theme built for high contrast is [yours to make](/docs/theming/), and the toolkit
-applies it.
+rather than all of them, so a reader's own list navigation stops at what is on screen. Of the system's
+accessibility settings, reduced motion and increased contrast reach the toolkit: animations stop
+by themselves while motion is reduced, and `SystemPreferences.increaseContrast()` tells you when to
+apply a high-contrast palette ([Following the operating system](/docs/theming/#following-the-operating-system)).
+A system text scale does not reach it.
 
 Your application has a name on Linux, where the desktop lists applications and not windows.
 `Backend#setApplicationName` sets it; without a call it is the first window's title, and a later

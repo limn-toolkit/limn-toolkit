@@ -180,12 +180,27 @@ is eventually placed under. Read those in `onMeasure` or `onPaint`.
 
 ## Following the operating system
 
-The toolkit does not read the platform's light/dark preference for you. Read it however your
-platform layer already does, and set the matching palette:
+The backend reads the user's light or dark appearance from the platform, and
+`SystemPreferences` holds it. The toolkit does not switch your palette by itself, because which
+palette to use is your call, and it may be your brand. Following the system takes a few lines:
 
 ```java
-(systemPrefersDark ? Theme.limn() : Theme.limnLight()).apply(scene);
+Runnable follow = () -> {
+    switch (SystemPreferences.current().colorScheme()) {
+        case DARK -> Theme.limn().apply(scene);
+        case LIGHT -> Theme.limnLight().apply(scene);
+        case NO_PREFERENCE -> { } // the desktop says nothing: keep your own default
+    }
+};
+follow.run();
+SystemPreferences.observeChanges(follow);
 ```
+
+`NO_PREFERENCE` is a real answer: it is Ubuntu's default, and what a desktop without the
+settings portal gives. The same record says whether the user asked for more contrast
+(`increaseContrast()`), which the high-contrast palette answers, and whether they asked for less
+motion (`reduceMotion()`). The toolkit acts on that last one by itself: animations finish at once,
+and menus, lists and dialogs open and close without fading.
 
 ## Fonts
 
