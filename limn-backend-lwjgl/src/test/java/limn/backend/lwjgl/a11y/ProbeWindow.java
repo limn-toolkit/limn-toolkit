@@ -15,7 +15,10 @@ import java.util.List;
 /** A window that is not a window: the scene needs one to bind to, and this probe needs no pixels. */
 public final class ProbeWindow implements NativeWindow {
     // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
-    @Override public void setCloseRequestHandler(java.util.function.BooleanSupplier handler) { }
+    @Override public void setCloseRequestHandler(limn.backend.CloseRequestHandler handler) { }
+    @Override public limn.backend.CloseRequestHandler closeRequestHandler() { return null; }
+    @Override public void setClosePolicy(limn.backend.ClosePolicy policy) { }
+    @Override public limn.backend.ClosePolicy closePolicy() { return limn.backend.ClosePolicy.DISPOSE; }
     @Override public void setImeEnabled(boolean enabled) { }
     @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
     @Override public void resetPreedit() { }

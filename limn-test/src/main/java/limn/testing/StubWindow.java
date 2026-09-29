@@ -65,14 +65,19 @@ public class StubWindow implements NativeWindow {
 
     @Override public boolean supportsAbsolutePositioning() { return canPosition; }
     /** A stub window has no close gesture of its own, so the handler is kept and never asked. */
-    private java.util.function.BooleanSupplier closeRequestHandler;
-    @Override public void setCloseRequestHandler(java.util.function.@Nullable BooleanSupplier handler) {
+    private limn.backend.@Nullable CloseRequestHandler closeRequestHandler;
+    private limn.backend.ClosePolicy closePolicy = limn.backend.ClosePolicy.DISPOSE;
+    @Override public void setCloseRequestHandler(limn.backend.@Nullable CloseRequestHandler handler) {
         closeRequestHandler = handler;
     }
     /** @return the close handler a scene or an application registered, for a test to ask */
-    public java.util.function.BooleanSupplier closeRequestHandler() {
+    @Override public limn.backend.@Nullable CloseRequestHandler closeRequestHandler() {
         return closeRequestHandler;
     }
+    @Override public void setClosePolicy(limn.backend.ClosePolicy policy) {
+        closePolicy = java.util.Objects.requireNonNull(policy, "policy");
+    }
+    @Override public limn.backend.ClosePolicy closePolicy() { return closePolicy; }
     /** No input method in a stub: the three IME calls are no-ops, on purpose. */
     @Override public void setImeEnabled(boolean enabled) { }
     @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }

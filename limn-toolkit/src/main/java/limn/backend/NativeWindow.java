@@ -83,17 +83,38 @@ public interface NativeWindow extends AutoCloseable {
     }
 
     /**
-     * Consulted when the <em>user</em> asks to close the window (the OS close
-     * button, Alt-F4, Cmd-W): return {@code false} to veto and keep the window
-     * open, e.g. to show an "unsaved changes" dialog first, closing later via
-     * {@link #requestClose()}, which (like every programmatic close) bypasses
-     * the handler. {@code null} clears. UI thread only.
+     * Sets the handler asked whether this window may close: when the <em>user</em> closes it (the
+     * OS close button, Alt-F4, Cmd-W), and when the application is ending
+     * ({@link Backend#requestQuit()}). It answers through the {@link CloseRequest} it is handed, at
+     * once or later, so an "unsaved changes" dialog can decide. With no handler, the window agrees.
+     * A program's {@link #requestClose()} bypasses it. {@code null} clears. UI thread only.
+     *
+     * <p>A window registered with an owner through {@link #registerChildPopup} (a native dialog, a
+     * menu) is not asked when the application ends: its owner speaks for it, and it closes with it.
      *
      * <p>No default: a backend that ignored it lost an application's "unsaved changes"
      * veto silently. A backend with no close gesture of its own (headless, embedded) keeps the
-     * handler and never calls it, and says so in its implementation.
+     * handler, asks it only when the application ends, and says so in its implementation.
+     *
+     * @param handler the handler, or {@code null} for none
      */
-    void setCloseRequestHandler(java.util.function.@Nullable BooleanSupplier handler);
+    void setCloseRequestHandler(@Nullable CloseRequestHandler handler);
+
+    /** @return the handler set with {@link #setCloseRequestHandler}, or {@code null} for none */
+    @Nullable CloseRequestHandler closeRequestHandler();
+
+    /**
+     * Sets what a user's close does once it is allowed: dispose the window (the default), hide it,
+     * or end the application. A program's {@link #requestClose()} disposes whatever this says. UI
+     * thread only.
+     *
+     * @param policy the policy; never {@code null}
+     * @throws NullPointerException if {@code policy} is {@code null}
+     */
+    void setClosePolicy(ClosePolicy policy);
+
+    /** @return what a user's close does; {@link ClosePolicy#DISPOSE} unless set */
+    ClosePolicy closePolicy();
 
     void show();
 

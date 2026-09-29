@@ -389,12 +389,12 @@ final class VideoScene {
         window.setSizeLimits(240, 135, -1, -1);
         parent.registerChildPopup(window); // never outlives the application window
         scene.bind(window);
-        window.setCloseRequestHandler(() -> {
+        window.setCloseRequestHandler(request -> {
             view.setPlayer(null);
             view.setSource(null);
             open.closeAll(); // the player first, then the stream it was reading
             parent.unregisterChildPopup(window);
-            return true;
+            request.allow();
         });
         window.show();
         window.requestFrame();

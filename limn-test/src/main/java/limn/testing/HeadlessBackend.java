@@ -2,8 +2,12 @@ package limn.testing;
 
 import limn.backend.Backend;
 import limn.backend.Clipboard;
+import limn.backend.LoopEnd;
+import limn.backend.LoopLifetime;
 import limn.backend.NativeWindow;
+import limn.backend.QuitHandler;
 import limn.backend.WindowConfig;
+import limn.backend.internal.Ending;
 import limn.concurrent.UiRuntime;
 import org.jspecify.annotations.Nullable;
 
@@ -23,6 +27,33 @@ public final class HeadlessBackend implements Backend {
 
     private final UiRuntime runtime;
     private final List<HeadlessWindow> windows = new ArrayList<>();
+
+    /** The open windows, the front one first: a new window opens in front, a focused one moves there. */
+    private final List<HeadlessWindow> frontToBack = new ArrayList<>();
+    private LoopLifetime lifetime = LoopLifetime.UNTIL_LAST_WINDOW;
+    private @Nullable LoopEnd ended;
+
+    /** How a close is decided and how the application ends, as every backend decides them. */
+    final Ending ending = new Ending(new Ending.Host() {
+        @Override
+        public List<? extends NativeWindow> topLevelFrontToBack() {
+            List<HeadlessWindow> open = new ArrayList<>();
+            for (HeadlessWindow window : frontToBack) {
+                if (!window.isClosed() && !owned(window)) {
+                    open.add(window);
+                }
+            }
+            return open;
+        }
+
+        @Override
+        public void endApplication() {
+            for (HeadlessWindow window : List.copyOf(frontToBack)) {
+                window.close();
+            }
+            ended = LoopEnd.QUIT;
+        }
+    });
 
     /**
      * The clipboard every window of this backend hands out, as a desktop has one for all of an
@@ -61,6 +92,7 @@ public final class HeadlessBackend implements Backend {
     public HeadlessWindow open(String title, int width, int height) {
         HeadlessWindow window = new HeadlessWindow(title, width, height, this);
         windows.add(window);
+        frontToBack.add(0, window);
         return window;
     }
 
@@ -82,9 +114,53 @@ public final class HeadlessBackend implements Backend {
         return window;
     }
 
+    /**
+     * @return why the application ended: {@link LoopEnd#QUIT} once a {@link #requestQuit()} was
+     *         agreed to and every window closed, and {@code null} until then. What
+     *         {@code runEventLoop()} would have returned, for a backend that has no loop.
+     */
+    public @Nullable LoopEnd ended() {
+        return ended;
+    }
+
+    void toFront(HeadlessWindow window) {
+        frontToBack.remove(window);
+        frontToBack.add(0, window);
+    }
+
+    private boolean owned(HeadlessWindow window) {
+        for (HeadlessWindow other : windows) {
+            if (other != window && !other.isClosed() && other.owned.contains(window)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
-    public void runEventLoop() {
+    public LoopEnd runEventLoop() {
         throw new UnsupportedOperationException("a headless backend has no loop; call frame()");
+    }
+
+    @Override
+    public void setLoopLifetime(LoopLifetime newLifetime) {
+        lifetime = java.util.Objects.requireNonNull(newLifetime, "lifetime");
+    }
+
+    @Override
+    public LoopLifetime loopLifetime() {
+        return lifetime;
+    }
+
+    /** Asks the quit handler and then each window, front to back, as a desktop backend does. */
+    @Override
+    public void requestQuit() {
+        ending.requestQuit();
+    }
+
+    @Override
+    public void setQuitHandler(@Nullable QuitHandler handler) {
+        ending.setQuitHandler(handler);
     }
 
     @Override

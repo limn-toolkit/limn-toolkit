@@ -1054,7 +1054,10 @@ class DialogTest extends ComponentTestBase {
         boolean canPosition = true;
         /** What {@link #isFullscreen()} answers. */
         boolean fullscreen;
-        @Override public void setCloseRequestHandler(java.util.function.BooleanSupplier handler) { }
+        @Override public void setCloseRequestHandler(limn.backend.CloseRequestHandler handler) { }
+        @Override public limn.backend.CloseRequestHandler closeRequestHandler() { return null; }
+        @Override public void setClosePolicy(limn.backend.ClosePolicy policy) { }
+        @Override public limn.backend.ClosePolicy closePolicy() { return limn.backend.ClosePolicy.DISPOSE; }
         @Override public void setImeEnabled(boolean enabled) { }
         @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
         @Override public void resetPreedit() { }
@@ -1118,7 +1121,11 @@ class DialogTest extends ComponentTestBase {
             return null;
         }
 
-        @Override public void runEventLoop() { }
+        @Override public void setLoopLifetime(limn.backend.LoopLifetime lifetime) { }
+        @Override public limn.backend.LoopLifetime loopLifetime() { return limn.backend.LoopLifetime.UNTIL_LAST_WINDOW; }
+        @Override public void requestQuit() { }
+        @Override public void setQuitHandler(limn.backend.QuitHandler handler) { }
+        @Override public limn.backend.LoopEnd runEventLoop() { return limn.backend.LoopEnd.STOPPED; }
 
         @Override public void stop() { }
 

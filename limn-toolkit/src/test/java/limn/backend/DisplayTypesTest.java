@@ -148,7 +148,11 @@ class DisplayTypesTest {
             throw new UnsupportedOperationException();
         }
 
-        @Override public void runEventLoop() {
+        @Override public void setLoopLifetime(limn.backend.LoopLifetime lifetime) { }
+        @Override public limn.backend.LoopLifetime loopLifetime() { return limn.backend.LoopLifetime.UNTIL_LAST_WINDOW; }
+        @Override public void requestQuit() { }
+        @Override public void setQuitHandler(limn.backend.QuitHandler handler) { }
+        @Override public LoopEnd runEventLoop() {
             throw new UnsupportedOperationException();
         }
 

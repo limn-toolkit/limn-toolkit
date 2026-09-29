@@ -4,10 +4,14 @@ import limn.backend.Backend;
 import limn.backend.CrashPhase;
 import limn.backend.Crashes;
 import limn.backend.Cursor;
+import limn.backend.LoopEnd;
+import limn.backend.LoopLifetime;
 import limn.backend.ModalStack;
 import limn.backend.NativeWindow;
 import limn.backend.Platform;
+import limn.backend.QuitHandler;
 import limn.backend.WindowConfig;
+import limn.backend.internal.Ending;
 import limn.concurrent.Ui;
 import limn.concurrent.UiRuntime;
 import limn.internal.lang.Checks;
@@ -92,6 +96,35 @@ public final class LwjglBackend implements Backend {
     // shared audio engine, the same package applications use for rich sound.
     private final AudioClip blockedClickTone = AudioClip.tone(660f, 0.09f, 0.5f);
     private final List<LwjglWindow> windows = new ArrayList<>();
+    // The same windows, the one given the keyboard last first: the order an ending application
+    // asks them in (ADR 048 §1.2). A new window opens in front, as it does on every desktop.
+    private final List<LwjglWindow> frontToBack = new ArrayList<>();
+    private LoopLifetime lifetime = LoopLifetime.UNTIL_LAST_WINDOW;
+    // Set when every window agreed to end the application: the loop closes them all, then returns.
+    private boolean quitting;
+    private final Ending ending = new Ending(new Ending.Host() {
+        @Override
+        public List<? extends NativeWindow> topLevelFrontToBack() {
+            List<LwjglWindow> open = new ArrayList<>();
+            for (LwjglWindow window : frontToBack) {
+                if (!window.closeRequested() && !owned(window)) {
+                    open.add(window);
+                }
+            }
+            return open;
+        }
+
+        @Override
+        public void endApplication() {
+            quitting = true;
+            for (LwjglWindow window : windows) {
+                window.requestClose();
+            }
+            wakeLoop();
+        }
+    });
+    // What macOS's Quit command does here: the request, after the event that carried it.
+    private final Runnable quitCommand = () -> uiRuntime().post(this::requestQuit);
     // Standard cursors are window-independent shared GLFW objects: create each
     // shape once, lazily, and reuse it across every window.
     private final Map<Cursor, Long> cursors = new EnumMap<>(Cursor.class);
@@ -178,6 +211,9 @@ public final class LwjglBackend implements Backend {
         });
         uiRuntime = UiRuntime.create(this::wakeLoop);
         uiRuntime.bindToCurrentThread();
+        if (Platform.current().isMacOs()) {
+            MacQuitCommand.route(quitCommand); // GLFW made its delegate in glfwInit
+        }
         fontStore = new FontStore();
         // A class rather than the measuring lambda it used to be: the ruler now also shapes, and
         // carries the shape memo and the epoch a held ShapedText is invalidated against.
@@ -604,6 +640,7 @@ public final class LwjglBackend implements Backend {
         }
         LwjglWindow window = new LwjglWindow(this, config);
         windows.add(window);
+        frontToBack.add(0, window);
         if (graphicsInfo == null) {
             graphicsInfo = window.readGraphicsInfo();
         }
@@ -638,7 +675,7 @@ public final class LwjglBackend implements Backend {
     private final FramePacer pacer = FramePacer.real(0);
 
     @Override
-    public void runEventLoop() {
+    public LoopEnd runEventLoop() {
         uiRuntime.checkUiThread();
         ensureOpen();
         if (running) {
@@ -651,8 +688,12 @@ public final class LwjglBackend implements Backend {
                 boolean crashed = false;
                 Throwable lastCrash = null;
                 destroyClosedWindows();
-                if (windows.isEmpty()) {
-                    break;
+                if (quitting && windows.isEmpty()) {
+                    quitting = false;
+                    return LoopEnd.QUIT;
+                }
+                if (windows.isEmpty() && lifetime == LoopLifetime.UNTIL_LAST_WINDOW) {
+                    return LoopEnd.LAST_WINDOW_CLOSED;
                 }
 
                 // A covered window's frame waits (decision 113): it is not drawn, and it does not
@@ -789,9 +830,59 @@ public final class LwjglBackend implements Backend {
                             "event loop crashed " + crashStreak + " consecutive iterations", lastCrash);
                 }
             }
+            return LoopEnd.STOPPED;
         } finally {
             running = false;
         }
+    }
+
+    @Override
+    public void setLoopLifetime(LoopLifetime newLifetime) {
+        java.util.Objects.requireNonNull(newLifetime, "lifetime");
+        uiRuntime.checkUiThread();
+        lifetime = newLifetime;
+    }
+
+    @Override
+    public LoopLifetime loopLifetime() {
+        return lifetime;
+    }
+
+    @Override
+    public void requestQuit() {
+        uiRuntime.checkUiThread();
+        ensureOpen();
+        ending.requestQuit();
+    }
+
+    @Override
+    public void setQuitHandler(@Nullable QuitHandler handler) {
+        uiRuntime.checkUiThread();
+        ending.setQuitHandler(handler);
+    }
+
+    /** The user closed {@code window}: its handler and policy decide, after the poll that said so. */
+    void userClosed(LwjglWindow window) {
+        if (!terminated) {
+            ending.userClosed(window);
+        }
+    }
+
+    /** {@code window} was given the keyboard: it is the front window now. */
+    void toFront(LwjglWindow window) {
+        if (frontToBack.remove(window)) {
+            frontToBack.add(0, window);
+        }
+    }
+
+    /** Whether another open window registered {@code window} as its own (a dialog, a menu). */
+    private boolean owned(LwjglWindow window) {
+        for (LwjglWindow other : windows) {
+            if (other != window && !other.closeRequested() && other.ownsPopup(window)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -865,6 +956,7 @@ public final class LwjglBackend implements Backend {
             return;
         }
         windows.removeAll(closing);
+        frontToBack.removeAll(closing);
         boolean poppedModal = false;
         for (LwjglWindow window : closing) {
             // A modal destroyed without an explicit popModal (e.g. its
@@ -878,6 +970,7 @@ public final class LwjglBackend implements Backend {
             // to close; drop them so they stop blocking siblings forever.
             poppedModal |= modalStack.removeOwnedBy(window);
             window.destroy();
+            ending.forget(window); // a question it never answered counts as allowed
         }
         if (poppedModal) {
             focusTopModal();
@@ -1079,10 +1172,14 @@ public final class LwjglBackend implements Backend {
         }
         uiRuntime.checkUiThread();
         running = false;
+        if (Platform.current().isMacOs()) {
+            MacQuitCommand.forget(quitCommand);
+        }
         for (LwjglWindow window : windows) {
             window.destroy();
         }
         windows.clear();
+        frontToBack.clear();
         terminated = true;
         Ui.uninstall(uiRuntime);
         limn.graphics.TextRulers.uninstall(textRuler);

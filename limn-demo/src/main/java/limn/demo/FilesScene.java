@@ -37,7 +37,7 @@ import java.util.Optional;
  * folder dialogs ({@link FileDialogs}, tinyfd, no AWT), OS drag-and-drop onto a
  * {@link Widget#onFileDrop} target, and the window extras: icon
  * ({@link NativeWindow#setIcon}, Windows/Linux), a minimum size
- * ({@link NativeWindow#setSizeLimits}) and a close-request veto with a confirm
+ * ({@link NativeWindow#setSizeLimits}) and a close request answered from a confirm
  * dialog ({@link NativeWindow#setCloseRequestHandler}).
  */
 final class FilesScene {
@@ -79,12 +79,13 @@ final class FilesScene {
                 wired = true;
                 window.setIcon(appIcon(32), appIcon(16));
                 window.setSizeLimits(480, 360, 0, 0);
-                boolean[] askOpen = {false}; // one confirm dialog at a time
-                window.setCloseRequestHandler(() -> {
-                    if (!confirmClose.isChecked() || askOpen[0]) {
-                        return !askOpen[0]; // switch off → close; dialog already open → keep vetoing
+                // Asked on the close button and when the application ends; answered from the
+                // dialog, later. A second click while it is open asks nothing new.
+                window.setCloseRequestHandler(request -> {
+                    if (!confirmClose.isChecked()) {
+                        request.allow();
+                        return;
                     }
-                    askOpen[0] = true;
                     new Dialog("Close window?", "The close button was intercepted by "
                             + "setCloseRequestHandler; confirm to really close.")
                             .setDisplayMode(DisplayMode.IN_SCENE)
@@ -93,12 +94,12 @@ final class FilesScene {
                             .setCancelResult("stay")
                             .show(scene())
                             .thenAccept(result -> {
-                                askOpen[0] = false;
                                 if ("close".equals(result)) {
-                                    window.requestClose(); // programmatic close bypasses the veto
+                                    request.allow();
+                                } else {
+                                    request.refuse();
                                 }
                             });
-                    return false;
                 });
             }
         };

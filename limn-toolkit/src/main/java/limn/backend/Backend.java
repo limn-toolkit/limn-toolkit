@@ -12,7 +12,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Lifecycle: construct on the process main thread (which becomes the UI
  * thread), create windows, then {@link #runEventLoop()} until the last window
- * closes or {@link #stop()} is called. The loop is event-driven: it sleeps in
+ * closes, an agreed {@link #requestQuit()} or {@link #stop()}, as the
+ * {@link #setLoopLifetime lifetime} says. The loop is event-driven: it sleeps in
  * the native event wait and is woken by input, window damage or
  * {@link limn.concurrent.Ui#post}.
  */
@@ -44,9 +45,47 @@ public interface Backend extends AutoCloseable {
 
     /**
      * Runs the event/render loop on the calling (UI) thread. Returns when the
-     * last window closes or {@link #stop()} is invoked.
+     * last window closes (under {@link LoopLifetime#UNTIL_LAST_WINDOW}), when a
+     * {@link #requestQuit()} was agreed to and every window has closed, or when
+     * {@link #stop()} is invoked.
+     *
+     * @return why it returned
      */
-    void runEventLoop();
+    LoopEnd runEventLoop();
+
+    /**
+     * Sets how long {@link #runEventLoop()} runs: until the last window closes (the default) or
+     * until the application ends it, which lets an application live with no window open. UI thread
+     * only.
+     *
+     * @param lifetime the lifetime; never {@code null}
+     * @throws NullPointerException if {@code lifetime} is {@code null}
+     */
+    void setLoopLifetime(LoopLifetime lifetime);
+
+    /** @return how long {@link #runEventLoop()} runs; {@link LoopLifetime#UNTIL_LAST_WINDOW} unless set */
+    LoopLifetime loopLifetime();
+
+    /**
+     * Asks to end the application. The {@link #setQuitHandler quit handler} is asked first, then
+     * every open top-level window's {@link NativeWindow#setCloseRequestHandler handler}, front to
+     * back (the window used last first), one at a time; a window with no handler agrees. A refusal
+     * anywhere ends the request and every window stays open. When all have agreed, every window
+     * closes, owned ones included, and {@link #runEventLoop()} returns {@link LoopEnd#QUIT}.
+     *
+     * <p>A request made while one is being answered joins it. On macOS the system's Quit command
+     * for the application (Cmd-Q, the application menu, the Dock) makes this request. UI thread
+     * only.
+     */
+    void requestQuit();
+
+    /**
+     * Sets the handler {@link #requestQuit()} asks before any window, for what belongs to no window.
+     * {@code null} clears. UI thread only.
+     *
+     * @param handler the handler, or {@code null} for none
+     */
+    void setQuitHandler(@Nullable QuitHandler handler);
 
     /**
      * Registers {@code modal} as an active modal window and pushes it on the

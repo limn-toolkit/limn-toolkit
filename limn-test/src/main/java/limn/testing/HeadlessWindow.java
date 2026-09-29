@@ -5,6 +5,8 @@ import limn.accessibility.AccessibleTree;
 import limn.backend.AccessibilityBridge;
 import limn.backend.Backend;
 import limn.backend.Clipboard;
+import limn.backend.ClosePolicy;
+import limn.backend.CloseRequestHandler;
 import limn.backend.Display;
 import limn.backend.FrameCallback;
 import limn.backend.FrameInfo;
@@ -35,7 +37,6 @@ import org.jspecify.annotations.Nullable;
 public final class HeadlessWindow implements NativeWindow {
     // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
     @Override public boolean supportsAbsolutePositioning() { return true; }
-    @Override public void setCloseRequestHandler(java.util.function.@Nullable BooleanSupplier handler) { }
     @Override public void setImeEnabled(boolean enabled) { }
     @Override public void setPreeditCaretRect(float x, float y, float width, float height) { }
     @Override public void resetPreedit() { }
@@ -122,6 +123,10 @@ public final class HeadlessWindow implements NativeWindow {
     private boolean closed;
     private boolean bridgeAsked;
     private int focusRequests;
+    private @Nullable CloseRequestHandler closeRequestHandler;
+    private ClosePolicy closePolicy = ClosePolicy.DISPOSE;
+    /** The windows registered as this one's, which close with it. */
+    final List<NativeWindow> owned = new java.util.ArrayList<>();
     boolean modal;
     boolean modalBlocked;
 
@@ -156,14 +161,28 @@ public final class HeadlessWindow implements NativeWindow {
     }
 
     /**
+     * Closes this window as a user's click on its close button does: its
+     * {@link #setCloseRequestHandler handler} is asked, and once it allows, the window does what
+     * its {@link #setClosePolicy policy} says. What a desktop backend does when the user closes a
+     * window; a program's {@link #requestClose()} asks nothing.
+     */
+    public void userClose() {
+        backend.ending.userClosed(this);
+    }
+
+    /**
      * Tells the bound scene the desktop gave this window the keyboard, or took it away: what a
-     * user's click on a window does, and what showing a dialog that takes focus does to both.
+     * user's click on a window does, and what showing a dialog that takes focus does to both. A
+     * window given the keyboard is the front one, the first an ending application asks.
      *
      * @param focused whether this window is now the one the keyboard goes to
      */
     public void desktopFocus(boolean focused) {
         if (input == null) {
             throw new IllegalStateException("no scene is bound to \"" + title + "\"");
+        }
+        if (focused) {
+            backend.toFront(this);
         }
         input.windowFocusChanged(focused);
         input.inputBatchEnded();
@@ -269,8 +288,21 @@ public final class HeadlessWindow implements NativeWindow {
     @Override public boolean isFullscreen() { return false; }
     @Override public boolean isModalBlocked() { return modalBlocked; }
     @Override public boolean isModal() { return modal; }
-    @Override public void registerChildPopup(NativeWindow child, PopupKind kind) { }
-    @Override public void unregisterChildPopup(NativeWindow child) { }
+    @Override public void registerChildPopup(NativeWindow child, PopupKind kind) {
+        if (!owned.contains(child)) {
+            owned.add(child);
+        }
+    }
+    @Override public void unregisterChildPopup(NativeWindow child) { owned.remove(child); }
+    /** Kept, and asked when the user closes this window ({@link #userClose()}) or the application ends. */
+    @Override public void setCloseRequestHandler(@Nullable CloseRequestHandler handler) {
+        closeRequestHandler = handler;
+    }
+    @Override public @Nullable CloseRequestHandler closeRequestHandler() { return closeRequestHandler; }
+    @Override public void setClosePolicy(ClosePolicy policy) {
+        closePolicy = java.util.Objects.requireNonNull(policy, "policy");
+    }
+    @Override public ClosePolicy closePolicy() { return closePolicy; }
     @Override public void setFrameCallback(FrameCallback newCallback) { callback = newCallback; }
     @Override public void setInput(WindowInput newInput) { input = newInput; }
     @Override public Backend backend() { return backend; }
@@ -285,14 +317,22 @@ public final class HeadlessWindow implements NativeWindow {
     @Override public void requestFrame() { }
     @Override public void requestClose() { close(); }
 
-    /** Closes as a desktop backend does: the bound scene is told, once, and the window is gone. */
+    /**
+     * Closes as a desktop backend does: the windows it owns close first, the bound scene is told,
+     * once, and the window is gone.
+     */
     @Override public void close() {
         if (closed) {
             return;
         }
         closed = true;
+        for (NativeWindow child : List.copyOf(owned)) {
+            child.close();
+        }
+        owned.clear();
         if (input != null) {
             input.windowClosed();
         }
+        backend.ending.forget(this);
     }
 }

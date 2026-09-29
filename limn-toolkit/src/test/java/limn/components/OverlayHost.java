@@ -25,7 +25,11 @@ final class OverlayHost extends StubWindow implements Backend {
     @Override public NativeWindow createWindow(WindowConfig config) {
         throw new AssertionError("an in-scene dialog must not create a window");
     }
-    @Override public void runEventLoop() { }
+    @Override public void setLoopLifetime(limn.backend.LoopLifetime lifetime) { }
+    @Override public limn.backend.LoopLifetime loopLifetime() { return limn.backend.LoopLifetime.UNTIL_LAST_WINDOW; }
+    @Override public void requestQuit() { }
+    @Override public void setQuitHandler(limn.backend.QuitHandler handler) { }
+    @Override public limn.backend.LoopEnd runEventLoop() { return limn.backend.LoopEnd.STOPPED; }
     @Override public void pushModal(NativeWindow modal, NativeWindow parent) { }
     @Override public void popModal(NativeWindow modal) { }
     @Override public SceneModalHandle pushSceneModal(NativeWindow owner, boolean toolkitScope) {

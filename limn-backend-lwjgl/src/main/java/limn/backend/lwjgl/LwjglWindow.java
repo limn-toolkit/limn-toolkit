@@ -168,7 +168,8 @@ final class LwjglWindow implements NativeWindow {
     private String title;
     private FrameCallback frameCallback;
     private ContentScaleListener contentScaleListener;
-    private java.util.function.BooleanSupplier closeRequestHandler;
+    private limn.backend.@Nullable CloseRequestHandler closeRequestHandler;
+    private limn.backend.ClosePolicy closePolicy = limn.backend.ClosePolicy.DISPOSE;
     private WindowInput input;
     private int framebufferWidth;
     private int framebufferHeight;
@@ -520,6 +521,7 @@ final class LwjglWindow implements NativeWindow {
         });
         glfwSetWindowFocusCallback(handle, (win, focused) -> {
             if (focused) {
+                backend.toFront(this); // the first window an ending application asks
                 // No platform reports a monitor's rate changing (a display set from 120 Hz to
                 // 60 Hz in the system settings), and coming back from those settings focuses us.
                 refreshRateMayHaveChanged();
@@ -548,7 +550,12 @@ final class LwjglWindow implements NativeWindow {
         glfwSetWindowCloseCallback(handle, win -> {
             // Fires only for USER close attempts (close button / Alt-F4 / Cmd-W);
             // requestClose() sets the flag directly and never runs this callback,
-            // so a programmatic close always bypasses the veto.
+            // so a programmatic close always bypasses the handler and the policy.
+            //
+            // GLFW has already set the flag; it is taken back, and the close is decided
+            // after the poll returns (ADR 048 §1.1), where the handler may open a window
+            // and answer later, and where the policy says whether allowing it disposes,
+            // hides or ends the application.
             //
             // Deliberately NOT gated on inputBlocked(). A window with a modal open
             // is not clickable, but it must stay closable: "quit" is the one thing
@@ -557,9 +564,8 @@ final class LwjglWindow implements NativeWindow {
             // makes the pair of them answerable). Refusing here instead turns the
             // close button into a beep with no dialog and nothing to act on, which
             // is a worse answer than the deadlock it was avoiding.
-            if (closeRequestHandler != null && !closeRequestHandler.getAsBoolean()) {
-                glfwSetWindowShouldClose(handle, false);
-            }
+            glfwSetWindowShouldClose(handle, false);
+            backend.uiRuntime().post(() -> backend.userClosed(this));
         });
 
         renderer = new GlRenderer(backend.fontStore());
@@ -1239,9 +1245,26 @@ final class LwjglWindow implements NativeWindow {
     }
 
     @Override
-    public void setCloseRequestHandler(java.util.function.BooleanSupplier handler) {
+    public void setCloseRequestHandler(limn.backend.@Nullable CloseRequestHandler handler) {
         backend.uiRuntime().checkUiThread();
         this.closeRequestHandler = handler;
+    }
+
+    @Override
+    public limn.backend.@Nullable CloseRequestHandler closeRequestHandler() {
+        return closeRequestHandler;
+    }
+
+    @Override
+    public void setClosePolicy(limn.backend.ClosePolicy policy) {
+        java.util.Objects.requireNonNull(policy, "policy");
+        backend.uiRuntime().checkUiThread();
+        this.closePolicy = policy;
+    }
+
+    @Override
+    public limn.backend.ClosePolicy closePolicy() {
+        return closePolicy;
     }
 
     @Override
