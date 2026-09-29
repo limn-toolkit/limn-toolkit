@@ -5,7 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import limn.backend.Installed;
+import limn.backend.spi.Installed;
 import limn.concurrent.Ui;
 import limn.concurrent.Work;
 import limn.io.Resources;

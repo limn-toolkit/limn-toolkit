@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import limn.backend.spi.WindowPeer;
 
 /**
  * A window the user closed, asked to do things by an application that was not told: a title set
@@ -153,7 +154,7 @@ class ClosedWindowTest {
             gone.setOpacity(0.5f);
             gone.focus();
             gone.clipboard().get();
-            gone.publishAccessibilityElsewhere();
+            WindowPeer.of(gone).publishAccessibilityElsewhere();
             System.out.println("read back: visible=" + gone.isVisible()
                     + " at=" + gone.screenX() + "," + gone.screenY()
                     + " cursor=" + gone.cursorX() + "," + gone.cursorY()

@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import limn.backend.spi.WindowPeer;
+import limn.backend.spi.BackendPeer;
 
 /**
  * The normalized display value types ({@link Resolution} and {@link ScreenRect}),
@@ -135,7 +137,7 @@ class DisplayTypesTest {
     }
 
     /** Only {@link #displays()} matters; the rest throws to prove it's unused here. */
-    private record StubBackend(java.util.List<Display> all) implements Backend {
+    private record StubBackend(java.util.List<Display> all) implements BackendPeer {
         @Override public java.util.List<Display> displays() {
             return all;
         }
@@ -144,7 +146,7 @@ class DisplayTypesTest {
             throw new UnsupportedOperationException();
         }
 
-        @Override public NativeWindow createWindow(WindowConfig config) {
+        @Override public WindowPeer createWindow(WindowConfig config) {
             throw new UnsupportedOperationException();
         }
 

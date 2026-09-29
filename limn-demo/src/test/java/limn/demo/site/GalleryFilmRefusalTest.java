@@ -1,8 +1,8 @@
 package limn.demo.site;
 
-import limn.backend.FrameCallback;
-import limn.backend.FrameInfo;
-import limn.backend.GpuRenderer;
+import limn.backend.spi.FrameCallback;
+import limn.backend.spi.FrameInfo;
+import limn.backend.spi.GpuRenderer;
 import limn.backend.NativeWindow;
 import limn.components.Button;
 import limn.components.Theme;
@@ -74,7 +74,7 @@ class GalleryFilmRefusalTest {
         HeadlessWindow inner = backend.open("Limn UI: gallery", WIDTH, HEIGHT);
         AtomicReference<FrameCallback> callback = new AtomicReference<>();
         NativeWindow window = (NativeWindow) Proxy.newProxyInstance(
-                NativeWindow.class.getClassLoader(), new Class<?>[] {NativeWindow.class},
+                limn.backend.spi.WindowPeer.class.getClassLoader(), new Class<?>[] {limn.backend.spi.WindowPeer.class},
                 (proxy, method, args) -> {
                     if (method.getName().equals("setFrameCallback")) {
                         callback.set((FrameCallback) args[0]);

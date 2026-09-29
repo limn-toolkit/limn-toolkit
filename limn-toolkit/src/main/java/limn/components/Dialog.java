@@ -7,7 +7,7 @@ import limn.backend.Display;
 import limn.backend.NativeWindow;
 import limn.backend.ScreenRect;
 import limn.backend.WindowConfig;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import limn.backend.WindowStyle;
 import limn.concurrent.Ui;
 import limn.concurrent.Subscription;
@@ -31,6 +31,8 @@ import org.jspecify.annotations.Nullable;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import limn.backend.spi.WindowPeer;
+import limn.backend.spi.BackendPeer;
 
 /**
  * A modal (or non-modal) dialog that resolves a {@link CompletionStage} with
@@ -198,7 +200,7 @@ public final class Dialog {
     // In-scene presentation state (null when native-window / headless).
     private Scene hostScene;
     private SceneOverlay overlay;
-    private Backend.SceneModalHandle sceneModal; // blocks sibling windows while open
+    private BackendPeer.SceneModalHandle sceneModal; // blocks sibling windows while open
     // Drag offset of the in-scene card from its centered position.
     private float dragOffsetX;
     private float dragOffsetY;
@@ -745,7 +747,7 @@ public final class Dialog {
         // but it is a window in its own right, and an in-scene modal over the owner must lock it
         // the way a native modal would. Registering it as transient is what let a non-modal
         // dialog stay clickable under a modal.
-        window.registerChildPopup(modalWindow, limn.backend.NativeWindow.PopupKind.OWNED_WINDOW);
+        WindowPeer.of(window).registerChildPopup(modalWindow, WindowPeer.PopupKind.OWNED_WINDOW);
         modalScene.bind(modalWindow);
 
         // Center over the owner window.
@@ -763,7 +765,7 @@ public final class Dialog {
             modalWindow.show();
         }
         if (modal) {
-            backend.pushModal(modalWindow, blockParent);
+            BackendPeer.of(backend).pushModal(modalWindow, blockParent);
         }
         modalScene.focusTraverse(false); // focus the first button
         fade = 1; // content painted opaque; the window opacity does the fading
@@ -828,7 +830,7 @@ public final class Dialog {
         // widget's focus-lost path, and never put on the first stop as if by Tab: the one would
         // drop a selection and commit a half-typed entry, the other select all of a field's text.
         SceneAccess.pushMovedOverlay(owner, overlay, leaving);
-        sceneModal = host.backend().pushSceneModal(host, toolkitScope);
+        sceneModal = BackendPeer.of(host.backend()).pushSceneModal(host, toolkitScope);
         observeUnanswered(owner);
         fade = 0;
         startFadeInScene();
@@ -861,8 +863,8 @@ public final class Dialog {
 
         LeftWindow(NativeWindow window, Scene leaving) {
             this.window = window;
-            window.setFrameCallback((renderer, frame) -> { });
-            window.setInput(new ClosingOnly(SceneAccess.input(leaving)));
+            WindowPeer.of(window).setFrameCallback((renderer, frame) -> { });
+            WindowPeer.of(window).setInput(new ClosingOnly(SceneAccess.input(leaving)));
             leaving.fadeWindow(0f, 0, null); // out of sight at once, though still up
         }
 
@@ -974,10 +976,10 @@ public final class Dialog {
         }
         modalWindow = null;
         if (modal) {
-            window.backend().popModal(window);
+            BackendPeer.of(window.backend()).popModal(window);
         }
         if (ownerWindow != null && !ownerWindow.isClosed()) {
-            ownerWindow.unregisterChildPopup(window);
+            WindowPeer.of(ownerWindow).unregisterChildPopup(window);
         }
         return window;
     }
@@ -1038,7 +1040,7 @@ public final class Dialog {
         // toolkit scope every other window locks. The owner keeps its own popups:
         // this card's dropdowns and menus are windows owned by the owner.
         if (host != null) {
-            sceneModal = host.backend().pushSceneModal(host, toolkitScope);
+            sceneModal = BackendPeer.of(host.backend()).pushSceneModal(host, toolkitScope);
         }
         observeUnanswered(owner); // the host window can die with this still open
         startFadeInScene();
@@ -1733,7 +1735,7 @@ public final class Dialog {
                 } else if (hostScene != null && hostScene.window() != null) {
                     // Truly modal: ignore the click, but give the same feedback a
                     // native modal gives when its blocked parent is clicked.
-                    hostScene.window().backend().signalModalBlocked();
+                    BackendPeer.of(hostScene.window().backend()).signalModalBlocked();
                 }
             }
         }

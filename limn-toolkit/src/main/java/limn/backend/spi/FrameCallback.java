@@ -1,8 +1,12 @@
-package limn.backend;
+package limn.backend.spi;
+
+import limn.backend.spi.FrameCallback;
+import limn.backend.spi.FrameInfo;
+import limn.backend.spi.GpuRenderer;
 
 /**
  * Renders one frame of a window. Invoked on the UI thread by the backend loop
- * whenever the window is dirty ({@link NativeWindow#requestFrame()}, damage,
+ * whenever the window is dirty ({@link limn.backend.NativeWindow#requestFrame()}, damage,
  * resize); Limn redraws per frame instead of tracking dirty regions, and
  * the loop sleeps when nothing is dirty.
  */

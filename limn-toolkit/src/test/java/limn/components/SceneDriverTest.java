@@ -1,6 +1,6 @@
 package limn.components;
 
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import limn.input.Keys;
 import limn.scene.Scene;
 import limn.scene.Widget;

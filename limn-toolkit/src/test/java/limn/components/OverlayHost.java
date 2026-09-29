@@ -5,6 +5,8 @@ import limn.backend.Backend;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
 import limn.concurrent.UiRuntime;
+import limn.backend.spi.WindowPeer;
+import limn.backend.spi.BackendPeer;
 
 /**
  * A window that can host an in-scene dialog: the presentation asks the window's backend to lock
@@ -16,13 +18,13 @@ import limn.concurrent.UiRuntime;
  * {@link Dialog} promotes an {@code IN_SCENE} request to a native window when the host is already
  * locked by a modal, and a stacked overlay is exactly the shape the overlay's own test needs.
  */
-final class OverlayHost extends StubWindow implements Backend {
+final class OverlayHost extends StubWindow implements BackendPeer {
     /** The window the presentation named as the one that stays interactive. */
     NativeWindow sceneModalOwner;
 
     @Override public Backend backend() { return this; }
     @Override public UiRuntime uiRuntime() { return null; }
-    @Override public NativeWindow createWindow(WindowConfig config) {
+    @Override public WindowPeer createWindow(WindowConfig config) {
         throw new AssertionError("an in-scene dialog must not create a window");
     }
     @Override public void setLoopLifetime(limn.backend.LoopLifetime lifetime) { }

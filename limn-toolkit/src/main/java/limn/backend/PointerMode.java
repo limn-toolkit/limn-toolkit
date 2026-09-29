@@ -1,5 +1,7 @@
 package limn.backend;
 
+import limn.backend.spi.WindowInput;
+
 /**
  * How the window treats the mouse pointer: visibility and capture. Set via
  * {@link NativeWindow#setPointerMode}; {@link #NORMAL} is the default.

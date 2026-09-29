@@ -1,6 +1,6 @@
 package limn.scene.internal;
 
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import limn.concurrent.Subscription;
 import limn.scene.Scene;
 import limn.scene.Widget;

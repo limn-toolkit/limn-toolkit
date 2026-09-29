@@ -8,6 +8,7 @@ import limn.backend.lwjgl.LwjglBackend;
 import limn.backend.lwjgl.a11y.ProbeScene;
 import limn.concurrent.Ui;
 import limn.scene.Scene;
+import limn.backend.spi.WindowPeer;
 
 /**
  * The demo this bridge is meant to be read from: real widgets, really painted, in a window the
@@ -54,7 +55,7 @@ public final class LiveProbe {
             ProbeScene probe = new ProbeScene();
             Scene scene = new Scene(probe.root());
             scene.bind(window);
-            window.setFrameCallback((renderer, frame) ->
+            WindowPeer.of(window).setFrameCallback((renderer, frame) ->
                     scene.renderFrame(renderer.canvas(), frame));
 
             int tickMs = Integer.getInteger("probe.tickMs", 4_000);

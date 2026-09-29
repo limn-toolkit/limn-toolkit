@@ -6,7 +6,7 @@ import limn.backend.Crashes;
 import limn.backend.Cursor;
 import limn.backend.LoopEnd;
 import limn.backend.LoopLifetime;
-import limn.backend.ModalStack;
+import limn.backend.spi.ModalStack;
 import limn.backend.NativeWindow;
 import limn.backend.Platform;
 import limn.backend.QuitHandler;
@@ -57,6 +57,8 @@ import static org.lwjgl.glfw.GLFW.glfwTerminate;
 import static org.lwjgl.glfw.GLFW.glfwWaitEvents;
 import static org.lwjgl.glfw.GLFW.glfwWaitEventsTimeout;
 import static org.lwjgl.system.MemoryUtil.NULL;
+import limn.backend.spi.WindowPeer;
+import limn.backend.spi.BackendPeer;
 
 /**
  * GLFW + OpenGL 3.3 core implementation of {@link Backend}.
@@ -72,7 +74,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  * windows something asked a frame of, so an application whose posted task
  * mutates a widget without invalidating it will not see the change.
  */
-public final class LwjglBackend implements Backend {
+public final class LwjglBackend implements BackendPeer {
 
     private static final System.Logger LOG = System.getLogger(LwjglBackend.class.getName());
     private static final double MAX_WAIT_SECONDS = 3600.0;
@@ -235,7 +237,7 @@ public final class LwjglBackend implements Backend {
         fontLoader = fontStore::loadFile;
         imageDecoder = new StbImageDecoder();
         // Every service at once, through the one call the SPI names (ADR 046 §5).
-        new limn.backend.BackendServices(uiRuntime, textRuler, fontCatalog, fontLoader, imageDecoder,
+        new limn.backend.spi.BackendServices(uiRuntime, textRuler, fontCatalog, fontLoader, imageDecoder,
                 svgRasterizer, graphics3d, videoSurfaces, audio, audioDecoder).install();
         // Same shape as the font store's background loads: pay the file-dialog
         // library's extract-and-link on a worker now, not on the click that
@@ -638,7 +640,7 @@ public final class LwjglBackend implements Backend {
     }
 
     @Override
-    public NativeWindow createWindow(WindowConfig config) {
+    public WindowPeer createWindow(WindowConfig config) {
         uiRuntime.checkUiThread();
         ensureOpen();
         if (firstWindowTitle == null) {
@@ -1052,7 +1054,7 @@ public final class LwjglBackend implements Backend {
     }
 
     @Override
-    public Backend.SceneModalHandle pushSceneModal(NativeWindow owner, boolean toolkitScope) {
+    public BackendPeer.SceneModalHandle pushSceneModal(NativeWindow owner, boolean toolkitScope) {
         uiRuntime.checkUiThread();
         LwjglWindow ownerWin = (LwjglWindow) owner;
         // The token IS the modal identity; the owner is exempted so it stays

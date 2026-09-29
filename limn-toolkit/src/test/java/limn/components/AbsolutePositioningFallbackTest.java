@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static limn.testing.SceneDriver.drive;
+import limn.backend.spi.WindowPeer;
 
 /**
  * What a window that cannot be positioned does to the components that draw outside their own
@@ -33,7 +34,7 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
     @Test
     void aWindowThatSaysNothingCanBePositioned() {
         NativeWindow silent = new StubWindow();
-        assertTrue(silent.supportsAbsolutePositioning(),
+        assertTrue(WindowPeer.of(silent).supportsAbsolutePositioning(),
                 "the interface default must not turn every unaware backend into a fallback");
     }
 

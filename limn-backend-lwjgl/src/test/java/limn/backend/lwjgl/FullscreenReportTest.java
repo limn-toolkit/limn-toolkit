@@ -2,7 +2,7 @@ package limn.backend.lwjgl;
 
 import limn.backend.Platform;
 import limn.backend.WindowConfig;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

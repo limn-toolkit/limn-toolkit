@@ -1,7 +1,7 @@
 package limn.render3d;
 
 import java.util.function.Consumer;
-import limn.backend.Installed;
+import limn.backend.spi.Installed;
 
 /**
  * Facade + install-at-startup SPI for the 3D backend, the same inversion pattern

@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import limn.backend.spi.WindowPeer;
 
 /**
  * The one reader driver: opens a single accessibility-gallery entry in a window of
@@ -270,7 +271,7 @@ public final class ReaderDriver {
     public static void placeKeyboardOnFirstFrame(NativeWindow window, Scene scene, Built built,
                                                  Consumer<String> out) {
         boolean[] placed = {false};
-        window.setFrameCallback((renderer, frame) -> {
+        WindowPeer.of(window).setFrameCallback((renderer, frame) -> {
             scene.renderFrame(renderer.canvas(), frame);
             if (placed[0]) {
                 return;

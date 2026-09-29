@@ -1,4 +1,6 @@
-package limn.backend;
+package limn.backend.spi;
+
+import limn.backend.spi.WindowInput;
 
 /**
  * Receives a window's translated native input on the UI thread, in logical
@@ -17,7 +19,7 @@ public interface WindowInput {
 
     /**
      * Relative pointer motion while the window is in
-     * {@link PointerMode#RELATIVE}: unbounded deltas in logical points
+     * {@link limn.backend.PointerMode#RELATIVE}: unbounded deltas in logical points
      * (raw/unaccelerated where the platform supports it), replacing
      * {@link #mouseMoved} for the duration of the capture. The receiver may
      * coalesce by summing. Default: ignored.
@@ -83,7 +85,7 @@ public interface WindowInput {
     }
 
     /**
-     * The window entered ({@code true}) or left fullscreen: {@link NativeWindow#isFullscreen()}
+     * The window entered ({@code true}) or left fullscreen: {@link limn.backend.NativeWindow#isFullscreen()}
      * changed its answer. Every change is told once, whoever made it: the application's
      * {@code enterFullscreen} and {@code exitFullscreen}, and on macOS the person's green button,
      * Control-Command-F or menu item. It is told when the answer changes, which for macOS native

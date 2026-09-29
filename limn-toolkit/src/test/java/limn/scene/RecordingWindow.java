@@ -3,16 +3,17 @@ package limn.scene;
 import limn.backend.Backend;
 import limn.backend.Clipboard;
 import limn.backend.Cursor;
-import limn.backend.FrameCallback;
+import limn.backend.spi.FrameCallback;
 import limn.backend.NativeWindow;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
+import limn.backend.spi.WindowPeer;
 
 /**
  * {@link NativeWindow} test double that records the opacity and cursor set on
  * it; everything else is inert. Shared by the scene tests that assert what the
  * scene pushes to its window.
  */
-final class RecordingWindow implements NativeWindow {
+final class RecordingWindow implements WindowPeer {
     // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
     @Override public void setCloseRequestHandler(limn.backend.CloseRequestHandler handler) { }
     @Override public limn.backend.CloseRequestHandler closeRequestHandler() { return null; }

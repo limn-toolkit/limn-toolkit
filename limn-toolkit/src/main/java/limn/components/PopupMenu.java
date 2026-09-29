@@ -7,7 +7,7 @@ import limn.components.internal.FloatingSurfaces;
 import limn.components.internal.a11y.MenuAccessibility;
 import limn.backend.CrashPhase;
 import limn.backend.NativeWindow;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import limn.backend.ScreenRect;
 import limn.backend.WindowConfig;
 import limn.concurrent.internal.Listeners;
@@ -41,6 +41,8 @@ import org.jspecify.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import limn.backend.spi.WindowPeer;
+import limn.backend.spi.BackendPeer;
 
 /**
  * A context menu / dropdown that presents a {@link Menu} (with checkable items,
@@ -67,7 +69,7 @@ import java.util.Objects;
  * {@linkplain limn.backend.NativeWindow#isFullscreen() fullscreen} window, which at a named mode
  * is minimized as soon as another window takes the focus, as a menu's does at once, and which at
  * the mode the display is in already covers the screen, so the menu loses nothing inside it; and
- * any window reporting no {@link limn.backend.NativeWindow#supportsAbsolutePositioning()}
+ * any window reporting no {@link limn.backend.spi.WindowPeer#supportsAbsolutePositioning()}
  * (Wayland), where a menu window would open somewhere other than the anchor. Both are asked when
  * the menu opens; a menu already open in a window of its own when the owner enters or leaves
  * fullscreen closes instead, cascade and all, as if dismissed, running no item: see
@@ -469,10 +471,10 @@ public final class PopupMenu {
             boolean handedBack = keyboardHandedBack;
             Runnable destroy = () -> {
                 if (modal && !handedBack && !closing.isClosed()) {
-                    closing.backend().popModal(closing); // release the owner lock
+                    BackendPeer.of(closing.backend()).popModal(closing); // release the owner lock
                 }
                 if (parent != null && !parent.isClosed()) {
-                    parent.unregisterChildPopup(closing);
+                    WindowPeer.of(parent).unregisterChildPopup(closing);
                     // The owner asks for the focus back before the window holding it goes, when
                     // no choice gave it back already. A window closed with the focus leaves the
                     // desktop to choose the next one, and it may choose itself: GNOME over X11
@@ -631,7 +633,7 @@ public final class PopupMenu {
         if (window != null && heldFocus && !keyboardHandedBack) {
             keyboardHandedBack = true;
             if (modal && !window.isClosed()) {
-                window.backend().popModal(window); // release the owner lock
+                BackendPeer.of(window.backend()).popModal(window); // release the owner lock
             }
             NativeWindow parent = parentWindow;
             if (parent != null && !parent.isClosed() && !parent.isModalBlocked()) {
@@ -720,7 +722,7 @@ public final class PopupMenu {
         keyboardHandedBack = false;
         popupWindow = parentWindow.backend().createWindow(WindowConfig.of("menu", w, h).visible(false).resizable(false)
                 .decorated(false).floating(true).transparent(true)); // and it takes the focus: the menu owns the keys
-        parentWindow.registerChildPopup(popupWindow);
+        WindowPeer.of(parentWindow).registerChildPopup(popupWindow);
         // The owner's clock as well as its rendering flags: this scene owns the fade-out that
         // destroys the window, and a fade on the wall clock under an opener on an injected one
         // never ends (Scene#clock).
@@ -741,7 +743,7 @@ public final class PopupMenu {
         if (modal) {
             // Backend-enforced window-modal (like Dialog): the owner ignores input
             // and beeps on a click; the menu closes only on a choice or Escape.
-            parentWindow.backend().pushModal(popupWindow, parentWindow);
+            BackendPeer.of(parentWindow.backend()).pushModal(popupWindow, parentWindow);
         }
         popupScene.focusTraverse(false); // focus the surface so it gets keys
         popupWindow.requestFrame();

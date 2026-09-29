@@ -3,11 +3,11 @@ package limn.backend.lwjgl;
 import limn.backend.lwjgl.internal.ObjC;
 
 import limn.backend.Cursor;
-import limn.backend.FrameCallback;
-import limn.backend.FrameInfo;
+import limn.backend.spi.FrameCallback;
+import limn.backend.spi.FrameInfo;
 import limn.backend.NativeWindow;
 import limn.backend.WindowConfig;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import limn.internal.lang.Checks;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.PointerBuffer;
@@ -63,7 +63,6 @@ import static org.lwjgl.glfw.GLFW.GLFW_VISIBLE;
 import static org.lwjgl.glfw.GLFW.glfwCreateWindow;
 import static org.lwjgl.glfw.GLFW.glfwDefaultWindowHints;
 import static org.lwjgl.glfw.GLFW.glfwDestroyWindow;
-import static org.lwjgl.glfw.GLFW.GLFW_VISIBLE;
 import static org.lwjgl.glfw.GLFW.glfwFocusWindow;
 import static org.lwjgl.glfw.GLFW.glfwGetClipboardString;
 import static org.lwjgl.glfw.GLFW.glfwGetCursorPos;
@@ -120,6 +119,7 @@ import static org.lwjgl.glfw.GLFW.glfwWindowHint;
 import static org.lwjgl.glfw.GLFW.glfwWindowShouldClose;
 import static org.lwjgl.opengl.GL11.glViewport;
 import static org.lwjgl.system.MemoryUtil.NULL;
+import limn.backend.spi.WindowPeer;
 
 /**
  * GLFW-backed {@link NativeWindow} with an OpenGL 3.3 core (forward-compatible)
@@ -127,7 +127,7 @@ import static org.lwjgl.system.MemoryUtil.NULL;
  * refresh/framebuffer-size callbacks so the content stays live during native
  * resize drags (where {@code glfwPollEvents} blocks on Windows/macOS).
  */
-final class LwjglWindow implements NativeWindow {
+final class LwjglWindow implements WindowPeer {
 
     private static final System.Logger LOG = System.getLogger(LwjglWindow.class.getName());
 

@@ -1,8 +1,9 @@
-package limn.backend;
+package limn.backend.spi;
 
 import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
+import limn.backend.spi.Installed;
 
 /**
  * The one slot a backend fills for a service the toolkit offers statically: the image decoder,

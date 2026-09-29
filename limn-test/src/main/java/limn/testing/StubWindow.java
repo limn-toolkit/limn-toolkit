@@ -5,14 +5,15 @@ import limn.backend.Backend;
 import limn.backend.Clipboard;
 import limn.backend.Cursor;
 import limn.backend.Display;
-import limn.backend.FrameCallback;
+import limn.backend.spi.FrameCallback;
 import limn.backend.NativeWindow;
 import limn.backend.Resolution;
 import limn.backend.ScreenRect;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
+import limn.backend.spi.WindowPeer;
 
 /**
  * A {@link NativeWindow} that does nothing except answer questions: enough of a window for the
@@ -24,7 +25,7 @@ import java.util.List;
  * {@code AssertionError} naming that says so where a {@code NullPointerException} three frames
  * down would not.
  */
-public class StubWindow implements NativeWindow {
+public class StubWindow implements WindowPeer {
 
     /** Frames the scene has asked for: what an idle scene must stop adding to. */
     public int framesRequested;

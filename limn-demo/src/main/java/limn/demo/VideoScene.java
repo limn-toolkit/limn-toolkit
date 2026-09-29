@@ -34,6 +34,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import limn.backend.spi.WindowPeer;
 
 /**
  * The video tab: pictures that come out of a decoder, cross the SPI as planar samples and are
@@ -387,13 +388,13 @@ final class VideoScene {
         // A picture has an aspect ratio but no minimum; this one is the transport's, below which
         // the bar and the button overlap each other rather than the window refusing to shrink.
         window.setSizeLimits(240, 135, -1, -1);
-        parent.registerChildPopup(window); // never outlives the application window
+        WindowPeer.of(parent).registerChildPopup(window); // never outlives the application window
         scene.bind(window);
         window.setCloseRequestHandler(request -> {
             view.setPlayer(null);
             view.setSource(null);
             open.closeAll(); // the player first, then the stream it was reading
-            parent.unregisterChildPopup(window);
+            WindowPeer.of(parent).unregisterChildPopup(window);
             request.allow();
         });
         window.show();

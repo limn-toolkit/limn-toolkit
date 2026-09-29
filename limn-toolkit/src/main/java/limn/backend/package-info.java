@@ -1,8 +1,8 @@
 /**
  * The service-provider interface a native platform implements: {@link limn.backend.Backend}
  * runs the event loop and creates {@link limn.backend.NativeWindow}s. Beside it sit the
- * contracts a platform must supply: the {@link limn.backend.GpuRenderer} widgets draw
- * through, {@link limn.backend.WindowInput}, {@link limn.backend.Clipboard},
+ * contracts a platform must supply: the {@link limn.backend.spi.GpuRenderer} widgets draw
+ * through, {@link limn.backend.spi.WindowInput}, {@link limn.backend.Clipboard},
  * {@link limn.backend.Cursor}s, {@link limn.backend.FileDialogs} and
  * {@link limn.backend.Crashes} reporting. Come here to write a backend, or to see exactly
  * what one owes the toolkit; an application constructs one at startup and otherwise
@@ -12,3 +12,5 @@
 package limn.backend;
 
 import org.jspecify.annotations.NullMarked;
+import limn.backend.spi.GpuRenderer;
+import limn.backend.spi.WindowInput;

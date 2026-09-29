@@ -2,7 +2,7 @@ package limn.scene;
 
 import limn.backend.Cursor;
 import limn.backend.NativeWindow;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import limn.concurrent.internal.Listeners;
 import limn.concurrent.Subscription;
 import limn.concurrent.Ui;
@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
+import limn.backend.spi.WindowPeer;
 
 /**
  * Owns a widget tree bound to one window: queues native input (with
@@ -368,7 +369,7 @@ public final class Scene {
         // A grafted popup is published by the scene it was grafted into, so its window is never
         // asked for a bridge (asking is what opens one) and is told why.
         if (graftedInto != null) {
-            window.publishAccessibilityElsewhere();
+            WindowPeer.of(window).publishAccessibilityElsewhere();
         }
         limn.backend.AccessibilityBridge attached = graftedInto != null
                 ? limn.backend.AccessibilityBridge.NONE : window.accessibility();
@@ -380,9 +381,9 @@ public final class Scene {
         // attach() and not a tree: at this instant the scene has never laid out, so every box in
         // it would be a zero-size rectangle at the origin. The first frame is where the boxes are.
         this.bridge.attach(accessibilityHost());
-        window.setInput(input);
+        WindowPeer.of(window).setInput(input);
         this.renderRequester = window::requestFrame;
-        window.setFrameCallback((renderer, frame) -> renderFrame(renderer.canvas(), frame));
+        WindowPeer.of(window).setFrameCallback((renderer, frame) -> renderFrame(renderer.canvas(), frame));
         // Last, and after the two calls that make this window usable. It walks and publishes, which
         // is more than the rest of this method does, and a bind that threw here would leave the
         // window holding neither input nor a frame callback — a window that is up, attached and
@@ -419,7 +420,7 @@ public final class Scene {
         accessibleWalk().walkWindowOnly(this, window.logicalWidth(), window.logicalHeight());
         limn.accessibility.AccessibleTree tree = accessibleWalk.publish(
                 window.screenX(), window.screenY(), window.logicalToScreenFactor(),
-                window.supportsAbsolutePositioning());
+                WindowPeer.of(window).supportsAbsolutePositioning());
         publishedTree = tree;
         bridge.publish(tree, false);
         List<limn.accessibility.AccessibleEvent> events = accessibleWalk.builder().events();
@@ -753,7 +754,7 @@ public final class Scene {
         focused = null;
         composing = false;
         if (window != null && keyboard.acceptsTextInputInternal()) {
-            window.resetPreedit();
+            WindowPeer.of(window).resetPreedit();
         }
         updateImeState();
         return wasComposing;
@@ -1630,7 +1631,7 @@ public final class Scene {
                 window != null ? window.screenX() : 0,
                 window != null ? window.screenY() : 0,
                 window != null ? window.logicalToScreenFactor() : 1,
-                window == null || window.supportsAbsolutePositioning());
+                window == null || WindowPeer.of(window).supportsAbsolutePositioning());
         if (after == before) {
             return;
         }
@@ -1681,7 +1682,7 @@ public final class Scene {
                 window != null ? window.screenX() : 0,
                 window != null ? window.screenY() : 0,
                 window != null ? window.logicalToScreenFactor() : 1,
-                window == null || window.supportsAbsolutePositioning());
+                window == null || WindowPeer.of(window).supportsAbsolutePositioning());
         publishedTree = tree;
         bridge.publish(tree, reentrant);
         List<limn.accessibility.AccessibleEvent> events = accessibleWalk.builder().events();
@@ -2600,7 +2601,7 @@ public final class Scene {
                 // Focus is leaving a text widget: cancel any OS-side composition
                 // it owned, so the preedit can't teleport into, and later
                 // commit into, whatever gains focus next.
-                window.resetPreedit();
+                WindowPeer.of(window).resetPreedit();
             }
             old.notifyFocus(false, origin);
             if (focused != widget) {
@@ -2660,7 +2661,7 @@ public final class Scene {
             return; // headless: no platform IME
         }
         boolean textInput = focused != null && focused.acceptsTextInputInternal();
-        window.setImeEnabled(textInput);
+        WindowPeer.of(window).setImeEnabled(textInput);
         lastCaretRect = null; // force the next sync to push afresh
         if (textInput) {
             syncImeCaret();
@@ -2677,7 +2678,7 @@ public final class Scene {
             return;
         }
         lastCaretRect = rect;
-        window.setPreeditCaretRect(rect.x(), rect.y(), rect.width(), rect.height());
+        WindowPeer.of(window).setPreeditCaretRect(rect.x(), rect.y(), rect.width(), rect.height());
     }
 
     /**
@@ -3605,7 +3606,7 @@ public final class Scene {
      * Renders the frame a window's backend asked for, with everything the backend said about it:
      * the re-present flag, the GPU-time sample and the back buffer's age. A frame callback of an
      * application's own, one that does something before or after the scene paints, forwards the
-     * {@link limn.backend.FrameInfo} whole through here.
+     * {@link limn.backend.spi.FrameInfo} whole through here.
      *
      * <p>It replaced an overload that took the flag and the sample and assumed the age, which every
      * such callback in the demo called: when the backend began reading the age from the driver,
@@ -3615,7 +3616,7 @@ public final class Scene {
      * @param canvas the backend's canvas for this frame
      * @param frame  what the backend passed to the frame callback
      */
-    public void renderFrame(Canvas canvas, limn.backend.FrameInfo frame) {
+    public void renderFrame(Canvas canvas, limn.backend.spi.FrameInfo frame) {
         renderFrame(canvas, frame.rePresent(), frame.gpuFrameMs(), frame.bufferAge());
     }
 
@@ -3624,7 +3625,7 @@ public final class Scene {
      *                   in ms ({@link Float#NaN} = no new sample); recorded into
      *                   {@link #metrics()} alongside this frame's CPU numbers
      * @param bufferAge how many presents old the canvas's contents are ({@link
-     *                  limn.backend.FrameInfo#bufferAge}): 0 repaints the whole frame, 1 what changed
+     *                  limn.backend.spi.FrameInfo#bufferAge}): 0 repaints the whole frame, 1 what changed
      *                  since the last frame, 2 that plus the frame before, and so on. The overloads
      *                  without it assume 2, ordinary double buffering, which is what rendering into a
      *                  canvas of one's own has always been treated as

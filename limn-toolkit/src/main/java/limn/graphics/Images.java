@@ -7,7 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 
-import limn.backend.Installed;
+import limn.backend.spi.Installed;
 import limn.concurrent.internal.SharedLoads;
 import limn.concurrent.Work;
 import limn.io.Resources;

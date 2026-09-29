@@ -1,5 +1,6 @@
 package limn.backend;
 
+import limn.backend.spi.BackendPeer;
 import limn.concurrent.UiRuntime;
 import org.jspecify.annotations.Nullable;
 
@@ -16,8 +17,12 @@ import org.jspecify.annotations.Nullable;
  * {@link #setLoopLifetime lifetime} says. The loop is event-driven: it sleeps in
  * the native event wait and is woken by input, window damage or
  * {@link limn.concurrent.Ui#post}.
+ *
+ * <p>This is the application's view of a backend, which the 1.0 contract freezes. What the toolkit
+ * asks of it below that (the modal stack) is {@link BackendPeer}'s, in the incubating layer; every
+ * backend is one, which is why this interface is sealed.
  */
-public interface Backend extends AutoCloseable {
+public sealed interface Backend extends AutoCloseable permits BackendPeer {
 
     /** @return the concurrency runtime owned by this backend */
     UiRuntime uiRuntime();
@@ -86,49 +91,6 @@ public interface Backend extends AutoCloseable {
      * @param handler the handler, or {@code null} for none
      */
     void setQuitHandler(@Nullable QuitHandler handler);
-
-    /**
-     * Registers {@code modal} as an active modal window and pushes it on the
-     * modal stack. Only the topmost modal receives input; every window it
-     * locks ignores input until it closes.
-     *
-     * <p>Modality scope: a non-null {@code parent} makes it <em>window-modal</em>,
-     * so it locks only {@code parent} (and {@code parent}'s owned popups),
-     * leaving unrelated windows interactive. A {@code null} parent makes it
-     * <em>toolkit-modal</em>, so it locks every other window. Modals stack: with
-     * several open, only the top one is usable and the non-modal windows are
-     * released only after the whole modal stack closes. UI thread only.
-     */
-    void pushModal(NativeWindow modal, @Nullable NativeWindow parent);
-
-    /** Removes {@code modal} from the modal stack, releasing what it locked. UI thread only. */
-    void popModal(NativeWindow modal);
-
-    /**
-     * Registers an <em>in-scene</em> (overlay) modal hosted by {@code owner}.
-     * Unlike {@link #pushModal}, there is no separate modal window: the overlay
-     * blocks {@code owner}'s own content, so {@code owner} stays interactive,
-     * while this call blocks the same <em>sibling</em> windows a native modal
-     * would. {@code toolkitScope} {@code true} locks every other window;
-     * {@code false} locks only {@code owner}'s owned popups. Release the
-     * returned handle when the overlay closes. UI thread only.
-     */
-    SceneModalHandle pushSceneModal(NativeWindow owner, boolean toolkitScope);
-
-    /** Handle to an in-scene modal (see {@link #pushSceneModal}); {@link #release} it on close. */
-    interface SceneModalHandle {
-        /** Releases the in-scene modal, unblocking what it locked. UI thread only. */
-        void release();
-    }
-
-    /**
-     * Gives the modal-blocked feedback (the alert sound plus a re-raise of the
-     * top modal) for an interaction the active modal ignores. The backend
-     * already does this for clicks on blocked native windows; call it for an
-     * in-scene modal's scrim so internal and native modals feel identical.
-     * UI thread only.
-     */
-    void signalModalBlocked();
 
     /**
      * @return aggregate GPU resource usage across all windows (texture count +

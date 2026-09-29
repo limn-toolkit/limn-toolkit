@@ -1,6 +1,8 @@
-package limn.backend;
+package limn.backend.spi;
 
 import limn.internal.lang.Checks;
+import limn.backend.spi.FrameCallback;
+import limn.backend.spi.FrameInfo;
 
 /**
  * Immutable per-frame metrics handed to a {@link FrameCallback}.

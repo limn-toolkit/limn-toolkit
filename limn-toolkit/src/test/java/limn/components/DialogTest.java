@@ -24,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static limn.testing.SceneDriver.drive;
+import limn.backend.spi.WindowPeer;
+import limn.backend.spi.BackendPeer;
 
 /**
  * Dialog resolution logic driven headlessly through its panel
@@ -1047,7 +1049,7 @@ class DialogTest extends ComponentTestBase {
      * promoted to a native window has something to be created by. Everything else
      * is the smallest answer that keeps a presentation from touching an OS.
      */
-    private static final class BlockedWindow implements limn.backend.NativeWindow, limn.backend.Backend {
+    private static final class BlockedWindow implements WindowPeer, BackendPeer {
         // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
         @Override public boolean supportsAbsolutePositioning() { return canPosition; }
         /** What {@link #supportsAbsolutePositioning()} answers; {@code false} reproduces Wayland. */
@@ -1102,7 +1104,7 @@ class DialogTest extends ComponentTestBase {
 
         // The promoted dialog's own window: never blocked, so it cannot recurse.
         // Born at the size it was asked for, which is what makes a refit visible.
-        @Override public limn.backend.NativeWindow createWindow(limn.backend.WindowConfig config) {
+        @Override public WindowPeer createWindow(limn.backend.WindowConfig config) {
             return new BlockedWindow(false, config.width(), config.height());
         }
 
@@ -1134,9 +1136,9 @@ class DialogTest extends ComponentTestBase {
 
         @Override public void requestFrame() { }
 
-        @Override public void setFrameCallback(limn.backend.FrameCallback callback) { }
+        @Override public void setFrameCallback(limn.backend.spi.FrameCallback callback) { }
 
-        @Override public void setInput(limn.backend.WindowInput input) { }
+        @Override public void setInput(limn.backend.spi.WindowInput input) { }
 
         @Override public String title() {
             return "";

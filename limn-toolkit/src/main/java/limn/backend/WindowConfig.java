@@ -247,7 +247,7 @@ public final class WindowConfig {
      * &mdash; it has to be right at construction. Everything else about placement is cosmetic and
      * belongs to the desktop.
      *
-     * <p>Not every desktop allows it: see {@link NativeWindow#supportsAbsolutePositioning()}. Where
+     * <p>Not every desktop allows it: see {@link limn.backend.spi.WindowPeer#supportsAbsolutePositioning()}. Where
      * it does not, the request is ignored and the window opens where the compositor puts it,
      * which is the same outcome as never asking.
      *

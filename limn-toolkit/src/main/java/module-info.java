@@ -23,6 +23,7 @@ module limn.toolkit {
     exports limn.accessibility;
     exports limn.animation;
     exports limn.backend;
+    exports limn.backend.spi;
     exports limn.components;
     exports limn.components.chart;
     exports limn.components.date;

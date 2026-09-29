@@ -1,7 +1,7 @@
 package limn.backend;
 
 import java.lang.System.Logger.Level;
-import limn.backend.Installed;
+import limn.backend.spi.Installed;
 
 /**
  * Crash containment registry: one process-wide {@link CrashHandler} (default:

@@ -14,6 +14,7 @@ import limn.scene.Widget;
 
 import java.util.ArrayList;
 import java.util.List;
+import limn.backend.spi.WindowPeer;
 
 /**
  * The demo this bridge is meant to be read from: real widgets, really painted, in a window the
@@ -126,7 +127,7 @@ public final class LiveProbe {
             ProbeScene probe = new ProbeScene();
             Scene scene = new Scene(probe.root());
             scene.bind(window);
-            window.setFrameCallback((renderer, frame) ->
+            WindowPeer.of(window).setFrameCallback((renderer, frame) ->
                     scene.renderFrame(renderer.canvas(), frame));
 
             // Something moves every few seconds, so that a reader has events to hear and a person

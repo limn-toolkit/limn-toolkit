@@ -5,6 +5,7 @@ import limn.backend.NativeWindow;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import limn.backend.spi.WindowPeer;
 
 /**
  * The popups a window owns (a combo's list, a menu cascade, a native dialog, any floating window
@@ -20,12 +21,12 @@ import java.util.Objects;
  */
 final class ChildPopups {
 
-    private record Child(NativeWindow window, NativeWindow.PopupKind kind) {
+    private record Child(NativeWindow window, WindowPeer.PopupKind kind) {
     }
 
     private final List<Child> children = new ArrayList<>();
 
-    void add(NativeWindow popup, NativeWindow.PopupKind kind) {
+    void add(NativeWindow popup, WindowPeer.PopupKind kind) {
         children.add(new Child(Objects.requireNonNull(popup, "popup"),
                 Objects.requireNonNull(kind, "kind")));
     }
@@ -55,7 +56,7 @@ final class ChildPopups {
     boolean ownsTransient(NativeWindow candidate) {
         for (Child child : children) {
             if (child.window() == candidate) {
-                return child.kind() == NativeWindow.PopupKind.TRANSIENT;
+                return child.kind() == WindowPeer.PopupKind.TRANSIENT;
             }
         }
         return false;

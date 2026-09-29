@@ -8,13 +8,13 @@ import limn.backend.Clipboard;
 import limn.backend.ClosePolicy;
 import limn.backend.CloseRequestHandler;
 import limn.backend.Display;
-import limn.backend.FrameCallback;
-import limn.backend.FrameInfo;
-import limn.backend.GpuRenderer;
+import limn.backend.spi.FrameCallback;
+import limn.backend.spi.FrameInfo;
+import limn.backend.spi.GpuRenderer;
 import limn.backend.NativeWindow;
 import limn.backend.Resolution;
 import limn.backend.ScreenRect;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import limn.graphics.Canvas;
 import limn.graphics.Image;
 import limn.graphics.TextRuler;
@@ -24,6 +24,7 @@ import java.util.function.Consumer;
 import limn.testing.NoopCanvas;
 import limn.testing.TestRulers;
 import org.jspecify.annotations.Nullable;
+import limn.backend.spi.WindowPeer;
 
 /**
  * A window with no platform behind it, whose accessibility bridge keeps the last tree it was
@@ -34,7 +35,7 @@ import org.jspecify.annotations.Nullable;
  * by hand: what a real backend does once per vertical blank this does when a test asks. That is
  * the whole publish path a screen reader would see, and not a shortcut around it.
  */
-public final class HeadlessWindow implements NativeWindow {
+public final class HeadlessWindow implements WindowPeer {
     // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
     @Override public boolean supportsAbsolutePositioning() { return true; }
     @Override public void setImeEnabled(boolean enabled) { }

@@ -29,6 +29,7 @@ import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 
 import java.util.List;
+import limn.backend.spi.WindowPeer;
 
 /**
  * Animation showcase: an easing playground (pick the curve, the timing and
@@ -169,7 +170,7 @@ final class AnimationsScene {
         scene.setBackground(Color.TRANSPARENT);
         NativeWindow win = parent.backend().createWindow(WindowConfig.styled(
                 "Window", w, h, WindowStyle.UNDECORATED_TRANSLUCENT, true, true));
-        parent.registerChildPopup(win); // closes if the host closes
+        WindowPeer.of(parent).registerChildPopup(win); // closes if the host closes
         scene.bind(win);
 
         float factor = parent.logicalToScreenFactor();
@@ -179,7 +180,7 @@ final class AnimationsScene {
 
         close.onAction(() -> scene.fadeWindowOut(Theme.current().animWindow, () -> {
             if (!parent.isClosed()) {
-                parent.unregisterChildPopup(win);
+                WindowPeer.of(parent).unregisterChildPopup(win);
             }
             win.requestClose();
         }));

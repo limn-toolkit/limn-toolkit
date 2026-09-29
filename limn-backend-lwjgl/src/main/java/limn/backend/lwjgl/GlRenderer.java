@@ -1,6 +1,6 @@
 package limn.backend.lwjgl;
 
-import limn.backend.GpuRenderer;
+import limn.backend.spi.GpuRenderer;
 import limn.graphics.Canvas;
 import limn.graphics.Image;
 import org.lwjgl.system.MemoryUtil;

@@ -39,6 +39,7 @@ import java.time.chrono.Chronology;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import limn.backend.spi.WindowPeer;
 
 /**
  * A date field with a calendar to pick from: the field is a real child, the calendar is a
@@ -1070,7 +1071,7 @@ public final class DatePicker extends Widget<DatePicker> {
         popupWindow = parent.backend().createWindow(WindowConfig.popup(
                 Math.max(1, Math.round(content.width())),
                 Math.max(1, Math.round(content.height()))));
-        parent.registerChildPopup(popupWindow);
+        WindowPeer.of(parent).registerChildPopup(popupWindow);
         releaseCalendar();
         popupPanel = new PopupPanel();
         popupPanel.setInheritanceHost(filling()); // the opener a reader sees: see presentInScene
@@ -1182,7 +1183,7 @@ public final class DatePicker extends Widget<DatePicker> {
             }
             Runnable destroy = () -> {
                 if (parent != null && !parent.isClosed()) {
-                    parent.unregisterChildPopup(closing);
+                    WindowPeer.of(parent).unregisterChildPopup(closing);
                 }
                 closing.requestClose();
             };

@@ -5,15 +5,16 @@ import limn.backend.Backend;
 import limn.backend.Clipboard;
 import limn.backend.Cursor;
 import limn.backend.Display;
-import limn.backend.FrameCallback;
+import limn.backend.spi.FrameCallback;
 import limn.backend.NativeWindow;
 import limn.backend.Resolution;
 import limn.backend.ScreenRect;
-import limn.backend.WindowInput;
+import limn.backend.spi.WindowInput;
 import java.util.List;
+import limn.backend.spi.WindowPeer;
 
 /** A window that is not a window: the scene needs one to bind to, and this probe needs no pixels. */
-public final class ProbeWindow implements NativeWindow {
+public final class ProbeWindow implements WindowPeer {
     // The SPI's methods without defaults (ADR 046 §5), as this double's defaults were.
     @Override public void setCloseRequestHandler(limn.backend.CloseRequestHandler handler) { }
     @Override public limn.backend.CloseRequestHandler closeRequestHandler() { return null; }
