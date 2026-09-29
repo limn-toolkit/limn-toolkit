@@ -559,7 +559,14 @@ final class LwjglWindow implements WindowPeer {
                 for (int i = 0; i < count; i++) {
                     paths.add(java.nio.file.Path.of(GLFWDropCallback.getName(names, i)));
                 }
-                input.filesDropped(paths);
+                // GLFW says nothing of where: the pointer, which the platform moved onto the
+                // window to drop, is there.
+                try (MemoryStack stack = MemoryStack.stackPush()) {
+                    java.nio.DoubleBuffer cx = stack.mallocDouble(1);
+                    java.nio.DoubleBuffer cy = stack.mallocDouble(1);
+                    org.lwjgl.glfw.GLFW.glfwGetCursorPos(handle, cx, cy);
+                    input.filesDropped(paths, toLogical(cx.get(0)), toLogical(cy.get(0)));
+                }
             }
         });
         glfwSetWindowCloseCallback(handle, win -> {

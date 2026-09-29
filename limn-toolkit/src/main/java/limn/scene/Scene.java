@@ -112,7 +112,7 @@ public final class Scene {
     private record RawPointer(boolean entered) implements Raw {
     }
 
-    private record RawDrop(java.util.List<java.nio.file.Path> paths) implements Raw {
+    private record RawDrop(java.util.List<java.nio.file.Path> paths, float x, float y) implements Raw {
     }
 
     private record RawFocus(boolean focused) implements Raw {
@@ -2977,8 +2977,8 @@ public final class Scene {
         @Override public void windowResized(float logicalWidth, float logicalHeight) {
             Scene.this.windowResized(logicalWidth, logicalHeight);
         }
-        @Override public void filesDropped(java.util.List<java.nio.file.Path> paths) {
-            Scene.this.filesDropped(paths);
+        @Override public void filesDropped(java.util.List<java.nio.file.Path> paths, float x, float y) {
+            Scene.this.filesDropped(paths, x, y);
         }
         @Override public void windowFocusChanged(boolean focused) { Scene.this.windowFocusChanged(focused); }
         @Override public void windowFullscreenChanged(boolean fullscreen) {
@@ -3096,9 +3096,9 @@ public final class Scene {
         queue.add(new RawPointer(entered));
     }
 
-    private void filesDropped(java.util.List<java.nio.file.Path> paths) {
+    private void filesDropped(java.util.List<java.nio.file.Path> paths, float x, float y) {
         if (!paths.isEmpty()) {
-            queue.add(new RawDrop(paths)); // never dropped, like clicks/keys
+            queue.add(new RawDrop(paths, x, y)); // never dropped, like clicks/keys
         }
     }
 
@@ -3199,10 +3199,9 @@ public final class Scene {
                     }
                     invalidate = true;
                 } else if (raw instanceof RawDrop drop) {
-                    // The platform moves the cursor onto the window before the
-                    // drop, so the last MOVE left mouseX/mouseY at the drop point.
-                    dispatchBubbling(hitAt(mouseX, mouseY),
-                            new FileDropEvent(drop.paths, mouseX, mouseY));
+                    // Where the backend says it landed: the platform's point, or the pointer's.
+                    dispatchBubbling(hitAt(drop.x, drop.y),
+                            new FileDropEvent(drop.paths, drop.x, drop.y));
                     invalidate = true;
                 } else if (raw instanceof RawPointer pointer) {
                     pointerInside = pointer.entered;

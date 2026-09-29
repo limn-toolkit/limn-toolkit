@@ -220,8 +220,8 @@ public final class SceneDriver implements WindowInput {
     }
 
     @Override
-    public void filesDropped(List<java.nio.file.Path> paths) {
-        input.filesDropped(paths);
+    public void filesDropped(List<java.nio.file.Path> paths, float x, float y) {
+        input.filesDropped(paths, x, y);
     }
 
     @Override

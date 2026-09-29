@@ -93,11 +93,16 @@ public interface WindowInput {
     void windowResized(float logicalWidth, float logicalHeight);
 
     /**
-     * Files dragged from the OS and dropped on the window. The drop lands at
-     * the current pointer position (the platform moves the cursor onto the
-     * window before dropping). Default: ignored.
+     * Files dragged from the OS and dropped on the window, at a point of its content area in
+     * logical points: the widget under that point receives them. The point is the platform's where
+     * it says one (SDL does), and the pointer's at the drop where it does not (GLFW). Default:
+     * ignored.
+     *
+     * @param paths the files, in the order the platform listed them
+     * @param x     where they were dropped, in logical points
+     * @param y     where they were dropped, in logical points
      */
-    default void filesDropped(java.util.List<java.nio.file.Path> paths) {
+    default void filesDropped(java.util.List<java.nio.file.Path> paths, float x, float y) {
     }
 
     /**
