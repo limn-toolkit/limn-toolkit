@@ -94,7 +94,15 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     /** Each item's text, in the order of {@link #values}: what the field and the list show. */
     private final List<I18nString> items;
     private int selectedIndex;
-    private int highlightedIndex;
+    /** The highlighted row of the list, an index into {@link #rows}; -1 when the list shows none. */
+    private int highlightedRow;
+    /**
+     * The rows the list shows, as indices into {@link #items}: every item in order, unless an
+     * editable combo's text filters them. A row is where an item is drawn; an item is
+     * what is picked, and the accessible option keeps its item's index as its key, so an option
+     * keeps its identity when a filter moves it.
+     */
+    private int[] rows;
 
     /** How long a pause splits one type-ahead word from the next. */
     private static final long TYPE_AHEAD_RESET_NANOS = 1_000_000_000L;
@@ -188,6 +196,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             labels.add(asText(text.apply(value)));
         }
         this.items = List.copyOf(labels);
+        this.rows = allRows(items.size());
         setFocusable(true);
         setCursor(Cursor.POINTER);
     }
@@ -199,6 +208,24 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      */
     public static ComboBox<I18nString> localized(List<I18nString> items) {
         return new ComboBox<>(items);
+    }
+
+    private static int[] allRows(int count) {
+        int[] all = new int[count];
+        for (int i = 0; i < count; i++) {
+            all[i] = i;
+        }
+        return all;
+    }
+
+    /** @return the row showing item {@code item}, or -1 when the list does not show it */
+    private int rowOfItem(int item) {
+        for (int row = 0; row < rows.length; row++) {
+            if (rows[row] == item) {
+                return row;
+            }
+        }
+        return -1;
     }
 
     private static Object textOfItself(Object item) {
@@ -315,7 +342,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     /** @return the highlighted popup row (keyboard navigation state) */
     public int highlightedIndex() {
-        return highlightedIndex;
+        return highlightedRow < 0 || highlightedRow >= rows.length ? -1 : rows[highlightedRow];
     }
 
     /**
@@ -349,8 +376,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             return;
         }
         open = true;
-        boolean highlightMoved = highlightedIndex != selectedIndex;
-        highlightedIndex = selectedIndex;
+        int selectedRow = Math.max(0, rowOfItem(selectedIndex));
+        boolean highlightMoved = highlightedRow != selectedRow;
+        highlightedRow = rows.length == 0 ? -1 : selectedRow;
         typeAhead.setLength(0); // a new list is a new word, however recently the last one was typed
         invalidate();
         if (highlightMoved) {
@@ -566,7 +594,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     /** The full list height at {@code t}, before any clamping. */
     private float contentHeight(SizeTokens t) {
-        return items.size() * t.popupItemHeight() + 2 * t.popupPadV();
+        return rows.length * t.popupItemHeight() + 2 * t.popupPadV();
     }
 
     /**
@@ -715,7 +743,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         return open && isEnabled();
     }
 
-    private void commit(int index) {
+    private void commit(int row) {
         if (!open) {
             return; // the popup is already closing (e.g. a click during its fade-out)
         }
@@ -731,7 +759,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // Clamped rather than range-checked: both callers are the popup's own bookkeeping (the
         // row a click landed in, and the keyboard highlight), and neither is an application
         // naming an index, which is the only thing setSelectedIndex refuses.
-        int chosen = Math.max(0, Math.min(index, items.size() - 1));
+        if (rows.length == 0) {
+            return; // a filter that left nothing: there is no option to pick
+        }
+        int chosen = rows[Math.max(0, Math.min(row, rows.length - 1))];
         // The list closing is the pick's own settling, announced before the pick; re-picking
         // the item already selected closes the popup and announces nothing else, because the
         // selection did not move.
@@ -893,13 +924,13 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             }
         } else {
             switch (event.key()) {
-                case Keys.DOWN -> setHighlight(highlightedIndex + 1);
-                case Keys.UP -> setHighlight(highlightedIndex - 1);
+                case Keys.DOWN -> setHighlight(highlightedRow + 1);
+                case Keys.UP -> setHighlight(highlightedRow - 1);
                 case Keys.HOME -> setHighlight(0);
-                case Keys.END -> setHighlight(items.size() - 1);
-                case Keys.PAGE_DOWN -> setHighlight(highlightedIndex + visibleRows());
-                case Keys.PAGE_UP -> setHighlight(highlightedIndex - visibleRows());
-                case Keys.ENTER, Keys.SPACE -> commit(highlightedIndex);
+                case Keys.END -> setHighlight(rows.length - 1);
+                case Keys.PAGE_DOWN -> setHighlight(highlightedRow + visibleRows());
+                case Keys.PAGE_UP -> setHighlight(highlightedRow - visibleRows());
+                case Keys.ENTER, Keys.SPACE -> commit(highlightedRow);
                 case Keys.ESCAPE -> close(Change.Origin.USER);
                 default -> handled = false;
             }
@@ -944,7 +975,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     @Override
     protected void onCharTyped(limn.scene.event.CharEvent event) {
         int codepoint = event.codepoint();
-        if (!open || codepoint < 0x20 || codepoint == 0x7F || items.isEmpty()) {
+        if (!open || codepoint < 0x20 || codepoint == 0x7F || rows.length == 0) {
             return;
         }
         // The scene's clock rather than the wall's. They are one clock in an application; in a
@@ -963,10 +994,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // From the row after the highlight when the buffer is one letter or is cycling; from the
         // highlight itself while a longer prefix is being extended, or typing "ba" after "b"
         // matched would skip the very item "b" had just found.
-        int from = (cycling || prefix.length() == 1) ? highlightedIndex + 1 : highlightedIndex;
-        for (int step = 0; step < items.size(); step++) {
-            int candidate = Math.floorMod(from + step, items.size());
-            if (startsWithIgnoreCase(items.get(candidate).get(), wanted)) {
+        int from = (cycling || prefix.length() == 1) ? highlightedRow + 1 : highlightedRow;
+        for (int step = 0; step < rows.length; step++) {
+            int candidate = Math.floorMod(from + step, rows.length);
+            if (startsWithIgnoreCase(items.get(rows[candidate]).get(), wanted)) {
                 setHighlight(candidate);
                 event.consume();
                 return;
@@ -989,14 +1020,14 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     }
 
     /** The keyboard highlight, which is the active descendant a reader follows: every caller is a key. */
-    private void setHighlight(int index) {
-        setHighlight(index, Change.Origin.USER);
+    private void setHighlight(int row) {
+        setHighlight(row, Change.Origin.USER);
     }
 
-    private void setHighlight(int index, Change.Origin origin) {
-        int old = highlightedIndex;
-        highlightedIndex = Math.max(0, Math.min(index, items.size() - 1));
-        if (highlightedIndex != old) {
+    private void setHighlight(int row, Change.Origin origin) {
+        int old = highlightedRow;
+        highlightedRow = rows.length == 0 ? -1 : Math.max(0, Math.min(row, rows.length - 1));
+        if (highlightedRow != old) {
             notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
         }
         if (popupPanel != null) {
@@ -1005,8 +1036,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // and repaints another.
             SizeTokens t = Theme.of(this).tokensFor(popupPanel);
             popupPanel.damageRow(old, t); // partial rendering: repaint the two affected rows
-            popupPanel.damageRow(highlightedIndex, t);
-            popupPanel.revealRow(highlightedIndex, t); // keyboard highlight stays in view
+            popupPanel.damageRow(highlightedRow, t);
+            popupPanel.revealRow(highlightedRow, t); // keyboard highlight stays in view
         }
         if (popupWindow != null) {
             popupWindow.requestFrame();
@@ -1534,7 +1565,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
         /** Repaints a single row; hover/highlight moves must not damage the whole panel. */
         void damageRow(int index, SizeTokens t) {
-            if (index >= 0 && index < items.size()) {
+            if (index >= 0 && index < rows.length) {
                 invalidate(0, rowTop(index, t), width(), t.popupItemHeight());
             }
         }
@@ -1572,7 +1603,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             scroll = clampScroll(scroll, t);
             if (!initialRevealDone && height() > 0) {
                 initialRevealDone = true;
-                revealRow(highlightedIndex, t); // open with the current selection in view
+                revealRow(highlightedRow, t); // open with the current selection in view
             }
             vBar.refresh();
         }
@@ -1616,12 +1647,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // Keep rows off the border: the clip inset IS the border width.
             canvas.clipRect(Strokes.ROW_CLIP, Strokes.ROW_CLIP,
                     width() - 2 * Strokes.ROW_CLIP, height() - 2 * Strokes.ROW_CLIP);
-            for (int i = 0; i < items.size(); i++) {
+            for (int i = 0; i < rows.length; i++) {
                 float top = rowTop(i, t);
                 if (top + itemH < 0 || top > height()) {
                     continue; // scrolled out
                 }
-                boolean active = i == highlightedIndex || i == hoverIndex;
+                boolean active = i == highlightedRow || i == hoverIndex;
                 if (active) {
                     // ROW_GUTTER, not a scaled inset: the 1pt gap exists to stop two
                     // highlighted rows fusing, and 3pt of it reads as a deliberate stripe.
@@ -1629,7 +1660,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                             width() - 2 * inset, itemH - 2 * Strokes.ROW_GUTTER,
                             t.radiusSmall(), theme.primary().withAlpha(0.28f));
                 }
-                if (i == selectedIndex) {
+                if (rows[i] == selectedIndex) {
                     // The one mark that scales: pure area, no pen, and 2.5pt vanishes in a
                     // 42pt row.
                     canvas.fillCircle(dotX, top + itemH / 2, t.popupDotRadius(), theme.primary());
@@ -1639,7 +1670,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 // visibility check above. It is also where the run's width comes from: aligning
                 // to the edge reading starts from needs it, and the row loop has no other
                 // measurement of the label.
-                String label = items.get(i).get();
+                String label = items.get(rows[i]).get();
                 ShapedText line = shapeText(label, font);
                 // Clip each row so an over-long label can't reach the rounded border.
                 canvas.save();
@@ -1660,7 +1691,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             SizeTokens t = tokens(); // one resolution per event: the hit row is this row formula
             float ly = sceneToLocalY(event.y());
             int index = rowAt(ly, t);
-            boolean valid = index >= 0 && index < items.size();
+            boolean valid = index >= 0 && index < rows.length;
             switch (event.type()) {
                 case MOVE, ENTER -> {
                     vBar.onHostActivity();
@@ -1792,9 +1823,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // under the field, so this is the one place both mountings learn it. Narrowing takes
             // every verb off the row too.
             boolean inert = !ComboBox.this.isEnabled();
-            for (int i = 0; i < items.size(); i++) {
+            for (int i = 0; i < rows.length; i++) {
                 float top = rowTop(i, t);
-                a.child(i);
+                // Keyed by the item and not by the row: an option keeps its identity, and a
+                // reader its place, when a filter moves it up or down the list.
+                a.child(rows[i]);
                 // From the row formula the paint, the damage, the reveal and the hit test all
                 // share, and never from an index times a nominal height: rowTop subtracts the
                 // scroll, and a clamped list scrolls. The full row height and not the painted
@@ -1805,7 +1838,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 // The string the combo holds, not the string it reads as: reference, locale and
                 // translation epoch are what the difference compares, and get() would allocate one
                 // per option per frame.
-                a.name(items.get(i), Accessible.NameFrom.CONTENT);
+                a.name(items.get(rows[i]), Accessible.NameFrom.CONTENT);
                 // The ROWS shape, written once (ADR 045 §3), read against this widget. The list's
                 // selection is the highlight, and the combo's value is not: the arrows and
                 // type-ahead move the selection of the list, and only a commit moves the value,
@@ -1825,8 +1858,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 // it until the window was gone, and then moved it back to the combo.
                 RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
                         verbs ? RowsAccessibility.Selection.SINGLE : RowsAccessibility.Selection.NONE,
-                        i == highlightedIndex, i + 1, items.size(), false, false,
-                        operable && i == highlightedIndex, verbs, false, false);
+                        i == highlightedRow, i + 1, rows.length, false, false,
+                        operable && i == highlightedRow, verbs, false, false);
                 // The negation of the paint loop's own skip test, so the tree and the pixels agree
                 // by construction rather than by two people remembering the same rule. Every
                 // option is still published, because the count and each option's position in it
@@ -1870,11 +1903,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             if (!optionsOperable()) {
                 return false;
             }
-            int index = (int) key;
-            if (index < 0 || index >= items.size()) {
-                return false;
+            int row = key < 0 || key >= items.size() ? -1 : rowOfItem((int) key);
+            if (row < 0) {
+                return false; // an option the filter no longer shows
             }
-            return RowsAccessibility.performOnRow(rowsHost, index, action);
+            return RowsAccessibility.performOnRow(rowsHost, row, action);
         }
 
         /**
@@ -1902,7 +1935,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
             @Override
             public boolean isSelected(Integer index) {
-                return index == highlightedIndex;
+                return index == highlightedRow;
             }
 
             @Override
