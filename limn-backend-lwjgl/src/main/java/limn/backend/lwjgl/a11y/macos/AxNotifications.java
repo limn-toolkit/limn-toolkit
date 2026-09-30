@@ -86,6 +86,16 @@ final class AxNotifications {
      */
     static final String BUSY_CHANGED = "AXElementBusyChanged";
 
+    /**
+     * {@code kAXMenuOpenedNotification} and {@code kAXMenuClosedNotification}: {@code CFSTR} macros in
+     * the same header, with no AppKit global behind them either ({@code dlsym} finds no
+     * {@code NSAccessibilityMenuOpenedNotification}, checked 2026-09-30). Read off this build's SDK
+     * ({@code AXNotificationConstants.h}, lines 213 and 220) on 2026-09-30.
+     */
+    static final String MENU_OPENED = "AXMenuOpened";
+    /** See {@link #MENU_OPENED}. */
+    static final String MENU_CLOSED = "AXMenuClosed";
+
     private static final Map<AccessibleEvent.Type, Posting> BY_TYPE =
             new EnumMap<>(AccessibleEvent.Type.class);
 
@@ -141,8 +151,8 @@ final class AxNotifications {
         // and its count on the first ("menu, 4 itens") and "closing menu" on the second. Posted
         // on the menu that opened; the one that closed has left the tree, so its notice goes on
         // the window, which is what still stands.
-        post(AccessibleEvent.Type.MENU_OPENED, "AXMenuOpened");
-        postToWindow(AccessibleEvent.Type.MENU_CLOSED, "AXMenuClosed");
+        BY_TYPE.put(AccessibleEvent.Type.MENU_OPENED, new Posting(MENU_OPENED, Subject.NODE, true));
+        BY_TYPE.put(AccessibleEvent.Type.MENU_CLOSED, new Posting(MENU_CLOSED, Subject.WINDOW, true));
 
         // Deliberately absent, each for a stated reason. They are put in the map as nulls rather
         // than left out, so that a reader of this file sees the decision instead of a gap, and so

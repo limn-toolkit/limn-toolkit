@@ -114,8 +114,11 @@ class AxNotificationsTest {
         // window and one on the application both received on the guest (announcement-probe.swift).
         java.util.Set<AccessibleEvent.Type> toApplication = EnumSet.of(
                 AccessibleEvent.Type.FOCUS_CHANGED, AccessibleEvent.Type.ACTIVE_DESCENDANT_CHANGED);
+        // MENU_CLOSED (2026-09-30) names a node that has already left the tree, so its element is
+        // gone too, and the window is what still stands to carry the notice.
         java.util.Set<AccessibleEvent.Type> toWindow = EnumSet.of(
-                AccessibleEvent.Type.ANNOUNCEMENT, AccessibleEvent.Type.INVALIDATED);
+                AccessibleEvent.Type.ANNOUNCEMENT, AccessibleEvent.Type.INVALIDATED,
+                AccessibleEvent.Type.MENU_CLOSED);
         for (AccessibleEvent.Type type : toApplication) {
             AxNotifications.Posting posting = AxNotifications.of(type);
             assertEquals(AxNotifications.Subject.APPLICATION, posting.subject(),
@@ -125,7 +128,7 @@ class AxNotificationsTest {
         }
         for (AccessibleEvent.Type type : toWindow) {
             assertEquals(AxNotifications.Subject.WINDOW, AxNotifications.of(type).subject(),
-                    type + " names no node, and the element of node 0 is held by no client");
+                    type + " names no node a client can hold: node 0, or one already gone");
         }
         assertEquals(AxNotifications.Subject.WINDOW, AxNotifications.WINDOW_LAYOUT_CHANGED.subject());
         for (AccessibleEvent.Type type : AccessibleEvent.Type.values()) {
