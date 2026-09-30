@@ -59,23 +59,37 @@ final class CombosScene {
         grid.add(new Label(""));
         grid.add(new Label("Enabled").setMuted(true));
         grid.add(new Label("Disabled").setMuted(true));
-        row(grid, "One item", false, false, status::setText);
-        row(grid, "One item, typed", true, false, status::setText);
-        row(grid, "Many items", false, true, status::setText);
-        row(grid, "Many items, typed", true, true, status::setText);
+        row(grid, "One item", false, false, EmptyLook.BOTH, status::setText);
+        // The editable single combo four times, once per way its empty option can look.
+        row(grid, "Typed, empty: text", true, false, EmptyLook.TEXT, status::setText);
+        row(grid, "Typed, empty: icon", true, false, EmptyLook.ICON, status::setText);
+        row(grid, "Typed, empty: both", true, false, EmptyLook.BOTH, status::setText);
+        row(grid, "Typed, empty: nothing", true, false, EmptyLook.NOTHING, status::setText);
+        row(grid, "Many items", false, true, EmptyLook.NOTHING, status::setText);
+        row(grid, "Many items, typed", true, true, EmptyLook.NOTHING, status::setText);
         column.add(grid);
         column.add(status);
         return column;
     }
 
+    /** How the empty option of a single combo reads: the text and icon functions' answers for null. */
+    enum EmptyLook {
+        TEXT, ICON, BOTH, NOTHING;
+
+        String text() {
+            return this == TEXT || this == BOTH ? "Any status" : "";
+        }
+
+        Icon icon() {
+            return this == ICON || this == BOTH ? Tabler.outline("circle-dashed") : null;
+        }
+    }
+
     private static void row(Grid grid, String caption, boolean editable, boolean many,
-                            Consumer<String> say) {
+                            EmptyLook empty, Consumer<String> say) {
         Label label = new Label(caption);
         grid.add(label);
-        // The empty option alternates between the two single rows and between enabled and
-        // disabled: worded with an icon, or blank with neither.
-        boolean worded = !editable;
-        ComboBox<Status> enabled = combo(editable, many, worded);
+        ComboBox<Status> enabled = combo(editable, many, empty);
         enabled.onSelect(() -> say.accept(caption + ": " + (many
                 ? enabled.selectedItems().stream().map(Status::label).toList()
                 : enabled.selectedItem() == null ? "null" : enabled.selectedItem().label())));
@@ -84,7 +98,7 @@ final class CombosScene {
             enabled.setSelectedIndices(0, 1); // chips from the start, to see them before a click
         }
         grid.add(new SizedBox(260, SizedBox.UNSET, enabled));
-        ComboBox<Status> disabled = combo(editable, many, !worded);
+        ComboBox<Status> disabled = combo(editable, many, empty);
         if (many) {
             disabled.setSelectedIndices(0, 2, 4);
         } else {
@@ -95,13 +109,11 @@ final class CombosScene {
         grid.add(new SizedBox(260, SizedBox.UNSET, disabled));
     }
 
-    private static ComboBox<Status> combo(boolean editable, boolean many, boolean wordedEmpty) {
-        // Both functions are asked for null too: that is the empty option's text and icon, here
-        // either "Any status" with a dashed circle, or nothing at all.
+    private static ComboBox<Status> combo(boolean editable, boolean many, EmptyLook empty) {
+        // Both functions are asked for null too: that is the empty option's text and icon.
         ComboBox<Status> combo = new ComboBox<>(STATUSES,
-                status -> status == null ? (wordedEmpty ? "Any status" : "") : status.label())
-                .setItemIcon(status -> status == null
-                        ? (wordedEmpty ? Tabler.outline("circle-dashed") : null) : status.glyph());
+                status -> status == null ? empty.text() : status.label())
+                .setItemIcon(status -> status == null ? empty.icon() : status.glyph());
         if (many) {
             combo.setSelectionMode(SelectionMode.MULTI);
         } else {
