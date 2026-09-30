@@ -375,10 +375,10 @@ class ReaderStepsTest {
     }
 
     /**
-     * Where the desktop sends the next key: the window that last asked for the keyboard, as a menu
-     * in a window of its own does when it opens ({@code focusOnShow}; the harness never shows the
-     * entry's window, so the menu's is never shown either), and the entry's window again once that
-     * one has closed. A combo's list or a calendar never asks, so their steps stay with the entry's scene,
+     * Where the desktop sends the next key: the window that last asked for the keyboard, as a modal
+     * menu's does when it opens ({@code focusOnShow}; the harness never shows the entry's window, so
+     * the menu's is never shown either), and the entry's window again once that one has closed. A
+     * non-modal menu leaves the keyboard with the entry's window, which hands its keys on to it. A combo's list or a calendar never asks, so their steps stay with the entry's scene,
      * as they always did; a menu's steps follow it into its window, as a real key does.
      */
     private static final class KeyboardWindow {

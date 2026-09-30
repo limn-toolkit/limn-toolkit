@@ -371,6 +371,8 @@ public final class Accessibility {
      * per-node loop skipped with the rest of a new node's bits. Zero when the focus stood.
      */
     private long focusArrived;
+    /** Menus that entered and left the tree in the publish in progress, for the reserved tail. */
+    private final java.util.List<AccessibleEvent> menuChanges = new java.util.ArrayList<>(2);
 
     // What a parent says about a child's identity before the child is begun (ADR 039 §1.3, rule
     // 1, amended 2026-09-14): held here between the identity hook and begin(), because there is
@@ -401,6 +403,8 @@ public final class Accessibility {
 
     /** What {@link #foreignActiveDescendant(long)} was told for the walk in progress. */
     private long foreignActiveDescendant;
+    /** The cursor of the grafted popup the keyboard drives, for the walk in progress; see {@link #keyboardPopupAt}. */
+    private long keyboardPopupCursor;
 
     private static Slot[] newSlots(int size) {
         Slot[] made = new Slot[size];
@@ -1415,6 +1419,7 @@ public final class Accessibility {
         current = AccessibleNode.NONE;
         walkSerial++;
         foreignActiveDescendant = 0;
+        keyboardPopupCursor = 0;
     }
 
     /**
@@ -2208,8 +2213,25 @@ public final class Accessibility {
         if (focused < 0) {
             return 0;
         }
+        if (keyboardPopupCursor != 0) {
+            return keyboardPopupCursor;
+        }
         long own = activeDescendantIn(slots, count, focused);
         return own != 0 ? own : foreignActiveDescendant;
+    }
+
+    /**
+     * Tells this walk that the keyboard drives the popup whose root is published at {@code slot}:
+     * a menu drawn in a window of its own and published in this tree, under the widget that opened
+     * it, while this window keeps the desktop's keyboard (a Win32 menu and an AppKit menu leave it
+     * there too). The popup's first {@code ACTIVE} node is then the tree's active descendant,
+     * wherever the focused node is: the focus stays on the button a context menu was asked of, and
+     * the reader stands on the menu's row. Called once per walk, after the popup is walked.
+     *
+     * @param slot the popup root's slot in this walk, or a negative number for none
+     */
+    public void keyboardPopupAt(int slot) {
+        keyboardPopupCursor = slot < 0 || slot >= count ? 0 : activeDescendantIn(slots, count, slot);
     }
 
     /** The index of the node published {@code FOCUSED} in this walk, or {@code -1}. */
@@ -2282,6 +2304,9 @@ public final class Accessibility {
             Slot was = previousOf(now.id, i);
             if (was == null) {
                 noteArrival(i);
+                if (now.role == Accessible.Role.MENU) {
+                    menuChanges.add(AccessibleEvent.of(AccessibleEvent.Type.MENU_OPENED, now.id));
+                }
                 if ((now.states & (1L << Accessible.State.FOCUSED.ordinal())) != 0) {
                     // A node that arrives holding the focus is a focus change like any other:
                     // a dialog's first field, a popup's list. Its states are
@@ -2366,6 +2391,9 @@ public final class Accessibility {
             if (currentOf(gone.id, i) == null) {
                 add(AccessibleEvent.of(AccessibleEvent.Type.NODE_DESTROYED, gone.id));
                 noteDeparture(i);
+                if (gone.role == Accessible.Role.MENU) {
+                    menuChanges.add(AccessibleEvent.of(AccessibleEvent.Type.MENU_CLOSED, gone.id));
+                }
                 if (gone.hasSelectionItem && gone.selected
                         && gone.selectionContainer != AccessibleNode.NONE) {
                     // A selected member that left the tree left its container's selection too,
@@ -2380,6 +2408,13 @@ public final class Accessibility {
         // The reserved tail, in this order: what a reader is directed by, kept outside the
         // budget so that a collapse never loses it (semantics 7).
         addStructureChanges();
+        // A menu that opened or closed, before the focus and the cursor that moved with it: the
+        // order Windows raises MenuOpened and macOS AXMenuOpened in, so that a reader hears the
+        // menu before its first row, and a menu closing before where the keyboard went.
+        for (int m = 0; m < menuChanges.size(); m++) {
+            reserve(menuChanges.get(m));
+        }
+        menuChanges.clear();
         if (focusArrived != 0) {
             reserve(AccessibleEvent.of(AccessibleEvent.Type.FOCUS_CHANGED, focusArrived));
             focusArrived = 0;

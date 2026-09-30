@@ -65,6 +65,11 @@ class SceneDriverTest extends ComponentTestBase {
             public limn.concurrent.Subscription observeWindowFocus(Scene scene, Runnable observer) {
                 return null;
             }
+
+            @Override
+            public limn.concurrent.Subscription routeKeyboard(Scene scene, SceneAccess.KeyRoute route) {
+                return null;
+            }
         }));
     }
 

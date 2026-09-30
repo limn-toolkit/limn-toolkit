@@ -212,10 +212,11 @@ Objective-C classes: one class answers per element, exactly as a native `NSOutli
 and a branch differently from its one row class.
 
 Two consequences a widget author feels. A focused list, table or tree keeps its cursor row realized
-even when a scroll takes it off screen, so the descendant never resolves to nothing. A combo's list
-or a date picker's calendar in a window of its own is grafted into the opener's tree
-(`Scene#graftPopup`), so its cursor is the field's own descendant there; where the cursor is inside a
-popup window that still publishes its own tree (a menu, whose window takes the keyboard), it is
+even when a scroll takes it off screen, so the descendant never resolves to nothing. A combo's list,
+a date picker's calendar and a non-modal menu in a window of their own are grafted into the opener's
+tree (`Scene#graftPopup`), so the cursor is a node of that tree; a menu's is the tree's active
+descendant wherever the focus is, since the owner's keyboard drives it. Where the cursor is inside a
+popup window that still publishes its own tree (a modal menu, whose window takes the keyboard), it is
 resolved across the opener's relation into that window's tree, which is why node ids are
 process-wide.
 

@@ -1216,6 +1216,10 @@ public final class Scene {
     private AccessibleWalk accessibleWalk;
     /** The popups in windows of their own this scene's tree publishes ({@link #graftPopup}). */
     private final List<Scene> graftedPopups = new ArrayList<>(1);
+    /** Where this window's keys go instead of the focus, while a menu it opened is up; see SceneAccess#routeKeyboard. */
+    private limn.scene.internal.SceneAccess.@Nullable KeyRoute keyRoute;
+    /** Keys and characters received for {@link #keyRoute} in the batch in progress. */
+    private final List<Raw> routed = new ArrayList<>(2);
     /** The scene whose tree publishes this one, when this is a grafted popup; else {@code null}. */
     private Scene graftedInto;
 
@@ -2976,9 +2980,19 @@ public final class Scene {
         }
         @Override public void keyEvent(int key, int layoutCodePoint, boolean pressed, boolean repeat,
                                        int modifiers) {
+            if (keyRoute != null) {
+                routed.add(new RawKey(key, layoutCodePoint, pressed, repeat, modifiers));
+                return;
+            }
             Scene.this.keyEvent(key, layoutCodePoint, pressed, repeat, modifiers);
         }
-        @Override public void charTyped(int codepoint) { Scene.this.charTyped(codepoint); }
+        @Override public void charTyped(int codepoint) {
+            if (keyRoute != null) {
+                routed.add(new RawChar(codepoint));
+                return;
+            }
+            Scene.this.charTyped(codepoint);
+        }
         @Override public void preeditChanged(String text, int caret, int targetStart, int targetLength) {
             Scene.this.preeditChanged(text, caret, targetStart, targetLength);
         }
@@ -3023,6 +3037,11 @@ public final class Scene {
             @Override
             public Subscription observeWindowFocus(Scene scene, Runnable observer) {
                 return scene.observeWindowFocus(observer);
+            }
+
+            @Override
+            public Subscription routeKeyboard(Scene scene, limn.scene.internal.SceneAccess.KeyRoute route) {
+                return scene.routeKeyboard(route);
             }
         });
     }
@@ -3136,6 +3155,54 @@ public final class Scene {
         if (hadInput) {
             metrics.recordEventTime((float) ((clock.getAsLong() - start) / 1_000_000.0));
         }
+        deliverRouted();
+    }
+
+    /**
+     * Hands the batch's routed keys to the route, each to the route in place when it is handed
+     * over: a key can close the menu that took it, or open the neighbour a menu bar walks to, and
+     * the rest follow the keyboard there, or come back to this scene's focus.
+     */
+    private void deliverRouted() {
+        if (routed.isEmpty()) {
+            return;
+        }
+        Raw[] batch = routed.toArray(new Raw[0]);
+        routed.clear();
+        boolean ownQueued = false;
+        for (Raw raw : batch) {
+            limn.scene.internal.SceneAccess.KeyRoute route = keyRoute;
+            if (route == null) {
+                queue.add(raw);
+                ownQueued = true;
+            } else if (raw instanceof RawKey k) {
+                route.key(k.key(), k.layoutCodePoint(), k.pressed(), k.repeat(), k.mods());
+            } else if (raw instanceof RawChar c) {
+                route.character(c.codepoint());
+            }
+        }
+        if (ownQueued) {
+            processInput();
+        }
+    }
+
+    private Subscription routeKeyboard(limn.scene.internal.SceneAccess.KeyRoute route) {
+        Ui.checkUiThread();
+        keyRoute = route;
+        invalidateAccessible();
+        return () -> {
+            if (keyRoute == route) {
+                keyRoute = null;
+                invalidateAccessible();
+            }
+        };
+    }
+
+    /** @return the grafted popup this window's keys drive, whose cursor is this tree's; or {@code null} */
+    @Nullable Scene keyboardPopup() {
+        limn.scene.internal.SceneAccess.KeyRoute route = keyRoute;
+        Scene popup = route == null ? null : route.popup();
+        return popup != null && popup.graftedInto == this ? popup : null;
     }
 
     // ---------------------------------------------------------- dispatching

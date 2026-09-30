@@ -166,13 +166,18 @@ class MenuBarNativePopupTest {
         }
     }
 
-    /** Title {@code index} of the one menu bar in the host's newest tree. */
+    /**
+     * Title {@code index} of the one menu bar in the host's newest tree: the bar's own items, and
+     * not the open dropdown's, which the host publishes under the bar too.
+     */
     private static AccessibleNode title(HeadlessWindow window, int index) {
         AccessibleTree tree = window.bridge().tree();
         List<AccessibleNode> titles = new ArrayList<>();
         for (int i = 0; i < tree.nodeCount(); i++) {
             AccessibleNode node = tree.node(i);
-            if (node.role() == Accessible.Role.MENU_ITEM) {
+            int parent = node.parent();
+            if (node.role() == Accessible.Role.MENU_ITEM && parent != AccessibleNode.NONE
+                    && tree.node(parent).role() == Accessible.Role.MENU_BAR) {
                 titles.add(node);
             }
         }

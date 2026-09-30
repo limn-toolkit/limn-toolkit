@@ -101,8 +101,9 @@ class NativePopupTeardownTest {
         HeadlessWindow popup = backend.windows().get(1);
         settle(host, popup);
         assertTrue(popupMenu.isOpen());
-        assertTrue(popup.bridge().tree().nodeCount() > 1, "the cascade publishes its rows: "
-                + Transcript.of(popup.bridge().tree()));
+        assertTrue(Transcript.of(host.bridge().tree()).contains("menu item \"Cut\""),
+                "the cascade publishes its rows, in the tree of the window that opened it: "
+                        + Transcript.of(host.bridge().tree()));
 
         popupMenu.close();
         frame(host, popup);
