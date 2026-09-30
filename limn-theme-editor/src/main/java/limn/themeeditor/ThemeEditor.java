@@ -125,7 +125,7 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
      */
     private static final int BASE_CUSTOM = 0;
 
-    private final ComboBox baseChoice;
+    private final ComboBox<I18nString> baseChoice;
     private final Slider cornerSlider = new Slider(0, Theme.MAX_CORNER_SCALE);
     private final Label cornerReadout = new Label("");
     /**
@@ -134,7 +134,7 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
      * stays put in the tree.
      */
     private final TokenRow fontRow = new TokenRow(Tokens.Role.MEDIUM);
-    private ComboBox fontChoice;
+    private ComboBox<I18nString> fontChoice;
     private final Label fontNote = new Label("");
     /**
      * The families the picker is currently offering, parallel to {@link #fontChoice}'s items,
@@ -204,8 +204,8 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
             edited(Change.Origin.USER);
         });
         liveToggle.setChecked(true).onChange(this::setApplyLive);
-        baseChoice.onSelect(index -> {
-            pickBase(index);
+        baseChoice.onSelect(item -> {
+            pickBase(baseChoice.selectedIndex());
         });
         rebuildFontChoice();
 
@@ -468,7 +468,7 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
     }
 
     /** The "start from" control, so a test can read back what it is showing. */
-    ComboBox baseChoice() {
+    ComboBox<I18nString> baseChoice() {
         return baseChoice;
     }
 
@@ -481,7 +481,7 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
      * The font control as it stands, so a test can tell a rebuilt picker from the one it had.
      * A new instance each time the catalog moves; see {@link #fontRow}.
      */
-    ComboBox fontChoice() {
+    ComboBox<I18nString> fontChoice() {
         return fontChoice;
     }
 
@@ -700,8 +700,8 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
                     : I18nString.literal(family));
         }
 
-        ComboBox replacement = ComboBox.localized(items);
-        replacement.onSelect(this::pickFont);
+        ComboBox<I18nString> replacement = ComboBox.localized(items);
+        replacement.onSelect(item -> pickFont(replacement.selectedIndex()));
         for (Widget<?> child : List.copyOf(fontRow.children())) {
             fontRow.remove(child);
         }

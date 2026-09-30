@@ -137,10 +137,10 @@ class NotificationContractTest extends ComponentTestBase {
                     w -> ((ColorPickerButton) w).setColor(Color.rgb(0x112233)), Change.Aspect.VALUE,
                     null),
             new Row("limn.components.ComboBox",
-                    () -> new ComboBox(List.of("one", "two", "three")),
+                    () -> new ComboBox<>(List.of("one", "two", "three")),
                     w -> ((ComboBox) w).setSelectedIndex(1), Change.Aspect.SELECTION,
                     new Gesture(Change.Aspect.SELECTION,
-                            (w, ran) -> ((ComboBox) w).onSelect(i -> ran.run()),
+                            (w, ran) -> ((ComboBox<?>) w).onSelect(i -> ran.run()),
                             (scene, w) -> {
                                 scene.requestFocus(w);
                                 key(scene, Keys.SPACE);

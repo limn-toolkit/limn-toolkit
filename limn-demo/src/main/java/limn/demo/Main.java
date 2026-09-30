@@ -221,10 +221,10 @@ public final class Main {
             }
 
             limn.scene.Scene widgetScene = null;
-            limn.components.ComboBox formsCombo = null;
+            limn.components.ComboBox<?> formsCombo = null;
             limn.components.date.DatePicker datesPicker = null;
             java.util.function.Supplier<limn.components.Dialog> dialogOpener = null;
-            java.util.function.Supplier<limn.components.ComboBox> dialogComboRef = null;
+            java.util.function.Supplier<limn.components.ComboBox<?>> dialogComboRef = null;
             Runnable loadTrigger = null;
             Runnable afterLayout = null;
             Runnable treeScroll = null;
@@ -604,10 +604,10 @@ public final class Main {
 
             if (inSceneDialogCapture) {
                 java.util.function.Supplier<limn.components.Dialog> opener = dialogOpener;
-                java.util.function.Supplier<limn.components.ComboBox> comboRef = dialogComboRef;
+                java.util.function.Supplier<limn.components.ComboBox<?>> comboRef = dialogComboRef;
                 Ui.postDelayed(opener::get, 50);
                 Ui.postDelayed(() -> {
-                    limn.components.ComboBox combo = comboRef.get();
+                    limn.components.ComboBox<?> combo = comboRef.get();
                     if (combo != null) {
                         combo.open();
                     }
@@ -617,7 +617,7 @@ public final class Main {
                     window.captureNextFrame(options.screenshotFile());
                     System.out.println("In-scene dialog screenshot: "
                             + options.screenshotFile().toAbsolutePath());
-                    limn.components.ComboBox combo = comboRef.get();
+                    limn.components.ComboBox<?> combo = comboRef.get();
                     if (combo != null && combo.popupWindow() != null) {
                         java.nio.file.Path popupPng = java.nio.file.Path.of(
                                 options.screenshotFile().toString().replace(".png", "-popup.png"));
@@ -782,7 +782,7 @@ public final class Main {
             if (popupCapture && formsCombo != null) {
                 // Open the combo popup (its own translucent window), capture
                 // both windows, then close, all without showing anything.
-                limn.components.ComboBox combo = formsCombo;
+                limn.components.ComboBox<?> combo = formsCombo;
                 java.nio.file.Path mainPng = options.screenshotFile();
                 java.nio.file.Path popupPng = java.nio.file.Path.of(
                         mainPng.toString().replace(".png", "-popup.png"));

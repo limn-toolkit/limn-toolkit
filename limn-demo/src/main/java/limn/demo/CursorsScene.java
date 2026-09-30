@@ -104,7 +104,7 @@ final class CursorsScene {
         controls.gap(16).crossAlignment(Flex.CrossAlignment.START);
         controls.add(Labelled.below("Button", new Button("Save")));
         controls.add(Labelled.below("Checkbox", new Checkbox(Checkbox.Variant.BOX, "I agree")));
-        controls.add(Labelled.below("ComboBox", new ComboBox(List.of("One", "Two", "Three"))));
+        controls.add(Labelled.below("ComboBox", new ComboBox<>(List.of("One", "Two", "Three"))));
         controls.add(Labelled.below("Field (I-beam)", new TextField().setPreferredWidth(150)
                 .setPlaceholder("Type…")));
         controls.add(Labelled.below("Disabled (arrow)", disabled));

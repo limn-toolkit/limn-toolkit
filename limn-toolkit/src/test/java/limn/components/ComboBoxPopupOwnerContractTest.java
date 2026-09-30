@@ -24,11 +24,11 @@ class ComboBoxPopupOwnerContractTest extends ComponentTestBase {
     }
 
     private static final class Subject implements PopupOwnerSubject {
-        private ComboBox combo;
+        private ComboBox<String> combo;
 
         @Override
         public Widget<?> build() {
-            combo = new ComboBox(List.of("English", "Portuguese", "French"));
+            combo = new ComboBox<>(List.of("English", "Portuguese", "French"));
             combo.setAccessibleName("Language");
             Column root = new Column();
             root.add(new SizedBox(200, 32, combo));

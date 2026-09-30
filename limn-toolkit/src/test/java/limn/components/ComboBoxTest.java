@@ -23,15 +23,15 @@ import static limn.testing.SceneDriver.drive;
 /** Headless ComboBox: the open/highlight/commit state machine without a native popup. */
 class ComboBoxTest extends ComponentTestBase {
 
-    private ComboBox combo;
+    private ComboBox<String> combo;
     private Scene scene;
     private final AtomicInteger selected = new AtomicInteger(-1);
 
     /** Reaches the protected hook the way only a subclass can. */
 
     private void build() {
-        combo = new ComboBox(List.of("one", "two", "three"));
-        combo.onSelect(selected::set);
+        combo = new ComboBox<>(List.of("one", "two", "three"));
+        combo.onSelect(item -> selected.set(combo.selectedIndex()));
         scene = new Scene(combo);
         scene.setTextRuler(RULER);
         // Tight, deliberately: 32 is also what the field measures at MEDIUM under both rulers,
@@ -63,7 +63,7 @@ class ComboBoxTest extends ComponentTestBase {
     void detachClosesTheOpenPopup() {
         // A programmatically-opened combo has no focus to lose: removal from
         // the tree must still close the popup or it is stranded on screen.
-        combo = new ComboBox(java.util.List.of("one", "two"));
+        combo = new ComboBox<>(java.util.List.of("one", "two"));
         limn.scene.layout.Column root = new limn.scene.layout.Column();
         root.add(combo);
         scene = new Scene(root);
@@ -183,7 +183,7 @@ class ComboBoxTest extends ComponentTestBase {
         // focus, so focus-loss alone did not dismiss the popup. The scene
         // press-observer must close it.
         limn.scene.layout.Column root = new limn.scene.layout.Column();
-        combo = new ComboBox(List.of("one", "two"));
+        combo = new ComboBox<>(List.of("one", "two"));
         limn.scene.Widget<?> filler = new limn.scene.Widget() {
             @Override
             protected limn.scene.Size onMeasure(limn.scene.Constraints c) {
@@ -222,8 +222,8 @@ class ComboBoxTest extends ComponentTestBase {
     @Test
     void anInSceneListIsHitAtTheFieldsStepAndNotTheSceneDefault() {
         limn.scene.layout.Column root = new limn.scene.layout.Column();
-        combo = new ComboBox(List.of("one", "two", "three"));
-        combo.onSelect(selected::set);
+        combo = new ComboBox<>(List.of("one", "two", "three"));
+        combo.onSelect(item -> selected.set(combo.selectedIndex()));
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         combo.setControlSize(ControlSize.XLARGE); // the process default here is MEDIUM
         root.add(combo);
@@ -259,8 +259,8 @@ class ComboBoxTest extends ComponentTestBase {
     @Test
     void aComboDisabledWhileOpenRefusesARowClick() {
         limn.scene.layout.Column root = new limn.scene.layout.Column();
-        combo = new ComboBox(List.of("one", "two", "three"));
-        combo.onSelect(selected::set);
+        combo = new ComboBox<>(List.of("one", "two", "three"));
+        combo.onSelect(item -> selected.set(combo.selectedIndex()));
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         combo.setControlSize(ControlSize.XLARGE);
         root.add(combo);
@@ -289,7 +289,7 @@ class ComboBoxTest extends ComponentTestBase {
     // ------------------------------------------------------------- the ramp
 
     /** A combo alone in a scene under the font-faithful ruler, measured unbounded. */
-    private static Size measureAt(ControlSize step, ComboBox box) {
+    private static Size measureAt(ControlSize step, ComboBox<?> box) {
         Scene host = new Scene(box);
         host.setTextRuler(SCALED_RULER);
         box.setControlSize(step);
@@ -301,7 +301,7 @@ class ComboBoxTest extends ComponentTestBase {
         // The one sanctioned MEDIUM change: the height was lineHeight + 2*(spacingSmall + 2)
         // = 16.40625 + 16 = 32.40625, and is now max(controlHeight, lineHeight + 2*padV)
         // = max(32, 30.40625) = 32. Nothing else about the field moves at MEDIUM.
-        Size size = measureAt(ControlSize.MEDIUM, new ComboBox(List.of("one", "two", "three")));
+        Size size = measureAt(ControlSize.MEDIUM, new ComboBox<>(List.of("one", "two", "three")));
         assertEquals(32f, size.height(), "32, not 32.40625");
         // "three" = 5 code points x 0.6 x 14 = 42, plus 2 x fieldPadH 12, plus caret gutter 24.
         // Delta because the ruler's 0.6 em advance is not exact in binary, not because the
@@ -317,7 +317,7 @@ class ComboBoxTest extends ComponentTestBase {
         int i = 0;
         for (ControlSize step : ControlSize.values()) {
             SizeTokens t = SizeTokens.of(step);
-            float height = measureAt(step, new ComboBox(List.of("one", "two", "three"))).height();
+            float height = measureAt(step, new ComboBox<>(List.of("one", "two", "three"))).height();
             assertEquals(expected[i], height, step + " resolves to its control height");
             assertEquals(t.controlHeight(), height, step + " is the tabled height, not a formula");
             assertEquals(0f, height % 2, step + " height is even");
@@ -331,7 +331,7 @@ class ComboBoxTest extends ComponentTestBase {
         float[] expected = {65, 76, 90, 106, 127};
         int i = 0;
         for (ControlSize step : ControlSize.values()) {
-            float width = measureAt(step, new ComboBox(List.of("one", "two", "three"))).width();
+            float width = measureAt(step, new ComboBox<>(List.of("one", "two", "three"))).width();
             assertEquals(expected[i], width, 0.001f, step + " width");
             i++;
         }
@@ -358,7 +358,7 @@ class ComboBoxTest extends ComponentTestBase {
         float[] expected = {15.759766f, 18.101563f, 20.785156f, 25.468750f, 31.494141f};
         int i = 0;
         for (ControlSize step : ControlSize.values()) {
-            ComboBox box = new ComboBox(List.of("one", "two", "three"));
+            ComboBox<String> box = new ComboBox<>(List.of("one", "two", "three"));
             Size size = measureAt(step, box);
             box.layoutBox(0, 0, size.width(), size.height());
             assertEquals(expected[i], box.baselineOffset(), 0.0005f, step + " baseline");
@@ -373,7 +373,7 @@ class ComboBoxTest extends ComponentTestBase {
         // animated BORDER -> FOCUS_RING width is settled at exactly BORDER.
         List<Float> mediumWidths = null;
         for (ControlSize step : ControlSize.values()) {
-            ComboBox box = new ComboBox(List.of("one", "two", "three"));
+            ComboBox<String> box = new ComboBox<>(List.of("one", "two", "three"));
             Scene host = new Scene(box);
             host.setTextRuler(SCALED_RULER);
             box.setControlSize(step);
@@ -391,8 +391,8 @@ class ComboBoxTest extends ComponentTestBase {
     }
 
     /** A combo over names that share first letters, which is where type-ahead earns its keep. */
-    private ComboBox typeAheadCombo() {
-        ComboBox box = new ComboBox(List.of("Alpha", "Bravo", "Bengal", "Beta", "Charlie"));
+    private ComboBox<String> typeAheadCombo() {
+        ComboBox<String> box = new ComboBox<>(List.of("Alpha", "Bravo", "Bengal", "Beta", "Charlie"));
         Scene typeScene = new Scene(box);
         typeScene.setTextRuler(RULER);
         typeScene.layoutPass(200, 32);
@@ -412,7 +412,7 @@ class ComboBoxTest extends ComponentTestBase {
      */
     @Test
     void typingJumpsToTheItemTheLettersSpell() {
-        ComboBox box = typeAheadCombo();
+        ComboBox<String> box = typeAheadCombo();
         box.open();
 
         type("c");
@@ -432,7 +432,7 @@ class ComboBoxTest extends ComponentTestBase {
      */
     @Test
     void repeatingOneLetterCyclesThroughItsMatches() {
-        ComboBox box = typeAheadCombo();
+        ComboBox<String> box = typeAheadCombo();
         box.open();
 
         type("b");
@@ -452,7 +452,7 @@ class ComboBoxTest extends ComponentTestBase {
      */
     @Test
     void typeAheadFoldsCaseTheWayTheLanguageDoes() {
-        ComboBox box = new ComboBox(List.of("Strasbourg", "Straße", "Strudel"));
+        ComboBox<String> box = new ComboBox<>(List.of("Strasbourg", "Straße", "Strudel"));
         Scene typeScene = new Scene(box);
         typeScene.setTextRuler(RULER);
         typeScene.layoutPass(200, 32);
@@ -467,7 +467,7 @@ class ComboBoxTest extends ComponentTestBase {
     /** Nothing spells this, so the highlight must stay where the user left it. */
     @Test
     void aPrefixThatMatchesNothingLeavesTheHighlightAlone() {
-        ComboBox box = typeAheadCombo();
+        ComboBox<String> box = typeAheadCombo();
         box.open();
         type("c");
         int before = box.highlightedIndex();
@@ -489,7 +489,7 @@ class ComboBoxTest extends ComponentTestBase {
     @Test
     void aPauseThatEndsAWordIsMeasuredOnTheScenesClock() {
         AtomicLong nanos = new AtomicLong();
-        ComboBox box = new ComboBox(List.of("Alpha", "Bravo", "Bengal", "Beta", "Charlie"));
+        ComboBox<String> box = new ComboBox<>(List.of("Alpha", "Bravo", "Bengal", "Beta", "Charlie"));
         Scene typeScene = new Scene(box, nanos::get);
         typeScene.setTextRuler(RULER);
         typeScene.layoutPass(200, 32);
@@ -510,7 +510,7 @@ class ComboBoxTest extends ComponentTestBase {
     /** A closed combo is not a search box: letters must not silently change the selection. */
     @Test
     void typingIntoAClosedComboChangesNothing() {
-        ComboBox box = typeAheadCombo();
+        ComboBox<String> box = typeAheadCombo();
         int before = box.selectedIndex();
 
         type("c");
@@ -525,7 +525,7 @@ class ComboBoxTest extends ComponentTestBase {
      */
     @Test
     void pageKeysMoveTheHighlightInsteadOfBeingIgnored() {
-        ComboBox box = typeAheadCombo();
+        ComboBox<String> box = typeAheadCombo();
         box.open();
         box.setSelectedIndex(0);
 

@@ -1,5 +1,6 @@
 package limn.demo;
 
+import limn.i18n.I18nString;
 import limn.backend.NativeWindow;
 import limn.backend.WindowStyle;
 import limn.components.Button;
@@ -82,7 +83,7 @@ final class KitchenSinkScene {
                  Runnable triggerLoad, Runnable toggleTheme, Runnable openThreeDTab,
                  Runnable openVideoTab, Runnable openFilesTab,
                  Runnable openIconsTab, Runnable useInSceneDialogs,
-                 Supplier<ComboBox> dialogCombo, Runnable followSystemAppearance) {
+                 Supplier<ComboBox<?>> dialogCombo, Runnable followSystemAppearance) {
     }
 
     private KitchenSinkScene() {
@@ -138,8 +139,8 @@ final class KitchenSinkScene {
         passwordRow.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         passwordRow.add(Expanded.of(password, 1));
         passwordRow.add(reveal);
-        ComboBox combo = new ComboBox(List.of("Limn dark", "Limn light", "High contrast", "Sepia"));
-        combo.onSelect(i -> status.setText(KitchenStrings.STATUS_THEME.format(combo.selectedItem())));
+        ComboBox<String> combo = new ComboBox<>(List.of("Limn dark", "Limn light", "High contrast", "Sepia"));
+        combo.onSelect(i -> status.setText(KitchenStrings.STATUS_THEME.format(combo.selectedText())));
         Row checks = new Row();
         checks.gap(20).crossAlignment(Flex.CrossAlignment.CENTER);
         checks.add(new Checkbox(Checkbox.Variant.BOX, KitchenStrings.NOTIFICATIONS).setChecked(true));
@@ -347,7 +348,7 @@ final class KitchenSinkScene {
         // and dark among them, so the separate light/dark button was a second control for
         // a subset of this one's job; the toggle survives as View ▸ Toggle theme, which is
         // where a shortcut for "the other one" belongs.
-        ComboBox themePicker = ComboBox.localized(
+        ComboBox<I18nString> themePicker = ComboBox.localized(
                 Theme.builtins().stream().map(Theme::displayName).toList());
         themePicker.setSelectedIndex(Math.max(0, Theme.builtins().indexOf(Theme.current())));
 
@@ -355,23 +356,23 @@ final class KitchenSinkScene {
         // ControlSize.setProcessDefault, the ROOT of the inheritance chain, so it reaches
         // popups and menus in their own windows, which a per-scene default would not. Any
         // widget that declares its own step keeps it, which is exactly the point of the axis.
-        ComboBox sizePicker = new ComboBox(
+        ComboBox<String> sizePicker = new ComboBox<>(
                 java.util.Arrays.stream(ControlSize.values()).map(Enum::name).toList());
         sizePicker.setSelectedIndex(ControlSize.processDefault().ordinal());
 
         // The language picker, beside the other two process-wide switches. Nothing here
         // re-sets any label: the widgets hold I18nStrings, and I18n.setLocale re-lays-out
         // every scene, which is the claim this control exists to make visible.
-        ComboBox languagePicker = new ComboBox(Languages.NAMES);
+        ComboBox<String> languagePicker = new ComboBox<>(Languages.NAMES);
         languagePicker.setSelectedIndex(Languages.indexOf(limn.i18n.I18n.locale()));
-        languagePicker.onSelect(i -> limn.i18n.I18n.setLocale(Languages.LOCALES.get(i)));
+        languagePicker.onSelect(picked -> limn.i18n.I18n.setLocale(Languages.LOCALES.get(languagePicker.selectedIndex())));
 
         // The fourth process-wide switch, and it sits beside the language one on purpose:
         // the two look like one control and are two axes, which is the claim the axis exists
         // to make. Switching to Arabic leaves this screen reading left to right, and switching
         // this leaves the words in whatever language they were. Named by the enum, like the
         // size picker beside it, because the axis is what it is called.
-        ComboBox directionPicker = new ComboBox(
+        ComboBox<String> directionPicker = new ComboBox<>(
                 java.util.Arrays.stream(LayoutDirection.values()).map(Enum::name).toList());
         directionPicker.setSelectedIndex(LayoutDirection.processDefault().ordinal());
 
@@ -413,7 +414,7 @@ final class KitchenSinkScene {
         barAnim.setIndeterminate(true); // now that it is in a scene
 
         // The dropdown of the dialog built last, for the capture that opens it.
-        AtomicReference<ComboBox> lastDialogCombo = new AtomicReference<>();
+        AtomicReference<ComboBox<?>> lastDialogCombo = new AtomicReference<>();
 
         // Builds a fresh dialog labelled with its scope, honoring the option switches.
         Function<String, Dialog> makeDialog = scope -> {
@@ -422,9 +423,9 @@ final class KitchenSinkScene {
             // on and that owner is the window the overlay deliberately keeps interactive:
             // both must still open and still take a choice. They used to be created and
             // then locked, so the control reported itself open with nothing on screen.
-            ComboBox dialogCombo = new ComboBox(
+            ComboBox<String> dialogCombo = new ComboBox<>(
                     List.of("Limn dark", "Limn light", "High contrast", "Sepia"));
-            dialogCombo.onSelect(i -> status.setText(KitchenStrings.STATUS_THEME.format(dialogCombo.selectedItem())));
+            dialogCombo.onSelect(i -> status.setText(KitchenStrings.STATUS_THEME.format(dialogCombo.selectedText())));
             lastDialogCombo.set(dialogCombo);
             Button dialogMenu = new Button(KitchenStrings.MENUS_BUTTON).setSecondary(true).setIcon(gear);
             dialogMenu.onAction(() -> openBelow(dialogMenu, demoMenu(status), false));
@@ -547,24 +548,24 @@ final class KitchenSinkScene {
         // picker's echo of a theme applied for the system is not a pick, hence the flag.
         boolean[] userPicked = {false};
         boolean[] applyingSystem = {false};
-        themePicker.onSelect(i -> {
+        themePicker.onSelect(picked -> {
             if (!applyingSystem[0]) {
                 userPicked[0] = true;
             }
-            applyTheme.accept(Theme.builtins().get(i));
+            applyTheme.accept(Theme.builtins().get(themePicker.selectedIndex()));
         });
         // No relayout call here: Scene subscribes a listener to ControlSize in its CONSTRUCTOR,
         // so every live scene (this window, any open popup, any unbound one) re-measures
         // itself. Doing it by hand would miss the popups, which is the bug the subscription
         // point was chosen to avoid.
-        sizePicker.onSelect(i -> ControlSize.setProcessDefault(ControlSize.values()[i]));
+        sizePicker.onSelect(item -> ControlSize.setProcessDefault(ControlSize.values()[sizePicker.selectedIndex()]));
         // Process-wide for the same reason the step is: this is the ROOT of the inheritance
         // chain, so it reaches the menus and the combo popups that live in their own scenes,
         // which a per-scene default could not. No relayout by hand either, and for the same
         // reason: every live scene subscribes to this in its constructor. A subtree that
         // declares its own direction keeps it, which is the whole point of an inherited axis.
-        directionPicker.onSelect(i ->
-                LayoutDirection.setProcessDefault(LayoutDirection.values()[i]));
+        directionPicker.onSelect(item ->
+                LayoutDirection.setProcessDefault(LayoutDirection.values()[directionPicker.selectedIndex()]));
         // The "Toggle theme" menu item flips between light and dark.
         Runnable toggleTheme = () -> {
             userPicked[0] = true;

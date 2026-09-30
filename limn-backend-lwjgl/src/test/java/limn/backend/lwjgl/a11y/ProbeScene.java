@@ -105,7 +105,7 @@ public final class ProbeScene {
         progress.setProgress(0.6f);
         root.add(progress);
 
-        ComboBox format = new ComboBox(List.of("PDF", "Markdown", "HTML"));
+        ComboBox<String> format = new ComboBox<>(List.of("PDF", "Markdown", "HTML"));
         format.setSelectedIndex(1);
         root.add(format);
 

@@ -49,7 +49,7 @@ class ThemeShapeTest extends ComponentTestBase {
         column.add(new Spinner(0, 100, 1));
         column.add(new Slider(0, 1));
         column.add(new ProgressBar());
-        column.add(new ComboBox(List.of("One", "Two", "Three")));
+        column.add(new ComboBox<>(List.of("One", "Two", "Three")));
         column.add(new SegmentedControl(List.of("A", "B")));
         column.add(new ColorPickerButton(Color.rgb(0x4FD1C5)));
         column.add(new ColorPicker());

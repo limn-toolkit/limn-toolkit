@@ -296,7 +296,7 @@ final class GalleryScenes {
 
     // #region gallery:combo-box
     static Built comboBox() {
-        ComboBox combo = new ComboBox(List.of("Limn", "Limn Light", "Nord", "Dracula"));
+        ComboBox<String> combo = new ComboBox<>(List.of("Limn", "Limn Light", "Nord", "Dracula"));
         combo.setSelectedIndex(0);
         // A height, and the list is what it is for: this entry is filmed opening its list, and
         // the site crops the still and the film of an entry to ONE box, so that pressing play

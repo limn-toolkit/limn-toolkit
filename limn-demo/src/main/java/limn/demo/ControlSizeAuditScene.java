@@ -97,7 +97,7 @@ final class ControlSizeAuditScene {
         row.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
         row.add(new Label(step.name()).setMuted(true));
         row.add(new Button("Save"));
-        row.add(new ComboBox(List.of("One", "Two", "Three")));
+        row.add(new ComboBox<>(List.of("One", "Two", "Three")));
         row.add(new Checkbox(Checkbox.Variant.BOX, "Box"));
         row.add(new RadioButton("Radio"));
         // The whole row is one scope: every descendant that declares nothing inherits this.

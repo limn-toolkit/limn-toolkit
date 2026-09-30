@@ -160,11 +160,11 @@ final class FontsScene {
             while (!children().isEmpty()) {
                 remove(children().get(0));
             }
-            ComboBox combo = new ComboBox(list);
+            ComboBox<String> combo = new ComboBox<>(list);
             // A caller's write, so it reaches no handler: the family already in force is not
             // pushed back through Fonts.setDefaultFamily on every rebuild, wherever this sits.
             combo.setSelectedIndex(indexOfDefault(list));
-            combo.onSelect(index -> Fonts.setDefaultFamily(list.get(index)));
+            combo.onSelect(Fonts::setDefaultFamily);
 
             Row row = new Row();
             row.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);

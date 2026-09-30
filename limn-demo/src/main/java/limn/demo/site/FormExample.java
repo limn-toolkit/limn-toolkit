@@ -127,7 +127,7 @@ public final class FormExample {
         PasswordField password = new PasswordField();
         password.setText("correct horse battery");
 
-        ComboBox plan = new ComboBox(List.of("Personal", "Team", "Enterprise"));
+        ComboBox<String> plan = new ComboBox<>(List.of("Personal", "Team", "Enterprise"));
         plan.setSelectedIndex(1);
 
         Checkbox updates = new Checkbox(Checkbox.Variant.SWITCH, "Email me release notes");

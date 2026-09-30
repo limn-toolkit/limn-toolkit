@@ -376,6 +376,13 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- `ComboBox` is `ComboBox<T>`: its items are objects, read by a function or as themselves.
+  `new ComboBox(List.of("a", "b"))` becomes `new ComboBox<>(List.of("a", "b"))`, and
+  `new ComboBox<>(customers, Customer::name)` shows objects. `onSelect` hands over the item picked
+  (`Consumer<T>`) instead of its index: `onSelect(i -> apply(values[i]))` becomes
+  `onSelect(item -> apply(item))`, or reads `combo.selectedIndex()` where the index is still
+  wanted. `selectedItem()` answers the item; what it reads as is `selectedText()`, which is what
+  `selectedItem()` used to answer. `ComboBox.localized` answers a `ComboBox<I18nString>`.
 - `FileDialogs`' methods return a `CompletionStage`, completed on the UI thread, and are reached
   through a window: `backend.fileDialogs().openFile(title, folder, filter)` becomes
   `window.fileDialogs().openFile(title, folder, filter).thenAccept(chosen -> …)`. An empty answer

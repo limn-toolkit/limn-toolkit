@@ -78,7 +78,7 @@ class NativePopupRelationTest {
 
     @Test
     void aNativeComboListNamesItsFieldAndTheFieldNamesTheListBack() {
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         HeadlessWindow host = show(combo);
         assertEquals(DisplayMode.NATIVE_WINDOW, combo.displayMode(),
                 "the demo's default presentation is the native one");

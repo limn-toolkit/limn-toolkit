@@ -164,7 +164,7 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
 
     @Test
     void aComboAskedForInSceneKeepsItsListInTheWindow() {
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"))
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"))
                 .setDisplayMode(DisplayMode.IN_SCENE);
         Scene scene = new Scene(combo);
         scene.setTextRuler(RULER);
@@ -183,7 +183,7 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
 
     @Test
     void aComboOnSuchAWindowDropsItsListIntoTheScene() {
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         Scene scene = new Scene(combo);
         scene.setTextRuler(RULER);
         scene.bind(new StubWindow(false));
@@ -207,7 +207,8 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
     @Test
     void clickingARowOfTheInSceneListSelectsItInsteadOfDismissing() {
         AtomicReference<Integer> picked = new AtomicReference<>();
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three")).onSelect(picked::set);
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
+        combo.onSelect(item -> picked.set(combo.selectedIndex()));
         Scene scene = new Scene(combo);
         scene.setTextRuler(RULER);
         scene.bind(new StubWindow(false));
@@ -228,7 +229,8 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
     @Test
     void escapeClosesTheInSceneListWithoutChangingTheSelection() {
         AtomicReference<Integer> picked = new AtomicReference<>();
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three")).onSelect(picked::set);
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
+        combo.onSelect(item -> picked.set(combo.selectedIndex()));
         Scene scene = new Scene(combo);
         scene.setTextRuler(RULER);
         scene.bind(new StubWindow(false));
@@ -251,7 +253,7 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
      */
     @Test
     void theListSurvivesTheFocusItsOwnOverlayTakes() {
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         Scene scene = new Scene(combo);
         scene.setTextRuler(RULER);
         scene.bind(new StubWindow(false));

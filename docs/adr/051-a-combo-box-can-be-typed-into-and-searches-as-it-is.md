@@ -56,18 +56,21 @@ Each asked with the "Customer" field as the scenario, with a recommendation.
 ## 2. The shape
 
 ```java
-ComboBox<Customer> customer = new ComboBox<>(Customer::name)   // how an item reads
+ComboBox<Customer> customer = new ComboBox<>(List.of(), Customer::name)   // how an item reads
         .setEditable(true)
         .setSearch(text -> Ui.async(() -> customers.find(text)))
         .onSelect(picked -> order.setCustomer(picked));
 ```
 
-- `ComboBox<T>(Function<T, ?> text)` with `setItems(List<T>)`, and `ComboBox.of(List<String>)` and
-  `ComboBox.localized(List<I18nString>)` for the choose-only lists every existing caller has. The
-  text function may answer a `String` or an `I18nString`; an `I18nString` follows the language.
-- `selectedItem()` answers `T` or `null`; `setSelectedItem(T)`; `onSelect(Consumer<T>)` replaces
-  `onSelect(IntConsumer)`. `selectedIndex()` and `setSelectedIndex(int)` stay for a list in memory,
-  and answer -1 and refuse while a search supplies the items, where an index names nothing lasting.
+- `new ComboBox<>(items)` for items that read as themselves (a `String` as it is, an `I18nString`
+  in the UI language, anything else by `toString()`), `new ComboBox<>(items, text)` for items that
+  read as a function says, and `ComboBox.localized(List<I18nString>)` as before. The text function
+  may answer a `String` or an `I18nString`; an `I18nString` follows the language. A choose-only
+  combo needs at least one item; a combo that searches may start with none.
+- `selectedItem()` answers the item itself, `selectedText()` what it reads as; `setSelectedItem(T)`;
+  `onSelect(Consumer<T>)` replaces `onSelect(IntConsumer)` and hands over the item picked.
+  `selectedIndex()` and `setSelectedIndex(int)` stay for a list in memory, and answer -1 and refuse
+  while a search supplies the items, where an index names nothing lasting.
 - `setEditable(boolean)`: the field becomes text the user types into, with caret, selection, the
   clipboard and input methods, as a `TextField`'s.
 - `setFreeText(Function<String, T>)`: how a text that names no item becomes one; `null`, the
@@ -75,6 +78,8 @@ ComboBox<Customer> customer = new ComboBox<>(Customer::name)   // how an item re
 - `setFilter(BiPredicate<T, String>)`: whether an item matches the typed text; `null` restores the
   default of decision 4. Applies to a list in memory; a search does its own finding.
 - `setSearch(Function<String, CompletionStage<List<T>>>)`: `null` returns to the list in memory.
+
+*Built so far:* step 1 of §6, `ComboBox<T>` with the repository migrated (2026-09-30).
 
 ## 3. Behaviour, where the decisions above do not already say it
 

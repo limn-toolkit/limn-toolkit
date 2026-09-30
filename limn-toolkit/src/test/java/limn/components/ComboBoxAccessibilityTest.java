@@ -73,7 +73,7 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
         };
     };
 
-    private ComboBox combo;
+    private ComboBox<?> combo;
 
     @AfterEach
     void resetLanguage() {
@@ -85,7 +85,7 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
 
     /** A combo over three literal items, in a column so the field keeps its own height. */
     private void bindCombo() {
-        bindCombo(new ComboBox(List.of("One", "Two", "Three")));
+        bindCombo(new ComboBox<>(List.of("One", "Two", "Three")));
     }
 
     /**
@@ -95,7 +95,7 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
      *
      * @param box the combo under test
      */
-    private void bindCombo(ComboBox box) {
+    private void bindCombo(ComboBox<?> box) {
         combo = box;
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         Column root = new Column();
@@ -368,8 +368,8 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
         AtomicInteger fired = new AtomicInteger(-1);
         AtomicInteger calls = new AtomicInteger();
         bindCombo();
-        combo.onSelect(index -> {
-            fired.set(index);
+        combo.onSelect(item -> {
+            fired.set(combo.selectedIndex());
             calls.incrementAndGet();
         });
 

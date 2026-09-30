@@ -69,7 +69,7 @@ final class ControlSizesScene {
         row.add(new Label(step.name()).setMuted(true));
         row.add(new Button("Action"));
         row.add(new TextField().setPlaceholder("Text"));
-        row.add(new ComboBox(List.of("One", "Two", "Three")));
+        row.add(new ComboBox<>(List.of("One", "Two", "Three")));
         row.add(new Checkbox(Checkbox.Variant.BOX, "Toggle"));
         // The whole row is one scope: every descendant that declares nothing inherits this.
         row.setControlSize(step);

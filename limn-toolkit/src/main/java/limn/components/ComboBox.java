@@ -35,7 +35,8 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.IntConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import limn.backend.spi.WindowPeer;
 
 /**
@@ -83,11 +84,14 @@ import limn.backend.spi.WindowPeer;
  * row labels and the scrollbar all move to the other side. The chevron itself does not turn
  * over: it points up and down.
  */
-public final class ComboBox extends Widget<ComboBox> {
+public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     /** Breathing room kept from the work-area edge when clamping the popup. */
     private static final float EDGE_MARGIN = 8;
 
+    /** The items themselves, what {@link #selectedItem()} and {@link #onSelect} hand back. */
+    private final List<T> values;
+    /** Each item's text, in the order of {@link #values}: what the field and the list show. */
     private final List<I18nString> items;
     private int selectedIndex;
     private int highlightedIndex;
@@ -102,7 +106,7 @@ public final class ComboBox extends Widget<ComboBox> {
             new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
     private final Transition focusFade =
             new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
-    private IntConsumer onSelect;
+    private Consumer<? super T> onSelect;
 
     /** Reused each paint; the caret's 3 points are recomputed from the size. */
     private final Path2D caret = new Path2D();
@@ -151,9 +155,41 @@ public final class ComboBox extends Widget<ComboBox> {
     /** Closes a list that opened towards a window of its own when the owner changes fullscreen. */
     private Subscription fullscreenHandle;
 
-    /** A combo over fixed labels; see {@link #localized} for items that follow the UI language. */
-    public ComboBox(List<String> items) {
-        this(items.stream().map(I18nString::literal).toArray(I18nString[]::new));
+    /**
+     * A combo over items that read as themselves: a {@link String} as it is, an
+     * {@link I18nString} in the UI language (a theme or unit picker, whose words follow a language
+     * change), anything else by its {@code toString()}. For items that read some other way, give
+     * the text: {@link #ComboBox(List, Function)}.
+     *
+     * @param items the items, in the order the list shows them; at least one
+     * @throws IllegalArgumentException for an empty list
+     */
+    public ComboBox(List<? extends T> items) {
+        this(items, ComboBox::textOfItself);
+    }
+
+    /**
+     * A combo over items that read as {@code text} says: {@code new ComboBox<>(customers,
+     * Customer::name)}. The text may be a {@link String} or an {@link I18nString}, which follows
+     * the UI language; anything else reads by its {@code toString()}. Asked once per item, here.
+     *
+     * @param items the items, in the order the list shows them; at least one
+     * @param text  how an item reads in the field and the list
+     * @throws IllegalArgumentException for an empty list
+     */
+    public ComboBox(List<? extends T> items, Function<? super T, ?> text) {
+        Objects.requireNonNull(text, "text");
+        if (items.isEmpty()) {
+            throw new IllegalArgumentException("ComboBox needs at least one item");
+        }
+        this.values = List.copyOf(items);
+        List<I18nString> labels = new java.util.ArrayList<>(values.size());
+        for (T value : values) {
+            labels.add(asText(text.apply(value)));
+        }
+        this.items = List.copyOf(labels);
+        setFocusable(true);
+        setCursor(Cursor.POINTER);
     }
 
     /**
@@ -161,18 +197,16 @@ public final class ComboBox extends Widget<ComboBox> {
      * to a list of file names. The items are held as values, so a language change
      * re-measures the popup instead of leaving yesterday's words in it.
      */
-    public static ComboBox localized(List<I18nString> items) {
-        return new ComboBox(items.toArray(I18nString[]::new));
+    public static ComboBox<I18nString> localized(List<I18nString> items) {
+        return new ComboBox<>(items);
     }
 
-    /** An array, only because the two {@code List} constructors would erase to one. */
-    private ComboBox(I18nString[] items) {
-        if (items.length == 0) {
-            throw new IllegalArgumentException("ComboBox needs at least one item");
-        }
-        this.items = List.of(items);
-        setFocusable(true);
-        setCursor(Cursor.POINTER);
+    private static Object textOfItself(Object item) {
+        return item;
+    }
+
+    private static I18nString asText(@Nullable Object text) {
+        return text instanceof I18nString localized ? localized : I18nString.literal(String.valueOf(text));
     }
 
     // ------------------------------------------------------------------- API
@@ -187,7 +221,7 @@ public final class ComboBox extends Widget<ComboBox> {
      * @return this combo
      * @throws IllegalStateException if a handler is already registered
      */
-    public ComboBox onSelect(@Nullable IntConsumer listener) {
+    public ComboBox<T> onSelect(@Nullable Consumer<? super T> listener) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, listener, "ComboBox.onSelect");
         return this;
@@ -197,7 +231,7 @@ public final class ComboBox extends Widget<ComboBox> {
     protected void handleUserChange(Change.Aspect aspect) {
         if (aspect == Change.Aspect.SELECTION) {
             if (onSelect != null) {
-                onSelect.accept(selectedIndex);
+                onSelect.accept(values.get(selectedIndex));
             }
             return;
         }
@@ -212,9 +246,31 @@ public final class ComboBox extends Widget<ComboBox> {
         return selectedIndex;
     }
 
+    /** The selected item itself. */
+    public T selectedItem() {
+        return values.get(selectedIndex);
+    }
+
     /** The selected item as it currently reads, in the UI language. */
-    public String selectedItem() {
+    public String selectedText() {
         return items.get(selectedIndex).get();
+    }
+
+    /**
+     * Selects {@code item}: a caller's write, as {@link #setSelectedIndex} is.
+     *
+     * @param item one of the items, compared with {@code equals}
+     * @return this combo
+     * @throws IllegalArgumentException if {@code item} is not one of them
+     */
+    public ComboBox<T> setSelectedItem(T item) {
+        Ui.checkUiThread();
+        int index = values.indexOf(item);
+        if (index < 0) {
+            throw new IllegalArgumentException("not an item of this combo: " + item);
+        }
+        select(index, Change.Origin.CODE);
+        return this;
     }
 
     /**
@@ -226,7 +282,7 @@ public final class ComboBox extends Widget<ComboBox> {
      * @throws IndexOutOfBoundsException if {@code index} is not an item; an index computed from a
      *         lookup that missed is a caller's bug here, not a request for the nearest item
      */
-    public ComboBox setSelectedIndex(int index) {
+    public ComboBox<T> setSelectedIndex(int index) {
         Ui.checkUiThread();
         Objects.checkIndex(index, items.size());
         select(index, Change.Origin.CODE);
@@ -365,7 +421,7 @@ public final class ComboBox extends Widget<ComboBox> {
      *
      * <p>Takes effect on the next open.
      */
-    public ComboBox setDisplayMode(DisplayMode mode) {
+    public ComboBox<T> setDisplayMode(DisplayMode mode) {
         Ui.checkUiThread();
         this.requested = Objects.requireNonNull(mode, "mode");
         return this;
@@ -741,7 +797,7 @@ public final class ComboBox extends Widget<ComboBox> {
     @Override
     protected float baselineOffset() {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        TextMetrics metrics = textRuler().measure(selectedItem(), t.body());
+        TextMetrics metrics = textRuler().measure(selectedText(), t.body());
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
 
@@ -762,7 +818,7 @@ public final class ComboBox extends Widget<ComboBox> {
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
                 theme.outline().lerp(theme.focusRing(), focus));
 
-        String label = selectedItem();
+        String label = selectedText();
         // The vertical band stays the measured one, because that is what baselineOffset()
         // reports and a row aligned on a baseline the paint does not use is a row out of line.
         // Only the horizontal placement needs the shaped run.
@@ -1043,7 +1099,7 @@ public final class ComboBox extends Widget<ComboBox> {
         // the epoch every translation moves on. There is no cache to guard here -- the string is
         // the model's own, resolved through its memo -- and the witness says so rather than
         // pretending a counter exists.
-        a.valueText(selectedItem(), I18n.epoch() ^ ((long) selectedIndex << 32));
+        a.valueText(selectedText(), I18n.epoch() ^ ((long) selectedIndex << 32));
         // No CONTROLLER_FOR. In the scene presentation the overlay is the popup's parentless root
         // and carries the field as its inheritance host, so the walk publishes POPUP_FOR there and
         // this mirror here; declaring it again would put two of the same relation on this node. In

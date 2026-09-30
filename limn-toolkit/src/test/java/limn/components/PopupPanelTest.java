@@ -43,7 +43,7 @@ class PopupPanelTest extends ComponentTestBase {
         return (int) ((localY + scroll - PADDING) / ITEM_HEIGHT);
     }
 
-    private ComboBox combo;
+    private ComboBox<String> combo;
     private Scene scene;
 
     private void build(int itemCount) {
@@ -51,7 +51,7 @@ class PopupPanelTest extends ComponentTestBase {
         for (int i = 0; i < itemCount; i++) {
             items[i] = "Item " + i;
         }
-        combo = new ComboBox(List.of(items));
+        combo = new ComboBox<>(List.of(items));
         Column root = new Column();
         root.add(combo);
         scene = new Scene(root);
@@ -149,8 +149,8 @@ class PopupPanelTest extends ComponentTestBase {
         build(4);
         AtomicReference<Integer> fired = new AtomicReference<>();
         AtomicReference<Integer> count = new AtomicReference<>(0);
-        combo.onSelect(index -> {
-            fired.set(index);
+        combo.onSelect(item -> {
+            fired.set(combo.selectedIndex());
             count.updateAndGet(n -> n + 1);
         });
         combo.setSelectedIndex(0);

@@ -711,7 +711,7 @@ public final class AccessibilityGallery {
      * @param mode where those surfaces open
      */
     public static void present(Widget<?> root, DisplayMode mode) {
-        if (root instanceof ComboBox combo) {
+        if (root instanceof ComboBox<?> combo) {
             combo.setDisplayMode(mode);
         } else if (root instanceof DatePicker picker) {
             picker.setDisplayMode(mode);
@@ -911,7 +911,7 @@ public final class AccessibilityGallery {
 
     private static Built comboBox(boolean open) {
         Column page = page();
-        ComboBox combo = new ComboBox(List.of("Portuguese", "English", "French", "German"));
+        ComboBox<String> combo = new ComboBox<>(List.of("Portuguese", "English", "French", "German"));
         combo.setSelectedIndex(1);
         page.add(Labelled.above("Language", combo));
         return new Built(page, open ? combo::open : () -> { });
@@ -924,7 +924,7 @@ public final class AccessibilityGallery {
      */
     private static Built comboDriven() {
         Column page = page();
-        ComboBox combo = new ComboBox(List.of(
+        ComboBox<String> combo = new ComboBox<>(List.of(
                 "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas"));
         combo.setSelectedIndex(1);
         page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
