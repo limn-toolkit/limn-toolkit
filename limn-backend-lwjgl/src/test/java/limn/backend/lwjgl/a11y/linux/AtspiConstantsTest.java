@@ -139,6 +139,20 @@ class AtspiConstantsTest {
     }
 
     /**
+     * {@code AUTOCOMPLETES} is {@code SUPPORTS_AUTOCOMPLETION}, bit 37 in the 2026-09-13 reading
+     * (readings/fedora-atspi-constants-all.txt): an editable combo's field, which Orca 50.2 asks
+     * before it reads a selection change in the list the field controls.
+     */
+    @Test
+    void anAutocompletingFieldSupportsAutocompletionHere() {
+        assertEquals(Integer.valueOf(37), AtspiStates.bitOf(Accessible.State.AUTOCOMPLETES));
+        long field = AtspiStates.setOf(s -> s == Accessible.State.EDITABLE
+                || s == Accessible.State.AUTOCOMPLETES);
+        assertTrue((field & (1L << 37)) != 0, "supports-autocompletion");
+        assertTrue((field & (1L << 26)) != 0, "and still single-line");
+    }
+
+    /**
      * The numbers and names the interfaces served since 2026-09-15 take from readings, pinned so an
      * edit cannot drift from them in silence: the TextGranularity, TextBoundaryType and CoordType
      * enumerators read off the Fedora KDE 44 guest's typelib (libatspi 2.60.6, 2026-09-13,

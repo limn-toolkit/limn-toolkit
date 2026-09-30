@@ -82,6 +82,12 @@ final class AtspiStates {
         BIT.put(Accessible.State.DEFAULT, 39);          // IS_DEFAULT
         BIT.put(Accessible.State.HORIZONTAL, 14);
         BIT.put(Accessible.State.VERTICAL, 29);
+        // SUPPORTS_AUTOCOMPLETION, 37 in the 2026-09-13 reading (readings/fedora-atspi-constants-
+        // all.txt). With the list's CONTROLLED_BY naming the field, it is what Orca 50.2 asks
+        // before it reads a selection change in that list while the user types
+        // (is_presentable_selection_change): without it an editable combo's narrowed list was
+        // read twice, once at its cursor and again at its selection (2026-09-30, Fedora guest).
+        BIT.put(Accessible.State.AUTOCOMPLETES, 37);
     }
 
     /**

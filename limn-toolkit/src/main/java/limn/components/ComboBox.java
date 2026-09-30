@@ -1099,6 +1099,23 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             super.onFocusLost();
             combo.commitText();
         }
+
+        /**
+         * A text field that filters the list it opens, which is what an editable combo's field is
+         * and a plain field is not: {@code AUTOCOMPLETES}, and while the list is shown the link to
+         * it, the shape a browser gives an ARIA combo box ({@code aria-autocomplete="list"} and
+         * {@code aria-controls}). The list names this field back ({@link PopupPanel}). Only while
+         * it is shown: a closed list is in no tree, and a relation to it would resolve up its
+         * inheritance host to the combo, this field's own parent.
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            super.onAccessibility(a);
+            a.state(Accessible.State.AUTOCOMPLETES);
+            if (combo.popupPanel != null) {
+                a.relation(Accessible.Relation.CONTROLLER_FOR, combo.popupPanel);
+            }
+        }
     }
 
     private void closeUnlessRefocused() {
@@ -2367,7 +2384,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
          * the field. A second invented string would be one more thing to translate and one more
          * thing a reader has to hear before the options.
          *
-         * <p><b>No relation either, and that is a correction.</b> In the in-scene presentation the
+         * <p><b>No popup relation either, and that is a correction.</b> (The one relation it
+         * does declare is an editable combo's {@code CONTROLLED_BY}, naming the field that filters
+         * it, which is another pair.) In the in-scene presentation the
          * overlay is the popup's root and the walk gives it {@code POPUP_FOR} the field and the
          * field the mirror, so a second link declared here would have two nodes in one tree
          * claiming to be the field's popup. In a window of its own the panel is parentless with a
@@ -2403,6 +2422,13 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // the highlighted option below.
             RowsAccessibility.describeContainer(a, RowsAccessibility.Selection.SINGLE, true,
                     false);
+            if (editor != null) {
+                // The mirror of the field's CONTROLLER_FOR, declared rather than left to a bridge,
+                // because it is the list that a reader asks: Orca 50.2 reads a selection change
+                // in a list controlled by the focused field that autocompletes as the field's
+                // own business, and reads it again as a list otherwise.
+                a.relation(Accessible.Relation.CONTROLLED_BY, editor);
+            }
             // The survey's row omits this and the panel scrolls: the wheel, a real ScrollBar child
             // with a real model, Scrollable#revealRect and the keyboard's auto-reveal all move it,
             // and a list clamped to the work area or to the owner scene is the ordinary case

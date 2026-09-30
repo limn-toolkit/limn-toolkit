@@ -231,6 +231,49 @@ class EditableComboBoxTest extends AccessibleComponentTestBase {
         assertEquals("Padaria São João", tree.node(tree.indexOf(tree.effectiveFocus())).name());
     }
 
+    /**
+     * The shape a browser gives an ARIA combo box: the field autocompletes and, while its list is
+     * shown, controls it, and the list names the field back. Orca 50.2 read the narrowed list twice
+     * at every keystroke without both (2026-09-30).
+     */
+    @Test
+    void theFieldAutocompletesAndControlsItsListWhileTheListIsShown() {
+        build();
+        AccessibleTree tree = tree();
+        AccessibleNode field = tree.node(tree.indexOf(tree.focused()));
+        assertTrue(field.has(Accessible.State.AUTOCOMPLETES), "the field filters what it opens");
+        assertTrue(field.relations().stream()
+                        .noneMatch(r -> r.kind() == Accessible.Relation.CONTROLLER_FOR),
+                "and controls nothing while the list is closed: " + field.relations());
+
+        clearText();
+        type("sao");
+        tree = tree();
+        field = tree.node(tree.indexOf(tree.focused()));
+        AccessibleNode list = null;
+        for (int i = 0; i < tree.nodeCount(); i++) {
+            if (tree.node(i).role() == Accessible.Role.LIST) {
+                list = tree.node(i);
+            }
+        }
+        assertNotNull(list, "the list is shown");
+        long listId = list.id();
+        long fieldId = field.id();
+        assertTrue(field.relations().stream().anyMatch(r ->
+                        r.kind() == Accessible.Relation.CONTROLLER_FOR && r.target() == listId),
+                "the field controls the list: " + field.relations());
+        assertTrue(list.relations().stream().anyMatch(r ->
+                        r.kind() == Accessible.Relation.CONTROLLED_BY && r.target() == fieldId),
+                "and the list names the field back: " + list.relations());
+
+        press(Keys.ESCAPE);
+        tree = tree();
+        field = tree.node(tree.indexOf(tree.focused()));
+        assertTrue(field.relations().stream()
+                        .noneMatch(r -> r.kind() == Accessible.Relation.CONTROLLER_FOR),
+                "the link goes with the list: " + field.relations());
+    }
+
     @Test
     void theComboCaptionNamesTheField() {
         combo = new ComboBox<>(CUSTOMERS).setEditable(true);

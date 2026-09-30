@@ -641,7 +641,7 @@ pattern list forces the AT-SPI bridge to fabricate a state. `GetPatternProvider`
 
 The facet is the single source and each of the three views is computed from it, so a state bit that a
 facet also expresses is derived, never stored twice. `State` therefore holds only what all three
-platforms carry as a flag: `ENABLED`, `FOCUSABLE`, `FOCUSED`, `VISIBLE`, `SHOWING`, `SELECTABLE`,
+platforms carry as a flag (with one exception since 2026-09-30, `AUTOCOMPLETES`, amended below): `ENABLED`, `FOCUSABLE`, `FOCUSED`, `VISIBLE`, `SHOWING`, `SELECTABLE`,
 `SELECTED`, `CHECKED`, `MIXED`, `PRESSED`, `EXPANDED`, `HAS_POPUP`, `READ_ONLY`, `EDITABLE`,
 `MULTI_LINE`, `PASSWORD`, `INVALID`, `REQUIRED`, `BUSY`, `MODAL`, `ACTIVE`, `DEFAULT`, `HORIZONTAL`,
 `VERTICAL` — with `CHECKED`, `MIXED`, `EXPANDED`, `SELECTED` and `READ_ONLY` derived from their
@@ -680,8 +680,10 @@ facet gained the word. The closed list of states, for `AccessibleModelTest` to r
 ```text
 ENABLED, FOCUSABLE, FOCUSED, VISIBLE, SHOWING, SELECTABLE, SELECTED, CHECKED, MIXED, PRESSED,
 EXPANDED, EXPANDABLE, HAS_POPUP, READ_ONLY, EDITABLE, MULTI_LINE, PASSWORD, INVALID, REQUIRED,
-BUSY, MODAL, ACTIVE, DEFAULT, HORIZONTAL, VERTICAL
+BUSY, MODAL, ACTIVE, DEFAULT, HORIZONTAL, VERTICAL, AUTOCOMPLETES
 ```
+
+(`AUTOCOMPLETES` joined on 2026-09-30; its amendment closes this section.)
 
 **Amendment, 2026-09-16 (fix round after phase 5): `SELECTABLE` is derived from the selection-item
 facet's presence, because until this date nothing published it at all.** The bit has been on the
@@ -880,6 +882,20 @@ still carries no verb of its own accord; that stays the widget's to leave out, a
 leaves out `SELECT`, and a bridge reads the absence (semantics 5). `CalendarView` and
 `SegmentedControl` using it are the widget lanes' changes; `AccessibleModelTest` pins the narrowing
 both ways. *Corrected later the same day:* the first cut ANDed the child's flag with the *widget's* bit alone, so a synthetic child nested inside a disabled synthetic child published `ENABLED`; it narrows through the nesting now — a cell of a refused row is refused with it — and `AccessibleModelTest` pins that too. `SegmentedControl`'s dead chevron uses it (and keeps its `PRESS`, as a disabled `Button` does). *Corrected 2026-09-15:* the dead chevron no longer keeps its `PRESS` — a disabled synthetic item carries no verb (semantics 5), the refused day's shape; the verb had been kept only so that a pattern set Windows froze on first read (W2) would not lose Invoke when the side came alive, and phase 3 rebuilds pattern sets on a change. *Recorded the same day (the widgets review):* the narrowing does not reach a widget a container hangs under a disabled synthetic node with `Accessibility#under` — the widget takes its enabled bit from the widget tree, as the scene's gate does — and no widget combines the two (`Table` is the only caller of `under` and never disables a row; the refused day, month and chevron hang no widget), so the first widget that does owes the walk and the gate that narrowing in the same change.
+
+**Amendment, 2026-09-30 (ADR 051): `AUTOCOMPLETES` joins the closed list, the one state only one
+platform carries as a flag.** An editable combo box's field filters the list it opens, and says so the
+way a browser says it for an ARIA combo box: the field is `AUTOCOMPLETES` and, while the list is
+shown, `CONTROLLER_FOR` the list, which names the field back with `CONTROLLED_BY`. AT-SPI2 carries the
+first as `SUPPORTS_AUTOCOMPLETION` (bit 37 in the 2026-09-13 reading); UI Automation and AppKit have no
+such flag, publish nothing for it, and carry the relation as `ControllerFor` and
+`accessibilityLinkedUIElements`. The rule that `State` holds only what all three carry gives way here
+because the one reader that needs it could not be served otherwise: Orca 50.2 reads a selection change
+in a list as the focused field's own business only when the field autocompletes and the list is
+controlled by it (`is_presentable_selection_change`), and without both it read the narrowed list twice
+at every keystroke on the Fedora guest — once at the list's cursor and again at its selection, because
+its priority queue handles the cursor before the field's caret, which puts its locus back on the field
+in between. A widget sets it; nothing derives it.
 
 The whole node is a value. It holds no `Widget` reference and no `Runnable`, because a UI Automation
 client can hold an element for minutes and a snapshot that pinned a detached subtree through it would
