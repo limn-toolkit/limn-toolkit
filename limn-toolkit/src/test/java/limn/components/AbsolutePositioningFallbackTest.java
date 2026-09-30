@@ -208,7 +208,7 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
     void clickingARowOfTheInSceneListSelectsItInsteadOfDismissing() {
         AtomicReference<Integer> picked = new AtomicReference<>();
         ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
-        combo.onSelect(item -> picked.set(combo.selectedIndex()));
+        combo.onSelect(() -> picked.set(combo.selectedIndex()));
         Scene scene = new Scene(combo);
         scene.setTextRuler(RULER);
         scene.bind(new StubWindow(false));
@@ -230,7 +230,7 @@ class AbsolutePositioningFallbackTest extends ComponentTestBase {
     void escapeClosesTheInSceneListWithoutChangingTheSelection() {
         AtomicReference<Integer> picked = new AtomicReference<>();
         ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
-        combo.onSelect(item -> picked.set(combo.selectedIndex()));
+        combo.onSelect(() -> picked.set(combo.selectedIndex()));
         Scene scene = new Scene(combo);
         scene.setTextRuler(RULER);
         scene.bind(new StubWindow(false));

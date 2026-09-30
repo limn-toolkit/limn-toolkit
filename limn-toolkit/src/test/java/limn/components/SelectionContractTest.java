@@ -158,7 +158,7 @@ class SelectionContractTest extends ComponentTestBase {
 
             @Override
             public void onSelect(IntConsumer listener) {
-                combo.onSelect(item -> listener.accept(combo.selectedIndex()));
+                combo.onSelect(() -> listener.accept(combo.selectedIndex()));
             }
 
             @Override

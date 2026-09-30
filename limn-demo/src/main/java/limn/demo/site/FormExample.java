@@ -211,7 +211,7 @@ public final class FormExample {
     // #region guide:combo-editable
     static ComboBox<Customer> customerField(List<Customer> customers) {
         ComboBox<Customer> customer = new ComboBox<>(customers, Customer::name).setEditable(true);
-        customer.onSelect(picked -> System.out.println("Bill to " + picked.city()));
+        customer.onSelect(() -> System.out.println("Bill to " + customer.selectedItem().city()));
         return customer;
     }
     // #endregion

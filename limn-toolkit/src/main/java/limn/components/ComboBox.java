@@ -38,7 +38,6 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiPredicate;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import limn.backend.spi.WindowPeer;
 
@@ -131,7 +130,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
     private final Transition focusFade =
             new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
-    private Consumer<? super T> onSelect;
+    private @Nullable Runnable onSelect;
     /** Whether the field is text the user types into; see {@link #setEditable}. */
     private boolean editable;
     /** The text the user types into, while the combo is editable. */
@@ -300,18 +299,20 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     // ------------------------------------------------------------------- API
 
     /**
-     * The application's response to the user picking an item: a click on a row, Enter on the
-     * highlight, an assistive technology's select. Never for {@link #setSelectedIndex}, which is
-     * a caller's write; to hear every change whatever caused it, {@linkplain #observeChanges
-     * watch} the combo instead.
+     * The application's response to the user changing the selection: a click on a row, Enter on
+     * the highlight, an assistive technology's select, a typed text the field accepted. Never for
+     * {@link #setSelectedIndex} or the other setters, which are a caller's writes; to hear every
+     * change whatever caused it, {@linkplain #observeChanges watch} the combo instead. The handler
+     * reads what it needs, {@link #selectedItem()} or, holding many, {@link #selectedItems()}, as
+     * a {@link ListView}'s does (ADR 052).
      *
-     * @param listener the handler, or {@code null} to clear the slot
+     * @param handler the handler, or {@code null} to clear the slot
      * @return this combo
      * @throws IllegalStateException if a handler is already registered
      */
-    public ComboBox<T> onSelect(@Nullable Consumer<? super T> listener) {
+    public ComboBox<T> onSelect(@Nullable Runnable handler) {
         Ui.checkUiThread();
-        this.onSelect = Checks.handlerSlot(onSelect, listener, "ComboBox.onSelect");
+        this.onSelect = Checks.handlerSlot(onSelect, handler, "ComboBox.onSelect");
         return this;
     }
 
@@ -319,7 +320,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     protected void handleUserChange(Change.Aspect aspect) {
         if (aspect == Change.Aspect.SELECTION) {
             if (onSelect != null) {
-                onSelect.accept(selectedItem());
+                onSelect.run();
             }
             return;
         }

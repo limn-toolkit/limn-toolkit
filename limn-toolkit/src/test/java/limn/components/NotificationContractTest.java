@@ -140,7 +140,7 @@ class NotificationContractTest extends ComponentTestBase {
                     () -> new ComboBox<>(List.of("one", "two", "three")),
                     w -> ((ComboBox) w).setSelectedIndex(1), Change.Aspect.SELECTION,
                     new Gesture(Change.Aspect.SELECTION,
-                            (w, ran) -> ((ComboBox<?>) w).onSelect(i -> ran.run()),
+                            (w, ran) -> ((ComboBox<?>) w).onSelect(ran),
                             (scene, w) -> {
                                 scene.requestFocus(w);
                                 key(scene, Keys.SPACE);

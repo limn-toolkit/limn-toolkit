@@ -40,7 +40,7 @@ class SearchingComboBoxTest extends AccessibleComponentTestBase {
             return answer;
         });
         combo.setDisplayMode(DisplayMode.IN_SCENE);
-        combo.onSelect(picked::add);
+        combo.onSelect(() -> picked.add(combo.selectedItem()));
         bind(combo);
         scene.setTextRuler(RULER);
         frame();

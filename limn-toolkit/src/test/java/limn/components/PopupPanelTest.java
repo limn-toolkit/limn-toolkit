@@ -149,7 +149,7 @@ class PopupPanelTest extends ComponentTestBase {
         build(4);
         AtomicReference<Integer> fired = new AtomicReference<>();
         AtomicReference<Integer> count = new AtomicReference<>(0);
-        combo.onSelect(item -> {
+        combo.onSelect(() -> {
             fired.set(combo.selectedIndex());
             count.updateAndGet(n -> n + 1);
         });

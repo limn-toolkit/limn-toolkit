@@ -164,7 +164,7 @@ final class FontsScene {
             // A caller's write, so it reaches no handler: the family already in force is not
             // pushed back through Fonts.setDefaultFamily on every rebuild, wherever this sits.
             combo.setSelectedIndex(indexOfDefault(list));
-            combo.onSelect(Fonts::setDefaultFamily);
+            combo.onSelect(() -> Fonts.setDefaultFamily(combo.selectedItem()));
 
             Row row = new Row();
             row.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);

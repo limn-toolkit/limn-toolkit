@@ -58,7 +58,7 @@ Each asked with the "Customer" field as the scenario, with a recommendation.
 ```java
 ComboBox<Customer> customer = new ComboBox<>(Customer::name)   // how an item reads; editable
         .setSearch(text -> Ui.async(() -> customers.find(text)))
-        .onSelect(picked -> order.setCustomer(picked));
+        .onSelect(() -> order.setCustomer(customer.selectedItem()));
 ```
 
 - `new ComboBox<>(items)` for items that read as themselves (a `String` as it is, an `I18nString`
@@ -69,6 +69,9 @@ ComboBox<Customer> customer = new ComboBox<>(Customer::name)   // how an item re
   combo needs at least one item; a combo that searches may start with none.
 - `selectedItem()` answers the item itself, `selectedText()` what it reads as; `setSelectedItem(T)`;
   `onSelect(Consumer<T>)` replaces `onSelect(IntConsumer)` and hands over the item picked.
+  (*Amended by [ADR 052](052-a-combo-box-can-hold-many-items-and-shows-them-as-chips.md),
+  2026-09-30: `onSelect` is a `Runnable` whose handler reads the selection, since a combo can
+  hold many items.*)
   `selectedIndex()` and `setSelectedIndex(int)` stay for a list in memory, and answer -1 and refuse
   while a search supplies the items, where an index names nothing lasting.
 - `setEditable(boolean)`: the field becomes text the user types into, with caret, selection, the

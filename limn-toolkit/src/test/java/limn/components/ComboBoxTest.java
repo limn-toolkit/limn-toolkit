@@ -31,7 +31,7 @@ class ComboBoxTest extends ComponentTestBase {
 
     private void build() {
         combo = new ComboBox<>(List.of("one", "two", "three"));
-        combo.onSelect(item -> selected.set(combo.selectedIndex()));
+        combo.onSelect(() -> selected.set(combo.selectedIndex()));
         scene = new Scene(combo);
         scene.setTextRuler(RULER);
         // Tight, deliberately: 32 is also what the field measures at MEDIUM under both rulers,
@@ -223,7 +223,7 @@ class ComboBoxTest extends ComponentTestBase {
     void anInSceneListIsHitAtTheFieldsStepAndNotTheSceneDefault() {
         limn.scene.layout.Column root = new limn.scene.layout.Column();
         combo = new ComboBox<>(List.of("one", "two", "three"));
-        combo.onSelect(item -> selected.set(combo.selectedIndex()));
+        combo.onSelect(() -> selected.set(combo.selectedIndex()));
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         combo.setControlSize(ControlSize.XLARGE); // the process default here is MEDIUM
         root.add(combo);
@@ -260,7 +260,7 @@ class ComboBoxTest extends ComponentTestBase {
     void aComboDisabledWhileOpenRefusesARowClick() {
         limn.scene.layout.Column root = new limn.scene.layout.Column();
         combo = new ComboBox<>(List.of("one", "two", "three"));
-        combo.onSelect(item -> selected.set(combo.selectedIndex()));
+        combo.onSelect(() -> selected.set(combo.selectedIndex()));
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         combo.setControlSize(ControlSize.XLARGE);
         root.add(combo);

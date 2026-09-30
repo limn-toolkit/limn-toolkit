@@ -307,7 +307,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         AtomicInteger calls = new AtomicInteger();
         bindCombo(4);
         combo.setSelectedIndex(1);
-        combo.onSelect(index -> calls.incrementAndGet());
+        combo.onSelect(calls::incrementAndGet);
         openList();
         for (AccessibleNode option : options()) {
             assertFalse(option.actions().actions().contains(Accessible.Action.FOCUS),
@@ -495,7 +495,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         AtomicInteger fired = new AtomicInteger(-1);
         AtomicInteger calls = new AtomicInteger();
         bindCombo(4);
-        combo.onSelect(item -> {
+        combo.onSelect(() -> {
             fired.set(combo.selectedIndex());
             calls.incrementAndGet();
         });
@@ -533,7 +533,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         AtomicInteger calls = new AtomicInteger();
         bindCombo(4);
         combo.setSelectedIndex(1);
-        combo.onSelect(index -> calls.incrementAndGet());
+        combo.onSelect(calls::incrementAndGet);
         openList();
 
         assertTrue(perform(options().get(1).id(), Accessible.Action.PRESS,
@@ -588,7 +588,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         AtomicInteger calls = new AtomicInteger();
         bindCombo(4);
         combo.setSelectedIndex(1);
-        combo.onSelect(index -> calls.incrementAndGet());
+        combo.onSelect(calls::incrementAndGet);
         openList();
         settleAnimations(null); // faded in, so the fade out has somewhere to start from
         for (AccessibleNode option : options()) {

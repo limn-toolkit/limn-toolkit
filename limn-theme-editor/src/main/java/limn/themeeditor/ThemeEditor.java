@@ -204,7 +204,7 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
             edited(Change.Origin.USER);
         });
         liveToggle.setChecked(true).onChange(this::setApplyLive);
-        baseChoice.onSelect(item -> {
+        baseChoice.onSelect(() -> {
             pickBase(baseChoice.selectedIndex());
         });
         rebuildFontChoice();
@@ -701,7 +701,7 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
         }
 
         ComboBox<I18nString> replacement = ComboBox.localized(items);
-        replacement.onSelect(item -> pickFont(replacement.selectedIndex()));
+        replacement.onSelect(() -> pickFont(replacement.selectedIndex()));
         for (Widget<?> child : List.copyOf(fontRow.children())) {
             fontRow.remove(child);
         }

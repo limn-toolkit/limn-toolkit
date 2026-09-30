@@ -140,7 +140,7 @@ final class KitchenSinkScene {
         passwordRow.add(Expanded.of(password, 1));
         passwordRow.add(reveal);
         ComboBox<String> combo = new ComboBox<>(List.of("Limn dark", "Limn light", "High contrast", "Sepia"));
-        combo.onSelect(i -> status.setText(KitchenStrings.STATUS_THEME.format(combo.selectedText())));
+        combo.onSelect(() -> status.setText(KitchenStrings.STATUS_THEME.format(combo.selectedText())));
         Row checks = new Row();
         checks.gap(20).crossAlignment(Flex.CrossAlignment.CENTER);
         checks.add(new Checkbox(Checkbox.Variant.BOX, KitchenStrings.NOTIFICATIONS).setChecked(true));
@@ -365,7 +365,7 @@ final class KitchenSinkScene {
         // every scene, which is the claim this control exists to make visible.
         ComboBox<String> languagePicker = new ComboBox<>(Languages.NAMES);
         languagePicker.setSelectedIndex(Languages.indexOf(limn.i18n.I18n.locale()));
-        languagePicker.onSelect(picked -> limn.i18n.I18n.setLocale(Languages.LOCALES.get(languagePicker.selectedIndex())));
+        languagePicker.onSelect(() -> limn.i18n.I18n.setLocale(Languages.LOCALES.get(languagePicker.selectedIndex())));
 
         // The fourth process-wide switch, and it sits beside the language one on purpose:
         // the two look like one control and are two axes, which is the claim the axis exists
@@ -425,7 +425,7 @@ final class KitchenSinkScene {
             // then locked, so the control reported itself open with nothing on screen.
             ComboBox<String> dialogCombo = new ComboBox<>(
                     List.of("Limn dark", "Limn light", "High contrast", "Sepia"));
-            dialogCombo.onSelect(i -> status.setText(KitchenStrings.STATUS_THEME.format(dialogCombo.selectedText())));
+            dialogCombo.onSelect(() -> status.setText(KitchenStrings.STATUS_THEME.format(dialogCombo.selectedText())));
             lastDialogCombo.set(dialogCombo);
             Button dialogMenu = new Button(KitchenStrings.MENUS_BUTTON).setSecondary(true).setIcon(gear);
             dialogMenu.onAction(() -> openBelow(dialogMenu, demoMenu(status), false));
@@ -548,7 +548,7 @@ final class KitchenSinkScene {
         // picker's echo of a theme applied for the system is not a pick, hence the flag.
         boolean[] userPicked = {false};
         boolean[] applyingSystem = {false};
-        themePicker.onSelect(picked -> {
+        themePicker.onSelect(() -> {
             if (!applyingSystem[0]) {
                 userPicked[0] = true;
             }
@@ -558,13 +558,13 @@ final class KitchenSinkScene {
         // so every live scene (this window, any open popup, any unbound one) re-measures
         // itself. Doing it by hand would miss the popups, which is the bug the subscription
         // point was chosen to avoid.
-        sizePicker.onSelect(item -> ControlSize.setProcessDefault(ControlSize.values()[sizePicker.selectedIndex()]));
+        sizePicker.onSelect(() -> ControlSize.setProcessDefault(ControlSize.values()[sizePicker.selectedIndex()]));
         // Process-wide for the same reason the step is: this is the ROOT of the inheritance
         // chain, so it reaches the menus and the combo popups that live in their own scenes,
         // which a per-scene default could not. No relayout by hand either, and for the same
         // reason: every live scene subscribes to this in its constructor. A subtree that
         // declares its own direction keeps it, which is the whole point of an inherited axis.
-        directionPicker.onSelect(item ->
+        directionPicker.onSelect(() ->
                 LayoutDirection.setProcessDefault(LayoutDirection.values()[directionPicker.selectedIndex()]));
         // The "Toggle theme" menu item flips between light and dark.
         Runnable toggleTheme = () -> {
