@@ -256,7 +256,7 @@ class DamageContractTest extends ComponentTestBase {
             // and accepted: it already damages per part (ColorPicker.invalidateAll).
             natural("ColorPicker", ColorPicker::new, keyboard()),
             natural("ColorPickerButton", () -> new ColorPickerButton(Color.rgb(0xF59E0B)), both()),
-            natural("ComboBox", () -> new ComboBox(List.of("one", "two", "three")), both()),
+            natural("ComboBox", () -> new ComboBox<>(List.of("one", "two", "three")), both()),
             inert("ImageView", () -> new ImageView(new Image(8, 8, new byte[8 * 8 * 4])),
                     "a picture: nothing about it answers to a pointer or a key"),
             inert("Label", () -> new Label("Hello"), "text: nothing to press, focus or hover"),

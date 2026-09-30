@@ -31,7 +31,7 @@ final class CaptureScenes {
         }
     }
 
-    record ComboBuilt(Scene scene, limn.components.ComboBox combo) {
+    record ComboBuilt(Scene scene, limn.components.ComboBox<?> combo) {
     }
 
     private CaptureScenes() {
@@ -235,7 +235,7 @@ final class CaptureScenes {
         for (int i = 1; i <= 40; i++) {
             items.add("Option " + i);
         }
-        limn.components.ComboBox combo = new limn.components.ComboBox(items);
+        limn.components.ComboBox<?> combo = new limn.components.ComboBox<>(items);
         combo.setSelectedIndex(39); // the last item: the popup must open pre-scrolled to it
         col.add(combo);
         return new ComboBuilt(scene(col), combo);

@@ -159,9 +159,9 @@ final class Viewport3DScene {
         // the Textures figure in the perf footer falls with the square of the setting while
         // the widget's geometry does not move at all.
         float[] scales = {1f, 0.75f, 0.5f, 0.25f};
-        ComboBox renderScale = new ComboBox(List.of("Render 100%", "Render 75%", "Render 50%",
+        ComboBox<String> renderScale = new ComboBox<>(List.of("Render 100%", "Render 75%", "Render 50%",
                 "Render 25%"));
-        renderScale.onSelect(index -> pbr.setRenderScale(scales[index]));
+        renderScale.onSelect(item -> pbr.setRenderScale(scales[renderScale.selectedIndex()]));
         renderScale.setTooltip("Renders the 3D target below device resolution and upsamples it; "
                 + "memory and fill cost fall with the square of the setting");
 

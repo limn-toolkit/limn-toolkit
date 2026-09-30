@@ -57,7 +57,7 @@ class FontPickerTest extends EditorTestBase {
         Scene scene = new Scene(editor);
         scene.setTextRuler(RULER);
         scene.layoutPass(1000, 700);
-        ComboBox before = editor.fontChoice();
+        ComboBox<?> before = editor.fontChoice();
         assertEquals(List.of(Font.DEFAULT_FAMILY, "Roboto", "Menlo"), editor.offeredFontFamilies(),
                 "a family the machine lacks is still an entry, or the palette could not show it");
         assertEquals(2, before.selectedIndex());
@@ -66,7 +66,7 @@ class FontPickerTest extends EditorTestBase {
 
         assertEquals(List.of(Font.DEFAULT_FAMILY, "Arial", "Helvetica Neue", "Menlo", "Roboto"),
                 editor.offeredFontFamilies());
-        ComboBox after = editor.fontChoice();
+        ComboBox<?> after = editor.fontChoice();
         assertNotSame(before, after, "a combo's items are fixed; a grown list is a new control");
         assertEquals(3, after.selectedIndex(), "the palette's family stays selected where it moved to");
         scene.layoutPass(1000, 700);
@@ -101,7 +101,7 @@ class FontPickerTest extends EditorTestBase {
     void anAttachWhereNothingMovedKeepsTheControlTheConstructorBuilt() {
         Fonts.installCatalog(BUNDLED);
         ThemeEditor editor = new ThemeEditor(Theme.dark());
-        ComboBox built = editor.fontChoice();
+        ComboBox<?> built = editor.fontChoice();
         Scene scene = new Scene(editor);
         scene.setTextRuler(RULER);
         scene.layoutPass(1000, 700);
@@ -127,7 +127,7 @@ class FontPickerTest extends EditorTestBase {
 
         // The user's pick, through the keyboard: a setSelectedIndex from the test would be a
         // caller's write, which the editor's handler no longer answers.
-        ComboBox combo = editor.fontChoice();
+        ComboBox<?> combo = editor.fontChoice();
         int target = editor.offeredFontFamilies().indexOf("Helvetica Neue");
         scene.requestFocus(combo);
         press(scene, Keys.SPACE);

@@ -69,7 +69,7 @@ class NativePopupCursorTest {
 
     @Test
     void theListIsTheFieldsChildInTheHostsTreeAndAnArrowKeyMovesItsCursorOnce() {
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         combo.setSelectedIndex(1);
         HeadlessWindow host = show(combo);
         assertEquals(DisplayMode.NATIVE_WINDOW, combo.displayMode(),
@@ -135,7 +135,7 @@ class NativePopupCursorTest {
      */
     @Test
     void aClickInTheListThatChoosesNothingLeavesTheKeysWorkingThere() {
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         combo.setSelectedIndex(1);
         HeadlessWindow host = show(combo);
         combo.requestFocus();
@@ -189,7 +189,7 @@ class NativePopupCursorTest {
         for (int i = 1; i <= 60; i++) {
             items.add("Item " + i);
         }
-        ComboBox combo = new ComboBox(items);
+        ComboBox<String> combo = new ComboBox<>(items);
         Column root = new Column();
         root.add(combo);
         HeadlessWindow host = backend.open("Limn popups", 400, 300);

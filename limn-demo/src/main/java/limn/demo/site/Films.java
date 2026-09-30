@@ -478,7 +478,7 @@ final class Films {
      * choosing the same thing.
      */
     private static Motion comboBox(GalleryScenes.Built built) {
-        ComboBox combo = (ComboBox) find(built, ComboBox.class, 0);
+        ComboBox<?> combo = (ComboBox<?>) find(built, ComboBox.class, 0);
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         return Motion.script()
                 .from(OFF_X, OFF_Y)

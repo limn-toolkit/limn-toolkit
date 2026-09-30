@@ -138,7 +138,8 @@ public final class Accessible {
     }
 
     /**
-     * What is true of a node. Only what all three platforms carry as a flag is here; anything a
+     * What is true of a node. Only what all three platforms carry as a flag is here, with one
+     * exception that says why it is one ({@link #AUTOCOMPLETES}); anything a
      * facet expresses is <em>derived</em> from that facet rather than stored twice, which is why
      * {@link #CHECKED}, {@link #MIXED}, {@link #EXPANDED}, {@link #EXPANDABLE}, {@link #SELECTED}
      * and {@link #READ_ONLY} are on this list and are still not a widget's to set directly.
@@ -213,7 +214,16 @@ public final class Accessible {
         /** This node's value runs left to right or right to left rather than up and down. */
         HORIZONTAL,
         /** This node's value runs up and down. */
-        VERTICAL
+        VERTICAL,
+        /**
+         * Typing here filters or completes from a list this node controls, which it names with
+         * {@link Relation#CONTROLLER_FOR} while the list is shown: an editable combo box's field.
+         * The one state on this list that only one platform carries as a flag, AT-SPI2's
+         * {@code SUPPORTS_AUTOCOMPLETION}; UI Automation and AppKit have no such flag and read the
+         * relation alone. Orca stays on the field as the list narrows under it only when both are
+         * there, and otherwise reads the list again at every keystroke that moves its selection.
+         */
+        AUTOCOMPLETES
     }
 
     /**

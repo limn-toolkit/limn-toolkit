@@ -99,7 +99,7 @@ class ConcentricBorderTest extends ComponentTestBase {
 
     @Test
     void aComboBoxsBorderIsConcentricWithItsFace() {
-        ComboBox box = new ComboBox(List.of("One", "Two"));
+        ComboBox<String> box = new ComboBox<>(List.of("One", "Two"));
         BorderCanvas canvas = paint(box, 160, 32);
         assertFilled(canvas, "combo box", 0, 0, 160, 32, tokens(box).radiusMedium());
     }

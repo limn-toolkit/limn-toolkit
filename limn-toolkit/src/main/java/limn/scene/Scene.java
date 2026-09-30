@@ -845,15 +845,18 @@ public final class Scene {
      * @return true when at least one overlay lies above and every one of them is a popup
      */
     boolean onlyPopupsAbove(int index) {
-        if (index + 1 >= overlays.size()) {
-            return false;
-        }
+        boolean any = false;
         for (int i = index + 1; i < overlays.size(); i++) {
-            if (!popupOverlays.contains(overlays.get(i))) {
+            Widget<?> overlay = overlays.get(i);
+            if (keyboardBelow.contains(overlay)) {
+                continue; // it leaves the keyboard below: it shadows nothing there
+            }
+            if (!popupOverlays.contains(overlay)) {
                 return false;
             }
+            any = true;
         }
-        return true;
+        return any;
     }
 
     /** Removes a modal overlay and restores focus to whatever it took it from. */
@@ -864,6 +867,7 @@ public final class Scene {
             return;
         }
         popupOverlays.remove(overlay);
+        boolean keptKeyboardBelow = keyboardBelow.remove(overlay);
         boolean wasTop = index == overlays.size() - 1;
         overlays.remove(index);
         Widget<?> restore = overlayFocusReturn.remove(index);
@@ -881,14 +885,15 @@ public final class Scene {
         layoutDirty = true;
         // Focus belongs to the topmost overlay. Removing a lower one (e.g. the
         // previous menu still fading out beneath the menu it was switched to) must
-        // leave the current top overlay's focus untouched.
-        if (!wasTop) {
+        // leave the current top overlay's focus untouched. One that left the keyboard beneath it
+        // never took the focus, so there is nothing to give back.
+        if (!wasTop || keptKeyboardBelow) {
             requestRender();
             return;
         }
         // Return focus to the widget that had it before this overlay opened
         // (the button that triggered the dialog), if it is still usable.
-        if (restore != null && restore != overlay && isInSubtree(restore, inputRoot())
+        if (restore != null && restore != overlay && isInSubtree(restore, keyboardRoot())
                 && restore.isFocusable() && restore.isVisible() && restore.isEnabled()) {
             // The overlay closing is what moved the focus, not whoever closed it.
             setFocus(restore, Change.Origin.ADJUSTMENT);
@@ -1216,6 +1221,14 @@ public final class Scene {
     private AccessibleWalk accessibleWalk;
     /** The popups in windows of their own this scene's tree publishes ({@link #graftPopup}). */
     private final List<Scene> graftedPopups = new ArrayList<>(1);
+    /**
+     * Popup overlays that leave the keyboard with the layer beneath them (SceneAccess
+     * #pushPopupLeavingKeyboard): an editable combo's list drawn in scene, whose field keeps the
+     * focus, the caret and the input method while the list is up.
+     */
+    private final List<Widget<?>> keyboardBelow = new ArrayList<>(1);
+    /** A grafted popup whose cursor is this tree's while its opener keeps the keyboard; see SceneAccess#showCursorOf. */
+    private @Nullable Scene cursorPopup;
     /** Where this window's keys go instead of the focus, while a menu it opened is up; see SceneAccess#routeKeyboard. */
     private limn.scene.internal.SceneAccess.@Nullable KeyRoute keyRoute;
     /** Keys and characters received for {@link #keyRoute} in the batch in progress. */
@@ -1424,7 +1437,9 @@ public final class Scene {
         // and a snapshot can predate the modal, so the layer that owns input has to be re-checked
         // here whatever the tree said.
         Widget<?> layer = home.accessibleInputLayer();
-        if (layer == null || !isInSubtree(owner, layer)) {
+        Widget<?> keyboardLayer = home.accessibleKeyboardLayer();
+        if (layer == null || !(isInSubtree(owner, layer)
+                || (keyboardLayer != null && isInSubtree(owner, keyboardLayer)))) {
             return;
         }
         // Revealed, and then performed (decision 66). Only what is clipped out of a viewport ever
@@ -2438,7 +2453,7 @@ public final class Scene {
         if (keysDown.isEmpty()) {
             return;
         }
-        Widget<?> keyTarget = focused != null ? focused : inputRoot();
+        Widget<?> keyTarget = focused != null ? focused : keyboardRoot();
         java.util.BitSet held = (java.util.BitSet) keysDown.clone();
         // Cleared BEFORE dispatch: a handler that throws must not leave the scene believing keys
         // are down, and a re-entrant press during the batch must land on empty state.
@@ -2581,7 +2596,7 @@ public final class Scene {
         // other focus path already is (click-to-focus hit-tests overlay-first,
         // traversal collects from inputRoot), and a background widget holding
         // focus would siphon keys and committed text from the open modal.
-        if (widget != null && !isInSubtree(widget, inputRoot())) {
+        if (widget != null && !isInSubtree(widget, keyboardRoot())) {
             return;
         }
         setFocus(widget, origin);
@@ -2712,7 +2727,7 @@ public final class Scene {
     private void focusTraverse(boolean backward, Change.Origin origin) {
         Ui.checkUiThread();
         List<Widget<?>> order = new ArrayList<>();
-        collectFocusable(inputRoot(), order); // modal overlay confines traversal
+        collectFocusable(keyboardRoot(), order); // modal overlay confines traversal
         if (order.isEmpty()) {
             setFocus(null, origin);
             return;
@@ -3043,6 +3058,16 @@ public final class Scene {
             public Subscription routeKeyboard(Scene scene, limn.scene.internal.SceneAccess.KeyRoute route) {
                 return scene.routeKeyboard(route);
             }
+
+            @Override
+            public void pushPopupLeavingKeyboard(Scene scene, Widget<?> popup) {
+                scene.pushPopupLeavingKeyboard(popup);
+            }
+
+            @Override
+            public Subscription showCursorOf(Scene scene, Scene popup) {
+                return scene.showCursorOf(popup);
+            }
         });
     }
 
@@ -3202,7 +3227,64 @@ public final class Scene {
     @Nullable Scene keyboardPopup() {
         limn.scene.internal.SceneAccess.KeyRoute route = keyRoute;
         Scene popup = route == null ? null : route.popup();
+        if (popup == null) {
+            popup = cursorPopup;
+        }
         return popup != null && popup.graftedInto == this ? popup : null;
+    }
+
+    private Subscription showCursorOf(Scene popup) {
+        Ui.checkUiThread();
+        cursorPopup = popup;
+        invalidateAccessible();
+        return () -> {
+            if (cursorPopup == popup) {
+                cursorPopup = null;
+                invalidateAccessible();
+            }
+        };
+    }
+
+    /**
+     * Pushes a popup overlay that leaves the keyboard where it is, in the layer beneath: keys,
+     * characters, Tab and the focus stay there, and the pointer reaches the popup as it reaches any
+     * overlay. The overlay's own cursor is where this tree says the keyboard is.
+     */
+    private void pushPopupLeavingKeyboard(Widget<?> popup) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(popup, "popup");
+        stackOverlay(popup);
+        popupOverlays.add(popup);
+        keyboardBelow.add(popup);
+        requestRender();
+    }
+
+    /** @return whether {@code overlay} leaves the keyboard with the layer beneath it */
+    boolean leavesKeyboardBelow(Widget<?> overlay) {
+        return keyboardBelow.contains(overlay);
+    }
+
+    /** @return the layer the keyboard is confined to: the top overlay that takes it, or the root */
+    private Widget<?> keyboardRoot() {
+        for (int i = overlays.size() - 1; i >= 0; i--) {
+            Widget<?> overlay = overlays.get(i);
+            if (!keyboardBelow.contains(overlay)) {
+                return overlay;
+            }
+        }
+        return root;
+    }
+
+    /**
+     * @return the layer the keyboard is confined to, as {@link #accessibleInputLayer} answers for the
+     *         pointer: the same layer unless a popup leaves the keyboard beneath it, and
+     *         {@code null} while a native modal blocks the window
+     */
+    @Nullable Widget<?> accessibleKeyboardLayer() {
+        if (window != null && window.isModalBlocked()) {
+            return null;
+        }
+        return keyboardRoot();
     }
 
     // ---------------------------------------------------------- dispatching
@@ -3251,7 +3333,7 @@ public final class Scene {
                     // Like keys: with nothing focused, chars go to the topmost
                     // modal layer, never to the blocked content underneath.
                     CharEvent typed = new CharEvent(ch.codepoint);
-                    dispatchBubbling(focused != null ? focused : inputRoot(), typed);
+                    dispatchBubbling(focused != null ? focused : keyboardRoot(), typed);
                     // A letter that finds an option moves a list too; one typed by a held key's
                     // auto-repeat is a repeat as well, and a repeat does not end a stream.
                     if (typed.isConsumed() && !lastPressRepeated) {
@@ -3416,7 +3498,7 @@ public final class Scene {
         KeyEvent event = new KeyEvent(key.key, key.layoutCodePoint, key.pressed, key.repeat, key.mods);
         // Keys go to the focused widget, else the topmost modal layer (so a
         // dialog can handle ESC even with nothing focused).
-        Widget<?> keyTarget = focused != null ? focused : inputRoot();
+        Widget<?> keyTarget = focused != null ? focused : keyboardRoot();
         dispatchBubbling(keyTarget, event);
         // Between the focused widget and the Tab fallback: what nobody focused wanted may still
         // be a shortcut, and what nobody wants at all must still traverse.

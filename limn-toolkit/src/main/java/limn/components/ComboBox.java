@@ -29,13 +29,17 @@ import limn.scene.Scrollable;
 import limn.scene.Size;
 import limn.scene.Change;
 import limn.scene.Widget;
+import limn.graphics.SvgIcon;
+import limn.scene.internal.SceneAccess;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.IntConsumer;
+import java.util.function.BiPredicate;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import limn.backend.spi.WindowPeer;
 
 /**
@@ -83,14 +87,39 @@ import limn.backend.spi.WindowPeer;
  * row labels and the scrollbar all move to the other side. The chevron itself does not turn
  * over: it points up and down.
  */
-public final class ComboBox extends Widget<ComboBox> {
+public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     /** Breathing room kept from the work-area edge when clamping the popup. */
     private static final float EDGE_MARGIN = 8;
 
-    private final List<I18nString> items;
+    /** The items themselves, what {@link #selectedItem()} and {@link #onSelect} hand back. */
+    private List<T> values;
+    /** Each item's text, in the order of {@link #values}: what the field and the list show. */
+    private List<I18nString> items;
+    /** How an item reads, kept for the items a search answers with. */
+    private final Function<? super T, ?> textOf;
+    /** Where the items come from while the user types, or {@code null} for the list in memory. */
+    private @Nullable Function<String, ? extends java.util.concurrent.CompletionStage<? extends List<? extends T>>> search;
+    /** Numbers the searches asked for: an answer for any but the newest is dropped. */
+    private int searchSerial;
+    /**
+     * The one line the list shows instead of items: loading, nothing found, or a failed search;
+     * {@code null} while it shows items.
+     */
+    private @Nullable I18nString statusLine;
+    /** How long a search waits after the last keystroke, so a word typed quickly is one request. */
+    static final long SEARCH_DELAY_MILLIS = 200;
+    private static final System.Logger LOG = System.getLogger(ComboBox.class.getName());
     private int selectedIndex;
-    private int highlightedIndex;
+    /** The highlighted row of the list, an index into {@link #rows}; -1 when the list shows none. */
+    private int highlightedRow;
+    /**
+     * The rows the list shows, as indices into {@link #items}: every item in order, unless an
+     * editable combo's text filters them. A row is where an item is drawn; an item is
+     * what is picked, and the accessible option keeps its item's index as its key, so an option
+     * keeps its identity when a filter moves it.
+     */
+    private int[] rows;
 
     /** How long a pause splits one type-ahead word from the next. */
     private static final long TYPE_AHEAD_RESET_NANOS = 1_000_000_000L;
@@ -102,7 +131,23 @@ public final class ComboBox extends Widget<ComboBox> {
             new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
     private final Transition focusFade =
             new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
-    private IntConsumer onSelect;
+    private Consumer<? super T> onSelect;
+    /** Whether the field is text the user types into; see {@link #setEditable}. */
+    private boolean editable;
+    /** The text the user types into, while the combo is editable. */
+    private @Nullable Editor editor;
+    /** How a typed text that names no item becomes one, or {@code null} to accept items only. */
+    private @Nullable Function<String, ? extends T> freeText;
+    /** The value a free text became, while {@link #selectedIndex} is -1. */
+    private @Nullable T freeValue;
+    /** That text, as the field shows it and the tree publishes it; empty for no selection. */
+    private I18nString freeLabel = I18nString.literal("");
+    /** How much of a refused text is read back: a paste is typed too. */
+    private static final int REFUSAL_QUOTE_LIMIT = 32;
+    /** Whether an item matches the typed text, or {@code null} for the default rule. */
+    private @Nullable BiPredicate<? super T, String> filter;
+    /** Makes the grafted list's highlight the tree's cursor while the editor keeps the keyboard. */
+    private @Nullable Subscription cursorHandle;
 
     /** Reused each paint; the caret's 3 points are recomputed from the size. */
     private final Path2D caret = new Path2D();
@@ -151,9 +196,39 @@ public final class ComboBox extends Widget<ComboBox> {
     /** Closes a list that opened towards a window of its own when the owner changes fullscreen. */
     private Subscription fullscreenHandle;
 
-    /** A combo over fixed labels; see {@link #localized} for items that follow the UI language. */
-    public ComboBox(List<String> items) {
-        this(items.stream().map(I18nString::literal).toArray(I18nString[]::new));
+    /**
+     * A combo over items that read as themselves: a {@link String} as it is, an
+     * {@link I18nString} in the UI language (a theme or unit picker, whose words follow a language
+     * change), anything else by its {@code toString()}. For items that read some other way, give
+     * the text: {@link #ComboBox(List, Function)}.
+     *
+     * @param items the items, in the order the list shows them; at least one
+     * @throws IllegalArgumentException for an empty list
+     */
+    public ComboBox(List<? extends T> items) {
+        this(items, ComboBox::textOfItself);
+    }
+
+    /**
+     * A combo over items that read as {@code text} says: {@code new ComboBox<>(customers,
+     * Customer::name)}. The text may be a {@link String} or an {@link I18nString}, which follows
+     * the UI language; anything else reads by its {@code toString()}. Asked once per item, here.
+     *
+     * @param items the items, in the order the list shows them; at least one
+     * @param text  how an item reads in the field and the list
+     * @throws IllegalArgumentException for an empty list
+     */
+    public ComboBox(List<? extends T> items, Function<? super T, ?> text) {
+        Objects.requireNonNull(text, "text");
+        if (items.isEmpty()) {
+            throw new IllegalArgumentException("ComboBox needs at least one item");
+        }
+        this.textOf = text;
+        this.values = List.copyOf(items);
+        this.items = labelsOf(values, text);
+        this.rows = allRows(this.items.size());
+        setFocusable(true);
+        setCursor(Cursor.POINTER);
     }
 
     /**
@@ -161,18 +236,65 @@ public final class ComboBox extends Widget<ComboBox> {
      * to a list of file names. The items are held as values, so a language change
      * re-measures the popup instead of leaving yesterday's words in it.
      */
-    public static ComboBox localized(List<I18nString> items) {
-        return new ComboBox(items.toArray(I18nString[]::new));
+    public static ComboBox<I18nString> localized(List<I18nString> items) {
+        return new ComboBox<>(items);
     }
 
-    /** An array, only because the two {@code List} constructors would erase to one. */
-    private ComboBox(I18nString[] items) {
-        if (items.length == 0) {
-            throw new IllegalArgumentException("ComboBox needs at least one item");
-        }
-        this.items = List.of(items);
+    /**
+     * A combo whose items come from a search the application runs as the user types, and start
+     * empty: {@code new ComboBox<>(Customer::name).setSearch(text -> Ui.async(() -> find(text)))}.
+     * It is editable from the start, since there is nothing to choose before something is typed.
+     *
+     * @param text how an item reads in the field and the list
+     */
+    public ComboBox(Function<? super T, ?> text) {
+        this.textOf = Objects.requireNonNull(text, "text");
+        this.values = List.of();
+        this.items = List.of();
+        this.rows = new int[0];
+        this.selectedIndex = -1;
         setFocusable(true);
         setCursor(Cursor.POINTER);
+        setEditable(true);
+    }
+
+    private static <V> List<I18nString> labelsOf(List<V> values, Function<? super V, ?> text) {
+        List<I18nString> labels = new java.util.ArrayList<>(values.size());
+        for (V value : values) {
+            labels.add(asText(text.apply(value)));
+        }
+        return List.copyOf(labels);
+    }
+
+    private static int[] allRows(int count) {
+        int[] all = new int[count];
+        for (int i = 0; i < count; i++) {
+            all[i] = i;
+        }
+        return all;
+    }
+
+    /** @return the items the list shows, in its order: for tests of the filter */
+    int[] rowsForTest() {
+        return rows.clone();
+    }
+
+    /** @return the row showing item {@code item}, or -1 when the list does not show it */
+    private int rowOfItem(int item) {
+        for (int row = 0; row < rows.length; row++) {
+            if (rows[row] == item) {
+                return row;
+            }
+        }
+        return -1;
+    }
+
+    private static Object textOfItself(Object item) {
+        return item;
+    }
+
+    private static I18nString asText(@Nullable Object text) {
+        return text instanceof I18nString localized ? localized : I18nString.literal(String.valueOf(text));
     }
 
     // ------------------------------------------------------------------- API
@@ -187,7 +309,7 @@ public final class ComboBox extends Widget<ComboBox> {
      * @return this combo
      * @throws IllegalStateException if a handler is already registered
      */
-    public ComboBox onSelect(@Nullable IntConsumer listener) {
+    public ComboBox<T> onSelect(@Nullable Consumer<? super T> listener) {
         Ui.checkUiThread();
         this.onSelect = Checks.handlerSlot(onSelect, listener, "ComboBox.onSelect");
         return this;
@@ -197,7 +319,7 @@ public final class ComboBox extends Widget<ComboBox> {
     protected void handleUserChange(Change.Aspect aspect) {
         if (aspect == Change.Aspect.SELECTION) {
             if (onSelect != null) {
-                onSelect.accept(selectedIndex);
+                onSelect.accept(selectedItem());
             }
             return;
         }
@@ -205,16 +327,150 @@ public final class ComboBox extends Widget<ComboBox> {
     }
 
     /**
-     * The selected item's index; never negative, since a combo refuses an empty item list and so
-     * always has exactly one selection. There is nothing to clear to.
+     * The selected item's index. Never negative for a combo that chooses: it refuses an empty item
+     * list and so always has exactly one selection. -1 only for an editable combo with free text
+     * ({@link #setFreeText}), while its value is a text the list does not hold, or none.
      */
     public int selectedIndex() {
         return selectedIndex;
     }
 
-    /** The selected item as it currently reads, in the UI language. */
-    public String selectedItem() {
-        return items.get(selectedIndex).get();
+    /**
+     * The selected item itself: one of the items, or what a free text became, or {@code null} when
+     * an editable combo with free text was emptied.
+     */
+    public @Nullable T selectedItem() {
+        return selectedIndex >= 0 ? values.get(selectedIndex) : freeValue;
+    }
+
+    /** The selected item as it currently reads, in the UI language: empty when nothing is selected. */
+    public String selectedText() {
+        return selectedLabel().get();
+    }
+
+    private I18nString selectedLabel() {
+        return selectedIndex >= 0 ? items.get(selectedIndex) : freeLabel;
+    }
+
+    /**
+     * Lets an editable combo take a text that names no item, as a "City" that may be new or a tag
+     * does: leaving the field with such a text makes it the value, through {@code fromText}, and
+     * leaving it empty clears the value. {@code null}, the default, accepts items only: such a text
+     * is refused, put back to the selected item's, and a screen reader is told so. UI thread only.
+     *
+     * @param fromText how a text becomes an item, or {@code null} to accept items only
+     * @return this combo
+     */
+    public ComboBox<T> setFreeText(@Nullable Function<String, ? extends T> fromText) {
+        Ui.checkUiThread();
+        this.freeText = fromText;
+        return this;
+    }
+
+    /**
+     * Selects {@code item}: a caller's write, as {@link #setSelectedIndex} is.
+     *
+     * @param item one of the items, compared with {@code equals}
+     * @return this combo
+     * @throws IllegalArgumentException if {@code item} is not one of them
+     */
+    public ComboBox<T> setSelectedItem(T item) {
+        Ui.checkUiThread();
+        int index = values.indexOf(item);
+        if (index < 0) {
+            throw new IllegalArgumentException("not an item of this combo: " + item);
+        }
+        select(index, Change.Origin.CODE);
+        return this;
+    }
+
+    /**
+     * Makes the field text the user types into, or a button again: typing filters the list, the
+     * arrows walk it, Enter picks the highlighted item and leaving the field picks the item the
+     * text names, or puts the selected item's text back. The field keeps the caret, the
+     * selection, the clipboard and the input method while the list is up, as a text field does.
+     * UI thread only.
+     *
+     * @param value whether the field is editable
+     * @return this combo
+     */
+    public ComboBox<T> setEditable(boolean value) {
+        Ui.checkUiThread();
+        if (value == editable) {
+            return this;
+        }
+        if (open) {
+            close(Change.Origin.CODE);
+        }
+        editable = value;
+        if (value) {
+            editor = new Editor(this);
+            editor.setText(selectedText());
+            add(editor);
+            setFocusable(false); // the editor takes the keyboard; Tab lands there
+        } else {
+            Editor gone = editor;
+            editor = null;
+            remove(gone);
+            rows = allRows(items.size());
+            if (selectedIndex < 0) {
+                select(0, Change.Origin.CODE); // a combo that chooses always holds an item
+            }
+            setFocusable(true);
+        }
+        markNeedsLayout();
+        invalidate();
+        return this;
+    }
+
+    /** @return whether the field is text the user types into; see {@link #setEditable} */
+    public boolean isEditable() {
+        return editable;
+    }
+
+    /**
+     * Replaces the rule an editable combo filters its list by: whether an item matches what is
+     * typed. The default finds the text anywhere in an item's text, ignoring case and accents, and
+     * lists the items that start with it first; a predicate lists the items it accepts in their
+     * order. UI thread only.
+     *
+     * @param rule the rule, or {@code null} for the default
+     * @return this combo
+     */
+    public ComboBox<T> setFilter(@Nullable BiPredicate<? super T, String> rule) {
+        Ui.checkUiThread();
+        this.filter = rule;
+        if (open && editor != null) {
+            showRowsFor(editor.text());
+            setHighlight(rows.length == 0 ? -1 : 0, Change.Origin.ADJUSTMENT);
+            refitPopup();
+        }
+        return this;
+    }
+
+    /**
+     * Makes an editable combo take its items from a search the application runs in the background
+     * as the user types, instead of filtering a list: {@code text -> Ui.async(() -> find(text))}.
+     * The search is asked {@value #SEARCH_DELAY_MILLIS} ms after the last keystroke, the list says
+     * it is loading meanwhile, an answer for a text the user has typed past is dropped, and the
+     * number found is told to a screen reader. While a search supplies the items the value is held
+     * by itself and {@link #selectedIndex()} answers -1. UI thread only.
+     *
+     * @param finder the search, or {@code null} to go back to the list in memory
+     * @return this combo
+     */
+    public ComboBox<T> setSearch(
+            @Nullable Function<String, ? extends java.util.concurrent.CompletionStage<? extends List<? extends T>>> finder) {
+        Ui.checkUiThread();
+        this.search = finder;
+        searchSerial++;
+        statusLine = null;
+        return this;
+    }
+
+    /** @return what the field shows: the text typed into an editable combo, else the selected item's */
+    public String text() {
+        return editor != null ? editor.text() : selectedText();
     }
 
     /**
@@ -226,7 +482,7 @@ public final class ComboBox extends Widget<ComboBox> {
      * @throws IndexOutOfBoundsException if {@code index} is not an item; an index computed from a
      *         lookup that missed is a caller's bug here, not a request for the nearest item
      */
-    public ComboBox setSelectedIndex(int index) {
+    public ComboBox<T> setSelectedIndex(int index) {
         Ui.checkUiThread();
         Objects.checkIndex(index, items.size());
         select(index, Change.Origin.CODE);
@@ -243,7 +499,10 @@ public final class ComboBox extends Widget<ComboBox> {
             return;
         }
         selectedIndex = index;
+        freeValue = null;
+        freeLabel = I18nString.literal("");
         invalidate();
+        syncEditor();
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
         if (open) {
             // The open list's selection is its highlight, so a value set while it is down is
@@ -259,7 +518,7 @@ public final class ComboBox extends Widget<ComboBox> {
 
     /** @return the highlighted popup row (keyboard navigation state) */
     public int highlightedIndex() {
-        return highlightedIndex;
+        return highlightedRow < 0 || highlightedRow >= rows.length ? -1 : rows[highlightedRow];
     }
 
     /**
@@ -293,8 +552,9 @@ public final class ComboBox extends Widget<ComboBox> {
             return;
         }
         open = true;
-        boolean highlightMoved = highlightedIndex != selectedIndex;
-        highlightedIndex = selectedIndex;
+        int selectedRow = Math.max(0, rowOfItem(selectedIndex));
+        boolean highlightMoved = highlightedRow != selectedRow;
+        highlightedRow = rows.length == 0 ? -1 : selectedRow;
         typeAhead.setLength(0); // a new list is a new word, however recently the last one was typed
         invalidate();
         if (highlightMoved) {
@@ -365,7 +625,7 @@ public final class ComboBox extends Widget<ComboBox> {
      *
      * <p>Takes effect on the next open.
      */
-    public ComboBox setDisplayMode(DisplayMode mode) {
+    public ComboBox<T> setDisplayMode(DisplayMode mode) {
         Ui.checkUiThread();
         this.requested = Objects.requireNonNull(mode, "mode");
         return this;
@@ -397,6 +657,10 @@ public final class ComboBox extends Widget<ComboBox> {
             return;
         }
         open = false;
+        if (cursorHandle != null) {
+            cursorHandle.cancel();
+            cursorHandle = null;
+        }
         invalidate();
         notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
         if (dismissHandle != null) {
@@ -486,6 +750,374 @@ public final class ComboBox extends Widget<ComboBox> {
      * the popup survives while OS focus is on the owner window or on the popup
      * itself, and dismisses when it moved anywhere else.
      */
+    // ------------------------------------------------------------- editable field
+
+    /** Asks the search for {@code text} once the typing pauses; an empty text asks nothing. */
+    private void searchFor(String text) {
+        int serial = ++searchSerial;
+        values = List.of();
+        items = List.of();
+        rows = new int[0];
+        if (text.isEmpty()) {
+            statusLine = null;
+            if (open) {
+                close(Change.Origin.USER);
+            }
+            return;
+        }
+        statusLine = ComponentStrings.COMBO_LOADING;
+        if (!open) {
+            open(Change.Origin.USER);
+        }
+        setHighlight(-1, Change.Origin.USER);
+        refitPopup();
+        Ui.postDelayed(() -> startSearch(serial, text), SEARCH_DELAY_MILLIS);
+    }
+
+    private void startSearch(int serial, String text) {
+        Function<String, ? extends java.util.concurrent.CompletionStage<? extends List<? extends T>>> finder = search;
+        if (serial != searchSerial || finder == null) {
+            return; // typed past, or the search was taken away
+        }
+        java.util.concurrent.CompletionStage<? extends List<? extends T>> answer;
+        try {
+            answer = finder.apply(text);
+        } catch (RuntimeException failed) {
+            searchAnswered(serial, text, null, failed);
+            return;
+        }
+        answer.whenComplete((found, error) -> Ui.post(() -> searchAnswered(serial, text, found, error)));
+    }
+
+    private void searchAnswered(int serial, String text, @Nullable List<? extends T> found, @Nullable Throwable error) {
+        if (serial != searchSerial || editor == null || !editor.text().equals(text)) {
+            return; // an answer for a text the user has typed past
+        }
+        if (error != null || found == null) {
+            LOG.log(System.Logger.Level.WARNING, "the combo box's search for \"" + text + "\" failed", error);
+            statusLine = ComponentStrings.COMBO_SEARCH_FAILED;
+        } else {
+            values = List.copyOf(found);
+            items = labelsOf(values, textOf);
+            rows = allRows(items.size());
+            statusLine = rows.length == 0 ? ComponentStrings.COMBO_NO_RESULTS : null;
+            Scene scene = scene();
+            if (scene != null) {
+                scene.announce(rows.length == 0 ? ComponentStrings.COMBO_NO_RESULTS.get()
+                        : ComponentStrings.COMBO_RESULTS.format(rows.length), Accessible.Politeness.POLITE);
+            }
+        }
+        if (open) {
+            setHighlight(rows.length == 0 ? -1 : 0, Change.Origin.USER);
+            refitPopup();
+        }
+        invalidate();
+    }
+
+    /** Shows the rows an editable combo's text finds: every item for no text. */
+    private void showRowsFor(String text) {
+        int n = items.size();
+        if (text.isEmpty()) {
+            rows = allRows(n);
+            return;
+        }
+        int[] found = new int[n];
+        int count = 0;
+        if (filter != null) {
+            for (int i = 0; i < n; i++) {
+                if (filter.test(values.get(i), text)) {
+                    found[count++] = i;
+                }
+            }
+        } else {
+            // Those that start with the text first, then those that hold it anywhere, each in the
+            // items' own order: "sao" lists "São Paulo Alimentos" before "Padaria São João".
+            String wanted = fold(text);
+            boolean[] starts = new boolean[n];
+            for (int i = 0; i < n; i++) {
+                String label = fold(items.get(i).get());
+                if (label.startsWith(wanted)) {
+                    found[count++] = i;
+                    starts[i] = true;
+                }
+            }
+            for (int i = 0; i < n; i++) {
+                if (!starts[i] && fold(items.get(i).get()).contains(wanted)) {
+                    found[count++] = i;
+                }
+            }
+        }
+        rows = java.util.Arrays.copyOf(found, count);
+    }
+
+    /**
+     * A text as the default filter compares it: accents taken off (canonical decomposition, the
+     * combining marks dropped) and lower-cased in no one language's rules, so "São" and "sao",
+     * "É" and "e" meet.
+     */
+    static String fold(String text) {
+        String decomposed = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD);
+        StringBuilder out = new StringBuilder(decomposed.length());
+        for (int i = 0; i < decomposed.length(); ) {
+            int cp = decomposed.codePointAt(i);
+            int type = Character.getType(cp);
+            if (type != Character.NON_SPACING_MARK && type != Character.COMBINING_SPACING_MARK
+                    && type != Character.ENCLOSING_MARK) {
+                out.appendCodePoint(cp);
+            }
+            i += Character.charCount(cp);
+        }
+        return out.toString().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** @return the item whose text is {@code text}, compared as the filter compares, or -1 */
+    private int itemNamed(String text) {
+        String wanted = fold(text);
+        for (int i = 0; i < items.size(); i++) {
+            if (fold(items.get(i).get()).equals(wanted)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Makes a free text the value: an editable combo with {@link #setFreeText} only. */
+    private void selectFree(String text, @Nullable T value, Change.Origin origin) {
+        if (selectedIndex < 0 && text.equals(freeLabel.get()) && java.util.Objects.equals(value, freeValue)) {
+            return;
+        }
+        selectedIndex = -1;
+        freeValue = value;
+        freeLabel = I18nString.literal(text);
+        invalidate();
+        syncEditor();
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+    }
+
+    /**
+     * Tells a reader that a typed text was refused and what the field holds again, in the words the
+     * spinner uses for a refused number, since the two refusals are the same event.
+     */
+    private void announceRefused(String typed) {
+        Scene scene = scene();
+        String quoted = typed.strip();
+        if (scene == null || quoted.isEmpty()) {
+            return;
+        }
+        if (quoted.codePointCount(0, quoted.length()) > REFUSAL_QUOTE_LIMIT) {
+            quoted = quoted.substring(0, quoted.offsetByCodePoints(0, REFUSAL_QUOTE_LIMIT)) + "…";
+        }
+        scene.announce(ComponentStrings.SPINNER_REFUSED.format(quoted, selectedText()),
+                Accessible.Politeness.POLITE);
+    }
+
+    /** Puts the selected item's text in the editor, when it shows anything else. */
+    private void syncEditor() {
+        if (editor != null && !editor.text().equals(selectedText())) {
+            editor.setText(selectedText());
+            editor.setCaretPosition(editor.text().length());
+        }
+    }
+
+    /** The editor's text changed by the user's hand: filter, and show the list with its first row. */
+    private void editorTyped() {
+        if (search != null) {
+            searchFor(editor.text());
+            return;
+        }
+        showRowsFor(editor.text());
+        statusLine = rows.length == 0 ? ComponentStrings.COMBO_NO_RESULTS : null;
+        if (!open) {
+            open(Change.Origin.USER);
+        }
+        setHighlight(rows.length == 0 ? -1 : 0, Change.Origin.USER);
+        refitPopup();
+    }
+
+    /** The list button: shows every item when the text is the selected one's, else what it finds. */
+    private void toggleList() {
+        if (open) {
+            close(Change.Origin.USER);
+            return;
+        }
+        showRowsFor(editor == null || editor.text().equals(selectedText()) ? "" : editor.text());
+        open(Change.Origin.USER);
+    }
+
+    /**
+     * A key the editor received, before it handles it: the arrows walk the list, Enter picks, Escape
+     * closes the list and then puts the selected item's text back. Everything else is the editor's.
+     *
+     * @return whether the combo took the key
+     */
+    private boolean editorKey(KeyEvent event) {
+        switch (event.key()) {
+            case Keys.DOWN -> {
+                if (open) {
+                    setHighlight(highlightedRow + 1);
+                } else {
+                    showRowsFor(editor.text().equals(selectedText()) ? "" : editor.text());
+                    open(Change.Origin.USER);
+                }
+                return true;
+            }
+            case Keys.UP -> {
+                if (open) {
+                    setHighlight(highlightedRow - 1);
+                }
+                return open;
+            }
+            case Keys.PAGE_DOWN -> {
+                if (open) {
+                    setHighlight(highlightedRow + visibleRows());
+                }
+                return open;
+            }
+            case Keys.PAGE_UP -> {
+                if (open) {
+                    setHighlight(highlightedRow - visibleRows());
+                }
+                return open;
+            }
+            case Keys.ENTER -> {
+                if (open && highlightedRow >= 0) {
+                    commit(highlightedRow);
+                } else {
+                    commitText();
+                }
+                return true;
+            }
+            case Keys.ESCAPE -> {
+                if (open) {
+                    close(Change.Origin.USER);
+                    return true;
+                }
+                if (!editor.text().equals(selectedText())) {
+                    syncEditor();
+                    return true;
+                }
+                return false;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Commits what the editor holds, as leaving the field does: the item it names is picked, and any
+     * other text is put back to the selected item's.
+     */
+    private void commitText() {
+        if (editor == null) {
+            return;
+        }
+        String typed = editor.text();
+        if (open) {
+            close(Change.Origin.USER);
+        }
+        if (!typed.equals(selectedText())) {
+            int named = itemNamed(typed);
+            if (named >= 0) {
+                select(named, Change.Origin.USER);
+            } else if (freeText != null) {
+                selectFree(typed, typed.isEmpty() ? null : freeText.apply(typed), Change.Origin.USER);
+            } else {
+                syncEditor(); // put back first, so the sentence says what the field holds now
+                announceRefused(typed);
+            }
+        }
+        syncEditor();
+        rows = allRows(items.size());
+    }
+
+    /** The list's rows changed while it is up: its window takes the new height, or the overlay lays out again. */
+    private void refitPopup() {
+        if (popupPanel != null) {
+            popupPanel.markNeedsLayout();
+            popupPanel.invalidate();
+        }
+        if (scenePopup != null) {
+            scenePopup.markNeedsLayout();
+            scenePopup.invalidate();
+        }
+        Scene scene = scene();
+        if (popupWindow == null || scene == null || scene.window() == null) {
+            return;
+        }
+        NativeWindow parent = scene.window();
+        SizeTokens t = Theme.of(this).tokensFor(this);
+        float gap = t.popupGap();
+        float factor = parent.logicalToScreenFactor();
+        int anchorTop = parent.screenY() + Math.round(localToSceneY() * factor);
+        int anchorBottom = parent.screenY() + Math.round((localToSceneY() + height() + gap) * factor);
+        limn.backend.ScreenRect area = parent.display() != null ? parent.display().workArea() : null;
+        float contentH = contentHeight(t);
+        float spaceBelow = area != null ? (area.bottom() - anchorBottom) / factor - EDGE_MARGIN : contentH;
+        float spaceAbove = area != null ? (anchorTop - area.y()) / factor - gap - EDGE_MARGIN : contentH;
+        Drop drop = dropFor(t, spaceAbove, spaceBelow);
+        float ownerY = drop.above() ? localToSceneY() - gap - drop.height() : localToSceneY() + height() + gap;
+        popupWindow.setSize(Math.max(1, Math.round(width())), Math.max(1, Math.round(drop.height())));
+        popupWindow.setScreenPosition(parent.screenX() + Math.round(localToSceneX() * factor),
+                parent.screenY() + Math.round(ownerY * factor));
+        popupWindow.requestFrame();
+    }
+
+    /**
+     * The text an editable combo's user types into: a text field in every way but the keys the
+     * combo takes first and the button that shows the list. The combo's caption names it, so a
+     * reader hears the field's name where the caret is.
+     */
+    static final class Editor extends TextField {
+        private final ComboBox<?> combo;
+
+        Editor(ComboBox<?> combo) {
+            this.combo = combo;
+            setTrailingButton(SvgIcon.fromResource("/limn/components/icons/chevron-down.svg"),
+                    ComponentStrings.COMBO_SHOW_OPTIONS, combo::toggleList);
+        }
+
+        @Override
+        protected void onKeyEvent(KeyEvent event) {
+            if (event.isPressed() && combo.editorKey(event)) {
+                event.consume();
+                return;
+            }
+            super.onKeyEvent(event);
+        }
+
+        @Override
+        protected void handleUserChange(Change.Aspect aspect) {
+            super.handleUserChange(aspect);
+            if (aspect == Change.Aspect.TEXT) {
+                combo.editorTyped();
+            }
+        }
+
+        @Override
+        protected void onFocusLost() {
+            super.onFocusLost();
+            combo.commitText();
+        }
+
+        /**
+         * A text field that filters the list it opens, which is what an editable combo's field is
+         * and a plain field is not: {@code AUTOCOMPLETES}, and while the list is shown the link to
+         * it, the shape a browser gives an ARIA combo box ({@code aria-autocomplete="list"} and
+         * {@code aria-controls}). The list names this field back ({@link PopupPanel}). Only while
+         * it is shown: a closed list is in no tree, and a relation to it would resolve up its
+         * inheritance host to the combo, this field's own parent.
+         */
+        @Override
+        protected void onAccessibility(Accessibility a) {
+            super.onAccessibility(a);
+            a.state(Accessible.State.AUTOCOMPLETES);
+            if (combo.popupPanel != null) {
+                a.relation(Accessible.Relation.CONTROLLER_FOR, combo.popupPanel);
+            }
+        }
+    }
+
     private void closeUnlessRefocused() {
         if (!open) {
             return;
@@ -510,7 +1142,8 @@ public final class ComboBox extends Widget<ComboBox> {
 
     /** The full list height at {@code t}, before any clamping. */
     private float contentHeight(SizeTokens t) {
-        return items.size() * t.popupItemHeight() + 2 * t.popupPadV();
+        int lines = rows.length == 0 && statusLine != null ? 1 : rows.length;
+        return lines * t.popupItemHeight() + 2 * t.popupPadV();
     }
 
     /**
@@ -564,7 +1197,13 @@ public final class ComboBox extends Widget<ComboBox> {
         // and the second one must not close the popup it is opening.
         boolean animate = owner.window() != null && !limn.animation.Motion.reduced();
         sceneFade = animate ? 0f : 1f;
-        owner.pushPopup(scenePopup);
+        if (editable) {
+            // The editor keeps the keyboard, the caret and the input method: the list is drawn
+            // over the page and driven from the field, as its window of its own is.
+            SceneAccess.pushPopupLeavingKeyboard(owner, scenePopup);
+        } else {
+            owner.pushPopup(scenePopup);
+        }
         if (animate) {
             ScenePopup fading = scenePopup;
             owner.addRealTimeTicker(dt -> {
@@ -634,6 +1273,11 @@ public final class ComboBox extends Widget<ComboBox> {
         // Published by this window's tree, under the combo, as a native drop-down list is a child
         // of its field: a reader never leaves this window while the list is open.
         scene().graftPopup(popupScene);
+        if (editable) {
+            // The editor holds the caret and the keyboard; the list's highlight is still what a
+            // reader follows, as ARIA's combobox points at it with aria-activedescendant.
+            cursorHandle = SceneAccess.showCursorOf(scene(), popupScene);
+        }
         popupScene.bind(popupWindow);
         // Clicking the list may hand OS focus to the popup window itself; when
         // THAT later blurs, the same dismiss rule applies.
@@ -659,7 +1303,7 @@ public final class ComboBox extends Widget<ComboBox> {
         return open && isEnabled();
     }
 
-    private void commit(int index) {
+    private void commit(int row) {
         if (!open) {
             return; // the popup is already closing (e.g. a click during its fade-out)
         }
@@ -675,12 +1319,28 @@ public final class ComboBox extends Widget<ComboBox> {
         // Clamped rather than range-checked: both callers are the popup's own bookkeeping (the
         // row a click landed in, and the keyboard highlight), and neither is an application
         // naming an index, which is the only thing setSelectedIndex refuses.
-        int chosen = Math.max(0, Math.min(index, items.size() - 1));
+        if (rows.length == 0) {
+            return; // a filter that left nothing: there is no option to pick
+        }
+        int chosen = rows[Math.max(0, Math.min(row, rows.length - 1))];
+        if (search != null) {
+            // The answer the item came in is replaced by the next search: the value is held by
+            // itself, as a free text is.
+            T picked = values.get(chosen);
+            String label = items.get(chosen).get();
+            close(Change.Origin.USER);
+            selectFree(label, picked, Change.Origin.USER);
+            syncEditor();
+            return;
+        }
         // The list closing is the pick's own settling, announced before the pick; re-picking
         // the item already selected closes the popup and announces nothing else, because the
         // selection did not move.
         close(Change.Origin.USER);
         select(chosen, Change.Origin.USER);
+        // Re-picking the item already selected moves nothing, and still puts its text back over
+        // whatever was typed to find it.
+        syncEditor();
     }
 
     // ----------------------------------------------------------- field visual
@@ -724,6 +1384,9 @@ public final class ComboBox extends Widget<ComboBox> {
     private String widestItem(Font font) {
         // By MEASURED width, not character count: proportional fonts make
         // "WWWW" wider than "iiiiii" despite fewer characters.
+        if (items.isEmpty()) {
+            return selectedText().isEmpty() ? "MMMMMMMMMMMM" : selectedText(); // a search combo's width
+        }
         String widest = items.get(0).get();
         float widestWidth = textRuler().measure(widest, font).width();
         for (I18nString each : items) {
@@ -741,12 +1404,15 @@ public final class ComboBox extends Widget<ComboBox> {
     @Override
     protected float baselineOffset() {
         SizeTokens t = Theme.of(this).tokensFor(this);
-        TextMetrics metrics = textRuler().measure(selectedItem(), t.body());
+        TextMetrics metrics = textRuler().measure(selectedText(), t.body());
         return (height() - metrics.height()) / 2 + metrics.ascent();
     }
 
     @Override
     protected void onPaint(Canvas canvas) {
+        if (editable) {
+            return; // the editor draws the field, its frame, its text and the list button
+        }
         Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         Font font = t.body();
@@ -762,7 +1428,7 @@ public final class ComboBox extends Widget<ComboBox> {
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
                 theme.outline().lerp(theme.focusRing(), focus));
 
-        String label = selectedItem();
+        String label = selectedText();
         // The vertical band stays the measured one, because that is what baselineOffset()
         // reports and a row aligned on a baseline the paint does not use is a row out of line.
         // Only the horizontal placement needs the shaped run.
@@ -806,6 +1472,9 @@ public final class ComboBox extends Widget<ComboBox> {
 
     @Override
     protected void onMouseEvent(MouseEvent event) {
+        if (editable) {
+            return; // the editor's, and its list button's
+        }
         switch (event.type()) {
             case ENTER -> hover.to(1);
             case EXIT -> hover.to(0);
@@ -826,8 +1495,8 @@ public final class ComboBox extends Widget<ComboBox> {
 
     @Override
     protected void onKeyEvent(KeyEvent event) {
-        if (!event.isPressed()) {
-            return;
+        if (!event.isPressed() || editable) {
+            return; // an editable combo's keys reach it through its editor
         }
         boolean handled = true;
         if (!open) {
@@ -837,13 +1506,13 @@ public final class ComboBox extends Widget<ComboBox> {
             }
         } else {
             switch (event.key()) {
-                case Keys.DOWN -> setHighlight(highlightedIndex + 1);
-                case Keys.UP -> setHighlight(highlightedIndex - 1);
+                case Keys.DOWN -> setHighlight(highlightedRow + 1);
+                case Keys.UP -> setHighlight(highlightedRow - 1);
                 case Keys.HOME -> setHighlight(0);
-                case Keys.END -> setHighlight(items.size() - 1);
-                case Keys.PAGE_DOWN -> setHighlight(highlightedIndex + visibleRows());
-                case Keys.PAGE_UP -> setHighlight(highlightedIndex - visibleRows());
-                case Keys.ENTER, Keys.SPACE -> commit(highlightedIndex);
+                case Keys.END -> setHighlight(rows.length - 1);
+                case Keys.PAGE_DOWN -> setHighlight(highlightedRow + visibleRows());
+                case Keys.PAGE_UP -> setHighlight(highlightedRow - visibleRows());
+                case Keys.ENTER, Keys.SPACE -> commit(highlightedRow);
                 case Keys.ESCAPE -> close(Change.Origin.USER);
                 default -> handled = false;
             }
@@ -888,7 +1557,7 @@ public final class ComboBox extends Widget<ComboBox> {
     @Override
     protected void onCharTyped(limn.scene.event.CharEvent event) {
         int codepoint = event.codepoint();
-        if (!open || codepoint < 0x20 || codepoint == 0x7F || items.isEmpty()) {
+        if (editable || !open || codepoint < 0x20 || codepoint == 0x7F || rows.length == 0) {
             return;
         }
         // The scene's clock rather than the wall's. They are one clock in an application; in a
@@ -907,10 +1576,10 @@ public final class ComboBox extends Widget<ComboBox> {
         // From the row after the highlight when the buffer is one letter or is cycling; from the
         // highlight itself while a longer prefix is being extended, or typing "ba" after "b"
         // matched would skip the very item "b" had just found.
-        int from = (cycling || prefix.length() == 1) ? highlightedIndex + 1 : highlightedIndex;
-        for (int step = 0; step < items.size(); step++) {
-            int candidate = Math.floorMod(from + step, items.size());
-            if (startsWithIgnoreCase(items.get(candidate).get(), wanted)) {
+        int from = (cycling || prefix.length() == 1) ? highlightedRow + 1 : highlightedRow;
+        for (int step = 0; step < rows.length; step++) {
+            int candidate = Math.floorMod(from + step, rows.length);
+            if (startsWithIgnoreCase(items.get(rows[candidate]).get(), wanted)) {
                 setHighlight(candidate);
                 event.consume();
                 return;
@@ -933,14 +1602,14 @@ public final class ComboBox extends Widget<ComboBox> {
     }
 
     /** The keyboard highlight, which is the active descendant a reader follows: every caller is a key. */
-    private void setHighlight(int index) {
-        setHighlight(index, Change.Origin.USER);
+    private void setHighlight(int row) {
+        setHighlight(row, Change.Origin.USER);
     }
 
-    private void setHighlight(int index, Change.Origin origin) {
-        int old = highlightedIndex;
-        highlightedIndex = Math.max(0, Math.min(index, items.size() - 1));
-        if (highlightedIndex != old) {
+    private void setHighlight(int row, Change.Origin origin) {
+        int old = highlightedRow;
+        highlightedRow = rows.length == 0 ? -1 : Math.max(0, Math.min(row, rows.length - 1));
+        if (highlightedRow != old) {
             notifyChange(Change.of(Change.Aspect.ACTIVE, origin));
         }
         if (popupPanel != null) {
@@ -949,8 +1618,8 @@ public final class ComboBox extends Widget<ComboBox> {
             // and repaints another.
             SizeTokens t = Theme.of(this).tokensFor(popupPanel);
             popupPanel.damageRow(old, t); // partial rendering: repaint the two affected rows
-            popupPanel.damageRow(highlightedIndex, t);
-            popupPanel.revealRow(highlightedIndex, t); // keyboard highlight stays in view
+            popupPanel.damageRow(highlightedRow, t);
+            popupPanel.revealRow(highlightedRow, t); // keyboard highlight stays in view
         }
         if (popupWindow != null) {
             popupWindow.requestFrame();
@@ -960,6 +1629,19 @@ public final class ComboBox extends Widget<ComboBox> {
     @Override
     protected void onFocusGained() {
         focusFade.to(1);
+    }
+
+    /** An editable combo's caption names its editor, where the caret and the reader are. */
+    @Override
+    protected Widget<?> accessibleLabelTarget() {
+        return editor != null ? editor : this;
+    }
+
+    @Override
+    protected void onLayout() {
+        if (editor != null) {
+            editor.layoutBox(0, 0, width(), height());
+        }
     }
 
     @Override
@@ -1025,7 +1707,13 @@ public final class ComboBox extends Widget<ComboBox> {
         // and a Label bound to this field names it through LABELLED_BY. The source form, never
         // the cached one: the item is an I18nString this widget holds, compared by reference, so
         // a hover or focus fade walks this hook without allocating.
-        a.name(items.get(selectedIndex), Accessible.NameFrom.CONTENT);
+        if (editor == null) {
+            a.name(selectedLabel(), Accessible.NameFrom.CONTENT);
+        }
+        // An editable combo is a container here and names nothing of its own: its caption names
+        // the text field inside it, where the keyboard is, and the item it holds is that field's
+        // text. Named by its item as well, it was read as "Andes, combo box, Mountain ranges,
+        // edit" before a word of the field.
         // The POPUP_OWNER shape, written once (ADR 045 §3): HAS_POPUP always, and not only
         // while the list is down, because a combo that could not be opened would not be a combo;
         // the open state as the facet, never state(EXPANDED, ...), which the builder ignores by
@@ -1038,12 +1726,16 @@ public final class ComboBox extends Widget<ComboBox> {
         // every verb beneath the layer that owns input (ADR 039 §1.13, amended 2026-09-15); in a
         // window of its own the field keeps the input and the verb stands.
         PopupOwnerAccessibility.describe(a, open);
-        a.value(selectedIndex, 0, items.size() - 1, 1);
+        if (selectedIndex >= 0) {
+            // A free text has no place among the items to number: its text is the editor's own,
+            // which a reader reads there.
+            a.value(selectedIndex, 0, items.size() - 1, 1);
+        }
         // The witness is the pair the item's text is a function of: which item is selected, and
         // the epoch every translation moves on. There is no cache to guard here -- the string is
         // the model's own, resolved through its memo -- and the witness says so rather than
         // pretending a counter exists.
-        a.valueText(selectedItem(), I18n.epoch() ^ ((long) selectedIndex << 32));
+        a.valueText(selectedText(), I18n.epoch() ^ ((long) selectedIndex << 32));
         // No CONTROLLER_FOR. In the scene presentation the overlay is the popup's parentless root
         // and carries the field as its inheritance host, so the walk publishes POPUP_FOR there and
         // this mirror here; declaring it again would put two of the same relation on this node. In
@@ -1478,7 +2170,7 @@ public final class ComboBox extends Widget<ComboBox> {
 
         /** Repaints a single row; hover/highlight moves must not damage the whole panel. */
         void damageRow(int index, SizeTokens t) {
-            if (index >= 0 && index < items.size()) {
+            if (index >= 0 && index < rows.length) {
                 invalidate(0, rowTop(index, t), width(), t.popupItemHeight());
             }
         }
@@ -1516,7 +2208,7 @@ public final class ComboBox extends Widget<ComboBox> {
             scroll = clampScroll(scroll, t);
             if (!initialRevealDone && height() > 0) {
                 initialRevealDone = true;
-                revealRow(highlightedIndex, t); // open with the current selection in view
+                revealRow(highlightedRow, t); // open with the current selection in view
             }
             vBar.refresh();
         }
@@ -1560,12 +2252,12 @@ public final class ComboBox extends Widget<ComboBox> {
             // Keep rows off the border: the clip inset IS the border width.
             canvas.clipRect(Strokes.ROW_CLIP, Strokes.ROW_CLIP,
                     width() - 2 * Strokes.ROW_CLIP, height() - 2 * Strokes.ROW_CLIP);
-            for (int i = 0; i < items.size(); i++) {
+            for (int i = 0; i < rows.length; i++) {
                 float top = rowTop(i, t);
                 if (top + itemH < 0 || top > height()) {
                     continue; // scrolled out
                 }
-                boolean active = i == highlightedIndex || i == hoverIndex;
+                boolean active = i == highlightedRow || i == hoverIndex;
                 if (active) {
                     // ROW_GUTTER, not a scaled inset: the 1pt gap exists to stop two
                     // highlighted rows fusing, and 3pt of it reads as a deliberate stripe.
@@ -1573,7 +2265,7 @@ public final class ComboBox extends Widget<ComboBox> {
                             width() - 2 * inset, itemH - 2 * Strokes.ROW_GUTTER,
                             t.radiusSmall(), theme.primary().withAlpha(0.28f));
                 }
-                if (i == selectedIndex) {
+                if (rows[i] == selectedIndex) {
                     // The one mark that scales: pure area, no pen, and 2.5pt vanishes in a
                     // 42pt row.
                     canvas.fillCircle(dotX, top + itemH / 2, t.popupDotRadius(), theme.primary());
@@ -1583,7 +2275,7 @@ public final class ComboBox extends Widget<ComboBox> {
                 // visibility check above. It is also where the run's width comes from: aligning
                 // to the edge reading starts from needs it, and the row loop has no other
                 // measurement of the label.
-                String label = items.get(i).get();
+                String label = items.get(rows[i]).get();
                 ShapedText line = shapeText(label, font);
                 // Clip each row so an over-long label can't reach the rounded border.
                 canvas.save();
@@ -1591,6 +2283,19 @@ public final class ComboBox extends Widget<ComboBox> {
                 canvas.drawText(line, rtl ? textStart - line.metrics().width() : textStart,
                         top + (itemH - metrics.height()) / 2 + metrics.ascent(),
                         theme.text());
+                canvas.restore();
+            }
+            I18nString status = statusLine;
+            if (rows.length == 0 && status != null) {
+                // Loading, nothing found, or a failed search: one muted line where the first row
+                // would be, not an option, so it is neither highlighted nor chosen.
+                float top = rowTop(0, t);
+                ShapedText line = shapeText(status.get(), font);
+                canvas.save();
+                canvas.clipRect(bandX, top, bandW, itemH);
+                canvas.drawText(line, rtl ? textStart - line.metrics().width() : textStart,
+                        top + (itemH - metrics.height()) / 2 + metrics.ascent(),
+                        theme.textMuted());
                 canvas.restore();
             }
             canvas.restore();
@@ -1604,7 +2309,7 @@ public final class ComboBox extends Widget<ComboBox> {
             SizeTokens t = tokens(); // one resolution per event: the hit row is this row formula
             float ly = sceneToLocalY(event.y());
             int index = rowAt(ly, t);
-            boolean valid = index >= 0 && index < items.size();
+            boolean valid = index >= 0 && index < rows.length;
             switch (event.type()) {
                 case MOVE, ENTER -> {
                     vBar.onHostActivity();
@@ -1679,7 +2384,9 @@ public final class ComboBox extends Widget<ComboBox> {
          * the field. A second invented string would be one more thing to translate and one more
          * thing a reader has to hear before the options.
          *
-         * <p><b>No relation either, and that is a correction.</b> In the in-scene presentation the
+         * <p><b>No popup relation either, and that is a correction.</b> (The one relation it
+         * does declare is an editable combo's {@code CONTROLLED_BY}, naming the field that filters
+         * it, which is another pair.) In the in-scene presentation the
          * overlay is the popup's root and the walk gives it {@code POPUP_FOR} the field and the
          * field the mirror, so a second link declared here would have two nodes in one tree
          * claiming to be the field's popup. In a window of its own the panel is parentless with a
@@ -1715,12 +2422,32 @@ public final class ComboBox extends Widget<ComboBox> {
             // the highlighted option below.
             RowsAccessibility.describeContainer(a, RowsAccessibility.Selection.SINGLE, true,
                     false);
+            if (editor != null) {
+                // The mirror of the field's CONTROLLER_FOR, declared rather than left to a bridge,
+                // because it is the list that a reader asks: Orca 50.2 reads a selection change
+                // in a list controlled by the focused field that autocompletes as the field's
+                // own business, and reads it again as a list otherwise.
+                a.relation(Accessible.Relation.CONTROLLED_BY, editor);
+            }
             // The survey's row omits this and the panel scrolls: the wheel, a real ScrollBar child
             // with a real model, Scrollable#revealRect and the keyboard's auto-reveal all move it,
             // and a list clamped to the work area or to the owner scene is the ordinary case
             // rather than the long one. Computed from the same expressions clampScroll uses, so
             // the facet and the clamp cannot drift apart.
             a.scrollFrom(0, 0, 1, 0, scroll, maxScroll, viewport, contentH);
+            I18nString status = statusLine;
+            if (status == ComponentStrings.COMBO_LOADING) {
+                a.state(Accessible.State.BUSY); // as a tree's branch says while it loads
+            }
+            if (rows.length == 0 && status != null) {
+                // The line is text in the list and not an option: a reader reads it, and nothing
+                // can be chosen or walked onto. Keyed apart from every item index.
+                a.child(Integer.MAX_VALUE);
+                a.bounds(inset, rowTop(0, t), width() - 2 * inset, itemH);
+                a.role(Accessible.Role.LABEL);
+                a.name(status, Accessible.NameFrom.CONTENT);
+                a.endChild();
+            }
             // No MODAL. In scene the walk already stamps it on the parentless top overlay, which
             // is the layer this panel is a child of; in a window of its own the modality is the
             // popup window's. Declaring it here would publish it twice in one tree.
@@ -1736,9 +2463,11 @@ public final class ComboBox extends Widget<ComboBox> {
             // under the field, so this is the one place both mountings learn it. Narrowing takes
             // every verb off the row too.
             boolean inert = !ComboBox.this.isEnabled();
-            for (int i = 0; i < items.size(); i++) {
+            for (int i = 0; i < rows.length; i++) {
                 float top = rowTop(i, t);
-                a.child(i);
+                // Keyed by the item and not by the row: an option keeps its identity, and a
+                // reader its place, when a filter moves it up or down the list.
+                a.child(rows[i]);
                 // From the row formula the paint, the damage, the reveal and the hit test all
                 // share, and never from an index times a nominal height: rowTop subtracts the
                 // scroll, and a clamped list scrolls. The full row height and not the painted
@@ -1749,7 +2478,7 @@ public final class ComboBox extends Widget<ComboBox> {
                 // The string the combo holds, not the string it reads as: reference, locale and
                 // translation epoch are what the difference compares, and get() would allocate one
                 // per option per frame.
-                a.name(items.get(i), Accessible.NameFrom.CONTENT);
+                a.name(items.get(rows[i]), Accessible.NameFrom.CONTENT);
                 // The ROWS shape, written once (ADR 045 §3), read against this widget. The list's
                 // selection is the highlight, and the combo's value is not: the arrows and
                 // type-ahead move the selection of the list, and only a commit moves the value,
@@ -1769,8 +2498,8 @@ public final class ComboBox extends Widget<ComboBox> {
                 // it until the window was gone, and then moved it back to the combo.
                 RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
                         verbs ? RowsAccessibility.Selection.SINGLE : RowsAccessibility.Selection.NONE,
-                        i == highlightedIndex, i + 1, items.size(), false, false,
-                        operable && i == highlightedIndex, verbs, false, false);
+                        i == highlightedRow, i + 1, rows.length, false, false,
+                        operable && i == highlightedRow, verbs, false, false);
                 // The negation of the paint loop's own skip test, so the tree and the pixels agree
                 // by construction rather than by two people remembering the same rule. Every
                 // option is still published, because the count and each option's position in it
@@ -1814,11 +2543,11 @@ public final class ComboBox extends Widget<ComboBox> {
             if (!optionsOperable()) {
                 return false;
             }
-            int index = (int) key;
-            if (index < 0 || index >= items.size()) {
-                return false;
+            int row = key < 0 || key >= items.size() ? -1 : rowOfItem((int) key);
+            if (row < 0) {
+                return false; // an option the filter no longer shows
             }
-            return RowsAccessibility.performOnRow(rowsHost, index, action);
+            return RowsAccessibility.performOnRow(rowsHost, row, action);
         }
 
         /**
@@ -1846,7 +2575,7 @@ public final class ComboBox extends Widget<ComboBox> {
 
             @Override
             public boolean isSelected(Integer index) {
-                return index == highlightedIndex;
+                return index == highlightedRow;
             }
 
             @Override

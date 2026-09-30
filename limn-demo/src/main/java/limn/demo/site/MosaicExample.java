@@ -104,7 +104,7 @@ public final class MosaicExample {
             new Cell(false, () -> new SegmentedControl(List.of("Day", "Week", "Month"))),
             new Cell(false, () -> new Checkbox(Checkbox.Variant.SWITCH, "Notify").setChecked(true)),
             new Cell(true, MosaicExample::slider),
-            new Cell(false, () -> new ComboBox(List.of("Everyone", "My team"))),
+            new Cell(false, () -> new ComboBox<>(List.of("Everyone", "My team"))),
             new Cell(false, () -> new Button("Save changes")),
             new Cell(true, SearchField::new),
             new Cell(false, MosaicExample::automatic),

@@ -47,6 +47,14 @@ final class AtspiStates {
      */
     static final int DEFUNCT = 6;
 
+    /**
+     * {@code Atspi.StateType.SINGLE_LINE}: text that holds one line only. Bit 26 in the 2026-09-13
+     * reading (readings/fedora-atspi-constants-all.txt) and in the guest's typelib again on
+     * 2026-09-30. Never a toolkit state: derived for an editable node that is not
+     * {@code MULTI_LINE}.
+     */
+    static final int SINGLE_LINE = 26;
+
     private static final Map<Accessible.State, Integer> BIT = new EnumMap<>(Accessible.State.class);
 
     static {
@@ -74,6 +82,12 @@ final class AtspiStates {
         BIT.put(Accessible.State.DEFAULT, 39);          // IS_DEFAULT
         BIT.put(Accessible.State.HORIZONTAL, 14);
         BIT.put(Accessible.State.VERTICAL, 29);
+        // SUPPORTS_AUTOCOMPLETION, 37 in the 2026-09-13 reading (readings/fedora-atspi-constants-
+        // all.txt). With the list's CONTROLLED_BY naming the field, it is what Orca 50.2 asks
+        // before it reads a selection change in that list while the user types
+        // (is_presentable_selection_change): without it an editable combo's narrowed list was
+        // read twice, once at its cursor and again at its selection (2026-09-30, Fedora guest).
+        BIT.put(Accessible.State.AUTOCOMPLETES, 37);
     }
 
     /**
@@ -110,6 +124,16 @@ final class AtspiStates {
             // state-changed:collapsed travels with the EXPANDED or EXPANDABLE flip that moved it
             // (AtspiEvents.expandChanged), so a client's cached set never holds both.
             out |= 1L << COLLAPSED;
+        }
+        if (has.test(Accessible.State.EDITABLE) && !has.test(Accessible.State.MULTI_LINE)) {
+            // A field of one line says so, as GTK 3's entries do (a combo's entry too), where
+            // GTK 4.22 and Qt 6 publish neither bit on theirs (read on the Fedora guest,
+            // 2026-09-30). It is what Orca 50.2 asks when an insertion follows Return: on a
+            // single-line field it is the field taking a chosen value and is not read, on any other
+            // it is read as auto text, so an editable combo's Enter was heard as the field and
+            // then its new text a second time. EDITABLE is constant on every node that has it, so
+            // the derived bit never moves and raises no change of its own.
+            out |= 1L << SINGLE_LINE;
         }
         return out;
     }

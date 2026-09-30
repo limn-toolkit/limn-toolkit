@@ -33,7 +33,7 @@ import java.util.List;
 final class FormsScene {
 
     /** Scene plus the pieces the demo drives programmatically. */
-    record Built(Scene scene, ComboBox combo) {
+    record Built(Scene scene, ComboBox<?> combo) {
     }
 
     /**
@@ -104,9 +104,9 @@ final class FormsScene {
         passwordRow.add(Expanded.of(password, 1));
         passwordRow.add(reveal);
 
-        ComboBox combo = new ComboBox(List.of(
+        ComboBox<String> combo = new ComboBox<>(List.of(
                 "Limn dark", "Limn light", "High contrast", "Sepia", "System"));
-        combo.onSelect(index -> status.setText("theme picked: " + combo.selectedItem()));
+        combo.onSelect(index -> status.setText("theme picked: " + combo.selectedText()));
 
         TextArea notes = new TextArea().setPreferredSize(0, 150);
         notes.setText("""

@@ -72,14 +72,14 @@ class ComboBoxScenePopupAccessibilityTest extends AccessibleComponentTestBase {
         return optionsIn(I18n.processLocale());
     }
 
-    private ComboBox combo;
+    private ComboBox<String> combo;
 
     /**
      * A combo in a column, so that the field keeps its own height and the list has room to drop
      * below it, and drawn in scene, which is the presentation this widget exists for.
      */
     private void bindCombo() {
-        combo = new ComboBox(List.of("One", "Two", "Three"));
+        combo = new ComboBox<>(List.of("One", "Two", "Three"));
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         Column root = new Column();
         root.add(combo);
@@ -120,7 +120,7 @@ class ComboBoxScenePopupAccessibilityTest extends AccessibleComponentTestBase {
      */
     @Test
     void theLayerIsNamedByTheFieldsCaptionWhenItHasOne() {
-        combo = new ComboBox(List.of("One", "Two", "Three"));
+        combo = new ComboBox<>(List.of("One", "Two", "Three"));
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         Label caption = new Label("Language").setLabelFor(combo);
         Column root = new Column();

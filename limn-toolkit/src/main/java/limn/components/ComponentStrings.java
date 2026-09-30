@@ -97,6 +97,24 @@ final class ComponentStrings {
     static final I18nString COMBO_POPUP =
             new I18nString("limn.comboBox.popup", "Options");
 
+    // The name of an editable combo box's button that shows its list: the button paints a
+    // chevron and holds no text, and no application can reach it to name it.
+    static final I18nString COMBO_SHOW_OPTIONS =
+            new I18nString("limn.comboBox.showOptions", "Show options");
+
+    // An editable combo's list while a search it asked for runs, when it found nothing, and when
+    // it failed: one line in the list each, which is not an option. And how many a search found,
+    // said once when it arrives, since the list's length changes under a reader otherwise
+    // unannounced.
+    static final I18nString COMBO_LOADING =
+            new I18nString("limn.comboBox.loading", "Loading…");
+    static final I18nString COMBO_NO_RESULTS =
+            new I18nString("limn.comboBox.noResults", "No results");
+    static final I18nString COMBO_SEARCH_FAILED =
+            new I18nString("limn.comboBox.searchFailed", "Search failed");
+    static final limn.i18n.PluralString COMBO_RESULTS = limn.i18n.PluralString.of(
+            "limn.comboBox.results", "{0} result", "{0} results");
+
     // The tabbed pane's three overflow controls, for the divider's reason: each paints a chevron
     // and no text, none has a tooltip of its own, and all three are instances of a private inner
     // class no application can reach to name. They are the tooltip a sighted user hovers and the

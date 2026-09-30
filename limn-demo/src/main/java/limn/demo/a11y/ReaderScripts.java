@@ -192,6 +192,26 @@ public final class ReaderScripts {
                             .without(EXPANDED))));
 
     /**
+     * "Combo box, editable": the field's text selected whole and typed over, the list filtering
+     * as it goes with its first row the cursor, an arrow down it, Enter picking, and the field
+     * holding the pick. The keyboard stays in the field, which a reader stands on as a text field
+     * while the list's highlighted option is its cursor.
+     */
+    public static final ReaderScript COMBO_EDITABLE = new ReaderScript("combo-editable", List.of(
+            Step.chord(Keys.A, Step.COMMAND, "selects the field's text")
+                    .expecting(focused(TEXT_FIELD, "Mountain ranges")),
+            Step.type('a', "types a over it, and the list opens on Alps")
+                    .expecting(shown(COMBO_BOX, null).with(EXPANDED),
+                            cursor(LIST_ITEM, "Alps")),
+            Step.type('t', "types t, and the list narrows to Atlas and Carpathians")
+                    .expecting(cursor(LIST_ITEM, "Atlas")),
+            Step.press(Keys.DOWN, "moves to Carpathians")
+                    .expecting(cursor(LIST_ITEM, "Carpathians")),
+            Step.press(Keys.ENTER, "picks Carpathians, which the field now holds")
+                    .expecting(focused(TEXT_FIELD, "Mountain ranges"),
+                            shown(COMBO_BOX, null).valued("Carpathians").without(EXPANDED))));
+
+    /**
      * "Menu bar, driven": F10 from a text field into the bar, a menu opened and walked past its
      * separator, the neighbour opened with an arrow, and both ways out. A menu drawn in a window of
      * its own holds the OS keyboard while it is open, which a combo's list does not, so this is

@@ -35,13 +35,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class LabelForAccessibilityTest extends AccessibleComponentTestBase {
 
-    private ComboBox combo;
+    private ComboBox<String> combo;
     private Label caption;
 
     private void bindPair(boolean link) {
         Column root = new Column();
         caption = new Label("Colour theme");
-        combo = new ComboBox(List.of("One", "Two", "Three"));
+        combo = new ComboBox<>(List.of("One", "Two", "Three"));
         root.add(caption);
         root.add(combo);
         if (link) {
@@ -151,8 +151,8 @@ class LabelForAccessibilityTest extends AccessibleComponentTestBase {
     void aLabelNamesOneControlAtATime() {
         Column root = new Column();
         caption = new Label("Colour theme");
-        combo = new ComboBox(List.of("One", "Two", "Three"));
-        ComboBox other = new ComboBox(List.of("Alpha", "Beta"));
+        combo = new ComboBox<>(List.of("One", "Two", "Three"));
+        ComboBox<String> other = new ComboBox<>(List.of("Alpha", "Beta"));
         root.add(caption);
         root.add(combo);
         root.add(other);

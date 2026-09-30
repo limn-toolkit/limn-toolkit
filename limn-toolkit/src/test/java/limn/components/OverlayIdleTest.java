@@ -114,7 +114,7 @@ class OverlayIdleTest extends ComponentTestBase {
 
     @Test
     void anInSceneComboListLeftAloneGoesIdle() {
-        ComboBox combo = new ComboBox(List.of("one", "two", "three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("one", "two", "three"));
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         Column root = new Column();
         root.add(combo);
@@ -130,7 +130,7 @@ class OverlayIdleTest extends ComponentTestBase {
         for (int i = 0; i < 80; i++) {
             items.add("Item " + i);
         }
-        ComboBox combo = new ComboBox(items);
+        ComboBox<String> combo = new ComboBox<>(items);
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         Column root = new Column();
         root.add(combo);

@@ -70,6 +70,15 @@ class SceneDriverTest extends ComponentTestBase {
             public limn.concurrent.Subscription routeKeyboard(Scene scene, SceneAccess.KeyRoute route) {
                 return null;
             }
+
+            @Override
+            public void pushPopupLeavingKeyboard(Scene scene, Widget<?> popup) {
+            }
+
+            @Override
+            public limn.concurrent.Subscription showCursorOf(Scene scene, Scene popup) {
+                return null;
+            }
         }));
     }
 

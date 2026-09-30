@@ -574,6 +574,11 @@ public final class AccessibilityGallery {
                 // runs drive (2026-09-23), in the entry's own presentation.
                 new Entry("Combo box, driven", List.of(ComboBox.class), List.of(Role.COMBO_BOX),
                         AccessibilityGallery::comboDriven, ReaderScripts.COMBO),
+                // The editable combo (ADR 051): typed into, filtered, walked and picked from, with
+                // the keyboard in its field throughout.
+                new Entry("Combo box, editable", List.of(ComboBox.class),
+                        List.of(Role.COMBO_BOX, Role.TEXT_FIELD),
+                        AccessibilityGallery::comboEditable, ReaderScripts.COMBO_EDITABLE),
                 new Entry("List view with rows", List.of(ListView.class, ScrollBar.class),
                         List.of(Role.LIST, Role.LIST_ITEM, Role.SCROLL_BAR),
                         AccessibilityGallery::listView),
@@ -711,7 +716,7 @@ public final class AccessibilityGallery {
      * @param mode where those surfaces open
      */
     public static void present(Widget<?> root, DisplayMode mode) {
-        if (root instanceof ComboBox combo) {
+        if (root instanceof ComboBox<?> combo) {
             combo.setDisplayMode(mode);
         } else if (root instanceof DatePicker picker) {
             picker.setDisplayMode(mode);
@@ -911,7 +916,7 @@ public final class AccessibilityGallery {
 
     private static Built comboBox(boolean open) {
         Column page = page();
-        ComboBox combo = new ComboBox(List.of("Portuguese", "English", "French", "German"));
+        ComboBox<String> combo = new ComboBox<>(List.of("Portuguese", "English", "French", "German"));
         combo.setSelectedIndex(1);
         page.add(Labelled.above("Language", combo));
         return new Built(page, open ? combo::open : () -> { });
@@ -924,11 +929,20 @@ public final class AccessibilityGallery {
      */
     private static Built comboDriven() {
         Column page = page();
-        ComboBox combo = new ComboBox(List.of(
+        ComboBox<String> combo = new ComboBox<>(List.of(
                 "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas"));
         combo.setSelectedIndex(1);
         page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
         return Built.focusing(page, combo);
+    }
+
+    private static Built comboEditable() {
+        Column page = page();
+        ComboBox<String> combo = new ComboBox<>(List.of(
+                "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas")).setEditable(true);
+        combo.setSelectedIndex(1);
+        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
+        return Built.focusing(page, combo.children().get(0));
     }
 
     private static Built listView() {

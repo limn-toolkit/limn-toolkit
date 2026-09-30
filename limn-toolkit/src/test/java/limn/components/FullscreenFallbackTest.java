@@ -92,7 +92,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
 
     @Test
     void aComboOverAFullscreenWindowDropsItsListIntoTheScene() {
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         Scene scene = new Scene(combo);
         scene.setTextRuler(RULER);
         scene.bind(fullscreen(new StubWindow()));
@@ -115,7 +115,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
      */
     @Test
     void aComboOpenedAfterTheWindowLeavesFullscreenWantsAWindowAgain() {
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         StubWindow window = fullscreen(new StubWindow());
         Scene scene = new Scene(combo);
         scene.setTextRuler(RULER);
@@ -471,9 +471,9 @@ class FullscreenFallbackTest extends ComponentTestBase {
     @Test
     void aComboListWindowClosesWhenItsOwnerGoesFullscreenAndSelectsNothing() {
         WindowHost window = new WindowHost();
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         AtomicInteger selected = new AtomicInteger(-1);
-        combo.onSelect(selected::set);
+        combo.onSelect(item -> selected.set(combo.selectedIndex()));
         Scene scene = sceneOver(window, combo, 400, 300);
         scene.requestFocus(combo);
         combo.open();
@@ -495,7 +495,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
     @Test
     void aComboListInSceneIsLeftAloneWhenItsOwnerLeavesFullscreen() {
         StubWindow window = fullscreen(new StubWindow());
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         Scene scene = sceneOver(window, combo, 400, 300);
         combo.open();
         assertTrue(combo.isInSceneForTest(), "sanity: forced in scene");
@@ -509,7 +509,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
     @Test
     void aComboListWindowIsNotMadeOverAnOwnerThatWentFullscreenFirst() {
         StubWindow window = new StubWindow();
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         Scene scene = sceneOver(window, combo, 400, 300);
         combo.open();
         assertFalse(combo.isInSceneForTest(), "sanity: it opened towards a window");
@@ -1463,7 +1463,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
     void theOwnerAsksForTheFocusBeforeAListWindowHoldingItClosesOnAFullscreenChange() {
         long[] nanos = {0};
         WindowHost window = new WindowHost();
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         Scene scene = sceneOver(window, combo, 400, 300, nanos);
         combo.open();
         runtime.drain();
@@ -1486,7 +1486,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
     void aListWindowThatNeverHeldTheFocusClosesWithoutAskingForIt() {
         long[] nanos = {0};
         WindowHost window = new WindowHost();
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         Scene scene = sceneOver(window, combo, 400, 300, nanos);
         combo.open();
         runtime.drain();

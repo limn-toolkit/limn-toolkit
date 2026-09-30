@@ -232,6 +232,9 @@ final class AccessibleWalk {
         // §1.13, amended 2026-09-15), so what is published operable and what is performed cannot
         // be two readings of the overlay stack.
         Widget<?> layer = scene.accessibleInputLayer();
+        // The layer the keyboard is in, when a popup leaves it beneath (an editable combo's list
+        // drawn in scene): operable as the input layer is, and its focused field the tree's focus.
+        Widget<?> keyboardLayer = scene.accessibleKeyboardLayer();
         // VISIBLE and SHOWING are unconditional for a walk of the contents, because a frame is what
         // triggers one and a window that is drawing a frame is on screen. A window-only walk runs
         // at the bind instead, and every popup, menu and dialog is created hidden and bound before
@@ -249,8 +252,9 @@ final class AccessibleWalk {
             builder.foreignActiveDescendant(0);
             return;
         }
-        beneathOnlyPopups = layer != null && layer != root && scene.onlyPopupsAbove(-1);
-        walkWidget(scene, root, null, 0, -1, 0, 0, true, true, layer == root);
+        beneathOnlyPopups = layer != null && layer != root && keyboardLayer != root
+                && scene.onlyPopupsAbove(-1);
+        walkWidget(scene, root, null, 0, -1, 0, 0, true, true, layer == root || keyboardLayer == root);
         List<Widget<?>> overlays = scene.overlays();
         for (int i = 0; i < overlays.size(); i++) {
             Widget<?> overlay = overlays.get(i);
@@ -265,8 +269,13 @@ final class AccessibleWalk {
             // popup that must go inert with its opener says so itself (a combo narrows its
             // options while it is disabled) or closes; the inheritance host stays what it is for
             // the other axes, and the relation.
-            beneathOnlyPopups = layer != null && overlay != layer && scene.onlyPopupsAbove(i);
-            walkWidget(scene, overlay, null, 0, -1, 0, 0, true, true, overlay == layer);
+            beneathOnlyPopups = layer != null && overlay != layer && overlay != keyboardLayer
+                    && scene.onlyPopupsAbove(i);
+            if (scene.leavesKeyboardBelow(overlay)) {
+                keyboardPopupSlot = builder.nodeCount(); // its cursor is where the keyboard is
+            }
+            walkWidget(scene, overlay, null, 0, -1, 0, 0, true, true,
+                    overlay == layer || overlay == keyboardLayer);
         }
         builder.end();
         count = builder.nodeCount();

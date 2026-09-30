@@ -62,15 +62,15 @@ final class AnimationsScene {
         column.add(track);
 
         Easing[] curves = {Easing.LINEAR, Easing.EASE_OUT, Easing.EASE_IN_OUT, Easing.BOUNCE, Easing.RUBBER};
-        ComboBox easing = new ComboBox(List.of("Linear", "Ease out", "Ease in-out", "Bounce", "Rubber"));
+        ComboBox<String> easing = new ComboBox<>(List.of("Linear", "Ease out", "Ease in-out", "Bounce", "Rubber"));
         easing.setSelectedIndex(1);
         track.setEasing(curves[1]);
-        easing.onSelect(i -> track.setEasing(curves[i]));
+        easing.onSelect(item -> track.setEasing(curves[easing.selectedIndex()]));
 
         double[] times = {0.4, 0.8, 1.5};
-        ComboBox timing = new ComboBox(List.of("Fast", "Normal", "Slow"));
+        ComboBox<String> timing = new ComboBox<>(List.of("Fast", "Normal", "Slow"));
         timing.setSelectedIndex(1);
-        timing.onSelect(i -> track.setDuration(times[i]));
+        timing.onSelect(item -> track.setDuration(times[timing.selectedIndex()]));
 
         Button animate = new Button("Animate").onAction(track::play);
         Checkbox repeat = new Checkbox(Checkbox.Variant.SWITCH, "Repeat");

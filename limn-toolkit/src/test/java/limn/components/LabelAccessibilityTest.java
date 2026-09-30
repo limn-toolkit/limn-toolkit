@@ -308,7 +308,7 @@ class LabelAccessibilityTest extends AccessibleComponentTestBase {
     void aCaptionCarriesLabelForAndTheFieldCarriesLabelledByBack() {
         Column root = new Column();
         label = new Label("Colour theme");
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         root.add(label);
         root.add(combo);
         label.setLabelFor(combo);

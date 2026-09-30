@@ -10,6 +10,11 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- Orca reads the field again when a popup's cursor leaves it and the focus stays: an editable
+  combo's Enter was heard as "return" and nothing more, and a context menu closed with Escape said
+  nothing of the button the keyboard was back on: Orca had stayed on the closed list's row.
+- On Linux a one-line editable field says it is single-line, as GTK 3's entries do. Orca 50.2 read
+  a value a field took after Return, the pick of an editable combo, a second time as typed text.
 - On X11, a combo box's list, a date picker's calendar and a menu in a window of their own no
   longer take the keyboard from the window that opened them. GNOME focused them as they appeared,
   and Orca read the application's window again every time one closed. They are now windows the
@@ -198,6 +203,23 @@ Maven Central say which number that was.
 
 ### New
 
+- `ComboBox.setEditable(true)`: a combo box the user types into. Typing filters the list, with the
+  items whose text contains what was typed, ignoring case and accents, and those that start with it
+  first; Down and Up walk it, Enter picks, Escape closes it and a second Escape puts the selected
+  item's text back, and leaving the field picks the item its text names. The field keeps the
+  keyboard while the list is up, and a screen reader stands on the field and hears the highlighted
+  option as its cursor.
+- `ComboBox.setFilter((item, text) -> …)` replaces the rule an editable combo filters by, and
+  `setFreeText(text -> item)` lets it take a text that names no item, which becomes the value when
+  the field is left; without it such a text is put back and a screen reader is told it was refused.
+- `ComboBox.setSearch(text -> …)` and `new ComboBox<>(Customer::name)`: an editable combo whose items
+  come from a search the application runs off the user-interface thread (`Ui.async`). It asks
+  200 ms after the last keystroke, shows "Loading…", "No results" or "Search failed" as a line of
+  the list, drops an answer for a text the user has typed past, and tells a screen reader how many
+  were found.
+- `Accessible.State.AUTOCOMPLETES`: a field that filters or completes from a list it controls,
+  which it names with `CONTROLLER_FOR` while the list is shown. AT-SPI carries it as
+  `supports-autocompletion`; UI Automation and AppKit have no such flag and read the relation.
 - `AccessibleEvent.Type.MENU_OPENED` and `MENU_CLOSED`: a menu entering or leaving the accessible
   tree, raised before the focus moves into it. Windows raises UI Automation's `MenuOpened` and
   `MenuClosed`, macOS posts `AXMenuOpened` and `AXMenuClosed`, and AT-SPI, which has no such signal,
@@ -376,6 +398,13 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- `ComboBox` is `ComboBox<T>`: its items are objects, read by a function or as themselves.
+  `new ComboBox(List.of("a", "b"))` becomes `new ComboBox<>(List.of("a", "b"))`, and
+  `new ComboBox<>(customers, Customer::name)` shows objects. `onSelect` hands over the item picked
+  (`Consumer<T>`) instead of its index: `onSelect(i -> apply(values[i]))` becomes
+  `onSelect(item -> apply(item))`, or reads `combo.selectedIndex()` where the index is still
+  wanted. `selectedItem()` answers the item; what it reads as is `selectedText()`, which is what
+  `selectedItem()` used to answer. `ComboBox.localized` answers a `ComboBox<I18nString>`.
 - `FileDialogs`' methods return a `CompletionStage`, completed on the UI thread, and are reached
   through a window: `backend.fileDialogs().openFile(title, folder, filter)` becomes
   `window.fileDialogs().openFile(title, folder, filter).thenAccept(chosen -> …)`. An empty answer
@@ -403,6 +432,10 @@ Maven Central say which number that was.
 
 ### Known, and left for later
 
+- Orca 50.2 reads an editable combo's list with its count again ("Cordilheiras, List with 2 items,
+  Carpathians") on the first Down after a letter is typed: the field's caret puts Orca back on the
+  field as the letter lands, so the next move into the list is a move into it. Orca 46.1, NVDA and
+  VoiceOver read the option alone.
 - Orca reads a calendar's whole week, with "not selected" after each day, when the cursor moves
   to another week (Up, Down, a page): Orca speaks the full row of a table by default ("Speak full
   row in GUI tables") and says "not selected" of every selectable cell that is not, and a

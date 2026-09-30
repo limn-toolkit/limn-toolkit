@@ -501,6 +501,10 @@ final class AtspiApplication {
                 && type != AccessibleEvent.Type.WINDOW_ACTIVATED) {
             reconcile(window, link, context, false);  // Activate reconciles after itself instead
         }
+        if (type == AccessibleEvent.Type.CARET_MOVED
+                || type == AccessibleEvent.Type.TEXT_SELECTION_CHANGED || isInTheTail(type)) {
+            sayTheFocusTheCursorLeft(window, link, context);
+        }
         if (focusGained(event) && window.focusSaid == event.nodeId()) {
             // already said in this publish: the survivor's STATE_CHANGED, then this
             if (trace != null) {
@@ -873,6 +877,52 @@ final class AtspiApplication {
             } else {
                 window.reconcileOwed = true;
             }
+        }
+    }
+
+    /**
+     * <b>A cursor that leaves a focus which stays puts the reader back on the focus</b>, after the
+     * publish's text changes and before its first caret, selection or tail event. An editable
+     * combo's list closing is the case: the field kept the focus throughout, its cursor was the
+     * highlighted option, and Enter picks it, closes the list and replaces the field's text in one
+     * publish.
+     *
+     * <p>Orca 46.1 had its locus on the option and kept it there: an {@code ActiveDescendantChanged}
+     * naming no object is dropped ("No any_data"), the field's {@code text-changed} was "not being
+     * presented due to lack of cause" because the field was not the locus, and the
+     * {@code text-caret-moved} that followed moved the locus to the field without a word, so Enter
+     * was heard as "return" and nothing more, where NVDA and VoiceOver said the field and its new
+     * text (2026-09-30, the gallery's "Combo box, editable" on the Ubuntu guest).
+     *
+     * <p>The place is what makes it one reading. Said after the caret it is dropped, since Orca's
+     * {@code set_locus_of_focus} returns without a word when the locus is already that object. Said
+     * before the text changes it is heard, and then the insertion on the locus is heard again as
+     * "auto text" (the second run said "Carpathians" twice). Between the two, the text changes still
+     * find the locus on the option and are not presented, the focus reads the field with its new
+     * text, and the caret lands on the position that reading saved ("Event is for last saved cursor
+     * position"). That is GTK's order in effect: its popup held the focus while the entry's text was
+     * set, and the entry's {@code focused} 1 when the popup closed is what Orca read.
+     *
+     * <p>Only for a cursor this process announced, inside the focus it announced, in the active
+     * frame, and once: the memory of the cursor is cleared as the focus is said.
+     */
+    private void sayTheFocusTheCursorLeft(AtspiBridge window, Link link,
+                                          AtspiEvents.Context context) {
+        if (announcedIn != window || announcedCursor == 0 || !holdsThePlatformFocus(window)) {
+            return;
+        }
+        AccessibleTree tree = window.tree();
+        long focused = tree.focused();
+        if (focused == 0 || focused != announcedFocus || tree.activeDescendant() != 0) {
+            return;
+        }
+        announcedCursor = 0;
+        window.cursorSaid = 0;
+        if (sendAll(link, AtspiEvents.of(AccessibleEvent.state(focused,
+                limn.accessibility.Accessible.State.FOCUSED, true), context), true)) {
+            window.focusSaid = focused;
+        } else {
+            window.reconcileOwed = true;
         }
     }
 

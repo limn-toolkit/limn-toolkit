@@ -62,14 +62,14 @@ class ComboBoxMirroringTest extends ComponentTestBase {
     private static final float COMBO_X = 100;
     private static final float COMBO_W = 120;
 
-    private ComboBox combo;
+    private ComboBox<String> combo;
     private Scene scene;
 
     // --------------------------------------------------------------- fixtures
 
     /** The field on its own: no list, so every mark recorded is the field's. */
     private Recorder paintField(LayoutDirection direction) {
-        combo = new ComboBox(List.of("one", "two", "three"));
+        combo = new ComboBox<>(List.of("one", "two", "three"));
         combo.setLayoutDirection(direction);
         scene = new Scene(combo);
         scene.setTextRuler(RULER);
@@ -83,7 +83,7 @@ class ComboBoxMirroringTest extends ComponentTestBase {
      * to put its panel in.
      */
     private Recorder paintList(LayoutDirection direction) {
-        combo = new ComboBox(List.of("one", "two", "three"));
+        combo = new ComboBox<>(List.of("one", "two", "three"));
         combo.setLayoutDirection(direction);
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         scene = new Scene(new Anchor(combo));
@@ -107,9 +107,9 @@ class ComboBoxMirroringTest extends ComponentTestBase {
      */
     private static final class Anchor extends Widget<Anchor> {
 
-        private final ComboBox child;
+        private final ComboBox<String> child;
 
-        Anchor(ComboBox child) {
+        Anchor(ComboBox<String> child) {
             this.child = child;
             add(child);
         }
@@ -143,7 +143,7 @@ class ComboBoxMirroringTest extends ComponentTestBase {
     void anUndeclaredComboIsTheLeftToRightGeometry() {
         // The process default is LTR and mirroring is opt-in per subtree: a combo that declares
         // nothing must paint exactly what it painted before this axis existed.
-        combo = new ComboBox(List.of("one", "two", "three"));
+        combo = new ComboBox<>(List.of("one", "two", "three"));
         scene = new Scene(combo);
         scene.setTextRuler(RULER);
         scene.layoutPass(FIELD_W, FIELD_H);
@@ -171,7 +171,7 @@ class ComboBoxMirroringTest extends ComponentTestBase {
     void aLongerLabelStillEndsAtTheSamePlace() {
         // The one part of this that is not a sign flip: the mirrored x is composed from the run's
         // own width, so a wider label has to grow into the field rather than out of it.
-        combo = new ComboBox(List.of("three"));
+        combo = new ComboBox<>(List.of("three"));
         combo.setLayoutDirection(LayoutDirection.RTL);
         scene = new Scene(combo);
         scene.setTextRuler(RULER);
@@ -220,7 +220,7 @@ class ComboBoxMirroringTest extends ComponentTestBase {
     }
 
     private float measuredWidth(LayoutDirection direction) {
-        ComboBox box = new ComboBox(List.of("one", "two", "three"));
+        ComboBox<String> box = new ComboBox<>(List.of("one", "two", "three"));
         box.setLayoutDirection(direction);
         Scene host = new Scene(box);
         host.setTextRuler(RULER);
@@ -353,7 +353,7 @@ class ComboBoxMirroringTest extends ComponentTestBase {
     void aLatinLabelStillReadsLeftToRightInsideARightToLeftCombo() {
         // The first-strong rule still decides everything a strong character can decide; the
         // resolved direction is the fallback and not an imposition.
-        combo = new ComboBox(List.of("one"));
+        combo = new ComboBox<>(List.of("one"));
         combo.setLayoutDirection(LayoutDirection.RTL);
         RecordingRuler ruler = new RecordingRuler();
         scene = new Scene(combo);
@@ -365,7 +365,7 @@ class ComboBoxMirroringTest extends ComponentTestBase {
     }
 
     private List<ShapedText.Direction> basesShapedFor(LayoutDirection direction) {
-        ComboBox box = new ComboBox(List.of("1/2"));
+        ComboBox<String> box = new ComboBox<>(List.of("1/2"));
         box.setLayoutDirection(direction);
         RecordingRuler ruler = new RecordingRuler();
         Scene host = new Scene(box);

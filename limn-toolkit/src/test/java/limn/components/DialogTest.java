@@ -370,7 +370,7 @@ class DialogTest extends ComponentTestBase {
         host.setTextRuler(RULER);
         host.bind(window);
 
-        ComboBox combo = new ComboBox(List.of("One", "Two"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two"));
         new Dialog("Pick one", "")
                 .setDisplayMode(DisplayMode.IN_SCENE)
                 .setContent(combo)

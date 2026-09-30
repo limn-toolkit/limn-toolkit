@@ -139,7 +139,7 @@ class SelectionContractTest extends ComponentTestBase {
     }
 
     private static Choice comboBox() {
-        ComboBox combo = new ComboBox(List.of("one", "two", "three", "four"));
+        ComboBox<String> combo = new ComboBox<>(List.of("one", "two", "three", "four"));
         return new Choice() {
             @Override
             public String name() {
@@ -158,7 +158,7 @@ class SelectionContractTest extends ComponentTestBase {
 
             @Override
             public void onSelect(IntConsumer listener) {
-                combo.onSelect(listener);
+                combo.onSelect(item -> listener.accept(combo.selectedIndex()));
             }
 
             @Override
@@ -443,7 +443,7 @@ class SelectionContractTest extends ComponentTestBase {
         assertThrows(IndexOutOfBoundsException.class,
                 () -> new ButtonGroup().setSelectedIndex(0));
 
-        assertThrows(IllegalArgumentException.class, () -> new ComboBox(List.of()),
+        assertThrows(IllegalArgumentException.class, () -> new ComboBox<>(List.of()),
                 "a combo refuses to exist without an item, so it always has a selection");
         assertThrows(IllegalArgumentException.class, () -> new SegmentedControl(List.of()),
                 "and so does a segmented control");

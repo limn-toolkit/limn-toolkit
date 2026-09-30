@@ -79,7 +79,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         };
     };
 
-    private ComboBox combo;
+    private ComboBox<?> combo;
 
     @AfterEach
     void resetLanguage() {
@@ -99,7 +99,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         for (int i = 0; i < count; i++) {
             labels[i] = "Item " + i;
         }
-        bindCombo(new ComboBox(List.of(labels)));
+        bindCombo(new ComboBox<>(List.of(labels)));
     }
 
     /**
@@ -107,7 +107,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
      *
      * @param box the combo under test
      */
-    private void bindCombo(ComboBox box) {
+    private void bindCombo(ComboBox<?> box) {
         box.setDisplayMode(DisplayMode.IN_SCENE);
         bindCombo(box, new StubWindow());
     }
@@ -124,7 +124,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
      * @param box  the combo under test
      * @param into the window to bind to
      */
-    private void bindCombo(ComboBox box, StubWindow into) {
+    private void bindCombo(ComboBox<?> box, StubWindow into) {
         combo = box;
         Column root = new Column();
         root.add(combo);
@@ -495,8 +495,8 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
         AtomicInteger fired = new AtomicInteger(-1);
         AtomicInteger calls = new AtomicInteger();
         bindCombo(4);
-        combo.onSelect(index -> {
-            fired.set(index);
+        combo.onSelect(item -> {
+            fired.set(combo.selectedIndex());
             calls.incrementAndGet();
         });
         openList();
@@ -644,7 +644,7 @@ class ComboBoxPopupAccessibilityTest extends AccessibleComponentTestBase {
     @Test
     void aPlatformThatCannotPlaceAWindowDescribesTheSameList() {
         // The Wayland shape, and no setDisplayMode call: the platform forces presentInScene.
-        bindCombo(new ComboBox(List.of("Item 0", "Item 1", "Item 2")), new StubWindow(false));
+        bindCombo(new ComboBox<>(List.of("Item 0", "Item 1", "Item 2")), new StubWindow(false));
 
         combo.open();
         frame();

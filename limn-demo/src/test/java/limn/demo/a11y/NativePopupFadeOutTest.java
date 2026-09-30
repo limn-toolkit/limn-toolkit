@@ -72,7 +72,7 @@ class NativePopupFadeOutTest {
 
     @Test
     void aClosedListInAWindowOfItsOwnOffersNoVerbWhileItFadesOut() {
-        ComboBox combo = new ComboBox(List.of("One", "Two", "Three"));
+        ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         Column root = new Column();
         root.add(combo);
         HeadlessWindow host = backend.open("Limn popups", 400, 300);
