@@ -987,6 +987,12 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      * nothing at all.
      */
     @Override
+    public Accessible.@org.jspecify.annotations.Nullable Role parentRoleOf(AccessibleNode node) {
+        int parent = node.parent();
+        return parent == AccessibleNode.NONE ? null : tree().node(parent).role();
+    }
+
+    @Override
     public long[] linkedElementsOf(AccessibleNode node) {
         AccessibleTree tree = tree();
         List<Long> linked = new ArrayList<>();

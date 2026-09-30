@@ -94,6 +94,12 @@ final class AxElementClass {
         long[] linkedElementsOf(AccessibleNode node);
 
         /**
+         * @param node a node in the published tree
+         * @return the role of its published parent, or {@code null} for the root
+         */
+        Accessible.@org.jspecify.annotations.Nullable Role parentRoleOf(AccessibleNode node);
+
+        /**
          * @return the element for where the user is — the tree's effective focus, which is the cursor
          *         item under the focused widget when there is one, and may be a node of another
          *         window's tree — or zero when nothing is
@@ -320,6 +326,17 @@ final class AxElementClass {
         return true;
     }
 
+    /**
+     * Whether a node is a menu's separator, which answers here as AppKit's own does: an
+     * {@code AXMenuItem} with no title that is not enabled (read off an {@code NSMenu} on the guest
+     * with axmenu, 2026-09-30). VoiceOver counts neither in "menu, 4 itens"; it counted this one as an
+     * item while it answered {@code AXGroup}. A separator anywhere else stays the divider AxRoles
+     * maps it to.
+     */
+    private boolean menuSeparator(AccessibleNode node) {
+        return AxRoles.isMenuSeparator(node.role(), source.parentRoleOf(node));
+    }
+
     private void addId(String selector, IdGetter body) {
         addMethod(elementClass, selector, body);
     }
@@ -330,6 +347,9 @@ final class AxElementClass {
 
     private void install() {
         addId("accessibilityRole", get(node -> {
+            if (menuSeparator(node)) {
+                return objc.constant("NSAccessibilityMenuItemRole");
+            }
             AxRoles.Mapping mapping = AxRoles.of(node.role());
             return objc.constant(mapping == null ? "NSAccessibilityUnknownRole" : mapping.roleSymbol());
         }));
@@ -355,7 +375,8 @@ final class AxElementClass {
         // means English on every non-English desktop -- measured on a wholly pt-BR guest, where
         // VoiceOver said "checkbox" and "slider" in English inside its own Portuguese sentences.
         addId("accessibilityRoleDescription", get(node ->
-                objc.string(RoleNames.of(node.role(), node.locale()))));
+                objc.string(RoleNames.of(menuSeparator(node) ? Accessible.Role.MENU_ITEM : node.role(),
+                        node.locale()))));
 
         // Written through setAccessibilityValue: (installSetters), which posts nothing to a node
         // AccessibleNode#accepts refuses, a node without ENABLED included (semantics 5, amended
@@ -392,7 +413,8 @@ final class AxElementClass {
         // Transparent and ignored widgets never become nodes, so everything vended here is an
         // element (§1.6). Answering false would make AppKit hoist a node's children over it.
         addBool("isAccessibilityElement", is(node -> true));
-        addBool("isAccessibilityEnabled", is(node -> node.has(Accessible.State.ENABLED)));
+        addBool("isAccessibilityEnabled", is(node -> node.has(Accessible.State.ENABLED)
+                && !menuSeparator(node)));
         // Where the user is, not which widget holds the keyboard around it (semantics 4): the cursor
         // cell of a focused table answers true and the table does not, as the focused element does.
         addBool("isAccessibilityFocused", is(source::isFocused));

@@ -84,9 +84,11 @@ final class AxRoles {
         map(Accessible.Role.RADIO_MENU_ITEM, "NSAccessibilityMenuItemRole");
         // The degradation this platform forces, and it is worth naming because the obvious symbol
         // is not there: AppKit exports no separator subrole (§12.3), and AXSplitter is a thing the
-        // user drags, which a menu separator is not. AXMenuItem with a phrase would be worse still,
-        // because a client would offer it as something to pick. AXGroup with nothing in it is the
-        // honest shape -- a divider a reader can skip past.
+        // user drags, which a divider is not. AXGroup with nothing in it is the honest shape for a
+        // rule between controls -- a divider a reader can skip past. A menu's separator answers
+        // otherwise, as AppKit's own does: AXMenuItem, no title, not enabled (AxElementClass
+        // #menuSeparator, read off an NSMenu on 2026-09-30); a disabled item is offered to nobody,
+        // and VoiceOver counted the AXGroup among the menu's items.
         described(Accessible.Role.SEPARATOR, "NSAccessibilityGroupRole", "separator");
 
         map(Accessible.Role.BUTTON, "NSAccessibilityButtonRole");
@@ -174,6 +176,16 @@ final class AxRoles {
      */
     static Mapping of(Accessible.Role role) {
         return BY_ROLE.get(role);
+    }
+
+    /**
+     * @param role       a node's role
+     * @param parentRole its published parent's, or {@code null}
+     * @return whether it is a menu's separator, which answers as AppKit's does: {@code AXMenuItem},
+     *         no title, not enabled, rather than the divider {@link #of} maps a separator to
+     */
+    static boolean isMenuSeparator(Accessible.Role role, Accessible.@org.jspecify.annotations.Nullable Role parentRole) {
+        return role == Accessible.Role.SEPARATOR && parentRole == Accessible.Role.MENU;
     }
 
     /**
