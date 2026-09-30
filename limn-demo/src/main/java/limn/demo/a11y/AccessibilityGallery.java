@@ -579,6 +579,15 @@ public final class AccessibilityGallery {
                 new Entry("Combo box, editable", List.of(ComboBox.class),
                         List.of(Role.COMBO_BOX, Role.TEXT_FIELD),
                         AccessibilityGallery::comboEditable, ReaderScripts.COMBO_EDITABLE),
+                // The combo holding many (ADR 052): its list stays down while Space toggles, and
+                // its field's value is the count and every name.
+                new Entry("Combo box, many", List.of(ComboBox.class), List.of(Role.COMBO_BOX),
+                        AccessibilityGallery::comboMany, ReaderScripts.COMBO_MANY),
+                // The same, editable: the text only filters, Enter toggles, and the field tells
+                // the selection as its description.
+                new Entry("Combo box, many, editable", List.of(ComboBox.class),
+                        List.of(Role.COMBO_BOX, Role.TEXT_FIELD),
+                        AccessibilityGallery::comboManyEditable, ReaderScripts.COMBO_MANY_EDITABLE),
                 new Entry("List view with rows", List.of(ListView.class, ScrollBar.class),
                         List.of(Role.LIST, Role.LIST_ITEM, Role.SCROLL_BAR),
                         AccessibilityGallery::listView),
@@ -941,6 +950,24 @@ public final class AccessibilityGallery {
         ComboBox<String> combo = new ComboBox<>(List.of(
                 "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas")).setEditable(true);
         combo.setSelectedIndex(1);
+        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
+        return Built.focusing(page, combo.children().get(0));
+    }
+
+    private static Built comboMany() {
+        Column page = page();
+        ComboBox<String> combo = new ComboBox<>(List.of(
+                "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas"))
+                .setSelectionMode(SelectionMode.MULTI).setSelectedIndices(1, 3);
+        page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
+        return Built.focusing(page, combo);
+    }
+
+    private static Built comboManyEditable() {
+        Column page = page();
+        ComboBox<String> combo = new ComboBox<>(List.of(
+                "Alps", "Andes", "Atlas", "Carpathians", "Caucasus", "Himalayas"))
+                .setSelectionMode(SelectionMode.MULTI).setEditable(true);
         page.add(Labelled.above(GalleryStrings.MOUNTAIN_RANGES, combo));
         return Built.focusing(page, combo.children().get(0));
     }

@@ -70,6 +70,12 @@ public final class GalleryStrings {
     /** "Combo box, editable". */
     public static final I18nString ENTRY_COMBO_EDITABLE =
             new I18nString("gallery.entry.comboEditable", "Combo box, editable");
+    /** "Combo box, many". */
+    public static final I18nString ENTRY_COMBO_MANY =
+            new I18nString("gallery.entry.comboMany", "Combo box, many");
+    /** "Combo box, many, editable". */
+    public static final I18nString ENTRY_COMBO_MANY_EDITABLE =
+            new I18nString("gallery.entry.comboManyEditable", "Combo box, many, editable");
     /** "Menu bar, driven". */
     public static final I18nString ENTRY_MENU_BAR =
             new I18nString("gallery.entry.menuBar", "Menu bar, driven");
@@ -158,7 +164,7 @@ public final class GalleryStrings {
     /** Every constant above, for a test that holds the catalogue to both languages. */
     public static final List<I18nString> ALL = List.of(
             ENTRY_TABLE, ENTRY_TREE_LOADING, ENTRY_ANNOUNCEMENTS, ENTRY_CALENDAR, ENTRY_DATE_FIELD,
-            ENTRY_DATE_PICKER_CLOSED, ENTRY_LIST_MULTI, ENTRY_COMBO, ENTRY_COMBO_EDITABLE, ENTRY_MENU_BAR, ENTRY_CONTEXT_MENU,
+            ENTRY_DATE_PICKER_CLOSED, ENTRY_LIST_MULTI, ENTRY_COMBO, ENTRY_COMBO_EDITABLE, ENTRY_COMBO_MANY, ENTRY_COMBO_MANY_EDITABLE, ENTRY_MENU_BAR, ENTRY_CONTEXT_MENU,
             MOUNTAIN_RANGES, RANGE, CONTINENT, SUMMIT,
             VISITED, FILES, OPEN, SAVE, SAVED, STOP, STOPPED, DELIVERY_DATE, HOLIDAY, INVOICE_DATE, APPOINTMENT,
             DUE_DATE, STAY, NOTES, FILE, NEW, OPEN_FILE, QUIT, VIEW, STATUS_BAR, DRAFT, CUT, COPY,
@@ -182,7 +188,9 @@ public final class GalleryStrings {
             Map.entry(ENTRY_COMBO.english(), ENTRY_COMBO),
             Map.entry(ENTRY_MENU_BAR.english(), ENTRY_MENU_BAR),
             Map.entry(ENTRY_CONTEXT_MENU.english(), ENTRY_CONTEXT_MENU),
-            Map.entry(ENTRY_COMBO_EDITABLE.english(), ENTRY_COMBO_EDITABLE));
+            Map.entry(ENTRY_COMBO_EDITABLE.english(), ENTRY_COMBO_EDITABLE),
+            Map.entry(ENTRY_COMBO_MANY.english(), ENTRY_COMBO_MANY),
+            Map.entry(ENTRY_COMBO_MANY_EDITABLE.english(), ENTRY_COMBO_MANY_EDITABLE));
 
     /**
      * @param name an entry's name, the English one it is identified by

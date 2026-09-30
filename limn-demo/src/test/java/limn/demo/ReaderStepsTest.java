@@ -79,7 +79,9 @@ class ReaderStepsTest {
             // beside native menus before deciding whether to graft them as the combo's list is.
             "menu-bar", "context-menu",
             // Added 2026-09-30: the editable combo (ADR 051).
-            "combo-editable");
+            "combo-editable",
+            // Added 2026-09-30: the combo holding many, and its editable form (ADR 052).
+            "combo-many", "combo-many-editable");
 
     /** The widgets H2 (with DT8, B9 and T7) found no reader run could be pointed at. */
     private static final List<Class<?>> WIDGETS_A_READER_MUST_HEAR = List.of(
