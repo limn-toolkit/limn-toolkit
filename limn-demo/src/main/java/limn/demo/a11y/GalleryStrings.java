@@ -67,6 +67,9 @@ public final class GalleryStrings {
     /** "Combo box, driven". */
     public static final I18nString ENTRY_COMBO =
             new I18nString("gallery.entry.combo", "Combo box, driven");
+    /** "Combo box, editable". */
+    public static final I18nString ENTRY_COMBO_EDITABLE =
+            new I18nString("gallery.entry.comboEditable", "Combo box, editable");
     /** "Menu bar, driven". */
     public static final I18nString ENTRY_MENU_BAR =
             new I18nString("gallery.entry.menuBar", "Menu bar, driven");
@@ -155,7 +158,7 @@ public final class GalleryStrings {
     /** Every constant above, for a test that holds the catalogue to both languages. */
     public static final List<I18nString> ALL = List.of(
             ENTRY_TABLE, ENTRY_TREE_LOADING, ENTRY_ANNOUNCEMENTS, ENTRY_CALENDAR, ENTRY_DATE_FIELD,
-            ENTRY_DATE_PICKER_CLOSED, ENTRY_LIST_MULTI, ENTRY_COMBO, ENTRY_MENU_BAR, ENTRY_CONTEXT_MENU,
+            ENTRY_DATE_PICKER_CLOSED, ENTRY_LIST_MULTI, ENTRY_COMBO, ENTRY_COMBO_EDITABLE, ENTRY_MENU_BAR, ENTRY_CONTEXT_MENU,
             MOUNTAIN_RANGES, RANGE, CONTINENT, SUMMIT,
             VISITED, FILES, OPEN, SAVE, SAVED, STOP, STOPPED, DELIVERY_DATE, HOLIDAY, INVOICE_DATE, APPOINTMENT,
             DUE_DATE, STAY, NOTES, FILE, NEW, OPEN_FILE, QUIT, VIEW, STATUS_BAR, DRAFT, CUT, COPY,
@@ -168,17 +171,18 @@ public final class GalleryStrings {
      * what is <em>shown</em>, so a reader pointed at the gallery window reads the list in the run's
      * language too.
      */
-    private static final Map<String, I18nString> ENTRY_NAMES = Map.of(
-            ENTRY_TABLE.english(), ENTRY_TABLE,
-            ENTRY_TREE_LOADING.english(), ENTRY_TREE_LOADING,
-            ENTRY_ANNOUNCEMENTS.english(), ENTRY_ANNOUNCEMENTS,
-            ENTRY_CALENDAR.english(), ENTRY_CALENDAR,
-            ENTRY_DATE_FIELD.english(), ENTRY_DATE_FIELD,
-            ENTRY_DATE_PICKER_CLOSED.english(), ENTRY_DATE_PICKER_CLOSED,
-            ENTRY_LIST_MULTI.english(), ENTRY_LIST_MULTI,
-            ENTRY_COMBO.english(), ENTRY_COMBO,
-            ENTRY_MENU_BAR.english(), ENTRY_MENU_BAR,
-            ENTRY_CONTEXT_MENU.english(), ENTRY_CONTEXT_MENU);
+    private static final Map<String, I18nString> ENTRY_NAMES = Map.ofEntries(
+            Map.entry(ENTRY_TABLE.english(), ENTRY_TABLE),
+            Map.entry(ENTRY_TREE_LOADING.english(), ENTRY_TREE_LOADING),
+            Map.entry(ENTRY_ANNOUNCEMENTS.english(), ENTRY_ANNOUNCEMENTS),
+            Map.entry(ENTRY_CALENDAR.english(), ENTRY_CALENDAR),
+            Map.entry(ENTRY_DATE_FIELD.english(), ENTRY_DATE_FIELD),
+            Map.entry(ENTRY_DATE_PICKER_CLOSED.english(), ENTRY_DATE_PICKER_CLOSED),
+            Map.entry(ENTRY_LIST_MULTI.english(), ENTRY_LIST_MULTI),
+            Map.entry(ENTRY_COMBO.english(), ENTRY_COMBO),
+            Map.entry(ENTRY_MENU_BAR.english(), ENTRY_MENU_BAR),
+            Map.entry(ENTRY_CONTEXT_MENU.english(), ENTRY_CONTEXT_MENU),
+            Map.entry(ENTRY_COMBO_EDITABLE.english(), ENTRY_COMBO_EDITABLE));
 
     /**
      * @param name an entry's name, the English one it is identified by

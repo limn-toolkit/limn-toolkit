@@ -1690,7 +1690,13 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // and a Label bound to this field names it through LABELLED_BY. The source form, never
         // the cached one: the item is an I18nString this widget holds, compared by reference, so
         // a hover or focus fade walks this hook without allocating.
-        a.name(selectedLabel(), Accessible.NameFrom.CONTENT);
+        if (editor == null) {
+            a.name(selectedLabel(), Accessible.NameFrom.CONTENT);
+        }
+        // An editable combo is a container here and names nothing of its own: its caption names
+        // the text field inside it, where the keyboard is, and the item it holds is that field's
+        // text. Named by its item as well, it was read as "Andes, combo box, Mountain ranges,
+        // edit" before a word of the field.
         // The POPUP_OWNER shape, written once (ADR 045 §3): HAS_POPUP always, and not only
         // while the list is down, because a combo that could not be opened would not be a combo;
         // the open state as the facet, never state(EXPANDED, ...), which the builder ignores by

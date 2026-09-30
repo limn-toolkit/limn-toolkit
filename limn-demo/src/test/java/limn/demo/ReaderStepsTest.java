@@ -77,7 +77,9 @@ class ReaderStepsTest {
             "combo",
             // Added 2026-09-29: menus, which take the OS keyboard in a window of their own; heard
             // beside native menus before deciding whether to graft them as the combo's list is.
-            "menu-bar", "context-menu");
+            "menu-bar", "context-menu",
+            // Added 2026-09-30: the editable combo (ADR 051).
+            "combo-editable");
 
     /** The widgets H2 (with DT8, B9 and T7) found no reader run could be pointed at. */
     private static final List<Class<?>> WIDGETS_A_READER_MUST_HEAR = List.of(
