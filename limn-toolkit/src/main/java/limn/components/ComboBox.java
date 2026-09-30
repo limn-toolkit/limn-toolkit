@@ -120,6 +120,19 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      * answer there. -1 for none.
      */
     private int selectedIndex;
+    /**
+     * The row standing for "nothing selected" in {@link #rows}, while {@link #emptyAllowed}: not an
+     * item, and never an index into {@link #items}.
+     */
+    private static final int EMPTY_ROW = -1;
+    /** The accessible key of that row, apart from every item's index and from the status line's. */
+    private static final int EMPTY_KEY = Integer.MAX_VALUE - 1;
+    /** Whether a combo holding one item may hold none; see {@link #setEmptySelectionAllowed}. */
+    private boolean emptyAllowed;
+    /** What the empty option reads as: the text function's answer for {@code null}. */
+    private I18nString emptyLabel = I18nString.literal("");
+    /** The empty option's icon: the icon function's answer for {@code null}. */
+    private @Nullable Icon emptyIcon;
     /** How a chip is drawn, or {@code null} for the default pill; see {@link #setChipRenderer}. */
     private @Nullable Function<? super T, ? extends Widget<?>> chipRenderer;
     /** The chips standing for a selection of many in the field, while holding many; else null. */
@@ -243,7 +256,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         this.textOf = text;
         this.values = List.copyOf(items);
         this.items = labelsOf(values, text);
-        this.rows = allRows(this.items.size());
+        this.rows = everyRow();
         setFocusable(true);
         setCursor(Cursor.POINTER);
         followOwnEnabled();
@@ -306,6 +319,67 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         return all;
     }
 
+    /**
+     * Every row the list shows with no text filtering it: the empty option first, while a combo
+     * holding one item may hold none, then every item.
+     */
+    private int[] everyRow() {
+        int n = items.size();
+        if (!showsEmptyRow()) {
+            return allRows(n);
+        }
+        int[] all = new int[n + 1];
+        all[0] = EMPTY_ROW;
+        for (int i = 0; i < n; i++) {
+            all[i + 1] = i;
+        }
+        return all;
+    }
+
+    /** Whether the list offers the empty option: holding one item, over a list, with it allowed. */
+    private boolean showsEmptyRow() {
+        return emptyAllowed && selectionMode == SelectionMode.SINGLE && search == null;
+    }
+
+    /** Whether the combo holds nothing, and it is the empty option that says so. */
+    private boolean emptyChosen() {
+        return emptyAllowed && selectionMode == SelectionMode.SINGLE && selectedIndex < 0
+                && freeValue == null;
+    }
+
+    /** @return what row item {@code item} reads as, the empty option included */
+    private I18nString labelOfRow(int item) {
+        return item == EMPTY_ROW ? emptyLabel : items.get(item);
+    }
+
+    /** @return the icon of row item {@code item}, the empty option included */
+    private @Nullable Icon iconOfRow(int item) {
+        return item == EMPTY_ROW ? emptyIcon : iconOfItem(item);
+    }
+
+    /** @return the icon the field shows: the selected item's, or the empty option's */
+    private @Nullable Icon selectedIcon() {
+        return selectedIndex >= 0 ? iconOfItem(selectedIndex) : emptyChosen() ? emptyIcon : null;
+    }
+
+    /**
+     * Asks one of the application's functions about the empty option, which it is handed as
+     * {@code null}. A function that cannot take {@code null} (a method reference on the item,
+     * {@code Customer::name}) gives the empty option nothing rather than failing the combo.
+     */
+    private static <R> @Nullable R askForEmpty(@Nullable Function<?, ? extends R> function) {
+        if (function == null) {
+            return null;
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            Function<Object, ? extends R> f = (Function<Object, ? extends R>) function;
+            return f.apply(null);
+        } catch (NullPointerException refused) {
+            return null;
+        }
+    }
+
     /** @return the items the list shows, in its order: for tests of the filter */
     int[] rowsForTest() {
         return rows.clone();
@@ -326,6 +400,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     }
 
     private static I18nString asText(@Nullable Object text) {
+        if (text == null) {
+            return I18nString.literal("");
+        }
         return text instanceof I18nString localized ? localized : I18nString.literal(String.valueOf(text));
     }
 
@@ -436,6 +513,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             close(Change.Origin.CODE);
         }
         selectionMode = mode;
+        rows = everyRow(); // the empty option belongs to a combo holding one
         if (mode == SelectionMode.MULTI) {
             chosen.clear();
             boolean moved = selectedIndex >= 0;
@@ -445,9 +523,14 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             }
         } else {
             int keep = chosen.nextSetBit(0);
-            boolean moved = keep < 0 || chosen.cardinality() > 1;
+            if (keep < 0 && emptyAllowed) {
+                keep = -1; // nothing held is a state this combo has: the empty option stands
+            } else if (keep < 0) {
+                keep = 0;
+            }
+            boolean moved = keep < 0 ? false : chosen.cardinality() != 1;
             chosen.clear();
-            selectedIndex = Math.max(0, keep);
+            selectedIndex = keep;
             if (moved) {
                 notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
             }
@@ -582,6 +665,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         Ui.checkUiThread();
         if (selectionMode == SelectionMode.MULTI) {
             choose(new java.util.BitSet(), Change.Origin.CODE);
+        } else if (emptyAllowed) {
+            selectEmpty(Change.Origin.CODE);
         } else if (freeText != null) {
             selectFree("", null, Change.Origin.CODE);
         } else {
@@ -589,6 +674,58 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                     + " setFreeText lets it be emptied");
         }
         return this;
+    }
+
+    /**
+     * Lets a combo holding one item hold none: the list gains a first option that stands for
+     * "nothing", whose value is {@code null}, and choosing it empties the combo. It reads as the
+     * item text function answers for {@code null}, and shows the icon the icon function answers
+     * for it, so the application words it ("None", "Any status") as it words its items; a
+     * function that cannot take {@code null} leaves it blank. Turned off while nothing is held,
+     * the combo takes the first item. Holding many, a selection may always be empty and the list
+     * shows no such option. UI thread only.
+     *
+     * @param allowed whether the combo may hold nothing
+     * @return this combo
+     */
+    public ComboBox<T> setEmptySelectionAllowed(boolean allowed) {
+        Ui.checkUiThread();
+        if (allowed == emptyAllowed) {
+            return this;
+        }
+        if (open) {
+            close(Change.Origin.CODE);
+        }
+        emptyAllowed = allowed;
+        emptyLabel = asText(askForEmpty(textOf));
+        emptyIcon = askForEmpty(iconOf);
+        rows = everyRow();
+        if (!allowed && selectionMode == SelectionMode.SINGLE && selectedIndex < 0
+                && freeText == null && !items.isEmpty()) {
+            select(0, Change.Origin.ADJUSTMENT);
+        }
+        syncEditor();
+        markNeedsLayout();
+        invalidate();
+        return this;
+    }
+
+    /** @return whether a combo holding one item may hold none; see {@link #setEmptySelectionAllowed} */
+    public boolean isEmptySelectionAllowed() {
+        return emptyAllowed;
+    }
+
+    /** Empties a combo holding one item, through the empty option. Announces only when it moved. */
+    private void selectEmpty(Change.Origin origin) {
+        if (selectedIndex < 0 && freeValue == null && freeLabel.get().isEmpty()) {
+            return;
+        }
+        selectedIndex = -1;
+        freeValue = null;
+        freeLabel = I18nString.literal("");
+        invalidate();
+        syncEditor();
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
     }
 
     /** The one seam a many-item selection moves through; announces only when it moved. */
@@ -622,7 +759,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     }
 
     private I18nString selectedLabel() {
-        return selectedIndex >= 0 ? items.get(selectedIndex) : freeLabel;
+        if (selectedIndex >= 0) {
+            return items.get(selectedIndex);
+        }
+        // The empty option reads as itself in a field that shows a label; an editable field is
+        // empty text, which is what "nothing" is there.
+        return emptyChosen() && editor == null ? emptyLabel : freeLabel;
     }
 
     /**
@@ -691,7 +833,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             Editor gone = editor;
             editor = null;
             remove(gone);
-            rows = allRows(items.size());
+            rows = everyRow();
             if (selectedIndex < 0 && selectionMode == SelectionMode.SINGLE) {
                 select(0, Change.Origin.CODE); // a combo that chooses always holds an item
             }
@@ -765,6 +907,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         Ui.checkUiThread();
         this.iconOf = icon;
         icons = iconsOf(values);
+        emptyIcon = emptyAllowed ? askForEmpty(icon) : null;
         syncEditor();
         if (chipStrip != null) {
             chipStrip.forget(); // a custom chip may show the icon too
@@ -969,7 +1112,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // scene, including its own list's, so this observer would close the popup on the press
         // that was choosing an item.
         dismissHandle = scene.observePresses(target -> {
-            if (target != this) {
+            // A press inside the combo is not "elsewhere": an editable combo's list button is in
+            // its text field, and this observer, registered while that very press opened the
+            // list, hears the press after it is dispatched and closed the list it had opened.
+            if (!isInside(target)) {
                 close(Change.Origin.USER);
             }
         });
@@ -986,6 +1132,16 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // not happen in the middle of another window's frame callback.
             Ui.post(this::createPopupWindow);
         }
+    }
+
+    /** @return whether {@code target} is this combo or inside it (its text field, its chips) */
+    private boolean isInside(@Nullable Widget<?> target) {
+        for (Widget<?> at = target; at != null; at = at.parent()) {
+            if (at == this) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1049,7 +1205,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         if (selectionMode == SelectionMode.MULTI && editor != null && !editor.text().isEmpty()) {
             // The chips come back when the list goes (ADR 052 §3): the filter goes with it.
             editor.setText("");
-            rows = allRows(items.size());
+            rows = everyRow();
             refreshChips();
         }
         invalidate();
@@ -1192,7 +1348,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             values = List.copyOf(found);
             items = labelsOf(values, textOf);
             icons = iconsOf(values);
-            rows = allRows(items.size());
+            rows = everyRow();
             statusLine = rows.length == 0 ? ComponentStrings.COMBO_NO_RESULTS : null;
             Scene scene = scene();
             if (scene != null) {
@@ -1211,7 +1367,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private void showRowsFor(String text) {
         int n = items.size();
         if (text.isEmpty()) {
-            rows = allRows(n);
+            rows = everyRow();
             return;
         }
         int[] found = new int[n];
@@ -1323,7 +1479,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             editor.setText(selectedText());
             editor.setCaretPosition(editor.text().length());
         }
-        editor.setLeadingIcon(iconOfItem(selectedIndex));
+        editor.setLeadingIcon(selectedIcon());
     }
 
     /** The editor's text changed by the user's hand: filter, and show the list with its first row. */
@@ -1449,13 +1605,15 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         }
         if (selectionMode == SelectionMode.MULTI) {
             syncEditor(); // the text was a filter: it goes, and the chips come back
-            rows = allRows(items.size());
+            rows = everyRow();
             return;
         }
         if (!typed.equals(selectedText())) {
             int named = itemNamed(typed);
             if (named >= 0) {
                 select(named, Change.Origin.USER);
+            } else if (typed.isEmpty() && emptyAllowed) {
+                selectEmpty(Change.Origin.USER); // an emptied field is the empty option
             } else if (freeText != null) {
                 selectFree(typed, typed.isEmpty() ? null : freeText.apply(typed), Change.Origin.USER);
             } else {
@@ -1464,7 +1622,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             }
         }
         syncEditor();
-        rows = allRows(items.size());
+        rows = everyRow();
     }
 
     /** The list's rows changed while it is up: its window takes the new height, or the overlay lays out again. */
@@ -1534,6 +1692,22 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         protected void onFocusLost() {
             super.onFocusLost();
             combo.commitText();
+        }
+
+        /**
+         * A press where the chips stand opens the list, as a press on a combo that is not editable
+         * does: the chips are the field's content, and there is no text there to put a caret in.
+         * The list button opens it by itself, which the state before and after tells apart.
+         */
+        @Override
+        protected void onMouseEvent(MouseEvent event) {
+            boolean wasOpen = combo.isOpen();
+            boolean chips = combo.chipsShown();
+            super.onMouseEvent(event);
+            if (event.type() == MouseEvent.Type.PRESS && event.button() == Keys.MOUSE_LEFT
+                    && chips && !wasOpen && !combo.isOpen()) {
+                combo.toggleList();
+            }
         }
 
         /** Holding many, the chips stand in the empty field's place: no hint, no caret under them. */
@@ -1765,6 +1939,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             return; // a filter that left nothing: there is no option to pick
         }
         int item = rows[Math.max(0, Math.min(row, rows.length - 1))];
+        if (item == EMPTY_ROW) {
+            close(Change.Origin.USER);
+            selectEmpty(Change.Origin.USER);
+            syncEditor();
+            return;
+        }
         if (selectionMode == SelectionMode.MULTI) {
             // Toggled, and the list stays down (ADR 052 §3). A filter typed to find the item goes,
             // so every item shows again with the highlight still on the one just toggled.
@@ -1844,6 +2024,13 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         }
         String widest = items.get(0).get();
         float widestWidth = textRuler().measure(widest, font).width();
+        if (showsEmptyRow()) {
+            float empty = textRuler().measure(emptyLabel.get(), font).width();
+            if (empty > widestWidth) {
+                widest = emptyLabel.get();
+                widestWidth = empty;
+            }
+        }
         for (I18nString each : items) {
             String item = each.get();
             float itemWidth = textRuler().measure(item, font).width();
@@ -1911,7 +2098,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // right-to-left run fills the same box from the other end rather than growing leftwards
         // — so aligning to the edge reading starts from is choosing x, and choosing it takes
         // the run's own width.
-        Icon icon = iconOfItem(selectedIndex);
+        Icon icon = selectedIcon();
         float lead = icon != null ? iconRoom(t) : 0;
         if (icon != null) {
             float ico = t.fieldIcon();
@@ -2061,7 +2248,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         int from = (cycling || prefix.length() == 1) ? highlightedRow + 1 : highlightedRow;
         for (int step = 0; step < rows.length; step++) {
             int candidate = Math.floorMod(from + step, rows.length);
-            if (startsWithIgnoreCase(items.get(rows[candidate]).get(), wanted)) {
+            if (rows[candidate] != EMPTY_ROW
+                    && startsWithIgnoreCase(items.get(rows[candidate]).get(), wanted)) {
                 setHighlight(candidate);
                 event.consume();
                 return;
@@ -2548,7 +2736,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         @Override
         protected Size onMeasure(Constraints constraints) {
             SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
-            float w = 2 * chipPadH(t) + textRuler().measure(text(), t.body()).width();
+            float w = 2 * t.spacingSmall() + textRuler().measure(text(), t.label()).width();
             return constraints.constrain(w, constraints.maxHeight());
         }
 
@@ -2557,10 +2745,14 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             Theme theme = Theme.of(this);
             SizeTokens t = theme.tokensFor(ComboBox.this);
             boolean enabled = ComboBox.this.isEnabled();
-            canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.segPillRadius(),
+            // Smaller than a chip, its own box inset within the chip's band: a count is a note
+            // beside the chips, not one of them.
+            float inset = t.segInset();
+            float h = Math.max(0, height() - 2 * inset);
+            canvas.fillRoundRectWithBorder(0, inset, width(), h, Math.min(t.segPillRadius(), h / 2),
                     enabled ? theme.surfaceRaised() : theme.disabledFill(), Strokes.BORDER,
                     theme.outline());
-            Font font = t.body();
+            Font font = t.label();
             String text = text();
             ShapedText line = textRuler().shape(text, font, ShapedText.Direction.of(text, neutralBase()));
             TextMetrics metrics = textRuler().measure("Hg", font);
@@ -3004,7 +3196,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                         paintCheck(canvas, dotX - t.checkGlyphW() / 2, top + itemH / 2,
                                 theme.primary(), t);
                     }
-                } else if (rows[i] == selectedIndex) {
+                } else if (rows[i] == EMPTY_ROW ? emptyChosen() : rows[i] == selectedIndex) {
                     // The one mark that scales: pure area, no pen, and 2.5pt vanishes in a
                     // 42pt row.
                     canvas.fillCircle(dotX, top + itemH / 2, t.popupDotRadius(), theme.primary());
@@ -3014,12 +3206,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 // visibility check above. It is also where the run's width comes from: aligning
                 // to the edge reading starts from needs it, and the row loop has no other
                 // measurement of the label.
-                String label = items.get(rows[i]).get();
+                String label = labelOfRow(rows[i]).get();
                 ShapedText line = shapeText(label, font);
                 // Clip each row so an over-long label can't reach the rounded border.
                 canvas.save();
                 canvas.clipRect(bandX, top, bandW, itemH);
-                Icon icon = iconOfItem(rows[i]);
+                Icon icon = iconOfRow(rows[i]);
                 if (icon != null) {
                     // The icon leads the text, on the side reading starts from, and the text
                     // moves past it; a row without one keeps the column, so the labels align.
@@ -3226,7 +3418,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 float top = rowTop(i, t);
                 // Keyed by the item and not by the row: an option keeps its identity, and a
                 // reader its place, when a filter moves it up or down the list.
-                a.child(rows[i]);
+                a.child(rows[i] == EMPTY_ROW ? EMPTY_KEY : rows[i]);
                 // From the row formula the paint, the damage, the reveal and the hit test all
                 // share, and never from an index times a nominal height: rowTop subtracts the
                 // scroll, and a clamped list scrolls. The full row height and not the painted
@@ -3237,7 +3429,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 // The string the combo holds, not the string it reads as: reference, locale and
                 // translation epoch are what the difference compares, and get() would allocate one
                 // per option per frame.
-                a.name(items.get(rows[i]), Accessible.NameFrom.CONTENT);
+                // The empty option's own words, or when the application gave it none, the
+                // toolkit's, since an option a reader lands on must say something.
+                I18nString name = labelOfRow(rows[i]);
+                a.name(rows[i] == EMPTY_ROW && name.get().isEmpty() ? ComponentStrings.COMBO_NONE
+                        : name, Accessible.NameFrom.CONTENT);
                 // The ROWS shape, written once (ADR 045 §3), read against this widget. The list's
                 // selection is the highlight, and the combo's value is not: the arrows and
                 // type-ahead move the selection of the list, and only a commit moves the value,
@@ -3302,7 +3498,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             if (!optionsOperable()) {
                 return false;
             }
-            int row = key < 0 || key >= items.size() ? -1 : rowOfItem((int) key);
+            int row = key == EMPTY_KEY ? rowOfItem(EMPTY_ROW)
+                    : key < 0 || key >= items.size() ? -1 : rowOfItem((int) key);
             if (row < 0) {
                 return false; // an option the filter no longer shows
             }

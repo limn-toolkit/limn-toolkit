@@ -42,6 +42,10 @@ Asked with an estimate (a summary text in the field about 0.7 of ADR 051's cost,
 7. **No "select all" row.** Ctrl+A (Cmd+A) in the list takes every item; `selectAll()` and
    `clearSelection()` are the application's.
 
+8. **A combo holding one item may hold none (2026-09-30, after trying the demo).** A setting puts
+   a first, synthetic option in the list whose value is `null`; its text and icon come from the
+   same functions as the items', asked for `null`, so the application words it as it words them.
+
 ## 2. The shape
 
 ```java
@@ -64,6 +68,14 @@ ComboBox<Status> status = new ComboBox<>(List.of(Status.values()), Status::label
   needs. It replaces `onSelect(Consumer<T>)`.
 - `setItemIcon(Function<? super T, ? extends Icon>)`: an item's icon, `null` for none, shown in
   the list's rows, in the chips and in a single combo's field. `null` as the function removes them.
+- `setEmptySelectionAllowed(boolean)` (decision 8; Vaadin's name for the same setting): the list
+  of a combo holding one item starts with an option standing for nothing. Choosing it, or
+  `clearSelection()`, makes `selectedItem()` `null` and `selectedIndex()` -1. It reads as the text
+  function answers for `null` and shows what the icon function answers for `null`; a function
+  that cannot take `null` (a method reference on the item) leaves it blank, and a reader then
+  hears the toolkit's "None". An editable combo emptied by hand takes it instead of refusing the
+  empty text. Turned off while nothing is held, the combo takes the first item. Holding many, the
+  list has no such option: an empty selection is already a state.
 - `setChipRenderer(Function<? super T, ? extends Widget<?>>)`: the widget a chip is drawn with,
   asked once per item when it is first selected. It is drawn and never operated: it takes no
   pointer and no keyboard, and it is not in the accessible tree (a reader hears the field's
@@ -104,6 +116,16 @@ ComboBox<Status> status = new ComboBox<>(List.of(Status.values()), Status::label
   `PRESS` toggles it as a click does, and `FOCUS` moves the highlight.
 - The chips and the badge are not in the tree: they repeat the value.
 - Heard on NVDA, VoiceOver and Orca with real keys before this record is called implemented.
+
+## 4a. Found in the owner's first try of the demo (2026-09-30)
+
+- **An editable combo's list button did not open the list with a pointer** where the list is a
+  window of its own (the Mac). The press opened the list, and the outside-press observer the
+  opening registered heard the same press after its dispatch, took the text field inside the
+  combo for "elsewhere" and closed the list. A press inside the combo is no longer "elsewhere".
+  The keyboard path, which ADR 051's reader runs used, never met it; the in-scene tests neither.
+- A press where the chips stand opens the list, as it does on a combo that is not editable.
+- The "+N" badge is smaller than a chip: the label font, and inset within the chips' band.
 
 ## 5. What this does not do
 

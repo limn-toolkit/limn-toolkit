@@ -540,4 +540,38 @@ class ComboBoxTest extends ComponentTestBase {
         drive(scene).inputBatchEnded();
         assertTrue(box.highlightedIndex() < reached, "Page Up must move it back");
     }
+
+    /**
+     * The list button of an editable combo opens the list with a pointer. It did not in a window
+     * of its own (2026-09-30, reported by the owner in the combos demo): the press opened the list,
+     * and the outside-press observer the opening had just registered heard that same press after it
+     * was dispatched, took the text field for "elsewhere", and closed it.
+     */
+    @Test
+    void theListButtonOfAnEditableComboOpensTheListWithAPointer() {
+        combo = new ComboBox<>(List.of("one", "two", "three")).setEditable(true);
+        scene = new Scene(combo);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(200, 32);
+        drive(scene).mouseMoved(195, 16);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 195, 16);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 195, 16);
+        drive(scene).inputBatchEnded();
+        assertTrue(combo.isOpen(), "the press that opened the list must not close it");
+    }
+
+    /** A press on the chips of an editable combo holding many opens the list, as on a field. */
+    @Test
+    void aPressOnTheChipsOfAnEditableComboOpensTheList() {
+        combo = new ComboBox<>(List.of("one", "two", "three"))
+                .setSelectionMode(SelectionMode.MULTI).setEditable(true).setSelectedIndices(0);
+        scene = new Scene(combo);
+        scene.setTextRuler(RULER);
+        scene.layoutPass(200, 32);
+        drive(scene).mouseMoved(30, 16);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 30, 16);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, 30, 16);
+        drive(scene).inputBatchEnded();
+        assertTrue(combo.isOpen());
+    }
 }

@@ -75,7 +75,7 @@ final class CombosScene {
         ComboBox<Status> enabled = combo(editable, many);
         enabled.onSelect(() -> say.accept(caption + ": " + (many
                 ? enabled.selectedItems().stream().map(Status::label).toList()
-                : enabled.selectedText())));
+                : enabled.selectedItem() == null ? "null" : enabled.selectedItem().label())));
         label.setLabelFor(enabled);
         if (many && !editable) {
             enabled.setSelectedIndices(0, 1); // chips from the start, to see them before a click
@@ -93,9 +93,14 @@ final class CombosScene {
     }
 
     private static ComboBox<Status> combo(boolean editable, boolean many) {
-        ComboBox<Status> combo = new ComboBox<>(STATUSES, Status::label).setItemIcon(Status::glyph);
+        // Both functions are asked for null too: that is the empty option's text and icon.
+        ComboBox<Status> combo = new ComboBox<>(STATUSES,
+                status -> status == null ? "Any status" : status.label())
+                .setItemIcon(status -> status == null ? Tabler.outline("circle-dashed") : status.glyph());
         if (many) {
             combo.setSelectionMode(SelectionMode.MULTI);
+        } else {
+            combo.setEmptySelectionAllowed(true); // a first option that holds nothing (null)
         }
         return combo.setEditable(editable);
     }

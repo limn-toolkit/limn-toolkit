@@ -126,6 +126,11 @@ final class ComponentStrings {
     static final I18nString COMBO_MORE =
             new I18nString("limn.comboBox.more", "+{0}");
 
+    // What a reader hears for a combo's empty option when the application's text function gave it
+    // no words: an option a reader lands on must say something, and a blank row says nothing.
+    static final I18nString COMBO_NONE =
+            new I18nString("limn.comboBox.none", "None");
+
     // The tabbed pane's three overflow controls, for the divider's reason: each paints a chevron
     // and no text, none has a tooltip of its own, and all three are instances of a private inner
     // class no application can reach to name. They are the tooltip a sighted user hovers and the
