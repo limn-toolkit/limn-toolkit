@@ -72,7 +72,10 @@ final class CombosScene {
                             Consumer<String> say) {
         Label label = new Label(caption);
         grid.add(label);
-        ComboBox<Status> enabled = combo(editable, many);
+        // The empty option alternates between the two single rows and between enabled and
+        // disabled: worded with an icon, or blank with neither.
+        boolean worded = !editable;
+        ComboBox<Status> enabled = combo(editable, many, worded);
         enabled.onSelect(() -> say.accept(caption + ": " + (many
                 ? enabled.selectedItems().stream().map(Status::label).toList()
                 : enabled.selectedItem() == null ? "null" : enabled.selectedItem().label())));
@@ -81,22 +84,24 @@ final class CombosScene {
             enabled.setSelectedIndices(0, 1); // chips from the start, to see them before a click
         }
         grid.add(new SizedBox(260, SizedBox.UNSET, enabled));
-        ComboBox<Status> disabled = combo(editable, many);
+        ComboBox<Status> disabled = combo(editable, many, !worded);
         if (many) {
             disabled.setSelectedIndices(0, 2, 4);
         } else {
-            disabled.setSelectedIndex(2);
+            disabled.clearSelection(); // the empty option, as it looks when it cannot be changed
         }
         disabled.setEnabled(false);
         disabled.setAccessibleName(caption + ", disabled");
         grid.add(new SizedBox(260, SizedBox.UNSET, disabled));
     }
 
-    private static ComboBox<Status> combo(boolean editable, boolean many) {
-        // Both functions are asked for null too: that is the empty option's text and icon.
+    private static ComboBox<Status> combo(boolean editable, boolean many, boolean wordedEmpty) {
+        // Both functions are asked for null too: that is the empty option's text and icon, here
+        // either "Any status" with a dashed circle, or nothing at all.
         ComboBox<Status> combo = new ComboBox<>(STATUSES,
-                status -> status == null ? "Any status" : status.label())
-                .setItemIcon(status -> status == null ? Tabler.outline("circle-dashed") : status.glyph());
+                status -> status == null ? (wordedEmpty ? "Any status" : "") : status.label())
+                .setItemIcon(status -> status == null
+                        ? (wordedEmpty ? Tabler.outline("circle-dashed") : null) : status.glyph());
         if (many) {
             combo.setSelectionMode(SelectionMode.MULTI);
         } else {
