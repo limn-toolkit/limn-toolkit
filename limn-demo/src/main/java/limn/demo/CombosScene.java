@@ -119,6 +119,9 @@ final class CombosScene {
         } else {
             combo.setEmptySelectionAllowed(true); // a first option that holds nothing (null)
         }
+        // Shown, muted, only while the field would read nothing: none held, or an empty option with
+        // no words of its own.
+        combo.setPlaceholder("Choose a status");
         return combo.setEditable(editable);
     }
 }

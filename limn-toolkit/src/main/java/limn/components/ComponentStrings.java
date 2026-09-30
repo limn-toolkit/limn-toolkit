@@ -131,6 +131,14 @@ final class ComponentStrings {
     static final I18nString COMBO_NONE =
             new I18nString("limn.comboBox.none", "None");
 
+    // What a screen reader is told a combo holding many holds: the count, then every name, the ones
+    // a "+N" hides from sight included (ADR 052 §4). And the same field holding none. The names are
+    // {0} and the count {1}, since a plural string appends its count after the caller's arguments.
+    static final limn.i18n.PluralString COMBO_SELECTED = limn.i18n.PluralString.of(
+            "limn.comboBox.selected", "{1} selected: {0}", "{1} selected: {0}");
+    static final I18nString COMBO_NONE_SELECTED =
+            new I18nString("limn.comboBox.noneSelected", "None selected");
+
     // The tabbed pane's three overflow controls, for the divider's reason: each paints a chevron
     // and no text, none has a tooltip of its own, and all three are instances of a private inner
     // class no application can reach to name. They are the tooltip a sighted user hovers and the

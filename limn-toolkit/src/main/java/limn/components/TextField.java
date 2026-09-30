@@ -983,7 +983,10 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                     ShapedText.Direction.of(hint, neutralBase()));
             float hintX = rtl ? left + inner - hintLine.metrics().width() : left;
             float caretX = rtl ? left + inner : left;
-            canvas.drawText(hintLine, hintX, baseline, theme.textMuted());
+            // Muted, and the disabled ink on a disabled field, where it read brighter than the
+            // disabled text beside it.
+            canvas.drawText(hintLine, hintX, baseline,
+                    isEnabled() ? theme.textMuted() : theme.disabledText());
             if (isFocused() && cursorVisible) {
                 canvas.drawLine(caretX, inkTop - Strokes.INK_BLEED,
                         caretX, inkTop + metrics.height() + Strokes.INK_BLEED,

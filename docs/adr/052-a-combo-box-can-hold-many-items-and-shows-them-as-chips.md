@@ -77,6 +77,11 @@ ComboBox<Status> status = new ComboBox<>(List.of(Status.values()), Status::label
   other combo does its label (the owner's correction, 2026-09-30: the field first showed only the
   icon), and takes it when emptied by hand or when its text is typed back, instead of refusing. Turned off while nothing is held, the combo takes the first item. Holding many, the
   list has no such option: an empty selection is already a state.
+- `setPlaceholder(String | I18nString)` (the owner's idea, 2026-09-30, taken with §4): a muted
+  hint the field shows only while it reads nothing — a combo holding many with none selected, an
+  empty option without words of its own, an editable combo's emptied text. It is never the value:
+  an empty option with words shows them. It names the combo for a reader when set, as a text
+  field's placeholder does, so a combo is no longer named by the item it happens to hold.
 - `setChipRenderer(Function<? super T, ? extends Widget<?>>)`: the widget a chip is drawn with,
   asked once per item when it is first selected. It is drawn and never operated: it takes no
   pointer and no keyboard, and it is not in the accessible tree (a reader hears the field's
