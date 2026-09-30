@@ -120,6 +120,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      * answer there. -1 for none.
      */
     private int selectedIndex;
+    /** How a chip is drawn, or {@code null} for the default pill; see {@link #setChipRenderer}. */
+    private @Nullable Function<? super T, ? extends Widget<?>> chipRenderer;
+    /** The chips standing for a selection of many in the field, while holding many; else null. */
+    private @Nullable ChipStrip chipStrip;
     /** How many items the combo holds; see {@link #setSelectionMode}. */
     private SelectionMode selectionMode = SelectionMode.SINGLE;
     /** The items selected in {@code MULTI}, by index; empty in {@code SINGLE}. */
@@ -242,6 +246,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         this.rows = allRows(this.items.size());
         setFocusable(true);
         setCursor(Cursor.POINTER);
+        followOwnEnabled();
     }
 
     /**
@@ -268,7 +273,21 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         this.selectedIndex = -1;
         setFocusable(true);
         setCursor(Cursor.POINTER);
+        followOwnEnabled();
         setEditable(true);
+    }
+
+    /**
+     * Carries this combo's enabled flag to the text field inside it, which paints and publishes
+     * from its own: a disabled editable combo drew its text and its fill as an enabled field's,
+     * while the pointer and the keyboard already could not reach it.
+     */
+    private void followOwnEnabled() {
+        observeChanges((source, change) -> {
+            if (source == this && change.aspect() == Change.Aspect.ENABLED && editor != null) {
+                editor.setEnabled(isEnabled());
+            }
+        });
     }
 
     private static <V> List<I18nString> labelsOf(List<V> values, Function<? super V, ?> text) {
@@ -434,6 +453,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             }
         }
         syncEditor();
+        refreshChips();
         markNeedsLayout();
         invalidate();
         invalidateAccessible();
@@ -589,6 +609,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     private void chosenMoved(Change.Origin origin) {
         selectedIndex = chosen.nextSetBit(0);
+        refreshChips();
         invalidate();
         markNeedsLayout(); // the chips
         if (popupPanel != null) {
@@ -661,8 +682,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         editable = value;
         if (value) {
             editor = new Editor(this);
+            editor.setEnabled(isEnabled());
             add(editor);
             syncEditor(); // the selected item's text, or holding many, none
+            refreshChips(); // back above the editor
             setFocusable(false); // the editor takes the keyboard; Tab lands there
         } else {
             Editor gone = editor;
@@ -743,12 +766,68 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         this.iconOf = icon;
         icons = iconsOf(values);
         syncEditor();
+        if (chipStrip != null) {
+            chipStrip.forget(); // a custom chip may show the icon too
+        }
+        refreshChips();
         markNeedsLayout();
         invalidate();
         if (popupPanel != null) {
             popupPanel.invalidate();
         }
         return this;
+    }
+
+    /**
+     * Replaces how a chip is drawn in the field of a combo holding many: the widget standing for an
+     * item, asked once per item when it is first selected. It is drawn and never operated, taking
+     * no pointer and no keyboard, and it is not in the accessible tree, since a reader hears the
+     * field's value, which names every item. UI thread only.
+     *
+     * @param renderer the widget for an item, or {@code null} for the default chip, a pill with
+     *                 the item's icon and text
+     * @return this combo
+     * @throws IllegalArgumentException later, when a chip it answers can take the keyboard
+     */
+    public ComboBox<T> setChipRenderer(@Nullable Function<? super T, ? extends Widget<?>> renderer) {
+        Ui.checkUiThread();
+        this.chipRenderer = renderer;
+        if (chipStrip != null) {
+            chipStrip.forget();
+        }
+        refreshChips();
+        return this;
+    }
+
+    /** Whether the chips stand in the field now: holding many, with no text typed over them. */
+    boolean chipsShown() {
+        return chipStrip != null && chipStrip.isVisible();
+    }
+
+    /**
+     * Puts the chip strip in step with the mode, the selection and the text: present while holding
+     * many, above the editor, and shown while there is no text typed.
+     */
+    private void refreshChips() {
+        if (selectionMode != SelectionMode.MULTI) {
+            if (chipStrip != null) {
+                remove(chipStrip);
+                chipStrip = null;
+                markNeedsLayout();
+            }
+            return;
+        }
+        if (chipStrip == null) {
+            chipStrip = new ChipStrip();
+            add(chipStrip);
+        } else if (children().indexOf(chipStrip) != children().size() - 1) {
+            remove(chipStrip); // after the editor, so it paints over the field the editor draws
+            add(chipStrip);
+        }
+        chipStrip.setVisible(editor == null || editor.text().isEmpty());
+        chipStrip.rebuild();
+        markNeedsLayout();
+        invalidate();
     }
 
     private List<@Nullable Icon> iconsOf(List<T> of) {
@@ -971,6 +1050,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // The chips come back when the list goes (ADR 052 §3): the filter goes with it.
             editor.setText("");
             rows = allRows(items.size());
+            refreshChips();
         }
         invalidate();
         notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
@@ -1236,6 +1316,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 editor.setText("");
             }
             editor.setLeadingIcon(null);
+            refreshChips();
             return;
         }
         if (!editor.text().equals(selectedText())) {
@@ -1247,6 +1328,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     /** The editor's text changed by the user's hand: filter, and show the list with its first row. */
     private void editorTyped() {
+        if (selectionMode == SelectionMode.MULTI) {
+            refreshChips(); // text hides the chips, and none shows them again
+        }
         if (search != null) {
             searchFor(editor.text());
             return;
@@ -1450,6 +1534,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         protected void onFocusLost() {
             super.onFocusLost();
             combo.commitText();
+        }
+
+        /** Holding many, the chips stand in the empty field's place: no hint, no caret under them. */
+        @Override
+        boolean paintsEmptyContent() {
+            return !combo.chipsShown();
         }
 
         /**
@@ -1798,6 +1888,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
                 theme.outline().lerp(theme.focusRing(), focus));
 
+        if (selectionMode == SelectionMode.MULTI) {
+            paintChevron(canvas, theme, t, rtl);
+            return; // the chips stand for the selection, drawn by the strip above this
+        }
         String label = selectedText();
         // The vertical band stays the measured one, because that is what baselineOffset()
         // reports and a row aligned on a baseline the paint does not use is a row out of line.
@@ -1829,7 +1923,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         canvas.drawText(line, textX,
                 (height() - metrics.height()) / 2 + metrics.ascent(), ink);
         canvas.restore();
+        paintChevron(canvas, theme, t, rtl);
+    }
 
+    private void paintChevron(Canvas canvas, Theme theme, SizeTokens t, boolean rtl) {
         // Caret triangle (flips while open). Half-height is half the half-width at every
         // step, so the arrow angle is invariant: the same arrow, smaller. Only the gutter it
         // sits in changes sides; the triangle is symmetric about cx and points up and down,
@@ -2026,6 +2123,17 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     protected void onLayout() {
         if (editor != null) {
             editor.layoutBox(0, 0, width(), height());
+        }
+        if (chipStrip != null) {
+            // The band the text would take: from the field's leading inset to the list button
+            // (an editable combo's trailing region, else the chevron's clip), both sides by
+            // direction.
+            SizeTokens t = Theme.of(this).tokensFor(this);
+            float lead = t.segInset() * 2;
+            float trail = editor != null ? t.fieldTrailing() : t.comboTextClip();
+            float w = Math.max(0, width() - lead - trail);
+            chipStrip.measure(Constraints.tight(w, height()));
+            chipStrip.layoutBox(isRightToLeft() ? trail : lead, 0, w, height());
         }
     }
 
@@ -2232,6 +2340,239 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             }
         }
         return -1;
+    }
+
+    // ---------------------------------------------------------- chips (ADR 052)
+
+    /**
+     * The selection of many, standing in the field: a chip per selected item in the list's order,
+     * as many as fit whole on the field's one line, then a "+N" badge for the rest. When even the
+     * first chip does not fit beside the badge it is given what is left, and the default chip
+     * shortens its text with an ellipsis.
+     *
+     * <p>Drawn and never operated: it answers no hit test, so a press goes to the field beneath it
+     * as though the chips were paint, and it is out of the accessible tree with everything in it,
+     * since the field's value already names every item.
+     */
+    private final class ChipStrip extends Widget<ChipStrip> {
+
+        /** The chip made for each item, kept while the renderer stands, so it is asked once. */
+        private final java.util.Map<Integer, Widget<?>> made = new java.util.HashMap<>();
+        private final Badge badge = new Badge();
+        /** The items shown, in order, as the last rebuild found them. */
+        private int[] shown = new int[0];
+
+        ChipStrip() {
+            setAccessibleIgnored(true);
+        }
+
+        /** Drops every chip made, so the next rebuild asks the renderer again. */
+        void forget() {
+            made.clear();
+        }
+
+        /** Puts one chip per selected item under this strip, in the list's order, and the badge. */
+        void rebuild() {
+            int[] now = chosen.stream().filter(i -> i < values.size()).toArray();
+            boolean same = java.util.Arrays.equals(now, shown) && children().size() == now.length + 1;
+            if (same) {
+                return;
+            }
+            shown = now;
+            while (!children().isEmpty()) {
+                remove(children().get(0));
+            }
+            for (int item : now) {
+                add(made.computeIfAbsent(item, this::chipFor));
+            }
+            add(badge);
+            markNeedsLayout();
+            invalidate();
+        }
+
+        private Widget<?> chipFor(int item) {
+            Function<? super T, ? extends Widget<?>> renderer = chipRenderer;
+            if (renderer == null) {
+                return new Chip(item);
+            }
+            Widget<?> chip = Objects.requireNonNull(renderer.apply(values.get(item)),
+                    "the chip renderer answered null");
+            refuseFocusable(chip);
+            return chip;
+        }
+
+        private void refuseFocusable(Widget<?> widget) {
+            if (widget.isFocusable()) {
+                throw new IllegalArgumentException("a chip is drawn and never operated, and "
+                        + widget.getClass().getSimpleName() + " can take the keyboard");
+            }
+            for (Widget<?> child : widget.children()) {
+                refuseFocusable(child);
+            }
+        }
+
+        @Override
+        public @Nullable Widget<?> hitTest(float localX, float localY) {
+            return null; // paint to the pointer: a press is the field's
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            return constraints.constrain(constraints.maxWidth(), constraints.maxHeight());
+        }
+
+        @Override
+        protected void onLayout() {
+            SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
+            boolean rtl = ComboBox.this.isRightToLeft();
+            float gap = t.spacingSmall();
+            float chipH = Math.max(0, height() - 2 * t.segInset());
+            float y = (height() - chipH) / 2;
+            int n = shown.length;
+            float[] widths = new float[n];
+            for (int i = 0; i < n; i++) {
+                Widget<?> chip = children().get(i);
+                widths[i] = chip.measure(Constraints.loose(Float.POSITIVE_INFINITY, chipH)).width();
+            }
+            // As many whole chips as fit with the badge after them when any are left over.
+            int fit = n;
+            for (int k = n; k >= 0; k--) {
+                float total = 0;
+                for (int i = 0; i < k; i++) {
+                    total += widths[i] + (i > 0 ? gap : 0);
+                }
+                if (k < n) {
+                    badge.count = n - k;
+                    total += (k > 0 ? gap : 0) + badge.measure(Constraints.loose(width(), chipH)).width();
+                }
+                if (total <= width() || k == 0) {
+                    fit = k;
+                    break;
+                }
+            }
+            boolean squeezed = fit == 0 && n > 0;
+            if (squeezed) {
+                // Not even the first chip fits beside the badge: it takes what the badge leaves.
+                fit = 1;
+                badge.count = n - 1;
+                float badgeW = n > 1 ? badge.measure(Constraints.loose(width(), chipH)).width() + gap : 0;
+                widths[0] = Math.max(0, width() - badgeW);
+            }
+            float x = 0;
+            for (int i = 0; i < n; i++) {
+                Widget<?> chip = children().get(i);
+                if (i >= fit) {
+                    chip.measure(Constraints.tight(0, chipH));
+                    chip.layoutBox(0, y, 0, chipH);
+                    chip.setVisible(false);
+                    continue;
+                }
+                chip.setVisible(true);
+                chip.measure(Constraints.tight(widths[i], chipH));
+                chip.layoutBox(rtl ? width() - x - widths[i] : x, y, widths[i], chipH);
+                x += widths[i] + gap;
+            }
+            boolean more = fit < n;
+            badge.setVisible(more);
+            if (more) {
+                badge.count = n - fit;
+                float bw = badge.measure(Constraints.loose(width(), chipH)).width();
+                badge.layoutBox(rtl ? width() - x - bw : x, y, bw, chipH);
+            } else {
+                badge.layoutBox(0, y, 0, chipH);
+            }
+        }
+    }
+
+    /**
+     * The default chip: a pill with the item's icon, when the combo gives items one, and its text,
+     * shortened with an ellipsis when the strip gives it less than it asked for.
+     */
+    private final class Chip extends Widget<Chip> {
+
+        private final int item;
+
+        Chip(int item) {
+            this.item = item;
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
+            float text = textRuler().measure(items.get(item).get(), t.body()).width();
+            Icon icon = iconOfItem(item);
+            float w = 2 * chipPadH(t) + text + (icon != null ? t.fieldIcon() + t.spacingSmall() : 0);
+            return constraints.constrain(w, constraints.maxHeight());
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            Theme theme = Theme.of(this);
+            SizeTokens t = theme.tokensFor(ComboBox.this);
+            boolean rtl = ComboBox.this.isRightToLeft();
+            boolean enabled = ComboBox.this.isEnabled();
+            canvas.fillRoundRect(0, 0, width(), height(), t.segPillRadius(),
+                    enabled ? theme.primary().withAlpha(0.16f) : theme.disabledFill());
+            Color ink = enabled ? theme.text() : theme.disabledText();
+            float pad = chipPadH(t);
+            float x = pad;
+            Icon icon = iconOfItem(item);
+            if (icon != null) {
+                float ico = t.fieldIcon();
+                icon.paint(canvas, rtl ? width() - pad - ico : pad, (height() - ico) / 2, ico, ink,
+                        theme.isDark(), false);
+                x += ico + t.spacingSmall();
+            }
+            Font font = t.body();
+            float room = Math.max(0, width() - x - pad);
+            ShapedText line = textRuler().shape(items.get(item).get(), font,
+                    ShapedText.Direction.of(items.get(item).get(), neutralBase()));
+            if (line.metrics().width() > room) {
+                line = textRuler().ellipsize(line, room);
+            }
+            TextMetrics metrics = textRuler().measure("Hg", font);
+            canvas.drawText(line, rtl ? width() - x - line.metrics().width() : x,
+                    (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+        }
+    }
+
+    /** The count of the chips that did not fit: "+2", in the language's digits. */
+    private final class Badge extends Widget<Badge> {
+
+        private int count;
+
+        private String text() {
+            return ComponentStrings.COMBO_MORE.format(count);
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
+            float w = 2 * chipPadH(t) + textRuler().measure(text(), t.body()).width();
+            return constraints.constrain(w, constraints.maxHeight());
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            Theme theme = Theme.of(this);
+            SizeTokens t = theme.tokensFor(ComboBox.this);
+            boolean enabled = ComboBox.this.isEnabled();
+            canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.segPillRadius(),
+                    enabled ? theme.surfaceRaised() : theme.disabledFill(), Strokes.BORDER,
+                    theme.outline());
+            Font font = t.body();
+            String text = text();
+            ShapedText line = textRuler().shape(text, font, ShapedText.Direction.of(text, neutralBase()));
+            TextMetrics metrics = textRuler().measure("Hg", font);
+            canvas.drawText(line, (width() - line.metrics().width()) / 2,
+                    (height() - metrics.height()) / 2 + metrics.ascent(),
+                    enabled ? theme.textMuted() : theme.disabledText());
+        }
+    }
+
+    /** A chip's inner margin on each side of its content. */
+    private static float chipPadH(SizeTokens t) {
+        return t.spacingSmall() + t.segInset();
     }
 
     // ---------------------------------------------------------- scene popup

@@ -120,6 +120,12 @@ final class ComponentStrings {
     static final I18nString COMBO_SEPARATOR =
             new I18nString("limn.comboBox.separator", ", ");
 
+    // The badge that counts the chips a combo holding many had no room for, after the ones shown.
+    // A string and not a literal "+" and number, so the number is written in the digits the
+    // toolkit shows and a language may place the sign where it reads it.
+    static final I18nString COMBO_MORE =
+            new I18nString("limn.comboBox.more", "+{0}");
+
     // The tabbed pane's three overflow controls, for the divider's reason: each paints a chevron
     // and no text, none has a tooltip of its own, and all three are instances of a private inner
     // class no application can reach to name. They are the tooltip a sighted user hovers and the
