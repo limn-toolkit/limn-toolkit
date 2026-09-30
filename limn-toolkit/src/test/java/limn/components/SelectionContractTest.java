@@ -467,8 +467,10 @@ class SelectionContractTest extends ComponentTestBase {
 
         assertTrue(hasClearSelection(ListView.class), "ListView names the empty state");
         assertTrue(hasClearSelection(ButtonGroup.class), "ButtonGroup names the empty state");
+        // A combo holding many has one, and so has one that takes free text (ADR 052); holding one
+        // item without free text it refuses, and says why.
+        assertTrue(hasClearSelection(ComboBox.class), "ComboBox names the empty state it can have");
         assertTrue(!hasClearSelection(TabbedPane.class)
-                        && !hasClearSelection(ComboBox.class)
                         && !hasClearSelection(SegmentedControl.class),
                 "a widget that always has a selection must not offer to drop it");
     }

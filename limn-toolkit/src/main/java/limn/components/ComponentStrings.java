@@ -115,6 +115,11 @@ final class ComponentStrings {
     static final limn.i18n.PluralString COMBO_RESULTS = limn.i18n.PluralString.of(
             "limn.comboBox.results", "{0} result", "{0} results");
 
+    // What joins the texts of a combo's many selected items, where a list is written out: the
+    // language's own list comma (Arabic's "، ", Chinese and Japanese "、"), never a literal ", ".
+    static final I18nString COMBO_SEPARATOR =
+            new I18nString("limn.comboBox.separator", ", ");
+
     // The tabbed pane's three overflow controls, for the divider's reason: each paints a chevron
     // and no text, none has a tooltip of its own, and all three are instances of a private inner
     // class no application can reach to name. They are the tooltip a sighted user hovers and the

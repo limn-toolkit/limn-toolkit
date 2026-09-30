@@ -52,8 +52,9 @@ ComboBox<Status> status = new ComboBox<>(List.of(Status.values()), Status::label
 ```
 
 - `setSelectionMode(SelectionMode)`: `SINGLE`, the default, or `MULTI`. `NONE` is refused: a combo
-  box that chooses nothing is a label. Switching to `MULTI` keeps the selected item selected;
-  switching back keeps the first, or the first item when none was.
+  box that chooses nothing is a label. Switching to `MULTI` starts with nothing selected: the item
+  a combo holding one must hold was not chosen by anyone, and a report filter that opened already
+  filtering by it would be wrong. Switching back keeps the first selected, or the first item.
 - `selectedItems()` and `selectedIndices()` answer in the list's order; `isSelected(int)`;
   `setSelectedItems(Collection<? extends T>)` and `setSelectedIndices(int...)` are a caller's
   writes; `selectAll()`, `clearSelection()`. In `MULTI`, `selectedIndex()` and `selectedItem()`
