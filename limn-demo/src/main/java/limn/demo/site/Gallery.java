@@ -1047,7 +1047,7 @@ public final class Gallery {
 
         /**
          * Hands the scene the frame the script is on: the pointer's position, the button if it
-         * changed, and any wheel or text the step carries. The arrow layer is moved with it, so
+         * changed, and any wheel, text or key the step carries. The arrow layer is moved with it, so
          * what the capture shows and what the widgets were told are the same event.
          *
          * <p>Asking the film for the frame HERE, one frame before it is rendered, is what makes
@@ -1069,6 +1069,10 @@ public final class Gallery {
             }
             if (step.typed() != 0) {
                 drive(scene).charTyped(step.typed());
+            }
+            if (step.key() != 0) {
+                drive(scene).keyEvent(step.key(), true, false, step.keyModifiers());
+                drive(scene).keyEvent(step.key(), false, false, step.keyModifiers());
             }
             if (built.pointer() != null) {
                 built.pointer().setPointer(step.x(), step.y(), step.pointerVisible(), buttonDown);

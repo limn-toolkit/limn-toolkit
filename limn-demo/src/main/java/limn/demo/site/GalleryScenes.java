@@ -296,8 +296,12 @@ final class GalleryScenes {
 
     // #region gallery:combo-box
     static Built comboBox() {
-        ComboBox<String> combo = new ComboBox<>(List.of("Limn", "Limn Light", "Nord", "Dracula"));
-        combo.setSelectedIndex(0);
+        // Editable: typing narrows the list, the items that start with the text first, and a
+        // click or Enter picks one. Without setEditable(true) the field is a button.
+        ComboBox<String> combo = new ComboBox<>(List.of("Alps", "Andes", "Appalachians", "Atlas",
+                "Carpathians", "Caucasus", "Himalayas", "Pyrenees", "Rockies", "Urals"))
+                .setEditable(true);
+        combo.setSelectedItem("Andes");
         // A height, and the list is what it is for: this entry is filmed opening its list, and
         // the site crops the still and the film of an entry to ONE box, so that pressing play
         // swaps a picture rather than resizing the card. That box is the widget's, measured

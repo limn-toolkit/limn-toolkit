@@ -70,8 +70,15 @@ final class Motion {
      *              typing rather than as text appearing
      * @param wheel wheel notches to deliver at the pointer on this frame, or 0. Negative is
      *              the direction a hand turns a wheel to read further down a list
+     * @param key   a {@code Keys} constant to press and release on this frame, or 0
+     * @param keyModifiers the {@code Keys.MOD_*} bits held for that key
      */
-    record Frame(float x, float y, boolean down, boolean pointerVisible, int typed, float wheel) {
+    record Frame(float x, float y, boolean down, boolean pointerVisible, int typed, float wheel,
+                 int key, int keyModifiers) {
+
+        Frame(float x, float y, boolean down, boolean pointerVisible, int typed, float wheel) {
+            this(x, y, down, pointerVisible, typed, wheel, 0, 0);
+        }
 
         Frame(float x, float y, boolean down, boolean pointerVisible) {
             this(x, y, down, pointerVisible, 0, 0);
@@ -134,6 +141,9 @@ final class Motion {
         }
 
         record Type(String text, int framesPerCharacter) implements Step {
+        }
+
+        record Key(int key, int modifiers) implements Step {
         }
 
         record Reveal(Aim aim, int frames) implements Step {
@@ -236,6 +246,22 @@ final class Motion {
             throw new IllegalArgumentException("framesPerCharacter must be >= 1");
         }
         steps.add(new Step.Type(text, framesPerCharacter));
+        return this;
+    }
+
+    /**
+     * Presses and releases {@code key} with {@code modifiers} held, on whatever has focus. Costs
+     * one frame.
+     *
+     * <p>For the few beats a character cannot carry: selecting a field's text so the typing
+     * that follows replaces it. A key is invisible in the film, so the frame after it has to
+     * show what it did, or the viewer sees the widget change by itself.
+     */
+    Motion key(int key, int modifiers) {
+        if (key == 0) {
+            throw new IllegalArgumentException("key must be a Keys constant, got 0");
+        }
+        steps.add(new Step.Key(key, modifiers));
         return this;
     }
 
@@ -378,6 +404,9 @@ final class Motion {
             if (current instanceof Step.Type typing) {
                 return "type \"" + typing.text() + "\"";
             }
+            if (current instanceof Step.Key key) {
+                return "key " + key.key();
+            }
             return ((Step.Button) current).down() ? "press" : "release";
         }
 
@@ -423,6 +452,8 @@ final class Motion {
                 }
             } else if (current instanceof Step.Reveal reveal) {
                 return new Frame(x, y, down, pointerVisible, 0, wheelFor(reveal));
+            } else if (current instanceof Step.Key key) {
+                return new Frame(x, y, down, pointerVisible, 0, 0, key.key(), key.modifiers());
             }
             return new Frame(x, y, down, pointerVisible, 0, 0);
         }
@@ -461,7 +492,7 @@ final class Motion {
             if (current instanceof Step.Reveal reveal) {
                 return reveal.frames();
             }
-            return 1; // press, release
+            return 1; // press, release, key
         }
 
         /**

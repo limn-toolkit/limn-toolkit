@@ -1,6 +1,7 @@
 package limn.demo.site;
 
 import limn.backend.Cursor;
+import limn.components.Accelerator;
 import limn.components.Button;
 import limn.components.Checkbox;
 import limn.components.ColorPicker;
@@ -19,6 +20,7 @@ import limn.components.chart.LineChart;
 import limn.components.date.CalendarView;
 import limn.components.date.DateField;
 import limn.components.date.DatePicker;
+import limn.input.Keys;
 import limn.components.VideoView;
 import limn.components.Viewport3D;
 import limn.scene.Widget;
@@ -463,7 +465,8 @@ final class Films {
     }
 
     /**
-     * The list opened, walked into, typed at, and the row that names picked.
+     * The field clicked, its text selected and typed over, the list narrowing letter by letter,
+     * and Enter picking the one row left.
      *
      * <p>The list is asked for IN_SCENE here rather than in the scene the site publishes as the
      * sample. A native drop-down is a second window and the capture reads this window's
@@ -471,27 +474,35 @@ final class Films {
      * harness pins what filming needs, the way it pins the calendar's today, and the published
      * code stays what a reader should copy.
      *
-     * <p><b>The typed letter and the row under the pointer are the same row on purpose.</b>
-     * Type-ahead moves the highlight and a click takes whatever is under the arrow, so a film
-     * that typed "d" while resting over Nord would show the highlight on one row and the
-     * selection land on another -- which reads as a broken widget rather than as two ways of
-     * choosing the same thing.
+     * <p>The select-all and the Enter are keys, which a film cannot show; the frame after each
+     * can, since the selected "Andes" is the field's own highlight and the pick closes the list.
+     * Without the select-all the letters would land after "Andes", which filters to nothing: a
+     * click chose a caret, as it does in any field.
+     *
+     * <p><b>Picked with Enter, not a click on a row,</b> because the keyboard never leaves the
+     * field: the list is found by the filter and the highlight, not by the pointer, and aiming
+     * into it would need the list's panel, which the scene reaches through the focus for every
+     * other popup and cannot here.
      */
     private static Motion comboBox(GalleryScenes.Built built) {
         ComboBox<?> combo = (ComboBox<?>) find(built, ComboBox.class, 0);
         combo.setDisplayMode(DisplayMode.IN_SCENE);
         return Motion.script()
                 .from(OFF_X, OFF_Y)
-                .to(combo, 0.5f, 0.5f, TRAVEL)
+                .to(combo, 0.3f, 0.5f, TRAVEL)
                 .hold(SETTLE)
                 .press().hold(6).release()
-                .hold(LOOK)
-                // Down into the list, onto the last row: Dracula, which is what "d" spells.
-                .to("the open list", () -> openList(built), 0.5f, 0.86f, 16)
+                .hold(6)
+                .key(Keys.A, Accelerator.commandModifier())
+                // Off the text, so the letters are not typed under the arrow, and short of the
+                // list button, whose hover would say the pointer is about to use it.
+                .to(combo, 0.62f, 0.5f, 10)
                 .hold(SETTLE)
-                .type("d", 8)
+                .type("ca", 8)
                 .hold(LOOK)
-                .press().hold(6).release()
+                .type("u", 8)
+                .hold(LOOK)
+                .key(Keys.ENTER, 0)
                 .hold(LOOK + 8);
     }
 
@@ -499,8 +510,7 @@ final class Films {
      * A date typed the way a person types one: the month clicked, two digits, and the caret
      * rolling on by itself to the day, which takes two more.
      *
-     * <p>No arrow key and no Tab, because a film delivers a pointer and characters and nothing
-     * else; what the film claims is the segmenting, which a still of "9/9/2026" cannot carry --
+     * <p>No arrow key and no Tab, because what the film claims is the segmenting, which a still of "9/9/2026" cannot carry --
      * that the field is three places a digit goes, and that a finished segment hands the caret
      * to the next one.
      */
@@ -801,25 +811,6 @@ final class Films {
             motion.hold(SETTLE + 2).to(chart, point[0], point[1], 14);
         }
         return motion.hold(LOOK + 12);
-    }
-
-    /**
-     * The combo's in-scene list: the overlay's one panel. Throws rather than aiming at a list
-     * that is not open, which would film a pointer gliding into the middle of the canvas.
-     */
-    private static Widget<?> openList(GalleryScenes.Built built) {
-        Widget<?> layer = overlay(built);
-        if (layer == null) {
-            throw new IllegalStateException("a film step aims into the combo's list and none is"
-                    + " open; the click that drops it either missed or has not been given enough"
-                    + " frames to be dispatched and laid out");
-        }
-        if (layer.children().size() != 1) {
-            throw new IllegalStateException("the overlay holding the list carries "
-                    + layer.children().size() + " children, not the single panel this aims at: "
-                    + names(layer));
-        }
-        return layer.children().get(0);
     }
 
     /** The transport's play button: the bar's only child is its row, and the row leads with it. */
