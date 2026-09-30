@@ -122,6 +122,14 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private boolean editable;
     /** The text the user types into, while the combo is editable. */
     private @Nullable Editor editor;
+    /** How a typed text that names no item becomes one, or {@code null} to accept items only. */
+    private @Nullable Function<String, ? extends T> freeText;
+    /** The value a free text became, while {@link #selectedIndex} is -1. */
+    private @Nullable T freeValue;
+    /** That text, as the field shows it and the tree publishes it; empty for no selection. */
+    private I18nString freeLabel = I18nString.literal("");
+    /** How much of a refused text is read back: a paste is typed too. */
+    private static final int REFUSAL_QUOTE_LIMIT = 32;
     /** Whether an item matches the typed text, or {@code null} for the default rule. */
     private @Nullable BiPredicate<? super T, String> filter;
     /** Makes the grafted list's highlight the tree's cursor while the editor keeps the keyboard. */
@@ -274,7 +282,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     protected void handleUserChange(Change.Aspect aspect) {
         if (aspect == Change.Aspect.SELECTION) {
             if (onSelect != null) {
-                onSelect.accept(values.get(selectedIndex));
+                onSelect.accept(selectedItem());
             }
             return;
         }
@@ -282,21 +290,44 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     }
 
     /**
-     * The selected item's index; never negative, since a combo refuses an empty item list and so
-     * always has exactly one selection. There is nothing to clear to.
+     * The selected item's index. Never negative for a combo that chooses: it refuses an empty item
+     * list and so always has exactly one selection. -1 only for an editable combo with free text
+     * ({@link #setFreeText}), while its value is a text the list does not hold, or none.
      */
     public int selectedIndex() {
         return selectedIndex;
     }
 
-    /** The selected item itself. */
-    public T selectedItem() {
-        return values.get(selectedIndex);
+    /**
+     * The selected item itself: one of the items, or what a free text became, or {@code null} when
+     * an editable combo with free text was emptied.
+     */
+    public @Nullable T selectedItem() {
+        return selectedIndex >= 0 ? values.get(selectedIndex) : freeValue;
     }
 
-    /** The selected item as it currently reads, in the UI language. */
+    /** The selected item as it currently reads, in the UI language: empty when nothing is selected. */
     public String selectedText() {
-        return items.get(selectedIndex).get();
+        return selectedLabel().get();
+    }
+
+    private I18nString selectedLabel() {
+        return selectedIndex >= 0 ? items.get(selectedIndex) : freeLabel;
+    }
+
+    /**
+     * Lets an editable combo take a text that names no item, as a "City" that may be new or a tag
+     * does: leaving the field with such a text makes it the value, through {@code fromText}, and
+     * leaving it empty clears the value. {@code null}, the default, accepts items only: such a text
+     * is refused, put back to the selected item's, and a screen reader is told so. UI thread only.
+     *
+     * @param fromText how a text becomes an item, or {@code null} to accept items only
+     * @return this combo
+     */
+    public ComboBox<T> setFreeText(@Nullable Function<String, ? extends T> fromText) {
+        Ui.checkUiThread();
+        this.freeText = fromText;
+        return this;
     }
 
     /**
@@ -345,6 +376,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             editor = null;
             remove(gone);
             rows = allRows(items.size());
+            if (selectedIndex < 0) {
+                select(0, Change.Origin.CODE); // a combo that chooses always holds an item
+            }
             setFocusable(true);
         }
         markNeedsLayout();
@@ -408,6 +442,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             return;
         }
         selectedIndex = index;
+        freeValue = null;
+        freeLabel = I18nString.literal("");
         invalidate();
         syncEditor();
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
@@ -726,6 +762,36 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         return -1;
     }
 
+    /** Makes a free text the value: an editable combo with {@link #setFreeText} only. */
+    private void selectFree(String text, @Nullable T value, Change.Origin origin) {
+        if (selectedIndex < 0 && text.equals(freeLabel.get()) && java.util.Objects.equals(value, freeValue)) {
+            return;
+        }
+        selectedIndex = -1;
+        freeValue = value;
+        freeLabel = I18nString.literal(text);
+        invalidate();
+        syncEditor();
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+    }
+
+    /**
+     * Tells a reader that a typed text was refused and what the field holds again, in the words the
+     * spinner uses for a refused number, since the two refusals are the same event.
+     */
+    private void announceRefused(String typed) {
+        Scene scene = scene();
+        String quoted = typed.strip();
+        if (scene == null || quoted.isEmpty()) {
+            return;
+        }
+        if (quoted.codePointCount(0, quoted.length()) > REFUSAL_QUOTE_LIMIT) {
+            quoted = quoted.substring(0, quoted.offsetByCodePoints(0, REFUSAL_QUOTE_LIMIT)) + "…";
+        }
+        scene.announce(ComponentStrings.SPINNER_REFUSED.format(quoted, selectedText()),
+                Accessible.Politeness.POLITE);
+    }
+
     /** Puts the selected item's text in the editor, when it shows anything else. */
     private void syncEditor() {
         if (editor != null && !editor.text().equals(selectedText())) {
@@ -826,9 +892,16 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         if (open) {
             close(Change.Origin.USER);
         }
-        int named = typed.equals(selectedText()) ? selectedIndex : itemNamed(typed);
-        if (named >= 0) {
-            select(named, Change.Origin.USER);
+        if (!typed.equals(selectedText())) {
+            int named = itemNamed(typed);
+            if (named >= 0) {
+                select(named, Change.Origin.USER);
+            } else if (freeText != null) {
+                selectFree(typed, typed.isEmpty() ? null : freeText.apply(typed), Change.Origin.USER);
+            } else {
+                syncEditor(); // put back first, so the sentence says what the field holds now
+                announceRefused(typed);
+            }
         }
         syncEditor();
         rows = allRows(items.size());
@@ -1479,7 +1552,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // and a Label bound to this field names it through LABELLED_BY. The source form, never
         // the cached one: the item is an I18nString this widget holds, compared by reference, so
         // a hover or focus fade walks this hook without allocating.
-        a.name(items.get(selectedIndex), Accessible.NameFrom.CONTENT);
+        a.name(selectedLabel(), Accessible.NameFrom.CONTENT);
         // The POPUP_OWNER shape, written once (ADR 045 §3): HAS_POPUP always, and not only
         // while the list is down, because a combo that could not be opened would not be a combo;
         // the open state as the facet, never state(EXPANDED, ...), which the builder ignores by
@@ -1492,7 +1565,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // every verb beneath the layer that owns input (ADR 039 §1.13, amended 2026-09-15); in a
         // window of its own the field keeps the input and the verb stands.
         PopupOwnerAccessibility.describe(a, open);
-        a.value(selectedIndex, 0, items.size() - 1, 1);
+        if (selectedIndex >= 0) {
+            // A free text has no place among the items to number: its text is the editor's own,
+            // which a reader reads there.
+            a.value(selectedIndex, 0, items.size() - 1, 1);
+        }
         // The witness is the pair the item's text is a function of: which item is selected, and
         // the epoch every translation moves on. There is no cache to guard here -- the string is
         // the model's own, resolved through its memo -- and the witness says so rather than

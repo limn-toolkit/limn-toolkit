@@ -141,6 +141,51 @@ class EditableComboBoxTest extends AccessibleComponentTestBase {
     }
 
     @Test
+    void refusedTextIsPutBackAndTheReaderIsToldWhatTheFieldHoldsAgain() {
+        build();
+        clearText();
+        type("Padaria Nova");
+        bridge.events.clear();
+        scene.requestFocus(after);
+        frame();
+        List<String> said = new ArrayList<>();
+        for (limn.accessibility.AccessibleEvent event : bridge.events) {
+            if (event.type() == limn.accessibility.AccessibleEvent.Type.ANNOUNCEMENT) {
+                said.add(String.valueOf(event.newValue()));
+            }
+        }
+        assertEquals(List.of(ComponentStrings.SPINNER_REFUSED.format("Padaria Nova", "São Paulo Alimentos")),
+                said, "the spinner's sentence, politely, once");
+    }
+
+    @Test
+    void freeTextBecomesTheValueAndAnEmptyFieldClearsIt() {
+        build();
+        combo.setFreeText(text -> text.toUpperCase(java.util.Locale.ROOT));
+        clearText();
+        type("Padaria Nova");
+        scene.requestFocus(after);
+        frame();
+        assertEquals(-1, combo.selectedIndex(), "a value the list does not hold");
+        assertEquals("PADARIA NOVA", combo.selectedItem(), "what the application made of the text");
+        assertEquals("Padaria Nova", editor().text(), "the field keeps the text as typed");
+        assertEquals(List.of("PADARIA NOVA"), picked);
+
+        scene.requestFocus(editor());
+        clearText();
+        scene.requestFocus(after);
+        frame();
+        assertEquals(null, combo.selectedItem(), "emptied, with free text on: no value");
+        assertEquals("", editor().text());
+
+        scene.requestFocus(editor());
+        type("atlas ferragens");
+        scene.requestFocus(after);
+        frame();
+        assertEquals(2, combo.selectedIndex(), "a text that names an item still picks the item");
+    }
+
+    @Test
     void downOpensEveryItemWhenTheTextIsTheSelectedOnes() {
         build();
         press(Keys.DOWN);
