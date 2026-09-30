@@ -10,6 +10,7 @@ import limn.components.ScrollView;
 import limn.components.Separator;
 import limn.components.TextField;
 import limn.components.Theme;
+import limn.concurrent.Ui;
 import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
@@ -190,6 +191,46 @@ public final class FormExample {
         ScrollView scroll = new ScrollView(new Padding(Insets.all(16), form), false, true);
         scroll.setBarLayout(ScrollGutters.Layout.RESERVED);
         return scroll;
+    }
+    // #endregion
+
+    /** A customer, as a sales order's "Customer" field holds one. */
+    record Customer(String name, String city) {
+    }
+
+    /** Where customers are looked up: the application's own, a database or a service. */
+    interface CustomerDirectory {
+        /** At most {@code limit} customers whose name contains {@code text}. Blocking. */
+        List<Customer> find(String text, int limit);
+    }
+
+    /**
+     * An editable combo over a list in memory: typing filters it, the items starting with the
+     * text first, and the value is a {@code Customer}, not its text.
+     */
+    // #region guide:combo-editable
+    static ComboBox<Customer> customerField(List<Customer> customers) {
+        ComboBox<Customer> customer = new ComboBox<>(customers, Customer::name).setEditable(true);
+        customer.onSelect(picked -> System.out.println("Bill to " + picked.city()));
+        return customer;
+    }
+    // #endregion
+
+    /** A field that suggests and still takes a text it does not know. */
+    // #region guide:combo-free-text
+    static ComboBox<String> cityField(List<String> known) {
+        return new ComboBox<>(known).setEditable(true).setFreeText(text -> text.strip());
+    }
+    // #endregion
+
+    /**
+     * An editable combo whose items come from a search run off the user-interface thread: the
+     * directory is asked once the typing pauses, and never on the thread that paints.
+     */
+    // #region guide:combo-search
+    static ComboBox<Customer> customerSearch(CustomerDirectory directory) {
+        return new ComboBox<Customer>(Customer::name)
+                .setSearch(text -> Ui.async(() -> directory.find(text, 50)));
     }
     // #endregion
 

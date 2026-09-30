@@ -32,7 +32,7 @@ rather than "text field". A caption that merely sits above a field names nothing
 | `PasswordField` | the same, masked |
 | `TextArea` | several lines, with its own scrollbars |
 | `SearchField` | a text field with search affordances |
-| `ComboBox` | one choice from a list |
+| `ComboBox` | one choice from a list, or typed into and filtered as it is |
 | `Spinner` | a number with steppers |
 | `DateField` | a date, a time, or both, typed into segments the language orders |
 | `DatePicker` | the same field with a calendar behind a button; `ofRange()` for a period |
@@ -61,6 +61,45 @@ otherwise live as long as the widget does.
 
 A handler slot holds one handler: registering a second one throws, and `null` clears it. Two
 parties that both want to hear the same widget are both watching, and watching has no such limit.
+
+## Choosing from many
+
+A combo box that only opens is right for a handful of choices. For a "Customer" field among forty
+thousand, the user types a few letters and picks, and that is one call: `setEditable(true)`.
+
+{% snippet guide:combo-editable %}
+
+**The items are your objects.** `ComboBox<T>` holds whatever the application picks from, a record,
+an entity, an enum, and the function in the constructor says how each one reads. `onSelect` and
+`selectedItem()` hand back the object itself, so nothing is looked up again by its text.
+
+**Typing filters.** The list opens on the first keystroke and shows the items whose text contains
+what was typed, ignoring case and accents, so "sao" finds "São Paulo Alimentos", with the ones that
+*start* with it first. The first row is highlighted and the field is not completed in place: Down
+and Up walk the list, Enter picks the highlighted row, Escape closes it and a second Escape puts
+the selected item's text back. `setFilter((item, text) -> …)` replaces the rule when "contains" is
+not what a field means, a code that must match from its start, say.
+
+**Leaving the field decides.** Tab picks the item whose text the field holds, whatever its case or
+accents. A text that names no item is put back to the selected one, and a screen reader is told it
+was not accepted. A field that should keep such a text, a city that may be new or a tag, says how a
+text becomes a value; an emptied field then clears it.
+
+{% snippet guide:combo-free-text %}
+
+**A search instead of a list.** When the items live in a database, the combo asks for them as the
+user types. `setSearch` takes the text and answers later; `Ui.async` runs the lookup off the thread
+that paints. The combo waits 200 ms after the last keystroke before asking, shows "Loading…" in
+the list meanwhile, drops an answer for a text the user has already typed past, and says "No
+results" when there are none. A screen reader hears how many were found.
+
+{% snippet guide:combo-search %}
+
+**What a screen reader gets.** The keyboard stays in the field while the list is up: the reader
+stands on the text field, named by its caption, and hears the highlighted option as its cursor
+moves, "Alps, 1 of 6", then "Atlas, 1 of 2" as the next letter narrows the list. Enter reads the
+field again with the item it now holds. The field says it filters a list and which list, the shape
+a browser gives an ARIA combo box, which is what keeps Orca from reading the list twice.
 
 ## Dates and times
 

@@ -1,7 +1,7 @@
 # ADR 051: A combo box can be typed into, and searches as it is
 
-- **Status:** Accepted, 2026-09-30, with the owner's six answers below. Implementation on branch
-  `claude/editable-combo`.
+- **Status:** Implemented, 2026-09-30, with the owner's six answers below and a seventh (§7).
+  Where the build departs from §4, §7 says so.
 - **Date:** 2026-09-30
 - **Scope:** `ComboBox` becomes generic over its items, and gains an editable mode: typing filters
   the list, the items may come from a list or from a search the application runs in the background,
@@ -151,3 +151,47 @@ These are the toolkit's defaults, chosen here and changeable by a later record.
 5. Accessibility contract (ADR 045 shape), a gallery entry "Combo box, editable" and its reader
    script; live runs on the three readers beside a native control.
 6. The forms guide, the CHANGELOG, and this record's status.
+
+## 7. What was built, and where it departs from this record (2026-09-30)
+
+All six steps landed. What differs from the text above, each for a reason a test or a reader gave:
+
+- **The reader stands on a text field, not on a combo box with a text facet.** The editor is
+  `ComboBox.Editor`, a `TextField` permitted by the sealed class, published as `TEXT_FIELD` inside
+  the `COMBO_BOX` node, and named by the combo's caption; the combo node names nothing while
+  editable, since its item is the field's text (it was read as "Andes, combo box, Mountain ranges,
+  edit"). That is the shape GTK 3 gives a combo with an entry, and the one NVDA, VoiceOver and Orca
+  read as "Cordilheiras, edição, Andes", "Andes, Cordilheiras, editar texto" and "Cordilheiras
+  editable combo box Andes".
+- **The list never takes the keyboard.** In a window of its own it is grafted and its highlight is
+  the tree's cursor (`SceneAccess.showCursorOf`); drawn in the scene it is an overlay that leaves
+  the keyboard with the field (`SceneAccess.pushPopupLeavingKeyboard`), which the walk and the
+  action gate treat as operable on both layers.
+- **A seventh decision, the owner's (2026-09-30): the field says it autocompletes.** Orca 50.2 read
+  the narrowed list twice at every keystroke, because its priority queue handles the cursor before
+  the field's caret, which puts it back on the field, and the list's selection change then moved it
+  to the row again. It reads such a change as the field's own business only when the field has
+  `supports-autocompletion` and the list is `controlled-by` it. So `Accessible.State` gained
+  `AUTOCOMPLETES` (ADR 039 §1.2 amended: the one state only one platform carries as a flag), and
+  the field is `CONTROLLER_FOR` the list while it is shown, named back by the list's
+  `CONTROLLED_BY` — the shape a browser gives an ARIA combo box. The owner chose it over a rule the
+  Linux bridge would infer, and over leaving it known.
+- **Two Linux bridge corrections the runs found.** A cursor that leaves a focus which stays now
+  puts Orca back on the focus, said between the publish's text changes and its caret; Enter was
+  heard as "return" and nothing else, and a context menu closed with Escape said nothing of its
+  button. And a one-line editable field is `single-line` (derived, as GTK 3's entries are; GTK 4.22
+  and Qt 6 publish neither bit): Orca 50.2 read the value an Enter put in the field a second time
+  as typed text.
+- **The native comparison was made on Linux only.** The state shapes of GTK 3, GTK 4.22 and Qt 6
+  entries were read on the Fedora guest and decided the `single-line` derivation. No native
+  editable combo was driven beside ours on Windows or macOS: NVDA and VoiceOver read ours word for
+  word the same before and after the Linux changes, and none of the three findings was theirs.
+- **Heard (real keys, pt-BR):** NVDA "caixa de combinação, recolhido / Cordilheiras, edição, Andes
+  / a / Cordilheiras, lista, Alps, 1 de 6 / Atlas, 1 de 2 / Carpathians, 2 de 2 / Cordilheiras,
+  edição, Carpathians"; VoiceOver "Andes, Cordilheiras, editar texto / Alps, item de lista / Atlas,
+  item de lista / Carpathians, item de lista / Carpathians, Cordilheiras, editar texto"; Orca 46.1
+  (Ubuntu X11, list in a window) "Cordilheiras editable combo box Andes / … List with 6 items. Alps
+  / … List with 2 items. Atlas / Carpathians / Cordilheiras editable combo box Carpathians"; Orca
+  50.2 (Fedora Wayland, list in the scene) the same, with one difference kept as known: the first
+  Down after a letter reads the list's name and count again, since the caret put Orca on the field.
+
