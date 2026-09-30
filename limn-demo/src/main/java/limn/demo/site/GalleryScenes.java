@@ -3,6 +3,7 @@ package limn.demo.site;
 import limn.components.Button;
 import limn.components.Checkbox;
 import limn.components.ComboBox;
+import limn.components.SelectionMode;
 import limn.components.Label;
 import limn.components.PasswordField;
 import limn.components.ProgressBar;
@@ -136,8 +137,9 @@ final class GalleryScenes {
      * component least likely to be anyone's first question.
      *
      * <p>So adding an entry means deciding where it belongs, and appending is a decision
-     * too. The only pair deliberately kept together rather than ranked is ProgressBar and
-     * its indeterminate variant: one component, two pictures.
+     * too. The pairs deliberately kept together rather than ranked are ProgressBar and its
+     * indeterminate variant, and ComboBox and the same combo holding many: one component, two
+     * pictures.
      */
     static List<GalleryEntry> entries() {
         return List.of(
@@ -150,6 +152,8 @@ final class GalleryScenes {
                         GalleryScenes::checkbox),
                 new GalleryEntry("combo-box", "ComboBox", "gallery:combo-box",
                         GalleryScenes::comboBox),
+                new GalleryEntry("combo-box-many", "ComboBox (many)", "gallery:combo-box-many",
+                        GalleryScenes::comboBoxMany),
                 new GalleryEntry("list-view", "ListView", "gallery:list-view",
                         GalleryScenes::listView),
                 new GalleryEntry("table", "Table", "gallery:table", GalleryScenes::table),
@@ -311,6 +315,17 @@ final class GalleryScenes {
         room.mainAlignment(Flex.MainAlignment.START).crossAlignment(Flex.CrossAlignment.STRETCH);
         room.add(combo);
         return scene(new SizedBox(260, 176, room));
+    }
+    // #endregion
+
+    // #region gallery:combo-box-many
+    static Built comboBoxMany() {
+        // Holding many: a chip per item in the list's order, and a count of what does not fit.
+        ComboBox<String> combo = new ComboBox<>(List.of("Alps", "Andes", "Appalachians", "Atlas",
+                "Carpathians", "Caucasus", "Himalayas", "Pyrenees", "Rockies", "Urals"))
+                .setSelectionMode(SelectionMode.MULTI);
+        combo.setSelectedItems(List.of("Andes", "Atlas", "Caucasus", "Himalayas", "Pyrenees", "Urals"));
+        return scene(new SizedBox(300, SizedBox.UNSET, combo));
     }
     // #endregion
 

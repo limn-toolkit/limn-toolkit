@@ -7,10 +7,12 @@ import limn.components.Label;
 import limn.components.PasswordField;
 import limn.components.ScrollGutters;
 import limn.components.ScrollView;
+import limn.components.SelectionMode;
 import limn.components.Separator;
 import limn.components.TextField;
 import limn.components.Theme;
 import limn.concurrent.Ui;
+import limn.graphics.Icon;
 import limn.scene.Change;
 import limn.scene.Insets;
 import limn.scene.Scene;
@@ -231,6 +233,40 @@ public final class FormExample {
     static ComboBox<Customer> customerSearch(CustomerDirectory directory) {
         return new ComboBox<Customer>(Customer::name)
                 .setSearch(text -> Ui.async(() -> directory.find(text, 50)));
+    }
+    // #endregion
+
+    /** An order status, what a sales report is filtered by, with its icon. */
+    record Status(String label, Icon icon) {
+    }
+
+    /** Where a report's filter goes: the application's own. */
+    interface Report {
+        /** Shows only the orders in these statuses; every order for none. */
+        void filterBy(List<Status> statuses);
+    }
+
+    /**
+     * A combo that holds many: the report's status filter, whose chips show what is chosen and
+     * whose hint stands in the field while nothing is.
+     */
+    // #region guide:combo-many
+    static ComboBox<Status> statusFilter(List<Status> statuses, Report report) {
+        ComboBox<Status> status = new ComboBox<>(statuses, Status::label)
+                .setSelectionMode(SelectionMode.MULTI)
+                .setItemIcon(Status::icon)
+                .setPlaceholder("Any status");
+        status.onSelect(() -> report.filterBy(status.selectedItems()));
+        return status;
+    }
+    // #endregion
+
+    /** A combo holding one item that may hold none: its empty option, worded by the same function. */
+    // #region guide:combo-empty
+    static ComboBox<Status> statusField(List<Status> statuses) {
+        // Asked for null as well: that is the empty option, which reads "No status".
+        return new ComboBox<>(statuses, s -> s == null ? "No status" : s.label())
+                .setEmptySelectionAllowed(true);
     }
     // #endregion
 

@@ -10,6 +10,8 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- A disabled `TextField`'s placeholder is drawn in the disabled ink: it read brighter than the
+  disabled text beside it.
 - Orca reads the field again when a popup's cursor leaves it and the focus stays: an editable
   combo's Enter was heard as "return" and nothing more, and a context menu closed with Escape said
   nothing of the button the keyboard was back on: Orca had stayed on the closed list's row.
@@ -217,6 +219,22 @@ Maven Central say which number that was.
   200 ms after the last keystroke, shows "Loading…", "No results" or "Search failed" as a line of
   the list, drops an answer for a text the user has typed past, and tells a screen reader how many
   were found.
+- `ComboBox.setSelectionMode(SelectionMode.MULTI)`: a combo box that holds many items, with
+  `ListView`'s words for the rest (`selectedItems`, `selectedIndices`, `isSelected`,
+  `setSelectedIndices`, `setSelectedItems`, `selectAll`, `clearSelection`). The list stays down while
+  a click, Space or Enter checks and unchecks its rows, and Ctrl+A (Cmd+A) checks every item; the
+  closed field shows a chip per item in the list's order, as many as fit on its line, then a count
+  of the rest ("+2"). An editable one's text only filters, and hides the chips while it is there. A
+  screen reader hears the count and every name as the field's value ("3 selected: Open, Invoiced,
+  Shipped"), in the 21 shipped languages. Not with a search or with free text.
+- `ComboBox.setChipRenderer(item -> widget)` draws those chips with a widget of the application's,
+  drawn and never operated; `ComboBox.setItemIcon(item -> icon)` puts an icon before an item's text
+  in the list, in a chip and in the field of a combo holding one.
+- `ComboBox.setEmptySelectionAllowed(true)`: a combo holding one item may hold none. Its list starts
+  with an option standing for nothing, whose value is `null`, worded and drawn by the text and icon
+  functions asked for `null`; an editable one emptied by hand takes it.
+- `ComboBox.setPlaceholder(…)`: a muted hint the field shows only while it reads nothing (none held,
+  an empty option without words, an emptied text), which also names the combo for a screen reader.
 - `Accessible.State.AUTOCOMPLETES`: a field that filters or completes from a list it controls,
   which it names with `CONTROLLER_FOR` while the list is shown. AT-SPI carries it as
   `supports-autocompletion`; UI Automation and AppKit have no such flag and read the relation.
@@ -433,6 +451,11 @@ Maven Central say which number that was.
 
 ### Known, and left for later
 
+- In a combo holding many, VoiceOver reads each toggle as the field's new value followed by "text
+  inserted", and a lone "None" after Escape closes an editable one's list; Orca 46.1 does not
+  announce a toggle (it reads the field's value once the list closes). NVDA and Orca 50.2 read
+  "selected" and "not selected" at each toggle.
+- Orca 50.2 reads a combo box that is not editable without its value, for one item as for many.
 - Orca 50.2 reads an editable combo's list with its count again ("Cordilheiras, List with 2 items,
   Carpathians") on the first Down after a letter is typed: the field's caret puts Orca back on the
   field as the letter lands, so the next move into the list is a move into it. Orca 46.1, NVDA and

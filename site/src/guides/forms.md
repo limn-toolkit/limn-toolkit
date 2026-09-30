@@ -101,6 +101,33 @@ moves, "Alps, 1 of 6", then "Atlas, 1 of 2" as the next letter narrows the list.
 field again with the item it now holds. The field says it filters a list and which list, the shape
 a browser gives an ARIA combo box, which is what keeps Orca from reading the list twice.
 
+**Choosing several.** A report filter wants "Open, Invoiced and Shipped" at once, and that is one
+more call: `setSelectionMode(SelectionMode.MULTI)`, the words a `ListView` uses. The list stays
+down while items are checked, with a click, Space or Enter, and Ctrl+A (Cmd+A) checks every one.
+The closed field shows a chip per item, in the list's order, as many as fit on its line, then a
+count of the rest, "+2". `onSelect` hears every change, and `selectedItems()` answers in the list's
+order.
+
+{% snippet guide:combo-many %}
+
+An editable combo that holds many keeps its text as a filter only: typing narrows the list and hides
+the chips, Enter checks the highlighted row and empties the text, and the chips come back. A text
+that names an item is never committed by leaving the field. `setChipRenderer` draws a chip with a
+widget of your own, which is drawn and never operated; `setItemIcon` puts an icon before an item's
+text in the list, in a chip and in the field of a combo holding one.
+
+A screen reader hears the count and every name as the field's value, "3 selected: Open, Invoiced,
+Shipped", the ones behind the "+N" included, and in the list whether each option is selected.
+
+**Nothing chosen.** A combo holding one item always holds one, unless it is told otherwise:
+`setEmptySelectionAllowed(true)` puts a first option in the list that stands for nothing, and
+choosing it makes `selectedItem()` `null`. It reads as your text function answers for `null`, and
+shows what your icon function answers for it, so it is worded as the items are. A hint that should
+fill a field reading nothing, without being a value of its own, is `setPlaceholder`: it shows only
+while the field would otherwise be blank, and an empty option that has words wins over it.
+
+{% snippet guide:combo-empty %}
+
 ## Dates and times
 
 A date is the one field a form cannot be written without and the one a text field is wrong for.

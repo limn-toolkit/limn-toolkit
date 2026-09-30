@@ -1,6 +1,8 @@
 # ADR 052: A combo box can hold many items, and shows them as chips
 
-- **Status:** Accepted, 2026-09-30, with the owner's answers below. Being built.
+- **Status:** Implemented, 2026-09-30, with the owner's answers below and the three he added
+  after trying the demo (decision 8, the placeholder, the chips' height). §7 says where the build
+  departs from the text.
 - **Date:** 2026-09-30
 - **Scope:** `ComboBox<T>` gains a multiple selection, shown in the closed field as a row of chips
   that ends in a count of the ones that did not fit; its items gain an optional icon; a chip's
@@ -166,3 +168,23 @@ ComboBox<Status> status = new ComboBox<>(List.of(Status.values()), Status::label
 5. Accessibility (§4), the sentences in the 21 languages, a gallery entry and a reader script;
    live runs on the three readers.
 6. The forms guide, the site gallery, the CHANGELOG, and this record's status.
+
+## 7. What was built, and where it departs from this record (2026-09-30)
+
+All six steps landed on the day. Where the build differs from §1 to §4:
+
+- **Switching to `MULTI` starts empty** (§2 was corrected before the code): the item a combo
+  holding one must hold was nobody's choice.
+- **An editable combo shows the empty option's words in its field** (§2, the owner's correction):
+  the first build left the text empty and showed only the icon.
+- **The name of a combo with a placeholder is the placeholder**, for one item as for many, so a
+  combo is no longer named by the item it holds once an application gives it a hint.
+- **A pointer defect of ADR 051 was found and fixed here** (§4a), with two tests that fail
+  without the fix; a disabled editable combo drew its text field as an enabled one, fixed too.
+- **Heard on four guests** (§4b). Left open and in the CHANGELOG's known list: VoiceOver's "texto
+  inserido" after a toggle and its lone "Nenhum" after Escape in the editable one; Orca 46.1's
+  silent toggle; Orca 50.2 reading no value of a combo that is not editable, which predates this
+  record.
+- **Documentation:** the forms guide's "Choosing several" and "Nothing chosen", each with a sample
+  `FormExample` compiles; a "ComboBox (many)" card on the components page; the `--scene combos`
+  demo with every kind, enabled and disabled.
