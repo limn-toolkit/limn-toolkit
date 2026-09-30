@@ -126,8 +126,27 @@ class EmptyOptionComboBoxTest extends AccessibleComponentTestBase {
         scene.requestFocus(after);
         frame();
         assertNull(combo.selectedItem());
-        assertEquals("", editor.text(), "nothing, in a text field, is empty text");
+        assertEquals("Any status", editor.text(), "the empty option reads as itself in the field");
         assertEquals(java.util.Arrays.asList((Status) null), picked);
+    }
+
+    @Test
+    void anEditableOneShowsTheEmptyOptionsTextAndTakesItTypedBack() {
+        build(true);
+        TextField editor = (TextField) combo.children().get(0);
+        combo.clearSelection();
+        frame();
+        assertEquals("Any status", editor.text());
+        press(Keys.DOWN);
+        assertEquals(4, combo.rowsForTest().length, "its own text filters nothing: every row");
+        press(Keys.ESCAPE);
+        combo.setSelectedIndex(1);
+        editor.setText("any STATUS");
+        frame();
+        scene.requestFocus(after);
+        frame();
+        assertNull(combo.selectedItem(), "its text typed back, case aside, is the empty option");
+        assertEquals("Any status", editor.text());
     }
 
     @Test

@@ -73,8 +73,9 @@ ComboBox<Status> status = new ComboBox<>(List.of(Status.values()), Status::label
   `clearSelection()`, makes `selectedItem()` `null` and `selectedIndex()` -1. It reads as the text
   function answers for `null` and shows what the icon function answers for `null`; a function
   that cannot take `null` (a method reference on the item) leaves it blank, and a reader then
-  hears the toolkit's "None". An editable combo emptied by hand takes it instead of refusing the
-  empty text. Turned off while nothing is held, the combo takes the first item. Holding many, the
+  hears the toolkit's "None". An editable combo shows the option's text in its field, as the
+  other combo does its label (the owner's correction, 2026-09-30: the field first showed only the
+  icon), and takes it when emptied by hand or when its text is typed back, instead of refusing. Turned off while nothing is held, the combo takes the first item. Holding many, the
   list has no such option: an empty selection is already a state.
 - `setChipRenderer(Function<? super T, ? extends Widget<?>>)`: the widget a chip is drawn with,
   asked once per item when it is first selected. It is drawn and never operated: it takes no

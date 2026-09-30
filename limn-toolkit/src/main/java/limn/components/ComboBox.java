@@ -762,9 +762,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         if (selectedIndex >= 0) {
             return items.get(selectedIndex);
         }
-        // The empty option reads as itself in a field that shows a label; an editable field is
-        // empty text, which is what "nothing" is there.
-        return emptyChosen() && editor == null ? emptyLabel : freeLabel;
+        // The empty option reads as itself, in the field that shows a label and in the text of an
+        // editable one alike: an editable field showing only its icon read as a broken field.
+        return emptyChosen() ? emptyLabel : freeLabel;
     }
 
     /**
@@ -1612,8 +1612,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             int named = itemNamed(typed);
             if (named >= 0) {
                 select(named, Change.Origin.USER);
-            } else if (typed.isEmpty() && emptyAllowed) {
-                selectEmpty(Change.Origin.USER); // an emptied field is the empty option
+            } else if (emptyAllowed && (typed.isEmpty() || fold(typed).equals(fold(emptyLabel.get())))) {
+                // An emptied field is the empty option, and so is its own text typed back.
+                selectEmpty(Change.Origin.USER);
             } else if (freeText != null) {
                 selectFree(typed, typed.isEmpty() ? null : freeText.apply(typed), Change.Origin.USER);
             } else {
