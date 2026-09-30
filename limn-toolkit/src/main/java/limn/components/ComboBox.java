@@ -14,6 +14,7 @@ import limn.concurrent.Subscription;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.graphics.Icon;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.graphics.Path2D;
@@ -97,6 +98,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private List<I18nString> items;
     /** How an item reads, kept for the items a search answers with. */
     private final Function<? super T, ?> textOf;
+    /** An item's icon, or {@code null} for none at all; see {@link #setItemIcon}. */
+    private @Nullable Function<? super T, ? extends @Nullable Icon> iconOf;
+    /** Each item's icon, in the order of {@link #values}, while {@link #iconOf} is set; else empty. */
+    private List<@Nullable Icon> icons = List.of();
     /** Where the items come from while the user types, or {@code null} for the list in memory. */
     private @Nullable Function<String, ? extends java.util.concurrent.CompletionStage<? extends List<? extends T>>> search;
     /** Numbers the searches asked for: an answer for any but the newest is dropped. */
@@ -469,6 +474,46 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         return this;
     }
 
+    /**
+     * Gives each item an icon, shown before its text in the list, in a chip and in the field of a
+     * combo holding one item (ADR 052). Tinted with the text's ink as a {@link Label}'s is, so a
+     * picture that must keep its colours is an icon that is not {@linkplain Icon#tintable()
+     * tintable}. Asked once per item, here and when a search answers. UI thread only.
+     *
+     * @param icon an item's icon, answering {@code null} for an item without one; or {@code null}
+     *             to show none
+     * @return this combo
+     */
+    public ComboBox<T> setItemIcon(@Nullable Function<? super T, ? extends @Nullable Icon> icon) {
+        Ui.checkUiThread();
+        this.iconOf = icon;
+        icons = iconsOf(values);
+        syncEditor();
+        markNeedsLayout();
+        invalidate();
+        if (popupPanel != null) {
+            popupPanel.invalidate();
+        }
+        return this;
+    }
+
+    private List<@Nullable Icon> iconsOf(List<T> of) {
+        Function<? super T, ? extends @Nullable Icon> icon = iconOf;
+        if (icon == null) {
+            return List.of();
+        }
+        List<@Nullable Icon> out = new java.util.ArrayList<>(of.size());
+        for (T value : of) {
+            out.add(icon.apply(value));
+        }
+        return java.util.Collections.unmodifiableList(out);
+    }
+
+    /** @return item {@code index}'s icon, or {@code null} when it has none or no item has one */
+    private @Nullable Icon iconOfItem(int index) {
+        return index >= 0 && index < icons.size() ? icons.get(index) : null;
+    }
+
     /** @return what the field shows: the text typed into an editable combo, else the selected item's */
     public String text() {
         return editor != null ? editor.text() : selectedText();
@@ -758,6 +803,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         int serial = ++searchSerial;
         values = List.of();
         items = List.of();
+        icons = List.of();
         rows = new int[0];
         if (text.isEmpty()) {
             statusLine = null;
@@ -800,6 +846,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         } else {
             values = List.copyOf(found);
             items = labelsOf(values, textOf);
+            icons = iconsOf(values);
             rows = allRows(items.size());
             statusLine = rows.length == 0 ? ComponentStrings.COMBO_NO_RESULTS : null;
             Scene scene = scene();
@@ -912,12 +959,16 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 Accessible.Politeness.POLITE);
     }
 
-    /** Puts the selected item's text in the editor, when it shows anything else. */
+    /** Puts the selected item's text in the editor, when it shows anything else, and its icon. */
     private void syncEditor() {
-        if (editor != null && !editor.text().equals(selectedText())) {
+        if (editor == null) {
+            return;
+        }
+        if (!editor.text().equals(selectedText())) {
             editor.setText(selectedText());
             editor.setCaretPosition(editor.text().length());
         }
+        editor.setLeadingIcon(iconOfItem(selectedIndex));
     }
 
     /** The editor's text changed by the user's hand: filter, and show the list with its first row. */
@@ -1378,7 +1429,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         }
         TextMetrics metrics = textRuler().measure(widestItem(t.body()), t.body());
         return constraints.constrain(
-                metrics.width() + 2 * t.fieldPadH() + t.comboCaretGutter(),
+                metrics.width() + 2 * t.fieldPadH() + t.comboCaretGutter() + iconRoom(t),
                 t.resolvedHeight(metrics.lineHeight()));
     }
 
@@ -1399,6 +1450,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             }
         }
         return widest;
+    }
+
+    /** The room an icon takes before a text, with its gap: none when no item has an icon. */
+    private float iconRoom(SizeTokens t) {
+        return icons.isEmpty() ? 0 : t.fieldIcon() + t.spacingSmall();
     }
 
     /** Mixed-step rows align on this, not on the box; see {@code Flex.CrossAlignment.BASELINE}. */
@@ -1448,7 +1504,15 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // right-to-left run fills the same box from the other end rather than growing leftwards
         // — so aligning to the edge reading starts from is choosing x, and choosing it takes
         // the run's own width.
-        float textX = rtl ? width() - t.fieldPadH() - line.metrics().width() : t.fieldPadH();
+        Icon icon = iconOfItem(selectedIndex);
+        float lead = icon != null ? iconRoom(t) : 0;
+        if (icon != null) {
+            float ico = t.fieldIcon();
+            icon.paint(canvas, rtl ? width() - t.fieldPadH() - ico : t.fieldPadH(),
+                    (height() - ico) / 2, ico, ink, theme.isDark(), false);
+        }
+        float textX = rtl ? width() - t.fieldPadH() - lead - line.metrics().width()
+                : t.fieldPadH() + lead;
         canvas.drawText(line, textX,
                 (height() - metrics.height()) / 2 + metrics.ascent(), ink);
         canvas.restore();
@@ -2249,6 +2313,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // label's trailing limit that is computed and the sides swap with the direction.
             float bandX = rtl ? inset : textStart;
             float bandW = rtl ? textStart - inset : width() - inset - textStart;
+            // The icon column, when any item has an icon: every row keeps it, so labels align.
+            float ico = t.fieldIcon();
+            float lead = iconRoom(t);
             canvas.save();
             // Keep rows off the border: the clip inset IS the border width.
             canvas.clipRect(Strokes.ROW_CLIP, Strokes.ROW_CLIP,
@@ -2281,7 +2348,15 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 // Clip each row so an over-long label can't reach the rounded border.
                 canvas.save();
                 canvas.clipRect(bandX, top, bandW, itemH);
-                canvas.drawText(line, rtl ? textStart - line.metrics().width() : textStart,
+                Icon icon = iconOfItem(rows[i]);
+                if (icon != null) {
+                    // The icon leads the text, on the side reading starts from, and the text
+                    // moves past it; a row without one keeps the column, so the labels align.
+                    icon.paint(canvas, rtl ? textStart - ico : textStart,
+                            top + (itemH - ico) / 2, ico, theme.text(), theme.isDark(), false);
+                }
+                canvas.drawText(line, rtl ? textStart - lead - line.metrics().width()
+                                : textStart + lead,
                         top + (itemH - metrics.height()) / 2 + metrics.ascent(),
                         theme.text());
                 canvas.restore();
