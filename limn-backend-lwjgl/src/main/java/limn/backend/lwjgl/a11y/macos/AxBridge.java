@@ -1231,12 +1231,23 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
             if (posting.subject() == AxNotifications.Subject.WINDOW) {
                 if (event.type() == AccessibleEvent.Type.ANNOUNCEMENT) {
                     if (announce(event)) postedNow++;
+                } else if (event.type() == AccessibleEvent.Type.MENU_CLOSED) {
+                    // Its own notice on the window, and not the window's layout change the other
+                    // window-level events collapse to: told to re-read the window as a submenu
+                    // closed, VoiceOver left the menu for the title bar's full-screen button
+                    // (graftB-context-mac-trace, 2026-09-30).
+                    long window = windowElement();
+                    if (window != 0) {
+                        post(window, posting);
+                        postedNow++;
+                    }
                 } else {
                     windowLayoutOwed = true;
                 }
                 continue;
             }
-            long subject = elementForEvent(event);
+            long subject = event.type() == AccessibleEvent.Type.MENU_OPENED
+                    ? elementForArrival(event.nodeId()) : elementForEvent(event);
             if (subject == 0) continue;
             post(subject, posting);
             postedNow++;
@@ -1536,6 +1547,15 @@ public final class AxBridge extends PlatformBridge implements AxElementClass.Sou
      */
     private long elementForEvent(AccessibleEvent event) {
         return elements.holds(event.nodeId()) ? elements.elementFor(event.nodeId()) : 0;
+    }
+
+    /**
+     * The element of a node that has just arrived, made if no client has asked for it yet: a menu
+     * that opened is announced on itself, as AppKit's own are, and nobody can have asked for a
+     * node that did not exist a publish ago. {@code 0} for a node no longer in the tree.
+     */
+    private long elementForArrival(long nodeId) {
+        return tree().indexOf(nodeId) == AccessibleNode.NONE ? 0 : elements.elementFor(nodeId);
     }
 
     /**
