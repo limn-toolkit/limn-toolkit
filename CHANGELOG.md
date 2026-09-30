@@ -192,6 +192,10 @@ Maven Central say which number that was.
 
 ### New
 
+- `AccessibleEvent.Type.MENU_OPENED` and `MENU_CLOSED`: a menu entering or leaving the accessible
+  tree, raised before the focus moves into it. Windows raises UI Automation's `MenuOpened` and
+  `MenuClosed`, macOS posts `AXMenuOpened` and `AXMenuClosed`, and AT-SPI, which has no such signal,
+  is told nothing.
 - `Wrap`, a layout that places its children along a run in reading order and starts a new run
   below when the next one does not fit: tags, filters, a toolbar that must not overflow. It takes
   `Row`'s `gap`, `mainAlignment` and `crossAlignment`, adds `runGap` between runs, mirrors in a
@@ -284,6 +288,12 @@ Maven Central say which number that was.
 
 ### Changed
 
+- A popup menu in a window of its own leaves the keyboard focus on the window that opened it, as
+  Windows' and macOS's own menus do, and is read by screen readers as part of that window. NVDA and
+  VoiceOver no longer announce a window as a menu opens and the application's window again as it
+  closes, nor a "Menu" group before the first row; VoiceOver reads a submenu opened from the
+  keyboard and reads a menu's first row once. The owner's keys go to the open menu. A menu opened
+  with `setModal(true)` still takes the focus, as it blocks its owner.
 - The `ColorPicker`'s hue thumb is the channel rails' thumb laid across the ramp: it stands proud
   of the ramp on both sides, and it is hollow, with the hue it marks in its middle. It was a thin
   bar inside the ramp that covered the hue it pointed at.

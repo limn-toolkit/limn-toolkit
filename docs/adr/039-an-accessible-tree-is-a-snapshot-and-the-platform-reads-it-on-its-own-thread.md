@@ -2278,10 +2278,17 @@ tree. `ComboBox` and `DatePicker` graft their popup windows.
 
 It is only for a popup whose window never takes the keyboard -- the field keeps it and drives the
 popup -- because one focused node per tree is what a reader relies on, and a grafted widget is never
-published `FOCUSED`. A `PopupMenu` window takes the keyboard, so a menu still publishes its own tree,
-and the cross-window machinery above (the foreign active descendant, the `CONTROLLER_FOR` mirror
-across scenes, a bridge's routing to the window holding a node) stays for it and for dialogs; it is
-retired only if menus are grafted too, which needs the menu to leave the keyboard in its owner.
+published `FOCUSED`. A `PopupMenu` window took the keyboard, so a menu published its own tree, and
+the cross-window machinery above (the foreign active descendant, the `CONTROLLER_FOR` mirror across
+scenes, a bridge's routing to the window holding a node) stayed for it and for dialogs.
+
+*(Amended 2026-09-30, the owner's decision after the menus were heard beside native ones: a
+non-modal menu is grafted too. Its window no longer takes the keyboard, as a Win32 or an AppKit menu
+does not; the owner's scene hands its keys to the menu, and the menu's cursor is the owner tree's
+active descendant wherever the focus is (`Accessibility#keyboardPopupAt`). A menu entering and
+leaving the tree raises `MENU_OPENED` and `MENU_CLOSED`. The cross-window machinery now serves only
+a modal menu, which blocks its owner and keeps the keyboard and its own tree. Heard on NVDA and
+VoiceOver in `menus-windows/graftB-*` and `menus-macos/graftC-*` of .claude/pending/2026-09-29.)*
 
 What it cost elsewhere, found by the same runs. A combo's options published `ACTIVE` through the
 list's fade-out, which in the opener's tree kept the reader on an option of a closed list until its
@@ -3544,7 +3551,7 @@ closed.)*
 | | Windows | macOS | Linux (X11) | Linux (Wayland) |
 | --- | --- | --- | --- | --- |
 | combo list | own HWND, own tree, own fragment root; `POPUP_FOR` back to the combo | own `NSWindow`, own tree; `POPUP_FOR` | own `frame` under the one application object; `POPUP_FOR` | in-scene overlay: a subtree of the owner's tree |
-| menu cascade | own HWND, focus-stealing, own tree | own window; in-scene under exclusive fullscreen | own `frame` | in-scene overlay |
+| menu cascade | own HWND, keyboard left on the owner, grafted into the owner's tree (a modal one: focus-stealing, own tree) | own window, grafted; in-scene under fullscreen | own `frame`, grafted | in-scene overlay |
 | dialog, native | own HWND, `WindowFacet` with `MODAL` | own window, `AXModal` | own `frame`, `STATE_MODAL` | native here too — a window that is genuinely a window is unaffected |
 | dialog, in scene | overlay subtree, `MODAL`, `UIA_IsDialogPropertyId`, **no `WindowFacet`** | same | same | same |
 | tooltip | not published in the first cut (§11) | | | |

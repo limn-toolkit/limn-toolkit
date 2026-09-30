@@ -230,10 +230,24 @@ tree. A pointer click in the popup's window makes it the desktop's key window on
 X11 alike, so the combo's list and the calendar hand every key that reaches their window on to the
 control that opened them, and give the owner window the keyboard back when they close while
 holding it (2026-09-24: handing it back on the click instead closed the popup under the pointer,
-because the owner's focus event arrived after the popup's blur had been checked). A popup menu's
-window takes the keyboard for itself, so a menu still publishes a tree of its own; a popup of an
+because the owner's focus event arrived after the popup's blur had been checked). A popup of an
 application's own whose keys go on to its opener in the same way calls `graftPopup` before binding
 its scene, with its root's inheritance host naming the widget that opened it.
+
+A popup menu in a window of its own is grafted the same way since 2026-09-30, and its window no
+longer takes the keyboard either: a Win32 menu and an AppKit menu leave the focus on the window that
+opened them, and so does Limn's. The owner's scene hands every key and character it receives to the
+open menu (`SceneAccess.routeKeyboard`, held until the menu's window exists), and the menu's cursor
+is the owner tree's active descendant wherever the owner's focus is, so a context menu asked of a
+button reads its rows while the button keeps the focus. The layer that holds the rows publishes no
+name and is not focusable there, since nothing can focus it. A menu entering and leaving the tree is
+told as such (`AccessibleEvent.Type.MENU_OPENED` and `MENU_CLOSED`: UI Automation's `MenuOpened` and
+`MenuClosed`, macOS's `AXMenuOpened` and `AXMenuClosed`, silence on AT-SPI, which has none). Before,
+NVDA said "menu, janela" and "Menu, grupo" before every menu's first row and the application's window
+again on every closing, and VoiceOver did the same, read the first row twice and stayed silent as a
+submenu opened; now NVDA reads the rows alone, as it reads Windows' own menu bar, and VoiceOver reads
+a submenu as AppKit's ("Transformar, submenu, 2 itens, Maiúsculas"). A modal menu blocks its owner,
+so it still takes the keyboard and keeps its own tree.
 
 ## One size step for the whole cascade
 
