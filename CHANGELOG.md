@@ -10,6 +10,12 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- On X11, a combo box's list, a date picker's calendar and a menu in a window of their own no
+  longer take the keyboard from the window that opened them. GNOME focused them as they appeared,
+  and Orca read the application's window again every time one closed. They are now windows the
+  window manager leaves alone, as GTK's and Qt's menus are.
+- VoiceOver counts a menu's items without its separators ("menu, 4 itens"), as it counts
+  AppKit's own.
 - A menu in a window of its own follows the pointer only when the pointer moves. On Windows a
   submenu opened from the keyboard over a pointer resting on the menu closed again at once,
   because Windows reports a window that grows under a still cursor as a mouse move; the highlight

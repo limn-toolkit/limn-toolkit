@@ -349,6 +349,14 @@ final class LwjglWindow implements WindowPeer {
             throw new IllegalStateException(message);
         }
         cocoaWindow = MACOS ? org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaWindow(handle) : NULL;
+        if (config.isPopup() && !config.focusOnShow() && !config.visible()
+                && org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11) {
+            // Before the first map, as GTK's menus are: GNOME on X11 focused such a popup anyway,
+            // which took the keyboard from its owner and had Orca read the owner's frame again at
+            // every closing (X11Popups says what else was tried).
+            X11Popups.unmanaged(org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Display(),
+                    org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle));
+        }
         long softwareContext = NULL;
         if (softwareGl) {
             softwareContext = MacSoftwareGl.createContext(handle, config.transparent(),

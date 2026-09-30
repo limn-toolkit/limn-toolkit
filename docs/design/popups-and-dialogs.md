@@ -249,6 +249,15 @@ submenu opened; now NVDA reads the rows alone, as it reads Windows' own menu bar
 a submenu as AppKit's ("Transformar, submenu, 2 itens, Maiúsculas"). A modal menu blocks its owner,
 so it still takes the keyboard and keeps its own tree.
 
+On X11 the window manager decides the focus, and GNOME's gave it to a popup as it was mapped
+whatever GLFW asked (`GLFW_FOCUS_ON_SHOW` only stops GLFW asking), which took the keyboard from the
+owner and had Orca read the owner's frame again at every closing. A popup that does not take the
+focus is therefore made `override_redirect` before its first map (`X11Popups`), as GTK's and Qt's
+menus and drop-down lists are: no focus, no frame, no placement and no "is ready" notice of the
+window manager's (the last is what `_NET_WM_USER_TIME` 0 alone produced). Heard 2026-09-30 on the
+Ubuntu guest under Orca: the combo's list, the context menu and the menu bar, with the owner active
+throughout.
+
 ## One size step for the whole cascade
 
 The step is resolved once when the menu opens, from an explicit `setControlSize`, else
