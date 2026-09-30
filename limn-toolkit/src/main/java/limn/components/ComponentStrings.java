@@ -97,6 +97,11 @@ final class ComponentStrings {
     static final I18nString COMBO_POPUP =
             new I18nString("limn.comboBox.popup", "Options");
 
+    // The name of an editable combo box's button that shows its list: the button paints a
+    // chevron and holds no text, and no application can reach it to name it.
+    static final I18nString COMBO_SHOW_OPTIONS =
+            new I18nString("limn.comboBox.showOptions", "Show options");
+
     // The tabbed pane's three overflow controls, for the divider's reason: each paints a chevron
     // and no text, none has a tooltip of its own, and all three are instances of a private inner
     // class no application can reach to name. They are the tooltip a sighted user hovers and the

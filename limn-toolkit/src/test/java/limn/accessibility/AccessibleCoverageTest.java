@@ -86,7 +86,13 @@ class AccessibleCoverageTest {
             // mute button's own name, which follows the bar's muted state and not the view's play
             // state, by limn.components.MediaControlsMuteButtonAccessibilityTest.
             "limn.components.MediaControls$MuteButton",
-            "limn.components.MediaControls$PlayPause"
+            "limn.components.MediaControls$PlayPause",
+            // An editable combo box's text (ADR 051) is a text field and publishes as one, under
+            // the combo's COMBO_BOX node: the shape of Windows' own editable combo (a ComboBox with
+            // an Edit inside it) and of GTK's combo with an entry. Everything a text field says --
+            // the text, the caret, the selection, the editable state -- is what this one has to say,
+            // and the combo's caption names it through the combo's label target.
+            "limn.components.ComboBox$Editor"
     ));
 
     /**

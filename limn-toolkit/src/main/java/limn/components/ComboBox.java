@@ -29,12 +29,15 @@ import limn.scene.Scrollable;
 import limn.scene.Size;
 import limn.scene.Change;
 import limn.scene.Widget;
+import limn.graphics.SvgIcon;
+import limn.scene.internal.SceneAccess;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import limn.backend.spi.WindowPeer;
@@ -115,6 +118,14 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private final Transition focusFade =
             new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
     private Consumer<? super T> onSelect;
+    /** Whether the field is text the user types into; see {@link #setEditable}. */
+    private boolean editable;
+    /** The text the user types into, while the combo is editable. */
+    private @Nullable Editor editor;
+    /** Whether an item matches the typed text, or {@code null} for the default rule. */
+    private @Nullable BiPredicate<? super T, String> filter;
+    /** Makes the grafted list's highlight the tree's cursor while the editor keeps the keyboard. */
+    private @Nullable Subscription cursorHandle;
 
     /** Reused each paint; the caret's 3 points are recomputed from the size. */
     private final Path2D caret = new Path2D();
@@ -218,6 +229,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         return all;
     }
 
+    /** @return the items the list shows, in its order: for tests of the filter */
+    int[] rowsForTest() {
+        return rows.clone();
+    }
+
     /** @return the row showing item {@code item}, or -1 when the list does not show it */
     private int rowOfItem(int item) {
         for (int row = 0; row < rows.length; row++) {
@@ -301,6 +317,72 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     }
 
     /**
+     * Makes the field text the user types into, or a button again: typing filters the list, the
+     * arrows walk it, Enter picks the highlighted item and leaving the field picks the item the
+     * text names, or puts the selected item's text back. The field keeps the caret, the
+     * selection, the clipboard and the input method while the list is up, as a text field does.
+     * UI thread only.
+     *
+     * @param value whether the field is editable
+     * @return this combo
+     */
+    public ComboBox<T> setEditable(boolean value) {
+        Ui.checkUiThread();
+        if (value == editable) {
+            return this;
+        }
+        if (open) {
+            close(Change.Origin.CODE);
+        }
+        editable = value;
+        if (value) {
+            editor = new Editor(this);
+            editor.setText(selectedText());
+            add(editor);
+            setFocusable(false); // the editor takes the keyboard; Tab lands there
+        } else {
+            Editor gone = editor;
+            editor = null;
+            remove(gone);
+            rows = allRows(items.size());
+            setFocusable(true);
+        }
+        markNeedsLayout();
+        invalidate();
+        return this;
+    }
+
+    /** @return whether the field is text the user types into; see {@link #setEditable} */
+    public boolean isEditable() {
+        return editable;
+    }
+
+    /**
+     * Replaces the rule an editable combo filters its list by: whether an item matches what is
+     * typed. The default finds the text anywhere in an item's text, ignoring case and accents, and
+     * lists the items that start with it first; a predicate lists the items it accepts in their
+     * order. UI thread only.
+     *
+     * @param rule the rule, or {@code null} for the default
+     * @return this combo
+     */
+    public ComboBox<T> setFilter(@Nullable BiPredicate<? super T, String> rule) {
+        Ui.checkUiThread();
+        this.filter = rule;
+        if (open && editor != null) {
+            showRowsFor(editor.text());
+            setHighlight(rows.length == 0 ? -1 : 0, Change.Origin.ADJUSTMENT);
+            refitPopup();
+        }
+        return this;
+    }
+
+    /** @return what the field shows: the text typed into an editable combo, else the selected item's */
+    public String text() {
+        return editor != null ? editor.text() : selectedText();
+    }
+
+    /**
      * Selects an item: a caller's write, so it announces {@code SELECTION}/{@code CODE} and
      * reaches no handler. Selecting what is already selected changes nothing and announces
      * nothing. UI thread only.
@@ -327,6 +409,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         }
         selectedIndex = index;
         invalidate();
+        syncEditor();
         notifyChange(Change.of(Change.Aspect.SELECTION, origin));
         if (open) {
             // The open list's selection is its highlight, so a value set while it is down is
@@ -481,6 +564,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             return;
         }
         open = false;
+        if (cursorHandle != null) {
+            cursorHandle.cancel();
+            cursorHandle = null;
+        }
         invalidate();
         notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
         if (dismissHandle != null) {
@@ -570,6 +657,253 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      * the popup survives while OS focus is on the owner window or on the popup
      * itself, and dismisses when it moved anywhere else.
      */
+    // ------------------------------------------------------------- editable field
+
+    /** Shows the rows an editable combo's text finds: every item for no text. */
+    private void showRowsFor(String text) {
+        int n = items.size();
+        if (text.isEmpty()) {
+            rows = allRows(n);
+            return;
+        }
+        int[] found = new int[n];
+        int count = 0;
+        if (filter != null) {
+            for (int i = 0; i < n; i++) {
+                if (filter.test(values.get(i), text)) {
+                    found[count++] = i;
+                }
+            }
+        } else {
+            // Those that start with the text first, then those that hold it anywhere, each in the
+            // items' own order: "sao" lists "São Paulo Alimentos" before "Padaria São João".
+            String wanted = fold(text);
+            boolean[] starts = new boolean[n];
+            for (int i = 0; i < n; i++) {
+                String label = fold(items.get(i).get());
+                if (label.startsWith(wanted)) {
+                    found[count++] = i;
+                    starts[i] = true;
+                }
+            }
+            for (int i = 0; i < n; i++) {
+                if (!starts[i] && fold(items.get(i).get()).contains(wanted)) {
+                    found[count++] = i;
+                }
+            }
+        }
+        rows = java.util.Arrays.copyOf(found, count);
+    }
+
+    /**
+     * A text as the default filter compares it: accents taken off (canonical decomposition, the
+     * combining marks dropped) and lower-cased in no one language's rules, so "São" and "sao",
+     * "É" and "e" meet.
+     */
+    static String fold(String text) {
+        String decomposed = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD);
+        StringBuilder out = new StringBuilder(decomposed.length());
+        for (int i = 0; i < decomposed.length(); ) {
+            int cp = decomposed.codePointAt(i);
+            int type = Character.getType(cp);
+            if (type != Character.NON_SPACING_MARK && type != Character.COMBINING_SPACING_MARK
+                    && type != Character.ENCLOSING_MARK) {
+                out.appendCodePoint(cp);
+            }
+            i += Character.charCount(cp);
+        }
+        return out.toString().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** @return the item whose text is {@code text}, compared as the filter compares, or -1 */
+    private int itemNamed(String text) {
+        String wanted = fold(text);
+        for (int i = 0; i < items.size(); i++) {
+            if (fold(items.get(i).get()).equals(wanted)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Puts the selected item's text in the editor, when it shows anything else. */
+    private void syncEditor() {
+        if (editor != null && !editor.text().equals(selectedText())) {
+            editor.setText(selectedText());
+            editor.setCaretPosition(editor.text().length());
+        }
+    }
+
+    /** The editor's text changed by the user's hand: filter, and show the list with its first row. */
+    private void editorTyped() {
+        showRowsFor(editor.text());
+        if (!open) {
+            open(Change.Origin.USER);
+        }
+        setHighlight(rows.length == 0 ? -1 : 0, Change.Origin.USER);
+        refitPopup();
+    }
+
+    /** The list button: shows every item when the text is the selected one's, else what it finds. */
+    private void toggleList() {
+        if (open) {
+            close(Change.Origin.USER);
+            return;
+        }
+        showRowsFor(editor == null || editor.text().equals(selectedText()) ? "" : editor.text());
+        open(Change.Origin.USER);
+    }
+
+    /**
+     * A key the editor received, before it handles it: the arrows walk the list, Enter picks, Escape
+     * closes the list and then puts the selected item's text back. Everything else is the editor's.
+     *
+     * @return whether the combo took the key
+     */
+    private boolean editorKey(KeyEvent event) {
+        switch (event.key()) {
+            case Keys.DOWN -> {
+                if (open) {
+                    setHighlight(highlightedRow + 1);
+                } else {
+                    showRowsFor(editor.text().equals(selectedText()) ? "" : editor.text());
+                    open(Change.Origin.USER);
+                }
+                return true;
+            }
+            case Keys.UP -> {
+                if (open) {
+                    setHighlight(highlightedRow - 1);
+                }
+                return open;
+            }
+            case Keys.PAGE_DOWN -> {
+                if (open) {
+                    setHighlight(highlightedRow + visibleRows());
+                }
+                return open;
+            }
+            case Keys.PAGE_UP -> {
+                if (open) {
+                    setHighlight(highlightedRow - visibleRows());
+                }
+                return open;
+            }
+            case Keys.ENTER -> {
+                if (open && highlightedRow >= 0) {
+                    commit(highlightedRow);
+                } else {
+                    commitText();
+                }
+                return true;
+            }
+            case Keys.ESCAPE -> {
+                if (open) {
+                    close(Change.Origin.USER);
+                    return true;
+                }
+                if (!editor.text().equals(selectedText())) {
+                    syncEditor();
+                    return true;
+                }
+                return false;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Commits what the editor holds, as leaving the field does: the item it names is picked, and any
+     * other text is put back to the selected item's.
+     */
+    private void commitText() {
+        if (editor == null) {
+            return;
+        }
+        String typed = editor.text();
+        if (open) {
+            close(Change.Origin.USER);
+        }
+        int named = typed.equals(selectedText()) ? selectedIndex : itemNamed(typed);
+        if (named >= 0) {
+            select(named, Change.Origin.USER);
+        }
+        syncEditor();
+        rows = allRows(items.size());
+    }
+
+    /** The list's rows changed while it is up: its window takes the new height, or the overlay lays out again. */
+    private void refitPopup() {
+        if (popupPanel != null) {
+            popupPanel.markNeedsLayout();
+            popupPanel.invalidate();
+        }
+        if (scenePopup != null) {
+            scenePopup.markNeedsLayout();
+            scenePopup.invalidate();
+        }
+        Scene scene = scene();
+        if (popupWindow == null || scene == null || scene.window() == null) {
+            return;
+        }
+        NativeWindow parent = scene.window();
+        SizeTokens t = Theme.of(this).tokensFor(this);
+        float gap = t.popupGap();
+        float factor = parent.logicalToScreenFactor();
+        int anchorTop = parent.screenY() + Math.round(localToSceneY() * factor);
+        int anchorBottom = parent.screenY() + Math.round((localToSceneY() + height() + gap) * factor);
+        limn.backend.ScreenRect area = parent.display() != null ? parent.display().workArea() : null;
+        float contentH = contentHeight(t);
+        float spaceBelow = area != null ? (area.bottom() - anchorBottom) / factor - EDGE_MARGIN : contentH;
+        float spaceAbove = area != null ? (anchorTop - area.y()) / factor - gap - EDGE_MARGIN : contentH;
+        Drop drop = dropFor(t, spaceAbove, spaceBelow);
+        float ownerY = drop.above() ? localToSceneY() - gap - drop.height() : localToSceneY() + height() + gap;
+        popupWindow.setSize(Math.max(1, Math.round(width())), Math.max(1, Math.round(drop.height())));
+        popupWindow.setScreenPosition(parent.screenX() + Math.round(localToSceneX() * factor),
+                parent.screenY() + Math.round(ownerY * factor));
+        popupWindow.requestFrame();
+    }
+
+    /**
+     * The text an editable combo's user types into: a text field in every way but the keys the
+     * combo takes first and the button that shows the list. The combo's caption names it, so a
+     * reader hears the field's name where the caret is.
+     */
+    static final class Editor extends TextField {
+        private final ComboBox<?> combo;
+
+        Editor(ComboBox<?> combo) {
+            this.combo = combo;
+            setTrailingButton(SvgIcon.fromResource("/limn/components/icons/chevron-down.svg"),
+                    ComponentStrings.COMBO_SHOW_OPTIONS, combo::toggleList);
+        }
+
+        @Override
+        protected void onKeyEvent(KeyEvent event) {
+            if (event.isPressed() && combo.editorKey(event)) {
+                event.consume();
+                return;
+            }
+            super.onKeyEvent(event);
+        }
+
+        @Override
+        protected void handleUserChange(Change.Aspect aspect) {
+            super.handleUserChange(aspect);
+            if (aspect == Change.Aspect.TEXT) {
+                combo.editorTyped();
+            }
+        }
+
+        @Override
+        protected void onFocusLost() {
+            super.onFocusLost();
+            combo.commitText();
+        }
+    }
+
     private void closeUnlessRefocused() {
         if (!open) {
             return;
@@ -648,7 +982,13 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // and the second one must not close the popup it is opening.
         boolean animate = owner.window() != null && !limn.animation.Motion.reduced();
         sceneFade = animate ? 0f : 1f;
-        owner.pushPopup(scenePopup);
+        if (editable) {
+            // The editor keeps the keyboard, the caret and the input method: the list is drawn
+            // over the page and driven from the field, as its window of its own is.
+            SceneAccess.pushPopupLeavingKeyboard(owner, scenePopup);
+        } else {
+            owner.pushPopup(scenePopup);
+        }
         if (animate) {
             ScenePopup fading = scenePopup;
             owner.addRealTimeTicker(dt -> {
@@ -718,6 +1058,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // Published by this window's tree, under the combo, as a native drop-down list is a child
         // of its field: a reader never leaves this window while the list is open.
         scene().graftPopup(popupScene);
+        if (editable) {
+            // The editor holds the caret and the keyboard; the list's highlight is still what a
+            // reader follows, as ARIA's combobox points at it with aria-activedescendant.
+            cursorHandle = SceneAccess.showCursorOf(scene(), popupScene);
+        }
         popupScene.bind(popupWindow);
         // Clicking the list may hand OS focus to the popup window itself; when
         // THAT later blurs, the same dismiss rule applies.
@@ -768,6 +1113,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // selection did not move.
         close(Change.Origin.USER);
         select(chosen, Change.Origin.USER);
+        // Re-picking the item already selected moves nothing, and still puts its text back over
+        // whatever was typed to find it.
+        syncEditor();
     }
 
     // ----------------------------------------------------------- field visual
@@ -834,6 +1182,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     @Override
     protected void onPaint(Canvas canvas) {
+        if (editable) {
+            return; // the editor draws the field, its frame, its text and the list button
+        }
         Theme theme = Theme.of(this);
         SizeTokens t = theme.tokensFor(this);
         Font font = t.body();
@@ -893,6 +1244,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     @Override
     protected void onMouseEvent(MouseEvent event) {
+        if (editable) {
+            return; // the editor's, and its list button's
+        }
         switch (event.type()) {
             case ENTER -> hover.to(1);
             case EXIT -> hover.to(0);
@@ -913,8 +1267,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     @Override
     protected void onKeyEvent(KeyEvent event) {
-        if (!event.isPressed()) {
-            return;
+        if (!event.isPressed() || editable) {
+            return; // an editable combo's keys reach it through its editor
         }
         boolean handled = true;
         if (!open) {
@@ -975,7 +1329,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     @Override
     protected void onCharTyped(limn.scene.event.CharEvent event) {
         int codepoint = event.codepoint();
-        if (!open || codepoint < 0x20 || codepoint == 0x7F || rows.length == 0) {
+        if (editable || !open || codepoint < 0x20 || codepoint == 0x7F || rows.length == 0) {
             return;
         }
         // The scene's clock rather than the wall's. They are one clock in an application; in a
@@ -1047,6 +1401,19 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     @Override
     protected void onFocusGained() {
         focusFade.to(1);
+    }
+
+    /** An editable combo's caption names its editor, where the caret and the reader are. */
+    @Override
+    protected Widget<?> accessibleLabelTarget() {
+        return editor != null ? editor : this;
+    }
+
+    @Override
+    protected void onLayout() {
+        if (editor != null) {
+            editor.layoutBox(0, 0, width(), height());
+        }
     }
 
     @Override

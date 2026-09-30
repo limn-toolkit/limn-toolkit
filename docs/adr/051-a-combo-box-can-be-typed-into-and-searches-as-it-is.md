@@ -79,7 +79,17 @@ ComboBox<Customer> customer = new ComboBox<>(List.of(), Customer::name)   // how
   default of decision 4. Applies to a list in memory; a search does its own finding.
 - `setSearch(Function<String, CompletionStage<List<T>>>)`: `null` returns to the list in memory.
 
-*Built so far:* step 1 of §6, `ComboBox<T>` with the repository migrated (2026-09-30).
+*Built so far* (2026-09-30): step 1 of §6, `ComboBox<T>` with the repository migrated; step 2,
+the editable field. The field is a text field inside the combo (`ComboBox.Editor`, a permitted
+subclass of `TextField`), so the caret, the selection, the clipboard, undo and the input method
+are a text field's own, and the tree reads a combo box holding a text field, which is the shape of
+Windows' editable combo and GTK's combo with an entry. The list never takes the keyboard: in a
+window of its own it is grafted as before and its highlight is the tree's cursor while the field
+keeps the focus (`SceneAccess.showCursorOf`); drawn in the scene it is an overlay that leaves the
+keyboard with the field (`SceneAccess.pushPopupLeavingKeyboard`), so a Wayland session keeps the
+caret and the input method too. The owner considered drawing a second editor over the field inside
+the popup window (2026-09-30) and kept one editor in the owner's window, since the second would move
+the keyboard between windows at every opening, the noise the menus had just been rid of.
 
 ## 3. Behaviour, where the decisions above do not already say it
 

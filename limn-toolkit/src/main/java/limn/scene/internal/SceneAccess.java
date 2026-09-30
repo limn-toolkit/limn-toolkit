@@ -61,6 +61,19 @@ public final class SceneAccess {
          * @return a handle that ends the route
          */
         Subscription routeKeyboard(Scene scene, KeyRoute route);
+
+        /**
+         * @param scene the scene the popup draws in
+         * @param popup its root; see {@link SceneAccess#pushPopupLeavingKeyboard}
+         */
+        void pushPopupLeavingKeyboard(Scene scene, Widget<?> popup);
+
+        /**
+         * @param scene the scene whose tree the popup is grafted into
+         * @param popup the grafted popup; see {@link SceneAccess#showCursorOf}
+         * @return a handle that ends it
+         */
+        Subscription showCursorOf(Scene scene, Scene popup);
     }
 
     /**
@@ -173,6 +186,37 @@ public final class SceneAccess {
         java.util.Objects.requireNonNull(scene, "scene");
         java.util.Objects.requireNonNull(route, "route");
         return hook().routeKeyboard(scene, route);
+    }
+
+    /**
+     * Pushes a popup into {@code scene} as {@link Scene#pushPopup} does, except that the keyboard
+     * stays where it is, in the layer beneath: an editable combo's list drawn in scene, whose field
+     * keeps the focus, the caret and the input method while the list is up. The pointer reaches the
+     * popup as it reaches any overlay, and the popup's cursor is where the tree says the keyboard
+     * is. Closed with {@link Scene#removeOverlay}.
+     *
+     * @param scene the scene the popup draws in
+     * @param popup its root
+     */
+    public static void pushPopupLeavingKeyboard(Scene scene, Widget<?> popup) {
+        java.util.Objects.requireNonNull(scene, "scene");
+        hook().pushPopupLeavingKeyboard(scene, popup);
+    }
+
+    /**
+     * Makes the cursor of {@code popup}, grafted into {@code scene}'s tree, where that tree says the
+     * keyboard is, while the opener keeps the keyboard and drives the popup from it: an editable
+     * combo's list in a window of its own, whose field holds the caret while the list's highlight
+     * is what a reader follows.
+     *
+     * @param scene the scene the popup is grafted into
+     * @param popup the grafted popup
+     * @return a handle that ends it, if it is still the scene's; twice is a no-op. UI thread
+     */
+    public static Subscription showCursorOf(Scene scene, Scene popup) {
+        java.util.Objects.requireNonNull(scene, "scene");
+        java.util.Objects.requireNonNull(popup, "popup");
+        return hook().showCursorOf(scene, popup);
     }
 
     private static Hook hook() {
