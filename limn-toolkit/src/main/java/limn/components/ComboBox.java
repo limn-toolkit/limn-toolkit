@@ -93,9 +93,23 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private static final float EDGE_MARGIN = 8;
 
     /** The items themselves, what {@link #selectedItem()} and {@link #onSelect} hand back. */
-    private final List<T> values;
+    private List<T> values;
     /** Each item's text, in the order of {@link #values}: what the field and the list show. */
-    private final List<I18nString> items;
+    private List<I18nString> items;
+    /** How an item reads, kept for the items a search answers with. */
+    private final Function<? super T, ?> textOf;
+    /** Where the items come from while the user types, or {@code null} for the list in memory. */
+    private @Nullable Function<String, ? extends java.util.concurrent.CompletionStage<? extends List<? extends T>>> search;
+    /** Numbers the searches asked for: an answer for any but the newest is dropped. */
+    private int searchSerial;
+    /**
+     * The one line the list shows instead of items: loading, nothing found, or a failed search;
+     * {@code null} while it shows items.
+     */
+    private @Nullable I18nString statusLine;
+    /** How long a search waits after the last keystroke, so a word typed quickly is one request. */
+    static final long SEARCH_DELAY_MILLIS = 200;
+    private static final System.Logger LOG = System.getLogger(ComboBox.class.getName());
     private int selectedIndex;
     /** The highlighted row of the list, an index into {@link #rows}; -1 when the list shows none. */
     private int highlightedRow;
@@ -209,13 +223,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         if (items.isEmpty()) {
             throw new IllegalArgumentException("ComboBox needs at least one item");
         }
+        this.textOf = text;
         this.values = List.copyOf(items);
-        List<I18nString> labels = new java.util.ArrayList<>(values.size());
-        for (T value : values) {
-            labels.add(asText(text.apply(value)));
-        }
-        this.items = List.copyOf(labels);
-        this.rows = allRows(items.size());
+        this.items = labelsOf(values, text);
+        this.rows = allRows(this.items.size());
         setFocusable(true);
         setCursor(Cursor.POINTER);
     }
@@ -227,6 +238,32 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      */
     public static ComboBox<I18nString> localized(List<I18nString> items) {
         return new ComboBox<>(items);
+    }
+
+    /**
+     * A combo whose items come from a search the application runs as the user types, and start
+     * empty: {@code new ComboBox<>(Customer::name).setSearch(text -> Ui.async(() -> find(text)))}.
+     * It is editable from the start, since there is nothing to choose before something is typed.
+     *
+     * @param text how an item reads in the field and the list
+     */
+    public ComboBox(Function<? super T, ?> text) {
+        this.textOf = Objects.requireNonNull(text, "text");
+        this.values = List.of();
+        this.items = List.of();
+        this.rows = new int[0];
+        this.selectedIndex = -1;
+        setFocusable(true);
+        setCursor(Cursor.POINTER);
+        setEditable(true);
+    }
+
+    private static <V> List<I18nString> labelsOf(List<V> values, Function<? super V, ?> text) {
+        List<I18nString> labels = new java.util.ArrayList<>(values.size());
+        for (V value : values) {
+            labels.add(asText(text.apply(value)));
+        }
+        return List.copyOf(labels);
     }
 
     private static int[] allRows(int count) {
@@ -408,6 +445,26 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             setHighlight(rows.length == 0 ? -1 : 0, Change.Origin.ADJUSTMENT);
             refitPopup();
         }
+        return this;
+    }
+
+    /**
+     * Makes an editable combo take its items from a search the application runs in the background
+     * as the user types, instead of filtering a list: {@code text -> Ui.async(() -> find(text))}.
+     * The search is asked {@value #SEARCH_DELAY_MILLIS} ms after the last keystroke, the list says
+     * it is loading meanwhile, an answer for a text the user has typed past is dropped, and the
+     * number found is told to a screen reader. While a search supplies the items the value is held
+     * by itself and {@link #selectedIndex()} answers -1. UI thread only.
+     *
+     * @param finder the search, or {@code null} to go back to the list in memory
+     * @return this combo
+     */
+    public ComboBox<T> setSearch(
+            @Nullable Function<String, ? extends java.util.concurrent.CompletionStage<? extends List<? extends T>>> finder) {
+        Ui.checkUiThread();
+        this.search = finder;
+        searchSerial++;
+        statusLine = null;
         return this;
     }
 
@@ -695,6 +752,68 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      */
     // ------------------------------------------------------------- editable field
 
+    /** Asks the search for {@code text} once the typing pauses; an empty text asks nothing. */
+    private void searchFor(String text) {
+        int serial = ++searchSerial;
+        values = List.of();
+        items = List.of();
+        rows = new int[0];
+        if (text.isEmpty()) {
+            statusLine = null;
+            if (open) {
+                close(Change.Origin.USER);
+            }
+            return;
+        }
+        statusLine = ComponentStrings.COMBO_LOADING;
+        if (!open) {
+            open(Change.Origin.USER);
+        }
+        setHighlight(-1, Change.Origin.USER);
+        refitPopup();
+        Ui.postDelayed(() -> startSearch(serial, text), SEARCH_DELAY_MILLIS);
+    }
+
+    private void startSearch(int serial, String text) {
+        Function<String, ? extends java.util.concurrent.CompletionStage<? extends List<? extends T>>> finder = search;
+        if (serial != searchSerial || finder == null) {
+            return; // typed past, or the search was taken away
+        }
+        java.util.concurrent.CompletionStage<? extends List<? extends T>> answer;
+        try {
+            answer = finder.apply(text);
+        } catch (RuntimeException failed) {
+            searchAnswered(serial, text, null, failed);
+            return;
+        }
+        answer.whenComplete((found, error) -> Ui.post(() -> searchAnswered(serial, text, found, error)));
+    }
+
+    private void searchAnswered(int serial, String text, @Nullable List<? extends T> found, @Nullable Throwable error) {
+        if (serial != searchSerial || editor == null || !editor.text().equals(text)) {
+            return; // an answer for a text the user has typed past
+        }
+        if (error != null || found == null) {
+            LOG.log(System.Logger.Level.WARNING, "the combo box's search for \"" + text + "\" failed", error);
+            statusLine = ComponentStrings.COMBO_SEARCH_FAILED;
+        } else {
+            values = List.copyOf(found);
+            items = labelsOf(values, textOf);
+            rows = allRows(items.size());
+            statusLine = rows.length == 0 ? ComponentStrings.COMBO_NO_RESULTS : null;
+            Scene scene = scene();
+            if (scene != null) {
+                scene.announce(rows.length == 0 ? ComponentStrings.COMBO_NO_RESULTS.get()
+                        : ComponentStrings.COMBO_RESULTS.format(rows.length), Accessible.Politeness.POLITE);
+            }
+        }
+        if (open) {
+            setHighlight(rows.length == 0 ? -1 : 0, Change.Origin.USER);
+            refitPopup();
+        }
+        invalidate();
+    }
+
     /** Shows the rows an editable combo's text finds: every item for no text. */
     private void showRowsFor(String text) {
         int n = items.size();
@@ -802,7 +921,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     /** The editor's text changed by the user's hand: filter, and show the list with its first row. */
     private void editorTyped() {
+        if (search != null) {
+            searchFor(editor.text());
+            return;
+        }
         showRowsFor(editor.text());
+        statusLine = rows.length == 0 ? ComponentStrings.COMBO_NO_RESULTS : null;
         if (!open) {
             open(Change.Origin.USER);
         }
@@ -1001,7 +1125,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     /** The full list height at {@code t}, before any clamping. */
     private float contentHeight(SizeTokens t) {
-        return rows.length * t.popupItemHeight() + 2 * t.popupPadV();
+        int lines = rows.length == 0 && statusLine != null ? 1 : rows.length;
+        return lines * t.popupItemHeight() + 2 * t.popupPadV();
     }
 
     /**
@@ -1181,6 +1306,16 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             return; // a filter that left nothing: there is no option to pick
         }
         int chosen = rows[Math.max(0, Math.min(row, rows.length - 1))];
+        if (search != null) {
+            // The answer the item came in is replaced by the next search: the value is held by
+            // itself, as a free text is.
+            T picked = values.get(chosen);
+            String label = items.get(chosen).get();
+            close(Change.Origin.USER);
+            selectFree(label, picked, Change.Origin.USER);
+            syncEditor();
+            return;
+        }
         // The list closing is the pick's own settling, announced before the pick; re-picking
         // the item already selected closes the popup and announces nothing else, because the
         // selection did not move.
@@ -1232,6 +1367,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private String widestItem(Font font) {
         // By MEASURED width, not character count: proportional fonts make
         // "WWWW" wider than "iiiiii" despite fewer characters.
+        if (items.isEmpty()) {
+            return selectedText().isEmpty() ? "MMMMMMMMMMMM" : selectedText(); // a search combo's width
+        }
         String widest = items.get(0).get();
         float widestWidth = textRuler().measure(widest, font).width();
         for (I18nString each : items) {
@@ -2124,6 +2262,19 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                         theme.text());
                 canvas.restore();
             }
+            I18nString status = statusLine;
+            if (rows.length == 0 && status != null) {
+                // Loading, nothing found, or a failed search: one muted line where the first row
+                // would be, not an option, so it is neither highlighted nor chosen.
+                float top = rowTop(0, t);
+                ShapedText line = shapeText(status.get(), font);
+                canvas.save();
+                canvas.clipRect(bandX, top, bandW, itemH);
+                canvas.drawText(line, rtl ? textStart - line.metrics().width() : textStart,
+                        top + (itemH - metrics.height()) / 2 + metrics.ascent(),
+                        theme.textMuted());
+                canvas.restore();
+            }
             canvas.restore();
             if (fading) {
                 canvas.restore();
@@ -2252,6 +2403,19 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // rather than the long one. Computed from the same expressions clampScroll uses, so
             // the facet and the clamp cannot drift apart.
             a.scrollFrom(0, 0, 1, 0, scroll, maxScroll, viewport, contentH);
+            I18nString status = statusLine;
+            if (status == ComponentStrings.COMBO_LOADING) {
+                a.state(Accessible.State.BUSY); // as a tree's branch says while it loads
+            }
+            if (rows.length == 0 && status != null) {
+                // The line is text in the list and not an option: a reader reads it, and nothing
+                // can be chosen or walked onto. Keyed apart from every item index.
+                a.child(Integer.MAX_VALUE);
+                a.bounds(inset, rowTop(0, t), width() - 2 * inset, itemH);
+                a.role(Accessible.Role.LABEL);
+                a.name(status, Accessible.NameFrom.CONTENT);
+                a.endChild();
+            }
             // No MODAL. In scene the walk already stamps it on the parentless top overlay, which
             // is the layer this panel is a child of; in a window of its own the modality is the
             // popup window's. Declaring it here would publish it twice in one tree.

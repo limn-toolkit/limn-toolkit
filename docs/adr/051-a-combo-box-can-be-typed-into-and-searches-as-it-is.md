@@ -56,15 +56,15 @@ Each asked with the "Customer" field as the scenario, with a recommendation.
 ## 2. The shape
 
 ```java
-ComboBox<Customer> customer = new ComboBox<>(List.of(), Customer::name)   // how an item reads
-        .setEditable(true)
+ComboBox<Customer> customer = new ComboBox<>(Customer::name)   // how an item reads; editable
         .setSearch(text -> Ui.async(() -> customers.find(text)))
         .onSelect(picked -> order.setCustomer(picked));
 ```
 
 - `new ComboBox<>(items)` for items that read as themselves (a `String` as it is, an `I18nString`
   in the UI language, anything else by `toString()`), `new ComboBox<>(items, text)` for items that
-  read as a function says, and `ComboBox.localized(List<I18nString>)` as before. The text function
+  read as a function says, `ComboBox.localized(List<I18nString>)` as before, and
+  `new ComboBox<>(text)` for a combo whose items come from a search, editable from the start. The text function
   may answer a `String` or an `I18nString`; an `I18nString` follows the language. A choose-only
   combo needs at least one item; a combo that searches may start with none.
 - `selectedItem()` answers the item itself, `selectedText()` what it reads as; `setSelectedItem(T)`;
@@ -89,7 +89,12 @@ keeps the focus (`SceneAccess.showCursorOf`); drawn in the scene it is an overla
 keyboard with the field (`SceneAccess.pushPopupLeavingKeyboard`), so a Wayland session keeps the
 caret and the input method too. The owner considered drawing a second editor over the field inside
 the popup window (2026-09-30) and kept one editor in the owner's window, since the second would move
-the keyboard between windows at every opening, the noise the menus had just been rid of.
+the keyboard between windows at every opening, the noise the menus had just been rid of. Steps 3 and
+4 followed the same day: free text and the refusal, in the spinner's sentence; and the search, with
+its delay, its dropped answers, its loading, nothing-found and failure lines (text in the list, not
+options) and the count told politely, in four new sentences across the 21 catalogues. A filter over
+a list in memory that finds nothing shows the nothing-found line too, without announcing it at
+every keystroke.
 
 ## 3. Behaviour, where the decisions above do not already say it
 
