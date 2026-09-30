@@ -118,6 +118,27 @@ class AtspiConstantsTest {
     }
 
     /**
+     * An editable node of one line is {@code SINGLE_LINE} here, bit 26, which the model does not
+     * carry: derived from {@code EDITABLE} without {@code MULTI_LINE}, as GTK 3 publishes it on its
+     * entries (2026-09-30). Orca 50.2 reads an insertion after Return as auto text on any field
+     * that is not single-line.
+     */
+    @Test
+    void anEditableFieldOfOneLineIsSingleLineHereAndATextAreaAndALabelAreNot() {
+        long field = AtspiStates.setOf(s -> s == Accessible.State.EDITABLE);
+        assertTrue((field & (1L << 7)) != 0, "editable");
+        assertTrue((field & (1L << 26)) != 0, "and single-line, derived");
+
+        long area = AtspiStates.setOf(
+                s -> s == Accessible.State.EDITABLE || s == Accessible.State.MULTI_LINE);
+        assertTrue((area & (1L << 17)) != 0, "multi-line");
+        assertTrue((area & (1L << 26)) == 0, "and never both");
+
+        long label = AtspiStates.setOf(s -> s == Accessible.State.READ_ONLY);
+        assertTrue((label & (1L << 26)) == 0, "a node nobody types into claims no line count");
+    }
+
+    /**
      * The numbers and names the interfaces served since 2026-09-15 take from readings, pinned so an
      * edit cannot drift from them in silence: the TextGranularity, TextBoundaryType and CoordType
      * enumerators read off the Fedora KDE 44 guest's typelib (libatspi 2.60.6, 2026-09-13,
