@@ -1072,6 +1072,79 @@ class AtspiApplicationTest {
     }
 
     /**
+     * An editable combo's Enter: the field kept the focus, its cursor was the highlighted option,
+     * and one publish closes the list and replaces the field's text. Orca 46.1 stayed on the option
+     * and said nothing after "return" (2026-09-30, Ubuntu guest), because the field's text events
+     * were not its locus and the caret moved the locus to the field silently; the field's
+     * {@code focused} 1 has to go out between the text change and the caret, once.
+     */
+    @Test
+    void aCursorLeavingAFocusThatStaysSaysTheFocusBetweenTheTextChangeAndTheCaret() {
+        FakeBus bus = new FakeBus();
+        AtspiApplication app = anApplication(bus);
+        AtspiBridge window = app.window();
+        Accessibility a = new Accessibility();
+        java.util.function.BiConsumer<String, Integer> publish = (text, cursor) -> {
+            a.beginWalk(400, 300, Locale.ENGLISH);
+            a.begin(5000, AccessibleNode.NONE, Locale.ENGLISH, 0, 0, 400, 300);
+            a.role(Accessible.Role.WINDOW);
+            a.state(Accessible.State.ACTIVE);
+            a.inherited(true, true, true, false, false);
+            a.begin(5001, 0, Locale.ENGLISH, 0, 0, 400, 20);
+            a.role(Accessible.Role.TEXT_FIELD);
+            a.name(I18nString.literal("Mountain ranges"), Accessible.NameFrom.LABEL);
+            a.text(text, text.hashCode(), text.length(), limn.graphics.ShapedText.Affinity.DOWNSTREAM,
+                    text.length(), text.length(), 1, null, false);
+            a.inherited(true, true, true, true, true);
+            a.begin(5002, 1, Locale.ENGLISH, 0, 20, 400, 60);
+            a.role(Accessible.Role.LIST);
+            a.inherited(true, true, cursor >= 0, false, false);
+            String[] rows = {"Alps", "Atlas", "Carpathians"};
+            for (int i = 0; i < rows.length; i++) {
+                a.begin(5003 + i, 2, Locale.ENGLISH, 0, 20 + i * 20, 400, 20);
+                a.role(Accessible.Role.LIST_ITEM);
+                a.name(I18nString.literal(rows[i]), Accessible.NameFrom.CONTENT);
+                if (i == cursor) {
+                    a.state(Accessible.State.ACTIVE);
+                }
+                a.inherited(true, true, cursor >= 0, false, false);
+                a.end();
+            }
+            a.end();
+            a.end();
+            a.end();
+            window.publish(a.publish(5001, 0, 0, 1f, true), false);
+            for (limn.accessibility.AccessibleEvent event : List.copyOf(a.events())) {
+                window.emit(event);
+            }
+            window.frameEnded();
+        };
+        publish.accept("at", 2);
+        List<String> before = spoken(bus.signals);
+        assertTrue(before.contains("ActiveDescendantChanged  2 " + path(5001)),
+                "the fixture's cursor is the highlighted option: " + before);
+        bus.signals.clear();
+
+        publish.accept("Carpathians", -1);
+        List<String> sent = spoken(bus.signals);
+        assertFalse(sent.isEmpty(), "Enter changed the field");
+        String focus = "StateChanged focused 1 " + path(5001);
+        assertEquals(1, java.util.Collections.frequency(sent, focus), "said once: " + sent);
+        int said = sent.indexOf(focus);
+        int inserted = sent.indexOf("TextChanged insert 0 " + path(5001));
+        int caret = sent.indexOf("TextCaretMoved  11 " + path(5001));
+        assertTrue(inserted >= 0 && caret >= 0, "Enter replaced the text: " + sent);
+        assertTrue(inserted < said, "after the text change, which Orca then does not read as auto "
+                + "text on its locus: " + sent);
+        assertTrue(said < caret, "and before the caret, which would move Orca's locus to the field "
+                + "silently: " + sent);
+        bus.signals.clear();
+
+        publish.accept("Carpathians", -1);
+        assertEquals(List.of(), spoken(bus.signals), "and a publish after it says nothing");
+    }
+
+    /**
      * <b>A frame that is not the active one says nothing about its focus</b>, whatever collapses or
      * is refused in it (semantics 4 as settled for the three bridges on 2026-09-15, and the review
      * of this fix round). The platform focus is one and it belongs to the frame the desktop has
