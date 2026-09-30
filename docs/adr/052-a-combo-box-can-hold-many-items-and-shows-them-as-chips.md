@@ -133,6 +133,23 @@ ComboBox<Status> status = new ComboBox<>(List.of(Status.values()), Status::label
 - A press where the chips stand opens the list, as it does on a combo that is not editable.
 - The "+N" badge is smaller than a chip: the label font, and inset within the chips' band.
 
+## 4b. Heard (2026-09-30, real keys, pt-BR, gallery "Combo box, many" and "…, many, editable")
+
+- **NVDA 2024.4.2:** "Cordilheiras, caixa de combinação, 2 selecionados: Andes, Carpathians,
+  recolhido"; in the list "Atlas, não selecionado, 3 de 6", Space "selecionado" and then "não
+  selecionado"; Escape "… 2 selecionados: Andes, Atlas". Editable: "Cordilheiras, edição, Nenhum
+  selecionado", and after Enter "Cordilheiras, edição, 1 selecionado: Atlas".
+- **Orca 50.2 (Fedora, list in the scene):** the list, "não selecionado", Space "selecionado" and
+  "desmarcado"; editable "Nenhum selecionado" and "1 selecionado: Atlas". The non-editable field
+  is read without its value, as the single combo is there too (a standing behaviour, measured beside
+  it, not this record's).
+- **Orca 46.1 (Ubuntu X11, list in a window):** the field "2 selecionados: Andes, Carpathians"
+  before and "2 selecionados: Andes, Atlas" after; "Atlas. not selected."; a toggle is not announced.
+- **VoiceOver:** the rows, and each toggle as the field's new value ("3 selecionados: Andes, Atlas,
+  Carpathians") followed by "texto inserido". Two things left open: that suffix, and a lone
+  "Nenhum" after Escape closes the editable one's list while it holds Atlas.
+- The chips are one point shorter than a segment's pill above and below (the owner's call).
+
 ## 5. What this does not do
 
 - No remove button on a chip, no keyboard walk between chips, no chips on more than one line.

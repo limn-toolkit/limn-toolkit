@@ -2746,7 +2746,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
             boolean rtl = ComboBox.this.isRightToLeft();
             float gap = t.spacingSmall();
-            float chipH = Math.max(0, height() - 2 * t.segInset());
+            // One point less than a segment's pill above and below (the owner's call, 2026-09-30):
+            // a chip is a mark on the field, and at the pill's full height it read as a button.
+            float chipH = Math.max(0, height() - 2 * t.segInset() - 2);
             float y = (height() - chipH) / 2;
             int n = shown.length;
             float[] widths = new float[n];
