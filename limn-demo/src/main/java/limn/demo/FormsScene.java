@@ -106,7 +106,7 @@ final class FormsScene {
 
         ComboBox<String> combo = new ComboBox<>(List.of(
                 "Limn dark", "Limn light", "High contrast", "Sepia", "System"));
-        combo.onSelect(index -> status.setText("theme picked: " + combo.selectedText()));
+        combo.onSelect(() -> status.setText("theme picked: " + combo.selectedText()));
 
         TextArea notes = new TextArea().setPreferredSize(0, 150);
         notes.setText("""

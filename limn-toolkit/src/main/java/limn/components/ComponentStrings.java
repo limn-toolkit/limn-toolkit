@@ -115,6 +115,30 @@ final class ComponentStrings {
     static final limn.i18n.PluralString COMBO_RESULTS = limn.i18n.PluralString.of(
             "limn.comboBox.results", "{0} result", "{0} results");
 
+    // What joins the texts of a combo's many selected items, where a list is written out: the
+    // language's own list comma (Arabic's "، ", Chinese and Japanese "、"), never a literal ", ".
+    static final I18nString COMBO_SEPARATOR =
+            new I18nString("limn.comboBox.separator", ", ");
+
+    // The badge that counts the chips a combo holding many had no room for, after the ones shown.
+    // A string and not a literal "+" and number, so the number is written in the digits the
+    // toolkit shows and a language may place the sign where it reads it.
+    static final I18nString COMBO_MORE =
+            new I18nString("limn.comboBox.more", "+{0}");
+
+    // What a reader hears for a combo's empty option when the application's text function gave it
+    // no words: an option a reader lands on must say something, and a blank row says nothing.
+    static final I18nString COMBO_NONE =
+            new I18nString("limn.comboBox.none", "None");
+
+    // What a screen reader is told a combo holding many holds: the count, then every name, the ones
+    // a "+N" hides from sight included (ADR 052 §4). And the same field holding none. The names are
+    // {0} and the count {1}, since a plural string appends its count after the caller's arguments.
+    static final limn.i18n.PluralString COMBO_SELECTED = limn.i18n.PluralString.of(
+            "limn.comboBox.selected", "{1} selected: {0}", "{1} selected: {0}");
+    static final I18nString COMBO_NONE_SELECTED =
+            new I18nString("limn.comboBox.noneSelected", "None selected");
+
     // The tabbed pane's three overflow controls, for the divider's reason: each paints a chevron
     // and no text, none has a tooltip of its own, and all three are instances of a private inner
     // class no application can reach to name. They are the tooltip a sighted user hovers and the

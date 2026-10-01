@@ -37,7 +37,7 @@ class EditableComboBoxTest extends AccessibleComponentTestBase {
 
     private void build() {
         combo = new ComboBox<>(CUSTOMERS).setEditable(true).setDisplayMode(DisplayMode.IN_SCENE);
-        combo.onSelect(picked::add);
+        combo.onSelect(() -> picked.add(combo.selectedItem()));
         after = new TextField();
         Column root = new Column();
         root.add(combo);

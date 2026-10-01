@@ -212,6 +212,46 @@ public final class ReaderScripts {
                             shown(COMBO_BOX, null).valued("Carpathians").without(EXPANDED))));
 
     /**
+     * "Combo box, many": the list of a combo holding Andes and Carpathians opened on the first of
+     * them, the cursor walked apart from the selection, Space toggling the row it is on with the
+     * list left down, and Escape closing it on the field whose value is the count and the names.
+     */
+    public static final ReaderScript COMBO_MANY = new ReaderScript("combo-many", List.of(
+            Step.press(Keys.DOWN, "opens the list on Andes, which is selected")
+                    .expecting(shown(COMBO_BOX, "Mountain ranges").with(EXPANDED),
+                            cursor(LIST_ITEM, "Andes").with(SELECTED)),
+            Step.press(Keys.DOWN, "moves to Atlas, which is not")
+                    .expecting(cursor(LIST_ITEM, "Atlas").without(SELECTED)),
+            Step.press(Keys.SPACE, "selects Atlas and leaves the list down")
+                    .expecting(cursor(LIST_ITEM, "Atlas").with(SELECTED),
+                            shown(COMBO_BOX, "Mountain ranges").with(EXPANDED)),
+            Step.press(Keys.DOWN, "moves to Carpathians, which is selected")
+                    .expecting(cursor(LIST_ITEM, "Carpathians").with(SELECTED)),
+            Step.press(Keys.SPACE, "takes Carpathians out")
+                    .expecting(cursor(LIST_ITEM, "Carpathians").without(SELECTED)),
+            Step.press(Keys.ESCAPE, "closes the list on the field that holds Andes and Atlas")
+                    .expecting(cursor(COMBO_BOX, "Mountain ranges")
+                            .valued("2 selected: Andes, Atlas").without(EXPANDED))));
+
+    /**
+     * "Combo box, many, editable": two letters typed to find Atlas, Enter toggling it with the list
+     * left down and the text gone, and Escape closing the list; the field, where the keyboard stays,
+     * tells the selection as its description.
+     */
+    public static final ReaderScript COMBO_MANY_EDITABLE = new ReaderScript("combo-many-editable",
+            List.of(
+            Step.type('a', "types a, and the list opens on Alps")
+                    .expecting(shown(COMBO_BOX, null).with(EXPANDED), cursor(LIST_ITEM, "Alps")),
+            Step.type('t', "types t, and the list narrows to Atlas and Carpathians")
+                    .expecting(cursor(LIST_ITEM, "Atlas").without(SELECTED)),
+            Step.press(Keys.ENTER, "selects Atlas, empties the text, and leaves the list down")
+                    .expecting(cursor(LIST_ITEM, "Atlas").with(SELECTED),
+                            shown(COMBO_BOX, null).with(EXPANDED)),
+            Step.press(Keys.ESCAPE, "closes the list on the field, which tells what it holds")
+                    .expecting(focused(TEXT_FIELD, "Mountain ranges").described("1 selected: Atlas"),
+                            shown(COMBO_BOX, null).without(EXPANDED))));
+
+    /**
      * "Menu bar, driven": F10 from a text field into the bar, a menu opened and walked past its
      * separator, the neighbour opened with an arrow, and both ways out. A menu drawn in a window of
      * its own holds the OS keyboard while it is open, which a combo's list does not, so this is

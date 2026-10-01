@@ -473,7 +473,7 @@ class FullscreenFallbackTest extends ComponentTestBase {
         WindowHost window = new WindowHost();
         ComboBox<String> combo = new ComboBox<>(List.of("One", "Two", "Three"));
         AtomicInteger selected = new AtomicInteger(-1);
-        combo.onSelect(item -> selected.set(combo.selectedIndex()));
+        combo.onSelect(() -> selected.set(combo.selectedIndex()));
         Scene scene = sceneOver(window, combo, 400, 300);
         scene.requestFocus(combo);
         combo.open();

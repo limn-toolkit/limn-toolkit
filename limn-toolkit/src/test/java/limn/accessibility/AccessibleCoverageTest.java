@@ -116,6 +116,14 @@ class AccessibleCoverageTest {
      * pinned what the deletion does <em>not</em> delete.
      */
     private static final Set<String> TRANSPARENT_BY_THE_PREDICATE = new TreeSet<>(Set.of(
+            // The chips of a combo holding many, their "+N" badge and the strip that holds them
+            // (ADR 052 §4): the strip is setAccessibleIgnored, so the walk never enters it and none
+            // of the three is ever a node, and they repeat what the field's value already says,
+            // the count and every name. Pinned by
+            // limn.components.ComboBoxChipsTest.theChipsTakeNoPointerAndAreNotInTheTree.
+            "limn.components.ComboBox$Badge",
+            "limn.components.ComboBox$Chip",
+            "limn.components.ComboBox$ChipStrip",
             // Declares no role, name, description, action or state, is never focusable of its own
             // accord, and holds exactly one child, so §1.6's predicate deletes it and hoists that
             // child into the panel's place. Everything it draws is background over siblings it

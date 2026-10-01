@@ -161,7 +161,7 @@ final class Viewport3DScene {
         float[] scales = {1f, 0.75f, 0.5f, 0.25f};
         ComboBox<String> renderScale = new ComboBox<>(List.of("Render 100%", "Render 75%", "Render 50%",
                 "Render 25%"));
-        renderScale.onSelect(item -> pbr.setRenderScale(scales[renderScale.selectedIndex()]));
+        renderScale.onSelect(() -> pbr.setRenderScale(scales[renderScale.selectedIndex()]));
         renderScale.setTooltip("Renders the 3D target below device resolution and upsamples it; "
                 + "memory and fill cost fall with the square of the setting");
 

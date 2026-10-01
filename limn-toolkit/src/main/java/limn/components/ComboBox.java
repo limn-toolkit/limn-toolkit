@@ -14,6 +14,7 @@ import limn.concurrent.Subscription;
 import limn.graphics.Canvas;
 import limn.graphics.Color;
 import limn.graphics.Font;
+import limn.graphics.Icon;
 import limn.i18n.I18n;
 import limn.i18n.I18nString;
 import limn.graphics.Path2D;
@@ -38,7 +39,6 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiPredicate;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import limn.backend.spi.WindowPeer;
 
@@ -98,6 +98,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private List<I18nString> items;
     /** How an item reads, kept for the items a search answers with. */
     private final Function<? super T, ?> textOf;
+    /** An item's icon, or {@code null} for none at all; see {@link #setItemIcon}. */
+    private @Nullable Function<? super T, ? extends @Nullable Icon> iconOf;
+    /** Each item's icon, in the order of {@link #values}, while {@link #iconOf} is set; else empty. */
+    private List<@Nullable Icon> icons = List.of();
     /** Where the items come from while the user types, or {@code null} for the list in memory. */
     private @Nullable Function<String, ? extends java.util.concurrent.CompletionStage<? extends List<? extends T>>> search;
     /** Numbers the searches asked for: an answer for any but the newest is dropped. */
@@ -110,7 +114,40 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     /** How long a search waits after the last keystroke, so a word typed quickly is one request. */
     static final long SEARCH_DELAY_MILLIS = 200;
     private static final System.Logger LOG = System.getLogger(ComboBox.class.getName());
+    /**
+     * The selected item in {@link SelectionMode#SINGLE}; in {@link SelectionMode#MULTI} the first of
+     * {@link #chosen}, kept so, which is what {@link #selectedIndex()} and {@link #selectedItem()}
+     * answer there. -1 for none.
+     */
     private int selectedIndex;
+    /**
+     * The row standing for "nothing selected" in {@link #rows}, while {@link #emptyAllowed}: not an
+     * item, and never an index into {@link #items}.
+     */
+    private static final int EMPTY_ROW = -1;
+    /** The accessible key of that row, apart from every item's index and from the status line's. */
+    private static final int EMPTY_KEY = Integer.MAX_VALUE - 1;
+    /** Whether a combo holding one item may hold none; see {@link #setEmptySelectionAllowed}. */
+    private boolean emptyAllowed;
+    /** What the empty option reads as: the text function's answer for {@code null}. */
+    private I18nString emptyLabel = I18nString.literal("");
+    /** The empty option's icon: the icon function's answer for {@code null}. */
+    private @Nullable Icon emptyIcon;
+    /** How a chip is drawn, or {@code null} for the default pill; see {@link #setChipRenderer}. */
+    private @Nullable Function<? super T, ? extends Widget<?>> chipRenderer;
+    /** The chips standing for a selection of many in the field, while holding many; else null. */
+    private @Nullable ChipStrip chipStrip;
+    /** The field's hint while it reads nothing; see {@link #setPlaceholder(I18nString)}. */
+    private I18nString placeholder = I18nString.EMPTY;
+    /** Moves with every change of a selection of many: the summary's witness. */
+    private long selectionSerial;
+    /** "3 selecionados: Aberto, Faturado, Enviado", built once per selection and language. */
+    private @Nullable String summary;
+    private long summaryBuiltAt = Long.MIN_VALUE;
+    /** How many items the combo holds; see {@link #setSelectionMode}. */
+    private SelectionMode selectionMode = SelectionMode.SINGLE;
+    /** The items selected in {@code MULTI}, by index; empty in {@code SINGLE}. */
+    private final java.util.BitSet chosen = new java.util.BitSet();
     /** The highlighted row of the list, an index into {@link #rows}; -1 when the list shows none. */
     private int highlightedRow;
     /**
@@ -131,7 +168,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             new Transition(this).duration(Theme.of(this).animHover).easing(Theme.of(this).animEasing);
     private final Transition focusFade =
             new Transition(this).duration(Theme.of(this).animFocus).easing(Theme.of(this).animEasing);
-    private Consumer<? super T> onSelect;
+    private @Nullable Runnable onSelect;
     /** Whether the field is text the user types into; see {@link #setEditable}. */
     private boolean editable;
     /** The text the user types into, while the combo is editable. */
@@ -226,9 +263,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         this.textOf = text;
         this.values = List.copyOf(items);
         this.items = labelsOf(values, text);
-        this.rows = allRows(this.items.size());
+        this.rows = everyRow();
         setFocusable(true);
         setCursor(Cursor.POINTER);
+        followOwnEnabled();
     }
 
     /**
@@ -255,7 +293,21 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         this.selectedIndex = -1;
         setFocusable(true);
         setCursor(Cursor.POINTER);
+        followOwnEnabled();
         setEditable(true);
+    }
+
+    /**
+     * Carries this combo's enabled flag to the text field inside it, which paints and publishes
+     * from its own: a disabled editable combo drew its text and its fill as an enabled field's,
+     * while the pointer and the keyboard already could not reach it.
+     */
+    private void followOwnEnabled() {
+        observeChanges((source, change) -> {
+            if (source == this && change.aspect() == Change.Aspect.ENABLED && editor != null) {
+                editor.setEnabled(isEnabled());
+            }
+        });
     }
 
     private static <V> List<I18nString> labelsOf(List<V> values, Function<? super V, ?> text) {
@@ -272,6 +324,67 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             all[i] = i;
         }
         return all;
+    }
+
+    /**
+     * Every row the list shows with no text filtering it: the empty option first, while a combo
+     * holding one item may hold none, then every item.
+     */
+    private int[] everyRow() {
+        int n = items.size();
+        if (!showsEmptyRow()) {
+            return allRows(n);
+        }
+        int[] all = new int[n + 1];
+        all[0] = EMPTY_ROW;
+        for (int i = 0; i < n; i++) {
+            all[i + 1] = i;
+        }
+        return all;
+    }
+
+    /** Whether the list offers the empty option: holding one item, over a list, with it allowed. */
+    private boolean showsEmptyRow() {
+        return emptyAllowed && selectionMode == SelectionMode.SINGLE && search == null;
+    }
+
+    /** Whether the combo holds nothing, and it is the empty option that says so. */
+    private boolean emptyChosen() {
+        return emptyAllowed && selectionMode == SelectionMode.SINGLE && selectedIndex < 0
+                && freeValue == null;
+    }
+
+    /** @return what row item {@code item} reads as, the empty option included */
+    private I18nString labelOfRow(int item) {
+        return item == EMPTY_ROW ? emptyLabel : items.get(item);
+    }
+
+    /** @return the icon of row item {@code item}, the empty option included */
+    private @Nullable Icon iconOfRow(int item) {
+        return item == EMPTY_ROW ? emptyIcon : iconOfItem(item);
+    }
+
+    /** @return the icon the field shows: the selected item's, or the empty option's */
+    private @Nullable Icon selectedIcon() {
+        return selectedIndex >= 0 ? iconOfItem(selectedIndex) : emptyChosen() ? emptyIcon : null;
+    }
+
+    /**
+     * Asks one of the application's functions about the empty option, which it is handed as
+     * {@code null}. A function that cannot take {@code null} (a method reference on the item,
+     * {@code Customer::name}) gives the empty option nothing rather than failing the combo.
+     */
+    private static <R> @Nullable R askForEmpty(@Nullable Function<?, ? extends R> function) {
+        if (function == null) {
+            return null;
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            Function<Object, ? extends R> f = (Function<Object, ? extends R>) function;
+            return f.apply(null);
+        } catch (NullPointerException refused) {
+            return null;
+        }
     }
 
     /** @return the items the list shows, in its order: for tests of the filter */
@@ -294,24 +407,29 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     }
 
     private static I18nString asText(@Nullable Object text) {
+        if (text == null) {
+            return I18nString.literal("");
+        }
         return text instanceof I18nString localized ? localized : I18nString.literal(String.valueOf(text));
     }
 
     // ------------------------------------------------------------------- API
 
     /**
-     * The application's response to the user picking an item: a click on a row, Enter on the
-     * highlight, an assistive technology's select. Never for {@link #setSelectedIndex}, which is
-     * a caller's write; to hear every change whatever caused it, {@linkplain #observeChanges
-     * watch} the combo instead.
+     * The application's response to the user changing the selection: a click on a row, Enter on
+     * the highlight, an assistive technology's select, a typed text the field accepted. Never for
+     * {@link #setSelectedIndex} or the other setters, which are a caller's writes; to hear every
+     * change whatever caused it, {@linkplain #observeChanges watch} the combo instead. The handler
+     * reads what it needs, {@link #selectedItem()} or, holding many, {@link #selectedItems()}, as
+     * a {@link ListView}'s does.
      *
-     * @param listener the handler, or {@code null} to clear the slot
+     * @param handler the handler, or {@code null} to clear the slot
      * @return this combo
      * @throws IllegalStateException if a handler is already registered
      */
-    public ComboBox<T> onSelect(@Nullable Consumer<? super T> listener) {
+    public ComboBox<T> onSelect(@Nullable Runnable handler) {
         Ui.checkUiThread();
-        this.onSelect = Checks.handlerSlot(onSelect, listener, "ComboBox.onSelect");
+        this.onSelect = Checks.handlerSlot(onSelect, handler, "ComboBox.onSelect");
         return this;
     }
 
@@ -319,7 +437,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     protected void handleUserChange(Change.Aspect aspect) {
         if (aspect == Change.Aspect.SELECTION) {
             if (onSelect != null) {
-                onSelect.accept(selectedItem());
+                onSelect.run();
             }
             return;
         }
@@ -337,19 +455,324 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     /**
      * The selected item itself: one of the items, or what a free text became, or {@code null} when
-     * an editable combo with free text was emptied.
+     * an editable combo with free text was emptied. Holding many, the first of them in the list's
+     * order, or {@code null} for none.
      */
     public @Nullable T selectedItem() {
         return selectedIndex >= 0 ? values.get(selectedIndex) : freeValue;
     }
 
-    /** The selected item as it currently reads, in the UI language: empty when nothing is selected. */
+    /**
+     * The selected item as it currently reads, in the UI language: empty when nothing is selected.
+     * Holding many, their texts in the list's order, joined as the language joins a list.
+     */
     public String selectedText() {
+        if (selectionMode == SelectionMode.MULTI) {
+            return joinedChosen();
+        }
         return selectedLabel().get();
     }
 
+    /** The chosen items' texts, in the list's order, joined by the language's list separator. */
+    private String joinedChosen() {
+        StringBuilder out = new StringBuilder();
+        String separator = ComponentStrings.COMBO_SEPARATOR.get();
+        for (int i = chosen.nextSetBit(0); i >= 0 && i < items.size(); i = chosen.nextSetBit(i + 1)) {
+            if (!out.isEmpty()) {
+                out.append(separator);
+            }
+            out.append(items.get(i).get());
+        }
+        return out.toString();
+    }
+
+    // ------------------------------------------------------------- many items (ADR 052)
+
+    /**
+     * How many items the combo holds: {@link SelectionMode#SINGLE}, the default, or
+     * {@link SelectionMode#MULTI}, where the list stays open while items are toggled and the field
+     * shows them as chips. {@code NONE} is refused: a combo box that chooses nothing is a label.
+     * Switching to {@code MULTI} starts with nothing selected, since the item a combo holding one
+     * must hold is not one the user chose, and a filter that opened on it would already be
+     * filtering; switching back keeps the first selected, or the first item when none was. Each
+     * is announced as {@code SELECTION}/{@code ADJUSTMENT} when it moves anything. Not with {@link #setSearch} or {@link #setFreeText}. UI thread
+     * only.
+     *
+     * @param mode {@code SINGLE} or {@code MULTI}
+     * @return this combo
+     * @throws IllegalArgumentException for {@code NONE}
+     * @throws IllegalStateException for {@code MULTI} on a combo that searches or takes free text
+     */
+    public ComboBox<T> setSelectionMode(SelectionMode mode) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(mode, "mode");
+        if (mode == SelectionMode.NONE) {
+            throw new IllegalArgumentException("a combo box chooses at least one item: SINGLE or MULTI");
+        }
+        if (mode == selectionMode) {
+            return this;
+        }
+        if (mode == SelectionMode.MULTI && (search != null || freeText != null)) {
+            throw new IllegalStateException("a combo that searches or takes free text holds one item"
+                    + "; a selection of many is held over a list in memory");
+        }
+        if (open) {
+            close(Change.Origin.CODE);
+        }
+        selectionMode = mode;
+        rows = everyRow(); // the empty option belongs to a combo holding one
+        if (mode == SelectionMode.MULTI) {
+            chosen.clear();
+            boolean moved = selectedIndex >= 0;
+            selectedIndex = -1;
+            if (moved) {
+                notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
+            }
+        } else {
+            int keep = chosen.nextSetBit(0);
+            if (keep < 0 && emptyAllowed) {
+                keep = -1; // nothing held is a state this combo has: the empty option stands
+            } else if (keep < 0) {
+                keep = 0;
+            }
+            boolean moved = keep < 0 ? false : chosen.cardinality() != 1;
+            chosen.clear();
+            selectedIndex = keep;
+            if (moved) {
+                notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
+            }
+        }
+        syncEditor();
+        refreshChips();
+        markNeedsLayout();
+        invalidate();
+        invalidateAccessible();
+        return this;
+    }
+
+    /** @return how many items the combo holds; see {@link #setSelectionMode} */
+    public SelectionMode selectionMode() {
+        return selectionMode;
+    }
+
+    /** @return the selected items, in the list's order; empty when nothing is selected */
+    public List<T> selectedItems() {
+        if (selectionMode == SelectionMode.SINGLE) {
+            T one = selectedItem();
+            return one == null ? List.of() : java.util.Collections.singletonList(one);
+        }
+        List<T> out = new java.util.ArrayList<>(chosen.cardinality());
+        for (int i = chosen.nextSetBit(0); i >= 0 && i < values.size(); i = chosen.nextSetBit(i + 1)) {
+            out.add(values.get(i));
+        }
+        return out;
+    }
+
+    /** @return every selected item's index, ascending; empty when nothing is selected */
+    public int[] selectedIndices() {
+        if (selectionMode == SelectionMode.SINGLE) {
+            return selectedIndex >= 0 ? new int[] {selectedIndex} : new int[0];
+        }
+        return chosen.stream().toArray();
+    }
+
+    /**
+     * @param index an item
+     * @return whether it is selected
+     */
+    public boolean isSelected(int index) {
+        return selectionMode == SelectionMode.SINGLE ? index >= 0 && index == selectedIndex
+                : index >= 0 && chosen.get(index);
+    }
+
+    /**
+     * Selects exactly these items: a caller's write, announced as {@code SELECTION}/{@code CODE}
+     * when it moved anything, and reaching no handler. Holding one, exactly one index. UI thread
+     * only.
+     *
+     * @param indices items in {@code [0, itemCount)}
+     * @return this combo
+     * @throws IndexOutOfBoundsException for an index that is not an item
+     * @throws IllegalArgumentException for other than one index on a combo holding one item
+     */
+    public ComboBox<T> setSelectedIndices(int... indices) {
+        Ui.checkUiThread();
+        for (int index : indices) {
+            Objects.checkIndex(index, items.size());
+        }
+        if (selectionMode == SelectionMode.SINGLE) {
+            if (indices.length != 1) {
+                throw new IllegalArgumentException("a combo holding one item takes one index, got "
+                        + indices.length);
+            }
+            select(indices[0], Change.Origin.CODE);
+            return this;
+        }
+        java.util.BitSet wanted = new java.util.BitSet();
+        for (int index : indices) {
+            wanted.set(index);
+        }
+        choose(wanted, Change.Origin.CODE);
+        return this;
+    }
+
+    /**
+     * Selects exactly these items, compared with {@code equals}: a caller's write, as
+     * {@link #setSelectedIndices} is.
+     *
+     * @param selection some of the items
+     * @return this combo
+     * @throws IllegalArgumentException for an item that is not one of them, or for other than one
+     *         item on a combo holding one
+     */
+    public ComboBox<T> setSelectedItems(java.util.Collection<? extends T> selection) {
+        Ui.checkUiThread();
+        int[] indices = new int[selection.size()];
+        int n = 0;
+        for (T item : selection) {
+            int index = values.indexOf(item);
+            if (index < 0) {
+                throw new IllegalArgumentException("not an item of this combo: " + item);
+            }
+            indices[n++] = index;
+        }
+        return setSelectedIndices(indices);
+    }
+
+    /**
+     * Selects every item, holding many; nothing holding one. A caller's write, announced as
+     * {@code SELECTION}/{@code CODE} when it moved anything. UI thread only.
+     *
+     * @return this combo
+     */
+    public ComboBox<T> selectAll() {
+        Ui.checkUiThread();
+        selectAll(Change.Origin.CODE);
+        return this;
+    }
+
+    private void selectAll(Change.Origin origin) {
+        if (selectionMode != SelectionMode.MULTI) {
+            return;
+        }
+        java.util.BitSet every = new java.util.BitSet();
+        every.set(0, items.size());
+        choose(every, origin);
+    }
+
+    /**
+     * Drops the selection, holding many, or with free text on; a combo that chooses one item always
+     * holds one, and refuses. A caller's write, announced as {@code SELECTION}/{@code CODE} when it
+     * moved anything. UI thread only.
+     *
+     * @return this combo
+     * @throws IllegalStateException on a combo holding one item without free text
+     */
+    public ComboBox<T> clearSelection() {
+        Ui.checkUiThread();
+        if (selectionMode == SelectionMode.MULTI) {
+            choose(new java.util.BitSet(), Change.Origin.CODE);
+        } else if (emptyAllowed) {
+            selectEmpty(Change.Origin.CODE);
+        } else if (freeText != null) {
+            selectFree("", null, Change.Origin.CODE);
+        } else {
+            throw new IllegalStateException("a combo that chooses one item always holds one;"
+                    + " setFreeText lets it be emptied");
+        }
+        return this;
+    }
+
+    /**
+     * Lets a combo holding one item hold none: the list gains a first option that stands for
+     * "nothing", whose value is {@code null}, and choosing it empties the combo. It reads as the
+     * item text function answers for {@code null}, and shows the icon the icon function answers
+     * for it, so the application words it ("None", "Any status") as it words its items; a
+     * function that cannot take {@code null} leaves it blank. Turned off while nothing is held,
+     * the combo takes the first item. Holding many, a selection may always be empty and the list
+     * shows no such option. UI thread only.
+     *
+     * @param allowed whether the combo may hold nothing
+     * @return this combo
+     */
+    public ComboBox<T> setEmptySelectionAllowed(boolean allowed) {
+        Ui.checkUiThread();
+        if (allowed == emptyAllowed) {
+            return this;
+        }
+        if (open) {
+            close(Change.Origin.CODE);
+        }
+        emptyAllowed = allowed;
+        emptyLabel = asText(askForEmpty(textOf));
+        emptyIcon = askForEmpty(iconOf);
+        rows = everyRow();
+        if (!allowed && selectionMode == SelectionMode.SINGLE && selectedIndex < 0
+                && freeText == null && !items.isEmpty()) {
+            select(0, Change.Origin.ADJUSTMENT);
+        }
+        syncEditor();
+        markNeedsLayout();
+        invalidate();
+        return this;
+    }
+
+    /** @return whether a combo holding one item may hold none; see {@link #setEmptySelectionAllowed} */
+    public boolean isEmptySelectionAllowed() {
+        return emptyAllowed;
+    }
+
+    /** Empties a combo holding one item, through the empty option. Announces only when it moved. */
+    private void selectEmpty(Change.Origin origin) {
+        if (selectedIndex < 0 && freeValue == null && freeLabel.get().isEmpty()) {
+            return;
+        }
+        selectedIndex = -1;
+        freeValue = null;
+        freeLabel = I18nString.literal("");
+        invalidate();
+        syncEditor();
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+    }
+
+    /** The one seam a many-item selection moves through; announces only when it moved. */
+    private void choose(java.util.BitSet wanted, Change.Origin origin) {
+        if (wanted.equals(chosen)) {
+            return;
+        }
+        chosen.clear();
+        chosen.or(wanted);
+        chosenMoved(origin);
+    }
+
+    /** Flips one item's membership: a click on its row, Space or Enter on it, a reader's toggle. */
+    private void toggle(int item, Change.Origin origin) {
+        chosen.flip(item);
+        chosenMoved(origin);
+    }
+
+    private void chosenMoved(Change.Origin origin) {
+        selectedIndex = chosen.nextSetBit(0);
+        selectionSerial++;
+        refreshChips();
+        invalidate();
+        markNeedsLayout(); // the chips
+        if (popupPanel != null) {
+            popupPanel.invalidate(); // the check marks
+        }
+        if (popupWindow != null) {
+            popupWindow.requestFrame();
+        }
+        notifyChange(Change.of(Change.Aspect.SELECTION, origin));
+    }
+
     private I18nString selectedLabel() {
-        return selectedIndex >= 0 ? items.get(selectedIndex) : freeLabel;
+        if (selectedIndex >= 0) {
+            return items.get(selectedIndex);
+        }
+        // The empty option reads as itself, in the field that shows a label and in the text of an
+        // editable one alike: an editable field showing only its icon read as a broken field.
+        return emptyChosen() ? emptyLabel : freeLabel;
     }
 
     /**
@@ -363,6 +786,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      */
     public ComboBox<T> setFreeText(@Nullable Function<String, ? extends T> fromText) {
         Ui.checkUiThread();
+        if (fromText != null && selectionMode == SelectionMode.MULTI) {
+            throw new IllegalStateException("a combo holding many items takes no free text"
+                    + "; a selection of many is held over a list in memory");
+        }
         this.freeText = fromText;
         return this;
     }
@@ -405,15 +832,18 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         editable = value;
         if (value) {
             editor = new Editor(this);
-            editor.setText(selectedText());
+            editor.setEnabled(isEnabled());
+            editor.setPlaceholder(placeholder);
             add(editor);
+            syncEditor(); // the selected item's text, or holding many, none
+            refreshChips(); // back above the editor
             setFocusable(false); // the editor takes the keyboard; Tab lands there
         } else {
             Editor gone = editor;
             editor = null;
             remove(gone);
-            rows = allRows(items.size());
-            if (selectedIndex < 0) {
+            rows = everyRow();
+            if (selectedIndex < 0 && selectionMode == SelectionMode.SINGLE) {
                 select(0, Change.Origin.CODE); // a combo that chooses always holds an item
             }
             setFocusable(true);
@@ -462,10 +892,177 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     public ComboBox<T> setSearch(
             @Nullable Function<String, ? extends java.util.concurrent.CompletionStage<? extends List<? extends T>>> finder) {
         Ui.checkUiThread();
+        if (finder != null && selectionMode == SelectionMode.MULTI) {
+            throw new IllegalStateException("a combo holding many items does not search"
+                    + "; a selection of many is held over a list in memory");
+        }
         this.search = finder;
         searchSerial++;
         statusLine = null;
         return this;
+    }
+
+    /**
+     * Gives each item an icon, shown before its text in the list, in a chip and in the field of a
+     * combo holding one item. Tinted with the text's ink as a {@link Label}'s is, so a
+     * picture that must keep its colours is an icon that is not {@linkplain Icon#tintable()
+     * tintable}. Asked once per item, here and when a search answers. UI thread only.
+     *
+     * @param icon an item's icon, answering {@code null} for an item without one; or {@code null}
+     *             to show none
+     * @return this combo
+     */
+    public ComboBox<T> setItemIcon(@Nullable Function<? super T, ? extends @Nullable Icon> icon) {
+        Ui.checkUiThread();
+        this.iconOf = icon;
+        icons = iconsOf(values);
+        emptyIcon = emptyAllowed ? askForEmpty(icon) : null;
+        syncEditor();
+        if (chipStrip != null) {
+            chipStrip.forget(); // a custom chip may show the icon too
+        }
+        refreshChips();
+        markNeedsLayout();
+        invalidate();
+        if (popupPanel != null) {
+            popupPanel.invalidate();
+        }
+        return this;
+    }
+
+    /**
+     * A fixed hint the field shows, muted, while it reads nothing: a combo holding many with none
+     * selected, an empty option with no text of its own, an editable combo's emptied text. It is
+     * never the value: an empty option that has words shows them, and the hint only fills a field
+     * that would otherwise be blank. It names the combo for a screen reader when nothing else
+     * does, as a text field's placeholder does.
+     *
+     * @param hint the hint; empty for none
+     * @return this combo
+     */
+    public ComboBox<T> setPlaceholder(String hint) {
+        return setPlaceholder(I18nString.literal(Objects.requireNonNull(hint, "hint")));
+    }
+
+    /**
+     * {@link #setPlaceholder(String)}, in words that follow the UI language. UI thread only.
+     *
+     * @param hint the hint; {@link I18nString#EMPTY} for none
+     * @return this combo
+     */
+    public ComboBox<T> setPlaceholder(I18nString hint) {
+        Ui.checkUiThread();
+        Objects.requireNonNull(hint, "hint");
+        if (hint.equals(placeholder)) {
+            return this;
+        }
+        placeholder = hint;
+        if (editor != null) {
+            editor.setPlaceholder(hint);
+        }
+        markNeedsLayout();
+        invalidate();
+        notifyChange(Change.of(Change.Aspect.DESCRIPTION, Change.Origin.CODE));
+        return this;
+    }
+
+    /** @return the hint as it currently reads; see {@link #setPlaceholder(String)} */
+    public String placeholder() {
+        return placeholder.get();
+    }
+
+    /** Whether the field reads nothing, so that the hint stands in it. */
+    private boolean showsPlaceholder() {
+        if (placeholder.get().isEmpty()) {
+            return false;
+        }
+        return selectionMode == SelectionMode.MULTI ? chosen.isEmpty() : selectedText().isEmpty();
+    }
+
+    /** What a screen reader is told a selection of many holds: the count and the names. */
+    String summary() {
+        long at = summaryWitness();
+        if (summary == null || at != summaryBuiltAt) {
+            int count = chosen.cardinality();
+            summary = count == 0 ? ComponentStrings.COMBO_NONE_SELECTED.get()
+                    : ComponentStrings.COMBO_SELECTED.format(count, joinedChosen());
+            summaryBuiltAt = at;
+        }
+        return summary;
+    }
+
+    /** Moves whenever {@link #summary()} would: the selection or the language. */
+    long summaryWitness() {
+        return selectionSerial * 1_000_003L + I18n.epoch();
+    }
+
+    /**
+     * Replaces how a chip is drawn in the field of a combo holding many: the widget standing for an
+     * item, asked once per item when it is first selected. It is drawn and never operated, taking
+     * no pointer and no keyboard, and it is not in the accessible tree, since a reader hears the
+     * field's value, which names every item. UI thread only.
+     *
+     * @param renderer the widget for an item, or {@code null} for the default chip, a pill with
+     *                 the item's icon and text
+     * @return this combo
+     * @throws IllegalArgumentException later, when a chip it answers can take the keyboard
+     */
+    public ComboBox<T> setChipRenderer(@Nullable Function<? super T, ? extends Widget<?>> renderer) {
+        Ui.checkUiThread();
+        this.chipRenderer = renderer;
+        if (chipStrip != null) {
+            chipStrip.forget();
+        }
+        refreshChips();
+        return this;
+    }
+
+    /** Whether the chips stand in the field now: holding many, with no text typed over them. */
+    boolean chipsShown() {
+        return chipStrip != null && chipStrip.isVisible() && !chosen.isEmpty();
+    }
+
+    /**
+     * Puts the chip strip in step with the mode, the selection and the text: present while holding
+     * many, above the editor, and shown while there is no text typed.
+     */
+    private void refreshChips() {
+        if (selectionMode != SelectionMode.MULTI) {
+            if (chipStrip != null) {
+                remove(chipStrip);
+                chipStrip = null;
+                markNeedsLayout();
+            }
+            return;
+        }
+        if (chipStrip == null) {
+            chipStrip = new ChipStrip();
+            add(chipStrip);
+        } else if (children().indexOf(chipStrip) != children().size() - 1) {
+            remove(chipStrip); // after the editor, so it paints over the field the editor draws
+            add(chipStrip);
+        }
+        chipStrip.setVisible(editor == null || editor.text().isEmpty());
+        chipStrip.rebuild();
+        markNeedsLayout();
+        invalidate();
+    }
+
+    private List<@Nullable Icon> iconsOf(List<T> of) {
+        Function<? super T, ? extends @Nullable Icon> icon = iconOf;
+        if (icon == null) {
+            return List.of();
+        }
+        List<@Nullable Icon> out = new java.util.ArrayList<>(of.size());
+        for (T value : of) {
+            out.add(icon.apply(value));
+        }
+        return java.util.Collections.unmodifiableList(out);
+    }
+
+    /** @return item {@code index}'s icon, or {@code null} when it has none or no item has one */
+    private @Nullable Icon iconOfItem(int index) {
+        return index >= 0 && index < icons.size() ? icons.get(index) : null;
     }
 
     /** @return what the field shows: the text typed into an editable combo, else the selected item's */
@@ -495,6 +1092,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      * {@code USER} through {@link #commit}. Announces only when the index moved.
      */
     private void select(int index, Change.Origin origin) {
+        if (selectionMode == SelectionMode.MULTI) {
+            java.util.BitSet only = new java.util.BitSet();
+            only.set(index);
+            choose(only, origin); // the whole selection, as a ListView's setter makes it
+            return;
+        }
         if (index == selectedIndex) {
             return;
         }
@@ -584,7 +1187,10 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // scene, including its own list's, so this observer would close the popup on the press
         // that was choosing an item.
         dismissHandle = scene.observePresses(target -> {
-            if (target != this) {
+            // A press inside the combo is not "elsewhere": an editable combo's list button is in
+            // its text field, and this observer, registered while that very press opened the
+            // list, hears the press after it is dispatched and closed the list it had opened.
+            if (!isInside(target)) {
                 close(Change.Origin.USER);
             }
         });
@@ -601,6 +1207,16 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // not happen in the middle of another window's frame callback.
             Ui.post(this::createPopupWindow);
         }
+    }
+
+    /** @return whether {@code target} is this combo or inside it (its text field, its chips) */
+    private boolean isInside(@Nullable Widget<?> target) {
+        for (Widget<?> at = target; at != null; at = at.parent()) {
+            if (at == this) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -660,6 +1276,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         if (cursorHandle != null) {
             cursorHandle.cancel();
             cursorHandle = null;
+        }
+        if (selectionMode == SelectionMode.MULTI && editor != null && !editor.text().isEmpty()) {
+            // The chips come back when the list goes (ADR 052 §3): the filter goes with it.
+            editor.setText("");
+            rows = everyRow();
+            refreshChips();
         }
         invalidate();
         notifyChange(Change.of(Change.Aspect.EXPANDED, origin));
@@ -757,6 +1379,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         int serial = ++searchSerial;
         values = List.of();
         items = List.of();
+        icons = List.of();
         rows = new int[0];
         if (text.isEmpty()) {
             statusLine = null;
@@ -799,7 +1422,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         } else {
             values = List.copyOf(found);
             items = labelsOf(values, textOf);
-            rows = allRows(items.size());
+            icons = iconsOf(values);
+            rows = everyRow();
             statusLine = rows.length == 0 ? ComponentStrings.COMBO_NO_RESULTS : null;
             Scene scene = scene();
             if (scene != null) {
@@ -818,7 +1442,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     private void showRowsFor(String text) {
         int n = items.size();
         if (text.isEmpty()) {
-            rows = allRows(n);
+            rows = everyRow();
             return;
         }
         int[] found = new int[n];
@@ -911,16 +1535,33 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 Accessible.Politeness.POLITE);
     }
 
-    /** Puts the selected item's text in the editor, when it shows anything else. */
+    /** Puts the selected item's text in the editor, when it shows anything else, and its icon. */
     private void syncEditor() {
-        if (editor != null && !editor.text().equals(selectedText())) {
+        if (editor == null) {
+            return;
+        }
+        if (selectionMode == SelectionMode.MULTI) {
+            // Holding many, the field's text is only ever a filter, and the chips stand for the
+            // selection whenever it is empty (ADR 052 §3).
+            if (!editor.text().isEmpty()) {
+                editor.setText("");
+            }
+            editor.setLeadingIcon(null);
+            refreshChips();
+            return;
+        }
+        if (!editor.text().equals(selectedText())) {
             editor.setText(selectedText());
             editor.setCaretPosition(editor.text().length());
         }
+        editor.setLeadingIcon(selectedIcon());
     }
 
     /** The editor's text changed by the user's hand: filter, and show the list with its first row. */
     private void editorTyped() {
+        if (selectionMode == SelectionMode.MULTI) {
+            refreshChips(); // text hides the chips, and none shows them again
+        }
         if (search != null) {
             searchFor(editor.text());
             return;
@@ -940,8 +1581,22 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             close(Change.Origin.USER);
             return;
         }
-        showRowsFor(editor == null || editor.text().equals(selectedText()) ? "" : editor.text());
+        showRowsFor(filterText());
         open(Change.Origin.USER);
+    }
+
+    /**
+     * What the list is filtered by as it opens: nothing while the field shows the selected item's
+     * own text, else what is typed. Holding many, the text is only ever a filter.
+     */
+    private String filterText() {
+        if (editor == null) {
+            return "";
+        }
+        if (selectionMode == SelectionMode.MULTI) {
+            return editor.text();
+        }
+        return editor.text().equals(selectedText()) ? "" : editor.text();
     }
 
     /**
@@ -956,7 +1611,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 if (open) {
                     setHighlight(highlightedRow + 1);
                 } else {
-                    showRowsFor(editor.text().equals(selectedText()) ? "" : editor.text());
+                    showRowsFor(filterText());
                     open(Change.Origin.USER);
                 }
                 return true;
@@ -982,6 +1637,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             case Keys.ENTER -> {
                 if (open && highlightedRow >= 0) {
                     commit(highlightedRow);
+                } else if (selectionMode == SelectionMode.MULTI) {
+                    // Nothing typed is ever committed while holding many: Enter shows the list.
+                    if (!open) {
+                        showRowsFor(filterText());
+                        open(Change.Origin.USER);
+                    }
                 } else {
                     commitText();
                 }
@@ -992,7 +1653,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                     close(Change.Origin.USER);
                     return true;
                 }
-                if (!editor.text().equals(selectedText())) {
+                if (selectionMode == SelectionMode.MULTI ? !editor.text().isEmpty()
+                        : !editor.text().equals(selectedText())) {
                     syncEditor();
                     return true;
                 }
@@ -1016,10 +1678,18 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         if (open) {
             close(Change.Origin.USER);
         }
+        if (selectionMode == SelectionMode.MULTI) {
+            syncEditor(); // the text was a filter: it goes, and the chips come back
+            rows = everyRow();
+            return;
+        }
         if (!typed.equals(selectedText())) {
             int named = itemNamed(typed);
             if (named >= 0) {
                 select(named, Change.Origin.USER);
+            } else if (emptyAllowed && (typed.isEmpty() || fold(typed).equals(fold(emptyLabel.get())))) {
+                // An emptied field is the empty option, and so is its own text typed back.
+                selectEmpty(Change.Origin.USER);
             } else if (freeText != null) {
                 selectFree(typed, typed.isEmpty() ? null : freeText.apply(typed), Change.Origin.USER);
             } else {
@@ -1028,7 +1698,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             }
         }
         syncEditor();
-        rows = allRows(items.size());
+        rows = everyRow();
     }
 
     /** The list's rows changed while it is up: its window takes the new height, or the overlay lays out again. */
@@ -1101,6 +1771,28 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         }
 
         /**
+         * A press where the chips stand opens the list, as a press on a combo that is not editable
+         * does: the chips are the field's content, and there is no text there to put a caret in.
+         * The list button opens it by itself, which the state before and after tells apart.
+         */
+        @Override
+        protected void onMouseEvent(MouseEvent event) {
+            boolean wasOpen = combo.isOpen();
+            boolean chips = combo.chipsShown();
+            super.onMouseEvent(event);
+            if (event.type() == MouseEvent.Type.PRESS && event.button() == Keys.MOUSE_LEFT
+                    && chips && !wasOpen && !combo.isOpen()) {
+                combo.toggleList();
+            }
+        }
+
+        /** Holding many, the chips stand in the empty field's place: no hint, no caret under them. */
+        @Override
+        boolean paintsEmptyContent() {
+            return !combo.chipsShown();
+        }
+
+        /**
          * A text field that filters the list it opens, which is what an editable combo's field is
          * and a plain field is not: {@code AUTOCOMPLETES}, and while the list is shown the link to
          * it, the shape a browser gives an ARIA combo box ({@code aria-autocomplete="list"} and
@@ -1112,6 +1804,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         protected void onAccessibility(Accessibility a) {
             super.onAccessibility(a);
             a.state(Accessible.State.AUTOCOMPLETES);
+            if (combo.selectionMode == SelectionMode.MULTI) {
+                // Its value is the text typed, which is only a filter: what the combo holds is
+                // told here, the count and every name (ADR 052 §4).
+                a.description(combo.summary(), combo.summaryWitness());
+            }
             if (combo.popupPanel != null) {
                 a.relation(Accessible.Relation.CONTROLLER_FOR, combo.popupPanel);
             }
@@ -1322,12 +2019,31 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         if (rows.length == 0) {
             return; // a filter that left nothing: there is no option to pick
         }
-        int chosen = rows[Math.max(0, Math.min(row, rows.length - 1))];
+        int item = rows[Math.max(0, Math.min(row, rows.length - 1))];
+        if (item == EMPTY_ROW) {
+            close(Change.Origin.USER);
+            selectEmpty(Change.Origin.USER);
+            syncEditor();
+            return;
+        }
+        if (selectionMode == SelectionMode.MULTI) {
+            // Toggled, and the list stays down (ADR 052 §3). A filter typed to find the item goes,
+            // so every item shows again with the highlight still on the one just toggled.
+            toggle(item, Change.Origin.USER);
+            if (editor != null && !editor.text().isEmpty()) {
+                syncEditor();
+                showRowsFor("");
+                refitPopup();
+            }
+            int now = rowOfItem(item);
+            setHighlight(now < 0 ? 0 : now, Change.Origin.ADJUSTMENT);
+            return;
+        }
         if (search != null) {
             // The answer the item came in is replaced by the next search: the value is held by
             // itself, as a free text is.
-            T picked = values.get(chosen);
-            String label = items.get(chosen).get();
+            T picked = values.get(item);
+            String label = items.get(item).get();
             close(Change.Origin.USER);
             selectFree(label, picked, Change.Origin.USER);
             syncEditor();
@@ -1337,7 +2053,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // the item already selected closes the popup and announces nothing else, because the
         // selection did not move.
         close(Change.Origin.USER);
-        select(chosen, Change.Origin.USER);
+        select(item, Change.Origin.USER);
         // Re-picking the item already selected moves nothing, and still puts its text back over
         // whatever was typed to find it.
         syncEditor();
@@ -1377,7 +2093,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         }
         TextMetrics metrics = textRuler().measure(widestItem(t.body()), t.body());
         return constraints.constrain(
-                metrics.width() + 2 * t.fieldPadH() + t.comboCaretGutter(),
+                metrics.width() + 2 * t.fieldPadH() + t.comboCaretGutter() + iconRoom(t),
                 t.resolvedHeight(metrics.lineHeight()));
     }
 
@@ -1389,6 +2105,18 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         }
         String widest = items.get(0).get();
         float widestWidth = textRuler().measure(widest, font).width();
+        float hint = textRuler().measure(placeholder.get(), font).width();
+        if (hint > widestWidth) {
+            widest = placeholder.get();
+            widestWidth = hint;
+        }
+        if (showsEmptyRow()) {
+            float empty = textRuler().measure(emptyLabel.get(), font).width();
+            if (empty > widestWidth) {
+                widest = emptyLabel.get();
+                widestWidth = empty;
+            }
+        }
         for (I18nString each : items) {
             String item = each.get();
             float itemWidth = textRuler().measure(item, font).width();
@@ -1398,6 +2126,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             }
         }
         return widest;
+    }
+
+    /** The room an icon takes before a text, with its gap: none when no item has an icon. */
+    private float iconRoom(SizeTokens t) {
+        return icons.isEmpty() ? 0 : t.fieldIcon() + t.spacingSmall();
     }
 
     /** Mixed-step rows align on this, not on the box; see {@code Flex.CrossAlignment.BASELINE}. */
@@ -1428,6 +2161,13 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 Strokes.BORDER + (Strokes.FOCUS_RING - Strokes.BORDER) * focus,
                 theme.outline().lerp(theme.focusRing(), focus));
 
+        if (selectionMode == SelectionMode.MULTI) {
+            if (showsPlaceholder()) {
+                paintHint(canvas, theme, t, rtl, 0);
+            }
+            paintChevron(canvas, theme, t, rtl);
+            return; // the chips stand for the selection, drawn by the strip above this
+        }
         String label = selectedText();
         // The vertical band stays the measured one, because that is what baselineOffset()
         // reports and a row aligned on a baseline the paint does not use is a row out of line.
@@ -1447,11 +2187,49 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // right-to-left run fills the same box from the other end rather than growing leftwards
         // — so aligning to the edge reading starts from is choosing x, and choosing it takes
         // the run's own width.
-        float textX = rtl ? width() - t.fieldPadH() - line.metrics().width() : t.fieldPadH();
+        Icon icon = selectedIcon();
+        float lead = icon != null ? iconRoom(t) : 0;
+        if (showsPlaceholder()) {
+            // The hint fills a field that would read nothing, after the empty option's icon when
+            // it has one.
+            canvas.restore();
+            if (icon != null) {
+                float ico = t.fieldIcon();
+                icon.paint(canvas, rtl ? width() - t.fieldPadH() - ico : t.fieldPadH(),
+                        (height() - ico) / 2, ico, ink, theme.isDark(), false);
+            }
+            paintHint(canvas, theme, t, rtl, lead);
+            paintChevron(canvas, theme, t, rtl);
+            return;
+        }
+        if (icon != null) {
+            float ico = t.fieldIcon();
+            icon.paint(canvas, rtl ? width() - t.fieldPadH() - ico : t.fieldPadH(),
+                    (height() - ico) / 2, ico, ink, theme.isDark(), false);
+        }
+        float textX = rtl ? width() - t.fieldPadH() - lead - line.metrics().width()
+                : t.fieldPadH() + lead;
         canvas.drawText(line, textX,
                 (height() - metrics.height()) / 2 + metrics.ascent(), ink);
         canvas.restore();
+        paintChevron(canvas, theme, t, rtl);
+    }
 
+    /** The hint, muted, where the label would start, {@code lead} past the leading edge. */
+    private void paintHint(Canvas canvas, Theme theme, SizeTokens t, boolean rtl, float lead) {
+        Font font = t.body();
+        String hint = placeholder.get();
+        TextMetrics metrics = textRuler().measure(hint, font);
+        canvas.save();
+        canvas.clipRect(rtl ? t.comboTextClip() : 0, 0, width() - t.comboTextClip(), height());
+        ShapedText line = textRuler().shape(hint, font, ShapedText.Direction.of(hint, neutralBase()));
+        float x = rtl ? width() - t.fieldPadH() - lead - line.metrics().width() : t.fieldPadH() + lead;
+        canvas.drawText(line, x, (height() - metrics.height()) / 2 + metrics.ascent(),
+                isEnabled() ? theme.textMuted() : theme.disabledText());
+        canvas.restore();
+    }
+
+    private void paintChevron(Canvas canvas, Theme theme, SizeTokens t, boolean rtl) {
         // Caret triangle (flips while open). Half-height is half the half-width at every
         // step, so the arrow angle is invariant: the same arrow, smaller. Only the gutter it
         // sits in changes sides; the triangle is symmetric about cx and points up and down,
@@ -1514,7 +2292,14 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 case Keys.PAGE_UP -> setHighlight(highlightedRow - visibleRows());
                 case Keys.ENTER, Keys.SPACE -> commit(highlightedRow);
                 case Keys.ESCAPE -> close(Change.Origin.USER);
-                default -> handled = false;
+                default -> {
+                    if (selectionMode == SelectionMode.MULTI && event.shortcutKey() == Keys.A
+                            && (event.modifiers() & Accelerator.commandModifier()) != 0) {
+                        selectAll(Change.Origin.USER);
+                    } else {
+                        handled = false;
+                    }
+                }
             }
         }
         if (handled) {
@@ -1579,7 +2364,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         int from = (cycling || prefix.length() == 1) ? highlightedRow + 1 : highlightedRow;
         for (int step = 0; step < rows.length; step++) {
             int candidate = Math.floorMod(from + step, rows.length);
-            if (startsWithIgnoreCase(items.get(rows[candidate]).get(), wanted)) {
+            if (rows[candidate] != EMPTY_ROW
+                    && startsWithIgnoreCase(items.get(rows[candidate]).get(), wanted)) {
                 setHighlight(candidate);
                 event.consume();
                 return;
@@ -1641,6 +2427,17 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
     protected void onLayout() {
         if (editor != null) {
             editor.layoutBox(0, 0, width(), height());
+        }
+        if (chipStrip != null) {
+            // The band the text would take: from the field's leading inset to the list button
+            // (an editable combo's trailing region, else the chevron's clip), both sides by
+            // direction.
+            SizeTokens t = Theme.of(this).tokensFor(this);
+            float lead = t.segInset() * 2;
+            float trail = editor != null ? t.fieldTrailing() : t.comboTextClip();
+            float w = Math.max(0, width() - lead - trail);
+            chipStrip.measure(Constraints.tight(w, height()));
+            chipStrip.layoutBox(isRightToLeft() ? trail : lead, 0, w, height());
         }
     }
 
@@ -1708,7 +2505,15 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // the cached one: the item is an I18nString this widget holds, compared by reference, so
         // a hover or focus fade walks this hook without allocating.
         if (editor == null) {
-            a.name(selectedLabel(), Accessible.NameFrom.CONTENT);
+            if (!placeholder.get().isEmpty()) {
+                // The application's hint names the combo, as a text field's placeholder names it:
+                // a name that does not change at every pick, and not the value twice.
+                a.name(placeholder, Accessible.NameFrom.PLACEHOLDER);
+            } else if (selectionMode == SelectionMode.MULTI) {
+                a.name(summary(), summaryWitness(), Accessible.NameFrom.CONTENT);
+            } else {
+                a.name(selectedLabel(), Accessible.NameFrom.CONTENT);
+            }
         }
         // An editable combo is a container here and names nothing of its own: its caption names
         // the text field inside it, where the keyboard is, and the item it holds is that field's
@@ -1726,6 +2531,14 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // every verb beneath the layer that owns input (ADR 039 §1.13, amended 2026-09-15); in a
         // window of its own the field keeps the input and the verb stands.
         PopupOwnerAccessibility.describe(a, open);
+        if (selectionMode == SelectionMode.MULTI) {
+            // Holding many, the number is the count, read-only: a selection of many is not one
+            // value a client can set (ADR 052 §4). The text is the count and every name, the
+            // ones a "+N" hides from sight included.
+            a.value(chosen.cardinality(), 0, items.size(), 1, true);
+            a.valueText(summary(), summaryWitness());
+            return;
+        }
         if (selectedIndex >= 0) {
             // A free text has no place among the items to number: its text is the editor's own,
             // which a reader reads there.
@@ -1804,6 +2617,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      * does.
      */
     private boolean selectFromArgument(Accessible.Argument arg) {
+        if (selectionMode == SelectionMode.MULTI) {
+            return false; // a selection of many is not one value to set (ADR 052 section 4)
+        }
         int index;
         if (arg instanceof Accessible.Argument.OfValue value) {
             double raw = value.value();
@@ -1844,6 +2660,245 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             }
         }
         return -1;
+    }
+
+    // ---------------------------------------------------------- chips (ADR 052)
+
+    /**
+     * The selection of many, standing in the field: a chip per selected item in the list's order,
+     * as many as fit whole on the field's one line, then a "+N" badge for the rest. When even the
+     * first chip does not fit beside the badge it is given what is left, and the default chip
+     * shortens its text with an ellipsis.
+     *
+     * <p>Drawn and never operated: it answers no hit test, so a press goes to the field beneath it
+     * as though the chips were paint, and it is out of the accessible tree with everything in it,
+     * since the field's value already names every item.
+     */
+    private final class ChipStrip extends Widget<ChipStrip> {
+
+        /** The chip made for each item, kept while the renderer stands, so it is asked once. */
+        private final java.util.Map<Integer, Widget<?>> made = new java.util.HashMap<>();
+        private final Badge badge = new Badge();
+        /** The items shown, in order, as the last rebuild found them. */
+        private int[] shown = new int[0];
+
+        ChipStrip() {
+            setAccessibleIgnored(true);
+        }
+
+        /** Drops every chip made, so the next rebuild asks the renderer again. */
+        void forget() {
+            made.clear();
+        }
+
+        /** Puts one chip per selected item under this strip, in the list's order, and the badge. */
+        void rebuild() {
+            int[] now = chosen.stream().filter(i -> i < values.size()).toArray();
+            boolean same = java.util.Arrays.equals(now, shown) && children().size() == now.length + 1;
+            if (same) {
+                return;
+            }
+            shown = now;
+            while (!children().isEmpty()) {
+                remove(children().get(0));
+            }
+            for (int item : now) {
+                add(made.computeIfAbsent(item, this::chipFor));
+            }
+            add(badge);
+            markNeedsLayout();
+            invalidate();
+        }
+
+        private Widget<?> chipFor(int item) {
+            Function<? super T, ? extends Widget<?>> renderer = chipRenderer;
+            if (renderer == null) {
+                return new Chip(item);
+            }
+            Widget<?> chip = Objects.requireNonNull(renderer.apply(values.get(item)),
+                    "the chip renderer answered null");
+            refuseFocusable(chip);
+            return chip;
+        }
+
+        private void refuseFocusable(Widget<?> widget) {
+            if (widget.isFocusable()) {
+                throw new IllegalArgumentException("a chip is drawn and never operated, and "
+                        + widget.getClass().getSimpleName() + " can take the keyboard");
+            }
+            for (Widget<?> child : widget.children()) {
+                refuseFocusable(child);
+            }
+        }
+
+        @Override
+        public @Nullable Widget<?> hitTest(float localX, float localY) {
+            return null; // paint to the pointer: a press is the field's
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            return constraints.constrain(constraints.maxWidth(), constraints.maxHeight());
+        }
+
+        @Override
+        protected void onLayout() {
+            SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
+            boolean rtl = ComboBox.this.isRightToLeft();
+            float gap = t.spacingSmall();
+            // One point less than a segment's pill above and below (the owner's call, 2026-09-30):
+            // a chip is a mark on the field, and at the pill's full height it read as a button.
+            float chipH = Math.max(0, height() - 2 * t.segInset() - 2);
+            float y = (height() - chipH) / 2;
+            int n = shown.length;
+            float[] widths = new float[n];
+            for (int i = 0; i < n; i++) {
+                Widget<?> chip = children().get(i);
+                widths[i] = chip.measure(Constraints.loose(Float.POSITIVE_INFINITY, chipH)).width();
+            }
+            // As many whole chips as fit with the badge after them when any are left over.
+            int fit = n;
+            for (int k = n; k >= 0; k--) {
+                float total = 0;
+                for (int i = 0; i < k; i++) {
+                    total += widths[i] + (i > 0 ? gap : 0);
+                }
+                if (k < n) {
+                    badge.count = n - k;
+                    total += (k > 0 ? gap : 0) + badge.measure(Constraints.loose(width(), chipH)).width();
+                }
+                if (total <= width() || k == 0) {
+                    fit = k;
+                    break;
+                }
+            }
+            boolean squeezed = fit == 0 && n > 0;
+            if (squeezed) {
+                // Not even the first chip fits beside the badge: it takes what the badge leaves.
+                fit = 1;
+                badge.count = n - 1;
+                float badgeW = n > 1 ? badge.measure(Constraints.loose(width(), chipH)).width() + gap : 0;
+                widths[0] = Math.max(0, width() - badgeW);
+            }
+            float x = 0;
+            for (int i = 0; i < n; i++) {
+                Widget<?> chip = children().get(i);
+                if (i >= fit) {
+                    chip.measure(Constraints.tight(0, chipH));
+                    chip.layoutBox(0, y, 0, chipH);
+                    chip.setVisible(false);
+                    continue;
+                }
+                chip.setVisible(true);
+                chip.measure(Constraints.tight(widths[i], chipH));
+                chip.layoutBox(rtl ? width() - x - widths[i] : x, y, widths[i], chipH);
+                x += widths[i] + gap;
+            }
+            boolean more = fit < n;
+            badge.setVisible(more);
+            if (more) {
+                badge.count = n - fit;
+                float bw = badge.measure(Constraints.loose(width(), chipH)).width();
+                badge.layoutBox(rtl ? width() - x - bw : x, y, bw, chipH);
+            } else {
+                badge.layoutBox(0, y, 0, chipH);
+            }
+        }
+    }
+
+    /**
+     * The default chip: a pill with the item's icon, when the combo gives items one, and its text,
+     * shortened with an ellipsis when the strip gives it less than it asked for.
+     */
+    private final class Chip extends Widget<Chip> {
+
+        private final int item;
+
+        Chip(int item) {
+            this.item = item;
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
+            float text = textRuler().measure(items.get(item).get(), t.body()).width();
+            Icon icon = iconOfItem(item);
+            float w = 2 * chipPadH(t) + text + (icon != null ? t.fieldIcon() + t.spacingSmall() : 0);
+            return constraints.constrain(w, constraints.maxHeight());
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            Theme theme = Theme.of(this);
+            SizeTokens t = theme.tokensFor(ComboBox.this);
+            boolean rtl = ComboBox.this.isRightToLeft();
+            boolean enabled = ComboBox.this.isEnabled();
+            canvas.fillRoundRect(0, 0, width(), height(), t.segPillRadius(),
+                    enabled ? theme.primary().withAlpha(0.16f) : theme.disabledFill());
+            Color ink = enabled ? theme.text() : theme.disabledText();
+            float pad = chipPadH(t);
+            float x = pad;
+            Icon icon = iconOfItem(item);
+            if (icon != null) {
+                float ico = t.fieldIcon();
+                icon.paint(canvas, rtl ? width() - pad - ico : pad, (height() - ico) / 2, ico, ink,
+                        theme.isDark(), false);
+                x += ico + t.spacingSmall();
+            }
+            Font font = t.body();
+            float room = Math.max(0, width() - x - pad);
+            ShapedText line = textRuler().shape(items.get(item).get(), font,
+                    ShapedText.Direction.of(items.get(item).get(), neutralBase()));
+            if (line.metrics().width() > room) {
+                line = textRuler().ellipsize(line, room);
+            }
+            TextMetrics metrics = textRuler().measure("Hg", font);
+            canvas.drawText(line, rtl ? width() - x - line.metrics().width() : x,
+                    (height() - metrics.height()) / 2 + metrics.ascent(), ink);
+        }
+    }
+
+    /** The count of the chips that did not fit: "+2", in the language's digits. */
+    private final class Badge extends Widget<Badge> {
+
+        private int count;
+
+        private String text() {
+            return ComponentStrings.COMBO_MORE.format(count);
+        }
+
+        @Override
+        protected Size onMeasure(Constraints constraints) {
+            SizeTokens t = Theme.of(this).tokensFor(ComboBox.this);
+            float w = 2 * t.spacingSmall() + textRuler().measure(text(), t.label()).width();
+            return constraints.constrain(w, constraints.maxHeight());
+        }
+
+        @Override
+        protected void onPaint(Canvas canvas) {
+            Theme theme = Theme.of(this);
+            SizeTokens t = theme.tokensFor(ComboBox.this);
+            boolean enabled = ComboBox.this.isEnabled();
+            // Smaller than a chip, its own box inset within the chip's band: a count is a note
+            // beside the chips, not one of them.
+            float inset = t.segInset();
+            float h = Math.max(0, height() - 2 * inset);
+            canvas.fillRoundRectWithBorder(0, inset, width(), h, Math.min(t.segPillRadius(), h / 2),
+                    enabled ? theme.surfaceRaised() : theme.disabledFill(), Strokes.BORDER,
+                    theme.outline());
+            Font font = t.label();
+            String text = text();
+            ShapedText line = textRuler().shape(text, font, ShapedText.Direction.of(text, neutralBase()));
+            TextMetrics metrics = textRuler().measure("Hg", font);
+            canvas.drawText(line, (width() - line.metrics().width()) / 2,
+                    (height() - metrics.height()) / 2 + metrics.ascent(),
+                    enabled ? theme.textMuted() : theme.disabledText());
+        }
+    }
+
+    /** A chip's inner margin on each side of its content. */
+    private static float chipPadH(SizeTokens t) {
+        return t.spacingSmall() + t.segInset();
     }
 
     // ---------------------------------------------------------- scene popup
@@ -1986,7 +3041,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // combo's own documented reason, the same one the panel's facet gives over these
             // very members: it refuses an empty item list, so there is always exactly one
             // selection and nothing to clear to.
-            a.selection(false, true);
+            boolean many = selectionMode == SelectionMode.MULTI;
+            a.selection(many, !many && !emptyAllowed);
             // The single-argument form, never the variable-argument one, which allocates an
             // array per call. CANCEL and nothing else: Esc dismisses the list, a press on this
             // layer is the click-outside dismissal that CANCEL already names, and offering both
@@ -2248,6 +3304,9 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // label's trailing limit that is computed and the sides swap with the direction.
             float bandX = rtl ? inset : textStart;
             float bandW = rtl ? textStart - inset : width() - inset - textStart;
+            // The icon column, when any item has an icon: every row keeps it, so labels align.
+            float ico = t.fieldIcon();
+            float lead = iconRoom(t);
             canvas.save();
             // Keep rows off the border: the clip inset IS the border width.
             canvas.clipRect(Strokes.ROW_CLIP, Strokes.ROW_CLIP,
@@ -2265,7 +3324,14 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                             width() - 2 * inset, itemH - 2 * Strokes.ROW_GUTTER,
                             t.radiusSmall(), theme.primary().withAlpha(0.28f));
                 }
-                if (rows[i] == selectedIndex) {
+                if (selectionMode == SelectionMode.MULTI) {
+                    if (chosen.get(rows[i])) {
+                        // A check and not the dot: many rows carry it, as a menu's check items
+                        // do. Centred on the dot's column, and never mirrored.
+                        paintCheck(canvas, dotX - t.checkGlyphW() / 2, top + itemH / 2,
+                                theme.primary(), t);
+                    }
+                } else if (rows[i] == EMPTY_ROW ? emptyChosen() : rows[i] == selectedIndex) {
                     // The one mark that scales: pure area, no pen, and 2.5pt vanishes in a
                     // 42pt row.
                     canvas.fillCircle(dotX, top + itemH / 2, t.popupDotRadius(), theme.primary());
@@ -2275,12 +3341,20 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 // visibility check above. It is also where the run's width comes from: aligning
                 // to the edge reading starts from needs it, and the row loop has no other
                 // measurement of the label.
-                String label = items.get(rows[i]).get();
+                String label = labelOfRow(rows[i]).get();
                 ShapedText line = shapeText(label, font);
                 // Clip each row so an over-long label can't reach the rounded border.
                 canvas.save();
                 canvas.clipRect(bandX, top, bandW, itemH);
-                canvas.drawText(line, rtl ? textStart - line.metrics().width() : textStart,
+                Icon icon = iconOfRow(rows[i]);
+                if (icon != null) {
+                    // The icon leads the text, on the side reading starts from, and the text
+                    // moves past it; a row without one keeps the column, so the labels align.
+                    icon.paint(canvas, rtl ? textStart - ico : textStart,
+                            top + (itemH - ico) / 2, ico, theme.text(), theme.isDark(), false);
+                }
+                canvas.drawText(line, rtl ? textStart - lead - line.metrics().width()
+                                : textStart + lead,
                         top + (itemH - metrics.height()) / 2 + metrics.ascent(),
                         theme.text());
                 canvas.restore();
@@ -2302,6 +3376,18 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             if (fading) {
                 canvas.restore();
             }
+        }
+
+        /**
+         * The tick of a selected row in a list holding many, drawn from its left edge at
+         * {@code cx}: the menu's own check (PopupMenu), scaled by {@code checkGlyphW} and drawn
+         * with its locked pen. A check mark does not mirror.
+         */
+        private void paintCheck(Canvas canvas, float cx, float cy, Color color, SizeTokens t) {
+            float k = t.checkGlyphW() / 9f;
+            canvas.drawLine(cx, cy + k, cx + 3.5f * k, cy + 4.5f * k, Strokes.MENU_CHECK_PEN, color);
+            canvas.drawLine(cx + 3.5f * k, cy + 4.5f * k, cx + 9 * k, cy - 4 * k,
+                    Strokes.MENU_CHECK_PEN, color);
         }
 
         @Override
@@ -2420,8 +3506,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // PRESS of its own. The active descendant is not declared and cannot be: it is
             // resolved in the copy from the first node in this subtree published ACTIVE, which is
             // the highlighted option below.
-            RowsAccessibility.describeContainer(a, RowsAccessibility.Selection.SINGLE, true,
-                    false);
+            boolean many = selectionMode == SelectionMode.MULTI;
+            // Holding many, the list's selection is the items checked, and it may be empty; the
+            // highlight is only the cursor (ADR 052 §4).
+            RowsAccessibility.describeContainer(a, many ? RowsAccessibility.Selection.MULTI
+                    : RowsAccessibility.Selection.SINGLE, !many, false);
             if (editor != null) {
                 // The mirror of the field's CONTROLLER_FOR, declared rather than left to a bridge,
                 // because it is the list that a reader asks: Orca 50.2 reads a selection change
@@ -2467,7 +3556,7 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 float top = rowTop(i, t);
                 // Keyed by the item and not by the row: an option keeps its identity, and a
                 // reader its place, when a filter moves it up or down the list.
-                a.child(rows[i]);
+                a.child(rows[i] == EMPTY_ROW ? EMPTY_KEY : rows[i]);
                 // From the row formula the paint, the damage, the reveal and the hit test all
                 // share, and never from an index times a nominal height: rowTop subtracts the
                 // scroll, and a clamped list scrolls. The full row height and not the painted
@@ -2478,7 +3567,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 // The string the combo holds, not the string it reads as: reference, locale and
                 // translation epoch are what the difference compares, and get() would allocate one
                 // per option per frame.
-                a.name(items.get(rows[i]), Accessible.NameFrom.CONTENT);
+                // The empty option's own words, or when the application gave it none, the
+                // toolkit's, since an option a reader lands on must say something.
+                I18nString name = labelOfRow(rows[i]);
+                a.name(rows[i] == EMPTY_ROW && name.get().isEmpty() ? ComponentStrings.COMBO_NONE
+                        : name, Accessible.NameFrom.CONTENT);
                 // The ROWS shape, written once (ADR 045 §3), read against this widget. The list's
                 // selection is the highlight, and the combo's value is not: the arrows and
                 // type-ahead move the selection of the list, and only a commit moves the value,
@@ -2496,10 +3589,18 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
                 // through its fade is published under the focused combo in a window of its own
                 // (Scene#graftPopup), and an option still ACTIVE there kept the reader's cursor on
                 // it until the window was gone, and then moved it back to the combo.
-                RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
-                        verbs ? RowsAccessibility.Selection.SINGLE : RowsAccessibility.Selection.NONE,
-                        i == highlightedRow, i + 1, rows.length, false, false,
-                        operable && i == highlightedRow, verbs, false, false);
+                if (many) {
+                    // Checked is selected; the cursor is apart from it, so FOCUS moves it.
+                    RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
+                            verbs ? RowsAccessibility.Selection.MULTI : RowsAccessibility.Selection.NONE,
+                            chosen.get(rows[i]), i + 1, rows.length, false, false,
+                            operable && i == highlightedRow, verbs, verbs, false);
+                } else {
+                    RowsAccessibility.describeRow(a, RowsAccessibility.Offer.OWNED,
+                            verbs ? RowsAccessibility.Selection.SINGLE : RowsAccessibility.Selection.NONE,
+                            i == highlightedRow, i + 1, rows.length, false, false,
+                            operable && i == highlightedRow, verbs, false, false);
+                }
                 // The negation of the paint loop's own skip test, so the tree and the pixels agree
                 // by construction rather than by two people remembering the same rule. Every
                 // option is still published, because the count and each option's position in it
@@ -2543,7 +3644,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             if (!optionsOperable()) {
                 return false;
             }
-            int row = key < 0 || key >= items.size() ? -1 : rowOfItem((int) key);
+            int row = key == EMPTY_KEY ? rowOfItem(EMPTY_ROW)
+                    : key < 0 || key >= items.size() ? -1 : rowOfItem((int) key);
             if (row < 0) {
                 return false; // an option the filter no longer shows
             }
@@ -2560,12 +3662,13 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         private final class RowsHost implements RowsAccessibility.Host<Integer> {
             @Override
             public RowsAccessibility.Selection selection() {
-                return RowsAccessibility.Selection.SINGLE;
+                return selectionMode == SelectionMode.MULTI ? RowsAccessibility.Selection.MULTI
+                        : RowsAccessibility.Selection.SINGLE;
             }
 
             @Override
             public boolean cursorIsTheSelection() {
-                return true;
+                return selectionMode != SelectionMode.MULTI;
             }
 
             @Override
@@ -2575,13 +3678,33 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
             @Override
             public boolean isSelected(Integer index) {
+                if (selectionMode == SelectionMode.MULTI) {
+                    return index >= 0 && index < rows.length && rows[index] >= 0
+                            && chosen.get(rows[index]);
+                }
                 return index == highlightedRow;
             }
 
             @Override
             public boolean select(Integer index, boolean moveCursor) {
+                if (selectionMode == SelectionMode.MULTI) {
+                    // A client's SELECT makes the option the whole selection, as it does in any
+                    // list of many; the list stays down.
+                    java.util.BitSet only = new java.util.BitSet();
+                    only.set(rows[index]);
+                    choose(only, Change.Origin.USER);
+                    return true;
+                }
                 setHighlight(index); // the arrows' path: the list's selection, not the value
                 return true;
+            }
+
+            @Override
+            public void toggleSelection(Integer index, boolean moveCursor) {
+                toggle(rows[index], Change.Origin.USER);
+                if (moveCursor) {
+                    setHighlight(index);
+                }
             }
 
             @Override

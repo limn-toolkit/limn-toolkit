@@ -972,7 +972,10 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         String hint = placeholder.get();
         // The model's own emptiness, not the display line's: a substituted display form has the
         // model's index space, so the two agree, and asking the model never touches the content.
-        if (model.length() == 0 && !composing && !hint.isEmpty()) {
+        if (model.length() == 0 && !composing && !paintsEmptyContent()) {
+            // Something drawn over the empty field stands in its place (an editable combo's
+            // chips): neither the hint nor the caret goes under it.
+        } else if (model.length() == 0 && !composing && !hint.isEmpty()) {
             // Keep the hint visible even while focused (only the caret joins it). The hint is a
             // string and not a held line, so it is shaped here for the field's own direction and
             // placed against the leading edge, which is the edge the caret is on.
@@ -980,7 +983,10 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                     ShapedText.Direction.of(hint, neutralBase()));
             float hintX = rtl ? left + inner - hintLine.metrics().width() : left;
             float caretX = rtl ? left + inner : left;
-            canvas.drawText(hintLine, hintX, baseline, theme.textMuted());
+            // Muted, and the disabled ink on a disabled field, where it read brighter than the
+            // disabled text beside it.
+            canvas.drawText(hintLine, hintX, baseline,
+                    isEnabled() ? theme.textMuted() : theme.disabledText());
             if (isFocused() && cursorVisible) {
                 canvas.drawLine(caretX, inkTop - Strokes.INK_BLEED,
                         caretX, inkTop + metrics.height() + Strokes.INK_BLEED,
@@ -1021,6 +1027,14 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         // stays the box at every weight.
         Color border = borderColor(theme, focus);
         canvas.drawRoundRectBorder(0, 0, width(), height(), t.radiusMedium(), pen, border);
+    }
+
+    /**
+     * Whether an empty field paints its hint and its caret: false where something the field's owner
+     * draws over it stands in their place.
+     */
+    boolean paintsEmptyContent() {
+        return true;
     }
 
     private Color borderColor(Theme theme, float focus) {

@@ -368,7 +368,7 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
         AtomicInteger fired = new AtomicInteger(-1);
         AtomicInteger calls = new AtomicInteger();
         bindCombo();
-        combo.onSelect(item -> {
+        combo.onSelect(() -> {
             fired.set(combo.selectedIndex());
             calls.incrementAndGet();
         });
@@ -389,7 +389,7 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
         AtomicInteger calls = new AtomicInteger();
         bindCombo();
         combo.setSelectedIndex(1);
-        combo.onSelect(index -> calls.incrementAndGet());
+        combo.onSelect(calls::incrementAndGet);
 
         perform(field().id(), Accessible.Action.SET_VALUE, new Accessible.Argument.OfValue(9));
         perform(field().id(), Accessible.Action.SET_VALUE, new Accessible.Argument.OfValue(-1));
@@ -425,7 +425,7 @@ class ComboBoxAccessibilityTest extends AccessibleComponentTestBase {
     void settingTheValueWhileTheListIsDownCommitsAndCloses() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         bindCombo();
-        combo.onSelect(index -> calls.incrementAndGet());
+        combo.onSelect(calls::incrementAndGet);
         openList();
 
         // The field is shadowed by its own list, so this is asked of the node the panel is under.
