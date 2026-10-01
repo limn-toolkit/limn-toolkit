@@ -459,7 +459,8 @@ Maven Central say which number that was.
 ### Known, and left for later
 
 - In a combo holding many, VoiceOver reads each toggle as the field's new value followed by "text
-  inserted", and a lone "None" after Escape closes an editable one's list; Orca 46.1 does not
+  inserted", and now and then a lone "None" around the Escape that closes an editable one's list
+  (two runs in three; its cause was not found); Orca 46.1 does not
   announce a toggle (it reads the field's value once the list closes). NVDA and Orca 50.2 read
   "selected" and "not selected" at each toggle.
 - Orca 50.2 reads an editable combo's list with its count again ("Cordilheiras, List with 2 items,
