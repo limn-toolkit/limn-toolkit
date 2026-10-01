@@ -1184,7 +1184,9 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                             model.setCaret(at, shift);
                         }
                         resetBlink();
-                        invalidate();
+                        if (model.hasSelection()) {
+                            invalidate(); // the selection band; a lone caret damages its column
+                        }
                     }
                     event.consume();
                 }

@@ -448,8 +448,10 @@ class TextFieldTest extends ComponentTestBase {
 
     /** Presses and releases at a display-x measured from the left edge of the text run. */
     private void click(float displayX) {
-        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, PAD + displayX, 16);
-        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, PAD + displayX, 16);
+        // One click each, counted as such: two presses close in time and place would otherwise be
+        // the two halves of a double click, which selects a word.
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, PAD + displayX, 16, 1);
+        drive(scene).mouseButton(Keys.MOUSE_LEFT, false, 0, PAD + displayX, 16, 1);
         drive(scene).inputBatchEnded();
     }
 

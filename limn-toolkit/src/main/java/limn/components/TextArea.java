@@ -2005,7 +2005,9 @@ public final class TextArea extends Widget<TextArea> {
                 } else {
                     model.setCaret(at, shift);
                 }
-                invalidate();
+                if (model.hasSelection()) {
+                    invalidate(); // the selection band; a lone caret damages its column
+                }
                 goalX = Float.NaN; // a click ends a vertical run, exactly as it ends the model's
                 resetBlink();
                 event.consume();
