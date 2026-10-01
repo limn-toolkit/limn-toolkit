@@ -462,7 +462,7 @@ final class AtspiTree {
                 node.parent() < 0 ? frame : tree.indexInParent(node),
                 tree.children(node).size(),
                 new ArrayList<>(interfacesOf(false, node)),
-                node.name(), roleOf(node), node.description(),
+                nameOf(tree, node), roleOf(node), node.description(),
                 Atspi.stateWords(statesOf(node)),
         };
     }
@@ -734,7 +734,7 @@ final class AtspiTree {
             return out;
         }
         AccessibleTree tree = at.tree();
-        out.put("Name", new DBus.Variant("s", node.name()));
+        out.put("Name", new DBus.Variant("s", nameOf(tree, node)));
         out.put("Description", new DBus.Variant("s", node.description()));
         out.put("Parent", new DBus.Variant("(so)", parentRef(tree, node).toStruct()));
         out.put("ChildCount", new DBus.Variant("i", tree.children(node).size()));
@@ -746,6 +746,38 @@ final class AtspiTree {
         // widget grows something that is genuinely help rather than description, it goes here.
         out.put("HelpText", new DBus.Variant("s", ""));
         return out;
+    }
+
+    /**
+     * The name AT-SPI is given for {@code node}: its own, except for a combo box that is not
+     * editable and shows a value, whose name is that value, with its caption still reached through
+     * {@code labelled-by}.
+     *
+     * <p>That is how GTK 3's {@code GtkComboBoxText} and Qt's {@code QComboBox} publish one, read on
+     * the Fedora 44 guest (2026-09-30: name "Atlas", labelled-by "Cordilheiras"), and it is what
+     * Orca 50.2 depends on: its combo box generator speaks the label and the name and, for the
+     * focused box, never the value, so a box named by its caption was heard as "Cordilheiras, combo
+     * box" and never as what it holds. An editable combo keeps its own name: its text field child
+     * carries the text, as GTK 3's entry does.
+     *
+     * @param tree the snapshot {@code node} belongs to
+     * @param node the node
+     * @return the string a client reads as {@code Name}
+     */
+    static String nameOf(AccessibleTree tree, AccessibleNode node) {
+        if (node.role() != Accessible.Role.COMBO_BOX || node.value() == null) {
+            return node.name();
+        }
+        String shown = node.value().text();
+        if (shown == null || shown.isEmpty()) {
+            return node.name();
+        }
+        for (AccessibleNode child : tree.children(node)) {
+            if (child.role() == Accessible.Role.TEXT_FIELD) {
+                return node.name(); // editable: the field says the text
+            }
+        }
+        return shown;
     }
 
     private DBus.Ref desktopOrNull() {

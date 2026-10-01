@@ -143,8 +143,10 @@ ComboBox<Status> status = new ComboBox<>(List.of(Status.values()), Status::label
   selecionado", and after Enter "Cordilheiras, edição, 1 selecionado: Atlas".
 - **Orca 50.2 (Fedora, list in the scene):** the list, "não selecionado", Space "selecionado" and
   "desmarcado"; editable "Nenhum selecionado" and "1 selecionado: Atlas". The non-editable field
-  is read without its value, as the single combo is there too (a standing behaviour, measured beside
-  it, not this record's).
+  was read without its value, as the single combo was there too. *Fixed the same day, after this
+  record closed:* the Linux bridge names a combo that is not editable by the value it shows, as
+  GTK 3 and Qt do (read on the guest), and Orca 50.2 then reads "Cordilheiras 2 selecionados:
+  Andes, Carpathians" and, for one item, "Cordilheiras Atlas"; Orca 46.1 reads as before.
 - **Orca 46.1 (Ubuntu X11, list in a window):** the field "2 selecionados: Andes, Carpathians"
   before and "2 selecionados: Andes, Atlas" after; "Atlas. not selected."; a toggle is not announced.
 - **VoiceOver:** the rows, and each toggle as the field's new value ("3 selecionados: Andes, Atlas,

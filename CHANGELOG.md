@@ -10,6 +10,10 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- Orca 50.2 reads what a combo box holds: "Mountain ranges Atlas, combo box". A combo box that is
+  not editable is named on AT-SPI by the value it shows, its caption reached through
+  `labelled-by`, as GTK 3's and Qt's are; Orca 50.2 speaks a focused combo's label and name and
+  never its value, so it had been heard as its caption alone. Orca 46.1 reads it as before.
 - A double click in a `TextField` or a `TextArea` selects the word under the pointer, and a triple
   click the line (the whole text of a field); a drag that follows extends by whole words or lines,
   as every platform's text control does. A click only placed the caret.
@@ -458,7 +462,6 @@ Maven Central say which number that was.
   inserted", and a lone "None" after Escape closes an editable one's list; Orca 46.1 does not
   announce a toggle (it reads the field's value once the list closes). NVDA and Orca 50.2 read
   "selected" and "not selected" at each toggle.
-- Orca 50.2 reads a combo box that is not editable without its value, for one item as for many.
 - Orca 50.2 reads an editable combo's list with its count again ("Cordilheiras, List with 2 items,
   Carpathians") on the first Down after a letter is typed: the field's caret puts Orca back on the
   field as the letter lands, so the next move into the list is a move into it. Orca 46.1, NVDA and
