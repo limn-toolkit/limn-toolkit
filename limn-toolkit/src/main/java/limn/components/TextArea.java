@@ -1993,16 +1993,30 @@ public final class TextArea extends Widget<TextArea> {
                 if (event.button() != Keys.MOUSE_LEFT) {
                     return;
                 }
-                model.setCaret(
-                        caretAtContent(lx - contentOriginX(t), ly - padY + scrollY, t),
-                        (event.modifiers() & Keys.MOD_SHIFT) != 0);
+                ShapedText.Position at =
+                        caretAtContent(lx - contentOriginX(t), ly - padY + scrollY, t);
+                boolean shift = (event.modifiers() & Keys.MOD_SHIFT) != 0;
+                // A double click takes the word, a triple click the line, as every platform's
+                // text view does; the backend counts the clicks.
+                if (!shift && event.clickCount() == 2) {
+                    model.selectWordAt(at.charIndex());
+                } else if (!shift && event.clickCount() >= 3) {
+                    model.selectLineAt(at.charIndex());
+                } else {
+                    model.setCaret(at, shift);
+                }
+                invalidate();
                 goalX = Float.NaN; // a click ends a vertical run, exactly as it ends the model's
                 resetBlink();
                 event.consume();
             }
             case DRAG -> {
-                model.setCaret(
-                        caretAtContent(lx - contentOriginX(t), ly - padY + scrollY, t), true);
+                ShapedText.Position at =
+                        caretAtContent(lx - contentOriginX(t), ly - padY + scrollY, t);
+                // After a double or triple click the drag extends by words or lines.
+                if (!model.extendUnitTo(at.charIndex())) {
+                    model.setCaret(at, true);
+                }
                 goalX = Float.NaN;
                 ensureCursorVisible(t);
                 resetBlink();

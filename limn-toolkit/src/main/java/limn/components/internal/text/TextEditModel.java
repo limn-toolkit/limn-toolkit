@@ -74,6 +74,13 @@ public final class TextEditModel {
     private int anchor = -1;
     /** Sticky column (char offset within line) for Up/Down runs; -1 = unset. */
     private int goalColumn = -1;
+    /**
+     * The word or line a double or triple click selected, which a drag that follows extends by
+     * whole units, as every platform's field does; -1 when the last press was a single click.
+     */
+    private int unitStart = -1;
+    private int unitEnd = -1;
+    private boolean unitIsLine;
 
     // Line index: lineStarts[i] is the char index where line i begins, for i < lines. Kept in
     // step by splice(), the one place the buffer changes, from the edit itself: the lines an edit
@@ -330,8 +337,111 @@ public final class TextEditModel {
         goalColumn = -1;
     }
 
+    /**
+     * Selects the word at {@code index}, what a double click does: the run of letters and digits
+     * there, or of punctuation, or of spaces, with the combining marks that belong to it. A drag
+     * that follows, {@link #extendUnitTo}, extends by whole words.
+     *
+     * @param index where the click landed, clamped into the buffer
+     */
+    public void selectWordAt(int index) {
+        int[] word = wordAt(index);
+        selectUnit(word[0], word[1], false);
+    }
+
+    /**
+     * Selects the line at {@code index}, what a triple click does: the whole text of a one-line
+     * field. A drag that follows extends by whole lines.
+     *
+     * @param index where the click landed, clamped into the buffer
+     */
+    public void selectLineAt(int index) {
+        selectUnit(lineStart(index), lineEnd(index), true);
+    }
+
+    /**
+     * Extends the selection a double or triple click made, by whole words or lines, to the unit at
+     * {@code index}: a drag after the click. Answers false, changing nothing, when the last press was
+     * a single click, so the caller places the caret as usual.
+     *
+     * @param index where the pointer is, clamped into the buffer
+     * @return whether a unit selection was extended
+     */
+    public boolean extendUnitTo(int index) {
+        if (unitStart < 0) {
+            return false;
+        }
+        int[] unit = unitIsLine ? new int[] {lineStart(index), lineEnd(index)} : wordAt(index);
+        if (unit[0] < unitStart) {
+            anchor = unitEnd;
+            cursor = unit[0];
+        } else if (unit[1] > unitEnd) {
+            anchor = unitStart;
+            cursor = unit[1];
+        } else {
+            anchor = unitStart;
+            cursor = unitEnd;
+        }
+        cursorAffinity = Affinity.DOWNSTREAM;
+        goalColumn = -1;
+        lastEdit = EditKind.OTHER;
+        return true;
+    }
+
+    private void selectUnit(int start, int end, boolean line) {
+        anchor = start;
+        cursor = end;
+        cursorAffinity = Affinity.DOWNSTREAM;
+        goalColumn = -1;
+        lastEdit = EditKind.OTHER;
+        unitStart = start;
+        unitEnd = end;
+        unitIsLine = line;
+    }
+
+    /** The run of one character class around {@code index}, marks with their base: [start, end). */
+    private int[] wordAt(int index) {
+        int n = buffer.length();
+        if (n == 0) {
+            return new int[] {0, 0};
+        }
+        int i = Math.max(0, Math.min(index, n));
+        if (i == n) {
+            i -= Character.charCount(Character.codePointBefore(buffer, i)); // the word before the end
+        }
+        int at = i;
+        int cp = Character.codePointAt(buffer, at);
+        while (isMark(cp) && at > 0) { // a mark belongs to its base, which decides the class
+            at -= Character.charCount(Character.codePointBefore(buffer, at));
+            cp = Character.codePointAt(buffer, at);
+        }
+        CharClass run = classOf(cp);
+        int start = at;
+        while (start > 0) {
+            int back = Character.codePointBefore(buffer, start);
+            if (classOf(back) != run && !isMark(back)) {
+                break;
+            }
+            start -= Character.charCount(back);
+        }
+        // A mark before the run's first base belongs to the run before it.
+        while (start < at && isMark(Character.codePointAt(buffer, start))) {
+            start += Character.charCount(Character.codePointAt(buffer, start));
+        }
+        int end = at;
+        while (end < n) {
+            int fwd = Character.codePointAt(buffer, end);
+            if (end > at && classOf(fwd) != run && !isMark(fwd)) {
+                break;
+            }
+            end += Character.charCount(fwd);
+        }
+        return new int[] {start, end};
+    }
+
     /** Selects the whole buffer and leaves the cursor at its end. */
     public void selectAll() {
+        unitStart = -1;
         anchor = 0;
         cursor = buffer.length();
         cursorAffinity = Affinity.DOWNSTREAM;
@@ -506,6 +616,7 @@ public final class TextEditModel {
     public void setCursor(int index, boolean select) {
         int clamped = Math.max(0, Math.min(index, buffer.length()));
         updateAnchor(select);
+        unitStart = -1;
         cursor = clamped;
         cursorAffinity = Affinity.DOWNSTREAM;
         goalColumn = -1;
@@ -524,6 +635,7 @@ public final class TextEditModel {
         Objects.requireNonNull(position, "position");
         int clamped = Math.max(0, Math.min(position.charIndex(), buffer.length()));
         updateAnchor(select);
+        unitStart = -1;
         cursor = clamped;
         cursorAffinity = position.affinity();
         goalColumn = -1;

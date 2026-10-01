@@ -10,6 +10,9 @@ Maven Central say which number that was.
 
 ### Fixed
 
+- A double click in a `TextField` or a `TextArea` selects the word under the pointer, and a triple
+  click the line (the whole text of a field); a drag that follows extends by whole words or lines,
+  as every platform's text control does. A click only placed the caret.
 - A disabled `TextField`'s placeholder is drawn in the disabled ink: it read brighter than the
   disabled text beside it.
 - Orca reads the field again when a popup's cursor leaves it and the focus stays: an editable
