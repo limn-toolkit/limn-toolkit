@@ -1172,16 +1172,32 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
                             invalidate();
                         }
                     } else {
-                        model.setCaret(positionAt(displayX(lx, t), t),
-                                (event.modifiers() & Keys.MOD_SHIFT) != 0);
+                        ShapedText.Position at = positionAt(displayX(lx, t), t);
+                        boolean shift = (event.modifiers() & Keys.MOD_SHIFT) != 0;
+                        // A double click takes the word, a triple click the whole line, as every
+                        // platform's field does; the backend counts the clicks.
+                        if (!shift && event.clickCount() == 2) {
+                            model.selectWordAt(at.charIndex());
+                        } else if (!shift && event.clickCount() >= 3) {
+                            model.selectLineAt(at.charIndex());
+                        } else {
+                            model.setCaret(at, shift);
+                        }
                         resetBlink();
+                        if (model.hasSelection()) {
+                            invalidate(); // the selection band; a lone caret damages its column
+                        }
                     }
                     event.consume();
                 }
             }
             case DRAG -> {
                 if (!overTrailing) {
-                    model.setCaret(positionAt(displayX(lx, t), t), true);
+                    ShapedText.Position at = positionAt(displayX(lx, t), t);
+                    // After a double or triple click the drag extends by words or lines.
+                    if (!model.extendUnitTo(at.charIndex())) {
+                        model.setCaret(at, true);
+                    }
                     ensureCursorVisible(t);
                     resetBlink();
                 }

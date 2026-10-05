@@ -89,8 +89,10 @@ class TextAreaTest extends ComponentTestBase {
 
     /** A left-button press {@code contentX} points into line 0's text, through the two pads. */
     private void pressOnFirstLine(float contentX) {
+        // One click, counted as such: presses close in time and place would otherwise count as a
+        // double click, which selects a word.
         drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0,
-                PAD_X + contentX, SizeTokens.of(ControlSize.MEDIUM).areaPad() + 1);
+                PAD_X + contentX, SizeTokens.of(ControlSize.MEDIUM).areaPad() + 1, 1);
         drive(scene).inputBatchEnded();
     }
 

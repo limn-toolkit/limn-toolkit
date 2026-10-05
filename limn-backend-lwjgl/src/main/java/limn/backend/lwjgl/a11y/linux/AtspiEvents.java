@@ -254,6 +254,18 @@ final class AtspiEvents {
                 new DBus.Variant("d", number(event.newValue()))));
         limn.accessibility.AccessibleNode now = context.tree().find(event.nodeId());
         limn.accessibility.AccessibleNode was = context.previousTree().find(event.nodeId());
+        if (now != null && was != null) {
+            String nameBefore = AtspiTree.nameOf(context.previousTree(), was);
+            String nameAfter = AtspiTree.nameOf(context.tree(), now);
+            if (!nameBefore.equals(nameAfter)) {
+                // A combo box named by the value it shows (AtspiTree#nameOf) says its new name,
+                // as GTK 3's does when its active item moves; its display form is its name and
+                // not a Text it serves, so no text echo follows.
+                out.add(event(context, path, I_EVENT_OBJECT, "PropertyChange", "accessible-name",
+                        0, 0, new DBus.Variant("s", nameAfter)));
+                return withInterfacesSaid(out, event, context);
+            }
+        }
         if (number(event.oldValue()) != number(event.newValue()) || now == null || was == null
                 || now.text() != null || now.value() == null || was.value() == null) {
             return withInterfacesSaid(out, event, context);
