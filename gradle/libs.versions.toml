@@ -10,7 +10,7 @@ central-publish = "0.37.0"
 limn-fonts-roboto = "1.0.2"
 limn-fonts-noto-cjk = "2.004.2"
 limn-fonts-noto-emoji = "2.051.2"
-limn-fonts-noto-scripts = "1.0.2"
+limn-fonts-noto-scripts = "1.0.3"
 # The FFmpeg payload, from the limn-ffmpeg-natives repository, versioned with FFmpeg (ADR 037):
 # the first three components are the FFmpeg inside, the fourth is that repository's packaging.
 # limn-video-ffmpeg depends on its main jar (the JNI shim); the six natives-<os>-<arch>
