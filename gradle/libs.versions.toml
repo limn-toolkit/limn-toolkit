@@ -9,7 +9,7 @@ central-publish = "0.37.0"
 # and ComplexScriptFallbackTest's layout facts are re-verified against it.
 limn-fonts-roboto = "1.0.2"
 limn-fonts-noto-cjk = "2.004.2"
-limn-fonts-noto-emoji = "2.051.2"
+limn-fonts-noto-emoji = "2.057.0"
 limn-fonts-noto-scripts = "1.0.2"
 # The FFmpeg payload, from the limn-ffmpeg-natives repository, versioned with FFmpeg (ADR 037):
 # the first three components are the FFmpeg inside, the fourth is that repository's packaging.
