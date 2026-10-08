@@ -218,8 +218,13 @@ Maven Central say which number that was.
   value can be lazy (`withLazy`: made once, when somebody asks), and what is there to take is an
   `Offer` that lists its formats at once and reads a value asynchronously.
   `Clipboard.set(Transfer)` and `Clipboard.content()` carry them, and `onChange` hears the
-  content change. Until the native clipboards land, only the text of a transfer reaches other
-  programs; the rest pastes within the application.
+  content change.
+- The clipboard carries all of it to and from other programs on Windows, macOS, X11 and Wayland:
+  a picture pasted from a screenshot tool, files copied in the file manager, a table copied to a
+  spreadsheet as HTML. A lazy value is made when a program first pastes it. On Windows and macOS
+  what was copied stays on the clipboard after the application leaves. Where the native
+  clipboard does not open, text still reaches other programs and the rest pastes within the
+  application; `-Dlimn.clipboard=glfw` asks for that.
 
 - `ComboBox.setEditable(true)`: a combo box the user types into. Typing filters the list, with the
   items whose text contains what was typed, ignoring case and accents, and those that start with it
@@ -470,6 +475,10 @@ Maven Central say which number that was.
   own windows passes the owner to `WindowConfig.popup` or `ownedBy` instead.
 
 ### Known, and left for later
+
+- On macOS, of several files copied at once another program may see only the first; the same
+  was seen between two native tools in the test machine, and it is to be checked against Finder.
+- The clipboard on GNOME under Wayland (Mutter) is not measured yet.
 
 - In a combo holding many, VoiceOver reads each toggle as the field's new value followed by "text
   inserted", and now and then a lone "None" around the Escape that closes an editable one's list

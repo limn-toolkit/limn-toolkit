@@ -1,8 +1,7 @@
 # ADR 053: What is copied or dragged is a transfer, and the clipboard carries more than text
 
-- **Status:** Accepted, 2026-10-08, with the owner's answers below. Step 1 is built: §2 as
-  written (the registration handle is `limn.concurrent.Subscription`, `Clipboard.inMemory()` is the
-  clipboard of a headless window and of a test), over GLFW's text until §3 lands.
+- **Status:** Implemented, 2026-10-08, with the owner's answers below; §6 says what was
+  measured on each system and where the build departs from the text. Two things are owed: §6.
 - **Date:** 2026-10-08
 - **Scope:** a new package `limn.transfer` (`DataFormat`, `Transfer`, `Offer`) that says what a
   copy or a drag carries; `limn.backend.Clipboard` reshaped around it; text, image, HTML, files and
@@ -81,8 +80,8 @@ public interface Clipboard {
   private to the process (its name and a token made at start), so another instance of the same
   application does not see it, and it is gone when the process ends.
 - **Lazy values** are asked for on the UI thread the first time a taker wants that format, and at
-  most once. They are what makes copying a large picture free until somebody pastes it. A lazy
-  value nobody asked for is dropped when the application ends: nothing is rendered at exit.
+  most once. They are what makes copying a large picture free until somebody pastes it. What
+  becomes of one nobody asked for when the application ends is the platform's custom (§6).
 - **`text()` stays synchronous.** Every text control pastes inside a key handler, and a context
   menu greys Paste by asking; both want an answer now. Where the platform's read is a pipe (the
   two Linux systems) it is bounded by a timeout of one second and answers `""` past it.
@@ -141,3 +140,47 @@ No shim: Win32 and COM through the calls the UIA bridge already makes, Objective
   clipboard through `TextField` cut, copy and paste.
 - Live, on the four guests, both directions against a native program for each format: an image
   (hash compared), HTML, a file list, text, and the application's format between two instances.
+
+## 6. As built, and as measured (2026-10-08)
+
+The backend has one `PlatformClipboard` over a `NativeClipboard` for each system
+(`limn.backend.lwjgl.transfer`); a window hands it out, or GLFW's text clipboard where it does not
+open (`-Dlimn.clipboard=glfw` asks for that). Each was measured on its guest with
+`limn.demo.ClipboardProbe` against a native program; the evidence is under
+`.claude/pending/2026-10-08/`.
+
+| | against | read from it | read by it | notes |
+|---|---|---|---|---|
+| Wayland (Fedora 44, KWin) | `wl-copy`/`wl-paste`, a second instance | a picture, pixels identical | all five kinds | the first owner is told when the second copies |
+| X11 (Ubuntu 24.04, GNOME) | a GTK 3 program, a second instance | a picture; 3 MB of text through `INCR`, same hash | all five; an 8.1 MB PNG through `INCR` | |
+| Windows 11 | a .NET program | a bitmap, pixels identical; text, an HTML fragment, a file list | all six (the picture as `PNG` and as `CF_DIB`) | still there after the application left |
+| macOS 27 | an AppKit tool | a TIFF picture, pixels identical; text, HTML | text, HTML, PNG, the named format, one file | still there after the application left |
+
+Where the build departs from §2 and §3:
+
+- **What is copied outlives the application on Windows and macOS**: what is still promised when
+  the backend closes is rendered then, lazy values included, as programs on both systems do. On
+  X11 and Wayland the content goes with the process unless the desktop's clipboard manager took
+  it, which is those systems' custom too.
+- **A value is taken from the transfer on the UI thread and encoded on the thread that asked**
+  where the system asks from another thread (X11, Wayland), so a photograph becomes a PNG without
+  costing a frame. On Windows and macOS the system asks on the UI thread, and the encoding is
+  there.
+- **Windows serialises every opening of the clipboard in the process.** Two threads opening it
+  with no window end the process when the first closes it: three reads at once did, with no
+  crash report.
+- **macOS writes pasteboard items with a data provider**, and an application's format under the
+  dynamic identifier the system derives for a pasteboard type of that name.
+- `text()` waits at most a second on every system, not only on the two Linux ones.
+
+Owed:
+
+- **Several files on macOS.** Another process saw only the first of two files this toolkit
+  copied, and equally only the first of three copied by a plain AppKit tool, on the guest, where
+  every program involved was started from a shell and Finder could not be scripted. The same
+  process reads back all of them. It is to be checked against Finder by hand.
+- **Mutter** (GNOME on Wayland), as §4 says.
+
+The guests share their clipboard with the host (Parallels). The first runs therefore wrote to
+the owner's clipboard and read from it; later macOS runs paused the guest's sharing agent for
+their duration.
