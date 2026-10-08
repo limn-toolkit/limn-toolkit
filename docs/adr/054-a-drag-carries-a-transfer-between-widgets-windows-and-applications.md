@@ -1,6 +1,8 @@
 # ADR 054: A drag carries a transfer between widgets, windows and applications, and the keyboard can do it too
 
-- **Status:** Proposed, 2026-10-08, with the owner's answers below. Nothing is built.
+- **Status:** Accepted, 2026-10-08, with the owner's answers below. Step 3 of §6 is built: the
+  scene's driver and the keyboard's drag; §7 says where it departs from the text. The widgets
+  (steps 4 and 5) and the system's driver (step 6) are not.
 - **Date:** 2026-10-08
 - **Scope:** drag and drop for every widget: a source, a target with feedback while the pointer is
   over it, the platform's own drag so that it leaves the window; a keyboard way of doing the same;
@@ -164,3 +166,35 @@ asks.
 Done when: both records are implemented on the three platforms (four systems); a drag between two
 lists and a column move are done by keyboard and heard on NVDA, VoiceOver and Orca; a file, a
 picture and text are dragged in from and out to a native program on each system.
+
+## 7. As built so far
+
+Step 3, the scene's driver (`Scene`, `limn.scene.event`, `limn.transfer.Drag`), with
+`SceneDragTest`:
+
+- **`DropEvent` has `reject()`, not `done(action)`.** A drop is carried out with the action the
+  widget accepted unless it refuses before returning, and the source's `onEnd` hears it then. A
+  read of the offer may complete later; the source of a move has already let go by then, which
+  is right for a drag within the process, whose values are at hand, and is what step 6 has to
+  keep true for another program's.
+- **No `onDragExit` follows `onDrop`.** The widget clears what marked the place in one or the
+  other, never both.
+- **The picture under the pointer is the one the source gives** (`Drag.image`); with none there
+  is only the pointer's shape, an arrow over a widget that accepts and the "not allowed" sign
+  elsewhere. "The widget as painted" is left to the widgets of step 5, which know which rows
+  they are dragging.
+- **A keyboard drag is described by the source and placed by the target**: `Drag.describedAs`
+  names what is carried, `DragEvent.describePlace` says where it would land, and a target that
+  says nothing is announced by its accessible name, or as "Place 2 of 5". The arrows arrive as
+  `stepX`/`stepY` on the same `onDragOver`, and the widget keeps its own place.
+- **The first target of a keyboard drag is the source itself** when it accepts its own content:
+  moving a row within its list needs no Tab.
+- **Auto-scroll is a wheel event** sent to the accepting widget while the pointer rests within
+  24 points of one of its edges, every 60 ms: whatever scrolls under a wheel scrolls under a
+  drag, with no interface of its own.
+- **`Scene.setDragKey(key, modifiers)`** takes the two integers of `Keys`: an `Accelerator`
+  belongs to the components, above the scene.
+- **Files from the system** still arrive from GLFW at the moment of the drop only: the scene asks
+  the widget under the point with one `onDragOver` and hands them over at once. The hover comes
+  with step 6.
+- The announcements are a new catalogue, `scene_*.properties`, in the 21 languages.

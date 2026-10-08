@@ -15,7 +15,9 @@ import limn.internal.lang.Checks;
 import limn.math.Scalars;
 import limn.scene.event.CharEvent;
 import limn.scene.event.PreeditEvent;
-import limn.scene.event.FileDropEvent;
+import limn.scene.event.DragEvent;
+import limn.scene.event.DragStartEvent;
+import limn.scene.event.DropEvent;
 import limn.scene.event.InputEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
@@ -1729,6 +1731,15 @@ public final class Scene {
 
     private final List<Announcement> announcements = new ArrayList<>();
 
+    /** What is queued to be said and not yet delivered, oldest first; for tests of this package. */
+    List<String> queuedAnnouncements() {
+        List<String> texts = new ArrayList<>();
+        for (Announcement queued : announcements) {
+            texts.add(queued.text().get());
+        }
+        return texts;
+    }
+
     /**
      * Draws over the finished frame: after the root, after every overlay, after the modal scrim
      * and after the tooltip. {@code null} removes it.
@@ -2392,6 +2403,18 @@ public final class Scene {
             timedDispatch(oldPressed,
                     new MouseEvent(MouseEvent.Type.RELEASE, mouseX, mouseY, oldButton, 0, 0, 0));
         }
+        DragSession dragging = dragSession;
+        if (dragging != null) {
+            // A drag whose source is gone has nobody to tell; one whose target is gone has
+            // nowhere to land until the pointer finds another.
+            if (isInSubtree(dragging.source, widget)) {
+                finishDrag(false);
+            } else if (isInSubtree(dragging.target, widget)) {
+                dragging.target = null;
+                dragging.action = null;
+                applyCursor();
+            }
+        }
         if (isInSubtree(focused, widget)) {
             setFocus(null, Change.Origin.ADJUSTMENT); // hidden, disabled or detached under it
         }
@@ -2465,6 +2488,9 @@ public final class Scene {
 
     /** Synthesizes the RELEASE/EXIT for in-flight press/hover state (window blur). */
     private void cancelPointerState() {
+        if (dragSession != null) {
+            finishDrag(false);
+        }
         // The OS delivers no key-up for modifiers held while focus is stolen
         // (alt-tab, cmd-tab): without this the toolkit would believe Shift is
         // still down forever after the user comes back.
@@ -3358,8 +3384,8 @@ public final class Scene {
                     invalidate = true;
                 } else if (raw instanceof RawDrop drop) {
                     // Where the backend says it landed: the platform's point, or the pointer's.
-                    dispatchBubbling(hitAt(drop.x, drop.y),
-                            new FileDropEvent(drop.paths, drop.x, drop.y));
+                    dropFromOutside(limn.transfer.Transfer.of(limn.transfer.DataFormat.FILES, drop.paths)
+                            .asOffer(), java.util.Set.of(limn.transfer.DropAction.COPY), drop.x, drop.y);
                     invalidate = true;
                 } else if (raw instanceof RawPointer pointer) {
                     pointerInside = pointer.entered;
@@ -3423,6 +3449,20 @@ public final class Scene {
         mouseY = y;
         pointerInside = true;
         boolean changed;
+        if (dragSession != null) {
+            if (!dragSession.keyboard) {
+                dragMoved(x, y);
+            }
+            return true;
+        }
+        if (pressed != null && !dragAsked && pressedButton == Keys.MOUSE_LEFT
+                && Math.hypot(x - pressX, y - pressY) >= DRAG_THRESHOLD) {
+            dragAsked = true;
+            if (startDrag(pressed, new DragStartEvent(pressX, pressY, modifiers, false))) {
+                dragMoved(x, y);
+                return true;
+            }
+        }
         if (pressed != null) {
             MouseEvent drag = new MouseEvent(MouseEvent.Type.DRAG, x, y, pressedButton, 0, 0,
                     modifiers);
@@ -3445,6 +3485,17 @@ public final class Scene {
         mouseX = button.x;
         mouseY = button.y;
         modifiers = button.mods; // presses carry the authoritative native mask
+        if (dragSession != null) {
+            // The release that ends a pointer drag is the drop; any other button, or a click
+            // during a keyboard drag, calls it off.
+            if (!button.pressed && button.button == Keys.MOUSE_LEFT && !dragSession.keyboard) {
+                dragMoved(button.x, button.y);
+                finishDrag(true);
+            } else if (button.pressed) {
+                finishDrag(false);
+            }
+            return;
+        }
         if (button.pressed) {
             hideTooltip(); // any click dismisses a showing/pending tooltip
             Widget<?> hit = hitAt(button.x, button.y);
@@ -3452,6 +3503,9 @@ public final class Scene {
             // widget, and onWidgetDetached must find (and clear) this state.
             pressed = hit;
             pressedButton = button.button;
+            pressX = button.x;
+            pressY = button.y;
+            dragAsked = false;
             // Click-to-focus: nearest focusable ancestor of the press target.
             Widget<?> focusTarget = hit;
             while (focusTarget != null && !focusTarget.isFocusable()) {
@@ -3495,11 +3549,22 @@ public final class Scene {
                 keysDown.clear(key.key);
             }
         }
+        if (dragSession != null) {
+            dragKey(key); // a drag in flight has the keyboard: Escape, and the keys that steer it
+            return;
+        }
         KeyEvent event = new KeyEvent(key.key, key.layoutCodePoint, key.pressed, key.repeat, key.mods);
         // Keys go to the focused widget, else the topmost modal layer (so a
         // dialog can handle ESC even with nothing focused).
         Widget<?> keyTarget = focused != null ? focused : keyboardRoot();
         dispatchBubbling(keyTarget, event);
+        if (!event.isConsumed() && key.pressed && !key.repeat && key.key == dragKeyCode
+                && (key.mods & DRAG_KEY_MASK) == dragKeyModifiers && focused != null) {
+            if (startDrag(focused, new DragStartEvent(focused.localToSceneX() + focused.width() / 2,
+                    focused.localToSceneY() + focused.height() / 2, key.mods, true))) {
+                event.consume();
+            }
+        }
         // Between the focused widget and the Tab fallback: what nobody focused wanted may still
         // be a shortcut, and what nobody wants at all must still traverse.
         offerToShortcutHandlers(event);
@@ -3676,6 +3741,11 @@ public final class Scene {
         // on that widget an image cursor beats a shape (it is the more
         // specific request). The backend treats an active image cursor as an
         // override, so the shape is still recorded for when it clears.
+        if (dragSession != null && !dragSession.keyboard) {
+            window.setImageCursor(null);
+            window.setCursor(dragSession.target != null ? Cursor.DEFAULT : Cursor.NOT_ALLOWED);
+            return;
+        }
         Cursor shape = Cursor.DEFAULT;
         limn.backend.ImageCursor image = null;
         for (Widget<?> w = hovered; w != null; w = w.parent()) {
@@ -3722,8 +3792,6 @@ public final class Scene {
             widget.dispatchChar(ch);
         } else if (event instanceof PreeditEvent preedit) {
             widget.dispatchPreedit(preedit);
-        } else if (event instanceof FileDropEvent drop) {
-            widget.dispatchFileDrop(drop);
         }
         long elapsed = clock.getAsLong() - start;
         if (elapsed > slowHandlerBudgetNanos) {
@@ -3732,6 +3800,424 @@ public final class Scene {
                     "handler of {0} took {1} ms for {2} (budget {3} ms); move work to Ui.async(...)",
                     widget.getClass().getName(), TimeUnit.NANOSECONDS.toMillis(elapsed), event,
                     TimeUnit.NANOSECONDS.toMillis(slowHandlerBudgetNanos));
+        }
+    }
+
+    // ----------------------------------------------------------------- drags
+
+    /** How far a press travels before it asks whether a drag begins. */
+    private static final float DRAG_THRESHOLD = 4;
+    /** How near an edge of the widget that accepted the pointer rests for it to scroll. */
+    private static final float AUTO_SCROLL_EDGE = 24;
+    private static final double AUTO_SCROLL_SECONDS = 0.06;
+    private static final float DRAG_IMAGE_OPACITY = 0.75f;
+    private static final int DRAG_KEY_MASK =
+            Keys.MOD_SHIFT | Keys.MOD_CONTROL | Keys.MOD_ALT | Keys.MOD_SUPER;
+    private static final boolean MAC = limn.backend.Platform.current().isMacOs();
+
+    private float pressX;
+    private float pressY;
+    private boolean dragAsked;
+    private int dragKeyCode = Keys.D;
+    private int dragKeyModifiers = Keys.MOD_SHIFT | (MAC ? Keys.MOD_SUPER : Keys.MOD_CONTROL);
+    private @Nullable DragSession dragSession;
+    private @Nullable Rect paintedDragImage;
+
+    /** A drag the scene drives: what is carried, who began it, and who would take it now. */
+    private static final class DragSession {
+        final limn.transfer.Drag drag;
+        final Widget<?> source;
+        final limn.transfer.Offer offer;
+        final boolean keyboard;
+        @Nullable Widget<?> target;
+        limn.transfer.@Nullable DropAction action;
+        float x;
+        float y;
+
+        DragSession(limn.transfer.Drag drag, Widget<?> source, boolean keyboard, float x, float y) {
+            this.drag = drag;
+            this.source = source;
+            this.offer = drag.content().asOffer();
+            this.keyboard = keyboard;
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    /**
+     * Sets the key that begins a drag from the keyboard on the focused widget. The default is
+     * Ctrl+Shift+D, and Cmd+Shift+D on macOS.
+     *
+     * @param key       a {@code Keys} constant
+     * @param modifiers the {@code Keys.MOD_*} bits held with it
+     */
+    public void setDragKey(int key, int modifiers) {
+        Ui.checkUiThread();
+        dragKeyCode = key;
+        dragKeyModifiers = modifiers & DRAG_KEY_MASK;
+    }
+
+    /** @return whether a drag is in flight in this scene */
+    public boolean isDragging() {
+        return dragSession != null;
+    }
+
+    /**
+     * Asks {@code from} and its ancestors whether a drag begins, and begins the first answered.
+     *
+     * @return whether a drag began
+     */
+    private boolean startDrag(Widget<?> from, DragStartEvent event) {
+        for (Widget<?> w = from; w != null; w = w.parent()) {
+            if (!w.isEnabled()) {
+                continue;
+            }
+            limn.transfer.Drag drag = w.dispatchDragStart(event);
+            if (drag == null) {
+                continue;
+            }
+            // The press is over for whoever had it: a drag is not also a click.
+            if (pressed != null) {
+                Widget<?> oldPressed = pressed;
+                int oldButton = pressedButton;
+                pressed = null;
+                pressedButton = -1;
+                timedDispatch(oldPressed,
+                        new MouseEvent(MouseEvent.Type.RELEASE, mouseX, mouseY, oldButton, 0, 0, modifiers));
+            }
+            hideTooltip();
+            updateHover(null);
+            DragSession session = new DragSession(drag, w, event.isKeyboard(), event.x(), event.y());
+            dragSession = session;
+            if (event.isKeyboard()) {
+                announce(drag.description().isEmpty() ? DragStrings.STARTED_UNNAMED.get()
+                        : DragStrings.STARTED.format(drag.description()),
+                        limn.accessibility.Accessible.Politeness.ASSERTIVE);
+                // Where it is, first: moving something within its own list is the common case.
+                keyboardTarget(w, 0, 0, false);
+            } else {
+                addRealTimeTicker(new AutoScroll(session));
+            }
+            applyCursor();
+            scheduleFrame();
+            return true;
+        }
+        return false;
+    }
+
+    private static limn.transfer.DropAction proposedAction(java.util.Set<limn.transfer.DropAction> allowed,
+            int mods) {
+        limn.transfer.DropAction asked = null;
+        boolean shift = (mods & Keys.MOD_SHIFT) != 0;
+        boolean control = (mods & Keys.MOD_CONTROL) != 0;
+        boolean alt = (mods & Keys.MOD_ALT) != 0;
+        boolean command = (mods & Keys.MOD_SUPER) != 0;
+        if (MAC) {
+            // Option copies, Command moves, Control (or Option with Command) links.
+            if (control || (alt && command)) {
+                asked = limn.transfer.DropAction.LINK;
+            } else if (alt) {
+                asked = limn.transfer.DropAction.COPY;
+            } else if (command) {
+                asked = limn.transfer.DropAction.MOVE;
+            }
+        } else if (control && shift) {
+            asked = limn.transfer.DropAction.LINK;
+        } else if (control) {
+            asked = limn.transfer.DropAction.COPY;
+        } else if (shift) {
+            asked = limn.transfer.DropAction.MOVE;
+        }
+        return asked != null && allowed.contains(asked) ? asked : allowed.iterator().next();
+    }
+
+    private DragEvent dragEvent(DragSession session, int stepX, int stepY) {
+        java.util.Set<limn.transfer.DropAction> allowed = session.drag.actions();
+        return new DragEvent(session.x, session.y, modifiers, session.keyboard, stepX, stepY,
+                session.offer, allowed, proposedAction(allowed, modifiers), session.source);
+    }
+
+    /** The pointer moved in a drag: who accepts it there, and who no longer does. */
+    private void dragMoved(float x, float y) {
+        DragSession session = dragSession;
+        if (session == null) {
+            return;
+        }
+        damageDragImage();
+        session.x = x;
+        session.y = y;
+        DragEvent event = dragEvent(session, 0, 0);
+        Widget<?> acceptor = null;
+        for (Widget<?> w = hitAt(x, y); w != null && acceptor == null; w = w.parent()) {
+            if (w.isEnabled()) {
+                w.dispatchDragOver(event);
+                if (event.isAccepted()) {
+                    acceptor = w;
+                }
+            }
+        }
+        retarget(session, acceptor, event.acceptedAction());
+        damageDragImage();
+        scheduleFrame();
+    }
+
+    private void retarget(DragSession session, @Nullable Widget<?> acceptor,
+            limn.transfer.@Nullable DropAction action) {
+        Widget<?> before = session.target;
+        session.target = acceptor;
+        session.action = action;
+        if (before != null && before != acceptor) {
+            before.dispatchDragExit(dragEvent(session, 0, 0));
+        }
+        if (before != acceptor) {
+            applyCursor();
+        }
+    }
+
+    /** Ends the drag in flight: a drop on the widget that accepts it, or nothing at all. */
+    private void finishDrag(boolean drop) {
+        DragSession session = dragSession;
+        if (session == null) {
+            return;
+        }
+        dragSession = null;
+        damageDragImage();
+        paintedDragImage = null;
+        limn.transfer.DropAction done = null;
+        Widget<?> target = session.target;
+        limn.transfer.DropAction action = session.action;
+        if (target != null && drop && action != null) {
+            DropEvent event = new DropEvent(session.x, session.y, modifiers, session.keyboard,
+                    session.offer, action, session.source);
+            target.dispatchDrop(event);
+            done = event.isRejected() ? null : action;
+        } else if (target != null) {
+            target.dispatchDragExit(dragEvent(session, 0, 0));
+        }
+        if (session.keyboard) {
+            announce((done != null ? DragStrings.DROPPED : DragStrings.CANCELLED).get(),
+                    limn.accessibility.Accessible.Politeness.ASSERTIVE);
+        }
+        session.drag.end(done);
+        applyCursor();
+        if (pointerInside) {
+            updateHover(hitAt(mouseX, mouseY));
+        }
+        scheduleFrame();
+    }
+
+    /**
+     * What another program dragged is dropped on the window: the widget under the point is asked
+     * whether it takes it, and handed it at once if it does.
+     */
+    private void dropFromOutside(limn.transfer.Offer offer, java.util.Set<limn.transfer.DropAction> allowed,
+            float x, float y) {
+        DragEvent over = new DragEvent(x, y, modifiers, false, 0, 0, offer, allowed,
+                proposedAction(allowed, modifiers), null);
+        for (Widget<?> w = hitAt(x, y); w != null; w = w.parent()) {
+            if (!w.isEnabled()) {
+                continue;
+            }
+            w.dispatchDragOver(over);
+            limn.transfer.DropAction action = over.acceptedAction();
+            if (action != null) {
+                w.dispatchDrop(new DropEvent(x, y, modifiers, false, offer, action, null));
+                return;
+            }
+        }
+    }
+
+    // ---- the keyboard's drag
+
+    private void dragKey(RawKey key) {
+        DragSession session = dragSession;
+        if (session == null) {
+            return;
+        }
+        if (key.pressed && key.key == Keys.ESCAPE) {
+            finishDrag(false);
+            return;
+        }
+        if (!session.keyboard) {
+            dragMoved(session.x, session.y); // a modifier pressed or let go of changes what is proposed
+            return;
+        }
+        if (!key.pressed) {
+            return;
+        }
+        Widget<?> target = session.target;
+        boolean rtl = target != null && target.isRightToLeft();
+        switch (key.key) {
+            case Keys.TAB -> nextKeyboardTarget((key.mods & Keys.MOD_SHIFT) != 0);
+            case Keys.ENTER, Keys.SPACE -> {
+                if (target != null) {
+                    finishDrag(true);
+                } else {
+                    announce(DragStrings.NO_TARGET.get(), limn.accessibility.Accessible.Politeness.ASSERTIVE);
+                }
+            }
+            case Keys.UP -> step(session, 0, -1);
+            case Keys.DOWN -> step(session, 0, 1);
+            case Keys.LEFT -> step(session, rtl ? 1 : -1, 0);
+            case Keys.RIGHT -> step(session, rtl ? -1 : 1, 0);
+            default -> { }
+        }
+        scheduleFrame();
+    }
+
+    private void step(DragSession session, int stepX, int stepY) {
+        Widget<?> target = session.target;
+        if (target != null) {
+            keyboardTarget(target, stepX, stepY, true);
+        }
+    }
+
+    /**
+     * Asks one widget whether it takes the keyboard's drag, and makes it the target if it does.
+     *
+     * @param keep whether a refusal leaves the target as it was (an arrow key that leads nowhere)
+     * @return whether it accepted
+     */
+    private boolean keyboardTarget(Widget<?> widget, int stepX, int stepY, boolean keep) {
+        DragSession session = dragSession;
+        if (session == null) {
+            return false;
+        }
+        float wasX = session.x;
+        float wasY = session.y;
+        session.x = widget.localToSceneX() + widget.width() / 2;
+        session.y = widget.localToSceneY() + widget.height() / 2;
+        DragEvent event = dragEvent(session, stepX, stepY);
+        widget.dispatchDragOver(event);
+        if (!event.isAccepted()) {
+            session.x = wasX;
+            session.y = wasY;
+            if (!keep && session.target == widget) {
+                retarget(session, null, null);
+            }
+            return false;
+        }
+        retarget(session, widget, event.acceptedAction());
+        String place = event.place();
+        if (place == null) {
+            limn.i18n.I18nString name = widget.accessibleName();
+            place = name != null ? name.get() : null;
+        }
+        if (place == null) {
+            List<Widget<?>> all = new ArrayList<>();
+            collectDropCandidates(keyboardRoot(), all);
+            place = DragStrings.TARGET.format(all.indexOf(widget) + 1, all.size());
+        }
+        announce(place, limn.accessibility.Accessible.Politeness.ASSERTIVE);
+        return true;
+    }
+
+    /** Tab in a keyboard drag: the next widget, in the tree's order, that accepts what is carried. */
+    private void nextKeyboardTarget(boolean backward) {
+        DragSession session = dragSession;
+        if (session == null) {
+            return;
+        }
+        List<Widget<?>> all = new ArrayList<>();
+        collectDropCandidates(keyboardRoot(), all);
+        if (all.isEmpty()) {
+            return;
+        }
+        Widget<?> current = session.target;
+        int from = all.indexOf(current);
+        int start = from >= 0 ? from : (backward ? 0 : -1);
+        for (int i = 1; i <= all.size(); i++) {
+            Widget<?> candidate = all.get(Math.floorMod(start + (backward ? -i : i), all.size()));
+            if (candidate != current && keyboardTarget(candidate, 0, 0, true)) {
+                return;
+            }
+        }
+        if (current == null) {
+            announce(DragStrings.NO_TARGET.get(), limn.accessibility.Accessible.Politeness.ASSERTIVE);
+        }
+    }
+
+    private static void collectDropCandidates(Widget<?> widget, List<Widget<?>> out) {
+        if (!widget.isVisible() || !widget.isEnabled()) {
+            return;
+        }
+        out.add(widget);
+        for (Widget<?> child : widget.children()) {
+            collectDropCandidates(child, out);
+        }
+    }
+
+    // ---- what a pointer drag shows
+
+    /** Scrolls the widget that accepts the drag while the pointer rests near one of its edges. */
+    private final class AutoScroll implements Ticker {
+        private final DragSession session;
+        private double waited;
+
+        AutoScroll(DragSession session) {
+            this.session = session;
+        }
+
+        @Override
+        public boolean tick(double dtSeconds) {
+            if (dragSession != session) {
+                return false;
+            }
+            Widget<?> target = session.target;
+            waited += dtSeconds;
+            if (target == null || waited < AUTO_SCROLL_SECONDS) {
+                return true;
+            }
+            waited = 0;
+            float left = target.localToSceneX();
+            float top = target.localToSceneY();
+            float dx = session.x < left + AUTO_SCROLL_EDGE ? 1
+                    : session.x > left + target.width() - AUTO_SCROLL_EDGE ? -1 : 0;
+            float dy = session.y < top + AUTO_SCROLL_EDGE ? 1
+                    : session.y > top + target.height() - AUTO_SCROLL_EDGE ? -1 : 0;
+            if (dx != 0 || dy != 0) {
+                dispatchBubbling(target, new MouseEvent(MouseEvent.Type.WHEEL, session.x, session.y, -1,
+                        dx, dy, 0));
+                dragMoved(session.x, session.y); // what is under the pointer moved
+            }
+            return true;
+        }
+    }
+
+    private @Nullable Rect dragImageRect() {
+        DragSession session = dragSession;
+        if (session == null || session.keyboard) {
+            return null;
+        }
+        limn.graphics.Image image = session.drag.image();
+        return image == null ? null : new Rect(session.x - session.drag.hotSpotX(),
+                session.y - session.drag.hotSpotY(), image.width(), image.height());
+    }
+
+    private void damageDragImage() {
+        if (paintedDragImage != null) {
+            addDamage(paintedDragImage.x() - 1, paintedDragImage.y() - 1,
+                    paintedDragImage.width() + 2, paintedDragImage.height() + 2);
+        }
+        Rect now = dragImageRect();
+        if (now != null) {
+            addDamage(now.x() - 1, now.y() - 1, now.width() + 2, now.height() + 2);
+        }
+    }
+
+    private void paintDragImage(Canvas canvas) {
+        Rect rect = dragImageRect();
+        DragSession session = dragSession;
+        paintedDragImage = rect;
+        if (rect == null || session == null) {
+            return;
+        }
+        limn.graphics.Image image = session.drag.image();
+        if (image != null) {
+            canvas.save();
+            canvas.setOpacity(DRAG_IMAGE_OPACITY);
+            canvas.drawImage(image, rect.x(), rect.y(), rect.width(), rect.height());
+            canvas.restore();
         }
     }
 
@@ -4080,6 +4566,7 @@ public final class Scene {
         }
         paintModalScrim(canvas);
         paintTooltip(canvas);
+        paintDragImage(canvas);
         if (frontPainter != null) {
             frontPainter.accept(canvas);
         }

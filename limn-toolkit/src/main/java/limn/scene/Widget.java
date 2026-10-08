@@ -9,7 +9,9 @@ import limn.graphics.Canvas;
 import limn.i18n.I18n;
 import limn.internal.lang.Checks;
 import limn.scene.event.CharEvent;
-import limn.scene.event.FileDropEvent;
+import limn.scene.event.DragEvent;
+import limn.scene.event.DragStartEvent;
+import limn.scene.event.DropEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
 import limn.scene.event.PreeditEvent;
@@ -1981,10 +1983,49 @@ public abstract class Widget<W extends Widget<W>> {
     }
 
     /**
-     * Files dropped from the OS onto this widget (bubbling from the widget under
-     * the pointer); call {@code event.consume()} when handled. Default: ignored.
+     * Asked when a drag may begin on this widget: the pointer was pressed here and has moved a few
+     * points, or the drag key was pressed while this widget had the focus. The question bubbles
+     * from the widget under the pointer, and the first {@code Drag} answered starts the drag; the
+     * press is then over for the widget that had it. Default: {@code null}, which leaves the
+     * gesture to the {@code DRAG} events it has always been.
+     *
+     * @param event where the press began, and whether the keyboard asked
+     * @return what to drag, or null
      */
-    protected void onFileDrop(FileDropEvent event) {
+    protected limn.transfer.@Nullable Drag onDragStart(DragStartEvent event) {
+        return null;
+    }
+
+    /**
+     * A drag is over this widget, or has moved on it. A widget that would take what is offered
+     * calls {@code event.accept()} and marks where the drop would land; one that says nothing
+     * passes the question to its parent. It is asked again on every move, so that the answer can
+     * depend on the place. Files dragged in from the system arrive the same way, their offer
+     * holding {@code DataFormat.FILES}. Default: says nothing.
+     *
+     * @param event what is offered and where
+     */
+    protected void onDragOver(DragEvent event) {
+    }
+
+    /**
+     * The drag this widget had accepted has left it, was cancelled, or was accepted by another
+     * widget: whatever marked the place of the drop goes. Not called after {@link #onDrop}.
+     * Default: nothing.
+     *
+     * @param event the drag as it leaves
+     */
+    protected void onDragExit(DragEvent event) {
+    }
+
+    /**
+     * What was dragged is dropped here: on the widget that accepted it last. Read what is wanted
+     * from {@code event.offer()} and carry out {@code event.action()}; whatever marked the place
+     * goes now, since no {@link #onDragExit} follows. Default: nothing.
+     *
+     * @param event what was dropped and where
+     */
+    protected void onDrop(DropEvent event) {
     }
 
     // ------------------------------------------------------------- the change channel
@@ -2796,10 +2837,37 @@ public abstract class Widget<W extends Widget<W>> {
         return caretRect();
     }
 
-    final void dispatchFileDrop(FileDropEvent event) {
+    final limn.transfer.@Nullable Drag dispatchDragStart(DragStartEvent event) {
         Locale enclosing = I18n.pushScope(locale());
         try {
-            onFileDrop(event);
+            return onDragStart(event);
+        } finally {
+            I18n.popScope(enclosing);
+        }
+    }
+
+    final void dispatchDragOver(DragEvent event) {
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            onDragOver(event);
+        } finally {
+            I18n.popScope(enclosing);
+        }
+    }
+
+    final void dispatchDragExit(DragEvent event) {
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            onDragExit(event);
+        } finally {
+            I18n.popScope(enclosing);
+        }
+    }
+
+    final void dispatchDrop(DropEvent event) {
+        Locale enclosing = I18n.pushScope(locale());
+        try {
+            onDrop(event);
         } finally {
             I18n.popScope(enclosing);
         }

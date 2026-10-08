@@ -219,6 +219,14 @@ Maven Central say which number that was.
   `Offer` that lists its formats at once and reads a value asynchronously.
   `Clipboard.set(Transfer)` and `Clipboard.content()` carry them, and `onChange` hears the
   content change.
+- Drag and drop between widgets. A widget answers `onDragStart` with a `Drag` (what it carries
+  as a `Transfer`, the actions it allows, what to hear at the end); the widget under the pointer
+  accepts in `onDragOver`, marks where the drop would land, and takes it in `onDrop`. The
+  modifier keys choose between copy, move and link as the platform does, Escape cancels, and a
+  widget that scrolls under the wheel scrolls when the pointer rests near its edge. The keyboard
+  does the same: Ctrl+Shift+D (Cmd+Shift+D on macOS, `Scene.setDragKey`) picks up on the focused
+  widget, Tab walks the widgets that accept, the arrow keys choose the place, Enter drops, and a
+  screen reader hears each step in the 21 languages. A drag stays inside its window for now.
 - The clipboard carries all of it to and from other programs on Windows, macOS, X11 and Wayland:
   a picture pasted from a screenshot tool, files copied in the file manager, a table copied to a
   spreadsheet as HTML. A lazy value is made when a program first pastes it. On Windows and macOS
@@ -437,6 +445,10 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- `Widget.onFileDrop` and `FileDropEvent` are gone: files dragged in from the system are a drop
+  like any other. A widget accepts them in `onDragOver`
+  (`if (event.offer().has(DataFormat.FILES)) event.accept();`) and reads them in `onDrop`
+  (`event.offer().read(DataFormat.FILES).thenAccept(files -> …)`).
 - `Clipboard.get()` and `set(String)` are `text()` and `setText(String)`, now that the clipboard
   holds more than text. A class that implements `Clipboard` for a test implements `text()`,
   `set(Transfer)`, `content()` and `onChange`, or is replaced by `Clipboard.inMemory()`.

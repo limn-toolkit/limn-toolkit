@@ -19,7 +19,9 @@ import limn.scene.Insets;
 import limn.scene.Scene;
 import limn.scene.Size;
 import limn.scene.Widget;
-import limn.scene.event.FileDropEvent;
+import limn.scene.event.DragEvent;
+import limn.scene.event.DropEvent;
+import limn.transfer.DataFormat;
 import limn.scene.layout.Column;
 import limn.scene.layout.Flex;
 import limn.scene.layout.Padding;
@@ -35,7 +37,7 @@ import java.util.Optional;
 /**
  * OS file integration showcase ({@code --scene files}): the native open/save/
  * folder dialogs ({@link FileDialogs}, tinyfd, no AWT), OS drag-and-drop onto a
- * {@link Widget#onFileDrop} target, and the window extras: icon
+ * {@link Widget#onDrop} target, and the window extras: icon
  * ({@link NativeWindow#setIcon}, Windows/Linux), a minimum size
  * ({@link NativeWindow#setSizeLimits}) and a close request answered from a confirm
  * dialog ({@link NativeWindow#setCloseRequestHandler}).
@@ -156,8 +158,8 @@ final class FilesScene {
         col.add(status);
 
         col.add(new Label("Drag & drop from the OS").setRole(Label.Role.TITLE));
-        col.add(new Label("Drag files from Finder/Explorer onto the area below; they arrive as a "
-                + "FileDropEvent bubbling from the widget under the pointer (Widget.onFileDrop).")
+        col.add(new Label("Drag files from Finder/Explorer onto the area below; "
+                + "the widget under the pointer accepts them in onDragOver and reads them in onDrop.")
                 .setMuted(true).setWrap(true));
         col.add(new DropArea());
 
@@ -242,13 +244,21 @@ final class FilesScene {
         }
 
         @Override
-        protected void onFileDrop(FileDropEvent event) {
-            dropped.clear();
-            for (Path path : event.paths()) {
-                dropped.add(path.getFileName() != null ? path.getFileName().toString() : path.toString());
+        protected void onDragOver(DragEvent event) {
+            if (event.offer().has(DataFormat.FILES)) {
+                event.accept();
             }
-            event.consume();
-            invalidate();
+        }
+
+        @Override
+        protected void onDrop(DropEvent event) {
+            event.offer().read(DataFormat.FILES).thenAccept(files -> {
+                dropped.clear();
+                for (Path path : files) {
+                    dropped.add(path.getFileName() != null ? path.getFileName().toString() : path.toString());
+                }
+                invalidate();
+            });
         }
 
         @Override

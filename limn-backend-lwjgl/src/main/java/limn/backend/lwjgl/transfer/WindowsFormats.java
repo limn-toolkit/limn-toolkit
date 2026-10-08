@@ -46,20 +46,31 @@ final class WindowsFormats {
     static byte[] cfHtml(byte[] fragment) {
         String head = "<html><body>\r\n<!--StartFragment-->";
         String tail = "<!--EndFragment-->\r\n</body></html>";
-        String header = "Version:0.9\r\nStartHTML:%010d\r\nEndHTML:%010d\r\n"
-                + "StartFragment:%010d\r\nEndFragment:%010d\r\n";
-        int headerLength = String.format(header, 0, 0, 0, 0).length();
+        // Four offsets of ten digits each: the header's own length does not depend on them.
+        int headerLength = header(0, 0, 0, 0).length();
         int startFragment = headerLength + head.length();
         int endFragment = startFragment + fragment.length;
         int endHtml = endFragment + tail.length();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        out.writeBytes(String.format(header, headerLength, endHtml, startFragment, endFragment)
+        out.writeBytes(header(headerLength, endHtml, startFragment, endFragment)
                 .getBytes(StandardCharsets.US_ASCII));
         out.writeBytes(head.getBytes(StandardCharsets.US_ASCII));
         out.writeBytes(fragment);
         out.writeBytes(tail.getBytes(StandardCharsets.US_ASCII));
         out.write(0);
         return out.toByteArray();
+    }
+
+    private static String header(int startHtml, int endHtml, int startFragment, int endFragment) {
+        return "Version:0.9\r\nStartHTML:" + offset(startHtml) + "\r\nEndHTML:" + offset(endHtml)
+                + "\r\nStartFragment:" + offset(startFragment) + "\r\nEndFragment:" + offset(endFragment)
+                + "\r\n";
+    }
+
+    /** An offset as the format writes it: ten ASCII digits, whatever the user's language. */
+    private static String offset(int value) {
+        String digits = Integer.toString(value);
+        return "0000000000".substring(digits.length()) + digits;
     }
 
     /** The fragment of an {@code HTML Format} block; the whole document where no fragment is marked. */

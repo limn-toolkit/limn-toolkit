@@ -367,7 +367,7 @@
 366       button "Open sketch (*.limn)…" [disabled, hidden, offscreen]
 367       label "No dialog shown yet." [disabled, hidden, offscreen]
 368       heading "Drag & drop from the OS" [disabled, hidden, offscreen]
-369       label "Drag files from Finder/Explorer onto the area below; they arrive as a FileDropEvent bubbling from the widget under the pointer (Widget.onFileDrop)." [disabled, hidden, offscreen]
+369       label "Drag files from Finder/Explorer onto the area below; the widget under the pointer accepts them in onDragOver and reads them in onDrop." [disabled, hidden, offscreen]
 370       heading "Window extras" [disabled, hidden, offscreen]
 371       label "This window has an icon (Windows/Linux; macOS windows use the app bundle's icon), a 480×360 pt minimum size, and (while the switch is on) a close-request veto: the OS close button asks for confirmation first." [disabled, hidden, offscreen]
 372       switch "Confirm before closing" [disabled, hidden, offscreen, checked] toggle=on
