@@ -21,6 +21,13 @@ public final class ClipboardTypes {
     /** Files, as an RFC 2483 URI list. */
     public static final String FILES = "text/uri-list";
 
+    /**
+     * A picture as its pixels: the width and the height as two little-endian integers, then the
+     * rows of straight-alpha RGBA, top first. Never announced to another program; it is what a
+     * system's clipboard asks this one for when its own picture format is made of pixels.
+     */
+    public static final String PIXELS = "image/x-limn-pixels";
+
     private static final List<String> TEXT_SPELLINGS =
             List.of(TEXT, "UTF8_STRING", "text/plain", "TEXT", "STRING");
     private static final List<String> IMAGE_SPELLINGS =

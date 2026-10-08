@@ -47,6 +47,18 @@ public interface NativeClipboard {
     void offer(List<String> types, Function<String, byte[]> bytes);
 
     /**
+     * The types worth making ahead of anybody asking, because this system asks on the UI thread
+     * and waits there: the picture's, where making it is slow.
+     *
+     * @param offered the types about to be offered
+     * @return those of {@code offered}, and of the private types this clipboard asks for itself,
+     *         that should be made in the background as soon as they are offered
+     */
+    default List<String> madeAhead(List<String> offered) {
+        return offered.contains(ClipboardTypes.IMAGE) ? List.of(ClipboardTypes.IMAGE) : List.of();
+    }
+
+    /**
      * @param listener called, on any thread, after the clipboard's types or its owner change,
      *                 an {@link #offer} of this process included; replaces the one before
      */

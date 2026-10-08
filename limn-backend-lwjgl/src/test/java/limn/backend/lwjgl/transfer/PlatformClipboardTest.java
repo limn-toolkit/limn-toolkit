@@ -47,6 +47,12 @@ class PlatformClipboardTest {
         Function<String, byte[]> ownBytes = type -> null;
         Runnable listener = () -> { };
         final List<String> reads = new ArrayList<>();
+        List<String> ahead = List.of();
+
+        @Override
+        public List<String> madeAhead(List<String> offered) {
+            return ahead;
+        }
 
         void otherProgramCopies(Map<String, byte[]> content) {
             owner = false;
@@ -141,6 +147,29 @@ class PlatformClipboardTest {
         assertArrayEquals(utf8("n"), system.ownBytes.apply(NOTE.name()));
         assertNull(system.ownBytes.apply("application/x-nobody"));
         assertNull(system.ownBytes.apply(LIVE.name()));
+    }
+
+    @Test
+    void whatTheSystemWantsAheadIsMadeOnAWorkerAtOnceUnlessItIsLazy() throws Exception {
+        system.ahead = List.of(ClipboardTypes.TEXT, ClipboardTypes.HTML);
+        List<String> made = new ArrayList<>();
+        Thread ui = Thread.currentThread();
+        Thread[] encodedOn = new Thread[1];
+        DataFormat<String> slow = DataFormat.of("application/x-limn-test-slow", text -> {
+            encodedOn[0] = Thread.currentThread();
+            return utf8(text);
+        }, bytes -> "");
+        system.ahead = List.of(slow.name(), ClipboardTypes.HTML);
+        clipboard.set(Transfer.of(slow, "ready").withLazy(DataFormat.HTML, () -> {
+            made.add("html");
+            return "<p>lazy</p>";
+        }));
+        // No task of the UI thread is run here: the worker needs nothing from it.
+        assertArrayEquals(utf8("ready"), system.ownBytes.apply(slow.name()));
+        assertTrue(encodedOn[0] != null && encodedOn[0] != ui, "encoded off the UI thread, before anybody asked");
+        assertTrue(made.isEmpty(), "a lazy value is not made ahead");
+        assertArrayEquals(utf8("<p>lazy</p>"), system.ownBytes.apply(ClipboardTypes.HTML));
+        assertEquals(List.of("html"), made);
     }
 
     @Test

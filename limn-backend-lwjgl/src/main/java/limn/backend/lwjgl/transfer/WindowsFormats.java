@@ -118,6 +118,12 @@ final class WindowsFormats {
         return out.array();
     }
 
+    /** A {@link ClipboardTypes#PIXELS} block as {@code CF_DIB}. */
+    static byte[] dibFromPixels(byte[] block) {
+        ByteBuffer in = ByteBuffer.wrap(block).order(ByteOrder.LITTLE_ENDIAN);
+        return dib(in.getInt(0), in.getInt(4), java.util.Arrays.copyOfRange(block, 8, block.length));
+    }
+
     private static int over(int channel, int alpha) {
         return (channel * alpha + 255 * (255 - alpha) + 127) / 255;
     }

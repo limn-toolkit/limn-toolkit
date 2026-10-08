@@ -162,10 +162,13 @@ Where the build departs from §2 and §3:
   the backend closes is rendered then, lazy values included, as programs on both systems do. On
   X11 and Wayland the content goes with the process unless the desktop's clipboard manager took
   it, which is those systems' custom too.
-- **A value is taken from the transfer on the UI thread and encoded on the thread that asked**
-  where the system asks from another thread (X11, Wayland), so a photograph becomes a PNG without
-  costing a frame. On Windows and macOS the system asks on the UI thread, and the encoding is
-  there.
+- **A picture is encoded off the UI thread.** One that is at hand when it is copied becomes a
+  PNG on a worker at once, before any program asks (and, on Windows, its pixels are laid out for
+  the bitmap beside it), so a paste finds it made; the owner asked why only the two Linux systems
+  encoded off the UI thread, and this is the answer for the other two, which ask for the data on
+  the UI thread and wait there. A lazy value keeps its promise and is made when first asked for:
+  off the UI thread on X11 and Wayland, on it on Windows and macOS, since that is where and when
+  those systems ask.
 - **Windows serialises every opening of the clipboard in the process.** Two threads opening it
   with no window end the process when the first closes it: three reads at once did, with no
   crash report.

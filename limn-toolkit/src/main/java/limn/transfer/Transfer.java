@@ -123,6 +123,16 @@ public final class Transfer {
         return slots.containsKey(format);
     }
 
+    /**
+     * @param format a format
+     * @return whether the value is at hand: the transfer has the format, and it is not a lazy
+     *         value still waiting to be made
+     */
+    public boolean isReady(DataFormat<?> format) {
+        Slot slot = slots.get(format);
+        return slot != null && slot.pending == null;
+    }
+
     /** @return whether this transfer carries nothing */
     public boolean isEmpty() {
         return slots.isEmpty();

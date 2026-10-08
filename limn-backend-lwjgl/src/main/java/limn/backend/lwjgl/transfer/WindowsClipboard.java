@@ -1,7 +1,5 @@
 package limn.backend.lwjgl.transfer;
 
-import limn.graphics.Image;
-import limn.graphics.Images;
 import limn.transfer.TransferGoneException;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.MemoryStack;
@@ -371,7 +369,9 @@ public final class WindowsClipboard implements NativeClipboard {
                 type = candidate;
             }
         }
-        byte[] bytes = type == null ? null : ownBytes.apply(type);
+        // The bitmap is made from the picture's pixels, not from its PNG decoded again.
+        byte[] bytes = type == null ? null
+                : ownBytes.apply(format == CF_DIB ? ClipboardTypes.PIXELS : type);
         if (bytes == null) {
             return;
         }
@@ -380,8 +380,7 @@ public final class WindowsClipboard implements NativeClipboard {
         } else if (format == htmlFormat) {
             bytes = WindowsFormats.cfHtml(bytes);
         } else if (format == CF_DIB) {
-            Image image = Images.decode(bytes);
-            bytes = WindowsFormats.dib(image.width(), image.height(), image.pixels());
+            bytes = WindowsFormats.dibFromPixels(bytes);
         } else if (format == CF_HDROP) {
             List<String> paths = new ArrayList<>();
             for (Path file : UriLists.decode(bytes)) {
@@ -408,6 +407,13 @@ public final class WindowsClipboard implements NativeClipboard {
         } finally {
             closeClipboard();
         }
+    }
+
+    @Override
+    public List<String> madeAhead(List<String> offered) {
+        // The PNG, and the pixels the bitmap beside it is made from.
+        return offered.contains(ClipboardTypes.IMAGE)
+                ? List.of(ClipboardTypes.IMAGE, ClipboardTypes.PIXELS) : List.of();
     }
 
     @Override

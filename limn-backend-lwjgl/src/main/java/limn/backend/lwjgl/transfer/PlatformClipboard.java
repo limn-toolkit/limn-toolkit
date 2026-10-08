@@ -50,7 +50,7 @@ public final class PlatformClipboard implements Clipboard {
 
     /** What this process last set, and the bytes already made from it. Read off the UI thread. */
     private volatile Transfer held = Transfer.EMPTY;
-    private volatile Map<String, byte[]> rendered = new ConcurrentHashMap<>();
+    private volatile Map<String, CompletableFuture<byte[]>> rendered = new ConcurrentHashMap<>();
     private volatile boolean closed;
 
     /**
@@ -117,8 +117,29 @@ public final class PlatformClipboard implements Clipboard {
             }
         }
         held = content;
-        rendered = new ConcurrentHashMap<>();
-        Map<String, byte[]> cache = rendered;
+        Map<String, CompletableFuture<byte[]>> cache = new ConcurrentHashMap<>();
+        rendered = cache;
+        // A picture already at hand is encoded now, on a worker, and not when a program pastes:
+        // Windows and macOS ask on the UI thread and wait there, and a photograph becoming a PNG
+        // is not something to do between two frames. The value is taken here, on the UI thread,
+        // so the worker needs nothing from it and waiting for the worker can never deadlock. A
+        // lazy value keeps its promise: it is made, and encoded, when it is first asked for.
+        for (String type : system.madeAhead(types)) {
+            DataFormat<?> format = formatOf(content, type);
+            if (format != null && content.isReady(format)) {
+                Object value = content.get(format);
+                CompletableFuture<byte[]> ahead = new CompletableFuture<>();
+                cache.put(type, ahead);
+                ui.workerPool().execute(() -> {
+                    try {
+                        ahead.complete(value == null ? null : encode(type, format, value));
+                    } catch (Throwable failed) {
+                        LOG.log(Level.WARNING, "the clipboard's " + type + " could not be made", failed);
+                        ahead.complete(null);
+                    }
+                });
+            }
+        }
         system.offer(types, type -> bytes(content, cache, type));
     }
 
@@ -139,20 +160,21 @@ public final class PlatformClipboard implements Clipboard {
     }
 
     /**
-     * The bytes of one type of a transfer, kept once made: any thread. The value is taken from
-     * the transfer on the UI thread, where a lazy one is made; it is encoded on the thread that
-     * asked, so that a photograph becoming a PNG for another program costs the UI no frame.
+     * The bytes of one type of a transfer, kept once made: any thread. What was started ahead is
+     * waited for. Otherwise the value is taken from the transfer on the UI thread, where a lazy
+     * one is made, and encoded on the thread that asked: off the UI thread where the system asks
+     * from one of its own (X11, Wayland), on it where the system asks there (Windows, macOS).
      */
-    private byte @Nullable [] bytes(Transfer content, Map<String, byte[]> cache, String type) {
-        byte[] made = cache.get(type);
-        if (made != null) {
-            return made;
-        }
-        DataFormat<?> format = formatOf(content, type);
-        if (format == null) {
-            return null;
-        }
+    private byte @Nullable [] bytes(Transfer content, Map<String, CompletableFuture<byte[]>> cache, String type) {
+        CompletableFuture<byte[]> known = cache.get(type);
         try {
+            if (known != null) {
+                return known.get(RENDER_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            }
+            DataFormat<?> format = formatOf(content, type);
+            if (format == null) {
+                return null;
+            }
             Object value;
             if (ui.isUiThread()) {
                 value = content.get(format);
@@ -167,7 +189,11 @@ public final class PlatformClipboard implements Clipboard {
                 });
                 value = onUi.get(RENDER_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             }
-            made = value == null ? null : encode(format, value);
+            byte[] made = value == null ? null : encode(type, format, value);
+            if (made != null) {
+                cache.put(type, CompletableFuture.completedFuture(made));
+            }
+            return made;
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             return null;
@@ -175,13 +201,12 @@ public final class PlatformClipboard implements Clipboard {
             LOG.log(Level.WARNING, "the clipboard's " + type + " could not be made", failed);
             return null;
         }
-        if (made != null) {
-            cache.put(type, made);
-        }
-        return made;
     }
 
     private static @Nullable DataFormat<?> formatOf(Transfer content, String type) {
+        if (type.equals(ClipboardTypes.PIXELS)) {
+            return content.has(DataFormat.IMAGE) ? DataFormat.IMAGE : null;
+        }
         for (DataFormat<?> format : content.formats()) {
             if (!format.isInProcess() && typeOf(format).equals(type)) {
                 return format;
@@ -191,12 +216,18 @@ public final class PlatformClipboard implements Clipboard {
     }
 
     @SuppressWarnings("unchecked")
-    private static byte[] encode(DataFormat<?> format, Object value) {
+    private static byte[] encode(String type, DataFormat<?> format, Object value) {
         if (format.equals(DataFormat.TEXT) || format.equals(DataFormat.HTML)) {
             return ((String) value).getBytes(StandardCharsets.UTF_8);
         }
         if (format.equals(DataFormat.IMAGE)) {
-            return Images.encode((Image) value, ImageFormat.PNG);
+            Image image = (Image) value;
+            if (type.equals(ClipboardTypes.PIXELS)) {
+                byte[] pixels = image.pixels();
+                return java.nio.ByteBuffer.allocate(8 + pixels.length).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                        .putInt(image.width()).putInt(image.height()).put(pixels).array();
+            }
+            return Images.encode(image, ImageFormat.PNG);
         }
         if (format.equals(DataFormat.FILES)) {
             return UriLists.encode((List<Path>) value);
