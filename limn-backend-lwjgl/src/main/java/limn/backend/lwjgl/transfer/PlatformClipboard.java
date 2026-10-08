@@ -138,26 +138,36 @@ public final class PlatformClipboard implements Clipboard {
         return format.name();
     }
 
-    /** The bytes of one type of a transfer, made on the UI thread and kept: any thread. */
+    /**
+     * The bytes of one type of a transfer, kept once made: any thread. The value is taken from
+     * the transfer on the UI thread, where a lazy one is made; it is encoded on the thread that
+     * asked, so that a photograph becoming a PNG for another program costs the UI no frame.
+     */
     private byte @Nullable [] bytes(Transfer content, Map<String, byte[]> cache, String type) {
         byte[] made = cache.get(type);
         if (made != null) {
             return made;
         }
+        DataFormat<?> format = formatOf(content, type);
+        if (format == null) {
+            return null;
+        }
         try {
+            Object value;
             if (ui.isUiThread()) {
-                made = encode(content, type);
+                value = content.get(format);
             } else {
-                CompletableFuture<byte[]> onUi = new CompletableFuture<>();
+                CompletableFuture<Object> onUi = new CompletableFuture<>();
                 ui.post(() -> {
                     try {
-                        onUi.complete(encode(content, type));
+                        onUi.complete(content.get(format));
                     } catch (Throwable failed) {
                         onUi.completeExceptionally(failed);
                     }
                 });
-                made = onUi.get(RENDER_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                value = onUi.get(RENDER_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             }
+            made = value == null ? null : encode(format, value);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             return null;
@@ -171,37 +181,27 @@ public final class PlatformClipboard implements Clipboard {
         return made;
     }
 
-    private static byte @Nullable [] encode(Transfer content, String type) {
-        switch (type) {
-            case ClipboardTypes.TEXT: {
-                String text = content.get(DataFormat.TEXT);
-                return text == null ? null : text.getBytes(StandardCharsets.UTF_8);
+    private static @Nullable DataFormat<?> formatOf(Transfer content, String type) {
+        for (DataFormat<?> format : content.formats()) {
+            if (!format.isInProcess() && typeOf(format).equals(type)) {
+                return format;
             }
-            case ClipboardTypes.HTML: {
-                String html = content.get(DataFormat.HTML);
-                return html == null ? null : html.getBytes(StandardCharsets.UTF_8);
-            }
-            case ClipboardTypes.IMAGE: {
-                Image image = content.get(DataFormat.IMAGE);
-                return image == null ? null : Images.encode(image, ImageFormat.PNG);
-            }
-            case ClipboardTypes.FILES: {
-                List<Path> files = content.get(DataFormat.FILES);
-                return files == null ? null : UriLists.encode(files);
-            }
-            default:
-                for (DataFormat<?> format : content.formats()) {
-                    if (!format.isInProcess() && !format.isStandard() && format.name().equals(type)) {
-                        return encodeNamed(content, format);
-                    }
-                }
-                return null;
         }
+        return null;
     }
 
-    private static <T> byte @Nullable [] encodeNamed(Transfer content, DataFormat<T> format) {
-        T value = content.get(format);
-        return value == null ? null : format.encode(value);
+    @SuppressWarnings("unchecked")
+    private static byte[] encode(DataFormat<?> format, Object value) {
+        if (format.equals(DataFormat.TEXT) || format.equals(DataFormat.HTML)) {
+            return ((String) value).getBytes(StandardCharsets.UTF_8);
+        }
+        if (format.equals(DataFormat.IMAGE)) {
+            return Images.encode((Image) value, ImageFormat.PNG);
+        }
+        if (format.equals(DataFormat.FILES)) {
+            return UriLists.encode((List<Path>) value);
+        }
+        return ((DataFormat<Object>) format).encode(value);
     }
 
     @Override

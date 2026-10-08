@@ -87,7 +87,8 @@ public final class ClipboardProbe {
                     return true;
                 }
                 if (event.key() == Keys.V) {
-                    say(name, "text()=[" + clipboard.text() + "]");
+                    String now = clipboard.text();
+                    say(name, "text()=" + (now.length() > 200 ? now.length() + " chars" : "[" + now + "]"));
                     Offer offer = clipboard.content();
                     say(name, "formats=" + offer.formats());
                     for (DataFormat<?> format : offer.formats()) {
@@ -98,6 +99,9 @@ public final class ClipboardProbe {
                                 say(name, "READ " + format + " " + image.width() + "x" + image.height()
                                         + " pixels sha=" + hash(image.pixels()));
                                 Images.save(image, ImageFormat.PNG, Path.of(name + "-read.png"));
+                            } else if (value instanceof String text && text.length() > 200) {
+                                say(name, "READ " + format + " " + text.length() + " chars sha="
+                                        + hash(text.getBytes(StandardCharsets.UTF_8)));
                             } else {
                                 say(name, "READ " + format + " [" + value + "]");
                             }

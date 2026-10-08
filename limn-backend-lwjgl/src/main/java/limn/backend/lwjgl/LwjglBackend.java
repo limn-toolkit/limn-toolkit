@@ -200,6 +200,8 @@ public final class LwjglBackend implements BackendPeer {
                     if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
                         system = new limn.backend.lwjgl.transfer.WaylandClipboard(
                                 org.lwjgl.glfw.GLFWNativeWayland.glfwGetWaylandDisplay());
+                    } else if (glfwGetPlatform() == GLFW_PLATFORM_X11) {
+                        system = new limn.backend.lwjgl.transfer.X11Clipboard();
                     }
                     if (system != null) {
                         systemClipboard = new limn.backend.lwjgl.transfer.PlatformClipboard(system, uiRuntime);
