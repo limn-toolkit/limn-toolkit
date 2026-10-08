@@ -598,7 +598,9 @@ final class LwjglWindow implements WindowPeer {
         });
 
         renderer = new GlRenderer(backend.fontStore());
-        clipboard = new GlfwClipboard(this::clipboardWindow, backend.uiRuntime()::checkUiThread);
+        limn.backend.Clipboard system = backend.systemClipboard();
+        clipboard = system != null ? system
+                : new GlfwClipboard(this::clipboardWindow, backend.uiRuntime()::checkUiThread);
     }
 
     /**
