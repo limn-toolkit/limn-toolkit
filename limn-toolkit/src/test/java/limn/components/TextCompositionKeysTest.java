@@ -90,19 +90,7 @@ class TextCompositionKeysTest extends ComponentTestBase {
         Scene scene;
         final AtomicReference<String> result = new AtomicReference<>("<open>");
         final List<String> offered = new ArrayList<>();
-        final Clipboard clipboard = new Clipboard() {
-            private String value = "zz";
-
-            @Override
-            public String get() {
-                return value;
-            }
-
-            @Override
-            public void set(String text) {
-                value = text == null ? "" : text;
-            }
-        };
+        final Clipboard clipboard = TextFieldTest.MockClipboard.holding("zz");
 
         String text() {
             return text instanceof TextField f ? f.text() : ((TextArea) text).text();
@@ -123,7 +111,7 @@ class TextCompositionKeysTest extends ComponentTestBase {
         /** Everything a key could have changed, as one string to compare. */
         String state() {
             return "text=" + text() + " selection=" + selectionStart() + ".." + selectionEnd()
-                    + " clipboard=" + clipboard.get() + " focused=" + (scene.focusedWidget() == text)
+                    + " clipboard=" + clipboard.text() + " focused=" + (scene.focusedWidget() == text)
                     + " result=" + result.get() + " composing=" + composing();
         }
     }

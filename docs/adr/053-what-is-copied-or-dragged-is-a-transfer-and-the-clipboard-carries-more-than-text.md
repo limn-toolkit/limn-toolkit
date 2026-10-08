@@ -1,6 +1,8 @@
 # ADR 053: What is copied or dragged is a transfer, and the clipboard carries more than text
 
-- **Status:** Proposed, 2026-10-08, with the owner's answers below. Nothing is built.
+- **Status:** Accepted, 2026-10-08, with the owner's answers below. Step 1 is built: §2 as
+  written (the registration handle is `limn.concurrent.Subscription`, `Clipboard.inMemory()` is the
+  clipboard of a headless window and of a test), over GLFW's text until §3 lands.
 - **Date:** 2026-10-08
 - **Scope:** a new package `limn.transfer` (`DataFormat`, `Transfer`, `Offer`) that says what a
   copy or a drag carries; `limn.backend.Clipboard` reshaped around it; text, image, HTML, files and
@@ -63,7 +65,7 @@ public interface Clipboard {
     void setText(@Nullable String text);
     void set(Transfer content);
     Offer content();                                     // a snapshot of what it holds now
-    Registration onChange(Runnable listener);
+    Subscription onChange(Runnable listener);
 }
 ```
 

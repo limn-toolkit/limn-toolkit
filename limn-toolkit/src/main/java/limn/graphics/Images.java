@@ -281,14 +281,14 @@ public final class Images {
     /**
      * Compresses {@code image} on the {@code Ui} worker pool and hands the file bytes to
      * {@code onSuccess} on the UI thread, the in-memory counterpart of {@link #saveAsync}, for the
-     * caller who wants the bytes rather than a file: an upload, a clipboard payload, a diff against
+     * caller who wants the bytes rather than a file: an upload, a diff against
      * a reference. Requires a running backend, unlike the synchronous {@link #encode}.
      *
      * <p>Returned <b>unstarted</b>, so the caller can attach handlers first:
      *
      * <pre>{@code
      * Images.encodeAsync(shot, new ImageEncodeOptions(ImageFormat.PNG))
-     *       .onSuccess(bytes -> clipboard.set(bytes))
+     *       .onSuccess(bytes -> upload.send(bytes))
      *       .onFailure(error -> status.setText(error.getMessage()))
      *       .deliverIf(this::isShowing)
      *       .start();

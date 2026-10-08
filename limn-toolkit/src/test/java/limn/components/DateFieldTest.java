@@ -407,7 +407,7 @@ class DateFieldTest extends ComponentTestBase {
 
     private void paste(String text) {
         scene.setClipboard(clipboard);
-        clipboard.set(text);
+        clipboard.setText(text);
         drive(scene).keyEvent(Keys.V, true, false, Keys.MOD_CONTROL);
         drive(scene).keyEvent(Keys.V, false, false, Keys.MOD_CONTROL);
         drive(scene).inputBatchEnded();

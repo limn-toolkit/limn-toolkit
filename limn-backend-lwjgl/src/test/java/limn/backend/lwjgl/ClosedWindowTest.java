@@ -153,7 +153,7 @@ class ClosedWindowTest {
             gone.setAboveSystemChrome(true);
             gone.setOpacity(0.5f);
             gone.focus();
-            gone.clipboard().get();
+            gone.clipboard().text();
             WindowPeer.of(gone).publishAccessibilityElsewhere();
             System.out.println("read back: visible=" + gone.isVisible()
                     + " at=" + gone.screenX() + "," + gone.screenY()

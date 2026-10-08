@@ -43,6 +43,7 @@ module limn.toolkit {
     exports limn.scene.event;
     exports limn.scene.layout;
     exports limn.sound;
+    exports limn.transfer;
     exports limn.video;
     exports limn.video.decode;
 

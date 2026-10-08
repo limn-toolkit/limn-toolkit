@@ -370,7 +370,7 @@ class ThemeEditorTest extends EditorTestBase {
     void pastingSomethingElseFailsQuietlyAndChangesNothing() {
         Theme before = editor.theme();
         editor.setStatus("");
-        scene.clipboard().set("not a palette at all");
+        scene.clipboard().setText("not a palette at all");
 
         assertFalse(editor.pasteFromClipboard());
         assertEquals(before, editor.theme(), "a bad paste must leave the palette alone");
@@ -380,7 +380,7 @@ class ThemeEditorTest extends EditorTestBase {
     void whatIsCopiedIsWhatTheFormatWrites() {
         editor.setToken(Theme.Token.PRIMARY, Color.rgb(0x4FD1C5));
         editor.copyToClipboard();
-        assertEquals(ThemeFormat.write(editor.theme()), scene.clipboard().get());
+        assertEquals(ThemeFormat.write(editor.theme()), scene.clipboard().text());
     }
 
     // --- applying live ------------------------------------------------------

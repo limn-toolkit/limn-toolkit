@@ -62,19 +62,7 @@ public final class HeadlessBackend implements BackendPeer {
      * application's windows: text copied in a dialog pastes in its owner. Empty at first, and this
      * backend's own, so one test's copy never reaches another's paste.
      */
-    final Clipboard clipboard = new Clipboard() {
-        private String text = "";
-
-        @Override
-        public String get() {
-            return text;
-        }
-
-        @Override
-        public void set(@Nullable String newText) {
-            text = newText == null ? "" : newText;
-        }
-    };
+    final Clipboard clipboard = Clipboard.inMemory();
 
     /**
      * @param runtime the runtime the test installed, which is what {@link #uiRuntime()} answers

@@ -212,6 +212,15 @@ Maven Central say which number that was.
 
 ### New
 
+- `limn.transfer`: what a copy carries. A `Transfer` offers one item in several `DataFormat`s at
+  once (`TEXT`, `HTML`, `IMAGE`, `FILES`, and formats of the application's own: `DataFormat.of`
+  names one and says how it becomes bytes, `DataFormat.inProcess` carries the object itself), a
+  value can be lazy (`withLazy`: made once, when somebody asks), and what is there to take is an
+  `Offer` that lists its formats at once and reads a value asynchronously.
+  `Clipboard.set(Transfer)` and `Clipboard.content()` carry them, and `onChange` hears the
+  content change. Until the native clipboards land, only the text of a transfer reaches other
+  programs; the rest pastes within the application.
+
 - `ComboBox.setEditable(true)`: a combo box the user types into. Typing filters the list, with the
   items whose text contains what was typed, ignoring case and accents, and those that start with it
   first; Down and Up walk it, Enter picks, Escape closes it and a second Escape puts the selected
@@ -422,6 +431,10 @@ Maven Central say which number that was.
   so code that names a constant compiles unchanged.
 
 ### Breaking, and how to move
+
+- `Clipboard.get()` and `set(String)` are `text()` and `setText(String)`, now that the clipboard
+  holds more than text. A class that implements `Clipboard` for a test implements `text()`,
+  `set(Transfer)`, `content()` and `onChange`, or is replaced by `Clipboard.inMemory()`.
 
 - `ComboBox` is `ComboBox<T>`: its items are objects, read by a function or as themselves.
   `new ComboBox(List.of("a", "b"))` becomes `new ComboBox<>(List.of("a", "b"))`, and

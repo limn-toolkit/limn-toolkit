@@ -64,7 +64,6 @@ import static org.lwjgl.glfw.GLFW.glfwCreateWindow;
 import static org.lwjgl.glfw.GLFW.glfwDefaultWindowHints;
 import static org.lwjgl.glfw.GLFW.glfwDestroyWindow;
 import static org.lwjgl.glfw.GLFW.glfwFocusWindow;
-import static org.lwjgl.glfw.GLFW.glfwGetClipboardString;
 import static org.lwjgl.glfw.GLFW.glfwGetCursorPos;
 import static org.lwjgl.glfw.GLFW.glfwGetWindowAttrib;
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
@@ -83,7 +82,6 @@ import static org.lwjgl.glfw.GLFW.glfwRequestWindowAttention;
 import static org.lwjgl.glfw.GLFW.glfwRestoreWindow;
 import static org.lwjgl.glfw.GLFW.glfwSetCharCallback;
 import static org.lwjgl.glfw.GLFW.glfwSetCursor;
-import static org.lwjgl.glfw.GLFW.glfwSetClipboardString;
 import static org.lwjgl.glfw.GLFW.glfwSetCursorEnterCallback;
 import static org.lwjgl.glfw.GLFW.glfwRawMouseMotionSupported;
 import static org.lwjgl.glfw.GLFW.glfwSetCursorPos;
@@ -600,22 +598,7 @@ final class LwjglWindow implements WindowPeer {
         });
 
         renderer = new GlRenderer(backend.fontStore());
-        clipboard = new limn.backend.Clipboard() {
-            @Override
-            public String get() {
-                // GLFW clipboard access is main-thread only; this is the one
-                // GLFW-touching API the toolkit hands applications directly.
-                backend.uiRuntime().checkUiThread();
-                String value = glfwGetClipboardString(clipboardWindow());
-                return value == null ? "" : value;
-            }
-
-            @Override
-            public void set(@Nullable String text) {
-                backend.uiRuntime().checkUiThread();
-                glfwSetClipboardString(clipboardWindow(), text == null ? "" : text);
-            }
-        };
+        clipboard = new GlfwClipboard(this::clipboardWindow, backend.uiRuntime()::checkUiThread);
     }
 
     /**

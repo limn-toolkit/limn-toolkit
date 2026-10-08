@@ -1305,7 +1305,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
             case Keys.X -> handled = shortcut && copySelection(true);
             case Keys.V -> {
                 if (shortcut) {
-                    String pasted = clipboard().get();
+                    String pasted = clipboard().text();
                     // Pasting an empty clipboard must not destroy the selection.
                     if (!pasted.isEmpty()) {
                         editFromUser(() -> model.insert(pasted));
@@ -1342,7 +1342,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
         if (!model.hasSelection() || !allowClipboardCopy()) {
             return false;
         }
-        clipboard().set(model.selectedText());
+        clipboard().setText(model.selectedText());
         if (cut) {
             model.deleteSelection();
             announceTextEdit(Change.Origin.USER);
@@ -1523,7 +1523,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
             @Override
             public String clipboardText() {
-                return clipboard().get();
+                return clipboard().text();
             }
 
             @Override
@@ -1540,7 +1540,7 @@ public sealed class TextField extends Widget<TextField> permits PasswordField, S
 
             @Override
             public void paste() {
-                String pasted = clipboard().get();
+                String pasted = clipboard().text();
                 if (!pasted.isEmpty()) {
                     editFromUser(() -> model.insert(pasted));
                     ensureCursorVisible(Theme.current().tokensFor(TextField.this));
