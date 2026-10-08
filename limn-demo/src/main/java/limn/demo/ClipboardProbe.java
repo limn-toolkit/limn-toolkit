@@ -70,47 +70,55 @@ public final class ClipboardProbe {
                     + ", picture " + picture.width() + "x" + picture.height()
                     + " pixels sha=" + hash(picture.pixels()));
             clipboard.onChange(() -> say(name, "CHANGED formats=" + clipboard.content().formats()));
+            Runnable copy = () -> {
+                clipboard.set(Transfer.of(DataFormat.TEXT, "text from " + name)
+                        .with(DataFormat.HTML, "<b>html from " + name + "</b>")
+                        .withLazy(DataFormat.IMAGE, () -> {
+                            say(name, "the picture was asked for");
+                            return picture;
+                        })
+                        .with(DataFormat.FILES, List.of(Path.of(System.getProperty("java.home")),
+                                Path.of(System.getProperty("java.io.tmpdir"), "a b ç.txt")))
+                        .with(NOTE, "note from " + name));
+                say(name, "SET");
+            };
+            Runnable read = () -> {
+                String now = clipboard.text();
+                say(name, "text()=" + (now.length() > 200 ? now.length() + " chars" : "[" + now + "]"));
+                Offer offer = clipboard.content();
+                say(name, "formats=" + offer.formats());
+                for (DataFormat<?> format : offer.formats()) {
+                    offer.read(format).whenComplete((value, failed) -> {
+                        if (failed != null) {
+                            say(name, "READ " + format + " FAILED " + failed);
+                        } else if (value instanceof Image image) {
+                            say(name, "READ " + format + " " + image.width() + "x" + image.height()
+                                    + " pixels sha=" + hash(image.pixels()));
+                            Images.save(image, ImageFormat.PNG, Path.of(name + "-read.png"));
+                        } else if (value instanceof String text && text.length() > 200) {
+                            say(name, "READ " + format + " " + text.length() + " chars sha="
+                                    + hash(text.getBytes(StandardCharsets.UTF_8)));
+                        } else {
+                            say(name, "READ " + format + " [" + value + "]");
+                        }
+                    });
+                }
+            };
             scene.addShortcutHandler(event -> {
-                if (!event.isPressed()) {
-                    return false;
-                }
-                if (event.key() == Keys.C) {
-                    clipboard.set(Transfer.of(DataFormat.TEXT, "text from " + name)
-                            .with(DataFormat.HTML, "<b>html from " + name + "</b>")
-                            .withLazy(DataFormat.IMAGE, () -> {
-                                say(name, "the picture was asked for");
-                                return picture;
-                            })
-                            .with(DataFormat.FILES, List.of(Path.of("/etc/hostname"), Path.of("/tmp/a b ç.txt")))
-                            .with(NOTE, "note from " + name));
-                    say(name, "SET");
-                    return true;
-                }
-                if (event.key() == Keys.V) {
-                    String now = clipboard.text();
-                    say(name, "text()=" + (now.length() > 200 ? now.length() + " chars" : "[" + now + "]"));
-                    Offer offer = clipboard.content();
-                    say(name, "formats=" + offer.formats());
-                    for (DataFormat<?> format : offer.formats()) {
-                        offer.read(format).whenComplete((value, failed) -> {
-                            if (failed != null) {
-                                say(name, "READ " + format + " FAILED " + failed);
-                            } else if (value instanceof Image image) {
-                                say(name, "READ " + format + " " + image.width() + "x" + image.height()
-                                        + " pixels sha=" + hash(image.pixels()));
-                                Images.save(image, ImageFormat.PNG, Path.of(name + "-read.png"));
-                            } else if (value instanceof String text && text.length() > 200) {
-                                say(name, "READ " + format + " " + text.length() + " chars sha="
-                                        + hash(text.getBytes(StandardCharsets.UTF_8)));
-                            } else {
-                                say(name, "READ " + format + " [" + value + "]");
-                            }
-                        });
-                    }
+                if (event.isPressed() && (event.key() == Keys.C || event.key() == Keys.V)) {
+                    (event.key() == Keys.C ? copy : read).run();
                     return true;
                 }
                 return false;
             });
+            // -Dprobe.script=4000:V,8000:C does the same without a keyboard, at those milliseconds,
+            // where no key can be sent to the window (Wayland excepted: it copies only on real input).
+            for (String step : System.getProperty("probe.script", "").split(",")) {
+                if (!step.isBlank()) {
+                    String[] parts = step.split(":");
+                    Ui.postDelayed(parts[1].equals("C") ? copy : read, Long.parseLong(parts[0]));
+                }
+            }
             Ui.postDelayed(window::requestClose, Long.getLong("probe.ms", 30000));
             backend.runEventLoop();
             say(name, "exit");
