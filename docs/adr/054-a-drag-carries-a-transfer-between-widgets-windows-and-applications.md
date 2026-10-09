@@ -386,13 +386,11 @@ out; two lines of text in, which became rows. The scripts are under `.claude/pen
   keep the UI thread out of it: a picture that is at hand is written as its file by whichever
   thread asks (`Transfer.needsUiThread` says which values are not like that), and a files value
   only the UI thread can make is made as a Wayland drag begins.
-- **Paint takes nothing from the demo, with or without the file, and that is open.** Dragged by
-  the owner's hand with the trace on: Paint asks for the shell's item list of the file (now
-  offered, written as Explorer writes it) or for the bitmap, answers "copy", shows "Open", and at
-  the drop answers "no effect"; it asks for nothing after the drop. The desktop takes the same
-  drag and makes the file. A plain file dragged from a .NET program was refused by Paint as well,
-  and a JPEG dragged from Explorer opens. Tried and taken back out, having changed nothing:
-  declaring that the data may be taken after the drop (`IDataObjectAsyncCapability`). Not yet
-  tried: a picture dragged from a browser into Paint, which would say whether any program but
-  Explorer can.
-
+- **Paint takes a drag from Explorer and from nothing else**, which closes the question the
+  owner opened. Dragged by his hand with the trace on, Paint asks the demo's drag for the shell's
+  item list of the file (now offered, written as Explorer writes it) or for the bitmap, answers
+  "copy", shows "Open", and at the drop answers "no effect", asking for nothing afterwards. It
+  does the same to a plain file dragged from a .NET program and to a picture dragged from a page
+  in Edge; a file saved and dragged from Explorer opens. The desktop takes the demo's drag with
+  the file and makes the file. Tried and taken back out, having changed nothing: declaring that
+  the data may be taken after the drop (`IDataObjectAsyncCapability`).
