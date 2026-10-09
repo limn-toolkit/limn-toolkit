@@ -156,7 +156,7 @@ class ListViewDragTest {
         press(50, 30, 0); // banana
         move(50, 60);
         assertTrue(scene.isDragging());
-        move(50, 75); // past the middle of date
+        move(50, 75); // over elder, as the rows stand without banana
         release(50, 75);
 
         assertEquals(List.of("reorder [banana] at 3"), log, "the place counts the rows that stay");
@@ -169,8 +169,8 @@ class ListViewDragTest {
     void aRowDroppedWhereItIsAsksNothing() {
         press(50, 30, 0);
         move(50, 36);
-        move(50, 45); // just under itself
-        release(50, 45);
+        move(50, 38); // still over the room it left
+        release(50, 38);
         assertEquals(List.of(), log);
         assertEquals(1, left.selectedIndex());
     }

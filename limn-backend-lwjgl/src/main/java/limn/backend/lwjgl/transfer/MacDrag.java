@@ -82,13 +82,15 @@ public final class MacDrag {
     private final Supplier<float[]> pointer;
     private final float toScreen;
     private final Runnable paint;
+    private final java.util.function.BooleanSupplier animate;
     private final Runnable ownCursor;
     private Offer offer;
     private long offerSequence = -1;
 
     private MacDrag(long view, UiRuntime ui, Supplier<WindowInput> input, Supplier<float[]> pointer,
-            float toScreen, Runnable paint, Runnable ownCursor) {
+            float toScreen, Runnable paint, java.util.function.BooleanSupplier animate, Runnable ownCursor) {
         this.paint = paint;
+        this.animate = animate;
         this.ownCursor = ownCursor;
         this.view = view;
         this.ui = ui;
@@ -106,14 +108,17 @@ public final class MacDrag {
      * @param pointer  the pointer in the window's logical points, x then y
      * @param toScreen how many of AppKit's points one logical point is
      * @param paint     paints the window now, from inside AppKit's own loop
+     * @param animate   paints the frame the window is waiting for, if any, and says whether it
+     *                  now waits for another
      * @param ownCursor puts the window's own pointer back, once a drag is no longer over it
      * @return the window's drag, or null where AppKit would not have it, which is logged
      */
     public static MacDrag install(long view, UiRuntime ui, Supplier<WindowInput> input,
-            Supplier<float[]> pointer, float toScreen, Runnable paint, Runnable ownCursor) {
+            Supplier<float[]> pointer, float toScreen, Runnable paint, java.util.function.BooleanSupplier animate,
+            Runnable ownCursor) {
         try {
             prepareClasses(view);
-            MacDrag drag = new MacDrag(view, ui, input, pointer, toScreen, paint, ownCursor);
+            MacDrag drag = new MacDrag(view, ui, input, pointer, toScreen, paint, animate, ownCursor);
             BY_VIEW.put(view, drag);
             long pool = MacClipboard.pool();
             try {
@@ -181,6 +186,12 @@ public final class MacDrag {
                 for (DropAction action : request.actions()) {
                     allowed |= operation(action);
                 }
+                // With Command held AppKit keeps only the generic operation of this mask, which
+                // is how a move is asked for there: a source that allows a move and did not say
+                // generic was left with nothing, and the pointer said "not allowed" everywhere.
+                if (request.actions().contains(DropAction.MOVE)) {
+                    allowed |= OP_GENERIC;
+                }
             }
             return allowed;
         });
@@ -189,11 +200,15 @@ public final class MacDrag {
         // runs on, so the operation is the fourth integer argument whether they are declared or not.
         Callback ended = Ffi.callback("pppp>v", a -> {
             DragRequest request = outgoing;
+            DropAction generic = genericMeans();
             outgoing = null;
             outgoingBytes = type -> null;
             outgoingTypes = List.of();
             if (request != null) {
                 DropAction done = action(a[3]);
+                if (done == null && (a[3] & OP_GENERIC) != 0) {
+                    done = generic;
+                }
                 request.ended().accept(done);
             }
             for (MacDrag drag : BY_VIEW.values()) {
@@ -248,6 +263,61 @@ public final class MacDrag {
             case MOVE -> OP_MOVE;
             case LINK -> OP_LINK;
         };
+    }
+
+    /**
+     * What the generic operation stands for: a move when the drag is this program's own and its
+     * source allows one, which is what Command asks for; a copy from a program that says no more.
+     */
+    private static DropAction genericMeans() {
+        DragRequest request = outgoing;
+        return request != null && request.actions().contains(DropAction.MOVE) ? DropAction.MOVE : DropAction.COPY;
+    }
+
+    // ---- frames while AppKit drives -----------------------------------------------------------------
+
+    private static final long BEFORE_WAITING = 1 << 5; // kCFRunLoopBeforeWaiting
+    private static long frameObserver;
+    private static long mainLoop;
+    private static long wakeUp;
+    private static Callback frameCallback;
+
+    /**
+     * Has the windows painted while a drag of ours lasts. AppKit's loop runs in place of the
+     * application's then, so nothing asks for the frames an animation needs: a row sliding to
+     * make room stood still until the pointer moved. An observer of the main run loop, in the
+     * modes AppKit tracks a drag in, paints each window that waits for a frame whenever the loop
+     * is about to sleep, and wakes it again for as long as one of them waits for another; a
+     * frame is paced by its own presentation.
+     */
+    private static void watchFrames() {
+        if (frameObserver != NULL) {
+            return;
+        }
+        try {
+            org.lwjgl.system.SharedLibrary cf = APIUtil.apiCreateLibrary(
+                    "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation");
+            long modes = org.lwjgl.system.MemoryUtil.memGetAddress(cf.getFunctionAddress("kCFRunLoopCommonModes"));
+            mainLoop = Ffi.call(cf.getFunctionAddress("CFRunLoopGetMain"), ">p");
+            wakeUp = cf.getFunctionAddress("CFRunLoopWakeUp");
+            frameCallback = Ffi.callback("ppp>v", a -> {
+                boolean more = false;
+                if (outgoing != null) {
+                    for (MacDrag drag : BY_VIEW.values()) {
+                        more |= drag.animate.getAsBoolean();
+                    }
+                }
+                if (more) {
+                    Ffi.call(wakeUp, "p>v", mainLoop);
+                }
+                return 0;
+            });
+            frameObserver = Ffi.call(cf.getFunctionAddress("CFRunLoopObserverCreate"), "pppppp>p",
+                    NULL, BEFORE_WAITING, 1, 0, frameCallback.address(), NULL);
+            Ffi.call(cf.getFunctionAddress("CFRunLoopAddObserver"), "ppp>v", mainLoop, frameObserver, modes);
+        } catch (RuntimeException | LinkageError unavailable) {
+            LOG.log(System.Logger.Level.DEBUG, "no frames while the system drives a drag", unavailable);
+        }
     }
 
     private static DropAction action(long operation) {
@@ -320,6 +390,7 @@ public final class MacDrag {
             outgoing = request;
             outgoingTypes = types;
             outgoingBytes = bytes;
+            watchFrames();
             long session = ObjC.msg(view, "beginDraggingSessionWithItems:event:source:", items, event, sourceObject);
             if (session == NULL) {
                 outgoing = null;
@@ -370,10 +441,12 @@ public final class MacDrag {
     private static Set<DropAction> allowed(long sender) {
         long mask = ObjC.msg(sender, "draggingSourceOperationMask");
         Set<DropAction> actions = new LinkedHashSet<>();
-        if ((mask & (OP_COPY | OP_GENERIC)) != 0) {
+        // Generic alone is what Command leaves of the mask: the move, for a drag of our own.
+        boolean genericOnly = (mask & OP_GENERIC) != 0 && (mask & (OP_COPY | OP_MOVE)) == 0;
+        if ((mask & OP_COPY) != 0 || (genericOnly && genericMeans() == DropAction.COPY)) {
             actions.add(DropAction.COPY);
         }
-        if ((mask & OP_MOVE) != 0) {
+        if ((mask & OP_MOVE) != 0 || (genericOnly && genericMeans() == DropAction.MOVE)) {
             actions.add(DropAction.MOVE);
         }
         if ((mask & OP_LINK) != 0) {
@@ -420,7 +493,13 @@ public final class MacDrag {
                 : action == DropAction.COPY ? "dragCopyCursor"
                 : action == DropAction.LINK ? "dragLinkCursor" : "arrowCursor";
         ObjC.msgVoid(ObjC.msg(ObjC.cls("NSCursor"), cursor), "set");
-        return action == null ? 0 : operation(action);
+        if (action == null) {
+            return 0;
+        }
+        // Answered in the terms the mask is in: an operation outside it is no operation to AppKit.
+        long mask = ObjC.msg(sender, "draggingSourceOperationMask");
+        long answer = operation(action);
+        return (mask & answer) != 0 ? answer : (mask & OP_GENERIC) != 0 ? OP_GENERIC : answer;
     }
 
     private static long drop(long view, long sender) {

@@ -512,6 +512,21 @@ final class LwjglWindow implements WindowPeer {
                             renderNow(true);
                         },
                         () -> {
+                            // Between two events of a drag AppKit drives: the frame the scene
+                            // asked for, if any (a row sliding), and whether it asks for another;
+                            // or, with none asked, the same frame again so that both buffers
+                            // hold it, which the loop does when idle and does not turn here. A
+                            // mark where a drop would land stayed behind without it.
+                            if (destroyed) {
+                                return false;
+                            }
+                            if (!frameRequested) {
+                                syncBuffers(true);
+                                return false;
+                            }
+                            return renderNow(true) && frameRequested;
+                        },
+                        () -> {
                             // The pointer the scene last asked for, set again: GLFW believes it
                             // is still showing, and a drag's destination has shown others since.
                             if (!destroyed && imageCursor == null) {
