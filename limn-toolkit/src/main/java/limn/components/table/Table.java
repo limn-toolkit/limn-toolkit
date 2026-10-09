@@ -289,6 +289,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     private float moveGrab;
     private float headerPressX;
     private float[] moveX = new float[0];
+    // How far each column is still drawn from where it belongs, by its index among columns(): a
+    // column that was made to change place slides there, and this is what is left of the slide.
+    private float[] slide = new float[0];
+    private boolean sliding;
     private @Nullable Runnable onColumnsChange;
     private float dragStartX;
     private float dragStartWidth;
@@ -1006,6 +1010,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         // are let go and realized again in the new order, as a refresh does.
         unmountAll();
         columns.add(to, columns.remove(from));
+        if (sliding && from < slide.length && to < slide.length) {
+            float moved = slide[from];
+            System.arraycopy(slide, from < to ? from + 1 : to, slide, from < to ? from : to + 1,
+                    Math.abs(to - from));
+            slide[to] = moved;
+        }
         Arrays.fill(headerShaped, null);
         recomputeFooter();
         focusColumnOf = focusOn == null ? -1 : columns.indexOf(focusOn);
@@ -1119,6 +1129,75 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         return Math.max(low, Math.min(Math.max(low, high), movePointerX - moveGrab));
     }
 
+    /** How long a column takes to cover most of the way to its new place, in seconds. */
+    private static final double SLIDE_SECONDS = 0.07;
+
+    /** Where every column is drawn now, by its index among {@code columns()}; NaN for a hidden one. */
+    private float[] drawnLefts() {
+        float[] lefts = new float[columns.size()];
+        Arrays.fill(lefts, Float.NaN);
+        float rowX = rowsLeft();
+        float w = gutters.viewportWidth(width());
+        boolean rtl = isRightToLeft();
+        for (int s = 0; s < shownCount; s++) {
+            lefts[shownIndex[s]] = columnLeft(s, rowX, w, rtl);
+        }
+        return lefts;
+    }
+
+    /**
+     * Makes every column that is no longer where it was drawn slide to where it now belongs:
+     * called after the places changed, with where the columns were drawn before, by column.
+     */
+    private void slideFrom(List<Column<T>> before, float[] drawnBefore) {
+        limn.scene.Scene scene = scene();
+        if (scene == null || limn.animation.Motion.reduced()) {
+            sliding = false;
+            return; // nothing to animate on, or the user asked for less motion: the columns jump
+        }
+        if (slide.length < columns.size()) {
+            slide = Arrays.copyOf(slide, columns.size());
+        }
+        if (!sliding) {
+            Arrays.fill(slide, 0);
+        }
+        float rowX = rowsLeft();
+        float w = gutters.viewportWidth(width());
+        boolean rtl = isRightToLeft();
+        boolean any = false;
+        for (int s = 0; s < shownCount; s++) {
+            int c = shownIndex[s];
+            int was = before.indexOf(columns.get(c));
+            if (s == moveSlot && !Float.isNaN(movePointerX)) {
+                slide[c] = 0;
+            } else if (was >= 0 && was < drawnBefore.length && !Float.isNaN(drawnBefore[was])) {
+                slide[c] = drawnBefore[was] - settledLeft(s, rowX, w, rtl);
+                any |= Math.abs(slide[c]) >= 0.5f;
+            }
+        }
+        if (any && !sliding) {
+            sliding = true;
+            scene.addRealTimeTicker(dt -> {
+                double keep = Math.exp(-dt / SLIDE_SECONDS);
+                boolean moving = false;
+                for (int c = 0; c < slide.length; c++) {
+                    slide[c] *= (float) keep;
+                    if (Math.abs(slide[c]) < 0.5f) {
+                        slide[c] = 0;
+                    } else {
+                        moving = true;
+                    }
+                }
+                sliding = moving;
+                markNeedsLayout(); // the cell widgets slide with their columns
+                invalidate();
+                return moving;
+            });
+        } else if (!any && !sliding) {
+            Arrays.fill(slide, 0);
+        }
+    }
+
     /** Lays the shown columns out as they would stand with the moving one at {@code moveTo}. */
     private void placeAroundMove() {
         if (moveX.length < shownCount) {
@@ -1142,34 +1221,73 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /** Begins, or goes on with, moving shown column {@code s} toward shown place {@code to}. */
     private void movingColumn(int s, int to, float pointerX) {
+        int target = Math.max(groupStart(s), Math.min(groupEnd(s) - 1, to));
+        boolean placesChange = moveSlot != s || moveTo != target;
+        List<Column<T>> before = placesChange ? List.copyOf(columns) : null;
+        float[] drawn = placesChange ? drawnLefts() : null;
         moveSlot = s;
-        moveTo = Math.max(groupStart(s), Math.min(groupEnd(s) - 1, to));
+        moveTo = target;
         movePointerX = pointerX;
         placeAroundMove();
+        if (before != null) {
+            slideFrom(before, drawn); // the neighbours make room by sliding
+        }
         markNeedsLayout(); // the cell widgets go with their columns
         invalidate();
     }
 
+    /** Ends a move without moving anything: the columns slide back to where they were. */
     private void endMove() {
         if (moveSlot >= 0) {
+            List<Column<T>> before = List.copyOf(columns);
+            float[] drawn = drawnLefts();
             moveSlot = -1;
             moveTo = -1;
             movePointerX = Float.NaN;
+            slideFrom(before, drawn);
             markNeedsLayout();
             invalidate();
         }
     }
 
-    /** The shown place the pointer's column would take: past each neighbour whose middle it has crossed. */
+    /** Ends a move by dropping the column at {@code to}: it and its neighbours slide into place. */
+    private void dropMove(int from, int to) {
+        List<Column<T>> before = List.copyOf(columns);
+        float[] drawn = drawnLefts();
+        moveSlot = -1;
+        moveTo = -1;
+        movePointerX = Float.NaN;
+        if (to != from) {
+            userMovesColumn(from, to);
+        }
+        slideFrom(before, drawn);
+        markNeedsLayout();
+        invalidate();
+    }
+
+    /**
+     * The shown place the pointer's column would take. A neighbour gives way when the edge of the
+     * moving column that leads toward it passes its middle. By the moving column's own middle a
+     * wide one, held at the end of its group, never passed a narrow neighbour's and could not be
+     * made the first or the last (the owner's report: Total, and Customer).
+     */
     private int placeUnderPointer(float rowX, float viewW, boolean rtl) {
-        float middle = movingLeft(rowX, viewW, rtl) + colW[moveSlot] / 2;
+        float left = movingLeft(rowX, viewW, rtl);
+        float right = left + colW[moveSlot];
         int before = 0;
         for (int s = groupStart(moveSlot); s < groupEnd(moveSlot); s++) {
             if (s == moveSlot) {
                 continue;
             }
-            float other = restingLeft(s, rowX, viewW, rtl) + colW[s] / 2;
-            if (rtl ? other > middle : other < middle) {
+            float middle = restingLeft(s, rowX, viewW, rtl) + colW[s] / 2;
+            // A neighbour that stood before the moving column stays before it until the moving
+            // column's leading edge, the one nearer the start, has gone past its middle; one
+            // that stood after comes before once the trailing edge has.
+            boolean stoodBefore = s < moveSlot;
+            boolean staysBefore = rtl
+                    ? (stoodBefore ? right <= middle : left < middle)
+                    : (stoodBefore ? left >= middle : right > middle);
+            if (staysBefore) {
                 before++;
             }
         }
@@ -2407,18 +2525,20 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /** The left edge of shown column {@code s} in this widget's coordinates, for this pass. */
     private float columnLeft(int s, float rowX, float viewW, boolean rtl) {
-        float offset = s < frozen() ? 0 : offsetX; // a kept column does not scroll
-        if (moveSlot < 0) {
-            return rtl ? rowX + viewW - (colX[s] + colW[s]) + offset
-                    : rowX + colX[s] - offset;
-        }
         if (s == moveSlot && !Float.isNaN(movePointerX)) {
-            return movingLeft(rowX, viewW, rtl);
+            return movingLeft(rowX, viewW, rtl); // under the pointer, not sliding anywhere
         }
-        // The others where they would stand were the column dropped now, and the moving one,
-        // under the keyboard, in the place it would take.
-        return rtl ? rowX + viewW - (moveX[s] + colW[s]) + offset
-                : rowX + moveX[s] - offset;
+        int c = shownIndex[s];
+        return settledLeft(s, rowX, viewW, rtl) + (sliding && c < slide.length ? slide[c] : 0);
+    }
+
+    /** Where shown column {@code s} belongs in this pass, a move in flight counted, a slide not. */
+    private float settledLeft(int s, float rowX, float viewW, boolean rtl) {
+        float offset = s < frozen() ? 0 : offsetX; // a kept column does not scroll
+        // While a column moves, the others stand where they would were it dropped now, and the
+        // moving one, under the keyboard, in the place it would take.
+        float x = moveSlot < 0 ? colX[s] : moveX[s];
+        return rtl ? rowX + viewW - (x + colW[s]) + offset : rowX + x - offset;
     }
 
     @Override
@@ -3589,7 +3709,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             if (s >= kept && under) {
                 break; // a scrolling column is not there to be hit under a kept one
             }
-            float left = columnLeft(s, rowX, w, rtl);
+            float left = settledLeft(s, rowX, w, rtl); // not where a slide is passing
             if (x >= left && x < left + colW[s]) {
                 return s;
             }
@@ -3608,7 +3728,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             if (s >= kept && under) {
                 break;
             }
-            float left = columnLeft(s, rowX, w, rtl);
+            float left = settledLeft(s, rowX, w, rtl); // not where a slide is passing
             float edge = rtl ? left : left + colW[s];
             if (Math.abs(x - edge) <= RESIZE_BAND) {
                 return s;
@@ -3695,7 +3815,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                     float rowX = rowsLeft();
                     float w = gutters.viewportWidth(width());
                     if (moveSlot < 0) {
-                        moveGrab = headerPressX - columnLeft(headerPressColumn, rowX, w, rtl);
+                        // Held where it belongs, as it was hit: a slide still passing is not
+                        // where the press found it.
+                        moveGrab = headerPressX - settledLeft(headerPressColumn, rowX, w, rtl);
                         movingColumn(headerPressColumn, headerPressColumn, x);
                     }
                     movePointerX = x;
@@ -3767,13 +3889,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                     event.consume();
                     columnsChangedByUser(); // a column was resized
                 } else if (moveSlot >= 0 && !Float.isNaN(movePointerX)) {
-                    int from = moveSlot;
-                    int to = moveTo;
-                    endMove();
                     headerPressColumn = -1; // a move is not a click: nothing sorts
-                    if (to != from) {
-                        userMovesColumn(from, to);
-                    }
+                    dropMove(moveSlot, moveTo);
                     event.consume();
                 }
             }
@@ -3949,12 +4066,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
     protected void onDrop(DropEvent event) {
         int from = moveSlot;
         int to = moveTo;
-        endMove();
         if (from < 0 || to == from) {
+            endMove();
             event.reject(); // dropped where it was: nothing moved
             return;
         }
-        userMovesColumn(from, to);
+        dropMove(from, to);
     }
 
     private static @Nullable Column<?> moved(Offer offer) {

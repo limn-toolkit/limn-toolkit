@@ -137,6 +137,32 @@ class TableColumnsTest extends ComponentTestBase {
     }
 
     @Test
+    void aWideColumnHeldAtTheEndOfItsGroupStillPassesANarrowNeighbour() {
+        build(500);
+        // State (100 wide, at 160) dragged right is held with its right edge at 360, the end of
+        // the columns; Code's middle is at 310, which State's own middle (310 at most) never passes.
+        table.moveColumn(people, 3);     // Name State Code People(60): a narrow one last
+        layout();
+        press(250, headerY());           // Code, 200 to 300
+        move(400, headerY());
+        release(400, headerY());
+        layout();
+        assertEquals(List.of(name, state, people, code), table.columns(), "Code is the last now");
+
+        press(250, headerY());           // People, 200 to 260
+        move(10, headerY());
+        release(10, headerY());
+        layout();
+        assertEquals(List.of(people, name, state, code), table.columns(), "and People the first");
+
+        press(110, headerY());           // Name (100 wide) from 60, to the far right
+        move(480, headerY());
+        release(480, headerY());
+        layout();
+        assertEquals(List.of(people, state, code, name), table.columns());
+    }
+
+    @Test
     void altShiftAndAnArrowMoveTheColumnTheKeyboardIsOn() {
         build(500);
         press(50, firstRowY());
