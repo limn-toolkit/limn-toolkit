@@ -229,7 +229,8 @@ Maven Central say which number that was.
   screen reader hears each step in the 21 languages. A drag stays inside its window for now.
 - What is dragged shows under the pointer as it is painted: `Drag.preview(x, y, width, height)`
   names the part of the source widget, a card or a row, and the scene paints it there.
-- `Table`: the user moves a column by dragging its header or with Alt+Shift+Left and Right
+- `Table`: the user moves a column by dragging its header (the whole column follows along the
+  header and the others make room) or with Alt+Shift+Left and Right
   (`setColumnReorderingAllowed(false)` turns it off), the application with
   `moveColumn(column, index)`, and `columns()` answers the order as it stands.
   `setFrozenColumns(n)` keeps the first columns in place while the others scroll under them.

@@ -210,8 +210,15 @@ Step 4, the table's columns (`Table`, `TableColumnsTest`):
   `columnOrder()`. The rows are realized again after a move, since they keep their texts and
   their cell widgets by column index, and the keyboard's cell stays with its column.
 - **A header sorts on the click, not on the press**, so that a press that travels can move the
-  column instead. The drag is `withinWindow()`, shows the header itself under the pointer and a
-  line where the column would land, and drops only within the column's group.
+  column instead.
+- **The pointer moves a column in the table's own way, not as a generic drag** (the owner, after
+  trying the first build, which showed the header translucent under the pointer and a line where
+  it would land): the column follows the pointer along the header only, wherever the pointer is
+  up or down the window; it is the whole column, header and rows, opaque on a ground of its own
+  between two edges; and the other columns make room as its middle passes theirs. The release
+  drops it, Escape puts it back, and it stays within its group. This is the header's own press,
+  which has the mouse, and no `Drag` at all; the scene's drag is how the keyboard does the same
+  from the header, the others making room at each arrow.
 - **`setFrozenColumns(n)`** keeps the first `n` shown columns: they are drawn after the scrolling
   ones, which are clipped to what is left of the viewport, a line marks where they end, and a
   point over them never reaches a column scrolled under them. Where they would leave no room,

@@ -112,18 +112,28 @@ class TableColumnsTest extends ComponentTestBase {
 
         press(50, headerY());
         move(120, headerY());
-        move(230, headerY());            // past the middle of State (160 to 260)
-        release(230, headerY());
+        move(230, headerY() + 200);      // far below the header: only where along it counts
+        release(230, headerY() + 200);
         layout();
-        assertEquals(List.of(people, state, name, code), table.columns(), "Name landed after State");
+        assertEquals(List.of(people, state, name, code), table.columns(),
+                "Name's middle passed People's and State's: it stands after them");
         assertEquals(1, told);
-        assertEquals(SortOrder.ASCENDING, table.sortOrder(), "the drag did not sort again");
+        assertEquals(SortOrder.ASCENDING, table.sortOrder(), "the move did not sort again");
 
         press(30, headerY());            // People, now first
-        move(20, headerY() + 200);       // dropped over the rows: still this table, same place
-        release(20, headerY() + 200);
+        move(20, headerY());             // held against the edge of its group: it has nowhere to go
+        release(20, headerY());
         assertEquals(List.of(people, state, name, code), table.columns(), "dropped where it was");
         assertEquals(1, told);
+
+        press(30, headerY());
+        move(200, headerY());
+        drive(scene).press(Keys.ESCAPE);
+        release(200, headerY());
+        layout();
+        assertEquals(List.of(people, state, name, code), table.columns(), "Escape puts it back");
+        assertEquals(1, told);
+        assertSame(name, table.sortColumn(), "and the release after it is no click");
     }
 
     @Test
