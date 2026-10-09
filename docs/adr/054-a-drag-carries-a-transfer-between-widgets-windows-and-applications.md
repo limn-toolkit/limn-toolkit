@@ -307,3 +307,28 @@ Step 5 (`ListView`, `Tree`, `ImageView`; the demo's `--scene picker`):
 - Strings: four in the components' catalogue and six in the tree's, in the 21 languages.
 - Not done: a target cannot yet be told which action to prefer (a list dropped on proposes what
   the source does); the readers have not heard any of it (step 7).
+
+Step 5 after the owner's runs of the picker scene on his Mac (list and tree alike):
+
+- **What a pointer drags leaves its widget.** The rows are under the pointer, so they are not
+  drawn in the list, and the rows below close over their places; a node goes with every row
+  shown under it, which is also why a branch can no longer be offered a place inside itself.
+  Called off, the rows come back once the others have slid off their places.
+- **Room opens where the drop would land**, under the pointer, with the line in its middle; a
+  drop into a node keeps the ring and opens none, and the keyboard's drag keeps the line alone.
+  The room is **half** the height of what is dragged: a row is mostly its own margins and the
+  rows on either side bring theirs, so room a whole row tall read to him as twice what the item
+  needs. What is dropped takes the rest by pushing its neighbours apart.
+- **Every change slides** (about a tenth of a second, none under reduced motion): rows closing
+  up, making room, and rows moved by Alt+Shift and an arrow, where with nothing sliding a move
+  down read as the whole list changing. The place is read with the rows as they stand without
+  the lifted ones and without the room, so opening the room does not move its own answer.
+- While rows are lifted the layout places rows past the viewport's edge by their height, or the
+  foot of a scrolling list stood empty and the row that belonged there appeared at once.
+- **On macOS** an observer of the main run loop paints the windows while a drag of ours lasts,
+  AppKit's loop running in place of the application's: without it nothing slid until the pointer
+  moved, and a mark stayed behind in the buffer not presented. And a source that allows a move
+  names the generic operation, which is all AppKit keeps of the mask with Command held.
+- WhatsApp shows a dragged picture without its transparency; it does the same with the PNG file
+  dragged from Finder (his test), so it is that program's.
+

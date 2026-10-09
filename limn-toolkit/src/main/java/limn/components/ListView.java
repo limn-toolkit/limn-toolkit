@@ -791,7 +791,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         return lifted && Arrays.binarySearch(draggedRows, row) >= 0;
     }
 
-    /** The room opened where a drop would land: as tall as what is dragged, as far as the list knows. */
+    /** The room opened where a drop would land: a share of the height of what is dragged, as far as the list knows. */
     private float roomHeight() {
         if (dropAt < 0 || placeByKeyboard) {
             return 0;
@@ -802,8 +802,16 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
                 room += mountedCells[i].height();
             }
         }
-        return room > 0 ? room : avgRowHeight(tokens());
+        return (room > 0 ? room : avgRowHeight(tokens())) * ROOM_SHARE;
     }
+
+    /**
+     * How much of the height of what is dragged the room opened for it takes. Half: a row is
+     * mostly its own margins, and the rows on either side of the room bring theirs, so room as
+     * tall as the row read as twice the space the item needs (the owner, three times). What is
+     * dropped takes the rest by pushing its neighbours apart, which slides like everything else.
+     */
+    private static final float ROOM_SHARE = 0.5f;
 
     /**
      * How far from where the layout put it each realized row belongs, in the order they are
