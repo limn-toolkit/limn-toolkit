@@ -565,6 +565,15 @@ public final class WindowsDrag {
                     formats.add(CF_DIB);
                     typeOf.put(CF_DIB, ClipboardTypes.PIXELS);
                 }
+                if (type.equals(ClipboardTypes.FILES)) {
+                    // The files as the shell names them, beside the list of their paths: what
+                    // Explorer drags, and what the newer Windows programs make their files from.
+                    if (shellIdList == 0) {
+                        shellIdList = register("Shell IDList Array");
+                    }
+                    formats.add(shellIdList);
+                    typeOf.put(shellIdList, ClipboardTypes.FILES);
+                }
             }
             Map<Integer, byte[]> rendered = new HashMap<>();
             java.util.function.IntFunction<byte[]> render = format -> rendered.computeIfAbsent(format, f -> {
@@ -579,12 +588,20 @@ public final class WindowsDrag {
                     return WindowsFormats.cfHtml(made);
                 } else if (f == CF_DIB) {
                     return WindowsFormats.dibFromPixels(made);
-                } else if (f == CF_HDROP) {
+                } else if (f == CF_HDROP || f == shellIdList) {
                     List<String> paths = new ArrayList<>();
                     for (Path file : UriLists.decode(made)) {
                         paths.add(file.toString());
                     }
-                    return WindowsFormats.dropFiles(paths);
+                    byte[] converted = f == CF_HDROP ? WindowsFormats.dropFiles(paths) : idList(paths);
+                    if (TRACE) {
+                        System.err.println("limn.drag(windows): asked for " + (f == CF_HDROP ? "the paths" : "the shell's item list")
+                                + " of " + paths + ": " + (converted == null ? "none" : converted.length + " bytes"));
+                    }
+                    return converted;
+                }
+                if (TRACE) {
+                    System.err.println("limn.drag(windows): asked for format " + f + " (" + typeOf.get(f) + ")");
                 }
                 return made;
             });
@@ -632,6 +649,79 @@ public final class WindowsDrag {
             }
         });
         return true;
+    }
+
+    private static int shellIdList;
+
+    /**
+     * Files as a {@code CIDA}: a count, an offset for the folder and for each item, then the
+     * folder's identifier list and each item's. The folder is the desktop, whose list is empty,
+     * and each file is named in full under it, so files of several folders go in one.
+     */
+    private static byte @Nullable [] idList(List<String> paths) {
+        // Each file's list in full, and where its last item begins: the file under its folder.
+        List<byte[]> lists = new ArrayList<>();
+        List<Integer> lasts = new ArrayList<>();
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            long out = stack.ncalloc(8, 8, 1);
+            for (String path : paths) {
+                memPutAddress(out, NULL);
+                if ((int) call(SHELL32, "SHParseDisplayName", "pppip>i", memAddress(stack.UTF16(path)), NULL, out, 0,
+                        NULL) < 0 || memGetAddress(out) == NULL) {
+                    return null;
+                }
+                long list = memGetAddress(out);
+                byte[] bytes = new byte[(int) call(SHELL32, "ILGetSize", "p>i", list)];
+                memByteBuffer(list, bytes.length).get(bytes);
+                lasts.add((int) (call(SHELL32, "ILFindLastID", "p>p", list) - list));
+                call(OLE32, "CoTaskMemFree", "p>v", list);
+                lists.add(bytes);
+            }
+        }
+        // As Explorer writes it when the files share a folder: the folder's list, then each
+        // file's own item. Files of several folders hang from the desktop, each named in full.
+        boolean oneFolder = !lists.isEmpty();
+        for (int i = 1; i < lists.size() && oneFolder; i++) {
+            oneFolder = lasts.get(i).equals(lasts.get(0))
+                    && java.util.Arrays.equals(lists.get(i), 0, lasts.get(i), lists.get(0), 0, lasts.get(0));
+        }
+        java.io.ByteArrayOutputStream body = new java.io.ByteArrayOutputStream();
+        List<Integer> offsets = new ArrayList<>();
+        int header = 4 + 4 * (lists.size() + 1);
+        offsets.add(header);
+        if (oneFolder) {
+            body.write(lists.get(0), 0, lasts.get(0));
+        }
+        body.write(0);
+        body.write(0);
+        for (int i = 0; i < lists.size(); i++) {
+            offsets.add(header + body.size());
+            int from = oneFolder ? lasts.get(i) : 0;
+            body.write(lists.get(i), from, lists.get(i).length - from);
+        }
+        java.nio.ByteBuffer cida = java.nio.ByteBuffer.allocate(header + body.size())
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        cida.putInt(lists.size());
+        for (int offset : offsets) {
+            cida.putInt(offset);
+        }
+        cida.put(body.toByteArray());
+        return cida.array();
+    }
+
+    /** A format's name, for the trace: the system's for a registered one, its number otherwise. */
+    private static String formatName(int format) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            ByteBuffer name = stack.calloc(512);
+            int length = format < 0xC000 ? 0
+                    : (int) call(USER32, "GetClipboardFormatNameW", "ipi>i", format, memAddress(name), 255);
+            if (length <= 0) {
+                return "#" + format;
+            }
+            byte[] chars = new byte[length * 2];
+            name.get(chars);
+            return new String(chars, StandardCharsets.UTF_16LE);
+        }
     }
 
     /** What one drag offers, for as long as anything holds its data object. */
@@ -687,6 +777,11 @@ public final class WindowsDrag {
                     })),
                     keep(Ffi.callback("ppp>i", a -> {               // GetData
                         Lazy lazy = LAZY.get(a[0]);
+                        if (TRACE && a[1] != NULL) {
+                            System.err.println("limn.drag(windows): GetData " + formatName(
+                                    org.lwjgl.system.MemoryUtil.memGetShort(a[1]) & 0xFFFF) + " as " + memGetInt(a[1] + 24)
+                                    + (offers(lazy, a[1]) ? "" : ": not offered") + (dragging ? "" : " (after the drag)"));
+                        }
                         if (!offers(lazy, a[1]) || a[2] == NULL) {
                             return DV_E_FORMATETC;
                         }
@@ -701,7 +796,15 @@ public final class WindowsDrag {
                         return S_OK;
                     })),
                     keep(Ffi.callback("ppp>i", a -> E_NOTIMPL)),    // GetDataHere
-                    keep(Ffi.callback("pp>i", a -> offers(LAZY.get(a[0]), a[1]) ? S_OK : DV_E_FORMATETC)),
+                    keep(Ffi.callback("pp>i", a -> {                // QueryGetData
+                        boolean has = offers(LAZY.get(a[0]), a[1]);
+                        if (TRACE && a[1] != NULL && !has) {
+                            System.err.println("limn.drag(windows): asked whether it has " + formatName(
+                                    org.lwjgl.system.MemoryUtil.memGetShort(a[1]) & 0xFFFF) + " as " + memGetInt(a[1] + 24)
+                                    + ": no");
+                        }
+                        return has ? S_OK : DV_E_FORMATETC;
+                    })),
                     keep(Ffi.callback("ppp>i", a -> E_NOTIMPL)),    // GetCanonicalFormatEtc
                     keep(Ffi.callback("pppi>i", a -> E_NOTIMPL)),   // SetData: the shell's object keeps those
                     keep(Ffi.callback("pip>i", a -> {               // EnumFormatEtc

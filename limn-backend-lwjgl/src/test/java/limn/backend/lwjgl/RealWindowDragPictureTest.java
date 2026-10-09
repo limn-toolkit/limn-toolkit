@@ -37,6 +37,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RealWindowDragPictureTest {
 
     private static final int NO_DISPLAY = 77;
+    /**
+     * What the child exits with when its window was never painted after the drag began. A window
+     * another program's full-screen window covers is given no frames (the loop does not paint what
+     * nobody can see), and the picture of a drag is taken from the next frame: on a desktop where
+     * the developer has something full screen over it, there is nothing here to test.
+     */
+    private static final int NO_FRAME = 78;
 
     @TempDir
     Path directory;
@@ -62,6 +69,8 @@ class RealWindowDragPictureTest {
         String output = Files.readString(log);
         assertTrue(finished, "the child never finished:\n" + output);
         Assumptions.assumeFalse(child.exitValue() == NO_DISPLAY, () -> "no window can be opened here:\n" + output);
+        Assumptions.assumeFalse(child.exitValue() == NO_FRAME,
+                () -> "the window was given no frame after the drag began (is it covered?):\n" + output);
         java.util.regex.Matcher asked = java.util.regex.Pattern
                 .compile("limn\\.drag: asked, picture=(\\d+)x(\\d+) px, (\\d+) not transparent").matcher(output);
         assertTrue(asked.find(), "the window was asked to begin a drag with a picture:\n" + output);
@@ -116,18 +125,28 @@ class RealWindowDragPictureTest {
                 // Painted from a frame callback of the application's own, as the demo paints its
                 // scenes: the scene is handed a canvas and nothing else. The picture was missing
                 // exactly there while it was read through the renderer of the scene's own callback.
-                limn.backend.spi.WindowPeer.of(window).setFrameCallback(
-                        (renderer, frame) -> scene.renderFrame(renderer.canvas(), frame));
+                int[] framesAfterTheDrag = {-1};
+                limn.backend.spi.WindowPeer.of(window).setFrameCallback((renderer, frame) -> {
+                    if (framesAfterTheDrag[0] >= 0) {
+                        framesAfterTheDrag[0]++;
+                    }
+                    scene.renderFrame(renderer.canvas(), frame);
+                });
                 window.show();
                 Ui.postDelayed(() -> {
                     drive(scene).mouseMoved(50, 50);
                     drive(scene).mouseButton(Keys.MOUSE_LEFT, true, 0, 50, 50, 1);
                     drive(scene).inputBatchEnded();
+                    framesAfterTheDrag[0] = 0;
                     drive(scene).mouseMoved(80, 50);
                     drive(scene).inputBatchEnded();
                 }, 400);
                 Ui.postDelayed(window::requestClose, 1200);
                 backend.runEventLoop();
+                if (framesAfterTheDrag[0] <= 0) {
+                    System.out.println("no frame after the drag began");
+                    System.exit(NO_FRAME);
+                }
             }
             System.out.println("loop ended");
         }
