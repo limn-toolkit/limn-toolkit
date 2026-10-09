@@ -48,6 +48,7 @@ class SceneDragTest {
         boolean takes;
         boolean rejects;
         int place;
+        int paints;
 
         Box(String name) {
             this.name = name;
@@ -61,6 +62,7 @@ class SceneDragTest {
 
         @Override
         protected void onPaint(Canvas canvas) {
+            paints++;
         }
 
         @Override
@@ -209,6 +211,21 @@ class SceneDragTest {
         assertEquals("ace", shelf.card);
         assertEquals(null, source.card);
         assertFalse(scene.isDragging());
+    }
+
+    @Test
+    void whatIsDraggedIsPaintedAgainUnderThePointerWhileTheDragLasts() {
+        Canvas canvas = new limn.testing.NoopCanvas(300, 60);
+        scene.renderFrame(canvas);
+        assertEquals(1, source.paints);
+        press(50);
+        move(150);
+        scene.renderFrame(canvas);
+        assertEquals(3, source.paints, "once in its place, once under the pointer");
+        assertEquals(2, shelf.paints, "nothing else is painted twice");
+        release(150, 0);
+        scene.renderFrame(canvas);
+        assertEquals(4, source.paints, "the drag over, so is its picture");
     }
 
     @Test

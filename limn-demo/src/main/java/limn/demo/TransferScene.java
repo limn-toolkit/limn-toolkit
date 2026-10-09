@@ -6,7 +6,6 @@ import limn.components.ImageView;
 import limn.components.Label;
 import limn.components.Theme;
 import limn.graphics.Canvas;
-import limn.graphics.Color;
 import limn.graphics.Font;
 import limn.graphics.Image;
 import limn.graphics.TextMetrics;
@@ -150,20 +149,6 @@ final class TransferScene {
         return new Image(w, h, rgba);
     }
 
-    /** A plain chip to show under the pointer while a card is dragged. */
-    private static Image chip(Color color) {
-        int w = 150;
-        int h = 26;
-        byte[] rgba = new byte[w * h * 4];
-        for (int i = 0; i < w * h; i++) {
-            rgba[i * 4] = (byte) Math.round(color.r() * 255);
-            rgba[i * 4 + 1] = (byte) Math.round(color.g() * 255);
-            rgba[i * 4 + 2] = (byte) Math.round(color.b() * 255);
-            rgba[i * 4 + 3] = (byte) 255;
-        }
-        return new Image(w, h, rgba);
-    }
-
     /** A column of cards that are dragged out of it and dropped into it. */
     private static final class Board extends Widget<Board> {
 
@@ -229,7 +214,7 @@ final class TransferScene {
             return Drag.of(Transfer.of(CARD, card).with(DataFormat.TEXT, card.text))
                     .allow(DropAction.MOVE, DropAction.COPY)
                     .describedAs(card.text)
-                    .image(chip(Theme.current().focusRing()), 12, 13)
+                    .preview(PAD, HEADER + index * ROW + 2, width() - 2 * PAD, ROW - 4)
                     .onEnd(action -> {
                         if (action == DropAction.MOVE && !movedWithin) {
                             cards.remove(card);

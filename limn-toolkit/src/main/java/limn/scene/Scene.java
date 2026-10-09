@@ -3833,6 +3833,14 @@ public final class Scene {
         limn.transfer.@Nullable DropAction action;
         float x;
         float y;
+        // The part of the source painted under the pointer, in the source's coordinates, and
+        // where in it the pointer holds it; a width of zero is no preview.
+        float partX;
+        float partY;
+        float partW;
+        float partH;
+        float grabX;
+        float grabY;
 
         DragSession(limn.transfer.Drag drag, Widget<?> source, boolean keyboard, float x, float y) {
             this.drag = drag;
@@ -3889,6 +3897,7 @@ public final class Scene {
             updateHover(null);
             DragSession session = new DragSession(drag, w, event.isKeyboard(), event.x(), event.y());
             dragSession = session;
+            choosePreview(session);
             if (event.isKeyboard()) {
                 announce(drag.description().isEmpty() ? DragStrings.STARTED_UNNAMED.get()
                         : DragStrings.STARTED.format(drag.description()),
@@ -4184,14 +4193,51 @@ public final class Scene {
         }
     }
 
+    /** The largest part of a widget shown under the pointer when the source names none. */
+    private static final float PREVIEW_MAX_WIDTH = 280;
+    private static final float PREVIEW_MAX_HEIGHT = 72;
+
+    /**
+     * Settles what a pointer drag shows: the part of its widget the source named, or, when it
+     * named none and gave no picture, the widget whole if it is small and otherwise the part
+     * around the point where the drag began.
+     */
+    private void choosePreview(DragSession session) {
+        limn.transfer.Drag drag = session.drag;
+        if (session.keyboard || drag.isPreviewOff() || drag.image() != null) {
+            return;
+        }
+        Widget<?> source = session.source;
+        float pressLocalX = session.x - source.localToSceneX();
+        float pressLocalY = session.y - source.localToSceneY();
+        if (drag.hasPreviewPart()) {
+            session.partX = drag.previewX();
+            session.partY = drag.previewY();
+            session.partW = drag.previewWidth();
+            session.partH = drag.previewHeight();
+        } else {
+            session.partW = Math.min(source.width(), PREVIEW_MAX_WIDTH);
+            session.partH = Math.min(source.height(), PREVIEW_MAX_HEIGHT);
+            session.partX = Math.max(0, Math.min(source.width() - session.partW, pressLocalX - session.partW / 2));
+            session.partY = Math.max(0, Math.min(source.height() - session.partH, pressLocalY - session.partH / 2));
+        }
+        // The pointer keeps hold of the point it pressed, kept inside the part.
+        session.grabX = Math.max(0, Math.min(session.partW, pressLocalX - session.partX));
+        session.grabY = Math.max(0, Math.min(session.partH, pressLocalY - session.partY));
+    }
+
     private @Nullable Rect dragImageRect() {
         DragSession session = dragSession;
         if (session == null || session.keyboard) {
             return null;
         }
         limn.graphics.Image image = session.drag.image();
-        return image == null ? null : new Rect(session.x - session.drag.hotSpotX(),
-                session.y - session.drag.hotSpotY(), image.width(), image.height());
+        if (image != null) {
+            return new Rect(session.x - session.drag.hotSpotX(), session.y - session.drag.hotSpotY(),
+                    image.width(), image.height());
+        }
+        return session.partW <= 0 || session.partH <= 0 ? null
+                : new Rect(session.x - session.grabX, session.y - session.grabY, session.partW, session.partH);
     }
 
     private void damageDragImage() {
@@ -4213,10 +4259,19 @@ public final class Scene {
             return;
         }
         limn.graphics.Image image = session.drag.image();
-        if (image != null) {
-            canvas.save();
+        canvas.save();
+        try {
             canvas.setOpacity(DRAG_IMAGE_OPACITY);
-            canvas.drawImage(image, rect.x(), rect.y(), rect.width(), rect.height());
+            if (image != null) {
+                canvas.drawImage(image, rect.x(), rect.y(), rect.width(), rect.height());
+            } else {
+                // The source itself, painted again where the pointer is: what is dragged looks
+                // like what was picked up, whatever the widget draws.
+                canvas.clipRect(rect.x(), rect.y(), rect.width(), rect.height());
+                canvas.translate(rect.x() - session.partX, rect.y() - session.partY);
+                session.source.paintWidget(canvas);
+            }
+        } finally {
             canvas.restore();
         }
     }

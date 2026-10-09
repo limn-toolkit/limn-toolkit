@@ -31,6 +31,12 @@ public final class Drag {
     private @Nullable Image image;
     private float hotX;
     private float hotY;
+    private float previewX;
+    private float previewY;
+    private float previewWidth;
+    private float previewHeight;
+    private boolean previewSet;
+    private boolean previewOff;
     private String description = "";
     private boolean withinWindow;
     private @Nullable Consumer<@Nullable DropAction> onEnd;
@@ -67,7 +73,8 @@ public final class Drag {
     }
 
     /**
-     * Shows a picture under the pointer while the drag lasts.
+     * Shows a picture under the pointer while the drag lasts, in place of the part of the source
+     * widget a {@link #preview} would show.
      *
      * @param newImage the picture
      * @param hotSpotX where in it the pointer is, from its left edge, in points
@@ -79,6 +86,67 @@ public final class Drag {
         hotX = hotSpotX;
         hotY = hotSpotY;
         return this;
+    }
+
+    /**
+     * Says which part of the source widget is shown under the pointer while the drag lasts: the
+     * row, the card, the picture that is being dragged, as it is painted. Without this, and
+     * without an {@link #image}, a small widget is shown whole and a large one as the part around
+     * the point where the drag began.
+     *
+     * @param x      the part's left edge, in the source widget's own coordinates
+     * @param y      the part's top edge, in the source widget's own coordinates
+     * @param width  its width
+     * @param height its height
+     * @return this drag
+     */
+    public Drag preview(float x, float y, float width, float height) {
+        previewX = x;
+        previewY = y;
+        previewWidth = Math.max(0, width);
+        previewHeight = Math.max(0, height);
+        previewSet = true;
+        return this;
+    }
+
+    /**
+     * Shows nothing under the pointer but the pointer itself.
+     *
+     * @return this drag
+     */
+    public Drag noPreview() {
+        previewOff = true;
+        return this;
+    }
+
+    /** @return whether {@link #preview} named a part of the source widget */
+    public boolean hasPreviewPart() {
+        return previewSet;
+    }
+
+    /** @return whether {@link #noPreview} was asked for */
+    public boolean isPreviewOff() {
+        return previewOff;
+    }
+
+    /** @return the left edge of the part to show, in the source widget's coordinates */
+    public float previewX() {
+        return previewX;
+    }
+
+    /** @return the top edge of the part to show, in the source widget's coordinates */
+    public float previewY() {
+        return previewY;
+    }
+
+    /** @return the width of the part to show */
+    public float previewWidth() {
+        return previewWidth;
+    }
+
+    /** @return the height of the part to show */
+    public float previewHeight() {
+        return previewHeight;
     }
 
     /**
