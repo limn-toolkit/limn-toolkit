@@ -241,12 +241,13 @@ class TreeDragTest {
     }
 
     @Test
-    void aNodeIsNotOfferedAPlaceInsideItself() {
-        press(100, 10); // docs
+    void aBranchIsLiftedWithWhatIsUnderItSoItCannotBeDroppedIntoItself() {
+        press(100, 10); // docs, with a and b under it
         move(100, 20);
-        move(100, 30); // its own child
-        release(100, 30);
-        assertEquals(List.of(), log);
+        move(100, 35); // where its own child stood: readme now, the rows having closed up
+        release(100, 35);
+        assertEquals(List.of("move [docs] into null at 2"), log);
+        assertEquals("[pics, readme, docs, notes]", roots.toString());
         assertEquals("[a, b]", docs.children.toString());
     }
 

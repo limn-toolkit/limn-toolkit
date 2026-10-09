@@ -252,6 +252,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * pointer, so the rows below close over the places they left.
      */
     private boolean lifted;
+    /** How tall the rows lifted out of the viewport are together; zero with none. */
+    private float liftedHeight;
     /** Whether the place a drop would take was chosen by the keyboard, which opens no room. */
     private boolean placeByKeyboard;
     /**
@@ -667,6 +669,12 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         if (!event.isKeyboard()) {
             // Under the pointer from now on, and no longer in the list: the rows below close up.
             lifted = true;
+            liftedHeight = 0;
+            for (int row : rows) {
+                Widget<?> each = isPlaced(row) ? cellFor(row) : null;
+                liftedHeight += each != null ? each.height() : 0;
+            }
+            markNeedsLayout();
             rowsBelongElsewhere();
         }
         return drag.onEnd(action -> {
@@ -676,12 +684,12 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             if (elsewhere && out != null) {
                 // They are gone from the items: nothing slides back into their places.
                 forgetSlides();
-                lifted = false;
+                putDown();
             }
             dragged = null;
             droppedWithin = false;
             if (lifted) {
-                lifted = false;
+                putDown();
                 if (!within) {
                     rowsBelongElsewhere(); // put back: the rows below make room again
                 }
@@ -744,13 +752,18 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         }
     }
 
+    /** The rows a drag lifted out are rows of the list again. */
+    private void putDown() {
+        lifted = false;
+        if (liftedHeight != 0) {
+            liftedHeight = 0;
+            markNeedsLayout();
+        }
+    }
+
     /** Whether a row is out of the list for the drag in flight. */
     private boolean isLifted(int row) {
         return lifted && Arrays.binarySearch(draggedRows, row) >= 0;
-    }
-
-    private boolean inViewport(Widget<?> cell) {
-        return cell.y() + cell.height() > 0 && cell.y() < height();
     }
 
     /** The room opened where a drop would land: as tall as what is dragged, as far as the list knows. */
@@ -760,7 +773,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         }
         float room = 0;
         for (int i = 0; lifted && i < mountedCount; i++) {
-            if (isLifted(mountedRows[i]) && inViewport(mountedCells[i])) {
+            if (isLifted(mountedRows[i]) && isPlaced(mountedRows[i])) {
                 room += mountedCells[i].height();
             }
         }
@@ -782,7 +795,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             int row = mountedRows[i];
             if (isLifted(row)) {
                 offsets[i] = Float.NaN;
-                if (inViewport(mountedCells[i])) {
+                if (isPlaced(row)) {
                     up += mountedCells[i].height();
                 }
             } else {
@@ -830,7 +843,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
                 } else {
                     sliding.remove(row);
                 }
-            } else if (was == null && !still && now[i] != 0 && inViewport(mountedCells[i])) {
+            } else if (was == null && !still && now[i] != 0 && isPlaced(row)) {
                 sliding.put(row, -now[i]); // drawn where the layout has it until now
                 any = true;
             }
@@ -874,7 +887,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         float[] at = drawnOffsets();
         java.util.IdentityHashMap<Object, Float> drawn = new java.util.IdentityHashMap<>();
         for (int i = 0; i < mountedCount; i++) {
-            if (!Float.isNaN(at[i]) && inViewport(mountedCells[i]) && mountedRows[i] < items.size()) {
+            if (!Float.isNaN(at[i]) && isPlaced(mountedRows[i]) && mountedRows[i] < items.size()) {
                 drawn.put(items.get(mountedRows[i]), mountedCells[i].y() + at[i]);
             }
         }
@@ -920,7 +933,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         int after = -1;
         for (int i = 0; i < mountedCount; i++) {
             Widget<?> cell = mountedCells[i];
-            if (!inViewport(cell)) {
+            if (!isPlaced(mountedRows[i])) {
                 continue; // a row kept realized outside the viewport
             }
             if (isLifted(mountedRows[i])) {
@@ -953,7 +966,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         // are drawn, and slide only as far as the new items put them elsewhere.
         slideFromHere();
         dropAt = -1;
-        lifted = lifted && !own;
+        if (own) {
+            putDown();
+        }
         invalidate();
         if (own) {
             droppedWithin = true;
@@ -1729,7 +1744,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     private float placeDown(int count, float rowX, float w, float viewport) {
         float y = anchorTop;
         int i = anchorIndex;
-        while (i < count && y < viewport) {
+        // Past the viewport by what a drag lifted out of it: the rows below close up, and the
+        // ones that come into view from under the edge have to be there to slide in.
+        while (i < count && y < viewport + liftedHeight) {
             float h = measuredHeight(i, w);
             cellFor(i).layoutBox(rowX, y, w, h);
             y += h;
@@ -2035,10 +2052,12 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
                 if (Float.isNaN(at[m])) {
                     continue; // under the pointer, and not in the list
                 }
-                if (child.y() >= height() || child.y() + child.height() <= 0) {
-                    // A row wholly outside the viewport: the focused row a scroll spared. Its
-                    // own clip test would let it paint a feather's worth, and a focused button
-                    // draws its ring outside its box, which is a ring on the row now at the edge.
+                if (!isPlaced(mountedRows[m]) || child.y() + at[m] >= height()
+                        || child.y() + at[m] + child.height() <= 0) {
+                    // A row wholly outside the viewport: the focused row a scroll spared, or one
+                    // placed under the edge for a drag. Its own clip test would let it paint a
+                    // feather's worth, and a focused button draws its ring outside its box, which
+                    // is a ring on the row now at the edge.
                     continue;
                 }
                 canvas.save();
@@ -2120,7 +2139,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         float end = Float.NaN;
         for (int i = 0; i < mountedCount && Float.isNaN(y); i++) {
             Widget<?> cell = mountedCells[i];
-            if (!inViewport(cell)) {
+            if (!isPlaced(mountedRows[i])) {
                 continue;
             }
             if (isLifted(mountedRows[i])) {
