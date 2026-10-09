@@ -504,6 +504,11 @@ final class LwjglWindow implements WindowPeer {
                     () -> inputBlocked() ? null : input, this::pointerForDrag,
                     this::paintDuringDrag, this::animateDuringDrag);
         }
+        if (backend.nativeClipboard() instanceof limn.backend.lwjgl.transfer.WaylandClipboard wayland) {
+            // The system's drag and drop on Wayland, through the clipboard's own data device.
+            linuxDrag = wayland.register(org.lwjgl.glfw.GLFWNativeWayland.glfwGetWaylandWindow(handle),
+                    () -> inputBlocked() ? null : input, this::toLogical, backend.uiRuntime());
+        }
         if (backend.nativeClipboard() instanceof limn.backend.lwjgl.transfer.X11Clipboard x11) {
             // The system's drag and drop on X11, spoken on the clipboard's connection.
             linuxDrag = x11.drags(backend.uiRuntime()).register(
@@ -590,7 +595,9 @@ final class LwjglWindow implements WindowPeer {
             }
         });
         glfwSetDropCallback(handle, (win, count, names) -> {
-            if (input != null && !inputBlocked()) {
+            // Where this backend answers the system's drags itself, files arrive as any other
+            // drop does, and GLFW's own word of the same drop would be a second one.
+            if (input != null && !inputBlocked() && linuxDrag == null && windowsDrag == null && macDrag == null) {
                 java.util.List<java.nio.file.Path> paths = new java.util.ArrayList<>(count);
                 for (int i = 0; i < count; i++) {
                     paths.add(java.nio.file.Path.of(GLFWDropCallback.getName(names, i)));

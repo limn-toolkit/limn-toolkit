@@ -2,8 +2,9 @@
 
 - **Status:** Accepted, 2026-10-08, with the owner's answers below. Steps 3 and 4 of §6 are
   built: the scene's driver with the keyboard's drag, and the table's columns; §7 says where
-  they depart from the text. Step 5 is built: the lists, the tree and the picture. Step 6 is
-  built on macOS; Windows, X11 and Wayland are not.
+  they depart from the text. Steps 5 and 6 are built: the lists, the tree and the picture, and
+  the system's driver on macOS, Windows, X11 and Wayland, each measured on its system. Step 7 is
+  not.
 - **Date:** 2026-10-08
 - **Scope:** drag and drop for every widget: a source, a target with feedback while the pointer is
   over it, the platform's own drag so that it leaves the window; a keyboard way of doing the same;
@@ -331,4 +332,37 @@ Step 5 after the owner's runs of the picker scene on his Mac (list and tree alik
   names the generic operation, which is all AppKit keeps of the mask with Command held.
 - WhatsApp shows a dragged picture without its transparency; it does the same with the PNG file
   dragged from Finder (his test), so it is that program's.
+
+Step 6 on Windows, X11 and Wayland (2026-10-09), each measured on its guest with real pointer
+events against a native program (a .NET form on Windows, a GTK 3 window on the two others): a
+row to the other list and within its own, both through the system; a row's text out; a picture
+out; two lines of text in, which became rows. The scripts are under `.claude/pending/2026-10-09/`.
+
+- **Windows** (`WindowsDrag`): OLE. A window registers an `IDropTarget`; a drag out is
+  `DoDragDrop` over the shell's data object, filled with what a copy puts on the clipboard, lazy
+  values made as the drag begins. `DoDragDrop` returns when the drag is over, so it runs from a
+  task posted to the UI thread and the window paints itself after each answer, as on macOS. The
+  keys arrive with each call: Control a copy, Shift a move, both or Alt a link. The picture goes
+  to the shell as a bitmap with its alpha, and is drawn over a window only if that window's
+  destination passes each call to the shell's helper, which ours does.
+- **X11** (`X11Drag`): XDND 5 on the clipboard's connection. GLFW's window answers XDND itself,
+  for files and at the drop alone, on a connection nothing else can read; each window is given
+  an `XdndProxy` naming the clipboard's hidden window, and is answered there. X has no drag to
+  hand a session to, so as a source the thread asks where the pointer is sixty times a second,
+  finds the window under it that speaks XDND, and tells it; the button let go drops, Escape
+  calls it off. The picture is a window of its own with an alpha visual and no input region.
+- **Wayland** (`WaylandClipboard`): the clipboard's own `wl_data_device`. `start_drag` with the
+  serial of the button press, read by the pointer of ours; the picture is a surface drawn once
+  from shared memory, which the compositor moves; as a destination the offer is accepted and its
+  action set at each motion, and finished once what was dropped has been read. KWin chooses the
+  action from the keys.
+- GLFW's own file drop is not listened to where one of these is installed: files arrive as any
+  other drop, and its word of the same drop would be a second one.
+- Not done: the pointer's shape does not say the answer on X11 (it stays the window's); a link
+  is not offered on Wayland (the protocol has copy, move and ask); a fractional scale rounds the
+  picture's on Wayland; files dragged in from a file manager were not measured on these three
+  (the path is the clipboard's, which was); Mutter is not measured.
+- Open, the owner's question: Paint did not take the picture dragged from the demo. It is
+  believed to take files only; offering the picture as a temporary PNG file as well is proposed
+  and not decided.
 
