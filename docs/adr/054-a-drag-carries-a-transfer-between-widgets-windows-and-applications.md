@@ -379,3 +379,11 @@ out; two lines of text in, which became rows. The scripts are under `.claude/pen
 - **On Wayland the picture is attached after the drag begins.** Attached before, the offset
   that holds it where the pointer pressed it was dropped, and it hung from its corner where the
   other systems hold it by the point pressed (the owner saw the difference from X.Org).
+- **A window stood still for twenty seconds on Wayland** (the owner's Fedora guest): a picture
+  with its file, dropped on the window it came from. GLFW's own data device answers a drop of
+  files on its window by reading them at once, on the UI thread; the program asked was this one,
+  whose sending thread asked the UI thread to make the lazy value, and waited. Two things now
+  keep the UI thread out of it: a picture that is at hand is written as its file by whichever
+  thread asks (`Transfer.needsUiThread` says which values are not like that), and a files value
+  only the UI thread can make is made as a Wayland drag begins.
+

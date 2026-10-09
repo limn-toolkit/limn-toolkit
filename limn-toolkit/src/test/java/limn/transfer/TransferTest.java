@@ -147,4 +147,21 @@ class TransferTest {
         assertEquals(3, changes[0]);
         assertNotEquals(clipboard.text(), Clipboard.inMemory().text() + "x", "each is its own");
     }
+
+    @Test
+    void aPictureAtHandIsOfferedAsAFileThatAnyThreadMayWrite() throws Exception {
+        Transfer picture = Transfer.of(DataFormat.IMAGE, new limn.graphics.Image(2, 2, new byte[16]));
+        org.junit.jupiter.api.Assertions.assertFalse(picture.has(DataFormat.FILES), "not unless asked");
+        Transfer withFile = picture.withImageAsFile("logo.png");
+        org.junit.jupiter.api.Assertions.assertFalse(withFile.isReady(DataFormat.FILES), "written when asked for");
+        org.junit.jupiter.api.Assertions.assertFalse(withFile.needsUiThread(DataFormat.FILES));
+        // Off the UI thread: a program asked for its own files while its UI thread waits for them.
+        java.util.List<java.nio.file.Path> files = java.util.concurrent.CompletableFuture
+                .supplyAsync(() -> withFile.get(DataFormat.FILES))
+                .get(20, java.util.concurrent.TimeUnit.SECONDS);
+        org.junit.jupiter.api.Assertions.assertEquals("logo.png", files.get(0).getFileName().toString());
+        org.junit.jupiter.api.Assertions.assertTrue(java.nio.file.Files.size(files.get(0)) > 8);
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> Transfer.of(DataFormat.TEXT, "no picture").withImageAsFile("x.png"));
+    }
 }

@@ -533,6 +533,14 @@ public final class WaylandClipboard implements NativeClipboard {
     private boolean startDrag(long origin, limn.backend.spi.DragRequest request, limn.concurrent.UiRuntime ui) {
         List<String> types = PlatformClipboard.types(request.content());
         Function<String, byte[]> bytes = PlatformClipboard.provider(request.content(), ui);
+        if (request.content().needsUiThread(limn.transfer.DataFormat.FILES)) {
+            // Made now, on this thread, and not when asked for. GLFW answers a drop of files on
+            // one of its windows by reading them at once, on the UI thread, which then waits for
+            // this very program to send them: a value only the UI thread can make would never be
+            // made, and the window stood still until the read gave up, twenty seconds later (the
+            // owner's Fedora guest, a picture with its file dropped on the window it came from).
+            bytes.apply(ClipboardTypes.FILES);
+        }
         synchronized (lock) {
             if (closing || dragSource != NULL) {
                 return false;

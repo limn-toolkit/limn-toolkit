@@ -202,7 +202,7 @@ public final class PlatformClipboard implements Clipboard {
                 return null;
             }
             Object value;
-            if (ui.isUiThread()) {
+            if (ui.isUiThread() || !content.needsUiThread(format)) {
                 value = content.get(format);
             } else {
                 CompletableFuture<Object> onUi = new CompletableFuture<>();

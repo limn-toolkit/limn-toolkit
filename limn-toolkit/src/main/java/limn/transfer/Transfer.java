@@ -35,17 +35,26 @@ public final class Transfer {
     /** A value, or the supplier that makes it the first time it is wanted. */
     private static final class Slot {
         private @Nullable Object value;
-        private @Nullable Supplier<?> pending;
+        private volatile @Nullable Supplier<?> pending;
+        /** Whether the value may be made on whichever thread asks first; see {@link #needsUiThread}. */
+        private final boolean anyThread;
 
         Slot(@Nullable Object value, @Nullable Supplier<?> pending) {
-            this.value = value;
-            this.pending = pending;
+            this(value, pending, false);
         }
 
-        Object resolve(DataFormat<?> format) {
+        Slot(@Nullable Object value, @Nullable Supplier<?> pending, boolean anyThread) {
+            this.value = value;
+            this.pending = pending;
+            this.anyThread = anyThread;
+        }
+
+        synchronized Object resolve(DataFormat<?> format) {
             Supplier<?> supplier = pending;
             if (supplier != null) {
-                Ui.checkUiThread();
+                if (!anyThread) {
+                    Ui.checkUiThread();
+                }
                 pending = null;
                 value = Objects.requireNonNull(supplier.get(),
                         () -> "the lazy value of " + format + " was null");
@@ -125,8 +134,15 @@ public final class Transfer {
         if (name.isBlank() || name.indexOf('/') >= 0 || name.indexOf('\\') >= 0) {
             throw new IllegalArgumentException("a file's name, without a directory: " + name);
         }
-        return withLazy(DataFormat.FILES, () -> {
-            limn.graphics.Image picture = Objects.requireNonNull(get(DataFormat.IMAGE), "the picture");
+        // A picture that is at hand is written by whichever thread asks for the file: nothing in
+        // it needs the UI thread, and a program asked for its own drag's files while its UI thread
+        // waits for them (GLFW on Wayland, at a drop on the window it came from) would otherwise
+        // wait on itself.
+        boolean atHand = isReady(DataFormat.IMAGE);
+        limn.graphics.Image known = atHand ? get(DataFormat.IMAGE) : null;
+        return plus(DataFormat.FILES, new Slot(null, () -> {
+            limn.graphics.Image picture = known != null ? known
+                    : Objects.requireNonNull(get(DataFormat.IMAGE), "the picture");
             try {
                 java.nio.file.Path directory = java.nio.file.Files.createTempDirectory("limn-transfer");
                 directory.toFile().deleteOnExit(); // registered first, so deleted last, once it is empty
@@ -138,7 +154,7 @@ public final class Transfer {
             } catch (java.io.IOException failed) {
                 throw new java.io.UncheckedIOException(failed);
             }
-        });
+        }, atHand));
     }
 
     private Transfer plus(DataFormat<?> format, Slot slot) {
@@ -174,6 +190,19 @@ public final class Transfer {
     /** @return whether this transfer carries nothing */
     public boolean isEmpty() {
         return slots.isEmpty();
+    }
+
+    /**
+     * Whether a format's value has still to be made, and by the UI thread: what an application's
+     * {@link #withLazy} value is. A backend handing a transfer to another program reads this to
+     * know that asking from another thread means waiting for the UI thread.
+     *
+     * @param format the format
+     * @return false when the value is at hand, or can be made on the thread that asks
+     */
+    public boolean needsUiThread(DataFormat<?> format) {
+        Slot slot = slots.get(format);
+        return slot != null && slot.pending != null && !slot.anyThread;
     }
 
     /**
