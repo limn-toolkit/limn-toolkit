@@ -541,6 +541,11 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     private final HashMap<Integer, Float> sliding = new HashMap<>();
     private final HashMap<Integer, Float> belonged = new HashMap<>();
     private boolean slideTicking;
+    /**
+     * Rows a drag gave back that are not drawn yet: the rows that closed over their places are
+     * still sliding off them, and drawn at once they stood on top of those.
+     */
+    private java.util.@Nullable BitSet returning;
     /** Where the rows were drawn before the model changed under them, by node, until the next layout. */
     private @Nullable HashMap<Object, Float> drawnBefore;
     private float[] offsets = new float[16];
@@ -2030,6 +2035,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         updateAverageHeight();
         vBar.refresh();
         hBar.refresh();
+        newRowsSlideToo();
         slideToLayout();
     }
 
@@ -2759,6 +2765,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         droppedWithin = false;
         if (!event.isKeyboard()) {
             // Under the pointer from now on, and no longer in the tree: the rows below close up.
+            rowsAreHere();
+            returning = null;
             lifted = true;
             markLifted();
             liftedHeight = 0;
@@ -2780,9 +2788,12 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 putDown();
             }
             if (lifted) {
+                rowsAreHere();
+                java.util.BitSet back = (java.util.BitSet) liftedRows.clone();
                 putDown();
                 if (!within) {
                     rowsBelongElsewhere(); // put back: the rows below make room again
+                    returning = !sliding.isEmpty() ? back : null;
                 }
             }
             dragged = null;
@@ -2957,15 +2968,47 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 } else {
                     sliding.remove(row);
                 }
-            } else if (was == null && !still && now[i] != 0 && isPlaced(row)) {
-                sliding.put(row, -now[i]); // drawn where the layout has it until now
-                any = true;
             }
         }
         invalidate();
         if (any) {
             slide();
         }
+    }
+
+    /**
+     * Notes where every realized row belongs now, before what decides it changes: a row slides
+     * from where it was drawn, and one realized since the last change (scrolled in, or placed
+     * under the edge for a drag) was drawn where it belonged, which nothing else remembers. Taken
+     * for a row at rest where the layout put it, such a row jumped there, over its neighbours,
+     * and slid back.
+     */
+    private void rowsAreHere() {
+        float[] now = belongs();
+        for (int i = 0; i < mountedCount; i++) {
+            if (!Float.isNaN(now[i])) {
+                belonged.put(mountedRows[i], now[i]);
+            }
+        }
+    }
+
+    /**
+     * After a layout: a row realized while the others slide comes in with them, by as much as the
+     * row above it has left to go, and not at once where it belongs.
+     */
+    private void newRowsSlideToo() {
+        if (sliding.isEmpty()) {
+            return;
+        }
+        for (int i = 1; i < mountedCount; i++) {
+            Integer row = mountedRows[i];
+            Float above = sliding.get(mountedRows[i - 1]);
+            if (above != null && isPlaced(row) && !belonged.containsKey(row) && !sliding.containsKey(row)
+                    && !liftedRows.get(row)) {
+                sliding.put(row, above);
+            }
+        }
+        rowsAreHere();
     }
 
     private void slide() {
@@ -2979,12 +3022,16 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             sliding.replaceAll((row, left) -> left * keep);
             sliding.values().removeIf(left -> Math.abs(left) < 0.5f);
             slideTicking = !sliding.isEmpty();
+            if (!slideTicking) {
+                returning = null;
+            }
             invalidate();
             return slideTicking;
         });
     }
 
     private void forgetSlides() {
+        returning = null;
         sliding.clear();
         belonged.clear();
     }
@@ -3150,6 +3197,7 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
 
     private void setDropPlace(@Nullable Place<T> place, boolean byKeyboard) {
         if (!Objects.equals(place, dropPlace) || placeByKeyboard != byKeyboard) {
+            rowsAreHere();
             dropPlace = place;
             placeByKeyboard = byKeyboard;
             rowsBelongElsewhere(); // the rows from there down make room, or close it
@@ -3841,8 +3889,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 if (!row.placeholder && row.node.equals(cursor)) {
                     cursorAt = at[i];
                 }
-                if (Float.isNaN(at[i])) {
-                    continue; // under the pointer, and not in the tree
+                java.util.BitSet back = returning;
+                if (Float.isNaN(at[i]) || (back != null && back.get(index))) {
+                    continue; // under the pointer, and not in the tree; or not back in it yet
                 }
                 if (!isPlaced(index) || cell.y() + at[i] >= viewH || cell.y() + at[i] + cell.height() <= 0) {
                     continue; // the focused row a scroll spared, or one placed under the edge for a drag
