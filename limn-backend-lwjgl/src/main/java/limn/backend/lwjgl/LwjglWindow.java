@@ -497,6 +497,13 @@ final class LwjglWindow implements WindowPeer {
                 frameRequested = true;
             }
         });
+        if (Platform.current().isWindows() && backend.systemClipboard() != null) {
+            // The system's drag and drop, from and onto this window.
+            windowsDrag = limn.backend.lwjgl.transfer.WindowsDrag.install(
+                    org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle), backend.uiRuntime(),
+                    () -> inputBlocked() ? null : input, this::pointerForDrag,
+                    this::paintDuringDrag, this::animateDuringDrag);
+        }
         if (MACOS) {
             long view = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaView(handle);
             if (MacInputContextGate.install(view)) {
@@ -507,25 +514,7 @@ final class LwjglWindow implements WindowPeer {
             if (backend.systemClipboard() != null) {
                 macDrag = limn.backend.lwjgl.transfer.MacDrag.install(view, backend.uiRuntime(),
                         () -> inputBlocked() ? null : input, this::pointerForDrag, logicalToScreenFactor(),
-                        () -> {
-                            frameRequested = true;
-                            renderNow(true);
-                        },
-                        () -> {
-                            // Between two events of a drag AppKit drives: the frame the scene
-                            // asked for, if any (a row sliding), and whether it asks for another;
-                            // or, with none asked, the same frame again so that both buffers
-                            // hold it, which the loop does when idle and does not turn here. A
-                            // mark where a drop would land stayed behind without it.
-                            if (destroyed) {
-                                return false;
-                            }
-                            if (!frameRequested) {
-                                syncBuffers(true);
-                                return false;
-                            }
-                            return renderNow(true) && frameRequested;
-                        },
+                        this::paintDuringDrag, this::animateDuringDrag,
                         () -> {
                             // The pointer the scene last asked for, set again: GLFW believes it
                             // is still showing, and a drag's destination has shown others since.
@@ -1132,6 +1121,10 @@ final class LwjglWindow implements WindowPeer {
         }
         if (cocoaWindow != NULL) {
             MacFullscreen.forget(cocoaWindow);
+        }
+        if (windowsDrag != null) {
+            windowsDrag.close();
+            windowsDrag = null;
         }
         glfwDestroyWindow(handle);
     }
@@ -2219,6 +2212,7 @@ final class LwjglWindow implements WindowPeer {
     }
 
     private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable MacDrag macDrag;
+    private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable WindowsDrag windowsDrag;
 
     /** The pointer in logical points, x then y, and the content's logical height: what a drag is placed by. */
     private float[] pointerForDrag() {
@@ -2232,13 +2226,42 @@ final class LwjglWindow implements WindowPeer {
 
     @Override
     public boolean supportsDrag() {
-        return macDrag != null && !destroyed;
+        return (macDrag != null || windowsDrag != null) && !destroyed;
     }
 
     @Override
     public boolean startDrag(limn.backend.spi.DragRequest request) {
         backend.uiRuntime().checkUiThread();
-        return macDrag != null && !destroyed && macDrag.start(request);
+        if (destroyed) {
+            return false;
+        }
+        if (windowsDrag != null) {
+            return windowsDrag.start(request);
+        }
+        return macDrag != null && macDrag.start(request);
+    }
+
+    /** Paints now, from inside a loop the system runs while it drives a drag. */
+    private void paintDuringDrag() {
+        frameRequested = true;
+        renderNow(true);
+    }
+
+    /**
+     * Between two events of a drag the system drives: the frame the scene asked for, if any (a
+     * row sliding), and whether it asks for another; or, with none asked, the same frame again
+     * so that both buffers hold it, which the loop does when idle and does not turn here. A mark
+     * where a drop would land stayed behind without it.
+     */
+    private boolean animateDuringDrag() {
+        if (destroyed) {
+            return false;
+        }
+        if (!frameRequested) {
+            syncBuffers(true);
+            return false;
+        }
+        return renderNow(true) && frameRequested;
     }
 
     @Override
