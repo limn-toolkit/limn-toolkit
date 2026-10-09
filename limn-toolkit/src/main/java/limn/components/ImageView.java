@@ -9,6 +9,10 @@ import limn.graphics.Image;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.scene.event.DragStartEvent;
+import limn.transfer.DataFormat;
+import limn.transfer.Drag;
+import limn.transfer.Transfer;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
@@ -18,6 +22,9 @@ import java.util.Objects;
  * when a {@link #setTint tint} is set (the image's alpha becomes the shape,
  * recolored by the tint, so an icon follows the theme). {@link Fit} controls
  * how the image maps into the widget bounds.
+ *
+ * <p>A view can let its picture be <b>dragged</b> to another widget or another program
+ * ({@link #setDragEnabled}); it does not unless asked, most pictures in a form being decoration.
  */
 public final class ImageView extends Widget<ImageView> {
 
@@ -37,6 +44,10 @@ public final class ImageView extends Widget<ImageView> {
     private Color tint;
     private float preferredWidth = -1;
     private float preferredHeight = -1;
+    private boolean dragEnabled;
+
+    /** The longest side of the picture shown under the pointer while a large view is dragged. */
+    private static final float DRAG_PREVIEW_MAX = 240;
 
     /** Shows an image at its natural size until the layout says otherwise. */
     public ImageView(@Nullable Image image) {
@@ -74,6 +85,49 @@ public final class ImageView extends Widget<ImageView> {
         this.preferredHeight = height;
         markNeedsLayout();
         return this;
+    }
+
+    /**
+     * Lets the user drag the picture out of this view (default off), as
+     * {@link DataFormat#IMAGE}, for a target to copy: a drop area of this program, an editor, a
+     * folder. What follows the pointer is the picture as the view shows it, with its own
+     * transparency, made smaller when the view is large. From the keyboard, the scene's drag key
+     * picks it up when the view is focusable. UI thread only.
+     *
+     * @param enabled whether the picture can be dragged
+     * @return this view
+     */
+    public ImageView setDragEnabled(boolean enabled) {
+        Ui.checkUiThread();
+        dragEnabled = enabled;
+        return this;
+    }
+
+    /** @return whether the picture can be dragged */
+    public boolean isDragEnabled() {
+        return dragEnabled;
+    }
+
+    @Override
+    protected @Nullable Drag onDragStart(DragStartEvent event) {
+        Image picture = image;
+        if (!dragEnabled || picture == null || width() <= 0 || height() <= 0) {
+            return null;
+        }
+        float scale = Math.min(1, DRAG_PREVIEW_MAX / Math.max(width(), height()));
+        float holdX = event.isKeyboard() ? 0 : (event.x() - localToSceneX()) * scale;
+        float holdY = event.isKeyboard() ? 0 : (event.y() - localToSceneY()) * scale;
+        // Named for a keyboard drag by the scene, from the name the application gave the view.
+        return Drag.of(Transfer.of(DataFormat.IMAGE, picture))
+                .preview(width() * scale, height() * scale, holdX, holdY, canvas -> {
+                    canvas.save();
+                    try {
+                        canvas.scale(scale, scale);
+                        onPaint(canvas);
+                    } finally {
+                        canvas.restore();
+                    }
+                });
     }
 
     @Override

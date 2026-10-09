@@ -2,7 +2,8 @@
 
 - **Status:** Accepted, 2026-10-08, with the owner's answers below. Steps 3 and 4 of §6 are
   built: the scene's driver with the keyboard's drag, and the table's columns; §7 says where
-  they depart from the text. The other widgets (step 5) and the system's driver (step 6) are not.
+  they depart from the text. Step 5 is built: the lists, the tree and the picture. Step 6 is
+  built on macOS; Windows, X11 and Wayland are not.
 - **Date:** 2026-10-08
 - **Scope:** drag and drop for every widget: a source, a target with feedback while the pointer is
   over it, the platform's own drag so that it leaves the window; a keyboard way of doing the same;
@@ -270,3 +271,39 @@ a card of the demo to another program and files in from Finder:
   dropped or ends, the window sets its own pointer again, since AppKit keeps the last one set.
 - Not done: Windows, X11 and Wayland. A drag whose source gives no painter still shows a cut of
   the opaque frame where the part stands.
+
+Step 5 (`ListView`, `Tree`, `ImageView`; the demo's `--scene picker`):
+
+- **A row is dragged with the rest of the selection when it is part of it**, and alone otherwise.
+  A plain press on one of several selected rows keeps them all, since it may begin their drag, and
+  selects that row alone at the click if no drag followed. In a tree a node goes with what is
+  under it, so one under another that is dragged is not named twice.
+- **Three handlers, and not the two of §4**, each of them the application's since the rows are:
+  `onReorder` moves rows within the widget; `onDrop((event, index) -> …)` takes what comes from
+  elsewhere and is handed the `DropEvent`, not the bare offer, because whether it is a copy or a
+  move is the event's to say; and `onMoveOut(rows -> …)`, which §4 did not have, hears that rows
+  dragged out were *moved* to another widget or program and removes them. A two-list picker is
+  the three together. With `onMoveOut` a drag proposes a move, without it a copy.
+- **The place handed to `onReorder` is counted without the rows moved**, so the handler is
+  `removeAll(rows); addAll(index, rows)`. Afterwards the widget re-reads the items, and where it
+  finds the rows it selects them, reveals them and says "Total, 3 of 12"; rows dropped where
+  they already stand ask nothing. In a tree the place is a parent and an index, the node they
+  went into opens, and it is named in what is said when it is a new one.
+- **In a tree** the upper and lower quarter of a branch are before and after it and the rest is
+  into it; a leaf is halves; after an open branch is its first place inside. A node is refused a
+  place inside itself (the pointer shows it). A closed branch the pointer rests on for 0.7 s
+  opens. The mark is a ring on the node a drop goes into and a line where it goes between two,
+  starting at the row's own indent.
+- **The keyboard:** Alt+Shift+Up and Down as §3 says, with rows apart gathered at the end they
+  move toward; in a tree Left and Right move out one level and into the sibling before, swapped
+  right to left. The scene's keyboard drag walks every place with Up and Down ("Before Total",
+  "After Total", "Into Reports"), including the end of an open branch, which no row stands before.
+- **What follows the pointer is the row's own widget**, painted alone on a ground of its own,
+  with a second card behind and "3 items" when it stands for several. `ImageView` paints its
+  picture as it shows it, at most 240 points on its longer side.
+- A keyboard drag whose source gave no description is named by the source's accessible name.
+- A drag does not begin on a scroll bar, on a tree's triangle, or on a focusable control inside
+  a row.
+- Strings: four in the components' catalogue and six in the tree's, in the 21 languages.
+- Not done: a target cannot yet be told which action to prefer (a list dropped on proposes what
+  the source does); the readers have not heard any of it (step 7).

@@ -3919,8 +3919,11 @@ public final class Scene {
             dragSession = session;
             choosePreview(session);
             if (event.isKeyboard()) {
-                announce(drag.description().isEmpty() ? DragStrings.STARTED_UNNAMED.get()
-                        : DragStrings.STARTED.format(drag.description()),
+                // Named by the drag, or else by what the source itself is called.
+                limn.i18n.I18nString called = w.accessibleName();
+                String what = !drag.description().isEmpty() ? drag.description()
+                        : called != null ? called.get() : "";
+                announce(what.isEmpty() ? DragStrings.STARTED_UNNAMED.get() : DragStrings.STARTED.format(what),
                         limn.accessibility.Accessible.Politeness.ASSERTIVE);
                 // Where it is, first: moving something within its own list is the common case.
                 keyboardTarget(w, 0, 0, false);
@@ -4576,19 +4579,20 @@ public final class Scene {
      */
     private void paintPreview(Canvas canvas, DragSession session) {
         java.util.function.Consumer<Canvas> painter = session.drag.previewPainter();
-        if (painter != null) {
-            painter.accept(canvas);
-            return;
-        }
-        canvas.translate(-session.partX, -session.partY);
         // A partial frame skips a widget whose own place misses the pass being painted, and the
         // source is painted here away from its place: with the cull left on, its picture vanished
         // whole whenever the pass was the target repainting itself and not the source (the
         // owner's report, over the other board in the demo). The clip is this painting's bound.
+        // A painter is under the same rule: a list's paints the row's own widget.
         boolean culling = cullActive;
         cullActive = false;
         try {
-            session.source.paintWidget(canvas);
+            if (painter != null) {
+                painter.accept(canvas);
+            } else {
+                canvas.translate(-session.partX, -session.partY);
+                session.source.paintWidget(canvas);
+            }
         } finally {
             cullActive = culling;
         }

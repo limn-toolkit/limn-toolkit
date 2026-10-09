@@ -216,4 +216,14 @@ final class ComponentStrings {
 
     private ComponentStrings() {
     }
+
+    // A list whose rows the user moves (ListView.onReorder), by dragging or with Alt+Shift and an
+    // arrow: said after each move, since a row that went somewhere else says nothing by itself.
+    // {0} is the row's name, or LIST_ITEMS for several; then its place and the row count.
+    static final I18nString LIST_MOVED = new I18nString("limn.list.moved", "{0}, {1} of {2}");
+    static final limn.i18n.PluralString LIST_ITEMS = limn.i18n.PluralString.of(
+            "limn.list.items", "{0} item", "{0} items");
+    // Where a keyboard drag would drop, between two rows: said at each arrow.
+    static final I18nString DROP_BEFORE = new I18nString("limn.drop.before", "Before {0}");
+    static final I18nString DROP_AFTER = new I18nString("limn.drop.after", "After {0}");
 }
