@@ -229,6 +229,28 @@ class SceneDragTest {
     }
 
     @Test
+    void thePictureSurvivesAFrameThatRepaintsOnlyTheTarget() {
+        Canvas canvas = new limn.testing.NoopCanvas(300, 60);
+        plain.takes = true; // the box that does not touch the source's
+        scene.setPartialRendering(true);
+        scene.renderFrame(canvas);
+        scene.renderFrame(canvas); // history settled
+        press(50);
+        move(250);
+        scene.renderFrame(canvas, false, Float.NaN, 1);
+        scene.renderFrame(canvas, false, Float.NaN, 1);
+        source.paints = 0;
+        plain.paints = 0;
+        // The target marks where the drop would land and repaints itself. The source, a hundred
+        // points away, is not part of that frame: a partial frame skips a widget whose own place
+        // misses what is repainted. Its picture under the pointer must not be skipped with it.
+        plain.invalidate();
+        scene.renderFrame(canvas, false, Float.NaN, 1);
+        assertEquals(1, plain.paints);
+        assertEquals(1, source.paints, "under the pointer, and not in its own place, which did not change");
+    }
+
+    @Test
     void aWidgetThatAnswersNoDragKeepsItsOrdinaryDragEvents() {
         press(250);
         move(280);

@@ -4269,7 +4269,18 @@ public final class Scene {
                 // like what was picked up, whatever the widget draws.
                 canvas.clipRect(rect.x(), rect.y(), rect.width(), rect.height());
                 canvas.translate(rect.x() - session.partX, rect.y() - session.partY);
-                session.source.paintWidget(canvas);
+                // A partial frame skips a widget whose own place misses the pass being painted,
+                // and the source is painted here away from its place: with the cull left on, its
+                // picture vanished whenever the pass was the target repainting itself and not
+                // the source (the owner's report, over the other board in the demo). The clip
+                // just set is the only bound this painting has.
+                boolean culling = cullActive;
+                cullActive = false;
+                try {
+                    session.source.paintWidget(canvas);
+                } finally {
+                    cullActive = culling;
+                }
             }
         } finally {
             canvas.restore();
@@ -4418,7 +4429,7 @@ public final class Scene {
             fullDamagePending = true;
         }
         layoutPass(canvas.width(), canvas.height());
-        if (!rePresent && pointerInside && pressed == null) {
+        if (!rePresent && pointerInside && pressed == null && dragSession == null) {
             // Content may have moved under a stationary mouse (keyboard scroll,
             // overlay close, layout change): hover follows what is under the
             // pointer NOW, because pointer events alone would leave a
