@@ -56,6 +56,7 @@ public final class X11Clipboard implements NativeClipboard {
     private static final int SELECTION_REQUEST = 30;
     private static final int SELECTION_NOTIFY = 31;
     private static final int PROPERTY_NOTIFY = 28;
+    private static final int CLIENT_MESSAGE = 33;
     private static final long PROPERTY_CHANGE_MASK = 1L << 22;
     private static final int PROPERTY_NEW_VALUE = 0;
     private static final int PROPERTY_DELETE = 1;
@@ -102,6 +103,10 @@ public final class X11Clipboard implements NativeClipboard {
     private volatile boolean owner;
     private volatile Runnable changeListener = () -> { };
     private volatile boolean closing;
+    /** The drags this connection speaks for, once a window asked for them; the X thread reads it. */
+    private volatile X11Drag drag;
+    /** How long the thread sleeps with nothing to do: shorter while a drag of ours is followed. */
+    volatile int pollMillis = 250;
 
     /** A conversion asked of another program, waiting for its answer in a property of ours. */
     private static final class Read {
@@ -197,12 +202,12 @@ public final class X11Clipboard implements NativeClipboard {
 
     // ---- plumbing ---------------------------------------------------------------------------------
 
-    private long x(String name, String signature, long... args) {
+    long x(String name, String signature, long... args) {
         long function = functions.computeIfAbsent(name, n -> APIUtil.apiGetFunctionAddress(x11, n));
         return Ffi.call(function, signature, args);
     }
 
-    private long atom(String name) {
+    long atom(String name) {
         Long known = atoms.get(name);
         if (known != null) {
             return known;
@@ -215,7 +220,7 @@ public final class X11Clipboard implements NativeClipboard {
         }
     }
 
-    private String name(long atom) {
+    String name(long atom) {
         String known = atomNames.get(atom);
         if (known != null) {
             return known;
@@ -240,7 +245,7 @@ public final class X11Clipboard implements NativeClipboard {
         }
     }
 
-    private void post(Runnable command) {
+    void post(Runnable command) {
         commands.add(command);
         try {
             wake.write(1);
@@ -264,6 +269,10 @@ public final class X11Clipboard implements NativeClipboard {
                 for (Runnable command = commands.poll(); command != null; command = commands.poll()) {
                     command.run();
                 }
+                X11Drag following = drag;
+                if (following != null) {
+                    following.tick();
+                }
                 expire();
                 x("XFlush", "p>i", display);
                 if (x("XPending", "p>i", display) > 0 || !commands.isEmpty()) {
@@ -273,7 +282,7 @@ public final class X11Clipboard implements NativeClipboard {
                 memPutInt(pollfds + 4, 1);          // events = POLLIN, revents = 0
                 memPutInt(pollfds + 8, wakeRead);
                 memPutInt(pollfds + 12, 1);
-                Ffi.call(poll, "ppi>i", pollfds, 2, 250);
+                Ffi.call(poll, "ppi>i", pollfds, 2, pollMillis);
                 int waiting = woken.available();
                 if (waiting > 0) {
                     woken.read(new byte[waiting]); // read, not skip: a pipe cannot seek
@@ -317,6 +326,11 @@ public final class X11Clipboard implements NativeClipboard {
                 }
             } else if (on != window && state == PROPERTY_DELETE) {
                 continueSend(on, property);
+            }
+        } else if (type == CLIENT_MESSAGE) {
+            X11Drag asked = drag;
+            if (asked != null) {
+                asked.message(event);
             }
         } else if (type == fixesEvent) {
             if (memGetAddress(event + 48) == window) {
@@ -448,7 +462,11 @@ public final class X11Clipboard implements NativeClipboard {
     private void answer(long requestor, long selection, long target, long property, long time) {
         long into = property == NULL ? target : property; // an obsolete client names no property
         boolean done = false;
-        if (owner && selection == clipboard) {
+        X11Drag dragged = drag;
+        boolean ofDrag = dragged != null && dragged.owns(selection);
+        List<String> ownTypes = ofDrag ? dragged.types() : this.ownTypes;
+        Function<String, byte[]> ownBytes = ofDrag ? dragged.bytes() : this.ownBytes;
+        if (ofDrag || (owner && selection == clipboard)) {
             if (target == targets) {
                 List<Long> list = new ArrayList<>();
                 list.add(targets);
@@ -544,9 +562,22 @@ public final class X11Clipboard implements NativeClipboard {
 
     @Override
     public CompletableFuture<byte[]> read(String type) {
+        return read(clipboard, type, () -> offered, 0);
+    }
+
+    /**
+     * Asks the owner of a selection for one type of what it holds: the clipboard's, or a drag's.
+     *
+     * @param selection the selection
+     * @param type      the canonical type
+     * @param spellings the names the owner offers, read on the X thread
+     * @param time      the timestamp the conversion is asked with
+     */
+    CompletableFuture<byte[]> read(long selection, String type, java.util.function.Supplier<List<String>> spellings,
+            long time) {
         CompletableFuture<byte[]> result = new CompletableFuture<>();
         post(() -> {
-            String spelling = ClipboardTypes.spellingIn(type, offered);
+            String spelling = ClipboardTypes.spellingIn(type, spellings.get());
             int slot = -1;
             for (int i = 0; i < READ_SLOTS && slot < 0; i++) {
                 if (reads[i] == null) {
@@ -559,10 +590,41 @@ public final class X11Clipboard implements NativeClipboard {
             }
             reads[slot] = new Read(result, type);
             x("XDeleteProperty", "ppp>i", display, window, readProperties[slot]);
-            x("XConvertSelection", "pppppp>i", display, clipboard, atom(spelling), readProperties[slot],
-                    window, 0);
+            x("XConvertSelection", "pppppp>i", display, selection, atom(spelling), readProperties[slot],
+                    window, time);
         });
         return result;
+    }
+
+    /** @return whether a conversion asked of another program is still waited for; X thread */
+    boolean isReading() {
+        for (Read read : reads) {
+            if (read != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The drags of this connection, made the first time a window asks. Any thread.
+     *
+     * @param ui the UI runtime
+     * @return what speaks XDND for this program's windows
+     */
+    public synchronized X11Drag drags(limn.concurrent.UiRuntime ui) {
+        if (drag == null) {
+            drag = new X11Drag(this, ui);
+        }
+        return drag;
+    }
+
+    long display() {
+        return display;
+    }
+
+    long window() {
+        return window;
     }
 
     @Override

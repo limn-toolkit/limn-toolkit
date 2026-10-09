@@ -504,6 +504,12 @@ final class LwjglWindow implements WindowPeer {
                     () -> inputBlocked() ? null : input, this::pointerForDrag,
                     this::paintDuringDrag, this::animateDuringDrag);
         }
+        if (backend.nativeClipboard() instanceof limn.backend.lwjgl.transfer.X11Clipboard x11) {
+            // The system's drag and drop on X11, spoken on the clipboard's connection.
+            linuxDrag = x11.drags(backend.uiRuntime()).register(
+                    org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle),
+                    () -> inputBlocked() ? null : input, this::toLogical);
+        }
         if (MACOS) {
             long view = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaView(handle);
             if (MacInputContextGate.install(view)) {
@@ -1125,6 +1131,10 @@ final class LwjglWindow implements WindowPeer {
         if (windowsDrag != null) {
             windowsDrag.close();
             windowsDrag = null;
+        }
+        if (linuxDrag != null) {
+            linuxDrag.close();
+            linuxDrag = null;
         }
         glfwDestroyWindow(handle);
     }
@@ -2213,6 +2223,7 @@ final class LwjglWindow implements WindowPeer {
 
     private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable MacDrag macDrag;
     private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable WindowsDrag windowsDrag;
+    private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable WindowDrag linuxDrag;
 
     /** The pointer in logical points, x then y, and the content's logical height: what a drag is placed by. */
     private float[] pointerForDrag() {
@@ -2226,7 +2237,7 @@ final class LwjglWindow implements WindowPeer {
 
     @Override
     public boolean supportsDrag() {
-        return (macDrag != null || windowsDrag != null) && !destroyed;
+        return (macDrag != null || windowsDrag != null || linuxDrag != null) && !destroyed;
     }
 
     @Override
@@ -2237,6 +2248,9 @@ final class LwjglWindow implements WindowPeer {
         }
         if (windowsDrag != null) {
             return windowsDrag.start(request);
+        }
+        if (linuxDrag != null) {
+            return linuxDrag.start(request);
         }
         return macDrag != null && macDrag.start(request);
     }

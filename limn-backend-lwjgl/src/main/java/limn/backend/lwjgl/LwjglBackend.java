@@ -184,6 +184,13 @@ public final class LwjglBackend implements BackendPeer {
 
     private limn.backend.lwjgl.transfer.@Nullable PlatformClipboard systemClipboard;
     private boolean systemClipboardTried;
+    private limn.backend.lwjgl.transfer.@Nullable NativeClipboard nativeClipboard;
+
+    /** @return what {@link #systemClipboard()} stands on, whose connection the system's drags share; or null */
+    limn.backend.lwjgl.transfer.@Nullable NativeClipboard nativeClipboard() {
+        systemClipboard();
+        return nativeClipboard;
+    }
 
     /**
      * The clipboard of this windowing system beyond GLFW's text, opened the first time a window
@@ -208,6 +215,7 @@ public final class LwjglBackend implements BackendPeer {
                         system = new limn.backend.lwjgl.transfer.X11Clipboard();
                     }
                     if (system != null) {
+                        nativeClipboard = system;
                         systemClipboard = new limn.backend.lwjgl.transfer.PlatformClipboard(system, uiRuntime);
                     }
                 } catch (Throwable unavailable) {
