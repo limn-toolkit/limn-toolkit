@@ -567,8 +567,7 @@ public final class WindowsDrag {
                 }
             }
             Map<Integer, byte[]> rendered = new HashMap<>();
-            offeredFormats = formats;
-            offeredBytes = format -> rendered.computeIfAbsent(format, f -> {
+            java.util.function.IntFunction<byte[]> render = format -> rendered.computeIfAbsent(format, f -> {
                 String type = typeOf.get(f);
                 byte[] made = type == null ? null : bytes.apply(type);
                 if (made == null) {
@@ -595,8 +594,11 @@ public final class WindowsDrag {
             iid.putInt(0, 0x0000010e).putShort(4, (short) 0).putShort(6, (short) 0)
                     .put(8, (byte) 0xC0).put(9, (byte) 0).put(10, (byte) 0).put(11, (byte) 0)
                     .put(12, (byte) 0).put(13, (byte) 0).put(14, (byte) 0).put(15, (byte) 0x46);
-            if ((int) call(SHELL32, "SHCreateDataObject", "pipppp>i", NULL, 0, NULL, lazyObject(),
-                    memAddress(iid), out) < 0 || memGetAddress(out) == NULL) {
+            long inner = lazyObject(formats, render);
+            int made = (int) call(SHELL32, "SHCreateDataObject", "pipppp>i", NULL, 0, NULL, inner,
+                    memAddress(iid), out);
+            method(inner, RELEASE, ">i"); // the shell's object holds it from here on, or nobody does
+            if (made < 0 || memGetAddress(out) == NULL) {
                 return false;
             }
             data = memGetAddress(out);
@@ -626,43 +628,69 @@ public final class WindowsDrag {
             } finally {
                 dragging = false;
                 method(data, RELEASE, ">i");
-                offeredFormats = List.of();
-                offeredBytes = format -> null;
                 request.ended().accept(done);
             }
         });
         return true;
     }
 
-    private static List<Integer> offeredFormats = List.of();
-    private static java.util.function.IntFunction<byte[]> offeredBytes = format -> null;
-    private static long lazy;
+    /** What one drag offers, for as long as anything holds its data object. */
+    private static final class Lazy {
+        final List<Integer> formats;
+        final java.util.function.IntFunction<byte[]> bytes;
+        int references = 1;
+
+        Lazy(List<Integer> formats, java.util.function.IntFunction<byte[]> bytes) {
+            this.formats = formats;
+            this.bytes = bytes;
+        }
+    }
+
+    private static final Map<Long, Lazy> LAZY = new java.util.concurrent.ConcurrentHashMap<>();
+    private static long lazyTable;
 
     private static final int E_NOTIMPL = 0x80004001;
     private static final int DV_E_FORMATETC = 0x80040064;
     private static final int OLE_E_ADVISENOTSUPPORTED = 0x80040003;
 
-    private static boolean offers(long etc) {
-        return etc != NULL && (memGetInt(etc + 24) & TYMED_HGLOBAL) != 0
-                && offeredFormats.contains(org.lwjgl.system.MemoryUtil.memGetShort(etc) & 0xFFFF);
+    private static boolean offers(@Nullable Lazy lazy, long etc) {
+        return lazy != null && etc != NULL && (memGetInt(etc + 24) & TYMED_HGLOBAL) != 0
+                && lazy.formats.contains(org.lwjgl.system.MemoryUtil.memGetShort(etc) & 0xFFFF);
     }
 
     /**
-     * The data object inside the shell's: it names the formats of the drag in flight and makes
-     * each when it is asked for, in memory of the asker's own. One object for every drag, there
-     * being one drag at a time; it holds nothing between two.
+     * The data object inside the shell's, one for each drag: it names the drag's formats and
+     * makes each when it is asked for, in memory of the asker's own. <b>It outlives the drag for
+     * as long as a target holds it</b>, counted as COM counts: a program that takes a drop and
+     * reads it afterwards, as the newer Windows programs do, asked an object that had already
+     * forgotten its drag, and got nothing (Paint showed "Open" and opened nothing).
      */
-    private static long lazyObject() {
-        if (lazy == NULL) {
-            lazy = object(
+    private static long lazyObject(List<Integer> formats, java.util.function.IntFunction<byte[]> bytes) {
+        if (lazyTable == NULL) {
+            long shape = object(
                     queryInterface(0x10e), // IDataObject
-                    keep(Ffi.callback("p>i", a -> 1)),
-                    keep(Ffi.callback("p>i", a -> 1)),
+                    keep(Ffi.callback("p>i", a -> {                 // AddRef
+                        Lazy lazy = LAZY.get(a[0]);
+                        return lazy == null ? 1 : ++lazy.references;
+                    })),
+                    keep(Ffi.callback("p>i", a -> {                 // Release
+                        Lazy lazy = LAZY.get(a[0]);
+                        if (lazy == null) {
+                            return 0;
+                        }
+                        if (--lazy.references == 0) {
+                            LAZY.remove(a[0]);
+                            org.lwjgl.system.MemoryUtil.nmemFree(a[0]);
+                            return 0;
+                        }
+                        return lazy.references;
+                    })),
                     keep(Ffi.callback("ppp>i", a -> {               // GetData
-                        if (!offers(a[1]) || a[2] == NULL) {
+                        Lazy lazy = LAZY.get(a[0]);
+                        if (!offers(lazy, a[1]) || a[2] == NULL) {
                             return DV_E_FORMATETC;
                         }
-                        byte[] made = offeredBytes.apply(org.lwjgl.system.MemoryUtil.memGetShort(a[1]) & 0xFFFF);
+                        byte[] made = lazy.bytes.apply(org.lwjgl.system.MemoryUtil.memGetShort(a[1]) & 0xFFFF);
                         long handle = made == null ? NULL : global(made);
                         if (handle == NULL) {
                             return DV_E_FORMATETC;
@@ -673,31 +701,36 @@ public final class WindowsDrag {
                         return S_OK;
                     })),
                     keep(Ffi.callback("ppp>i", a -> E_NOTIMPL)),    // GetDataHere
-                    keep(Ffi.callback("pp>i", a -> offers(a[1]) ? S_OK : DV_E_FORMATETC)), // QueryGetData
+                    keep(Ffi.callback("pp>i", a -> offers(LAZY.get(a[0]), a[1]) ? S_OK : DV_E_FORMATETC)),
                     keep(Ffi.callback("ppp>i", a -> E_NOTIMPL)),    // GetCanonicalFormatEtc
                     keep(Ffi.callback("pppi>i", a -> E_NOTIMPL)),   // SetData: the shell's object keeps those
                     keep(Ffi.callback("pip>i", a -> {               // EnumFormatEtc
-                        if (a[1] != 1 || a[2] == NULL) {
+                        Lazy lazy = LAZY.get(a[0]);
+                        if (lazy == null || a[1] != 1 || a[2] == NULL) {
                             return E_NOTIMPL;
                         }
-                        List<Integer> formats = offeredFormats;
-                        long array = nmemCalloc(Math.max(1, formats.size()), 32);
-                        for (int i = 0; i < formats.size(); i++) {
+                        long array = nmemCalloc(Math.max(1, lazy.formats.size()), 32);
+                        for (int i = 0; i < lazy.formats.size(); i++) {
                             long etc = array + 32L * i;
-                            memPutShort(etc, (short) (int) formats.get(i));
+                            memPutShort(etc, (short) (int) lazy.formats.get(i));
                             memPutInt(etc + 16, 1);
                             memPutInt(etc + 20, -1);
                             memPutInt(etc + 24, TYMED_HGLOBAL);
                         }
-                        int made = (int) call(SHELL32, "SHCreateStdEnumFmtEtc", "ipp>i", formats.size(), array, a[2]);
+                        int made = (int) call(SHELL32, "SHCreateStdEnumFmtEtc", "ipp>i", lazy.formats.size(), array,
+                                a[2]);
                         org.lwjgl.system.MemoryUtil.nmemFree(array);
                         return made;
                     })),
                     keep(Ffi.callback("ppipp>i", a -> OLE_E_ADVISENOTSUPPORTED)),
                     keep(Ffi.callback("pi>i", a -> OLE_E_ADVISENOTSUPPORTED)),
                     keep(Ffi.callback("pp>i", a -> OLE_E_ADVISENOTSUPPORTED)));
+            lazyTable = memGetAddress(shape); // the table is what is shared; that first object is not used
         }
-        return lazy;
+        long object = nmemCalloc(1, 8);
+        memPutAddress(object, lazyTable);
+        LAZY.put(object, new Lazy(formats, bytes));
+        return object;
     }
 
     private static void put(MemoryStack stack, long data, int format, byte[] bytes) {
