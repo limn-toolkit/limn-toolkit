@@ -227,6 +227,14 @@ Maven Central say which number that was.
   does the same: Ctrl+Shift+D (Cmd+Shift+D on macOS, `Scene.setDragKey`) picks up on the focused
   widget, Tab walks the widgets that accept, the arrow keys choose the place, Enter drops, and a
   screen reader hears each step in the 21 languages. A drag stays inside its window for now.
+- What is dragged shows under the pointer as it is painted: `Drag.preview(x, y, width, height)`
+  names the part of the source widget, a card or a row, and the scene paints it there.
+- `Table`: the user moves a column by dragging its header or with Alt+Shift+Left and Right
+  (`setColumnReorderingAllowed(false)` turns it off), the application with
+  `moveColumn(column, index)`, and `columns()` answers the order as it stands.
+  `setFrozenColumns(n)` keeps the first columns in place while the others scroll under them.
+  `onColumnsChange` is told when the user moved or resized a column, which is when to save the
+  layout.
 - The clipboard carries all of it to and from other programs on Windows, macOS, X11 and Wayland:
   a picture pasted from a screenshot tool, files copied in the file manager, a table copied to a
   spreadsheet as HTML. A lazy value is made when a program first pastes it. On Windows and macOS
@@ -363,6 +371,8 @@ Maven Central say which number that was.
 
 ### Changed
 
+- A table's header sorts when it is clicked, on the release, and no longer on the press: a press
+  that travels now moves the column.
 - A popup menu in a window of its own leaves the keyboard focus on the window that opened it, as
   Windows' and macOS's own menus do, and is read by screen readers as part of that window. NVDA and
   VoiceOver no longer announce a window as a menu opens and the application's window again as it

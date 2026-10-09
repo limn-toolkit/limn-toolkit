@@ -1,8 +1,8 @@
 # ADR 054: A drag carries a transfer between widgets, windows and applications, and the keyboard can do it too
 
-- **Status:** Accepted, 2026-10-08, with the owner's answers below. Step 3 of §6 is built: the
-  scene's driver and the keyboard's drag; §7 says where it departs from the text. The widgets
-  (steps 4 and 5) and the system's driver (step 6) are not.
+- **Status:** Accepted, 2026-10-08, with the owner's answers below. Steps 3 and 4 of §6 are
+  built: the scene's driver with the keyboard's drag, and the table's columns; §7 says where
+  they depart from the text. The other widgets (step 5) and the system's driver (step 6) are not.
 - **Date:** 2026-10-08
 - **Scope:** drag and drop for every widget: a source, a target with feedback while the pointer is
   over it, the platform's own drag so that it leaves the window; a keyboard way of doing the same;
@@ -179,10 +179,15 @@ Step 3, the scene's driver (`Scene`, `limn.scene.event`, `limn.transfer.Drag`), 
   keep true for another program's.
 - **No `onDragExit` follows `onDrop`.** The widget clears what marked the place in one or the
   other, never both.
-- **The picture under the pointer is the one the source gives** (`Drag.image`); with none there
-  is only the pointer's shape, an arrow over a widget that accepts and the "not allowed" sign
-  elsewhere. "The widget as painted" is left to the widgets of step 5, which know which rows
-  they are dragging.
+- **What is dragged is shown under the pointer as it is painted.** The owner tried a first build
+  that showed a plain rectangle and asked for the item itself. `Drag.preview(x, y, width, height)`
+  names the part of the source widget that is dragged (a card, a row, a header), and the scene
+  paints the source again there, clipped to that part, at three quarters of its opacity, with the
+  pointer holding the point it pressed. With no part named, a small widget is shown whole and a
+  large one around the point of the press; `Drag.image` shows a picture instead and
+  `Drag.noPreview()` nothing. That painting is exempt from the partial frame's cull, which skips
+  a widget whose own place is not being repainted: with the cull on, the picture vanished whole
+  over a target that was repainting itself (his second report).
 - **A keyboard drag is described by the source and placed by the target**: `Drag.describedAs`
   names what is carried, `DragEvent.describePlace` says where it would land, and a target that
   says nothing is announced by its accessible name, or as "Place 2 of 5". The arrows arrive as
@@ -198,3 +203,21 @@ Step 3, the scene's driver (`Scene`, `limn.scene.event`, `limn.transfer.Drag`), 
   the widget under the point with one `onDragOver` and hands them over at once. The hover comes
   with step 6.
 - The announcements are a new catalogue, `scene_*.properties`, in the 21 languages.
+
+Step 4, the table's columns (`Table`, `TableColumnsTest`):
+
+- **`columns()` is the order**, and `moveColumn(column, index)` changes it: there is no separate
+  `columnOrder()`. The rows are realized again after a move, since they keep their texts and
+  their cell widgets by column index, and the keyboard's cell stays with its column.
+- **A header sorts on the click, not on the press**, so that a press that travels can move the
+  column instead. The drag is `withinWindow()`, shows the header itself under the pointer and a
+  line where the column would land, and drops only within the column's group.
+- **`setFrozenColumns(n)`** keeps the first `n` shown columns: they are drawn after the scrolling
+  ones, which are clipped to what is left of the viewport, a line marks where they end, and a
+  point over them never reaches a column scrolled under them. Where they would leave no room,
+  none is kept.
+- **`onColumnsChange`** is told after the user moves a column, by drag or by Alt+Shift+Left and
+  Right, and after the user resizes one. Never for a call.
+- A move is announced as "Total, column 3 of 6", from the table's catalogue in the 21 languages;
+  a keyboard drag of a header says the same of the place it would take.
+- Not done: the focus ring of a cell scrolled half under the kept columns is drawn over them.

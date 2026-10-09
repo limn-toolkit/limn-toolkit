@@ -29,12 +29,22 @@ import limn.scene.Scrollable;
 import limn.scene.Size;
 import limn.scene.Widget;
 import limn.scene.event.KeyEvent;
+import limn.transfer.Transfer;
+import limn.transfer.Offer;
+import limn.transfer.DropAction;
+import limn.transfer.Drag;
+import limn.transfer.DataFormat;
+import limn.scene.event.DropEvent;
+import limn.scene.event.DragStartEvent;
+import limn.scene.event.DragEvent;
 import limn.scene.event.MouseEvent;
 import org.jspecify.annotations.Nullable;
 
 import java.text.Collator;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -265,6 +275,13 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     // Pointer state: a header drag, the divider under the pointer, the last press.
     private int dragColumn = -1;
+    // Phase 2: the columns a user may move, the ones kept in place, and a header drag in flight.
+    private boolean columnReordering = true;
+    private int frozenColumns;
+    private int headerPressColumn = -1;
+    /** While a header is dragged over this table: the shown place it would take, or -1. */
+    private int columnDropSlot = -1;
+    private @Nullable Runnable onColumnsChange;
     private float dragStartX;
     private float dragStartWidth;
     private int hoverDivider = -1;
@@ -833,7 +850,7 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         if (columns.size() > COLUMN_MASK) {
             throw new IllegalArgumentException("a table takes at most " + COLUMN_MASK + " columns");
         }
-        this.columns = List.copyOf(columns);
+        this.columns = new ArrayList<>(List.copyOf(columns));
         setFocusable(true);
         vBar = new ScrollBar(ScrollBar.Orientation.VERTICAL, new ScrollBar.Model() {
             @Override
@@ -940,9 +957,163 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         return rows.size();
     }
 
-    /** @return the columns, in reading order; hidden ones included */
+    /** @return the columns, in reading order as they stand now; hidden ones included */
     public List<Column<T>> columns() {
-        return columns;
+        return Collections.unmodifiableList(columns);
+    }
+
+    /**
+     * Moves a column to another place among {@link #columns()}. The rows are laid out again in
+     * the new order, and the cell the keyboard is on stays with its column. A caller's write:
+     * {@link #onColumnsChange} is not told.
+     *
+     * @param column one of this table's columns
+     * @param index  the place it takes among {@link #columns()}, from 0
+     * @return this table
+     * @throws IllegalArgumentException  if the column is not this table's
+     * @throws IndexOutOfBoundsException if there is no such place
+     */
+    public Table<T> moveColumn(Column<T> column, int index) {
+        Ui.checkUiThread();
+        int from = columns.indexOf(Objects.requireNonNull(column, "column"));
+        if (from < 0) {
+            throw new IllegalArgumentException("not a column of this table");
+        }
+        Objects.checkIndex(index, columns.size());
+        moveColumn(from, index);
+        return this;
+    }
+
+    /** Takes the column at {@code from} out and puts it in at {@code to}; everything kept by index follows. */
+    private void moveColumn(int from, int to) {
+        if (from == to) {
+            return;
+        }
+        Column<T> focusOn = focusColumnOf >= 0 && focusColumnOf < columns.size()
+                ? columns.get(focusColumnOf) : null;
+        Column<T> headerOn = headerColumnOf >= 0 && headerColumnOf < columns.size()
+                ? columns.get(headerColumnOf) : null;
+        boolean heldFocus = !isFocused() && scene() != null && focusedWidgetSlot() != null;
+        // The rows hold their texts, their shaped lines and their widgets by column index: they
+        // are let go and realized again in the new order, as a refresh does.
+        unmountAll();
+        columns.add(to, columns.remove(from));
+        Arrays.fill(headerShaped, null);
+        recomputeFooter();
+        focusColumnOf = focusOn == null ? -1 : columns.indexOf(focusOn);
+        headerColumnOf = headerOn == null ? -1 : columns.indexOf(headerOn);
+        shownBeforeCount = Math.min(shownBeforeCount, 0); // resolved again, and the cursors with it
+        if (heldFocus) {
+            requestFocus(); // the cell widget that had the keyboard is gone with its row
+        }
+        markNeedsLayout();
+        invalidate();
+        invalidateAccessible();
+    }
+
+    /**
+     * Sets whether the user may move a column by dragging its header or with Alt+Shift+Left and
+     * Right (default on, as resizing is).
+     *
+     * @param allowed whether columns can be moved by the user
+     * @return this table
+     */
+    public Table<T> setColumnReorderingAllowed(boolean allowed) {
+        Ui.checkUiThread();
+        columnReordering = allowed;
+        return this;
+    }
+
+    /** @return whether the user may move columns */
+    public boolean isColumnReorderingAllowed() {
+        return columnReordering;
+    }
+
+    /**
+     * Keeps the first shown columns in place while the others scroll under them: the name
+     * beside a year of monthly figures. The user moves a column only within its group, the kept
+     * ones or the others. Where the kept columns would leave no room for the rest, none is kept.
+     *
+     * @param count how many leading shown columns stay; 0 for none
+     * @return this table
+     * @throws IllegalArgumentException if {@code count} is negative
+     */
+    public Table<T> setFrozenColumns(int count) {
+        Ui.checkUiThread();
+        if (count < 0) {
+            throw new IllegalArgumentException("count must not be negative: " + count);
+        }
+        if (frozenColumns != count) {
+            frozenColumns = count;
+            markNeedsLayout();
+            invalidate();
+        }
+        return this;
+    }
+
+    /** @return how many leading shown columns are asked to stay in place */
+    public int frozenColumns() {
+        return frozenColumns;
+    }
+
+    /**
+     * The application's response to the user rearranging the columns: one moved, by a drag of
+     * its header or by the keyboard, or one resized. It is when an application saves
+     * {@link #columns()}' order and widths. Never for {@link #moveColumn} or a width set in code.
+     *
+     * @param handler the handler, or {@code null} to clear the slot
+     * @return this table
+     * @throws IllegalStateException if a handler is already registered
+     */
+    public Table<T> onColumnsChange(@Nullable Runnable handler) {
+        Ui.checkUiThread();
+        this.onColumnsChange = Checks.handlerSlot(onColumnsChange, handler, "Table.onColumnsChange");
+        return this;
+    }
+
+    private void columnsChangedByUser() {
+        Runnable handler = onColumnsChange;
+        if (handler != null) {
+            handler.run();
+        }
+    }
+
+    /** How many leading shown columns stay in place in this layout. */
+    private int frozen() {
+        int count = Math.min(frozenColumns, shownCount);
+        if (count <= 0) {
+            return 0;
+        }
+        float kept = count < shownCount ? colX[count] : contentWidth;
+        return count < shownCount && kept < lastViewportWidth ? count : 0;
+    }
+
+    /** The width the kept columns take off the scrolling ones' viewport. */
+    private float frozenWidth() {
+        int count = frozen();
+        return count == 0 ? 0 : colX[count];
+    }
+
+    /** Whether local {@code x} is over the kept columns, which cover what scrolls under them. */
+    private boolean overFrozen(float x, float rowX, float viewW, boolean rtl) {
+        float kept = frozenWidth();
+        return kept > 0 && (rtl ? x >= rowX + viewW - kept : x < rowX + kept);
+    }
+
+    /**
+     * Clips to where the scrolling columns show, when some are kept. The three painting loops
+     * draw the scrolling columns first, inside this clip, and the kept ones after it is lifted.
+     *
+     * @return whether a clip was pushed, to be restored when the first kept column is reached
+     */
+    private boolean clipToScrolling(Canvas canvas, int kept, float rowX, float viewW, boolean rtl) {
+        if (kept == 0) {
+            return false;
+        }
+        float width = colX[kept];
+        canvas.save();
+        canvas.clipRect(rtl ? rowX : rowX + width, 0, viewW - width, height());
+        return true;
     }
 
     /**
@@ -2136,8 +2307,9 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     /** The left edge of shown column {@code s} in this widget's coordinates, for this pass. */
     private float columnLeft(int s, float rowX, float viewW, boolean rtl) {
-        return rtl ? rowX + viewW - (colX[s] + colW[s]) + offsetX
-                : rowX + colX[s] - offsetX;
+        float offset = s < frozen() ? 0 : offsetX; // a kept column does not scroll
+        return rtl ? rowX + viewW - (colX[s] + colW[s]) + offset
+                : rowX + colX[s] - offset;
     }
 
     @Override
@@ -2618,9 +2790,13 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         if (s < 0 || s >= shownCount) {
             return;
         }
+        if (s < frozen()) {
+            return; // a kept column is always in view
+        }
         float viewW = gutters.viewportWidth(width());
-        float left = colX[s] - offsetX;
-        float right = left + colW[s];
+        float kept = frozenWidth();
+        float left = colX[s] - offsetX - kept; // from where the scrolling columns begin to show
+        float right = colX[s] - offsetX + colW[s];
         if (left < 0) {
             scrollBy(left, 0, Change.Origin.ADJUSTMENT);
         } else if (right > viewW) {
@@ -3060,7 +3236,14 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                 } else if (striped && (row & 1) == 1) {
                     canvas.fillRect(rowX, top, w, slot.height, stripeTint);
                 }
-                for (int s = 0; s < shownCount; s++) {
+                int kept = frozen();
+                boolean scrollingClip = clipToScrolling(canvas, kept, rowX, w, rtl);
+                for (int k = 0; k < shownCount; k++) {
+                    int s = k < shownCount - kept ? kept + k : k - (shownCount - kept);
+                    if (scrollingClip && s == 0) {
+                        canvas.restore(); // the scrolling columns are drawn: the kept ones go over them
+                        scrollingClip = false;
+                    }
                     float left = columnLeft(s, rowX, w, rtl);
                     if (left >= rowX + w || left + colW[s] <= rowX) {
                         continue; // out of the horizontal viewport
@@ -3112,7 +3295,14 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                 canvas.drawLine(rowX, top + Strokes.HALF_PIXEL_INSET, rowX + w,
                         top + Strokes.HALF_PIXEL_INSET, Strokes.HAIRLINE, theme.outline());
                 Font font = headerFont(t);
-                for (int s = 0; s < shownCount; s++) {
+                int kept = frozen();
+                boolean scrollingClip = clipToScrolling(canvas, kept, rowX, w, rtl);
+                for (int k = 0; k < shownCount; k++) {
+                    int s = k < shownCount - kept ? kept + k : k - (shownCount - kept);
+                    if (scrollingClip && s == 0) {
+                        canvas.restore(); // the scrolling columns are drawn: the kept ones go over them
+                        scrollingClip = false;
+                    }
                     float left = columnLeft(s, rowX, w, rtl);
                     int c = shownIndex[s];
                     String text = footerTexts.length > c ? footerTexts[c] : null;
@@ -3141,7 +3331,14 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                 canvas.clipRect(rowX, 0, w, headerH);
                 canvas.fillRect(rowX, 0, w, headerH, theme.surfaceRaised());
                 Font font = headerFont(t);
-                for (int s = 0; s < shownCount; s++) {
+                int kept = frozen();
+                boolean scrollingClip = clipToScrolling(canvas, kept, rowX, w, rtl);
+                for (int k = 0; k < shownCount; k++) {
+                    int s = k < shownCount - kept ? kept + k : k - (shownCount - kept);
+                    if (scrollingClip && s == 0) {
+                        canvas.restore(); // the scrolling columns are drawn: the kept ones go over them
+                        scrollingClip = false;
+                    }
                     float left = columnLeft(s, rowX, w, rtl);
                     if (left >= rowX + w || left + colW[s] <= rowX) {
                         continue;
@@ -3195,6 +3392,21 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             }
         }
 
+        int kept = frozen();
+        if (kept > 0) {
+            // Where the kept columns end, from the header to the footer.
+            float edge = rtl ? rowX + w - colX[kept] : rowX + colX[kept];
+            float bottom = footerShown() ? footerTop() + footerHeight(t) : headerH + viewH;
+            canvas.drawLine(edge, 0, edge, bottom, Strokes.HAIRLINE * 2, theme.outline());
+        }
+        if (columnDropSlot >= 0 && showHeader && shownCount > 0) {
+            // Where the header being dragged would land.
+            float at = columnDropSlot < shownCount
+                    ? columnLeft(columnDropSlot, rowX, w, rtl) + (rtl ? colW[columnDropSlot] : 0)
+                    : columnLeft(shownCount - 1, rowX, w, rtl) + (rtl ? 0 : colW[shownCount - 1]);
+            canvas.fillRect(Math.max(rowX, Math.min(rowX + w - 2, at - 1)), 0, 2, headerH + viewH,
+                    theme.focusRing());
+        }
         paintBar(canvas, vBar);
         paintBar(canvas, hBar);
     }
@@ -3248,7 +3460,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         boolean rtl = isRightToLeft();
         float w = gutters.viewportWidth(width());
         float rowX = rowsLeft();
+        int kept = frozen();
+        boolean under = overFrozen(x, rowX, w, rtl);
         for (int s = 0; s < shownCount; s++) {
+            if (s >= kept && under) {
+                break; // a scrolling column is not there to be hit under a kept one
+            }
             float left = columnLeft(s, rowX, w, rtl);
             if (x >= left && x < left + colW[s]) {
                 return s;
@@ -3262,7 +3479,12 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         boolean rtl = isRightToLeft();
         float w = gutters.viewportWidth(width());
         float rowX = rowsLeft();
+        int kept = frozen();
+        boolean under = overFrozen(x, rowX, w, rtl);
         for (int s = 0; s < shownCount; s++) {
+            if (s >= kept && under) {
+                break;
+            }
             float left = columnLeft(s, rowX, w, rtl);
             float edge = rtl ? left : left + colW[s];
             if (Math.abs(x - edge) <= RESIZE_BAND) {
@@ -3362,8 +3584,10 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                             // rows; the header's cursor remembers the column, so a Tab into the
                             // header continues from where the pointer was.
                             setHeaderColumn(s);
-                            headerClicked(s);
+                            damageHeader();
                         }
+                        // The sort waits for the click: a press that travels moves the column.
+                        headerPressColumn = s;
                     }
                     event.consume();
                     return;
@@ -3403,6 +3627,15 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                     dragColumn = -1;
                     invalidate();
                     event.consume();
+                    columnsChangedByUser(); // a column was resized
+                }
+            }
+            case CLICK -> {
+                int pressedOn = headerPressColumn;
+                headerPressColumn = -1;
+                if (pressedOn >= 0 && showHeader && y < rowsTop() && columnAt(x) == pressedOn) {
+                    headerClicked(pressedOn);
+                    event.consume();
                 }
             }
             default -> {
@@ -3417,6 +3650,15 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
         }
         int mods = event.modifiers();
         boolean rtl = isRightToLeft();
+        if ((event.key() == Keys.LEFT || event.key() == Keys.RIGHT) && columnReordering
+                && (mods & (Keys.MOD_ALT | Keys.MOD_SHIFT | Keys.MOD_CONTROL | Keys.MOD_SUPER))
+                        == (Keys.MOD_ALT | Keys.MOD_SHIFT)) {
+            // Alt+Shift+Left and Right move the column the keyboard is on, as they move a
+            // paragraph in a word processor's outline.
+            int toward = (event.key() == Keys.LEFT) == rtl ? 1 : -1;
+            consumeAnd(event, () -> moveCursorColumn(toward));
+            return;
+        }
         if (event.key() == Keys.TAB && isFocused()) {
             // The header is a focus stop of its own, before the rows (decision 36 of
             // 2026-09-14): Tab walks header, rows, then out; Shift+Tab the reverse. A Tab the
@@ -3463,6 +3705,158 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
             default -> {
             }
         }
+    }
+
+    /** The format a header carries while it is dragged: the column itself, within this window. */
+    @SuppressWarnings("unchecked")
+    private static final DataFormat<Column<?>> MOVED_COLUMN = DataFormat.inProcess(
+            "application/x-limn-table-column", (Class<Column<?>>) (Class<?>) Column.class);
+
+    /** The first and one past the last shown place of the group shown column {@code s} is in. */
+    private int groupStart(int s) {
+        int kept = frozen();
+        return s < kept ? 0 : kept;
+    }
+
+    private int groupEnd(int s) {
+        int kept = frozen();
+        return s < kept ? kept : shownCount;
+    }
+
+    /** Moves the column the keyboard is on one shown place, within its group. */
+    private void moveCursorColumn(int delta) {
+        if (shownCount == 0) {
+            return;
+        }
+        boolean header = headerHoldsCursor();
+        int s = header ? headerColumn : focusColumn;
+        int to = s + delta;
+        if (s < 0 || s >= shownCount || to < groupStart(s) || to >= groupEnd(s)) {
+            return;
+        }
+        userMovesColumn(s, to);
+    }
+
+    /** The user puts shown column {@code s} at shown place {@code to}: moved, revealed, said, told. */
+    private void userMovesColumn(int s, int to) {
+        Column<T> column = columns.get(shownIndex[s]);
+        moveColumn(shownIndex[s], shownIndex[to]);
+        resolveColumns(lastViewportWidth);
+        int now = shownIndexOf(columns.indexOf(column));
+        if (now >= 0) {
+            ensureColumnVisible(now);
+        }
+        limn.scene.Scene scene = scene();
+        if (scene != null) {
+            scene.announce(TableStrings.COLUMN_MOVED.format(column.title().get(), now + 1, shownCount),
+                    Accessible.Politeness.ASSERTIVE);
+        }
+        columnsChangedByUser();
+    }
+
+    @Override
+    protected @Nullable Drag onDragStart(DragStartEvent event) {
+        if (!columnReordering || !showHeader || shownCount < 2) {
+            return null;
+        }
+        int s;
+        if (event.isKeyboard()) {
+            if (!headerHoldsCursor()) {
+                return null; // the header is where a column is picked up
+            }
+            s = headerColumn;
+        } else {
+            float x = sceneToLocalX(event.x());
+            float y = sceneToLocalY(event.y());
+            if (y >= rowsTop() || dividerAt(x) >= 0) {
+                return null; // the rows, or a divider, which resizes
+            }
+            s = columnAt(x);
+        }
+        if (s < 0 || s >= shownCount) {
+            return null;
+        }
+        headerPressColumn = -1;
+        Column<T> column = columns.get(shownIndex[s]);
+        float rowX = rowsLeft();
+        float w = gutters.viewportWidth(width());
+        return Drag.of(Transfer.of(MOVED_COLUMN, column))
+                .allow(DropAction.MOVE)
+                .withinWindow()
+                .describedAs(column.title().get())
+                .preview(columnLeft(s, rowX, w, isRightToLeft()), 0, colW[s], rowsTop());
+    }
+
+    @Override
+    protected void onDragOver(DragEvent event) {
+        if (event.source() != this || !event.offer().has(MOVED_COLUMN)) {
+            return;
+        }
+        Column<?> column = moved(event.offer());
+        int s = column == null ? -1 : shownIndexOf(columns.indexOf(column));
+        if (s < 0) {
+            return;
+        }
+        int first = groupStart(s);
+        int end = groupEnd(s);
+        int slot;
+        if (event.isKeyboard()) {
+            slot = (columnDropSlot < 0 ? s : columnDropSlot) + event.stepX();
+        } else {
+            // Before the column under the pointer, or after it past its middle.
+            boolean rtl = isRightToLeft();
+            float x = sceneToLocalX(event.x());
+            int over = columnAt(x);
+            if (over < 0) {
+                slot = columnDropSlot < 0 ? s : columnDropSlot;
+            } else {
+                float middle = columnLeft(over, rowsLeft(), gutters.viewportWidth(width()), rtl) + colW[over] / 2;
+                slot = (x < middle) == !rtl ? over : over + 1;
+            }
+        }
+        slot = Math.max(first, Math.min(end, slot));
+        if (slot != columnDropSlot) {
+            columnDropSlot = slot;
+            invalidate();
+        }
+        if (event.isKeyboard()) {
+            int place = slot > s ? slot : slot + 1; // where it would stand, counted from one
+            event.describePlace(TableStrings.COLUMN_MOVED.format(column.title().get(), place, shownCount));
+        }
+        event.accept(DropAction.MOVE);
+    }
+
+    @Override
+    protected void onDragExit(DragEvent event) {
+        if (columnDropSlot >= 0) {
+            columnDropSlot = -1;
+            invalidate();
+        }
+    }
+
+    @Override
+    protected void onDrop(DropEvent event) {
+        int slot = columnDropSlot;
+        columnDropSlot = -1;
+        invalidate();
+        Column<?> column = moved(event.offer());
+        int s = column == null ? -1 : shownIndexOf(columns.indexOf(column));
+        if (s < 0 || slot < 0) {
+            event.reject();
+            return;
+        }
+        // "Before shown place slot" is the place slot itself moving back, and one less moving on.
+        int to = slot > s ? slot - 1 : slot;
+        if (to == s) {
+            event.reject(); // dropped where it was: nothing moved
+            return;
+        }
+        userMovesColumn(s, to);
+    }
+
+    private static @Nullable Column<?> moved(Offer offer) {
+        // An in-process value: read at once.
+        return offer.read(MOVED_COLUMN).toCompletableFuture().getNow(null);
     }
 
     private static void consumeAnd(KeyEvent event, Runnable action) {
@@ -3612,7 +4006,30 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     @Override
     protected float clipX(Widget<?> child) {
-        return child == vBar || child == hBar ? 0 : rowsLeft();
+        if (child == vBar || child == hBar) {
+            return 0;
+        }
+        return rowsLeft() + (isRightToLeft() ? 0 : keptBefore(child));
+    }
+
+    /** The width kept columns take off the view of this cell widget: none for a kept column's own. */
+    private float keptBefore(Widget<?> child) {
+        int kept = frozen();
+        if (kept == 0) {
+            return 0;
+        }
+        int at = mountedPositionOf(child);
+        if (at < 0) {
+            return 0;
+        }
+        Widget<?>[] widgets = mountedSlots[at].widgets;
+        for (int c = 0; c < widgets.length; c++) {
+            if (widgets[c] == child) {
+                int shown = shownIndexOf(c);
+                return shown >= 0 && shown < kept ? 0 : colX[kept];
+            }
+        }
+        return 0;
     }
 
     @Override
@@ -3622,7 +4039,8 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
 
     @Override
     protected float clipWidth(Widget<?> child) {
-        return child == vBar || child == hBar ? width() : gutters.viewportWidth(width());
+        return child == vBar || child == hBar ? width()
+                : gutters.viewportWidth(width()) - keptBefore(child);
     }
 
     @Override
