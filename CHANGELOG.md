@@ -230,8 +230,11 @@ Maven Central say which number that was.
   system's own drag, to and from other programs, with the picture of what is dragged, and files
   from Finder are answered while they hover. On Windows and Linux it stays inside its window
   for now.
-- What is dragged shows under the pointer as it is painted: `Drag.preview(x, y, width, height)`
-  names the part of the source widget, a card or a row, and the scene paints it there.
+- What is dragged shows under the pointer as it is painted. `Drag.preview(width, height, holdX,
+  holdY, painter)` has the source paint the dragged thing alone on a transparent surface, so a
+  card keeps its rounded corners and a picture its own transparency, inside the window and over
+  any other program; `Drag.preview(x, y, width, height)` shows a part of the source widget as it
+  stands. `Canvas.readBack` reads a part of the frame back with its transparency.
 - `Table`: the user moves a column by dragging its header (the whole column follows along the
   header and the others make room) or with Alt+Shift+Left and Right
   (`setColumnReorderingAllowed(false)` turns it off), the application with

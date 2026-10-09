@@ -217,7 +217,7 @@ final class GlRenderer implements GpuRenderer {
         }
     }
 
-    private static void unpremultiply(byte[] rgba) {
+    static void unpremultiply(byte[] rgba) {
         for (int i = 0; i < rgba.length; i += 4) {
             int alpha = rgba[i + 3] & 0xFF;
             if (alpha == 255) {

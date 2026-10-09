@@ -506,7 +506,20 @@ final class LwjglWindow implements WindowPeer {
             // provider class with the clipboard, which is therefore opened first.
             if (backend.systemClipboard() != null) {
                 macDrag = limn.backend.lwjgl.transfer.MacDrag.install(view, backend.uiRuntime(),
-                        () -> inputBlocked() ? null : input, this::pointerForDrag, logicalToScreenFactor());
+                        () -> inputBlocked() ? null : input, this::pointerForDrag, logicalToScreenFactor(),
+                        () -> {
+                            frameRequested = true;
+                            renderNow(true);
+                        },
+                        () -> {
+                            // The pointer the scene last asked for, set again: GLFW believes it
+                            // is still showing, and a drag's destination has shown others since.
+                            if (!destroyed && imageCursor == null) {
+                                limn.backend.lwjgl.internal.ObjC.msgVoid(limn.backend.lwjgl.internal.ObjC.msg(
+                                        limn.backend.lwjgl.internal.ObjC.cls("NSCursor"), "arrowCursor"), "set");
+                                glfwSetCursor(handle, cursor == Cursor.DEFAULT ? NULL : backend.cursorHandle(cursor));
+                            }
+                        });
             }
             // Every native fullscreen transition, the person's as well as ours, so that
             // isFullscreen() tells the truth about the green button and Control-Command-F too.

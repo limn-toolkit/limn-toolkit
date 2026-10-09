@@ -42,8 +42,15 @@ import static org.lwjgl.system.MemoryUtil.memAddress;
  * Its four destination methods are replaced on the class, once, with ours, which ask the window
  * the view belongs to; the view is registered for every kind of data, not only for files.
  *
- * <p>Everything here runs on the main thread, which is the UI thread: AppKit calls the source
- * and the destination there, from the run loop GLFW pumps, so frames go on while a drag lasts.
+ * <p>Everything here runs on the main thread, which is the UI thread. <b>AppKit tracks a drag
+ * in a loop of its own, inside the event GLFW was dispatching</b>, as it does a window being
+ * resized: the application's loop does not turn until the drag is over, and no frame is produced
+ * by it. The destination therefore paints the window itself after each answer, or the widget
+ * that accepted would mark where the drop lands and nobody would see it (the owner: the
+ * insertion line was gone once the system drove the drag).
+ *
+ * <p>Over a place that refuses, the pointer is made the "not allowed" one. AppKit shows nothing
+ * for a refusal; the scene's own drag does, and the owner asked for the same here.
  */
 public final class MacDrag {
 
@@ -54,6 +61,9 @@ public final class MacDrag {
     private static final long OP_LINK = 2;
     private static final long OP_GENERIC = 4;
     private static final long OP_MOVE = 16;
+
+    /** {@code -Dlimn.drag.trace=true}: what each drag is begun with, on standard error. */
+    private static final boolean TRACE = Boolean.getBoolean("limn.drag.trace");
 
     private static final Map<Long, MacDrag> BY_VIEW = new ConcurrentHashMap<>();
     private static boolean classPrepared;
@@ -71,11 +81,15 @@ public final class MacDrag {
     private final Supplier<WindowInput> input;
     private final Supplier<float[]> pointer;
     private final float toScreen;
+    private final Runnable paint;
+    private final Runnable ownCursor;
     private Offer offer;
     private long offerSequence = -1;
 
     private MacDrag(long view, UiRuntime ui, Supplier<WindowInput> input, Supplier<float[]> pointer,
-            float toScreen) {
+            float toScreen, Runnable paint, Runnable ownCursor) {
+        this.paint = paint;
+        this.ownCursor = ownCursor;
         this.view = view;
         this.ui = ui;
         this.input = input;
@@ -91,13 +105,15 @@ public final class MacDrag {
      * @param input    the window's input, as it is at the time of each call; may answer null
      * @param pointer  the pointer in the window's logical points, x then y
      * @param toScreen how many of AppKit's points one logical point is
+     * @param paint     paints the window now, from inside AppKit's own loop
+     * @param ownCursor puts the window's own pointer back, once a drag is no longer over it
      * @return the window's drag, or null where AppKit would not have it, which is logged
      */
     public static MacDrag install(long view, UiRuntime ui, Supplier<WindowInput> input,
-            Supplier<float[]> pointer, float toScreen) {
+            Supplier<float[]> pointer, float toScreen, Runnable paint, Runnable ownCursor) {
         try {
             prepareClasses(view);
-            MacDrag drag = new MacDrag(view, ui, input, pointer, toScreen);
+            MacDrag drag = new MacDrag(view, ui, input, pointer, toScreen, paint, ownCursor);
             BY_VIEW.put(view, drag);
             long pool = MacClipboard.pool();
             try {
@@ -141,6 +157,10 @@ public final class MacDrag {
             if (in != null) {
                 in.dragLeft();
             }
+            if (drag != null) {
+                drag.ownCursor.run(); // the pointer this destination set is not left behind
+                drag.paint.run();
+            }
             return 0;
         });
         Callback perform = Ffi.callback("ppp>i", a -> drop(a[0], a[2]));
@@ -175,6 +195,9 @@ public final class MacDrag {
             if (request != null) {
                 DropAction done = action(a[3]);
                 request.ended().accept(done);
+            }
+            for (MacDrag drag : BY_VIEW.values()) {
+                drag.ownCursor.run(); // wherever it ended, no window keeps a drag's pointer
             }
             return 0;
         });
@@ -245,7 +268,25 @@ public final class MacDrag {
         try {
             long event = ObjC.msg(ObjC.msg(ObjC.cls("NSApplication"), "sharedApplication"), "currentEvent");
             long type = event == NULL ? 0 : ObjC.msg(event, "type");
+            if (TRACE) {
+                limn.graphics.Image image = request.image();
+                int seen = 0;
+                if (image != null) {
+                    byte[] rgba = image.pixels();
+                    for (int i = 3; i < rgba.length; i += 4) {
+                        seen += rgba[i] != 0 ? 1 : 0;
+                    }
+                }
+                System.err.println("limn.drag: asked, picture="
+                        + (image == null ? "none" : image.width() + "x" + image.height() + " px, " + seen
+                                + " not transparent")
+                        + " at " + request.x() + "," + request.y() + " " + request.width() + "x" + request.height()
+                        + " event type " + type);
+            }
             if (type != 1 && type != 6) { // a left mouse down, or a left mouse dragged
+                if (TRACE) {
+                    System.err.println("limn.drag: not begun, the current event is of type " + type);
+                }
                 return false;
             }
             List<String> types = PlatformClipboard.types(request.content());
@@ -372,6 +413,13 @@ public final class MacDrag {
         }
         float[] at = drag.pointer.get();
         DropAction action = in.dragOver(drag.offerOf(sender), allowed(sender), at[0], at[1]);
+        drag.paint.run();
+        // The pointer for the answer, each time: AppKit leaves the last one set in place, so a
+        // "not allowed" stayed after the pointer had moved on to a place that accepts.
+        String cursor = action == null ? "operationNotAllowedCursor"
+                : action == DropAction.COPY ? "dragCopyCursor"
+                : action == DropAction.LINK ? "dragLinkCursor" : "arrowCursor";
+        ObjC.msgVoid(ObjC.msg(ObjC.cls("NSCursor"), cursor), "set");
         return action == null ? 0 : operation(action);
     }
 
@@ -385,6 +433,9 @@ public final class MacDrag {
         Offer dropped = drag.offerOf(sender);
         drag.offer = null;
         drag.offerSequence = -1;
-        return in.dropped(dropped, allowed(sender), at[0], at[1]) == null ? 0 : 1;
+        boolean taken = in.dropped(dropped, allowed(sender), at[0], at[1]) != null;
+        drag.ownCursor.run();
+        drag.paint.run();
+        return taken ? 1 : 0;
     }
 }

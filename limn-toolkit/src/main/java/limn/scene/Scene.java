@@ -4190,6 +4190,17 @@ public final class Scene {
         limn.transfer.@Nullable DropAction action;
     }
 
+    /** {@code -Dlimn.drag.trace=true}: each step of handing a drag to the system, on standard error. */
+    private static final boolean DRAG_TRACE = Boolean.getBoolean("limn.drag.trace");
+
+    private int dragTraceMoves;
+
+    private static void dragTrace(String line) {
+        if (DRAG_TRACE) {
+            System.err.println("limn.drag(scene): " + line);
+        }
+    }
+
     private @Nullable Incoming incoming;
 
     /**
@@ -4212,7 +4223,53 @@ public final class Scene {
             return;
         }
         damageDragImage(); // our own picture, if a frame already showed it, goes
-        session.awaitingSystem = true; // and must not be in the frame that is cut
+        session.awaitingSystem = true; // and the next frame makes the system's (takePictureForSystem)
+        dragTrace("awaiting a frame for the picture, part " + session.partW + "x" + session.partH);
+        scheduleFrame();
+    }
+
+    /**
+     * At the top of the frame after a drag asked to be handed to the system: paints what is
+     * dragged alone on a corner of the frame cleared to nothing, reads it back with its
+     * transparency, and hands the drag over with that picture. The frame is then painted whole
+     * over the corner. Where the frame keeps no transparency, the picture is cut out of the
+     * finished frame instead, opaque, as the part of the source stands in it.
+     */
+    private void takePictureForSystem(Canvas canvas) {
+        DragSession session = dragSession;
+        NativeWindow host = window;
+        if (session == null || !session.awaitingSystem || host == null) {
+            return;
+        }
+        float w = Math.min(session.partW, width);
+        float h = Math.min(session.partH, height);
+        limn.graphics.Image picture;
+        canvas.save();
+        try {
+            canvas.damageScissorHint(0, 0, 0, 0); // no pass of the last frame clips this
+            canvas.clearRect(0, 0, w, h, limn.graphics.Color.rgba(0, 0f));
+            canvas.clipRect(0, 0, w, h);
+            paintPreview(canvas, session);
+        } finally {
+            canvas.restore();
+        }
+        // Through the canvas, which every frame has. Read through the renderer of the frame
+        // callback this scene installs, the picture was missing for any scene painted from a
+        // callback of the application's own, the demo's among them: the drag went out with none.
+        picture = canvas.readBack(0, 0, w, h);
+        fullDamagePending = true; // that corner is painted over by the whole frame
+        dragTrace("frame: picture " + (picture == null ? "none" : picture.width() + "x" + picture.height()));
+        if (picture != null) {
+            session.awaitingSystem = false;
+            startSystemDrag(session, host, seeThrough(picture), session.x - session.grabX,
+                    session.y - session.grabY, w, h);
+            return;
+        }
+        if (session.drag.previewPainter() != null) {
+            session.awaitingSystem = false; // nothing to cut the painter's picture from
+            startSystemDrag(session, host, null, session.x, session.y, 0, 0);
+            return;
+        }
         float partX = session.source.localToSceneX() + session.partX;
         float partY = session.source.localToSceneY() + session.partY;
         float sceneWidth = width;
@@ -4222,13 +4279,11 @@ public final class Scene {
             }
             session.awaitingSystem = false;
             float scale = sceneWidth > 0 ? frame.width() / sceneWidth : 1;
-            float radius = session.drag.hasPreviewPart() ? session.drag.previewRadius() : 0;
             startSystemDrag(session, host,
-                    shaped(crop(frame, scale, partX, partY, session.partW, session.partH), radius * scale),
+                    seeThrough(crop(frame, scale, partX, partY, session.partW, session.partH)),
                     session.x - session.grabX, session.y - session.grabY, session.partW, session.partH);
             scheduleFrame();
         });
-        scheduleFrame();
     }
 
     private void startSystemDrag(DragSession session, NativeWindow host, limn.graphics.@Nullable Image image,
@@ -4236,6 +4291,8 @@ public final class Scene {
         boolean taken = WindowPeer.of(host).startDrag(new limn.backend.spi.DragRequest(
                 session.drag.content(), session.drag.actions(), image, x, y, w, h,
                 action -> systemDragEnded(session, action)));
+        dragTrace("the system " + (taken ? "took" : "did not take") + " the drag, picture "
+                + (image == null ? "none" : image.width() + "x" + image.height()));
         if (taken) {
             session.system = true;
             if (session.target != null) {
@@ -4259,35 +4316,17 @@ public final class Scene {
         return new limn.graphics.Image(cw, ch, to);
     }
 
-    /**
-     * A cut of the frame as the picture the system shows: as see-through as the scene's own, and
-     * with nothing outside its rounded corners. The frame is opaque, so without this the corners
-     * of a card carried the background of the widget it was cut from, which showed as grey
-     * corners as soon as the card left the window (the owner's report).
-     */
-    private static limn.graphics.Image shaped(limn.graphics.Image cut, float radius) {
-        byte[] rgba = cut.pixels().clone();
-        int w = cut.width();
-        int h = cut.height();
-        float r = Math.min(radius, Math.min(w, h) / 2f);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                float coverage = 1;
-                // Inside a corner's square: how much of this pixel the rounding covers.
-                float cx = x + 0.5f < r ? r : x + 0.5f > w - r ? w - r : Float.NaN;
-                float cy = y + 0.5f < r ? r : y + 0.5f > h - r ? h - r : Float.NaN;
-                if (r > 0 && !Float.isNaN(cx) && !Float.isNaN(cy)) {
-                    double distance = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
-                    coverage = (float) Math.max(0, Math.min(1, r - distance + 0.5));
-                }
-                int i = (y * w + x) * 4 + 3;
-                rgba[i] = (byte) Math.round((rgba[i] & 0xff) * coverage * DRAG_IMAGE_OPACITY);
-            }
+    /** A picture for the system at the opacity the scene's own is shown at. */
+    private static limn.graphics.Image seeThrough(limn.graphics.Image picture) {
+        byte[] rgba = picture.pixels().clone();
+        for (int i = 3; i < rgba.length; i += 4) {
+            rgba[i] = (byte) Math.round((rgba[i] & 0xff) * DRAG_IMAGE_OPACITY);
         }
-        return new limn.graphics.Image(w, h, rgba);
+        return new limn.graphics.Image(picture.width(), picture.height(), rgba);
     }
 
     private void systemDragEnded(DragSession session, limn.transfer.@Nullable DropAction action) {
+        dragTrace("ended by the system with " + action + ", dropped here " + session.droppedHere);
         if (dragSession != session) {
             return;
         }
@@ -4321,6 +4360,9 @@ public final class Scene {
     private limn.transfer.@Nullable DropAction systemDragOver(limn.transfer.Offer offer,
             java.util.Set<limn.transfer.DropAction> allowed, float x, float y) {
         Ui.checkUiThread();
+        if (DRAG_TRACE && ++dragTraceMoves % 30 == 1) {
+            dragTrace("over " + x + "," + y + " allowed " + allowed + " own " + (dragSession != null && dragSession.system));
+        }
         DragSession own = dragSession != null && dragSession.system ? dragSession : null;
         java.util.Set<limn.transfer.DropAction> actions = own != null
                 ? allowedBoth(own.drag.actions(), allowed) : allowed;
@@ -4457,7 +4499,14 @@ public final class Scene {
         Widget<?> source = session.source;
         float pressLocalX = session.x - source.localToSceneX();
         float pressLocalY = session.y - source.localToSceneY();
-        if (drag.hasPreviewPart()) {
+        if (drag.previewPainter() != null) {
+            // The source paints the item alone: its size, and where the pointer holds it.
+            session.partW = drag.previewWidth();
+            session.partH = drag.previewHeight();
+            session.grabX = Math.max(0, Math.min(session.partW, drag.previewX()));
+            session.grabY = Math.max(0, Math.min(session.partH, drag.previewY()));
+            return;
+        } else if (drag.hasPreviewPart()) {
             session.partX = drag.previewX();
             session.partY = drag.previewY();
             session.partW = drag.previewWidth();
@@ -4512,30 +4561,36 @@ public final class Scene {
             if (image != null) {
                 canvas.drawImage(image, rect.x(), rect.y(), rect.width(), rect.height());
             } else {
-                // The source itself, painted again where the pointer is: what is dragged looks
-                // like what was picked up, whatever the widget draws.
                 canvas.clipRect(rect.x(), rect.y(), rect.width(), rect.height());
-                float radius = session.drag.hasPreviewPart() ? session.drag.previewRadius() : 0;
-                if (radius > 0) {
-                    canvas.clipRoundRect(limn.graphics.RoundRect.of(rect.x(), rect.y(), rect.width(),
-                            rect.height(), radius));
-                }
-                canvas.translate(rect.x() - session.partX, rect.y() - session.partY);
-                // A partial frame skips a widget whose own place misses the pass being painted,
-                // and the source is painted here away from its place: with the cull left on, its
-                // picture vanished whenever the pass was the target repainting itself and not
-                // the source (the owner's report, over the other board in the demo). The clip
-                // just set is the only bound this painting has.
-                boolean culling = cullActive;
-                cullActive = false;
-                try {
-                    session.source.paintWidget(canvas);
-                } finally {
-                    cullActive = culling;
-                }
+                canvas.translate(rect.x(), rect.y());
+                paintPreview(canvas, session);
             }
         } finally {
             canvas.restore();
+        }
+    }
+
+    /**
+     * Paints what a drag shows, at the canvas's origin: what the source's painter draws, or the
+     * part of the source widget, painted again away from its place.
+     */
+    private void paintPreview(Canvas canvas, DragSession session) {
+        java.util.function.Consumer<Canvas> painter = session.drag.previewPainter();
+        if (painter != null) {
+            painter.accept(canvas);
+            return;
+        }
+        canvas.translate(-session.partX, -session.partY);
+        // A partial frame skips a widget whose own place misses the pass being painted, and the
+        // source is painted here away from its place: with the cull left on, its picture vanished
+        // whole whenever the pass was the target repainting itself and not the source (the
+        // owner's report, over the other board in the demo). The clip is this painting's bound.
+        boolean culling = cullActive;
+        cullActive = false;
+        try {
+            session.source.paintWidget(canvas);
+        } finally {
+            cullActive = culling;
         }
     }
 
@@ -4668,6 +4723,9 @@ public final class Scene {
         // promise sets layoutDirty and this frame has to become the full one after all.
         runContainedLayouts();
         runVisibilityLayouts();
+        if (!rePresent && dragSession != null && dragSession.awaitingSystem) {
+            takePictureForSystem(canvas);
+        }
         if (layoutDirty || canvas.width() != width || canvas.height() != height) {
             // A layout pass can move any widget without it invalidating its old
             // bounds: layout frames are always full, which is a structural

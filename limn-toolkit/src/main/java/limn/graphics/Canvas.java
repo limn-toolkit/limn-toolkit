@@ -38,6 +38,27 @@ public interface Canvas {
     void clear(Color color);
 
     /**
+     * Reads back, now, a part of what has been drawn on this canvas in this frame, with its
+     * transparency: what was {@linkplain #clearRect cleared} to nothing and not painted over is
+     * transparent in the image. It is how a picture of one thing is made, painted alone on a
+     * cleared corner of a frame before the frame itself is painted over it; a drag's picture is.
+     *
+     * <p>On the canvas, and not on the renderer behind it, because whoever paints a scene has
+     * the canvas and may have nothing else: an application that renders its scene from a frame
+     * callback of its own hands the scene a canvas and no renderer.
+     *
+     * @param x      the part's left edge, in logical points
+     * @param y      the part's top edge, in logical points
+     * @param width  its width, in logical points
+     * @param height its height, in logical points
+     * @return the pixels, straight alpha, rows top-down, at the canvas's own resolution; null
+     *         where the canvas keeps no transparency or cannot be read
+     */
+    default @org.jspecify.annotations.Nullable Image readBack(float x, float y, float width, float height) {
+        return null;
+    }
+
+    /**
      * Replaces one rectangle with {@code color}: {@link #clear} semantics
      * confined to a rect, in untransformed logical frame coordinates, ignoring
      * transform/clip/opacity. Partial rendering resets each repaint pass with

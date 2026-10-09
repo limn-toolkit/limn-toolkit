@@ -35,7 +35,7 @@ public final class Drag {
     private float previewY;
     private float previewWidth;
     private float previewHeight;
-    private float previewRadius;
+    private java.util.function.@Nullable Consumer<limn.graphics.Canvas> previewPainter;
     private boolean previewSet;
     private boolean previewOff;
     private String description = "";
@@ -111,26 +111,37 @@ public final class Drag {
     }
 
     /**
-     * As {@link #preview(float, float, float, float)}, for a part whose corners are rounded: what
-     * lies outside the rounding is not part of the picture, so the card shows as a card over
-     * whatever it is dragged across, another program's window included, and not as a rectangle
-     * with the widget's background in its corners.
+     * Shows under the pointer what the source paints for it: the dragged thing alone, on nothing.
+     * The painter is handed a canvas that is transparent, {@code width} by {@code height}, with
+     * its origin at the top left, and draws only the item: a card with its rounded corners, a
+     * picture with its own transparency. What it does not paint stays see-through, over this
+     * window and over any other program's. It may be called more than once, on the UI thread,
+     * while the drag lasts.
      *
-     * @param x            the part's left edge, in the source widget's own coordinates
-     * @param y            the part's top edge, in the source widget's own coordinates
-     * @param width        its width
-     * @param height       its height
-     * @param cornerRadius the radius of its corners
+     * @param width   the width of what is painted, in points
+     * @param height  its height
+     * @param holdX   where in it the pointer holds it, from its left edge
+     * @param holdY   where in it the pointer holds it, from its top edge
+     * @param painter paints the dragged thing at the origin
      * @return this drag
      */
-    public Drag preview(float x, float y, float width, float height, float cornerRadius) {
-        previewRadius = Math.max(0, cornerRadius);
-        return preview(x, y, width, height);
+    public Drag preview(float width, float height, float holdX, float holdY,
+            java.util.function.Consumer<limn.graphics.Canvas> painter) {
+        previewPainter = Objects.requireNonNull(painter, "painter");
+        previewWidth = Math.max(0, width);
+        previewHeight = Math.max(0, height);
+        previewX = holdX;
+        previewY = holdY;
+        previewSet = true;
+        return this;
     }
 
-    /** @return the radius of the corners of the part to show; 0 for square ones */
-    public float previewRadius() {
-        return previewRadius;
+    /**
+     * @return what paints the dragged thing alone, or null when the preview is a part of the
+     *         source widget, or a picture, or nothing
+     */
+    public java.util.function.@Nullable Consumer<limn.graphics.Canvas> previewPainter() {
+        return previewPainter;
     }
 
     /**

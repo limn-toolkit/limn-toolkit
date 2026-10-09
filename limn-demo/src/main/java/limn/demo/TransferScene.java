@@ -214,8 +214,11 @@ final class TransferScene {
             return Drag.of(Transfer.of(CARD, card).with(DataFormat.TEXT, card.text))
                     .allow(DropAction.MOVE, DropAction.COPY)
                     .describedAs(card.text)
-                    .preview(PAD, HEADER + index * ROW + 2, width() - 2 * PAD, ROW - 4,
-                            Theme.current().tokensFor(this).radiusMedium())
+                    // The card alone, on nothing: its rounded corners stay see-through wherever it goes.
+                    .preview(width() - 2 * PAD, ROW - 4,
+                            event.isKeyboard() ? 0 : event.x() - localToSceneX() - PAD,
+                            event.isKeyboard() ? 0 : event.y() - localToSceneY() - HEADER - index * ROW - 2,
+                            canvas -> paintCard(canvas, card, 0, 0, width() - 2 * PAD, false))
                     .onEnd(action -> {
                         if (action == DropAction.MOVE && !movedWithin) {
                             cards.remove(card);
@@ -274,6 +277,17 @@ final class TransferScene {
             });
         }
 
+        /** One card, as it stands in the board and as it is dragged. */
+        private void paintCard(Canvas canvas, Card card, float x, float y, float w, boolean focused) {
+            Theme theme = Theme.current();
+            Font font = theme.body();
+            TextMetrics m = textRuler().measure("Hg", font);
+            float h = ROW - 4;
+            canvas.fillRoundRectWithBorder(x, y, w, h, theme.tokensFor(this).radiusMedium(), theme.surface(), 1,
+                    focused ? theme.focusRing() : theme.outline());
+            canvas.drawText(card.text, x + 10, y + (h - m.height()) / 2 + m.ascent(), font, theme.text());
+        }
+
         @Override
         protected void onPaint(Canvas canvas) {
             Theme theme = Theme.current();
@@ -285,11 +299,8 @@ final class TransferScene {
             canvas.drawText(title + " (" + cards.size() + ")", PAD + 4, (HEADER - m.height()) / 2 + m.ascent(),
                     font, theme.textMuted());
             for (int i = 0; i < cards.size(); i++) {
-                float y = HEADER + i * ROW;
-                canvas.fillRoundRectWithBorder(PAD, y + 2, width() - 2 * PAD, ROW - 4, radius, theme.surface(), 1,
-                        isFocused() && i == focusedCard ? theme.focusRing() : theme.outline());
-                canvas.drawText(cards.get(i).text, PAD + 10, y + (ROW - m.height()) / 2 + m.ascent(), font,
-                        theme.text());
+                paintCard(canvas, cards.get(i), PAD, HEADER + i * ROW + 2, width() - 2 * PAD,
+                        isFocused() && i == focusedCard);
             }
             if (dropAt >= 0) {
                 float y = HEADER + Math.min(dropAt, cards.size()) * ROW;

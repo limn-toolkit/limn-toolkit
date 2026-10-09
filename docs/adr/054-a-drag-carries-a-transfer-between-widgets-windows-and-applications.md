@@ -248,8 +248,25 @@ a card of the demo to another program and files in from Finder:
   writes (promised through the clipboard's provider class), and the destination is GLFW's content
   view with its four destination methods replaced and every kind of data registered. GLFW's own
   file drop no longer fires there: files arrive as any other drop, now with hover.
-- **No "not allowed" pointer over a place that refuses**, where the scene's own drag shows one:
-  the system draws the pointer now, and macOS shows nothing for a refusal. Left as the platform
-  has it unless the owner asks otherwise.
-- Not done: an offscreen rendering of the part with real transparency (the cut is from the
-  opaque frame, shaped by the radius the source gives); Windows, X11 and Wayland.
+- **The picture is the dragged thing painted alone, on nothing** (the owner, after a first build
+  that shaped a cut of the opaque frame by a corner radius: a picture with no background must
+  keep its own transparency, so hand the widget a transparent surface and have it draw).
+  `Drag.preview(width, height, holdX, holdY, painter)`: at the top of the next frame the scene
+  clears a corner of it to nothing, has the painter draw there, reads it back with its alpha
+  through `Canvas.readBack`, and paints the whole frame over the corner. The scene's own picture
+  under the pointer is the same painter. The read is on the canvas and not on the renderer
+  because a scene painted from an application's own frame callback is handed a canvas and
+  nothing else: read through the renderer, the picture was missing in the demo and the drag went
+  out with none, which only a traced run on his Mac showed (`-Dlimn.drag.trace=true`).
+- **AppKit tracks a drag in a loop of its own**, inside the event GLFW was dispatching, so the
+  application's loop does not turn and no frame is produced while a drag lasts. The destination
+  paints the window itself after each answer; without it the widget that accepted marked where
+  the drop would land and nothing showed it.
+- **The pointer says the answer, and is put back.** Over a place that refuses it is the "not
+  allowed" sign, which AppKit does not show by itself and the owner asked for as the scene's
+  own drag has it; over one that accepts it is the system's own for the action (the arrow for a
+  move, the arrow with a plus for a copy, which he first read as "can be dropped here": it means
+  a copy, as in Finder, and a move keeps the plain arrow). When a drag leaves the window, is
+  dropped or ends, the window sets its own pointer again, since AppKit keeps the last one set.
+- Not done: Windows, X11 and Wayland. A drag whose source gives no painter still shows a cut of
+  the opaque frame where the part stands.

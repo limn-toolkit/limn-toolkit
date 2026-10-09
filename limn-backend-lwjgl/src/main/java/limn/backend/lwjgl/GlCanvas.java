@@ -331,6 +331,43 @@ final class GlCanvas implements Canvas {
     }
 
     @Override
+    public limn.graphics.Image readBack(float x, float y, float width, float height) {
+        ensureInFrame();
+        int x0 = Math.max(0, Math.round(x * scale));
+        int y0 = Math.max(0, Math.round(y * scale));
+        int w = Math.min(fbWidth - x0, Math.round(width * scale));
+        int h = Math.min(fbHeight - y0, Math.round(height * scale));
+        if (w <= 0 || h <= 0) {
+            return null;
+        }
+        // A framebuffer with no alpha plane answers 255 everywhere: nothing would be see-through.
+        int alphaBits = org.lwjgl.opengl.GL33C.glGetFramebufferAttachmentParameteri(
+                org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER, org.lwjgl.opengl.GL33C.GL_BACK_LEFT,
+                org.lwjgl.opengl.GL33C.GL_FRAMEBUFFER_ATTACHMENT_ALPHA_SIZE);
+        if (alphaBits == 0) {
+            return null;
+        }
+        batch.flush(); // what was painted so far, into the buffer
+        java.nio.ByteBuffer pixels = org.lwjgl.system.MemoryUtil.memAlloc(w * h * 4);
+        try {
+            org.lwjgl.opengl.GL33C.glPixelStorei(org.lwjgl.opengl.GL33C.GL_PACK_ALIGNMENT, 1);
+            org.lwjgl.opengl.GL33C.glReadBuffer(org.lwjgl.opengl.GL33C.GL_BACK);
+            org.lwjgl.opengl.GL33C.glReadPixels(x0, fbHeight - y0 - h, w, h, org.lwjgl.opengl.GL33C.GL_RGBA,
+                    org.lwjgl.opengl.GL33C.GL_UNSIGNED_BYTE, pixels);
+            byte[] rgba = new byte[w * h * 4];
+            int stride = w * 4;
+            for (int row = 0; row < h; row++) {
+                pixels.position((h - 1 - row) * stride);
+                pixels.get(rgba, row * stride, stride);
+            }
+            GlRenderer.unpremultiply(rgba); // the canvas blends premultiplied; an Image's alpha is straight
+            return new limn.graphics.Image(w, h, rgba);
+        } finally {
+            org.lwjgl.system.MemoryUtil.memFree(pixels);
+        }
+    }
+
+    @Override
     public void damageScissorHint(float x, float y, float width, float height) {
         ensureInFrame();
         if (width <= 0 || height <= 0) {
