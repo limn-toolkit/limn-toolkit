@@ -97,6 +97,7 @@ public final class WindowsDrag {
     private static int pngFormat;
     private static long sourceObject;
     private static boolean dragging;
+    private static long lastFeedback = -1;
 
     private final long hwnd;
     private final UiRuntime ui;
@@ -179,7 +180,14 @@ public final class WindowsDrag {
                         // Escape calls it off, the button let go drops, anything else goes on.
                         keep(Ffi.callback("pii>i", a -> a[1] != 0 ? DRAGDROP_S_CANCEL
                                 : (a[2] & MK_LBUTTON) == 0 ? DRAGDROP_S_DROP : S_OK)),
-                        keep(Ffi.callback("pi>i", a -> DRAGDROP_S_USEDEFAULTCURSORS)));
+                        keep(Ffi.callback("pi>i", a -> {
+                            if (TRACE && a[1] != lastFeedback) {
+                                lastFeedback = a[1];
+                                System.err.println("limn.drag(windows): the target under the pointer answers effect "
+                                        + a[1]);
+                            }
+                            return DRAGDROP_S_USEDEFAULTCURSORS;
+                        })));
             }
             return drag;
         } catch (RuntimeException | LinkageError unavailable) {

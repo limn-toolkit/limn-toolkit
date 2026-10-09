@@ -362,7 +362,8 @@ out; two lines of text in, which became rows. The scripts are under `.claude/pen
   is not offered on Wayland (the protocol has copy, move and ask); a fractional scale rounds the
   picture's on Wayland; files dragged in from a file manager were not measured on these three
   (the path is the clipboard's, which was); Mutter is not measured.
-- Open, the owner's question: Paint did not take the picture dragged from the demo. It is
-  believed to take files only; offering the picture as a temporary PNG file as well is proposed
-  and not decided.
-
+- Paint does not take a picture dragged to it, from this toolkit or from a .NET program dragging
+  a bitmap: it answers "no effect" to both while they hover (measured on the guest, the two side
+  by side). It takes files. The owner decided against also offering a temporary PNG file. A
+  program that takes PNG does: one that decodes the dropped PNG read 240 by 240 pixels, alpha 0
+  at the corner and 255 at the centre.
