@@ -103,6 +103,44 @@ public final class Transfer {
         return plus(format, new Slot(null, value));
     }
 
+    /**
+     * Offers the picture this transfer carries as a file too: a PNG, written to the temporary
+     * directory the first time a taker asks for files, and not before. It is for the programs
+     * that take a picture only as a file: a paint program, the desktop, a file manager's folder.
+     *
+     * <p>Not what a transfer of a picture does by itself: a file is written to disk for it, and
+     * where a system asks for a drag's files as the drag begins (macOS does) that is at every
+     * drag. The file is deleted when the program ends.
+     *
+     * @param name the file's name, without a directory: {@code "logo.png"}
+     * @return the new transfer
+     * @throws IllegalStateException    if this transfer carries no {@link DataFormat#IMAGE}
+     * @throws IllegalArgumentException if the name is empty or names a directory
+     */
+    public Transfer withImageAsFile(String name) {
+        Objects.requireNonNull(name, "name");
+        if (!has(DataFormat.IMAGE)) {
+            throw new IllegalStateException("a transfer with no picture has none to offer as a file");
+        }
+        if (name.isBlank() || name.indexOf('/') >= 0 || name.indexOf('\\') >= 0) {
+            throw new IllegalArgumentException("a file's name, without a directory: " + name);
+        }
+        return withLazy(DataFormat.FILES, () -> {
+            limn.graphics.Image picture = Objects.requireNonNull(get(DataFormat.IMAGE), "the picture");
+            try {
+                java.nio.file.Path directory = java.nio.file.Files.createTempDirectory("limn-transfer");
+                directory.toFile().deleteOnExit(); // registered first, so deleted last, once it is empty
+                java.nio.file.Path file = directory.resolve(name);
+                java.nio.file.Files.write(file,
+                        limn.graphics.Images.encode(picture, limn.graphics.ImageFormat.PNG));
+                file.toFile().deleteOnExit();
+                return java.util.List.of(file);
+            } catch (java.io.IOException failed) {
+                throw new java.io.UncheckedIOException(failed);
+            }
+        });
+    }
+
     private Transfer plus(DataFormat<?> format, Slot slot) {
         Objects.requireNonNull(format, "format");
         Map<DataFormat<?>, Slot> next = new LinkedHashMap<>(slots);

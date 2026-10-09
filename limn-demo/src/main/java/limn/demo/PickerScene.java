@@ -96,6 +96,9 @@ final class PickerScene {
         about.add(new Label("A picture that drags").setStrong(true));
         about.add(new Label("Its own transparency goes with it, to the area beside it and over another program.")
                 .setMuted(true).setWrap(true));
+        limn.components.Checkbox asFile = new limn.components.Checkbox("Also as a file (for Paint, the desktop)");
+        asFile.onChange(on -> picture.setDragFileName(on ? "limn-logo.png" : null));
+        about.add(asFile);
         Row pictures = new Row();
         pictures.gap(16).crossAlignment(Flex.CrossAlignment.CENTER);
         pictures.add(picture);

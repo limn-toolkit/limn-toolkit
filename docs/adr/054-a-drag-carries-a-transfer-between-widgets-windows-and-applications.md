@@ -362,8 +362,20 @@ out; two lines of text in, which became rows. The scripts are under `.claude/pen
   is not offered on Wayland (the protocol has copy, move and ask); a fractional scale rounds the
   picture's on Wayland; files dragged in from a file manager were not measured on these three
   (the path is the clipboard's, which was); Mutter is not measured.
-- Paint does not take a picture dragged to it, from this toolkit or from a .NET program dragging
-  a bitmap: it answers "no effect" to both while they hover (measured on the guest, the two side
-  by side). It takes files. The owner decided against also offering a temporary PNG file. A
-  program that takes PNG does: one that decodes the dropped PNG read 240 by 240 pixels, alpha 0
-  at the corner and 255 at the centre.
+- **A picture as a file, when asked** (the owner, after trying Paint and the desktops of the
+  two Linux guests, which take a picture only as a file): `Transfer.withImageAsFile(name)` and
+  `ImageView.setDragFileName(name)` offer the picture as a PNG file too, written to the
+  temporary directory the first time a taker asks for files. Off unless asked, since it writes
+  to disk. For it not to be written at every drag, **the Windows drag makes its data when it is
+  asked for**: a data object of ours inside the shell's names the formats and renders each at
+  `GetData`, where the first build rendered all of them as the drag began. X11 and Wayland ask
+  late by nature; macOS asks for a drag's files as it begins, so there the file is written at
+  each drag that has the option on.
+  Measured: on Fedora the desktop, which did nothing with the picture alone, offers "copy here"
+  and its picture widgets for the file. On Windows Paint answered "no effect" to the demo's
+  picture with and without the file, **and to a plain file dragged from a .NET program**, at
+  the point the script dropped on, so that script says nothing of Paint either way; the owner's
+  hand is the measure there. Ubuntu's desktop was not measured.
+- **On Wayland the picture is attached after the drag begins.** Attached before, the offset
+  that holds it where the pointer pressed it was dropped, and it hung from its corner where the
+  other systems hold it by the point pressed (the owner saw the difference from X.Org).

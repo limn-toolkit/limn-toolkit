@@ -45,6 +45,7 @@ public final class ImageView extends Widget<ImageView> {
     private float preferredWidth = -1;
     private float preferredHeight = -1;
     private boolean dragEnabled;
+    private @Nullable String dragFileName;
 
     /** The longest side of the picture shown under the pointer while a large view is dragged. */
     private static final float DRAG_PREVIEW_MAX = 240;
@@ -103,6 +104,22 @@ public final class ImageView extends Widget<ImageView> {
         return this;
     }
 
+    /**
+     * Has a dragged picture offered as a file as well, under this name (default: not). Some
+     * targets take a picture only as a file, a paint program and the desktop among them; for
+     * those the picture is written as a PNG to the temporary directory when one asks for it, see
+     * {@link Transfer#withImageAsFile}. It is not done unless asked, since it writes to disk.
+     * UI thread only.
+     *
+     * @param name the file's name, such as {@code "logo.png"}, or {@code null} for no file
+     * @return this view
+     */
+    public ImageView setDragFileName(@Nullable String name) {
+        Ui.checkUiThread();
+        dragFileName = name;
+        return this;
+    }
+
     /** @return whether the picture can be dragged */
     public boolean isDragEnabled() {
         return dragEnabled;
@@ -118,7 +135,9 @@ public final class ImageView extends Widget<ImageView> {
         float holdX = event.isKeyboard() ? 0 : (event.x() - localToSceneX()) * scale;
         float holdY = event.isKeyboard() ? 0 : (event.y() - localToSceneY()) * scale;
         // Named for a keyboard drag by the scene, from the name the application gave the view.
-        return Drag.of(Transfer.of(DataFormat.IMAGE, picture))
+        Transfer content = Transfer.of(DataFormat.IMAGE, picture);
+        String file = dragFileName;
+        return Drag.of(file == null ? content : content.withImageAsFile(file))
                 .preview(width() * scale, height() * scale, holdX, holdY, canvas -> {
                     canvas.save();
                     try {

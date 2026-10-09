@@ -565,6 +565,18 @@ public final class WaylandClipboard implements NativeClipboard {
             dragPerformed = false;
             // start_drag: from the surface the button was pressed on, with that press's serial
             wl.request(device, 0, NULL, 0, source, origin, icon, Integer.toUnsignedLong(pressSerial));
+            if (icon != NULL) {
+                // Drawn once it is the drag's icon, and not before: the compositor puts an icon's
+                // corner at the pointer and moves it only by what an attach says from then on,
+                // so the offset that holds it where the pointer pressed it has to come with this
+                // attach. Attached before, the offset was dropped, and the picture hung from its
+                // corner where the other systems hold it by the point pressed (the owner saw it).
+                wl.request(icon, 1, NULL, 0, iconBuffer,
+                        Integer.toUnsignedLong(-Math.round(Math.max(0, dragHoldX(request)))),
+                        Integer.toUnsignedLong(-Math.round(Math.max(0, dragHoldY(request)))));  // attach
+                wl.request(icon, 2, NULL, 0, 0, 0, Integer.MAX_VALUE, Integer.MAX_VALUE);      // damage
+                wl.request(icon, 6, NULL, 0);                                                  // commit
+            }
             wl.flush(display);
         }
         return true;
@@ -613,12 +625,6 @@ public final class WaylandClipboard implements NativeClipboard {
             if (wl.version(iconSurface) >= 3) {
                 wl.request(iconSurface, 8, NULL, 0, scale); // set_buffer_scale
             }
-            // Held where the pointer pressed it: the surface is moved up and left by that much.
-            float[] hold = {Math.max(0, dragHoldX(request)), Math.max(0, dragHoldY(request))};
-            wl.request(iconSurface, 1, NULL, 0, iconBuffer, Integer.toUnsignedLong(-Math.round(hold[0])),
-                    Integer.toUnsignedLong(-Math.round(hold[1])));          // attach
-            wl.request(iconSurface, 2, NULL, 0, 0, 0, Integer.MAX_VALUE, Integer.MAX_VALUE); // damage
-            wl.request(iconSurface, 6, NULL, 0);                            // commit
             return iconSurface;
         } catch (IOException | RuntimeException | LinkageError unavailable) {
             LOG.log(System.Logger.Level.DEBUG, "no picture for the drag", unavailable);

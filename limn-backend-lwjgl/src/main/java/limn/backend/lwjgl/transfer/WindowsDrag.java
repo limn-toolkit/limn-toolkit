@@ -44,8 +44,7 @@ import static org.lwjgl.system.MemoryUtil.nmemCalloc;
  *
  * <p>The two objects are made here, each a table of callbacks; the data object is the shell's
  * ({@code SHCreateDataObject}), filled with what a copy would put on the clipboard, in the same
- * formats. What it carries is therefore made when the drag begins, lazy values included: OLE
- * offers no window message to render one later, as the clipboard has.
+ * formats by a data object of ours inside it, which makes each format when a target asks for it.
  *
  * <p><b>{@code DoDragDrop} does not return until the drag is over</b>, and runs a loop of its own
  * meanwhile: the application's loop does not turn. It is called from a task posted to the UI
@@ -549,45 +548,58 @@ public final class WindowsDrag {
         }
         long data;
         try (MemoryStack stack = MemoryStack.stackPush()) {
+            // What is carried is made when a target asks for it, and not before: the formats are
+            // named now, by a data object of ours inside the shell's, and each is rendered the
+            // first time GetData wants it. A file written for a picture is then written for the
+            // target that takes files, and for no other.
+            List<String> types = PlatformClipboard.types(request.content());
+            Function<String, byte[]> bytes = PlatformClipboard.provider(request.content(), ui);
+            List<Integer> formats = new ArrayList<>();
+            Map<Integer, String> typeOf = new HashMap<>();
+            for (String type : types) {
+                int format = format(type);
+                formats.add(format);
+                typeOf.put(format, type);
+                if (type.equals(ClipboardTypes.IMAGE)) {
+                    // The bitmap beside the PNG, made from the picture's pixels: what most programs take.
+                    formats.add(CF_DIB);
+                    typeOf.put(CF_DIB, ClipboardTypes.PIXELS);
+                }
+            }
+            Map<Integer, byte[]> rendered = new HashMap<>();
+            offeredFormats = formats;
+            offeredBytes = format -> rendered.computeIfAbsent(format, f -> {
+                String type = typeOf.get(f);
+                byte[] made = type == null ? null : bytes.apply(type);
+                if (made == null) {
+                    return null;
+                }
+                if (f == CF_UNICODETEXT) {
+                    return WindowsFormats.unicodeText(made);
+                } else if (f == htmlFormat) {
+                    return WindowsFormats.cfHtml(made);
+                } else if (f == CF_DIB) {
+                    return WindowsFormats.dibFromPixels(made);
+                } else if (f == CF_HDROP) {
+                    List<String> paths = new ArrayList<>();
+                    for (Path file : UriLists.decode(made)) {
+                        paths.add(file.toString());
+                    }
+                    return WindowsFormats.dropFiles(paths);
+                }
+                return made;
+            });
             long out = stack.ncalloc(8, 8, 1);
             // IID_IDataObject {0000010e-0000-0000-C000-000000000046}
             ByteBuffer iid = stack.malloc(16);
             iid.putInt(0, 0x0000010e).putShort(4, (short) 0).putShort(6, (short) 0)
                     .put(8, (byte) 0xC0).put(9, (byte) 0).put(10, (byte) 0).put(11, (byte) 0)
                     .put(12, (byte) 0).put(13, (byte) 0).put(14, (byte) 0).put(15, (byte) 0x46);
-            if ((int) call(SHELL32, "SHCreateDataObject", "pipppp>i", NULL, 0, NULL, NULL,
+            if ((int) call(SHELL32, "SHCreateDataObject", "pipppp>i", NULL, 0, NULL, lazyObject(),
                     memAddress(iid), out) < 0 || memGetAddress(out) == NULL) {
                 return false;
             }
             data = memGetAddress(out);
-            List<String> types = PlatformClipboard.types(request.content());
-            Function<String, byte[]> bytes = PlatformClipboard.provider(request.content(), ui);
-            for (String type : types) {
-                byte[] made = bytes.apply(type);
-                if (made == null) {
-                    continue;
-                }
-                int format = format(type);
-                if (format == CF_UNICODETEXT) {
-                    made = WindowsFormats.unicodeText(made);
-                } else if (format == htmlFormat) {
-                    made = WindowsFormats.cfHtml(made);
-                } else if (format == CF_HDROP) {
-                    List<String> paths = new ArrayList<>();
-                    for (Path file : UriLists.decode(made)) {
-                        paths.add(file.toString());
-                    }
-                    made = WindowsFormats.dropFiles(paths);
-                }
-                put(stack, data, format, made);
-                if (type.equals(ClipboardTypes.IMAGE)) {
-                    // The bitmap beside the PNG, made from the picture's pixels: what most programs take.
-                    byte[] pixels = bytes.apply(ClipboardTypes.PIXELS);
-                    if (pixels != null) {
-                        put(stack, data, CF_DIB, WindowsFormats.dibFromPixels(pixels));
-                    }
-                }
-            }
             showPicture(stack, data, request);
         }
         int effects = 0;
@@ -614,10 +626,78 @@ public final class WindowsDrag {
             } finally {
                 dragging = false;
                 method(data, RELEASE, ">i");
+                offeredFormats = List.of();
+                offeredBytes = format -> null;
                 request.ended().accept(done);
             }
         });
         return true;
+    }
+
+    private static List<Integer> offeredFormats = List.of();
+    private static java.util.function.IntFunction<byte[]> offeredBytes = format -> null;
+    private static long lazy;
+
+    private static final int E_NOTIMPL = 0x80004001;
+    private static final int DV_E_FORMATETC = 0x80040064;
+    private static final int OLE_E_ADVISENOTSUPPORTED = 0x80040003;
+
+    private static boolean offers(long etc) {
+        return etc != NULL && (memGetInt(etc + 24) & TYMED_HGLOBAL) != 0
+                && offeredFormats.contains(org.lwjgl.system.MemoryUtil.memGetShort(etc) & 0xFFFF);
+    }
+
+    /**
+     * The data object inside the shell's: it names the formats of the drag in flight and makes
+     * each when it is asked for, in memory of the asker's own. One object for every drag, there
+     * being one drag at a time; it holds nothing between two.
+     */
+    private static long lazyObject() {
+        if (lazy == NULL) {
+            lazy = object(
+                    queryInterface(0x10e), // IDataObject
+                    keep(Ffi.callback("p>i", a -> 1)),
+                    keep(Ffi.callback("p>i", a -> 1)),
+                    keep(Ffi.callback("ppp>i", a -> {               // GetData
+                        if (!offers(a[1]) || a[2] == NULL) {
+                            return DV_E_FORMATETC;
+                        }
+                        byte[] made = offeredBytes.apply(org.lwjgl.system.MemoryUtil.memGetShort(a[1]) & 0xFFFF);
+                        long handle = made == null ? NULL : global(made);
+                        if (handle == NULL) {
+                            return DV_E_FORMATETC;
+                        }
+                        memPutInt(a[2], TYMED_HGLOBAL);
+                        memPutAddress(a[2] + 8, handle);
+                        memPutAddress(a[2] + 16, NULL);
+                        return S_OK;
+                    })),
+                    keep(Ffi.callback("ppp>i", a -> E_NOTIMPL)),    // GetDataHere
+                    keep(Ffi.callback("pp>i", a -> offers(a[1]) ? S_OK : DV_E_FORMATETC)), // QueryGetData
+                    keep(Ffi.callback("ppp>i", a -> E_NOTIMPL)),    // GetCanonicalFormatEtc
+                    keep(Ffi.callback("pppi>i", a -> E_NOTIMPL)),   // SetData: the shell's object keeps those
+                    keep(Ffi.callback("pip>i", a -> {               // EnumFormatEtc
+                        if (a[1] != 1 || a[2] == NULL) {
+                            return E_NOTIMPL;
+                        }
+                        List<Integer> formats = offeredFormats;
+                        long array = nmemCalloc(Math.max(1, formats.size()), 32);
+                        for (int i = 0; i < formats.size(); i++) {
+                            long etc = array + 32L * i;
+                            memPutShort(etc, (short) (int) formats.get(i));
+                            memPutInt(etc + 16, 1);
+                            memPutInt(etc + 20, -1);
+                            memPutInt(etc + 24, TYMED_HGLOBAL);
+                        }
+                        int made = (int) call(SHELL32, "SHCreateStdEnumFmtEtc", "ipp>i", formats.size(), array, a[2]);
+                        org.lwjgl.system.MemoryUtil.nmemFree(array);
+                        return made;
+                    })),
+                    keep(Ffi.callback("ppipp>i", a -> OLE_E_ADVISENOTSUPPORTED)),
+                    keep(Ffi.callback("pi>i", a -> OLE_E_ADVISENOTSUPPORTED)),
+                    keep(Ffi.callback("pp>i", a -> OLE_E_ADVISENOTSUPPORTED)));
+        }
+        return lazy;
     }
 
     private static void put(MemoryStack stack, long data, int format, byte[] bytes) {
