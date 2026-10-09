@@ -228,3 +228,28 @@ Step 4, the table's columns (`Table`, `TableColumnsTest`):
 - A move is announced as "Total, column 3 of 6", from the table's catalogue in the 21 languages;
   a keyboard drag of a header says the same of the place it would take.
 - Not done: the focus ring of a cell scrolled half under the kept columns is drawn over them.
+
+Step 6 on macOS (`WindowPeer.startDrag`, `WindowInput.dragOver`/`dragLeft`/`dropped`, `MacDrag`),
+brought forward because the owner tests on a Mac and asked to drag out of the window; he dragged
+a card of the demo to another program and files in from Finder:
+
+- **A pointer drag that is not `withinWindow()` is handed to the system one frame after it
+  begins.** The scene asks the window for its next frame, cuts the previewed part out of it where
+  the source stands (its own picture held back for that frame), and gives the system that cut:
+  see-through as the scene's own, and with nothing outside the corners when the part is rounded
+  (`Drag.preview(x, y, width, height, cornerRadius)`; the frame is opaque, and a card carried the
+  board's background in its corners once it left the window). If the system does not take it,
+  the scene goes on driving it.
+- **From then on the pointer is the system's.** The window's dragging destination reports enter,
+  move, exit and drop to the scene, for this drag as for one begun in another program; for its
+  own the scene keeps the transfer at hand, in-process formats and source included, and the
+  source hears the end from the widget that took it, or from the system when another program did.
+- **On macOS** the source is `beginDraggingSessionWithItems:` with the pasteboard items a copy
+  writes (promised through the clipboard's provider class), and the destination is GLFW's content
+  view with its four destination methods replaced and every kind of data registered. GLFW's own
+  file drop no longer fires there: files arrive as any other drop, now with hover.
+- **No "not allowed" pointer over a place that refuses**, where the scene's own drag shows one:
+  the system draws the pointer now, and macOS shows nothing for a refusal. Left as the platform
+  has it unless the owner asks otherwise.
+- Not done: an offscreen rendering of the part with real transparency (the cut is from the
+  opaque frame, shaped by the radius the source gives); Windows, X11 and Wayland.

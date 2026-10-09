@@ -93,6 +93,42 @@ public interface WindowInput {
     void windowResized(float logicalWidth, float logicalHeight);
 
     /**
+     * A drag the system drives is over the window, or moved on it: one begun in another program,
+     * or one this window handed over with {@link WindowPeer#startDrag}. Answered at once, since
+     * the system waits for the answer to show whether a drop is possible there.
+     *
+     * @param offer   what is dragged: its formats now, its values at the drop
+     * @param allowed what the source allows with the modifier keys as they are held, the
+     *                source's preference first
+     * @param x       the pointer, in logical points
+     * @param y       the pointer, in logical points
+     * @return the action a widget there would carry out, or null when none takes it
+     */
+    default limn.transfer.@org.jspecify.annotations.Nullable DropAction dragOver(limn.transfer.Offer offer,
+            java.util.Set<limn.transfer.DropAction> allowed, float x, float y) {
+        return null;
+    }
+
+    /** The drag the system drives left the window, or was called off over it. Default: ignored. */
+    default void dragLeft() {
+    }
+
+    /**
+     * What the system's drag carried is dropped on the window. The values of {@code offer} can
+     * be read now and for as long as the offer is kept.
+     *
+     * @param offer   what was dragged
+     * @param allowed what the source allows, as for {@link #dragOver}
+     * @param x       the pointer, in logical points
+     * @param y       the pointer, in logical points
+     * @return the action a widget carried out, or null when none took it
+     */
+    default limn.transfer.@org.jspecify.annotations.Nullable DropAction dropped(limn.transfer.Offer offer,
+            java.util.Set<limn.transfer.DropAction> allowed, float x, float y) {
+        return null;
+    }
+
+    /**
      * Files dragged from the OS and dropped on the window, at a point of its content area in
      * logical points: the widget under that point receives them. The point is the platform's where
      * it says one (SDL does), and the pointer's at the drop where it does not (GLFW). Default:

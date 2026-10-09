@@ -3044,6 +3044,17 @@ public final class Scene {
         @Override public void filesDropped(java.util.List<java.nio.file.Path> paths, float x, float y) {
             Scene.this.filesDropped(paths, x, y);
         }
+        @Override public limn.transfer.@Nullable DropAction dragOver(limn.transfer.Offer offer,
+                java.util.Set<limn.transfer.DropAction> allowed, float x, float y) {
+            return Scene.this.systemDragOver(offer, allowed, x, y);
+        }
+        @Override public void dragLeft() {
+            Scene.this.systemDragLeft();
+        }
+        @Override public limn.transfer.@Nullable DropAction dropped(limn.transfer.Offer offer,
+                java.util.Set<limn.transfer.DropAction> allowed, float x, float y) {
+            return Scene.this.systemDropped(offer, allowed, x, y);
+        }
         @Override public void windowFocusChanged(boolean focused) { Scene.this.windowFocusChanged(focused); }
         @Override public void windowFullscreenChanged(boolean fullscreen) {
             Scene.this.windowFullscreenChanged(fullscreen);
@@ -3450,7 +3461,7 @@ public final class Scene {
         pointerInside = true;
         boolean changed;
         if (dragSession != null) {
-            if (!dragSession.keyboard) {
+            if (!dragSession.keyboard && !dragSession.system) {
                 dragMoved(x, y);
             }
             return true;
@@ -3488,6 +3499,9 @@ public final class Scene {
         if (dragSession != null) {
             // The release that ends a pointer drag is the drop; any other button, or a click
             // during a keyboard drag, calls it off.
+            if (dragSession.system) {
+                return; // the system has the pointer, and says when the drag is over
+            }
             if (!button.pressed && button.button == Keys.MOUSE_LEFT && !dragSession.keyboard) {
                 dragMoved(button.x, button.y);
                 finishDrag(true);
@@ -3741,7 +3755,7 @@ public final class Scene {
         // on that widget an image cursor beats a shape (it is the more
         // specific request). The backend treats an active image cursor as an
         // override, so the shape is still recorded for when it clears.
-        if (dragSession != null && !dragSession.keyboard) {
+        if (dragSession != null && !dragSession.keyboard && !dragSession.system) {
             window.setImageCursor(null);
             window.setCursor(dragSession.target != null ? Cursor.DEFAULT : Cursor.NOT_ALLOWED);
             return;
@@ -3841,6 +3855,12 @@ public final class Scene {
         float partH;
         float grabX;
         float grabY;
+        /** The next frame is being captured for the picture the system will show: ours is held back. */
+        boolean awaitingSystem;
+        /** Handed to the system: the pointer is its own until it says the drag is over. */
+        boolean system;
+        boolean droppedHere;
+        limn.transfer.@Nullable DropAction doneHere;
 
         DragSession(limn.transfer.Drag drag, Widget<?> source, boolean keyboard, float x, float y) {
             this.drag = drag;
@@ -3906,6 +3926,9 @@ public final class Scene {
                 keyboardTarget(w, 0, 0, false);
             } else {
                 addRealTimeTicker(new AutoScroll(session));
+                if (!drag.isWithinWindow() && window != null && WindowPeer.of(window).supportsDrag()) {
+                    handToSystem(session);
+                }
             }
             applyCursor();
             scheduleFrame();
@@ -3986,8 +4009,8 @@ public final class Scene {
     /** Ends the drag in flight: a drop on the widget that accepts it, or nothing at all. */
     private void finishDrag(boolean drop) {
         DragSession session = dragSession;
-        if (session == null) {
-            return;
+        if (session == null || session.system) {
+            return; // a drag the system drives ends when the system says so
         }
         dragSession = null;
         damageDragImage();
@@ -4041,6 +4064,9 @@ public final class Scene {
     private void dragKey(RawKey key) {
         DragSession session = dragSession;
         if (session == null) {
+            return;
+        }
+        if (session.system) {
             return;
         }
         if (key.pressed && key.key == Keys.ESCAPE) {
@@ -4156,6 +4182,227 @@ public final class Scene {
         }
     }
 
+    // ---- a drag the system drives
+
+    /** What another program is dragging over this window. */
+    private static final class Incoming {
+        @Nullable Widget<?> target;
+        limn.transfer.@Nullable DropAction action;
+    }
+
+    private @Nullable Incoming incoming;
+
+    /**
+     * Hands a pointer drag to the system, with a picture of what is dragged: the part of the
+     * source the scene would paint under the pointer, cut out of the next frame where it stands.
+     * Until that frame the scene drives the drag as it would any other, and goes on driving it
+     * if the system does not take it.
+     */
+    private void handToSystem(DragSession session) {
+        NativeWindow host = window;
+        if (host == null) {
+            return;
+        }
+        limn.transfer.Drag drag = session.drag;
+        limn.graphics.Image given = drag.image();
+        if (given != null || session.partW <= 0 || session.partH <= 0) {
+            float w = given == null ? 0 : given.width();
+            float h = given == null ? 0 : given.height();
+            startSystemDrag(session, host, given, session.x - drag.hotSpotX(), session.y - drag.hotSpotY(), w, h);
+            return;
+        }
+        damageDragImage(); // our own picture, if a frame already showed it, goes
+        session.awaitingSystem = true; // and must not be in the frame that is cut
+        float partX = session.source.localToSceneX() + session.partX;
+        float partY = session.source.localToSceneY() + session.partY;
+        float sceneWidth = width;
+        host.captureNextFrame(frame -> {
+            if (dragSession != session) {
+                return; // released, or cancelled, within that one frame
+            }
+            session.awaitingSystem = false;
+            float scale = sceneWidth > 0 ? frame.width() / sceneWidth : 1;
+            float radius = session.drag.hasPreviewPart() ? session.drag.previewRadius() : 0;
+            startSystemDrag(session, host,
+                    shaped(crop(frame, scale, partX, partY, session.partW, session.partH), radius * scale),
+                    session.x - session.grabX, session.y - session.grabY, session.partW, session.partH);
+            scheduleFrame();
+        });
+        scheduleFrame();
+    }
+
+    private void startSystemDrag(DragSession session, NativeWindow host, limn.graphics.@Nullable Image image,
+            float x, float y, float w, float h) {
+        boolean taken = WindowPeer.of(host).startDrag(new limn.backend.spi.DragRequest(
+                session.drag.content(), session.drag.actions(), image, x, y, w, h,
+                action -> systemDragEnded(session, action)));
+        if (taken) {
+            session.system = true;
+            if (session.target != null) {
+                retarget(session, null, null); // found again as the system reports the pointer
+            }
+        }
+    }
+
+    /** A part of a captured frame, in the frame's own pixels. */
+    private static limn.graphics.Image crop(limn.graphics.Image frame, float scale, float x, float y, float w,
+            float h) {
+        int x0 = Math.max(0, Math.min(frame.width(), Math.round(x * scale)));
+        int y0 = Math.max(0, Math.min(frame.height(), Math.round(y * scale)));
+        int cw = Math.max(1, Math.min(frame.width() - x0, Math.round(w * scale)));
+        int ch = Math.max(1, Math.min(frame.height() - y0, Math.round(h * scale)));
+        byte[] from = frame.pixels();
+        byte[] to = new byte[cw * ch * 4];
+        for (int row = 0; row < ch && y0 + row < frame.height(); row++) {
+            System.arraycopy(from, ((y0 + row) * frame.width() + x0) * 4, to, row * cw * 4, cw * 4);
+        }
+        return new limn.graphics.Image(cw, ch, to);
+    }
+
+    /**
+     * A cut of the frame as the picture the system shows: as see-through as the scene's own, and
+     * with nothing outside its rounded corners. The frame is opaque, so without this the corners
+     * of a card carried the background of the widget it was cut from, which showed as grey
+     * corners as soon as the card left the window (the owner's report).
+     */
+    private static limn.graphics.Image shaped(limn.graphics.Image cut, float radius) {
+        byte[] rgba = cut.pixels().clone();
+        int w = cut.width();
+        int h = cut.height();
+        float r = Math.min(radius, Math.min(w, h) / 2f);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                float coverage = 1;
+                // Inside a corner's square: how much of this pixel the rounding covers.
+                float cx = x + 0.5f < r ? r : x + 0.5f > w - r ? w - r : Float.NaN;
+                float cy = y + 0.5f < r ? r : y + 0.5f > h - r ? h - r : Float.NaN;
+                if (r > 0 && !Float.isNaN(cx) && !Float.isNaN(cy)) {
+                    double distance = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+                    coverage = (float) Math.max(0, Math.min(1, r - distance + 0.5));
+                }
+                int i = (y * w + x) * 4 + 3;
+                rgba[i] = (byte) Math.round((rgba[i] & 0xff) * coverage * DRAG_IMAGE_OPACITY);
+            }
+        }
+        return new limn.graphics.Image(w, h, rgba);
+    }
+
+    private void systemDragEnded(DragSession session, limn.transfer.@Nullable DropAction action) {
+        if (dragSession != session) {
+            return;
+        }
+        dragSession = null;
+        Widget<?> target = session.target;
+        if (target != null && !session.droppedHere) {
+            target.dispatchDragExit(dragEvent(session, 0, 0));
+        }
+        // A drop in one of our own windows is told by the widget that took it; one in another
+        // program by the system.
+        session.drag.end(session.droppedHere ? session.doneHere : action);
+        applyCursor();
+        if (pointerInside) {
+            updateHover(hitAt(mouseX, mouseY));
+        }
+        scheduleFrame();
+    }
+
+    /** What the source allows, of what the system says the modifier keys allow, in the source's order. */
+    private static java.util.Set<limn.transfer.DropAction> allowedBoth(
+            java.util.Set<limn.transfer.DropAction> source, java.util.Set<limn.transfer.DropAction> system) {
+        java.util.Set<limn.transfer.DropAction> both = new java.util.LinkedHashSet<>();
+        for (limn.transfer.DropAction action : source) {
+            if (system.contains(action)) {
+                both.add(action);
+            }
+        }
+        return both;
+    }
+
+    private limn.transfer.@Nullable DropAction systemDragOver(limn.transfer.Offer offer,
+            java.util.Set<limn.transfer.DropAction> allowed, float x, float y) {
+        Ui.checkUiThread();
+        DragSession own = dragSession != null && dragSession.system ? dragSession : null;
+        java.util.Set<limn.transfer.DropAction> actions = own != null
+                ? allowedBoth(own.drag.actions(), allowed) : allowed;
+        Widget<?> acceptor = null;
+        limn.transfer.DropAction action = null;
+        DragEvent event = null;
+        if (!actions.isEmpty()) {
+            // Our own drag keeps its transfer at hand: the object itself, and who began it.
+            event = new DragEvent(x, y, modifiers, false, 0, 0, own != null ? own.offer : offer, actions,
+                    actions.iterator().next(), own != null ? own.source : null);
+            for (Widget<?> w = hitAt(x, y); w != null && acceptor == null; w = w.parent()) {
+                if (w.isEnabled()) {
+                    w.dispatchDragOver(event);
+                    if (event.isAccepted()) {
+                        acceptor = w;
+                        action = event.acceptedAction();
+                    }
+                }
+            }
+        }
+        if (own != null) {
+            own.x = x;
+            own.y = y;
+            retarget(own, acceptor, action);
+        } else {
+            Incoming in = incoming;
+            if (in == null) {
+                in = new Incoming();
+                incoming = in;
+            }
+            Widget<?> before = in.target;
+            in.target = acceptor;
+            in.action = action;
+            if (before != null && before != acceptor) {
+                before.dispatchDragExit(event != null ? event : new DragEvent(x, y, modifiers, false, 0, 0,
+                        offer, allowed, limn.transfer.DropAction.COPY, null));
+            }
+        }
+        scheduleFrame();
+        return action;
+    }
+
+    private void systemDragLeft() {
+        Ui.checkUiThread();
+        DragSession own = dragSession != null && dragSession.system ? dragSession : null;
+        if (own != null) {
+            retarget(own, null, null);
+        }
+        Incoming in = incoming;
+        incoming = null;
+        if (in != null && in.target != null) {
+            in.target.dispatchDragExit(new DragEvent(mouseX, mouseY, modifiers, false, 0, 0,
+                    limn.transfer.Offer.EMPTY, java.util.Set.of(limn.transfer.DropAction.COPY),
+                    limn.transfer.DropAction.COPY, null));
+        }
+        scheduleFrame();
+    }
+
+    private limn.transfer.@Nullable DropAction systemDropped(limn.transfer.Offer offer,
+            java.util.Set<limn.transfer.DropAction> allowed, float x, float y) {
+        limn.transfer.DropAction action = systemDragOver(offer, allowed, x, y);
+        DragSession own = dragSession != null && dragSession.system ? dragSession : null;
+        Incoming in = incoming;
+        incoming = null;
+        Widget<?> target = own != null ? own.target : in != null ? in.target : null;
+        if (target == null || action == null) {
+            return null;
+        }
+        DropEvent event = new DropEvent(x, y, modifiers, false, own != null ? own.offer : offer, action,
+                own != null ? own.source : null);
+        target.dispatchDrop(event);
+        limn.transfer.DropAction done = event.isRejected() ? null : action;
+        if (own != null) {
+            own.droppedHere = true;
+            own.doneHere = done;
+            own.target = null;
+            own.action = null;
+        }
+        scheduleFrame();
+        return done;
+    }
+
     // ---- what a pointer drag shows
 
     /** Scrolls the widget that accepts the drag while the pointer rests near one of its edges. */
@@ -4228,8 +4475,8 @@ public final class Scene {
 
     private @Nullable Rect dragImageRect() {
         DragSession session = dragSession;
-        if (session == null || session.keyboard) {
-            return null;
+        if (session == null || session.keyboard || session.system || session.awaitingSystem) {
+            return null; // the system shows its own, or is about to
         }
         limn.graphics.Image image = session.drag.image();
         if (image != null) {
@@ -4268,6 +4515,11 @@ public final class Scene {
                 // The source itself, painted again where the pointer is: what is dragged looks
                 // like what was picked up, whatever the widget draws.
                 canvas.clipRect(rect.x(), rect.y(), rect.width(), rect.height());
+                float radius = session.drag.hasPreviewPart() ? session.drag.previewRadius() : 0;
+                if (radius > 0) {
+                    canvas.clipRoundRect(limn.graphics.RoundRect.of(rect.x(), rect.y(), rect.width(),
+                            rect.height(), radius));
+                }
                 canvas.translate(rect.x() - session.partX, rect.y() - session.partY);
                 // A partial frame skips a widget whose own place misses the pass being painted,
                 // and the source is painted here away from its place: with the cull left on, its

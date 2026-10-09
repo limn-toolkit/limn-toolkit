@@ -49,6 +49,10 @@ public final class MacClipboard implements NativeClipboard {
     private static final long PNG_FILE_TYPE = 4;
 
     private static MacClipboard open;
+    private static final java.util.Map<Long, java.util.function.BiConsumer<Long, String>> OTHER_PROVIDERS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Map<String, String> DYNAMIC = new java.util.concurrent.ConcurrentHashMap<>();
+    private static long preferredIdentifier;
     private static long ownerClass;
     private static Callback provide;
     private static Callback activated;
@@ -59,10 +63,6 @@ public final class MacClipboard implements NativeClipboard {
     private Function<String, byte[]> ownBytes = type -> null;
     private long promisedItem;
     private final java.util.Set<String> provided = new java.util.HashSet<>();
-    private final java.util.Map<String, String> dynamic = new java.util.HashMap<>();
-    private final long preferredIdentifier = org.lwjgl.system.APIUtil.apiGetFunctionAddress(
-            org.lwjgl.system.APIUtil.apiCreateLibrary("/System/Library/Frameworks/CoreServices.framework/CoreServices"),
-            "UTTypeCreatePreferredIdentifierForTag");
     private long ownCount = -1;
     private long seenCount = -1;
     private List<String> offered = List.of();
@@ -83,8 +83,12 @@ public final class MacClipboard implements NativeClipboard {
                 throw new IllegalStateException("could not make " + CLASS_NAME);
             }
             provide = Ffi.callback("ppppp>v", args -> {
+                // One class provides for the clipboard and for a drag: the object asked says which.
+                java.util.function.BiConsumer<Long, String> other = OTHER_PROVIDERS.get(args[0]);
                 MacClipboard clipboard = open;
-                if (clipboard != null) {
+                if (other != null) {
+                    other.accept(args[3], string(args[4]));
+                } else if (clipboard != null) {
                     clipboard.provide(args[3], string(args[4]));
                 }
                 return 0;
@@ -121,21 +125,38 @@ public final class MacClipboard implements NativeClipboard {
 
     // ---- Objective-C ------------------------------------------------------------------------------
 
-    private static long pool() {
+    /**
+     * A data provider of the class the clipboard's is, for pasteboard items that are not the
+     * clipboard's: a drag's. Main thread; the clipboard must have been opened first.
+     *
+     * @param provide given the item asked and the identifier asked for
+     * @return the provider object, kept for the life of the process
+     */
+    static long newProvider(java.util.function.BiConsumer<Long, String> provide) {
+        if (ownerClass == NULL) {
+            throw new IllegalStateException("the pasteboard's provider class is made with the clipboard, "
+                    + "which is not open");
+        }
+        long made = ObjC.msg(ObjC.msg(ownerClass, "alloc"), "init");
+        OTHER_PROVIDERS.put(made, provide);
+        return made;
+    }
+
+    static long pool() {
         return ObjC.msg(ObjC.msg(ObjC.cls("NSAutoreleasePool"), "alloc"), "init");
     }
 
-    private static void drain(long pool) {
+    static void drain(long pool) {
         ObjC.msgVoid(pool, "drain");
     }
 
-    private static long nsString(String text) {
+    static long nsString(String text) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             return ObjC.msg(ObjC.cls("NSString"), "stringWithUTF8String:", memAddress(stack.UTF8(text)));
         }
     }
 
-    private static String string(long nsString) {
+    static String string(long nsString) {
         if (nsString == NULL) {
             return "";
         }
@@ -143,7 +164,7 @@ public final class MacClipboard implements NativeClipboard {
         return utf8 == NULL ? "" : memUTF8(utf8);
     }
 
-    private static byte[] bytes(long nsData) {
+    static byte[] bytes(long nsData) {
         if (nsData == NULL) {
             return null;
         }
@@ -155,7 +176,7 @@ public final class MacClipboard implements NativeClipboard {
         return out;
     }
 
-    private static long nsData(byte[] bytes) {
+    static long nsData(byte[] bytes) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             java.nio.ByteBuffer copy = org.lwjgl.system.MemoryUtil.memAlloc(Math.max(1, bytes.length));
             try {
@@ -167,7 +188,7 @@ public final class MacClipboard implements NativeClipboard {
         }
     }
 
-    private static String uti(String type) {
+    static String uti(String type) {
         return switch (type) {
             case ClipboardTypes.TEXT -> UTI_TEXT;
             case ClipboardTypes.HTML -> UTI_HTML;
@@ -186,6 +207,16 @@ public final class MacClipboard implements NativeClipboard {
             return;
         }
         seenCount = count;
+        offered = typesOf(pasteboard);
+        if (count != ownCount) {
+            ownTypes = List.of();
+            ownBytes = type -> null;
+        }
+        changeListener.run();
+    }
+
+    /** The canonical types a pasteboard holds, in its order: the general one's, or a drag's. */
+    static List<String> typesOf(long pasteboard) {
         List<String> types = new ArrayList<>();
         long array = ObjC.msg(pasteboard, "types");
         long n = array == NULL ? 0 : ObjC.msg(array, "count");
@@ -202,12 +233,7 @@ public final class MacClipboard implements NativeClipboard {
                 types.add(type);
             }
         }
-        offered = List.copyOf(types);
-        if (count != ownCount) {
-            ownTypes = List.of();
-            ownBytes = type -> null;
-        }
-        changeListener.run();
+        return List.copyOf(types);
     }
 
     @Override
@@ -232,7 +258,7 @@ public final class MacClipboard implements NativeClipboard {
         byte[] bytes;
         long pool = pool();
         try {
-            bytes = readNow(type);
+            bytes = readNow(pasteboard, type);
         } finally {
             drain(pool);
         }
@@ -249,7 +275,8 @@ public final class MacClipboard implements NativeClipboard {
         return result;
     }
 
-    private byte[] readNow(String type) {
+    /** The bytes of one canonical type of a pasteboard, read now; null when it has none. Main thread. */
+    static byte[] readNow(long pasteboard, String type) {
         switch (type) {
             case ClipboardTypes.TEXT: {
                 long text = ObjC.msg(pasteboard, "stringForType:", nsString(UTI_TEXT));
@@ -355,12 +382,18 @@ public final class MacClipboard implements NativeClipboard {
      * The identifier an item holds a type under: the system's own for the standard ones, and for
      * an application's name the dynamic one the system derives for a pasteboard type so named.
      */
-    private String itemType(String type) {
+    static String itemType(String type) {
         String uti = uti(type);
         if (uti.indexOf('/') < 0) {
             return uti;
         }
-        return dynamic.computeIfAbsent(uti, name -> {
+        if (preferredIdentifier == NULL) {
+            preferredIdentifier = org.lwjgl.system.APIUtil.apiGetFunctionAddress(
+                    org.lwjgl.system.APIUtil.apiCreateLibrary(
+                            "/System/Library/Frameworks/CoreServices.framework/CoreServices"),
+                    "UTTypeCreatePreferredIdentifierForTag");
+        }
+        return DYNAMIC.computeIfAbsent(uti, name -> {
             // Conforming to public.data, as the pasteboard itself derives it: without that the
             // identifier differs and the name no longer finds the data (read on the guest).
             long made = Ffi.call(preferredIdentifier, "ppp>p", nsString("com.apple.nspboard-type"),

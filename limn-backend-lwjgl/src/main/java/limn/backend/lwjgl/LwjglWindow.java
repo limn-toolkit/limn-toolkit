@@ -502,6 +502,12 @@ final class LwjglWindow implements WindowPeer {
             if (MacInputContextGate.install(view)) {
                 imeGatedView = view;
             }
+            // The system's drag and drop, from and onto this view; it shares the pasteboard's
+            // provider class with the clipboard, which is therefore opened first.
+            if (backend.systemClipboard() != null) {
+                macDrag = limn.backend.lwjgl.transfer.MacDrag.install(view, backend.uiRuntime(),
+                        () -> inputBlocked() ? null : input, this::pointerForDrag, logicalToScreenFactor());
+            }
             // Every native fullscreen transition, the person's as well as ours, so that
             // isFullscreen() tells the truth about the green button and Control-Command-F too.
             MacFullscreen.observe(cocoaWindow, this::nativeFullscreenChanged);
@@ -2182,6 +2188,29 @@ final class LwjglWindow implements WindowPeer {
         // scale logical coordinates are defined against; otherwise popups
         // mis-position in forced-scale (screenshot) mode.
         return effectiveScale() / (pixelsPerScreenCoord <= 0 ? 1 : pixelsPerScreenCoord);
+    }
+
+    private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable MacDrag macDrag;
+
+    /** The pointer in logical points, x then y, and the content's logical height: what a drag is placed by. */
+    private float[] pointerForDrag() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            java.nio.DoubleBuffer cx = stack.mallocDouble(1);
+            java.nio.DoubleBuffer cy = stack.mallocDouble(1);
+            org.lwjgl.glfw.GLFW.glfwGetCursorPos(handle, cx, cy);
+            return new float[] {toLogical(cx.get(0)), toLogical(cy.get(0)), logicalHeight()};
+        }
+    }
+
+    @Override
+    public boolean supportsDrag() {
+        return macDrag != null && !destroyed;
+    }
+
+    @Override
+    public boolean startDrag(limn.backend.spi.DragRequest request) {
+        backend.uiRuntime().checkUiThread();
+        return macDrag != null && !destroyed && macDrag.start(request);
     }
 
     @Override

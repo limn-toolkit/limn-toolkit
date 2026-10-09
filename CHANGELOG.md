@@ -226,7 +226,10 @@ Maven Central say which number that was.
   widget that scrolls under the wheel scrolls when the pointer rests near its edge. The keyboard
   does the same: Ctrl+Shift+D (Cmd+Shift+D on macOS, `Scene.setDragKey`) picks up on the focused
   widget, Tab walks the widgets that accept, the arrow keys choose the place, Enter drops, and a
-  screen reader hears each step in the 21 languages. A drag stays inside its window for now.
+  screen reader hears each step in the 21 languages. On macOS a drag leaves the window: it is the
+  system's own drag, to and from other programs, with the picture of what is dragged, and files
+  from Finder are answered while they hover. On Windows and Linux it stays inside its window
+  for now.
 - What is dragged shows under the pointer as it is painted: `Drag.preview(x, y, width, height)`
   names the part of the source widget, a card or a row, and the scene paints it there.
 - `Table`: the user moves a column by dragging its header (the whole column follows along the

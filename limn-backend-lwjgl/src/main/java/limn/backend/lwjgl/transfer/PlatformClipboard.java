@@ -110,12 +110,7 @@ public final class PlatformClipboard implements Clipboard {
     public void set(Transfer content) {
         Objects.requireNonNull(content, "content");
         ui.checkUiThread();
-        List<String> types = new ArrayList<>();
-        for (DataFormat<?> format : content.formats()) {
-            if (!format.isInProcess()) {
-                types.add(typeOf(format));
-            }
-        }
+        List<String> types = types(content);
         held = content;
         Map<String, CompletableFuture<byte[]>> cache = new ConcurrentHashMap<>();
         rendered = cache;
@@ -140,7 +135,37 @@ public final class PlatformClipboard implements Clipboard {
                 });
             }
         }
-        system.offer(types, type -> bytes(content, cache, type));
+        system.offer(types, type -> bytes(content, cache, type, ui));
+    }
+
+    /**
+     * The types a transfer offers another program, best first: what a copy announces and what a
+     * drag carries. A format that never leaves the process is not among them.
+     *
+     * @param content the transfer
+     * @return the canonical type names
+     */
+    public static List<String> types(Transfer content) {
+        List<String> types = new ArrayList<>();
+        for (DataFormat<?> format : content.formats()) {
+            if (!format.isInProcess()) {
+                types.add(typeOf(format));
+            }
+        }
+        return types;
+    }
+
+    /**
+     * What makes the bytes of one of a transfer's types, once, for a system that asks for them:
+     * as a copy's are made, on the UI thread for the value and where it is asked for the rest.
+     *
+     * @param content the transfer
+     * @param ui      the runtime whose thread a lazy value is made on
+     * @return from a canonical type to its bytes, or null for what cannot be made
+     */
+    public static java.util.function.Function<String, byte[]> provider(Transfer content, UiRuntime ui) {
+        Map<String, CompletableFuture<byte[]>> cache = new ConcurrentHashMap<>();
+        return type -> bytes(content, cache, type, ui);
     }
 
     private static String typeOf(DataFormat<?> format) {
@@ -165,7 +190,8 @@ public final class PlatformClipboard implements Clipboard {
      * one is made, and encoded on the thread that asked: off the UI thread where the system asks
      * from one of its own (X11, Wayland), on it where the system asks there (Windows, macOS).
      */
-    private byte @Nullable [] bytes(Transfer content, Map<String, CompletableFuture<byte[]>> cache, String type) {
+    private static byte @Nullable [] bytes(Transfer content, Map<String, CompletableFuture<byte[]>> cache,
+            String type, UiRuntime ui) {
         CompletableFuture<byte[]> known = cache.get(type);
         try {
             if (known != null) {
@@ -241,7 +267,20 @@ public final class PlatformClipboard implements Clipboard {
         if (system.isOwner()) {
             return held.asOffer();
         }
-        List<String> types = List.copyOf(system.types());
+        return offer(system.types(), system::read, ui);
+    }
+
+    /**
+     * What another program offers, as an offer: the clipboard's content, or what a drag carries.
+     *
+     * @param offered the canonical types on offer
+     * @param read    asks for the bytes of one of them
+     * @param ui      the runtime whose thread the values arrive on
+     * @return the offer
+     */
+    public static Offer offer(List<String> offered, java.util.function.Function<String, CompletableFuture<byte[]>> read,
+            UiRuntime ui) {
+        List<String> types = List.copyOf(offered);
         Set<DataFormat<?>> formats = new LinkedHashSet<>();
         for (String type : types) {
             switch (type) {
@@ -272,7 +311,7 @@ public final class PlatformClipboard implements Clipboard {
                     result.completeExceptionally(new TransferGoneException(format + " is not on offer"));
                     return result;
                 }
-                system.read(typeOf(format)).whenComplete((bytes, failed) -> {
+                read.apply(typeOf(format)).whenComplete((bytes, failed) -> {
                     // Decoded where the bytes arrived, which is never the UI thread for another
                     // program's data: a photograph is not decoded between two frames.
                     Object value = null;

@@ -214,7 +214,8 @@ final class TransferScene {
             return Drag.of(Transfer.of(CARD, card).with(DataFormat.TEXT, card.text))
                     .allow(DropAction.MOVE, DropAction.COPY)
                     .describedAs(card.text)
-                    .preview(PAD, HEADER + index * ROW + 2, width() - 2 * PAD, ROW - 4)
+                    .preview(PAD, HEADER + index * ROW + 2, width() - 2 * PAD, ROW - 4,
+                            Theme.current().tokensFor(this).radiusMedium())
                     .onEnd(action -> {
                         if (action == DropAction.MOVE && !movedWithin) {
                             cards.remove(card);

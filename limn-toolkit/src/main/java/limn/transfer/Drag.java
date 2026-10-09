@@ -35,6 +35,7 @@ public final class Drag {
     private float previewY;
     private float previewWidth;
     private float previewHeight;
+    private float previewRadius;
     private boolean previewSet;
     private boolean previewOff;
     private String description = "";
@@ -107,6 +108,29 @@ public final class Drag {
         previewHeight = Math.max(0, height);
         previewSet = true;
         return this;
+    }
+
+    /**
+     * As {@link #preview(float, float, float, float)}, for a part whose corners are rounded: what
+     * lies outside the rounding is not part of the picture, so the card shows as a card over
+     * whatever it is dragged across, another program's window included, and not as a rectangle
+     * with the widget's background in its corners.
+     *
+     * @param x            the part's left edge, in the source widget's own coordinates
+     * @param y            the part's top edge, in the source widget's own coordinates
+     * @param width        its width
+     * @param height       its height
+     * @param cornerRadius the radius of its corners
+     * @return this drag
+     */
+    public Drag preview(float x, float y, float width, float height, float cornerRadius) {
+        previewRadius = Math.max(0, cornerRadius);
+        return preview(x, y, width, height);
+    }
+
+    /** @return the radius of the corners of the part to show; 0 for square ones */
+    public float previewRadius() {
+        return previewRadius;
     }
 
     /**
