@@ -386,11 +386,20 @@ out; two lines of text in, which became rows. The scripts are under `.claude/pen
   keep the UI thread out of it: a picture that is at hand is written as its file by whichever
   thread asks (`Transfer.needsUiThread` says which values are not like that), and a files value
   only the UI thread can make is made as a Wayland drag begins.
-- **Paint takes a drag from Explorer and from nothing else**, which closes the question the
-  owner opened. Dragged by his hand with the trace on, Paint asks the demo's drag for the shell's
-  item list of the file (now offered, written as Explorer writes it) or for the bitmap, answers
-  "copy", shows "Open", and at the drop answers "no effect", asking for nothing afterwards. It
-  does the same to a plain file dragged from a .NET program and to a picture dragged from a page
-  in Edge; a file saved and dragged from Explorer opens. The desktop takes the demo's drag with
-  the file and makes the file. Tried and taken back out, having changed nothing: declaring that
-  the data may be taken after the drop (`IDataObjectAsyncCapability`).
+- **Paint takes a picture only from a source that allows a move.** It answered "copy" while the
+  demo's picture hovered, showed "Open", and refused it at the drop, with its file and without,
+  as it refused a picture dragged from a page in Edge; the same file dragged from Explorer
+  opened. What differed was not the data: the shell's own data object for the file, dragged from
+  another program, was refused too. It was the actions allowed. `ImageView` allowed a copy alone;
+  with a move allowed beside it Paint takes the picture from its PNG, 240 by 240 with its
+  transparency, and opens the file when one is offered, and says in both cases that it moved it.
+  `ImageView`'s drag therefore allows a copy and a move, the copy proposed, and keeps its picture
+  whatever the target says it did. An application's own drag of a picture or a file has to allow
+  a move for Paint to take it.
+  How it was found, since three wrong conclusions came first: a script's mouse was thought not
+  to count for Paint, until the same script dragged a file from a real Explorer window and Paint
+  opened it; the script's drop point was on the demo's own window, which lay over Paint (the
+  owner saw it); and then the variants of the drag were run one by one against a Paint of the
+  script's own, read by its window title: more actions allowed, the shell's own drag loop, the
+  shell's own items. Only the move mattered. Offering the files as the shell's item list as well
+  stays, since Paint asks for it first; the rest was taken back out.

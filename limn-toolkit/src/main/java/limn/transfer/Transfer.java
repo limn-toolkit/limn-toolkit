@@ -115,7 +115,7 @@ public final class Transfer {
     /**
      * Offers the picture this transfer carries as a file too: a PNG, written to the temporary
      * directory the first time a taker asks for files, and not before. It is for the programs
-     * that take a picture only as a file: a paint program, the desktop, a file manager's folder.
+     * that take a picture only as a file: the desktop, a file manager's folder.
      *
      * <p>Not what a transfer of a picture does by itself: a file is written to disk for it, and
      * where a system asks for a drag's files as the drag begins (macOS does) that is at every

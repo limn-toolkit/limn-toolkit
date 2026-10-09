@@ -91,7 +91,7 @@ public final class ImageView extends Widget<ImageView> {
     /**
      * Lets the user drag the picture out of this view (default off), as
      * {@link DataFormat#IMAGE}, for a target to copy: a drop area of this program, an editor, a
-     * folder. What follows the pointer is the picture as the view shows it, with its own
+     * folder. A target may call what it did a move; the view keeps its picture all the same. What follows the pointer is the picture as the view shows it, with its own
      * transparency, made smaller when the view is large. From the keyboard, the scene's drag key
      * picks it up when the view is focusable. UI thread only.
      *
@@ -106,7 +106,7 @@ public final class ImageView extends Widget<ImageView> {
 
     /**
      * Has a dragged picture offered as a file as well, under this name (default: not). Some
-     * targets take a picture only as a file, a paint program and the desktop among them; for
+     * targets take a picture only as a file, the desktop and a file manager among them; for
      * those the picture is written as a PNG to the temporary directory when one asks for it, see
      * {@link Transfer#withImageAsFile}. It is not done unless asked, since it writes to disk.
      * UI thread only.
@@ -138,6 +138,10 @@ public final class ImageView extends Widget<ImageView> {
         Transfer content = Transfer.of(DataFormat.IMAGE, picture);
         String file = dragFileName;
         return Drag.of(file == null ? content : content.withImageAsFile(file))
+                // A copy is what is proposed; a move is allowed beside it because some programs
+                // take a picture only from a source that allows one, and say they moved it when
+                // they have only taken it (Windows' Paint). The view keeps its picture either way.
+                .allow(limn.transfer.DropAction.COPY, limn.transfer.DropAction.MOVE)
                 .preview(width() * scale, height() * scale, holdX, holdY, canvas -> {
                     canvas.save();
                     try {
