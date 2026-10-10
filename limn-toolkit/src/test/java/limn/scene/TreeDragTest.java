@@ -301,8 +301,9 @@ class TreeDragTest {
         key(Keys.D, mods);
         assertTrue(scene.isDragging());
         List<String> said = scene.queuedAnnouncements();
+        assertEquals(1, said.size(), said.toString());
         assertTrue(said.get(0).startsWith("Dragging notes."), said.toString());
-        assertEquals("Before notes", said.get(said.size() - 1));
+        assertTrue(said.get(0).endsWith("Before notes"), said.toString());
 
         key(Keys.UP, 0);
         assertEquals("Before readme", lastSaid());

@@ -1200,6 +1200,7 @@ public final class Scene {
             announcements.remove(0);
         }
         announcements.add(new Announcement(text, politeness));
+        announced++;
         if (accessibilityLive()) {
             scheduleFrame();
         }
@@ -3836,6 +3837,14 @@ public final class Scene {
     private int dragKeyModifiers = Keys.MOD_SHIFT | (MAC ? Keys.MOD_SUPER : Keys.MOD_CONTROL);
     private @Nullable DragSession dragSession;
     private @Nullable Rect paintedDragImage;
+    /** How many announcements this scene has been asked for: what tells whether a call made one. */
+    private long announced;
+    /**
+     * What a keyboard drag says as it begins, held for the place that follows at once: said with
+     * it as one announcement. An announcement that interrupts cuts off the one before it, and said
+     * apart the place cut off what had been picked up.
+     */
+    private @Nullable String dragBeginning;
 
     /** A drag the scene drives: what is carried, who began it, and who would take it now. */
     private static final class DragSession {
@@ -3923,10 +3932,15 @@ public final class Scene {
                 limn.i18n.I18nString called = w.accessibleName();
                 String what = !drag.description().isEmpty() ? drag.description()
                         : called != null ? called.get() : "";
-                announce(what.isEmpty() ? DragStrings.STARTED_UNNAMED.get() : DragStrings.STARTED.format(what),
-                        limn.accessibility.Accessible.Politeness.ASSERTIVE);
+                dragBeginning = what.isEmpty() ? DragStrings.STARTED_UNNAMED.get() : DragStrings.STARTED.format(what);
                 // Where it is, first: moving something within its own list is the common case.
                 keyboardTarget(w, 0, 0, false);
+                String beginning = dragBeginning;
+                dragBeginning = null;
+                if (beginning != null) {
+                    // Its own widget takes no drop: what was picked up is all there is to say yet.
+                    announce(beginning, limn.accessibility.Accessible.Politeness.ASSERTIVE);
+                }
             } else {
                 addRealTimeTicker(new AutoScroll(session));
                 if (!drag.isWithinWindow() && window != null && WindowPeer.of(window).supportsDrag()) {
@@ -4021,6 +4035,7 @@ public final class Scene {
         limn.transfer.DropAction done = null;
         Widget<?> target = session.target;
         limn.transfer.DropAction action = session.action;
+        long saidBefore = announced;
         if (target != null && drop && action != null) {
             DropEvent event = new DropEvent(session.x, session.y, modifiers, session.keyboard,
                     session.offer, action, session.source);
@@ -4029,7 +4044,9 @@ public final class Scene {
         } else if (target != null) {
             target.dispatchDragExit(dragEvent(session, 0, 0));
         }
-        if (session.keyboard) {
+        // A target that said where what it took went ("Total, 3 of 12") has said the outcome,
+        // and "Dropped" after it would cut that off.
+        if (session.keyboard && !(done != null && announced != saidBefore)) {
             announce((done != null ? DragStrings.DROPPED : DragStrings.CANCELLED).get(),
                     limn.accessibility.Accessible.Politeness.ASSERTIVE);
         }
@@ -4146,7 +4163,10 @@ public final class Scene {
             collectDropCandidates(keyboardRoot(), all);
             place = DragStrings.TARGET.format(all.indexOf(widget) + 1, all.size());
         }
-        announce(place, limn.accessibility.Accessible.Politeness.ASSERTIVE);
+        String beginning = dragBeginning;
+        dragBeginning = null;
+        announce(beginning == null ? place : beginning + " " + place,
+                limn.accessibility.Accessible.Politeness.ASSERTIVE);
         return true;
     }
 

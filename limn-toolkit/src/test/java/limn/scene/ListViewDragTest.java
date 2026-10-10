@@ -251,8 +251,9 @@ class ListViewDragTest {
         key(Keys.D, mods);
         assertTrue(scene.isDragging());
         List<String> said = scene.queuedAnnouncements();
+        assertEquals(1, said.size(), "what was picked up and where it stands are one announcement: " + said);
         assertTrue(said.get(0).startsWith("Dragging banana."), said.toString());
-        assertEquals("Before banana", said.get(said.size() - 1));
+        assertTrue(said.get(0).endsWith("Before banana"), said.toString());
 
         key(Keys.DOWN, 0);
         key(Keys.DOWN, 0);
@@ -261,6 +262,7 @@ class ListViewDragTest {
         assertFalse(scene.isDragging());
         assertEquals(List.of("reorder [banana] at 2"), log);
         assertEquals(List.of("apple", "cherry", "banana", "date", "elder"), fruit);
+        assertEquals("banana, 3 of 5", lastSaid(), "where it went is the outcome: no \"Dropped\" cuts it off");
 
         log.clear();
         key(Keys.D, mods);

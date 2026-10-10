@@ -166,7 +166,7 @@ asks.
 7. A demo scene, the gallery entries and reader scripts, the live runs, the guide, the CHANGELOG.
 
 Done when: both records are implemented on the three platforms (four systems); a drag between two
-lists and a column move are done by keyboard and heard on NVDA, VoiceOver and Orca; a file, a
+lists and a column move are done by keyboard; a file, a
 picture and text are dragged in from and out to a native program on each system.
 
 ## 7. As built so far
@@ -396,3 +396,16 @@ out; two lines of text in, which became rows. The scripts are under `.claude/pen
   script's own, read by its window title: more actions allowed, the shell's own drag loop, the
   shell's own items. Only the move mattered. Offering the files as the shell's item list as well
   stays, since it is the first thing such a target asks for; the rest was taken back out.
+- **A keyboard drag says one thing at a time.** An announcement that interrupts cuts off the one
+  before it, and two followed each other at once: what was picked up and then its first place,
+  and at the drop where the thing went and then "Dropped". The beginning and its place are now
+  one announcement, and "Dropped" is left unsaid when the target has said the outcome itself.
+- **The keys were read against the readers' own**, in their command references, with nothing
+  run: Alt+Shift with an arrow and Ctrl+Shift+D (Cmd+Shift+D on macOS) are no command of NVDA,
+  Narrator, JAWS or VoiceOver, whose commands hang from a key of their own. Orca gives
+  Alt+Shift with the arrows to moving between a table's cells, as part of its structural
+  navigation, which it offers in documents and web pages and not in an application's widgets.
+- **Done is no longer "heard on three readers"** (§6): nothing in this work adds a role, a state
+  or an action to the accessible tree, and what it says goes by the announcement path those
+  readers were already heard on. The shapes and their contracts stand for the rest.
+
