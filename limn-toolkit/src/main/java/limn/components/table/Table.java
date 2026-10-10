@@ -3514,9 +3514,15 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                         && focusColumn < shownCount) {
                     float left = columnLeft(focusColumn, rowX, w, rtl);
                     float inset = Strokes.FOCUS_RING_THIN;
+                    // The ring of a cell that scrolls goes under the kept columns with its cell:
+                    // drawn after them and unclipped, it stood on top of the column it was under.
+                    boolean under = focusColumn >= kept && clipToScrolling(canvas, kept, rowX, w, rtl);
                     canvas.drawRoundRect(left + inset, top + inset,
                             colW[focusColumn] - 2 * inset, slot.height - 2 * inset,
                             t.radiusSmall(), Strokes.FOCUS_RING_THIN, theme.focusRing());
+                    if (under) {
+                        canvas.restore();
+                    }
                 }
             }
         } finally {
@@ -3627,9 +3633,14 @@ public final class Table<T> extends Widget<Table<T>> implements Scrollable {
                     // both stops (decision 36 of 2026-09-14; renders reviewed by the owner).
                     float left = columnLeft(headerColumn, rowX, w, rtl);
                     float inset = Strokes.FOCUS_RING_THIN;
+                    int keptNow = frozen();
+                    boolean under = headerColumn >= keptNow && clipToScrolling(canvas, keptNow, rowX, w, rtl);
                     canvas.drawRoundRect(left + inset, inset, colW[headerColumn] - 2 * inset,
                             headerH - 2 * inset, t.radiusSmall(), Strokes.FOCUS_RING_THIN,
                             theme.focusRing());
+                    if (under) {
+                        canvas.restore();
+                    }
                 }
             } finally {
                 canvas.restore();

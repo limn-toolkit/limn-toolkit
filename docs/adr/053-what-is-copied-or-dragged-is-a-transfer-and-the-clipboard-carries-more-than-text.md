@@ -1,8 +1,8 @@
 # ADR 053: What is copied or dragged is a transfer, and the clipboard carries more than text
 
 - **Status:** Implemented, 2026-10-08, with the owner's answers below; §6 says what was
-  measured on each system and where the build departs from the text. Nothing is owed: of the
-  two things §6 listed, one was measured on 2026-10-10 and the other is a declared limit.
+  measured on each system and where the build departs from the text. Nothing is owed: the
+  two things §6 listed were both measured on 2026-10-10.
 - **Date:** 2026-10-08
 - **Scope:** a new package `limn.transfer` (`DataFormat`, `Transfer`, `Offer`) that says what a
   copy or a drag carries; `limn.backend.Clipboard` reshaped around it; text, image, HTML, files and
@@ -131,8 +131,8 @@ No shim: Win32 and COM through the calls the UIA bridge already makes, Objective
 - The X11 and Wayland primary selection (the middle-click paste): text controls do not have it
   today and it is additive.
 - Marking a copy as concealed from clipboard managers; rich text (RTF); a clipboard history.
-- Mutter (GNOME on Wayland) is not measured: the lab has no such session. A declared limit
-  (the owner, 2026-10-10), said in the CHANGELOG; Wayland was measured on KWin.
+- Mutter (GNOME on Wayland) was left unmeasured here, the lab having no such session, until
+  the owner switched the Ubuntu guest to one on 2026-10-10: §6.
 
 ## 5. Verification
 
@@ -188,7 +188,14 @@ What was owed, and how it closed (2026-10-10):
   to paths; and Finder pastes the three files the toolkit copied, into a folder, the clipboard
   having been emptied first so that nothing else could be what it pasted. The guest's result
   was the guest's, and no fault of this code or of AppKit's.
-- **Mutter** (GNOME on Wayland) is a declared limit, as §4 says.
+- **Mutter** (GNOME 46 on Wayland, the Ubuntu guest once the owner had it start that
+  session). The demo copied text, an HTML table, a lazy picture and two files on a real click;
+  another program, a GTK 3 one reading through the compositor's bridge to X clients, got the
+  text, the HTML, both files and the picture, 240 by 120 with its alpha, made when it asked.
+  The other way, that program owned a picture and the demo's paste listed and showed it.
+  Driven with no root and no prompt through Mutter's own RemoteDesktop and ScreenCast
+  interfaces on the session bus (pointer, keys, and prints off the PipeWire stream);
+  `.claude/pending/2026-10-10/mutter.py`.
 
 The guests share their clipboard with the host (Parallels). The first runs therefore wrote to
 the owner's clipboard and read from it; later macOS runs paused the guest's sharing agent for

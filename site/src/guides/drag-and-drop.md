@@ -203,9 +203,14 @@ depends on the desktop's clipboard manager.
 
 ## The edges
 
-- **Linking** is not offered under Wayland, whose protocol has copy and move only.
-- **On X11 the pointer does not change shape** to show whether a target would take the drop. The
-  drop itself is answered correctly.
+- **Under Wayland** linking is not offered, the protocol having copy and move only, and with no
+  key held it is the target's preference that decides between those two, not the source's.
+  Shift and Control still ask for a move and a copy.
+- **On X11, a program built on GTK 4** speaks to your window in a way that goes round the
+  channel drags are answered on. Files dropped from one arrive all the same, the desktop's
+  file manager being the usual case, but your widget is not asked while they hover, and
+  anything else such a program drags, text for one, does not arrive. Under Wayland, and from
+  programs built on anything else, a drag is answered in full.
 - **At a fractional display scale under Wayland**, the picture that follows the pointer is
   rounded to a whole scale and may look slightly soft.
 - **In a test**, the headless window has a clipboard of its own and a drag stays inside its
