@@ -44,6 +44,9 @@ several kinds, `new ListView<>(cellFor, recycle)` hands each widget back to you 
 
 {% snippet guide:list-pooled %}
 
+Rows the user rearranges by dragging, and two lists that trade rows, are a few lines more:
+[Drag and drop](/docs/drag-and-drop/) has them.
+
 ### A button in a row
 
 A button in a row acts on that row's item, and how it finds the item depends on where the row's
@@ -188,6 +191,24 @@ Call `refresh()` after your list's contents change, as with `ListView`: the sort
 re-applied, a selected row the list no longer has is dropped and a watcher of the selection
 hears it, and the scroll position is kept.
 :::
+
+### Columns the user arranges
+
+The user moves a column by dragging its header, the whole column following the pointer while
+the others make room, or with Alt+Shift+Left and Right, which move the column the keyboard is
+on. `setColumnReorderingAllowed(false)` turns that off, as resizing can be turned off.
+
+{% snippet guide:table-columns %}
+
+`setFrozenColumns(n)` keeps the first columns in place while the others scroll sideways under
+them: the name beside a year of monthly figures. The user then moves a column only within its
+group, the kept ones or the others, and where the kept columns would leave no room for the
+rest, none is kept.
+
+`onColumnsChange` runs when the *user* moved or resized a column, which is when to save the
+layout: `columns()` answers the order as it stands, hidden columns included, and each column
+its width. Putting a saved layout back is `moveColumn(column, index)` and the widths you saved,
+and neither is reported back to you.
 
 ### Editing a record
 

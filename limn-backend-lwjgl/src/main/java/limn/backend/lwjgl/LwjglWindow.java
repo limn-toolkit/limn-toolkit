@@ -64,7 +64,6 @@ import static org.lwjgl.glfw.GLFW.glfwCreateWindow;
 import static org.lwjgl.glfw.GLFW.glfwDefaultWindowHints;
 import static org.lwjgl.glfw.GLFW.glfwDestroyWindow;
 import static org.lwjgl.glfw.GLFW.glfwFocusWindow;
-import static org.lwjgl.glfw.GLFW.glfwGetClipboardString;
 import static org.lwjgl.glfw.GLFW.glfwGetCursorPos;
 import static org.lwjgl.glfw.GLFW.glfwGetWindowAttrib;
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
@@ -83,7 +82,6 @@ import static org.lwjgl.glfw.GLFW.glfwRequestWindowAttention;
 import static org.lwjgl.glfw.GLFW.glfwRestoreWindow;
 import static org.lwjgl.glfw.GLFW.glfwSetCharCallback;
 import static org.lwjgl.glfw.GLFW.glfwSetCursor;
-import static org.lwjgl.glfw.GLFW.glfwSetClipboardString;
 import static org.lwjgl.glfw.GLFW.glfwSetCursorEnterCallback;
 import static org.lwjgl.glfw.GLFW.glfwRawMouseMotionSupported;
 import static org.lwjgl.glfw.GLFW.glfwSetCursorPos;
@@ -499,10 +497,44 @@ final class LwjglWindow implements WindowPeer {
                 frameRequested = true;
             }
         });
+        if (Platform.current().isWindows() && backend.systemClipboard() != null) {
+            // The system's drag and drop, from and onto this window.
+            windowsDrag = limn.backend.lwjgl.transfer.WindowsDrag.install(
+                    org.lwjgl.glfw.GLFWNativeWin32.glfwGetWin32Window(handle), backend.uiRuntime(),
+                    () -> inputBlocked() ? null : input, this::pointerForDrag,
+                    this::paintDuringDrag, this::animateDuringDrag);
+        }
+        if (backend.nativeClipboard() instanceof limn.backend.lwjgl.transfer.WaylandClipboard wayland) {
+            // The system's drag and drop on Wayland, through the clipboard's own data device.
+            linuxDrag = wayland.register(org.lwjgl.glfw.GLFWNativeWayland.glfwGetWaylandWindow(handle),
+                    () -> inputBlocked() ? null : input, this::toLogical, backend.uiRuntime());
+        }
+        if (backend.nativeClipboard() instanceof limn.backend.lwjgl.transfer.X11Clipboard x11) {
+            // The system's drag and drop on X11, spoken on the clipboard's connection.
+            linuxDrag = x11.drags(backend.uiRuntime()).register(
+                    org.lwjgl.glfw.GLFWNativeX11.glfwGetX11Window(handle),
+                    () -> inputBlocked() ? null : input, this::toLogical);
+        }
         if (MACOS) {
             long view = org.lwjgl.glfw.GLFWNativeCocoa.glfwGetCocoaView(handle);
             if (MacInputContextGate.install(view)) {
                 imeGatedView = view;
+            }
+            // The system's drag and drop, from and onto this view; it shares the pasteboard's
+            // provider class with the clipboard, which is therefore opened first.
+            if (backend.systemClipboard() != null) {
+                macDrag = limn.backend.lwjgl.transfer.MacDrag.install(view, backend.uiRuntime(),
+                        () -> inputBlocked() ? null : input, this::pointerForDrag, logicalToScreenFactor(),
+                        this::paintDuringDrag, this::animateDuringDrag,
+                        () -> {
+                            // The pointer the scene last asked for, set again: GLFW believes it
+                            // is still showing, and a drag's destination has shown others since.
+                            if (!destroyed && imageCursor == null) {
+                                limn.backend.lwjgl.internal.ObjC.msgVoid(limn.backend.lwjgl.internal.ObjC.msg(
+                                        limn.backend.lwjgl.internal.ObjC.cls("NSCursor"), "arrowCursor"), "set");
+                                glfwSetCursor(handle, cursor == Cursor.DEFAULT ? NULL : backend.cursorHandle(cursor));
+                            }
+                        });
             }
             // Every native fullscreen transition, the person's as well as ours, so that
             // isFullscreen() tells the truth about the green button and Control-Command-F too.
@@ -563,7 +595,9 @@ final class LwjglWindow implements WindowPeer {
             }
         });
         glfwSetDropCallback(handle, (win, count, names) -> {
-            if (input != null && !inputBlocked()) {
+            // Where this backend answers the system's drags itself, files arrive as any other
+            // drop does, and GLFW's own word of the same drop would be a second one.
+            if (input != null && !inputBlocked() && linuxDrag == null && windowsDrag == null && macDrag == null) {
                 java.util.List<java.nio.file.Path> paths = new java.util.ArrayList<>(count);
                 for (int i = 0; i < count; i++) {
                     paths.add(java.nio.file.Path.of(GLFWDropCallback.getName(names, i)));
@@ -600,22 +634,9 @@ final class LwjglWindow implements WindowPeer {
         });
 
         renderer = new GlRenderer(backend.fontStore());
-        clipboard = new limn.backend.Clipboard() {
-            @Override
-            public String get() {
-                // GLFW clipboard access is main-thread only; this is the one
-                // GLFW-touching API the toolkit hands applications directly.
-                backend.uiRuntime().checkUiThread();
-                String value = glfwGetClipboardString(clipboardWindow());
-                return value == null ? "" : value;
-            }
-
-            @Override
-            public void set(@Nullable String text) {
-                backend.uiRuntime().checkUiThread();
-                glfwSetClipboardString(clipboardWindow(), text == null ? "" : text);
-            }
-        };
+        limn.backend.Clipboard system = backend.systemClipboard();
+        clipboard = system != null ? system
+                : new GlfwClipboard(this::clipboardWindow, backend.uiRuntime()::checkUiThread);
     }
 
     /**
@@ -1113,6 +1134,14 @@ final class LwjglWindow implements WindowPeer {
         }
         if (cocoaWindow != NULL) {
             MacFullscreen.forget(cocoaWindow);
+        }
+        if (windowsDrag != null) {
+            windowsDrag.close();
+            windowsDrag = null;
+        }
+        if (linuxDrag != null) {
+            linuxDrag.close();
+            linuxDrag = null;
         }
         glfwDestroyWindow(handle);
     }
@@ -2197,6 +2226,63 @@ final class LwjglWindow implements WindowPeer {
         // scale logical coordinates are defined against; otherwise popups
         // mis-position in forced-scale (screenshot) mode.
         return effectiveScale() / (pixelsPerScreenCoord <= 0 ? 1 : pixelsPerScreenCoord);
+    }
+
+    private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable MacDrag macDrag;
+    private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable WindowsDrag windowsDrag;
+    private limn.backend.lwjgl.transfer.@org.jspecify.annotations.Nullable WindowDrag linuxDrag;
+
+    /** The pointer in logical points, x then y, and the content's logical height: what a drag is placed by. */
+    private float[] pointerForDrag() {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            java.nio.DoubleBuffer cx = stack.mallocDouble(1);
+            java.nio.DoubleBuffer cy = stack.mallocDouble(1);
+            org.lwjgl.glfw.GLFW.glfwGetCursorPos(handle, cx, cy);
+            return new float[] {toLogical(cx.get(0)), toLogical(cy.get(0)), logicalHeight()};
+        }
+    }
+
+    @Override
+    public boolean supportsDrag() {
+        return (macDrag != null || windowsDrag != null || linuxDrag != null) && !destroyed;
+    }
+
+    @Override
+    public boolean startDrag(limn.backend.spi.DragRequest request) {
+        backend.uiRuntime().checkUiThread();
+        if (destroyed) {
+            return false;
+        }
+        if (windowsDrag != null) {
+            return windowsDrag.start(request);
+        }
+        if (linuxDrag != null) {
+            return linuxDrag.start(request);
+        }
+        return macDrag != null && macDrag.start(request);
+    }
+
+    /** Paints now, from inside a loop the system runs while it drives a drag. */
+    private void paintDuringDrag() {
+        frameRequested = true;
+        renderNow(true);
+    }
+
+    /**
+     * Between two events of a drag the system drives: the frame the scene asked for, if any (a
+     * row sliding), and whether it asks for another; or, with none asked, the same frame again
+     * so that both buffers hold it, which the loop does when idle and does not turn here. A mark
+     * where a drop would land stayed behind without it.
+     */
+    private boolean animateDuringDrag() {
+        if (destroyed) {
+            return false;
+        }
+        if (!frameRequested) {
+            syncBuffers(true);
+            return false;
+        }
+        return renderNow(true) && frameRequested;
     }
 
     @Override

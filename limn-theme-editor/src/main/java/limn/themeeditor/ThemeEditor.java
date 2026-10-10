@@ -435,7 +435,7 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
     /** Puts the palette on the clipboard as {@link ThemeFormat} text. */
     public void copyToClipboard() {
         Ui.checkUiThread();
-        clipboard().set(ThemeFormat.write(theme()));
+        clipboard().setText(ThemeFormat.write(theme()));
         status.setText(ThemeEditorStrings.COPIED);
     }
 
@@ -448,7 +448,7 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
      */
     public boolean pasteFromClipboard() {
         Ui.checkUiThread();
-        String text = clipboard().get();
+        String text = clipboard().text();
         if (text == null || text.isBlank()) {
             return false;
         }

@@ -148,4 +148,25 @@ public non-sealed interface WindowPeer extends NativeWindow {
      */
     default void publishAccessibilityElsewhere() {
     }
+
+    /**
+     * @return whether this window can hand a drag to the system, so that it leaves the window:
+     *         {@link #startDrag} is worth preparing a picture for
+     */
+    default boolean supportsDrag() {
+        return false;
+    }
+
+    /**
+     * Hands a drag to the system, while a mouse button is down in this window. From here until
+     * {@code request.ended()} is told, the pointer is the system's: the window hears no pointer
+     * events, and what is under the pointer in this window or another is asked through
+     * {@link WindowInput#dragOver}.
+     *
+     * @param request what is dragged and who hears the end
+     * @return whether the system took it; false leaves the drag to the scene
+     */
+    default boolean startDrag(DragRequest request) {
+        return false;
+    }
 }

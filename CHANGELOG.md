@@ -212,6 +212,63 @@ Maven Central say which number that was.
 
 ### New
 
+- `limn.transfer`: what a copy carries. A `Transfer` offers one item in several `DataFormat`s at
+  once (`TEXT`, `HTML`, `IMAGE`, `FILES`, and formats of the application's own: `DataFormat.of`
+  names one and says how it becomes bytes, `DataFormat.inProcess` carries the object itself), a
+  value can be lazy (`withLazy`: made once, when somebody asks), and what is there to take is an
+  `Offer` that lists its formats at once and reads a value asynchronously.
+  `Clipboard.set(Transfer)` and `Clipboard.content()` carry them, and `onChange` hears the
+  content change.
+- Drag and drop between widgets. A widget answers `onDragStart` with a `Drag` (what it carries
+  as a `Transfer`, the actions it allows, what to hear at the end); the widget under the pointer
+  accepts in `onDragOver`, marks where the drop would land, and takes it in `onDrop`. The
+  modifier keys choose between copy, move and link as the platform does, Escape cancels, and a
+  widget that scrolls under the wheel scrolls when the pointer rests near its edge. The keyboard
+  does the same: Ctrl+Shift+D (Cmd+Shift+D on macOS, `Scene.setDragKey`) picks up on the focused
+  widget, Tab walks the widgets that accept, the arrow keys choose the place, Enter drops, and a
+  screen reader hears each step in the 21 languages.
+- A drag leaves its window, on Windows, macOS, X11 and Wayland: it is the system's own drag, to
+  and from other programs, with the picture of what is dragged following the pointer over them,
+  and what another program drags in is answered while it hovers. `Drag.withinWindow()` keeps
+  one from being offered outside. `-Dlimn.drag.trace=true` prints each step of a drag handed to
+  the system.
+- `ListView` and `Tree` drag their rows. `setDragEnabled(true)` lets the user drag them out,
+  the selected ones together, as `ListView.ITEMS` or `Tree.NODES` for the program's own widgets
+  and as text for any other (`setDragContent` says otherwise). `onReorder` lets them be moved
+  within the widget, by a drag or with Alt+Shift and an arrow: Up and Down in a list, and in a
+  tree Left out one level and Right into the sibling before; dropped on a tree's node they go
+  into it, near its edge before or after it, and a closed node the pointer rests on opens.
+  `onMoveOut` hears that they were moved somewhere else, and `onDrop` with `setDropFormats`
+  takes what is dropped between two rows, from another list, another widget or another
+  program; `setDropAction` has a drop be a copy, or a move, wherever the source allows it, and
+  `setDragWithinWindow(true)` keeps the rows from being offered to another program. What is dragged lifts out of its place, room opens where it would land and the rows
+  slide to it, at once under reduced motion.
+- `ImageView.setDragEnabled(true)`: the picture is dragged out of its view with its own
+  transparency, to a drop area of the program or to another program.
+  `setDragFileName("logo.png")`, and `Transfer.withImageAsFile` for a drag of the
+  application's own, offer it as a file too, for the targets that take a picture only as one,
+  the desktop and a folder among them: a PNG written to the temporary directory when a target
+  asks for files (on macOS at each drag) and deleted when the program ends. Not done unless
+  asked, since it writes to disk. `setDragWithinWindow(true)` keeps the picture in its window.
+- What is dragged shows under the pointer as it is painted. `Drag.preview(width, height, holdX,
+  holdY, painter)` has the source paint the dragged thing alone on a transparent surface, so a
+  card keeps its rounded corners and a picture its own transparency, inside the window and over
+  any other program; `Drag.preview(x, y, width, height)` shows a part of the source widget as it
+  stands. `Canvas.readBack` reads a part of the frame back with its transparency.
+- `Table`: the user moves a column by dragging its header (the whole column follows along the
+  header and the others make room) or with Alt+Shift+Left and Right
+  (`setColumnReorderingAllowed(false)` turns it off), the application with
+  `moveColumn(column, index)`, and `columns()` answers the order as it stands.
+  `setFrozenColumns(n)` keeps the first columns in place while the others scroll under them.
+  `onColumnsChange` is told when the user moved or resized a column, which is when to save the
+  layout.
+- The clipboard carries all of it to and from other programs on Windows, macOS, X11 and Wayland:
+  a picture pasted from a screenshot tool, files copied in the file manager, a table copied to a
+  spreadsheet as HTML. A lazy value is made when a program first pastes it. On Windows and macOS
+  what was copied stays on the clipboard after the application leaves. Where the native
+  clipboard does not open, text still reaches other programs and the rest pastes within the
+  application; `-Dlimn.clipboard=glfw` asks for that.
+
 - `ComboBox.setEditable(true)`: a combo box the user types into. Typing filters the list, with the
   items whose text contains what was typed, ignoring case and accents, and those that start with it
   first; Down and Up walk it, Enter picks, Escape closes it and a second Escape puts the selected
@@ -341,6 +398,8 @@ Maven Central say which number that was.
 
 ### Changed
 
+- A table's header sorts when it is clicked, on the release, and no longer on the press: a press
+  that travels now moves the column.
 - A popup menu in a window of its own leaves the keyboard focus on the window that opened it, as
   Windows' and macOS's own menus do, and is read by screen readers as part of that window. NVDA and
   VoiceOver no longer announce a window as a menu opens and the application's window again as it
@@ -423,6 +482,14 @@ Maven Central say which number that was.
 
 ### Breaking, and how to move
 
+- `Widget.onFileDrop` and `FileDropEvent` are gone: files dragged in from the system are a drop
+  like any other. A widget accepts them in `onDragOver`
+  (`if (event.offer().has(DataFormat.FILES)) event.accept();`) and reads them in `onDrop`
+  (`event.offer().read(DataFormat.FILES).thenAccept(files -> …)`).
+- `Clipboard.get()` and `set(String)` are `text()` and `setText(String)`, now that the clipboard
+  holds more than text. A class that implements `Clipboard` for a test implements `text()`,
+  `set(Transfer)`, `content()` and `onChange`, or is replaced by `Clipboard.inMemory()`.
+
 - `ComboBox` is `ComboBox<T>`: its items are objects, read by a function or as themselves.
   `new ComboBox(List.of("a", "b"))` becomes `new ComboBox<>(List.of("a", "b"))`, and
   `new ComboBox<>(customers, Customer::name)` shows objects. `onSelect` takes a `Runnable`, as
@@ -457,6 +524,16 @@ Maven Central say which number that was.
   own windows passes the owner to `WindowConfig.popup` or `ownedBy` instead.
 
 ### Known, and left for later
+
+- The clipboard and the drag on GNOME under Wayland (Mutter) are not measured yet; under
+  Wayland both were measured on KWin.
+- Of a drag between programs: files dragged in from a file manager were measured on macOS
+  only, and the modifier keys that choose copy, move or link during a drag handed to the
+  system were not exercised on any. Under Wayland there is no link, the protocol having copy
+  and move only, and at a fractional scale the picture that follows the pointer is rounded to
+  a whole one. On X11 the pointer does not change shape to show a target's answer.
+- In a `Table` with frozen columns, the focus ring of a cell scrolled under them is drawn over
+  them.
 
 - In a combo holding many, VoiceOver reads each toggle as the field's new value followed by "text
   inserted", and now and then a lone "None" around the Escape that closes an editable one's list

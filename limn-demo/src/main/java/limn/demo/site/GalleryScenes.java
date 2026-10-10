@@ -556,38 +556,58 @@ final class GalleryScenes {
     static Built listView() {
         // Rows are materialised on demand: the list only ever builds what the viewport
         // shows, so this adapter would cost the same with a million rows.
-        List<String> rows = java.util.stream.IntStream.rangeClosed(1, 1000)
-                .mapToObj(i -> "Row " + i).toList();
+        List<String> rows = new java.util.ArrayList<>(java.util.stream.IntStream.rangeClosed(1, 1000)
+                .mapToObj(i -> "Row " + i).toList());
         ListView<String> list = new ListView<>(
                 text -> new Padding(limn.scene.Insets.symmetric(8, 12), new Label(text)));
         list.setItems(rows);
+        // Rows the user rearranges: dragged to another place, or moved with Alt+Shift+Up and
+        // Down. The list shows the move and the handler makes it, in the application's own list.
+        list.setDragEnabled(true);
+        list.onReorder((moved, index) -> {
+            rows.removeAll(moved);
+            rows.addAll(index, moved);
+        });
         return scene(new SizedBox(320, 130, list));
     }
     // #endregion
 
     // #region gallery:tree
     static Built tree() {
-        record Node(String name, java.util.List<Node> kids) {
+        // The application's own node. A class and not a record: a node is the same node after
+        // its children change, which is what the tree keeps a branch open by.
+        final class Node {
+            final String name;
+            final java.util.List<Node> kids;
+
+            Node(String name, Node... kids) {
+                this.name = name;
+                this.kids = new java.util.ArrayList<>(List.of(kids));
+            }
+
+            boolean take(Node node) {
+                return kids.remove(node) || kids.stream().anyMatch(kid -> kid.take(node));
+            }
         }
         // The model answers three questions about the application's own objects: where the tree
         // starts, what is under a node, and what widget draws one. Nothing here is a node type
         // the toolkit owns.
-        java.util.List<Node> roots = List.of(
-                new Node("Documents", List.of(
-                        new Node("Reports", List.of(new Node("2026.pdf", List.of()))),
-                        new Node("notes.md", List.of()))),
-                new Node("Media", List.of(new Node("clip.mp4", List.of()))),
-                new Node("archive.zip", List.of()));
+        Node top = new Node("",
+                new Node("Documents",
+                        new Node("Reports", new Node("2026.pdf")),
+                        new Node("notes.md")),
+                new Node("Media", new Node("clip.mp4")),
+                new Node("archive.zip"));
         limn.components.tree.Tree<Node> tree = new limn.components.tree.Tree<>(
                 new limn.components.tree.Tree.Model<Node>() {
                     @Override
                     public java.util.List<Node> roots() {
-                        return roots;
+                        return top.kids;
                     }
 
                     @Override
                     public java.util.List<Node> children(Node node) {
-                        return node.kids();
+                        return node.kids;
                     }
 
                     @Override
@@ -596,21 +616,30 @@ final class GalleryScenes {
                         // and the triangle, and hands the rest of the width to this. An icon
                         // before the text and a count against the trailing edge are composed
                         // here, not configured on the widget.
-                        Label text = new Label(node.name());
-                        text.setIcon(limn.graphics.SvgIcon.fromResource(node.kids().isEmpty()
+                        Label text = new Label(node.name);
+                        text.setIcon(limn.graphics.SvgIcon.fromResource(node.kids.isEmpty()
                                 ? "/limn/components/icons/info.svg"
                                 : "/limn/components/icons/settings.svg"));
                         Row row = new Row();
                         row.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
                         row.add(limn.scene.layout.Expanded.of(text));
-                        if (!node.kids().isEmpty()) {
-                            row.add(new Label(String.valueOf(node.kids().size())).setMuted(true));
+                        if (!node.kids.isEmpty()) {
+                            row.add(new Label(String.valueOf(node.kids.size())).setMuted(true));
                         }
                         return new Padding(limn.scene.Insets.symmetric(6, 4), row);
                     }
                 });
-        tree.expand(roots.get(0));
-        tree.setSelected(roots.get(0).kids().get(1));
+        // Nodes the user rearranges: dropped on a node they go into it, near its edge before
+        // or after it, and Alt+Shift with an arrow moves the selected one. A null parent is the
+        // top level.
+        tree.setDragEnabled(true);
+        tree.onReorder((nodes, parent, index) -> {
+            nodes.forEach(top::take);
+            (parent == null ? top : parent).kids.addAll(index, nodes);
+        });
+        Node documents = top.kids.get(0);
+        tree.expand(documents);
+        tree.setSelected(documents.kids.get(1));
         return scene(new SizedBox(300, 190, tree));
     }
     // #endregion
@@ -629,10 +658,12 @@ final class GalleryScenes {
         limn.components.table.Table<Release> table = new limn.components.table.Table<>(List.of(
                 limn.components.table.Column.text("Name", Release::name).width(120).weight(1),
                 limn.components.table.Column.text("Platform", Release::platform).width(100),
-                limn.components.table.Column.numeric("Downloads", Release::downloads).width(110)));
+                limn.components.table.Column.numeric("Downloads", Release::downloads).width(124)));
         table.setRows(rows);
         table.setSort(table.columns().get(2), limn.components.table.SortOrder.DESCENDING);
         table.setSelectedRow(2);
+        // Nothing here asks for it: the user moves a column by dragging its header, or with
+        // Alt+Shift+Left and Right, and columns() answers the order as it stands.
         return scene(new SizedBox(360, 200, table));
     }
     // #endregion
@@ -707,6 +738,8 @@ final class GalleryScenes {
         }
         ImageView view = new ImageView(new limn.graphics.Image(size, size, pixels));
         view.setPreferredSize(96, 96);
+        // The picture can be dragged out, to a drop area of this program or to another one.
+        view.setDragEnabled(true);
         return scene(view);
     }
     // #endregion

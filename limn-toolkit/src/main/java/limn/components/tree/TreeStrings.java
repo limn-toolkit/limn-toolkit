@@ -69,4 +69,15 @@ final class TreeStrings {
     // carries exactly the forms it uses — one line for Japanese, three for Russian, six for Arabic.
     static final PluralString LOADED_ANNOUNCEMENT = PluralString.of(
             "limn.tree.loadedAnnouncement", "{0}, {1} item", "{0}, {1} items");
+
+    // A tree whose nodes the user moves (Tree.onReorder), by dragging or with Alt+Shift and an
+    // arrow: said after each move. {0} is the node's name, or ITEMS for several; then its place
+    // among its siblings and how many they are; and the node it went into, when it has one.
+    static final I18nString MOVED = new I18nString("limn.tree.moved", "{0}, {1} of {2}");
+    static final I18nString MOVED_INTO = new I18nString("limn.tree.movedInto", "{0}, {1} of {2}, in {3}");
+    static final PluralString ITEMS = PluralString.of("limn.tree.items", "{0} item", "{0} items");
+    // Where a keyboard drag would drop: said at each arrow.
+    static final I18nString DROP_BEFORE = new I18nString("limn.tree.dropBefore", "Before {0}");
+    static final I18nString DROP_AFTER = new I18nString("limn.tree.dropAfter", "After {0}");
+    static final I18nString DROP_INTO = new I18nString("limn.tree.dropInto", "Into {0}");
 }

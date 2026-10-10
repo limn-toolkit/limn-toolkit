@@ -111,6 +111,16 @@ final class TableScene {
         actions.add(new Button("Select all").onAction(table::selectAll));
         actions.add(new Button("Clear").onAction(table::clearSelection));
         actions.add(new Button("Model order").onAction(() -> table.setSort(null, SortOrder.NONE)));
+        // Phase 2: the first two columns kept in place while the others scroll (narrow the window
+        // to see it), and the status line saying the order after the user moves a column.
+        actions.add(new Checkbox("Keep # and Customer").onChange(keep -> table.setFrozenColumns(keep ? 2 : 0)));
+        table.onColumnsChange(() -> {
+            StringBuilder order = new StringBuilder("Columns: ");
+            for (Column<Order> column : table.columns()) {
+                order.append(column.title().get()).append(' ');
+            }
+            status.setText(order.toString().trim());
+        });
         actions.add(Expanded.of(status));
 
         limn.scene.layout.Column page = new limn.scene.layout.Column();

@@ -124,8 +124,10 @@ class ClosedWindowTest {
                 return;
             }
             try (backend) {
-                NativeWindow keeper = backend.createWindow(WindowConfig.of("keeper", 160, 90));
-                NativeWindow gone = backend.createWindow(WindowConfig.of("gone", 160, 90));
+                // Shown, since that is what is tested, but not seen: fully transparent and taking
+                // no focus. These flashed over the developer's work at every check.
+                NativeWindow keeper = unseen(backend, "keeper");
+                NativeWindow gone = unseen(backend, "gone");
                 keeper.show();
                 gone.show();
                 gone.requestClose();
@@ -135,12 +137,18 @@ class ClosedWindowTest {
             System.out.println("loop ended");
         }
 
+        private static NativeWindow unseen(LwjglBackend backend, String title) {
+            NativeWindow window = backend.createWindow(WindowConfig.of(title, 160, 90).focusOnShow(false));
+            window.setOpacity(0f);
+            return window;
+        }
+
         private static void afterClose(LwjglBackend backend, NativeWindow keeper, NativeWindow gone) {
             if (!gone.isClosed()) {
                 Ui.postDelayed(() -> afterClose(backend, keeper, gone), 20);
                 return;
             }
-            NativeWindow fresh = backend.createWindow(WindowConfig.of("fresh", 160, 90));
+            NativeWindow fresh = unseen(backend, "fresh");
             fresh.show();
 
             gone.setTitle("after close");
@@ -153,7 +161,7 @@ class ClosedWindowTest {
             gone.setAboveSystemChrome(true);
             gone.setOpacity(0.5f);
             gone.focus();
-            gone.clipboard().get();
+            gone.clipboard().text();
             WindowPeer.of(gone).publishAccessibilityElsewhere();
             System.out.println("read back: visible=" + gone.isVisible()
                     + " at=" + gone.screenX() + "," + gone.screenY()

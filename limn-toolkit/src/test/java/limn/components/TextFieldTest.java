@@ -51,17 +51,35 @@ class TextFieldTest extends ComponentTestBase {
     /** Left inset of the text run at MEDIUM: every expected x below is measured from it. */
     private static final float PAD = SizeTokens.of(ControlSize.MEDIUM).fieldPadH();
 
+    /** A clipboard of text alone whose content a test reads and writes as a field. */
     static final class MockClipboard implements Clipboard {
         String value = "";
 
+        static MockClipboard holding(String text) {
+            MockClipboard clipboard = new MockClipboard();
+            clipboard.value = text;
+            return clipboard;
+        }
+
         @Override
-        public String get() {
+        public String text() {
             return value;
         }
 
         @Override
-        public void set(String text) {
-            value = text;
+        public void set(limn.transfer.Transfer content) {
+            String text = content.get(limn.transfer.DataFormat.TEXT);
+            value = text == null ? "" : text;
+        }
+
+        @Override
+        public limn.transfer.Offer content() {
+            return limn.transfer.Transfer.of(limn.transfer.DataFormat.TEXT, value).asOffer();
+        }
+
+        @Override
+        public limn.concurrent.Subscription onChange(Runnable listener) {
+            return () -> { };
         }
     }
 

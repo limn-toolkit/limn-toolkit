@@ -85,8 +85,11 @@ class SoftwareGlExitTest {
                 return;
             }
             try (backend) {
-                NativeWindow main = backend.createWindow(WindowConfig.of("main", 200, 120));
+                // Shown but not seen: transparent and taking no focus, so a check does not flash it.
+                NativeWindow main = backend.createWindow(WindowConfig.of("main", 200, 120).focusOnShow(false));
+                main.setOpacity(0f);
                 NativeWindow popup = backend.createWindow(WindowConfig.popup(main, 120, 80));
+                popup.setOpacity(0f);
                 System.out.println("renderer=" + backend.graphicsInfo().renderer());
                 main.show();
                 popup.show();

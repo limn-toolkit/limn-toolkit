@@ -231,19 +231,26 @@ does, so your code does not need a special case.
 
 ## Files dropped onto your window
 
-Files dragged from the desktop arrive as an event on the widget under the pointer, bubbling
-up like any other. Override `onFileDrop` on the widget you want to be a drop target and
-consume the event:
+Files dragged from the desktop are a drop like any other. The widget under the pointer is asked
+whether it takes what is offered, and its parents after it; the one that accepts is handed the
+files:
 
 ```java
 @Override
-protected void onFileDrop(FileDropEvent event) {
-    for (Path path : event.paths()) {
-        open(path);
+protected void onDragOver(DragEvent event) {
+    if (event.offer().has(DataFormat.FILES)) {
+        event.accept();
     }
-    event.consume();
+}
+
+@Override
+protected void onDrop(DropEvent event) {
+    event.offer().read(DataFormat.FILES).thenAccept(files -> files.forEach(this::open));
 }
 ```
+
+[Drag and drop](/docs/drag-and-drop/) has the rest: what else a drop can carry, and dragging
+out of your window.
 
 ## Displays and resolutions
 

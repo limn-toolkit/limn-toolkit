@@ -64,7 +64,7 @@ class ShippedTranslationsTest extends ComponentTestBase {
         // build a date widget, so this class passed in the suite and failed on its own, calling
         // every dates key an orphan.
         initialise("limn.components.date.DateStrings", "limn.components.tree.TreeStrings",
-                "limn.components.table.TableStrings");
+                "limn.components.table.TableStrings", "limn.scene.DragStrings");
         return I18n.declaredKeys().keySet().stream()
                 .filter(key -> key.startsWith("limn."))
                 .collect(Collectors.toCollection(TreeSet::new));
@@ -270,7 +270,7 @@ class ShippedTranslationsTest extends ComponentTestBase {
     @Test
     void everyDeclaredLocaleHasTheComponentChromeAndTheThemeNames() {
         for (String tag : LOCALES) {
-            for (String domain : List.of("components", "theme")) {
+            for (String domain : List.of("components", "theme", "scene")) {
                 assertTrue(Files.exists(COMPONENT_RESOURCES.resolve(domain + "_" + tag + ".properties")),
                         "missing " + domain + " translation for " + tag);
             }

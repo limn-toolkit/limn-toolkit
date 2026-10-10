@@ -69,8 +69,16 @@ class SceneInputTest extends SceneTestBase {
         }
 
         @Override
-        protected void onFileDrop(limn.scene.event.FileDropEvent event) {
-            log.add(name + ":DROP" + event.paths().size());
+        protected void onDragOver(limn.scene.event.DragEvent event) {
+            if (event.offer().has(limn.transfer.DataFormat.FILES)) {
+                event.accept();
+            }
+        }
+
+        @Override
+        protected void onDrop(limn.scene.event.DropEvent event) {
+            event.offer().read(limn.transfer.DataFormat.FILES)
+                    .thenAccept(files -> log.add(name + ":DROP" + files.size()));
         }
 
         @Override
@@ -420,7 +428,7 @@ class SceneInputTest extends SceneTestBase {
                 10, 150);
         drive(scene).inputBatchEnded();
 
-        assertEquals(List.of("b:DROP2"), log, "the drop bubbles from the widget under the pointer");
+        assertEquals(List.of("b:DROP2"), log, "the widget under the point that accepts files gets them");
     }
 
     @Test

@@ -2184,7 +2184,7 @@ public final class TextArea extends Widget<TextArea> {
             case Keys.X -> handled = shortcut && copySelection(true);
             case Keys.V -> {
                 if (shortcut) {
-                    String pasted = clipboard().get();
+                    String pasted = clipboard().text();
                     if (!pasted.isEmpty()) {
                         editFromUser(() -> model.insert(pasted));
                     }
@@ -2280,7 +2280,7 @@ public final class TextArea extends Widget<TextArea> {
 
             @Override
             public String clipboardText() {
-                return clipboard().get();
+                return clipboard().text();
             }
 
             @Override
@@ -2297,7 +2297,7 @@ public final class TextArea extends Widget<TextArea> {
 
             @Override
             public void paste() {
-                String pasted = clipboard().get();
+                String pasted = clipboard().text();
                 if (!pasted.isEmpty()) {
                     editFromUser(() -> model.insert(pasted));
                     ensureCursorVisible();
@@ -2317,7 +2317,7 @@ public final class TextArea extends Widget<TextArea> {
         if (!model.hasSelection()) {
             return false;
         }
-        clipboard().set(model.selectedText());
+        clipboard().setText(model.selectedText());
         if (cut) {
             model.deleteSelection();
             announceTextEdit(Change.Origin.USER);

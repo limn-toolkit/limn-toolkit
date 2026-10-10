@@ -28,4 +28,9 @@ final class TableStrings {
             new I18nString("limn.table.sortedAscending", "Sorted ascending");
     static final I18nString SORTED_DESCENDING =
             new I18nString("limn.table.sortedDescending", "Sorted descending");
+
+    // What is said when a column is moved, and where it would stand while the keyboard drags it:
+    // its title and its place among the shown columns.
+    static final I18nString COLUMN_MOVED =
+            new I18nString("limn.table.columnMoved", "{0}, column {1} of {2}");
 }

@@ -5,7 +5,7 @@ package limn.scene.event;
  * mutable bit is consumption: a handler that fully processed the event calls
  * {@link #consume()} and bubbling stops.
  */
-public abstract sealed class InputEvent permits MouseEvent, KeyEvent, CharEvent, PreeditEvent, FileDropEvent {
+public abstract sealed class InputEvent permits MouseEvent, KeyEvent, CharEvent, PreeditEvent {
 
     private boolean consumed;
 

@@ -139,7 +139,10 @@ class ApplicationEndingProcessTest {
             LoopEnd end;
             try (backend) {
                 for (String name : List.of("A", "B", "C")) {
-                    NativeWindow window = backend.createWindow(WindowConfig.of(name, 160, 90));
+                    // Shown, since that is what is tested, but not seen: fully transparent and
+                    // taking no focus. These flashed over the developer's work at every check.
+                    NativeWindow window = backend.createWindow(WindowConfig.of(name, 160, 90).focusOnShow(false));
+                    window.setOpacity(0f);
                     window.show();
                     windows.add(window);
                 }

@@ -4,6 +4,7 @@ import limn.components.SelectionMode;
 
 import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
+import limn.components.internal.RowDragPicture;
 import limn.components.internal.a11y.RowsAccessibility;
 import limn.components.Accelerator;
 import limn.components.ScrollBar;
@@ -24,8 +25,15 @@ import limn.scene.Constraints;
 import limn.scene.Scrollable;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.scene.event.DragEvent;
+import limn.scene.event.DragStartEvent;
+import limn.scene.event.DropEvent;
 import limn.scene.event.KeyEvent;
 import limn.scene.event.MouseEvent;
+import limn.transfer.DataFormat;
+import limn.transfer.Drag;
+import limn.transfer.DropAction;
+import limn.transfer.Transfer;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -39,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * An outline over children the application provides: one column of rows at a depth, each with an
@@ -202,6 +211,55 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         default float maxCellWidth() {
             return 0;
         }
+    }
+
+    /**
+     * What a dragged node carries unless {@link #setDragContent} says otherwise: the nodes
+     * themselves, for a widget of this same program to take. Beside it goes their text, one line
+     * a node, which is what another program is given.
+     */
+    @SuppressWarnings("unchecked")
+    public static final DataFormat<List<?>> NODES =
+            DataFormat.inProcess("application/x-limn-tree-nodes", (Class<List<?>>) (Class<?>) List.class);
+
+    /**
+     * Nodes of this tree were dragged to another place in it.
+     *
+     * @param <T> the node type
+     */
+    @FunctionalInterface
+    public interface Move<T> {
+        /**
+         * Moves the nodes in the application's data: takes each out of where it is and puts them,
+         * in order, under {@code parent}.
+         *
+         * @param nodes  the nodes moved, in the order shown; none is under another of them
+         * @param parent the node they go under, or {@code null} for the top level; never one of
+         *               them, nor a node under one of them
+         * @param index  where the first of them goes among the children of {@code parent}, counted
+         *               without the nodes moved: 0 puts them first
+         */
+        void move(List<T> nodes, @Nullable T parent, int index);
+    }
+
+    /**
+     * Something was dropped on this tree.
+     *
+     * @param <T> the node type
+     */
+    @FunctionalInterface
+    public interface DropHandler<T> {
+        /**
+         * Takes what was dropped: reads it from {@code event.offer()}, adds it to the data and
+         * calls {@link #refresh()}. {@code event.action()} says whether it is a copy or a move,
+         * and {@code event.reject()} refuses it after all.
+         *
+         * @param event  the drop
+         * @param parent the node it was dropped into, or {@code null} for the top level
+         * @param index  where among the children of {@code parent}: before the child now at that
+         *               index, or after the last when it is their count
+         */
+        void drop(DropEvent event, @Nullable T parent, int index);
     }
 
     /** One visible row: a node, how deep it sits, and what its triangle is doing. */
@@ -443,6 +501,68 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
     private Consumer<T> onActivate;
     private Consumer<T> onExpand;
     private Consumer<T> onCollapse;
+
+    private boolean dragEnabled;
+    private @Nullable Function<? super List<T>, Transfer> dragContent;
+    private @Nullable Move<T> onReorder;
+    private @Nullable Consumer<? super List<T>> onMoveOut;
+    private @Nullable DropHandler<T> onDrop;
+    private List<DataFormat<?>> dropFormats = List.of();
+    private @Nullable DropAction dropAction;
+    private boolean dragWithinWindow;
+    /** The nodes of the drag this tree began and has not heard the end of, or null. */
+    private @Nullable List<T> dragged;
+    /** Whether that drag ended in this tree itself, which moved the nodes already. */
+    private boolean droppedWithin;
+    /** Where a drop would land, or null with none over. */
+    private @Nullable Place<T> dropPlace;
+    /**
+     * A selected node pressed among several, with no modifier: the press keeps the selection, since
+     * it may begin a drag of all of them, and the click that follows makes it the only one.
+     */
+    private @Nullable T pressedAmongSelected;
+    /** The closed node a drag is resting on, which opens after {@link #SPRING_MILLIS}; and its turn. */
+    private @Nullable T springNode;
+    private int springTurn;
+    private static final long SPRING_MILLIS = 700;
+
+    /**
+     * Whether the nodes of a pointer's drag, with what they show under them, are out of the tree
+     * while it lasts: they are under the pointer, so the rows below close over their places.
+     */
+    private boolean lifted;
+    /** How tall the rows lifted out of the viewport are together; zero with none. */
+    private float liftedHeight;
+    /** Whether the place a drop would take was chosen by the keyboard, which opens no room. */
+    private boolean placeByKeyboard;
+    /**
+     * How far from where it belongs each row is drawn at this moment, by row: what is left of a
+     * slide, which a ticker wears down. And where each row was last said to belong, against which
+     * the next change is measured.
+     */
+    private final HashMap<Integer, Float> sliding = new HashMap<>();
+    private final HashMap<Integer, Float> belonged = new HashMap<>();
+    private boolean slideTicking;
+    /**
+     * Rows a drag gave back that are not drawn yet: the rows that closed over their places are
+     * still sliding off them, and drawn at once they stood on top of those.
+     */
+    private java.util.@Nullable BitSet returning;
+    /** Where the rows were drawn before the model changed under them, by node, until the next layout. */
+    private @Nullable HashMap<Object, Float> drawnBefore;
+    private float[] offsets = new float[16];
+    private final java.util.BitSet liftedRows = new java.util.BitSet();
+    /** How long a row takes to cover most of the way to its new place, in seconds. */
+    private static final double SLIDE_SECONDS = 0.08;
+
+    private enum Where { BEFORE, AFTER, INTO }
+
+    /**
+     * A place a drop can land: under {@code parent} (null for the top level) at {@code index}
+     * among its children as they stand, shown against the row of {@code ref}.
+     */
+    private record Place<T>(@Nullable T parent, int index, @Nullable T ref, Where where) {
+    }
 
     /** A tree over {@code model}, which supplies the nodes and the widgets that draw them. */
     public Tree(Model<T> model) {
@@ -1917,6 +2037,8 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         updateAverageHeight();
         vBar.refresh();
         hBar.refresh();
+        newRowsSlideToo();
+        slideToLayout();
     }
 
     /**
@@ -1979,7 +2101,9 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         boolean rtl = isRightToLeft();
         float y = anchorTop;
         int i = anchorIndex;
-        while (i < count && y < viewport) {
+        // Past the viewport by what a drag lifted out of it: the rows below close up, and the
+        // ones that come into view from under the edge have to be there to slide in.
+        while (i < count && y < viewport + liftedHeight) {
             float rowH = measuredHeight(i, contentWidth);
             Widget<?> cell = cellFor(i);
             float lead = cellLeft(t, i, contentWidth);
@@ -2435,6 +2559,1013 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         return -1;
     }
 
+    // ------------------------------------------------------------------------ dragging
+
+    /**
+     * Lets the user drag nodes out of this tree (default off): the selected nodes when the node
+     * pressed is one of them, and that node alone otherwise; a node goes with everything under
+     * it, so one under another that is dragged is not named twice. From the keyboard, the scene's
+     * drag key picks them up. What they carry is {@link #NODES} and their text, or what
+     * {@link #setDragContent} makes. A target is offered a copy; a move too once
+     * {@link #onReorder} or {@link #onMoveOut} is set, and a move first with the latter. A row's
+     * own controls and its triangle keep their gestures. UI thread only.
+     *
+     * @param enabled whether nodes can be dragged
+     * @return this tree
+     */
+    public Tree<T> setDragEnabled(boolean enabled) {
+        Ui.checkUiThread();
+        dragEnabled = enabled;
+        return this;
+    }
+
+    /** @return whether nodes can be dragged */
+    public boolean isDragEnabled() {
+        return dragEnabled;
+    }
+
+    /**
+     * Says what dragged nodes carry, in place of {@link #NODES} and their text. UI thread only.
+     *
+     * @param content makes the transfer for the nodes dragged, or {@code null} for the default
+     * @return this tree
+     */
+    public Tree<T> setDragContent(@Nullable Function<? super List<T>, Transfer> content) {
+        Ui.checkUiThread();
+        dragContent = content;
+        return this;
+    }
+
+    /**
+     * Lets the user move nodes within this tree. Dragged, when {@link #setDragEnabled dragging
+     * is on}: dropped on a node they go into it, near its upper or lower edge before or after it,
+     * never into themselves, and a closed node the pointer rests on opens. And by Alt+Shift with
+     * an arrow: Up and Down among its siblings, Left out one level, Right into the sibling before
+     * it. The handler moves the data; the tree then shows it, opens the node they went into and
+     * says where they are. UI thread only.
+     *
+     * @param handler moves the nodes, or {@code null} for a tree that does not rearrange
+     * @return this tree
+     */
+    public Tree<T> onReorder(@Nullable Move<T> handler) {
+        Ui.checkUiThread();
+        onReorder = Checks.handlerSlot(onReorder, handler, "Tree.onReorder");
+        return this;
+    }
+
+    /**
+     * Hears that nodes dragged out of this tree were <b>moved</b> to somewhere else, another
+     * widget or another program, and removes them. With it a drag proposes a move unless the
+     * user's modifier key asks for a copy; without it, a copy. UI thread only.
+     *
+     * @param handler removes the nodes, or {@code null}
+     * @return this tree
+     */
+    public Tree<T> onMoveOut(@Nullable Consumer<? super List<T>> handler) {
+        Ui.checkUiThread();
+        onMoveOut = Checks.handlerSlot(onMoveOut, handler, "Tree.onMoveOut");
+        return this;
+    }
+
+    /**
+     * Lets things be dropped on this tree, into a node or between two: what carries one of
+     * {@link #setDropFormats the formats named}, from another tree, a list, another program.
+     * UI thread only.
+     *
+     * @param handler takes a drop, or {@code null} for a tree that takes none
+     * @return this tree
+     */
+    public Tree<T> onDrop(@Nullable DropHandler<T> handler) {
+        Ui.checkUiThread();
+        onDrop = Checks.handlerSlot(onDrop, handler, "Tree.onDrop");
+        return this;
+    }
+
+    /**
+     * Names what {@link #onDrop(DropHandler)} takes: a drag carrying any of these is accepted.
+     * UI thread only.
+     *
+     * @param formats the formats taken; none takes nothing
+     * @return this tree
+     */
+    public Tree<T> setDropFormats(DataFormat<?>... formats) {
+        Ui.checkUiThread();
+        dropFormats = List.of(formats);
+        return this;
+    }
+
+    /**
+     * Says what a drop from elsewhere does here, whatever the source would rather: a tree that
+     * only ever copies what it is given asks for {@link DropAction#COPY}, one that takes things
+     * over for {@link DropAction#MOVE}. It is what the drop does where the source allows it;
+     * where it does not, and by default, the drop does what the user is asking for, the action
+     * the modifier keys name or the source's own preference. Nodes moved within this tree are
+     * always a move. UI thread only.
+     *
+     * @param action the action asked for, or {@code null} for the one proposed
+     * @return this tree
+     */
+    public Tree<T> setDropAction(@Nullable DropAction action) {
+        Ui.checkUiThread();
+        dropAction = action;
+        return this;
+    }
+
+    /** @return the action a drop from elsewhere is asked to be, or null for the one proposed */
+    public @Nullable DropAction dropAction() {
+        return dropAction;
+    }
+
+    /**
+     * Keeps a drag of this tree's nodes inside its window (default: not): no other program
+     * is offered them, and no other window. For nodes that mean nothing anywhere else. UI
+     * thread only.
+     *
+     * @param within whether a drag stays in the window it began in
+     * @return this tree
+     */
+    public Tree<T> setDragWithinWindow(boolean within) {
+        Ui.checkUiThread();
+        dragWithinWindow = within;
+        return this;
+    }
+
+    /** @return whether a drag of this tree's nodes stays in its window */
+    public boolean isDragWithinWindow() {
+        return dragWithinWindow;
+    }
+
+    /** The row a row hangs from, or -1 for a root. */
+    private int parentRow(int index) {
+        int depth = rows.get(index).depth;
+        for (int i = index - 1; i >= 0 && depth > 0; i--) {
+            if (rows.get(i).depth < depth) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private @Nullable T parentOf(int index) {
+        int parent = parentRow(index);
+        return parent < 0 ? null : rows.get(parent).node;
+    }
+
+    /**
+     * What a gesture on {@code node} moves: the selection when the node is part of it, in the
+     * order shown and without a node that sits under another of them; else the node alone.
+     */
+    private List<T> nodesToMove(T node) {
+        if (selectionMode == SelectionMode.NONE || !selected.contains(node) || selected.size() == 1) {
+            return List.of(node);
+        }
+        List<T> out = new ArrayList<>();
+        int under = -1;
+        for (Row<T> row : rows) {
+            if (under >= 0 && row.depth > under) {
+                continue;
+            }
+            under = -1;
+            if (!row.placeholder && selected.contains(row.node)) {
+                out.add(row.node);
+                under = row.depth;
+            }
+        }
+        return out.isEmpty() ? List.of(node) : java.util.Collections.unmodifiableList(out);
+    }
+
+    private String textOf(T node) {
+        String name = announcementName(node);
+        return name != null ? name : String.valueOf(node);
+    }
+
+    @Override
+    protected @Nullable Drag onDragStart(DragStartEvent event) {
+        pressedAmongSelected = null;
+        if (!dragEnabled || rows.isEmpty()) {
+            return null;
+        }
+        T node;
+        float holdX = 0;
+        float holdY = 0;
+        if (event.isKeyboard()) {
+            node = cursor;
+        } else {
+            float localX = event.x() - localToSceneX();
+            float localY = event.y() - localToSceneY();
+            if (!inViewport(localX, localY)) {
+                return null; // a bar's strip
+            }
+            // A bar's thumb is dragged by the same gesture, and so is whatever a row holds that
+            // takes the keyboard.
+            for (Widget<?> w = hitTest(localX, localY); w != null && w != this; w = w.parent()) {
+                if (w == vBar || w == hBar || w.isFocusable()) {
+                    return null;
+                }
+            }
+            int index = rowAtLocalY(localY);
+            if (index < 0 || rows.get(index).placeholder
+                    || (rows.get(index).expandable && overTwisty(localX, index))) {
+                return null;
+            }
+            node = rows.get(index).node;
+            Widget<?> cell = cellFor(index);
+            if (cell != null) {
+                holdX = localX - cell.x();
+                holdY = localY - cell.y();
+            }
+        }
+        if (node == null || indexOf(node) < 0) {
+            return null;
+        }
+        List<T> carried = nodesToMove(node);
+        StringBuilder text = new StringBuilder();
+        for (T each : carried) {
+            text.append(text.length() == 0 ? "" : "\n").append(textOf(each));
+        }
+        Function<? super List<T>, Transfer> custom = dragContent;
+        Transfer content = custom != null ? Objects.requireNonNull(custom.apply(carried), "drag content")
+                : Transfer.of(NODES, carried).with(DataFormat.TEXT, text.toString());
+        boolean several = carried.size() > 1;
+        String count = several ? TreeStrings.ITEMS.format(carried.size()) : null;
+        Drag drag = Drag.of(content).describedAs(several ? count : textOf(node));
+        if (dragWithinWindow) {
+            drag.withinWindow();
+        }
+        if (onMoveOut != null) {
+            drag.allow(DropAction.MOVE, DropAction.COPY);
+        } else if (onReorder != null) {
+            drag.allow(DropAction.COPY, DropAction.MOVE);
+        }
+        Widget<?> cell = mountedCellOf(node);
+        if (cell != null) {
+            float w = cell.width();
+            float h = cell.height();
+            float stack = several ? RowDragPicture.STACK : 0;
+            T shown = node;
+            // The row's own widget, if it is still realized by the time it is painted.
+            drag.preview(w + stack, h + stack, holdX, holdY, canvas -> RowDragPicture.paint(canvas, this,
+                    mountedCellOf(shown), w, h, count, textRuler()));
+        }
+        dragged = carried;
+        droppedWithin = false;
+        if (!event.isKeyboard()) {
+            // Under the pointer from now on, and no longer in the tree: the rows below close up.
+            rowsAreHere();
+            returning = null;
+            lifted = true;
+            markLifted();
+            liftedHeight = 0;
+            for (int i = 0; i < mountedCount; i++) {
+                if (liftedRows.get(mountedRows[i]) && isPlaced(mountedRows[i])) {
+                    liftedHeight += mountedCells[i].height();
+                }
+            }
+            markNeedsLayout();
+            rowsBelongElsewhere();
+        }
+        return drag.onEnd(action -> {
+            boolean elsewhere = action == DropAction.MOVE && !droppedWithin;
+            boolean within = droppedWithin;
+            Consumer<? super List<T>> out = onMoveOut;
+            if (elsewhere && out != null) {
+                // They are gone from the model: nothing slides back into their places.
+                forgetSlides();
+                putDown();
+            }
+            if (lifted) {
+                rowsAreHere();
+                java.util.BitSet back = (java.util.BitSet) liftedRows.clone();
+                putDown();
+                if (!within) {
+                    rowsBelongElsewhere(); // put back: the rows below make room again
+                    returning = !sliding.isEmpty() ? back : null;
+                }
+            }
+            dragged = null;
+            droppedWithin = false;
+            if (elsewhere && out != null) {
+                out.accept(carried);
+            }
+        });
+    }
+
+    /** Whether a drag over this tree is its own nodes being moved within it. */
+    private boolean isOwnNodes(@Nullable Object source) {
+        return source == this && dragged != null && onReorder != null;
+    }
+
+    private boolean takes(limn.transfer.Offer offer) {
+        if (onDrop == null) {
+            return false;
+        }
+        for (DataFormat<?> format : dropFormats) {
+            if (offer.has(format)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether {@code parent} is one of the nodes being dragged, or sits under one. */
+    private boolean isUnderDragged(@Nullable T parent) {
+        List<T> moving = dragged;
+        if (parent == null || moving == null) {
+            return false;
+        }
+        for (int i = indexOf(parent); i >= 0; i = parentRow(i)) {
+            if (moving.contains(rows.get(i).node)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isPlaced(int index) {
+        return index >= placedFrom && index < placedTo;
+    }
+
+    /** The rows a drag lifted out are rows of the tree again. */
+    private void putDown() {
+        lifted = false;
+        liftedRows.clear();
+        if (liftedHeight != 0) {
+            liftedHeight = 0;
+            markNeedsLayout();
+        }
+    }
+
+    /** Works out which rows are lifted: those of the nodes dragged and of everything shown under them. */
+    private void markLifted() {
+        liftedRows.clear();
+        List<T> moving = dragged;
+        if (!lifted || moving == null) {
+            return;
+        }
+        int under = -1;
+        for (int i = 0; i < rows.size(); i++) {
+            Row<T> row = rows.get(i);
+            if (under >= 0 && row.depth > under) {
+                liftedRows.set(i);
+                continue;
+            }
+            under = -1;
+            if (!row.placeholder && moving.contains(row.node)) {
+                liftedRows.set(i);
+                under = row.depth;
+            }
+        }
+    }
+
+    /** The row from which the rows make room for a drop, or -1 when none is opened. */
+    private int roomFrom() {
+        Place<T> place = dropPlace;
+        if (place == null || placeByKeyboard || place.where() == Where.INTO) {
+            return -1;
+        }
+        T ref = place.ref();
+        int index = ref == null ? -1 : indexOf(ref);
+        if (index < 0) {
+            return -1;
+        }
+        if (place.where() == Where.BEFORE) {
+            return index;
+        }
+        int last = index;
+        while (last + 1 < rows.size() && rows.get(last + 1).depth > rows.get(index).depth) {
+            last++;
+        }
+        return last + 1;
+    }
+
+    /** The room opened where a drop would land: a share of the height of what is dragged, as far as the tree knows. */
+    private float roomHeight() {
+        float room = 0;
+        for (int i = 0; lifted && i < mountedCount; i++) {
+            if (liftedRows.get(mountedRows[i]) && isPlaced(mountedRows[i])) {
+                room += mountedCells[i].height();
+            }
+        }
+        return (room > 0 ? room : avgRowHeight(tokens())) * ROOM_SHARE;
+    }
+
+    /**
+     * How much of the height of what is dragged the room opened for it takes. Half: a row is
+     * mostly its own margins, and the rows on either side of the room bring theirs, so room as
+     * tall as the row read as twice the space the item needs (the owner, three times). What is
+     * dropped takes the rest by pushing its neighbours apart, which slides like everything else.
+     */
+    private static final float ROOM_SHARE = 0.5f;
+
+    /**
+     * How far from where the layout put it each realized row belongs, in the order they are
+     * mounted: up by the rows lifted out above it, down by the room opened at or above it. NaN
+     * for a row that is lifted, which is not drawn.
+     */
+    private float[] belongs() {
+        if (offsets.length < mountedCount) {
+            offsets = new float[mountedCells.length];
+        }
+        markLifted();
+        int from = roomFrom();
+        float room = from < 0 ? 0 : roomHeight();
+        float up = 0;
+        for (int i = 0; i < mountedCount; i++) {
+            int row = mountedRows[i];
+            if (liftedRows.get(row)) {
+                offsets[i] = Float.NaN;
+                if (isPlaced(row)) {
+                    up += mountedCells[i].height();
+                }
+            } else {
+                offsets[i] = -up + (room > 0 && row >= from ? room : 0);
+            }
+        }
+        return offsets;
+    }
+
+    /** {@link #belongs} with what is left of each row's slide: where the rows are drawn now. */
+    private float[] drawnOffsets() {
+        float[] at = belongs();
+        if (!sliding.isEmpty()) {
+            for (int i = 0; i < mountedCount; i++) {
+                Float left = sliding.get(mountedRows[i]);
+                if (left != null && !Float.isNaN(at[i])) {
+                    at[i] += left;
+                }
+            }
+        }
+        return at;
+    }
+
+    /**
+     * The rows belong somewhere else than a moment ago (rows lifted or put back, room opened,
+     * moved or closed): each slides there from where it is drawn now.
+     */
+    private void rowsBelongElsewhere() {
+        float[] now = belongs();
+        boolean still = limn.animation.Motion.reduced() || scene() == null;
+        boolean any = false;
+        for (int i = 0; i < mountedCount; i++) {
+            Integer row = mountedRows[i];
+            if (Float.isNaN(now[i])) {
+                sliding.remove(row);
+                belonged.remove(row);
+                continue;
+            }
+            Float was = belonged.put(row, now[i]);
+            if (was != null && !still) {
+                float left = was + sliding.getOrDefault(row, 0f) - now[i];
+                if (Math.abs(left) >= 0.5f) {
+                    sliding.put(row, left);
+                    any = true;
+                } else {
+                    sliding.remove(row);
+                }
+            }
+        }
+        invalidate();
+        if (any) {
+            slide();
+        }
+    }
+
+    /**
+     * Notes where every realized row belongs now, before what decides it changes: a row slides
+     * from where it was drawn, and one realized since the last change (scrolled in, or placed
+     * under the edge for a drag) was drawn where it belonged, which nothing else remembers. Taken
+     * for a row at rest where the layout put it, such a row jumped there, over its neighbours,
+     * and slid back.
+     */
+    private void rowsAreHere() {
+        float[] now = belongs();
+        for (int i = 0; i < mountedCount; i++) {
+            if (!Float.isNaN(now[i])) {
+                belonged.put(mountedRows[i], now[i]);
+            }
+        }
+    }
+
+    /**
+     * After a layout: a row realized while the others slide comes in with them, by as much as the
+     * row above it has left to go, and not at once where it belongs.
+     */
+    private void newRowsSlideToo() {
+        if (sliding.isEmpty()) {
+            return;
+        }
+        for (int i = 1; i < mountedCount; i++) {
+            Integer row = mountedRows[i];
+            Float above = sliding.get(mountedRows[i - 1]);
+            if (above != null && isPlaced(row) && !belonged.containsKey(row) && !sliding.containsKey(row)
+                    && !liftedRows.get(row)) {
+                sliding.put(row, above);
+            }
+        }
+        rowsAreHere();
+    }
+
+    private void slide() {
+        limn.scene.Scene scene = scene();
+        if (slideTicking || scene == null) {
+            return;
+        }
+        slideTicking = true;
+        scene.addRealTimeTicker(dt -> {
+            float keep = (float) Math.exp(-dt / SLIDE_SECONDS);
+            sliding.replaceAll((row, left) -> left * keep);
+            sliding.values().removeIf(left -> Math.abs(left) < 0.5f);
+            slideTicking = !sliding.isEmpty();
+            if (!slideTicking) {
+                returning = null;
+            }
+            invalidate();
+            return slideTicking;
+        });
+    }
+
+    private void forgetSlides() {
+        returning = null;
+        sliding.clear();
+        belonged.clear();
+    }
+
+    /**
+     * Remembers where every row is drawn, by node, before the model changes under them: the next
+     * layout slides each from there to where it then stands.
+     */
+    private void slideFromHere() {
+        if (limn.animation.Motion.reduced() || scene() == null) {
+            forgetSlides();
+            return;
+        }
+        float[] at = drawnOffsets();
+        HashMap<Object, Float> drawn = new HashMap<>();
+        for (int i = 0; i < mountedCount; i++) {
+            int index = mountedRows[i];
+            if (!Float.isNaN(at[i]) && isPlaced(index) && index < rows.size() && !rows.get(index).placeholder) {
+                drawn.put(rows.get(index).node, mountedCells[i].y() + at[i]);
+            }
+        }
+        forgetSlides();
+        drawnBefore = drawn;
+        // For the layout the change brings, and no later one: a drop the application refused
+        // changes nothing, and what was remembered here is not where a scroll finds the rows.
+        Ui.postDelayed(() -> {
+            if (drawnBefore == drawn) {
+                drawnBefore = null;
+            }
+        }, 300);
+    }
+
+    /** After a layout: the rows remembered by {@link #slideFromHere} slide to where they stand. */
+    private void slideToLayout() {
+        HashMap<Object, Float> drawn = drawnBefore;
+        if (drawn == null) {
+            return;
+        }
+        drawnBefore = null;
+        boolean any = false;
+        for (int i = 0; i < mountedCount; i++) {
+            int index = mountedRows[i];
+            Float was = index < rows.size() && !rows.get(index).placeholder ? drawn.get(rows.get(index).node) : null;
+            if (was != null && Math.abs(was - mountedCells[i].y()) >= 0.5f) {
+                sliding.put(index, was - mountedCells[i].y());
+                any = true;
+            }
+        }
+        if (any) {
+            slide();
+        }
+    }
+
+    /**
+     * The place under the pointer: on a branch, its upper quarter is before it, its lower after
+     * and the rest into it; a leaf is halves. After an open branch is its first place inside,
+     * which is where the line then is. The rows are counted as they stand without those lifted
+     * out and without the room opened, so that opening the room does not move the answer.
+     */
+    private Place<T> placeAt(float localY) {
+        if (rows.isEmpty()) {
+            return new Place<>(null, 0, null, Where.AFTER);
+        }
+        markLifted();
+        int index = -1;
+        float part = 0;
+        float up = 0;
+        for (int i = 0; i < mountedCount && index < 0; i++) {
+            int at = mountedRows[i];
+            Widget<?> cell = mountedCells[i];
+            if (!isPlaced(at)) {
+                continue; // a row kept realized outside the viewport
+            }
+            if (liftedRows.get(at)) {
+                up += cell.height();
+            } else if (localY < cell.y() - up + cell.height()) {
+                index = at;
+                part = (localY - (cell.y() - up)) / Math.max(1, cell.height());
+            }
+        }
+        if (index < 0) {
+            // Under the last row: after the last of the roots.
+            for (int i = rows.size() - 1; i >= 0; i--) {
+                Row<T> row = rows.get(i);
+                if (row.depth == 0) {
+                    return new Place<>(null, row.siblings, row.node, Where.AFTER);
+                }
+            }
+            return new Place<>(null, 0, null, Where.AFTER);
+        }
+        Row<T> row = rows.get(index);
+        if (row.placeholder) {
+            return new Place<>(row.node, 0, row.node, Where.INTO);
+        }
+        if (part < (row.expandable ? 0.25f : 0.5f)) {
+            return new Place<>(parentOf(index), row.position - 1, row.node, Where.BEFORE);
+        }
+        if (row.expandable && part <= 0.75f) {
+            return new Place<>(row.node, childrenOf(row.node).size(), row.node, Where.INTO);
+        }
+        if (row.expanded && index + 1 < rows.size() && rows.get(index + 1).depth > row.depth) {
+            Row<T> first = rows.get(index + 1);
+            return first.placeholder ? new Place<>(row.node, 0, row.node, Where.INTO)
+                    : new Place<>(row.node, 0, first.node, Where.BEFORE);
+        }
+        return new Place<>(parentOf(index), row.position, row.node, Where.AFTER);
+    }
+
+    /**
+     * Every place a keyboard drag can choose, top to bottom: before each row, into each branch
+     * that shows no children, and after the last of each run of siblings once what is under it
+     * has been passed. Without the places inside what is being moved, when it is this tree's own.
+     */
+    private List<Place<T>> places(boolean own) {
+        List<Place<T>> out = new ArrayList<>();
+        List<T> moving = own ? dragged : null;
+        List<Place<T>> after = new ArrayList<>();
+        List<Integer> afterDepth = new ArrayList<>();
+        List<T> chain = new ArrayList<>();
+        int under = -1;
+        for (int i = 0; i < rows.size(); i++) {
+            Row<T> row = rows.get(i);
+            if (row.placeholder || (under >= 0 && row.depth > under)) {
+                continue;
+            }
+            under = -1;
+            while (!after.isEmpty() && afterDepth.get(after.size() - 1) >= row.depth) {
+                afterDepth.remove(after.size() - 1);
+                out.add(after.remove(after.size() - 1));
+            }
+            while (chain.size() > row.depth) {
+                chain.remove(chain.size() - 1);
+            }
+            T parent = row.depth == 0 ? null : chain.get(row.depth - 1);
+            chain.add(row.node);
+            boolean moved = moving != null && moving.contains(row.node);
+            out.add(new Place<>(parent, row.position - 1, row.node, Where.BEFORE));
+            boolean showsChildren = row.expanded && i + 1 < rows.size()
+                    && rows.get(i + 1).depth > row.depth && !rows.get(i + 1).placeholder;
+            if (row.expandable && !showsChildren && !moved) {
+                out.add(new Place<>(row.node, childrenOf(row.node).size(), row.node, Where.INTO));
+            }
+            if (row.position == row.siblings) {
+                after.add(new Place<>(parent, row.siblings, row.node, Where.AFTER));
+                afterDepth.add(row.depth);
+            }
+            if (moved) {
+                under = row.depth;
+            }
+        }
+        for (int i = after.size() - 1; i >= 0; i--) {
+            out.add(after.get(i));
+        }
+        if (out.isEmpty()) {
+            out.add(new Place<>(null, 0, null, Where.AFTER));
+        }
+        return out;
+    }
+
+    private void setDropPlace(@Nullable Place<T> place) {
+        setDropPlace(place, false);
+    }
+
+    private void setDropPlace(@Nullable Place<T> place, boolean byKeyboard) {
+        if (!Objects.equals(place, dropPlace) || placeByKeyboard != byKeyboard) {
+            rowsAreHere();
+            dropPlace = place;
+            placeByKeyboard = byKeyboard;
+            rowsBelongElsewhere(); // the rows from there down make room, or close it
+            invalidate();
+        }
+    }
+
+    @Override
+    protected void onDragOver(DragEvent event) {
+        boolean own = isOwnNodes(event.source());
+        if (!own && !takes(event.offer())) {
+            return;
+        }
+        Place<T> place;
+        if (event.isKeyboard()) {
+            List<Place<T>> all = places(own);
+            int at = dropPlace != null ? all.indexOf(dropPlace) : -1;
+            if (at < 0) {
+                // The first time, where the nodes are (their own tree) or the cursor (another's).
+                List<T> moving = dragged;
+                T start = own && moving != null ? moving.get(0) : cursor;
+                at = all.size() - 1;
+                for (int i = 0; i < all.size(); i++) {
+                    if (start != null && start.equals(all.get(i).ref())) {
+                        at = i;
+                        break;
+                    }
+                }
+            }
+            place = all.get(Math.max(0, Math.min(all.size() - 1, at + event.stepY())));
+            T ref = place.ref();
+            String name = ref == null ? null : announcementName(ref);
+            if (ref != null) {
+                revealNode(ref);
+            }
+            if (name != null) {
+                event.describePlace((place.where() == Where.INTO ? TreeStrings.DROP_INTO
+                        : place.where() == Where.BEFORE ? TreeStrings.DROP_BEFORE : TreeStrings.DROP_AFTER)
+                        .format(name));
+            }
+        } else {
+            place = placeAt(event.y() - localToSceneY());
+            if (own && isUnderDragged(place.parent())) {
+                setDropPlace(null); // a node does not go into itself
+                rest(null);
+                return;
+            }
+            rest(place);
+        }
+        setDropPlace(place, event.isKeyboard());
+        DropAction asked = dropAction;
+        if (own) {
+            event.accept(DropAction.MOVE);
+        } else if (asked != null && event.sourceActions().contains(asked)) {
+            event.accept(asked);
+        } else {
+            event.accept();
+        }
+    }
+
+    /** A closed branch the pointer rests on while dragging opens, as a folder does. */
+    private void rest(@Nullable Place<T> place) {
+        T node = place != null && place.where() == Where.INTO ? place.parent() : null;
+        if (node != null && (expanded.contains(node) || model.isLeaf(node))) {
+            node = null;
+        }
+        if (Objects.equals(node, springNode)) {
+            return;
+        }
+        springNode = node;
+        int turn = ++springTurn;
+        if (node == null) {
+            return;
+        }
+        T resting = node;
+        Ui.postDelayed(() -> {
+            Place<T> now = dropPlace;
+            if (turn != springTurn || now == null || now.where() != Where.INTO || !resting.equals(now.parent())) {
+                return;
+            }
+            springNode = null;
+            forgetSlides(); // the rows are renumbered under them
+            setExpanded(resting, true, Change.Origin.USER);
+            setDropPlace(new Place<>(resting, childrenOf(resting).size(), resting, Where.INTO));
+        }, SPRING_MILLIS);
+    }
+
+    @Override
+    protected void onDragExit(DragEvent event) {
+        setDropPlace(null);
+        rest(null);
+    }
+
+    @Override
+    protected void onDrop(DropEvent event) {
+        Place<T> place = dropPlace;
+        List<T> moving = dragged;
+        boolean own = isOwnNodes(event.source()) && moving != null;
+        // What is dropped takes the room that was opened for it: the other rows stay where they
+        // are drawn, and slide only as far as the new model puts them elsewhere.
+        slideFromHere();
+        dropPlace = null;
+        if (own) {
+            putDown();
+        }
+        invalidate();
+        rest(null);
+        if (place == null) {
+            event.reject();
+            return;
+        }
+        if (own) {
+            droppedWithin = true;
+            userMoves(moving, place.parent(), place.index());
+            return;
+        }
+        DropHandler<T> handler = onDrop;
+        if (handler != null) {
+            handler.drop(event, place.parent(), place.index());
+        } else {
+            event.reject();
+        }
+    }
+
+    /**
+     * Alt+Shift and an arrow: the node the cursor is on, with the rest of the selection when they
+     * are all children of one node, one place up or down, out one level or into the sibling before.
+     */
+    private void moveByKey(int down, int deeper) {
+        if (onReorder == null || cursor == null || indexOf(cursor) < 0) {
+            return;
+        }
+        List<T> nodes = nodesToMove(cursor);
+        int head = indexOf(nodes.get(0));
+        T parent = parentOf(head);
+        int lastPosition = 0;
+        for (T node : nodes) {
+            int i = indexOf(node);
+            if (i < 0 || rows.get(i).depth != rows.get(head).depth || !Objects.equals(parentOf(i), parent)) {
+                nodes = List.of(cursor);
+                head = indexOf(cursor);
+                parent = parentOf(head);
+                lastPosition = rows.get(head).position;
+                break;
+            }
+            lastPosition = Math.max(lastPosition, rows.get(i).position);
+        }
+        Row<T> first = rows.get(head);
+        boolean together = lastPosition - first.position + 1 == nodes.size();
+        if (down < 0) {
+            // Nodes apart are gathered at the end they are moved toward, and move on from there.
+            if (!together || first.position > 1) {
+                userMoves(nodes, parent, together ? first.position - 2 : first.position - 1);
+            }
+        } else if (down > 0) {
+            if (!together || lastPosition < first.siblings) {
+                userMoves(nodes, parent, together ? lastPosition + 1 : lastPosition);
+            }
+        } else if (deeper < 0) {
+            int above = parentRow(head);
+            if (above >= 0) {
+                userMoves(nodes, parentOf(above), rows.get(above).position); // after what held them
+            }
+        } else if (deeper > 0) {
+            int before = head - 1;
+            while (before >= 0 && rows.get(before).depth > first.depth) {
+                before--;
+            }
+            if (before >= 0 && rows.get(before).depth == first.depth && !rows.get(before).placeholder
+                    && rows.get(before).expandable) {
+                T into = rows.get(before).node;
+                userMoves(nodes, into, childrenOf(into).size());
+            }
+        }
+    }
+
+    /**
+     * The user puts {@code nodes} under {@code parent} at {@code index} among its children as
+     * they stand: the handler is given the place counted without them and moves the data, and the
+     * tree shows it, opens the node they went into and says where they are.
+     */
+    private void userMoves(List<T> nodes, @Nullable T parent, int index) {
+        Move<T> handler = onReorder;
+        if (handler == null) {
+            return;
+        }
+        int before = 0;
+        boolean allHere = true;
+        int firstPosition = Integer.MAX_VALUE;
+        int lastPosition = 0;
+        for (T node : nodes) {
+            int i = indexOf(node);
+            if (i >= 0 && Objects.equals(parentOf(i), parent)) {
+                int position = rows.get(i).position;
+                if (position - 1 < index) {
+                    before++;
+                }
+                firstPosition = Math.min(firstPosition, position);
+                lastPosition = Math.max(lastPosition, position);
+            } else {
+                allHere = false;
+            }
+        }
+        int place = index - before;
+        if (allHere && lastPosition - firstPosition + 1 == nodes.size() && place == firstPosition - 1) {
+            return; // dropped where they already were
+        }
+        T first = nodes.get(0);
+        // Named now: the names of rows are read off their cells, and a refresh unmounts those.
+        String name = nodes.size() == 1 ? announcementName(first) : TreeStrings.ITEMS.format(nodes.size());
+        // The node they went into is said when it is a new one: among their own siblings the
+        // place alone says what moved.
+        String into = parent == null || allHere ? null : announcementName(parent);
+        if (drawnBefore == null) {
+            // Moved by the keyboard: every row slides from where it is to where it goes, the ones
+            // that gave way as much as the ones moved, or nothing on screen says which moved.
+            slideFromHere();
+        }
+        handler.move(nodes, parent, place);
+        if (parent != null) {
+            expanded.add(parent); // so that what was moved is still in sight, and still selected
+        }
+        refresh();
+        int at = indexOf(first);
+        if (at < 0) {
+            return; // the application put them elsewhere, or nowhere
+        }
+        revealNode(first);
+        Row<T> row = rows.get(at);
+        limn.scene.Scene scene = scene();
+        if (scene != null && name != null) {
+            scene.announce(into != null ? TreeStrings.MOVED_INTO.format(name, row.position, row.siblings, into)
+                    : TreeStrings.MOVED.format(name, row.position, row.siblings), Accessible.Politeness.ASSERTIVE);
+        }
+    }
+
+    /**
+     * Where a drop would land: a ring on the node it goes into; a line where it goes between two,
+     * in the middle of the room opened for it, or on their edge when the keyboard chose the place
+     * and no room was opened.
+     */
+    private void paintDropPlace(Canvas canvas, Theme theme, SizeTokens t, float viewH) {
+        Place<T> place = dropPlace;
+        if (place == null) {
+            return;
+        }
+        float left = viewportLeft();
+        float viewW = gutters.viewportWidth(width());
+        float inset = Strokes.FOCUS_RING_THIN;
+        float thick = Strokes.FOCUS_RING;
+        T ref = place.ref();
+        if (ref == null) {
+            canvas.fillRoundRect(left + inset, 0, viewW - 2 * inset, thick, thick / 2, theme.focusRing());
+            return;
+        }
+        Widget<?> cell = mountedCellOf(ref);
+        if (cell == null) {
+            return;
+        }
+        float[] at = belongs();
+        if (place.where() == Where.INTO) {
+            float shift = 0;
+            for (int i = 0; i < mountedCount; i++) {
+                if (mountedCells[i] == cell) {
+                    shift = at[i];
+                }
+            }
+            if (!Float.isNaN(shift) && cell.y() + shift < viewH && cell.y() + shift + cell.height() > 0) {
+                canvas.drawRoundRect(left + inset, cell.y() + shift + inset, viewW - 2 * inset,
+                        cell.height() - 2 * inset, t.radiusSmall(), thick, theme.focusRing());
+            }
+            return;
+        }
+        // The edge the drop goes at, with the rows as they stand without those lifted out: the
+        // top of the first row from which the rows make room, or the foot of the last before it.
+        int from = place.where() == Where.BEFORE ? indexOf(ref) : -1;
+        if (place.where() == Where.AFTER) {
+            int index = indexOf(ref);
+            from = index + 1;
+            while (from < rows.size() && rows.get(from).depth > rows.get(index).depth) {
+                from++;
+            }
+        }
+        float room = roomFrom() < 0 ? 0 : roomHeight();
+        float up = 0;
+        float y = Float.NaN;
+        float foot = 0;
+        for (int i = 0; i < mountedCount && Float.isNaN(y); i++) {
+            int index = mountedRows[i];
+            if (!isPlaced(index)) {
+                continue;
+            }
+            if (liftedRows.get(index)) {
+                up += mountedCells[i].height();
+            } else if (index >= from) {
+                y = mountedCells[i].y() - up;
+            } else {
+                foot = mountedCells[i].y() - up + mountedCells[i].height();
+            }
+        }
+        if (Float.isNaN(y)) {
+            y = foot;
+        }
+        y += room / 2;
+        if (y < 0 || y > viewH) {
+            return;
+        }
+        // From where the row's own cell starts: how far in the line begins is how deep the drop goes.
+        float start = isRightToLeft() ? left + inset : Math.max(left + inset, cell.x());
+        float end = isRightToLeft() ? Math.min(left + viewW - inset, cell.x() + cell.width()) : left + viewW - inset;
+        canvas.fillRoundRect(start, Math.max(0, Math.min(viewH - thick, y - thick / 2)), Math.max(0, end - start),
+                thick, thick / 2, theme.focusRing());
+    }
+
     // ------------------------------------------------------------------------ keyboard
 
     @Override
@@ -2446,6 +3577,22 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
         int mods = event.modifiers();
         // Shift extends a range in MULTI, from the anchor to wherever the key lands (decision 31).
         boolean extend = selectionMode == SelectionMode.MULTI && (mods & Keys.MOD_SHIFT) != 0;
+        int moveMods = Keys.MOD_ALT | Keys.MOD_SHIFT;
+        if (onReorder != null && (mods & (moveMods | Keys.MOD_CONTROL | Keys.MOD_SUPER)) == moveMods) {
+            // The word processors' outline keys: up and down among its siblings, and the
+            // horizontal pair out one level and into the sibling before, swapped right to left.
+            switch (event.shortcutKey()) {
+                case Keys.UP -> consumeAnd(event, () -> moveByKey(-1, 0));
+                case Keys.DOWN -> consumeAnd(event, () -> moveByKey(1, 0));
+                case Keys.LEFT -> consumeAnd(event, () -> moveByKey(0, rtl ? 1 : -1));
+                case Keys.RIGHT -> consumeAnd(event, () -> moveByKey(0, rtl ? -1 : 1));
+                default -> {
+                }
+            }
+            if (event.isConsumed()) {
+                return;
+            }
+        }
         switch (event.shortcutKey()) {
             case Keys.DOWN -> consumeAnd(event, () -> moveLead(1, extend));
             case Keys.UP -> consumeAnd(event, () -> moveLead(-1, extend));
@@ -2636,9 +3783,18 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             default -> {
             }
         }
+        if (event.type() == MouseEvent.Type.CLICK && event.button() == Keys.MOUSE_LEFT) {
+            T node = pressedAmongSelected;
+            pressedAmongSelected = null;
+            if (node != null && indexOf(node) >= 0) {
+                selectOnly(node, true, Change.Origin.USER);
+            }
+            return;
+        }
         if (event.type() != MouseEvent.Type.PRESS || event.button() != Keys.MOUSE_LEFT) {
             return;
         }
+        pressedAmongSelected = null;
         // The event is in scene coordinates and every row and triangle is in this widget's own,
         // as the table and the list convert them. The two agree only for a tree at the scene's
         // origin, which is where every test of this widget had mounted it.
@@ -2674,6 +3830,12 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
                 toggleSelection(row.node, true, Change.Origin.USER);
             } else if (selectionMode == SelectionMode.MULTI && shift) {
                 selectRange(index);
+            } else if (dragEnabled && selectionMode == SelectionMode.MULTI && !second
+                    && selected.size() > 1 && selected.contains(row.node)) {
+                // It may be the start of a drag of all of them: the click, if that is what it
+                // turns out to be, selects this one alone.
+                pressedAmongSelected = row.node;
+                moveCursor(row.node, Change.Origin.USER);
             } else {
                 selectOnly(row.node, true, Change.Origin.USER);
             }
@@ -2773,33 +3935,68 @@ public final class Tree<T> extends Widget<Tree<T>> implements Scrollable {
             // bars', and a row painted into one is a row under its bar. The same rectangle as the
             // box while the bars overlay.
             canvas.clipRect(viewportLeft(), 0, gutters.viewportWidth(width()), viewH);
+            // Where each row is drawn against where the layout put it: rows slide, close over
+            // rows lifted out by a drag, and make room where a drop would land.
+            float[] at = drawnOffsets();
+            float cursorAt = 0;
             for (int i = 0; i < mountedCount; i++) {
                 int index = mountedRows[i];
                 Widget<?> cell = mountedCells[i];
-                if (cell.y() >= viewH || cell.y() + cell.height() <= 0) {
-                    continue; // the focused row a scroll spared
-                }
                 Row<T> row = rows.get(index);
-                // Not under a loading line: its node is its row's, and a wash across both would
-                // read as two rows selected.
-                if (!row.placeholder && selected.contains(row.node)) {
-                    canvas.fillRect(0, cell.y(), width(), cell.height(), selectionTint);
+                if (!row.placeholder && row.node.equals(cursor)) {
+                    cursorAt = at[i];
                 }
-                if (row.expandable) {
-                    paintTwisty(canvas, theme, t, row, cell);
+                java.util.BitSet back = returning;
+                if (Float.isNaN(at[i]) || (back != null && back.get(index))) {
+                    continue; // under the pointer, and not in the tree; or not back in it yet
+                }
+                if (!isPlaced(index) || cell.y() + at[i] >= viewH || cell.y() + at[i] + cell.height() <= 0) {
+                    continue; // the focused row a scroll spared, or one placed under the edge for a drag
                 }
                 canvas.save();
+                canvas.translate(0, at[i]);
                 try {
-                    canvas.translate(cell.x(), cell.y());
-                    cell.paintWidget(canvas);
+                    paintRow(canvas, theme, t, row, cell);
                 } finally {
                     canvas.restore();
                 }
             }
-            paintCursorRing(canvas, theme, t, viewH);
+            if (!Float.isNaN(cursorAt)) {
+                canvas.save();
+                canvas.translate(0, cursorAt);
+                try {
+                    paintCursorRing(canvas, theme, t, viewH);
+                } finally {
+                    canvas.restore();
+                }
+            }
+            paintDropPlace(canvas, theme, t, viewH);
         } finally {
             canvas.restore();
         }
+        paintBars(canvas);
+    }
+
+    /** One row where the layout put it: its wash when selected, its triangle, its cell. */
+    private void paintRow(Canvas canvas, Theme theme, SizeTokens t, Row<T> row, Widget<?> cell) {
+        // Not under a loading line: its node is its row's, and a wash across both would read as
+        // two rows selected.
+        if (!row.placeholder && selected.contains(row.node)) {
+            canvas.fillRect(0, cell.y(), width(), cell.height(), selectionTint);
+        }
+        if (row.expandable) {
+            paintTwisty(canvas, theme, t, row, cell);
+        }
+        canvas.save();
+        try {
+            canvas.translate(cell.x(), cell.y());
+            cell.paintWidget(canvas);
+        } finally {
+            canvas.restore();
+        }
+    }
+
+    private void paintBars(Canvas canvas) {
         for (ScrollBar bar : new ScrollBar[] {vBar, hBar}) {
             canvas.save();
             try {

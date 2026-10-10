@@ -182,6 +182,51 @@ public final class LwjglBackend implements BackendPeer {
     /** LWJGL modules that ship no natives jar. */
     private static final java.util.Set<String> CLASSES_ONLY = java.util.Set.of("org.lwjgl.egl");
 
+    private limn.backend.lwjgl.transfer.@Nullable PlatformClipboard systemClipboard;
+    private boolean systemClipboardTried;
+    private limn.backend.lwjgl.transfer.@Nullable NativeClipboard nativeClipboard;
+
+    /** @return what {@link #systemClipboard()} stands on, whose connection the system's drags share; or null */
+    limn.backend.lwjgl.transfer.@Nullable NativeClipboard nativeClipboard() {
+        systemClipboard();
+        return nativeClipboard;
+    }
+
+    /**
+     * The clipboard of this windowing system beyond GLFW's text, opened the first time a window
+     * asks. Null where there is none, or where it would not open: the window then hands out
+     * GLFW's, which carries text to other programs and keeps the rest within this one.
+     * {@code -Dlimn.clipboard=glfw} asks for that outright.
+     */
+    limn.backend.lwjgl.transfer.@Nullable PlatformClipboard systemClipboard() {
+        if (!systemClipboardTried) {
+            systemClipboardTried = true;
+            if (!"glfw".equals(System.getProperty("limn.clipboard"))) {
+                try {
+                    limn.backend.lwjgl.transfer.NativeClipboard system = null;
+                    if (Platform.current().isWindows()) {
+                        system = new limn.backend.lwjgl.transfer.WindowsClipboard();
+                    } else if (Platform.current().isMacOs()) {
+                        system = new limn.backend.lwjgl.transfer.MacClipboard();
+                    } else if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
+                        system = new limn.backend.lwjgl.transfer.WaylandClipboard(
+                                org.lwjgl.glfw.GLFWNativeWayland.glfwGetWaylandDisplay());
+                    } else if (glfwGetPlatform() == GLFW_PLATFORM_X11) {
+                        system = new limn.backend.lwjgl.transfer.X11Clipboard();
+                    }
+                    if (system != null) {
+                        nativeClipboard = system;
+                        systemClipboard = new limn.backend.lwjgl.transfer.PlatformClipboard(system, uiRuntime);
+                    }
+                } catch (Throwable unavailable) {
+                    LOG.log(Level.WARNING, "the system clipboard is text only: its native side "
+                            + "did not open", unavailable);
+                }
+            }
+        }
+        return systemClipboard;
+    }
+
     /**
      * Starts the backend on the calling thread, which becomes the UI thread: loads the native
      * libraries, initializes GLFW and installs the toolkit's services. On macOS the calling thread
@@ -1247,6 +1292,10 @@ public final class LwjglBackend implements BackendPeer {
         }
         uiRuntime.checkUiThread();
         running = false;
+        if (systemClipboard != null) {
+            systemClipboard.close(); // its thread and its proxies, while the display is still open
+            systemClipboard = null;
+        }
         if (Platform.current().isMacOs()) {
             MacQuitCommand.forget(quitCommand);
             MacSystemPreferences.forget(preferencesChanged);

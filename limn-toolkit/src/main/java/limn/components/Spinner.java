@@ -1608,13 +1608,13 @@ public final class Spinner extends Widget<Spinner> {
             if (cut) {
                 return false;
             }
-            clipboard().set(text());
+            clipboard().setText(text());
             return true;
         }
         if (!edit.hasSelection()) {
             return false;
         }
-        clipboard().set(edit.selectedText());
+        clipboard().setText(edit.selectedText());
         if (cut) {
             edit.deleteSelection();
             afterEditChange();
@@ -1635,7 +1635,7 @@ public final class Spinner extends Widget<Spinner> {
         if (!editable || !isEnabled()) {
             return false;
         }
-        String pasted = clipboard().get();
+        String pasted = clipboard().text();
         if (pasted.isEmpty()) {
             return false; // an empty clipboard must not eat a selection
         }

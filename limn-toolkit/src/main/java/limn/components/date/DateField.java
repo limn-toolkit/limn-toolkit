@@ -2281,11 +2281,11 @@ public final class DateField extends Widget<DateField> {
         if (command) {
             switch (event.shortcutKey()) {
                 case Keys.C -> {
-                    clipboard().set(text());
+                    clipboard().setText(text());
                     event.consume();
                 }
                 case Keys.V -> {
-                    String pasted = clipboard().get();
+                    String pasted = clipboard().text();
                     if (parseInto(pasted)) {
                         lastMoveWasTime = !startsAtYear;
                         invalidate();

@@ -95,24 +95,12 @@ class DateCompositionKeysTest extends ComponentTestBase {
         Scene scene;
         final AtomicReference<String> result = new AtomicReference<>("<open>");
         final List<String> offered = new ArrayList<>();
-        final Clipboard clipboard = new Clipboard() {
-            private String value = "31/12/2025";
-
-            @Override
-            public String get() {
-                return value;
-            }
-
-            @Override
-            public void set(String text) {
-                value = text == null ? "" : text;
-            }
-        };
+        final Clipboard clipboard = TextFieldTest.MockClipboard.holding("31/12/2025");
 
         /** Everything a key could have changed, as one string to compare. */
         String state() {
             return "text=" + field.text() + " segment=" + field.focusedSegment()
-                    + " date=" + field.date() + " clipboard=" + clipboard.get()
+                    + " date=" + field.date() + " clipboard=" + clipboard.text()
                     + " focused=" + (scene.focusedWidget() == field) + " result=" + result.get()
                     + " open=" + (picker != null && picker.isOpen());
         }

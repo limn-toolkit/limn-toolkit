@@ -9,6 +9,10 @@ import limn.graphics.Image;
 import limn.scene.Constraints;
 import limn.scene.Size;
 import limn.scene.Widget;
+import limn.scene.event.DragStartEvent;
+import limn.transfer.DataFormat;
+import limn.transfer.Drag;
+import limn.transfer.Transfer;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
@@ -18,6 +22,9 @@ import java.util.Objects;
  * when a {@link #setTint tint} is set (the image's alpha becomes the shape,
  * recolored by the tint, so an icon follows the theme). {@link Fit} controls
  * how the image maps into the widget bounds.
+ *
+ * <p>A view can let its picture be <b>dragged</b> to another widget or another program
+ * ({@link #setDragEnabled}); it does not unless asked, most pictures in a form being decoration.
  */
 public final class ImageView extends Widget<ImageView> {
 
@@ -37,6 +44,12 @@ public final class ImageView extends Widget<ImageView> {
     private Color tint;
     private float preferredWidth = -1;
     private float preferredHeight = -1;
+    private boolean dragEnabled;
+    private boolean dragWithinWindow;
+    private @Nullable String dragFileName;
+
+    /** The longest side of the picture shown under the pointer while a large view is dragged. */
+    private static final float DRAG_PREVIEW_MAX = 240;
 
     /** Shows an image at its natural size until the layout says otherwise. */
     public ImageView(@Nullable Image image) {
@@ -74,6 +87,93 @@ public final class ImageView extends Widget<ImageView> {
         this.preferredHeight = height;
         markNeedsLayout();
         return this;
+    }
+
+    /**
+     * Lets the user drag the picture out of this view (default off), as
+     * {@link DataFormat#IMAGE}, for a target to copy: a drop area of this program, an editor, a
+     * folder. A target may call what it did a move; the view keeps its picture all the same. What follows the pointer is the picture as the view shows it, with its own
+     * transparency, made smaller when the view is large. From the keyboard, the scene's drag key
+     * picks it up when the view is focusable. UI thread only.
+     *
+     * @param enabled whether the picture can be dragged
+     * @return this view
+     */
+    public ImageView setDragEnabled(boolean enabled) {
+        Ui.checkUiThread();
+        dragEnabled = enabled;
+        return this;
+    }
+
+    /**
+     * Has a dragged picture offered as a file as well, under this name (default: not). Some
+     * targets take a picture only as a file, the desktop and a file manager among them; for
+     * those the picture is written as a PNG to the temporary directory when one asks for it, see
+     * {@link Transfer#withImageAsFile}. It is not done unless asked, since it writes to disk.
+     * UI thread only.
+     *
+     * @param name the file's name, such as {@code "logo.png"}, or {@code null} for no file
+     * @return this view
+     */
+    public ImageView setDragFileName(@Nullable String name) {
+        Ui.checkUiThread();
+        dragFileName = name;
+        return this;
+    }
+
+    /**
+     * Keeps a drag of the picture inside its window (default: not): no other program is offered
+     * it, and no other window. UI thread only.
+     *
+     * @param within whether a drag stays in the window it began in
+     * @return this view
+     */
+    public ImageView setDragWithinWindow(boolean within) {
+        Ui.checkUiThread();
+        dragWithinWindow = within;
+        return this;
+    }
+
+    /** @return whether a drag of the picture stays in its window */
+    public boolean isDragWithinWindow() {
+        return dragWithinWindow;
+    }
+
+    /** @return whether the picture can be dragged */
+    public boolean isDragEnabled() {
+        return dragEnabled;
+    }
+
+    @Override
+    protected @Nullable Drag onDragStart(DragStartEvent event) {
+        Image picture = image;
+        if (!dragEnabled || picture == null || width() <= 0 || height() <= 0) {
+            return null;
+        }
+        float scale = Math.min(1, DRAG_PREVIEW_MAX / Math.max(width(), height()));
+        float holdX = event.isKeyboard() ? 0 : (event.x() - localToSceneX()) * scale;
+        float holdY = event.isKeyboard() ? 0 : (event.y() - localToSceneY()) * scale;
+        // Named for a keyboard drag by the scene, from the name the application gave the view.
+        Transfer content = Transfer.of(DataFormat.IMAGE, picture);
+        String file = dragFileName;
+        Drag drag = Drag.of(file == null ? content : content.withImageAsFile(file));
+        if (dragWithinWindow) {
+            drag.withinWindow();
+        }
+        return drag
+                // A copy is what is proposed; a move is allowed beside it because some programs
+                // take a picture only from a source that allows one, and say they moved it when
+                // they have only taken it. The view keeps its picture either way.
+                .allow(limn.transfer.DropAction.COPY, limn.transfer.DropAction.MOVE)
+                .preview(width() * scale, height() * scale, holdX, holdY, canvas -> {
+                    canvas.save();
+                    try {
+                        canvas.scale(scale, scale);
+                        onPaint(canvas);
+                    } finally {
+                        canvas.restore();
+                    }
+                });
     }
 
     @Override
