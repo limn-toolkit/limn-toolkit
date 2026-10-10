@@ -128,4 +128,26 @@ answers `false`.
 
 ## 7. As built and measured
 
-To be written with the implementation.
+Built as written, with one departure. §2 says a backend makes the system's call off the UI
+thread "which on Windows can be seconds"; the first build made the macOS call on the main
+thread, where AppKit is, and the toolkit's own budget for a UI task reported it: 171 ms to hand
+an address to a browser that was already open. All three systems are asked on a thread of the
+request's own; on macOS that thread makes and drains an autorelease pool for the objects the
+request creates.
+
+The public type is `limn.backend.Launcher`, final, over `limn.backend.spi.LauncherPeer`. The
+demo's `--open <address or path>` and `--show <path>` make one request from a real window and
+answer in the exit code; they are how each line below was read (2026-10-10).
+
+| | an address | refused: `javascript:`, `file:` | shown in its folder | a text file | `mailto:` |
+|---|---|---|---|---|---|
+| **macOS 27** (guest) | the browser, in front | `false`, nothing started | the file manager's window, the file selected | the text editor, in front | the mail program, in front |
+| **Fedora 44, KDE, Wayland** | the browser started, through the portal | `false`, nothing started | the file manager started, through `FileManager1` | the desktop's program for text started, by `xdg-open` | not asked |
+| **Ubuntu 24.04, GNOME, X11** | the browser started, through the portal | `false`, nothing started | the file manager started, through `FileManager1` | the text editor started, by `xdg-open` | not asked |
+| **Windows 11** | to be measured | | | | |
+
+On the two Linux guests what was read is the answer and the process that started, not the
+screen: whether the program came in front of the asking window, which §5 declares open on
+Wayland, was not looked at. Neither fallback (`xdg-open` for an address, the folder for a file
+with no file manager on the bus) ran on a guest, since both desktops have the first choice; the
+fallbacks are covered by reading, not by a run.

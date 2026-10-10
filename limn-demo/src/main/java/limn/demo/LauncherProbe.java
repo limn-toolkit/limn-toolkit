@@ -27,7 +27,8 @@ final class LauncherProbe {
         try (Backend backend = new LwjglBackend()) {
             NativeWindow window = backend.createWindow(WindowConfig.of(AppScene.TITLE, 320, 120));
             Ui.postDelayed(() -> {
-                boolean address = target.contains("://") || target.startsWith("mailto:");
+                // A scheme and a colon, and more than a drive letter before it.
+                boolean address = target.matches("[A-Za-z][A-Za-z0-9+.-]+:.*");
                 CompletionStage<Boolean> answer = verb.equals("--show")
                         ? window.launcher().showInFolder(Path.of(target))
                         : address ? window.launcher().openAddress(URI.create(target))
