@@ -714,11 +714,10 @@ public final class LwjglBackend implements BackendPeer {
     }
 
     /**
-     * Read from each system's screen with a list, a menu and a calendar open (2026-10-10): macOS
-     * casts a shadow around such a window; Windows 11 and GNOME under X11 cast none, and the
-     * toolkit's own was then seen around all three, each where it was before. Under Wayland these
-     * are drawn in the owner's scene, where they cast the toolkit's shadow already, so a window
-     * of this kind there, should one ever be made, keeps the answer nothing has contradicted.
+     * Read from each system's screen (2026-10-10) with a list, a menu, a calendar and an
+     * undecorated dialog open: macOS casts a shadow around such a window; Windows 11, GNOME under
+     * X11 and KDE under Wayland cast none. Under Wayland only the dialog is a window of its own,
+     * the other three being drawn in the owner's scene.
      */
     @Override
     public boolean compositorShadowsPopups() {
@@ -727,12 +726,7 @@ public final class LwjglBackend implements BackendPeer {
         if (forced != null) {
             return !forced.equals("toolkit");
         }
-        limn.backend.Platform platform = limn.backend.Platform.current();
-        if (platform.isWindows()) {
-            return false;
-        }
-        return !(platform.isLinux()
-                && org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11);
+        return limn.backend.Platform.current().isMacOs();
     }
 
     @Override

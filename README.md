@@ -234,6 +234,11 @@ month grid behind it. Screen readers on the three platforms read all three.
 stack overlays, padding insets, and `Expanded` says who takes the space that is left. No
 constraint solver to configure, no layout manager to install.
 
+**Depth, and a door to the system.** A surface that lies over another casts the shadow its level
+has in the theme: menus, lists, calendars and dialogs already do, and `Surface` lifts a panel of
+your own. `window.launcher()` hands a link or a file to the system's own programs — the browser,
+the mail program, the file manager.
+
 **Your product's look, not the toolkit's.** A theme is plain data — every colour, the corner
 radius, the size step every control inherits — and one call swaps it at runtime.
 

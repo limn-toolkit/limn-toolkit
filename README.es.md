@@ -241,6 +241,11 @@ fila reparte, una pila superpone, el relleno separa y `Expanded` dice quién se 
 sobrante. No hay solucionador de restricciones que configurar ni gestor de disposición que
 instalar.
 
+**Profundidad, y una puerta al sistema.** Una superficie que queda sobre otra proyecta la sombra
+que el tema da a su nivel: menús, listas, calendarios y diálogos ya lo hacen, y `Surface` eleva un
+panel tuyo. `window.launcher()` entrega un enlace o un archivo a los programas del propio sistema —
+el navegador, el programa de correo, el gestor de archivos.
+
 **El aspecto de tu producto, no el del toolkit.** Un tema son datos puros — cada color, el radio de
 las esquinas, el paso de tamaño que hereda cada control — y una llamada lo cambia en tiempo de
 ejecución.

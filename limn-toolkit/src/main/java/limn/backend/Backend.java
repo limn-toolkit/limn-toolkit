@@ -126,8 +126,8 @@ public sealed interface Backend extends AutoCloseable permits BackendPeer {
     }
 
     /**
-     * Whether the system's compositor casts a shadow around a popup window of this backend's (a
-     * menu, the list of a combo box). Where it does the toolkit draws none of its own, or there
+     * Whether the system's compositor casts a shadow around an undecorated window of this
+     * backend's (a menu, the list of a combo box, a dialog with no frame). Where it does the toolkit draws none of its own, or there
      * would be two; where it does not, the toolkit makes such a window larger than its panel and
      * draws the shadow in the margin.
      *

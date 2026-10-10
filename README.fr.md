@@ -244,6 +244,11 @@ une rangée répartit, une pile superpose, la marge intérieure retrait, et `Exp
 prend l’espace restant. Aucun solveur de contraintes à configurer, aucun gestionnaire de mise en
 page à installer.
 
+**De la profondeur, et une porte vers le système.** Une surface posée sur une autre projette
+l’ombre que le thème donne à son niveau : menus, listes, calendriers et dialogues le font déjà, et
+`Surface` soulève un panneau à vous. `window.launcher()` confie un lien ou un fichier aux
+programmes du système — le navigateur, le programme de messagerie, le gestionnaire de fichiers.
+
 **L’apparence de votre produit, pas celle du toolkit.** Un thème est une donnée brute — chaque
 couleur, le rayon des angles, le pas de taille dont hérite chaque contrôle — et un appel le
 remplace à l’exécution.

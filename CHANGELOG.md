@@ -220,10 +220,10 @@ Maven Central say which number that was.
   its fill, for a panel that slides over content or a card with no edge, and
   `Canvas.drawShadow` draws one layer under any rounded rectangle. The toolkit's own surfaces
   cast theirs: a menu, the list of a combo box, a calendar and a tooltip cast `OVERLAY`'s, and
-  a dialog drawn in the scene `MODAL`'s. A popup that is a window of its own keeps the
-  system's shadow where the compositor casts one (macOS) and draws the toolkit's where it
-  casts none (Windows, X11), in a transparent margin of the window where a press closes the
-  popup. The theme
+  a dialog drawn in the scene `MODAL`'s. A popup or a frameless dialog that is a window of its own
+  keeps the system's shadow where the compositor casts one (macOS) and draws the toolkit's
+  where it casts none (Windows, X11, Wayland), in a transparent margin of the window; a press
+  in a popup's margin closes it. The theme
   editor edits each level's five numbers and shows the three shadows in its preview.
 - `window.launcher()` hands an address or a file to the system: `openAddress` opens a web page
   in the browser or a `mailto:` in the mail program, `openFile` a file in the program registered

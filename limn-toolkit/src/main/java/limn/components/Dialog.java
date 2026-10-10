@@ -161,6 +161,8 @@ public final class Dialog {
 
     private DisplayMode displayMode = DisplayMode.NATIVE_WINDOW;
     private WindowStyle style = WindowStyle.UNDECORATED_TRANSLUCENT;
+    /** The transparent margin around the card in its own window, for its shadow; zero for none. */
+    private int windowMargin;
     private String cancelResult;
     /**
      * What Return resolves the dialog with, and whether there is a button to resolve it: two
@@ -717,12 +719,21 @@ public final class Dialog {
         // the window is sized from dialogMaxWidth and panel.measure() below, before bind();
         // install the link after that and the window is sized at the process default while
         // the content re-measures at the owner's step inside it, so the card clips or floats.
-        panel.setInheritanceHost(inheritanceHostFor(owner));
+        // An undecorated card on a system whose compositor casts no shadow for such a window
+        // gets a window larger than itself by the shadow's reach, and draws its own into the
+        // margin. A press there does nothing: it is beside the dialog, which a modal one does
+        // not close on and another kind has no reason to.
+        windowMargin = style == WindowStyle.UNDECORATED_TRANSLUCENT
+                ? limn.components.internal.PopupFrame.marginFor(window, Theme.current(), Elevation.MODAL) : 0;
+        int margin = windowMargin;
+        Widget<?> root = margin == 0 ? panel
+                : new limn.components.internal.PopupFrame(panel, margin, () -> { });
+        root.setInheritanceHost(inheritanceHostFor(owner));
         // A scene gives the panel a text ruler so it can be measured to size
         // the window; it is then bound to the modal window.
         // On the owner's clock, so the fade-out that destroys this window — and completes the
         // dialog's future — advances with it (Scene#clock).
-        modalScene = new Scene(panel, owner.clock());
+        modalScene = new Scene(root, owner.clock());
         modalScene.inheritRenderingFlags(owner); // partial/debug follow the owner window
         // Opaque styles fill with the surface color; translucent shows the
         // desktop through the transparent framebuffer's rounded corners.
@@ -737,8 +748,8 @@ public final class Dialog {
         Size budget = nativeBudget(window);
         Size panelSize = panel.measure(Constraints.loose(
                 Math.min(t.dialogMaxWidth(), budget.width()), budget.height()));
-        int w = Math.max(1, Math.round(Math.min(panelSize.width(), budget.width())));
-        int h = Math.max(1, Math.round(Math.min(panelSize.height(), budget.height())));
+        int w = Math.max(1, Math.round(Math.min(panelSize.width(), budget.width()))) + 2 * margin;
+        int h = Math.max(1, Math.round(Math.min(panelSize.height(), budget.height()))) + 2 * margin;
 
         // Floating (optional) focus-stealing modal window in the requested style.
         // Owned, not a popup: this closes and moves with the owner like a dropdown, but it is a
@@ -1367,7 +1378,8 @@ public final class Dialog {
         /** The shadow the card casts while the dialog is drawn in the scene. */
         @Override
         protected float paintOutset() {
-            return displayMode == DisplayMode.IN_SCENE ? Theme.of(this).elevation(Elevation.MODAL).reach() : 0;
+            return displayMode == DisplayMode.IN_SCENE || windowMargin > 0
+                    ? Theme.of(this).elevation(Elevation.MODAL).reach() : 0;
         }
         private final Widget<?> child;
         private boolean dragging;
@@ -1486,8 +1498,8 @@ public final class Dialog {
             // Clamped, not just measured against: the card reports what it wants and the body
             // gave up whatever did not fit, but a content that cannot shrink (a fixed-size
             // preview) still answers larger than the budget, and the window is what must hold.
-            int w = Math.max(1, Math.round(Math.min(wanted.width(), budget.width())));
-            int h = Math.max(1, Math.round(Math.min(wanted.height(), budget.height())));
+            int w = Math.max(1, Math.round(Math.min(wanted.width(), budget.width()))) + 2 * windowMargin;
+            int h = Math.max(1, Math.round(Math.min(wanted.height(), budget.height()))) + 2 * windowMargin;
             int currentW = Math.round(modalWindow.logicalWidth());
             int currentH = Math.round(modalWindow.logicalHeight());
             if (w == currentW && h == currentH) {
@@ -1517,9 +1529,11 @@ public final class Dialog {
             float inset = Strokes.HALF_PIXEL_INSET;
             // In-scene: always the glassy rounded card, composited over the scrim.
             if (displayMode == DisplayMode.IN_SCENE || style == WindowStyle.UNDECORATED_TRANSLUCENT) {
-                if (displayMode == DisplayMode.IN_SCENE) {
-                    // Over the scrim, the card of a dialog drawn in the scene is the surface
-                    // lifted furthest; it fades in with the card.
+                if (displayMode == DisplayMode.IN_SCENE || windowMargin > 0) {
+                    // The card of a dialog is the surface lifted furthest. Drawn in the scene it
+                    // lies over the scrim and fades in with the card; in a window of its own
+                    // the shadow is the compositor's, or drawn here into the window's margin
+                    // where the compositor casts none.
                     canvas.save();
                     canvas.setOpacity(fade);
                     theme.drawElevation(canvas, limn.graphics.RoundRect.of(0, 0, w, h, t.radiusLarge()),
