@@ -421,6 +421,11 @@ final class AppScene {
             tour(scene, navigation, top);
         }
         lab(scene, navigation, top, performance);
+        if (Boolean.getBoolean("limn.demo.popup")) {
+            // The lab's: the size picker's list opened by itself, to photograph a popup window
+            // as the system's compositor shows it.
+            Ui.postDelayed(size::open, 1800);
+        }
         if (Boolean.getBoolean("limn.demo.order")) {
             // The lab's: the order under the cursor opened by itself, to photograph the panel.
             Ui.postDelayed(() -> orders.drawer.setOpen(true), 1800);
