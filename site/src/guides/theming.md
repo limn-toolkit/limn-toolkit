@@ -28,14 +28,34 @@ rather than after it: a palette that has had its ink darkened and its accent dee
 longer the palette it was borrowed from, and shipping it under the original name would be a
 claim about someone else's work.
 
-The palette is process-wide, so hand `apply` every live scene: each one repaints, and clears
-to the palette's `background` from its next frame unless its background is translucent, as a
-popup's is. Nothing is re-measured, because a palette carries colours and corner radii and nothing in the toolkit
-measures from either. A palette's font is the exception that re-measures, and `apply` applies it
-through the font axis, which does its own relayout. `Theme.setCurrent` is the cheaper half on its
-own: it switches the palette and tells whoever subscribed through `Theme.observeChanges`,
-repaints nothing and leaves every scene's background as it was, which is what a colour well wants when it changes the palette on every frame of
-a drag and repaints its own preview.
+### Letting the user choose
+
+A theme picker is a combo box over `Theme.builtins()` whose choice calls `apply`:
+
+{% snippet guide:theme-picker %}
+
+`apply` does three things, and a picker needs all three: it makes the palette current, it
+applies the palette's own font, and it repaints the scenes you hand it, each clearing to the
+palette's `background` from its next frame (unless its background is translucent, as a
+popup's is). The palette is process-wide, so hand it **every** scene you have open, one for
+each window.
+
+Nothing is re-measured by a palette switch, because a palette carries colours and corner radii
+and nothing in the toolkit measures from either. The palette's font is the one part that
+re-measures, and `apply` sends it through the font axis, which lays every scene out again by
+itself.
+
+:::caution[`apply`, not `setCurrent`]
+`Theme.setCurrent(palette)` switches the palette and repaints **nothing**: the window keeps
+showing the old colours until something else happens to repaint it, piece by piece, on the old
+background, and the palette's font is never applied. It is the half of `apply` meant for a
+colour well that changes the palette on every frame of a drag and repaints its own preview. A
+theme picker, a settings screen and a "dark mode" switch all want `apply`.
+:::
+
+Language, direction and control size are different: setting any of them lays out every scene
+again with nothing more to call. A palette is the one process-wide switch you hand the scenes
+to, and `Theme.observeChanges` is there for whatever else of yours has to hear of it.
 
 ## Building your own
 
