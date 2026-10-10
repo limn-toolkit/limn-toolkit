@@ -2200,10 +2200,6 @@ final class VideoScene {
         Label status = new Label("").setMuted(true);
         reopen[0] = at -> play(pane, view, facts, open, current[0], sound[0], at);
         play(pane, view, facts, open, current[0], sound[0]);
-        if (Boolean.getBoolean("limn.demo.video.autoplay")) {
-            // TEMPORARY, for the lab: the picture runs without a press, to film it.
-            limn.concurrent.Ui.postDelayed(() -> view.setPaused(false), 2500);
-        }
 
         SegmentedControl picker = new SegmentedControl(sources.stream().map(Source::label).toList());
         picker.setSelectedIndex(initial);
