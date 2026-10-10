@@ -646,8 +646,6 @@ public final class Rows<E> {
         float h = keptHeight < 0 ? 0 : heights[keptHeight];
         Arrays.fill(mounted, 0, mountedCount, null);
         mountedCount = 0;
-        placedFrom = 0;
-        placedTo = 0;
         if (keep != null && keptHeight >= 0 && keepIndex >= 0) {
             rows[0] = keepIndex;
             mounted[0] = keep;
@@ -683,8 +681,6 @@ public final class Rows<E> {
         }
         Arrays.fill(mounted, kept, mountedCount, null);
         mountedCount = kept;
-        placedFrom = 0;
-        placedTo = 0; // nothing is known to be placed until the next pass says so
     }
 
     /** @return the rows set aside by {@link #renumber}, until the next pass lets go of them */
