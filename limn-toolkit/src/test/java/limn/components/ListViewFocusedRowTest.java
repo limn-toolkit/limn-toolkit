@@ -214,12 +214,13 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
         pageDown();
 
         assertEquals(19, list.selectedIndex(), "three pages of six from row one");
-        assertEquals(19, list.firstVisibleIndex(), "a far jump lands the selection at the top");
+        assertEquals(14, list.firstVisibleIndex(),
+                "a row revealed from below lands with its foot on the box's foot (ADR 055 §3)");
         assertSame(rowOne, cellOf(1),
                 "the row the keyboard is in is still mounted, on the same widget");
         assertTrue(rowOne.button.isFocused(), "and the focus never moved");
         assertFalse(rows.recycled.contains(rowOne), "and the adapter was not handed it back");
-        assertEquals(List.of(1, 19, 20, 21, 22, 23, 24), mountedIndices(),
+        assertEquals(List.of(1, 14, 15, 16, 17, 18, 19), mountedIndices(),
                 "children() is the bar and then the mounted rows in data order, the kept row "
                         + "ahead of the viewport's, which is reading order and Tab order both");
     }
@@ -276,13 +277,14 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
         assertFalse(rowOne.painted, "a row outside the viewport paints nothing into it");
         assertTrue(cellOf(19).painted, "while the rows in it paint as before");
 
+        // Row 19 came in from below and stands at the foot, so the box holds rows 14 to 19.
         Widget<?> hit = list.hitTest(20, ROW_HEIGHT + 5);
         assertNotNull(hit);
         Widget<?> under = hit;
         while (under != null && !(under instanceof ButtonRow)) {
             under = under.parent();
         }
-        assertSame(cellOf(20), under,
+        assertSame(cellOf(15), under,
                 "the second slot of the viewport belongs to the row bound there, and the kept "
                         + "row, whatever slot it held before the page, takes no click: " + hit);
     }
@@ -476,7 +478,7 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
         assertTrue(rows.recycled.containsAll(firstPage),
                 "every row of the first page went back to the adapter, row one included: it "
                         + "holds no focus and is no longer the cursor: " + rows.recycled.size());
-        assertEquals(List.of(19, 20, 21, 22, 23, 24), mountedIndices(),
+        assertEquals(List.of(14, 15, 16, 17, 18, 19), mountedIndices(),
                 "the viewport's rows and nothing else");
         assertEquals(VISIBLE, rowNodes().size(), describe(tree()));
         assertNull(rowNode(1), describe(tree()));
@@ -498,6 +500,6 @@ class ListViewFocusedRowTest extends AccessibleComponentTestBase {
         assertNull(cellOf(1));
         assertNotNull(cellOf(3), "row three is the one kept now");
         assertTrue(cellOf(3).button.isFocused());
-        assertEquals(List.of(3, 19, 20, 21, 22, 23, 24), mountedIndices());
+        assertEquals(List.of(3, 14, 15, 16, 17, 18, 19), mountedIndices());
     }
 }

@@ -4,6 +4,7 @@ import limn.accessibility.Accessibility;
 import limn.accessibility.Accessible;
 import limn.animation.Transition;
 import limn.components.internal.RowDragPicture;
+import limn.components.internal.Rows;
 import limn.components.internal.a11y.RowsAccessibility;
 import limn.concurrent.Ui;
 import limn.graphics.Canvas;
@@ -159,7 +160,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * says otherwise. A row <b>count</b>, not a length: it multiplies the step's seed row height,
      * so it must not move with the step.
      */
-    private static final int VISIBLE_ROWS_HINT = 6;
+    private static final int VISIBLE_ROWS_HINT = 8;
 
     /**
      * How many seed rows tall this list prefers to be under an unbounded height. Multiplied by
@@ -179,43 +180,86 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     private final ScrollGutters gutters = new ScrollGutters();
 
     /**
-     * The realized rows, in <b>data order</b>: {@code mountedRows[i]} is the index
-     * {@code mountedCells[i]} is bound to, ascending, and {@code children()} holds the bar and
-     * then exactly these cells in exactly this order.
-     *
-     * <p>Two parallel arrays and not a {@code Map<Integer, Widget>}, for two reasons that arrived
-     * together. Data order is <b>reading order and Tab order</b>, and rows are realized in neither
-     * — an upward scroll mounts the rows above the anchor from the anchor downwards — so a
-     * container that appended each one as it arrived would hand a screen reader "4 of 5000, 5 of
-     * 5000, 3 of 5000" and walk a Tab through the rows' own buttons in the same wrong order. And
-     * the describe hooks run on every damaged frame under a rule that they allocate nothing, which
-     * a map keyed by {@code Integer} cannot meet: a get boxes its key for any row above 127, and
-     * an iteration over its entries or values allocates an iterator per call. Grown once by
-     * doubling and then reused.
+     * The rows as they are scrolled and realized: the anchor, the cells in <b>data order</b>,
+     * the one kept for the keyboard, the reveal. {@code children()} holds the bar and then
+     * exactly the realized cells in exactly that order, which is the order a reader and the Tab
+     * key walk, whatever order a scroll realized them in.
      */
-    private int[] mountedRows = new int[16];
-    private Widget<?>[] mountedCells = new Widget<?>[16];
-    private int mountedCount;
+    private final Rows<Widget<?>> engine = new Rows<>(new RowsEngineHost());
+    /** Where the pass in progress puts a row's leading edge, and how wide a row is. */
+    private float passRowX;
+    private float passRowW;
 
-    /**
-     * The half-open run of rows {@link #placeDown} last laid out, which is what
-     * {@link #recycleExcept} keeps. A range and not a set of indices: the walk starts at the
-     * anchor and steps down one row at a time, so what it places is contiguous by construction.
-     */
-    private int placedFrom;
-    private int placedTo;
+    private final class RowsEngineHost implements Rows.Host<Widget<?>> {
+        @Override
+        public int count() {
+            return items.size();
+        }
 
-    // Anchor scroll state: the top edge of row `anchorIndex` sits at y = anchorTop.
-    private int anchorIndex;
-    private float anchorTop;
-    /**
-     * Mean measured row height, or 0 until layout has measured at least one row; the step's
-     * {@code listRowSeed} stands in until then, resolved lazily by
-     * {@link #avgRowHeight(SizeTokens)}. Seeding the field at construction is what the size
-     * axis forbids: a widget has no parent while it is being constructed, so the seed would be
-     * the process default's forever, with no path to recovery.
-     */
-    private float measuredRowHeight;
+        @Override
+        public Widget<?> mount(int index, int position) {
+            Widget<?> cell = cells.cellFor(items.get(index));
+            add(position + 1, cell); // the bar is children() zero
+            cell.setVisible(true);
+            return cell;
+        }
+
+        @Override
+        public void unmount(Widget<?> cell, boolean heldFocus) {
+            remove(cell);
+            cells.recycle(cell);
+            if (heldFocus) {
+                requestFocus(); // a row that leaves does not take the keyboard with it
+            }
+        }
+
+        @Override
+        public float measure(Widget<?> cell, int index) {
+            return cell.measure(new Constraints(passRowW, passRowW, 0, Constraints.UNBOUNDED_LIMIT)).height();
+        }
+
+        @Override
+        public void place(Widget<?> cell, int index, float y, float height) {
+            cell.layoutBox(passRowX, y, passRowW, height);
+        }
+
+        @Override
+        public void shift(Widget<?> cell, float dy) {
+            // moveChild, not layoutBox: a row's own layout does not depend on where the row
+            // sits, and the pass a scroll schedules runs it again anyway.
+            moveChild(cell, cell.x(), cell.y() + dy);
+        }
+
+        @Override
+        public boolean holdsFocus(Widget<?> cell) {
+            return containsFocus(cell);
+        }
+
+        @Override
+        public int cursorIndex() {
+            return isFocused() ? cursor : -1;
+        }
+
+        @Override
+        public float viewportHeight() {
+            return height();
+        }
+
+        @Override
+        public float seedHeight() {
+            return tokens().listRowSeed();
+        }
+
+        @Override
+        public void scrolled(Change.Origin origin) {
+            // Contained, not global: a scroll changes which rows are realized and where they
+            // sit, and both are inside a box this widget clips and whose own size a scroll
+            // cannot move. A full layout here made every wheel detent a full-window repaint.
+            markNeedsContainedLayout();
+            invalidate();
+            vBar.onScrolled();
+        }
+    }
 
     private SelectionMode selectionMode = SelectionMode.SINGLE;
     private final java.util.BitSet selected = new java.util.BitSet();
@@ -394,7 +438,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
 
             @Override
             public void setOffset(float value) {
-                scrollToOffset(value, tokens());
+                engine.scrollTo(value, Change.Origin.USER);
             }
         });
         add(vBar);
@@ -807,10 +851,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             if (Boolean.getBoolean("limn.drag.trace")) {
                 StringBuilder rowsNow = new StringBuilder();
                 float[] where = belongs();
-                for (int i = 0; i < mountedCount; i++) {
-                    rowsNow.append(' ').append(mountedRows[i]).append(':').append(Math.round(mountedCells[i].y()))
+                for (int i = 0; i < engine.mountedCount(); i++) {
+                    rowsNow.append(' ').append(engine.rowAt(i)).append(':').append(Math.round(engine.mountedAt(i).y()))
                             .append('+').append(Float.isNaN(where[i]) ? "lifted" : String.valueOf(Math.round(where[i])))
-                            .append('h').append(Math.round(mountedCells[i].height()));
+                            .append('h').append(Math.round(engine.mountedAt(i).height()));
                 }
                 System.err.println("limn.drag(list " + System.identityHashCode(this) % 1000 + "): drop at " + dropAt
                         + " room " + roomHeight() + " lifted " + lifted + " rows" + rowsNow);
@@ -846,9 +890,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             return 0;
         }
         float room = 0;
-        for (int i = 0; lifted && i < mountedCount; i++) {
-            if (isLifted(mountedRows[i]) && isPlaced(mountedRows[i])) {
-                room += mountedCells[i].height();
+        for (int i = 0; lifted && i < engine.mountedCount(); i++) {
+            if (isLifted(engine.rowAt(i)) && isPlaced(engine.rowAt(i))) {
+                room += engine.mountedAt(i).height();
             }
         }
         return (room > 0 ? room : avgRowHeight(tokens())) * ROOM_SHARE;
@@ -868,17 +912,17 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      * for a row that is lifted, which is not drawn.
      */
     private float[] belongs() {
-        if (offsets.length < mountedCount) {
-            offsets = new float[mountedCells.length];
+        if (offsets.length < engine.mountedCount()) {
+            offsets = new float[Math.max(16, engine.mountedCount() * 2)];
         }
         float room = roomHeight();
         float up = 0;
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            int row = engine.rowAt(i);
             if (isLifted(row)) {
                 offsets[i] = Float.NaN;
                 if (isPlaced(row)) {
-                    up += mountedCells[i].height();
+                    up += engine.mountedAt(i).height();
                 }
             } else {
                 offsets[i] = -up + (room > 0 && row >= dropAt ? room : 0);
@@ -891,8 +935,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     private float[] drawnOffsets() {
         float[] at = belongs();
         if (!sliding.isEmpty()) {
-            for (int i = 0; i < mountedCount; i++) {
-                Float left = sliding.get(mountedRows[i]);
+            for (int i = 0; i < engine.mountedCount(); i++) {
+                Float left = sliding.get(engine.rowAt(i));
                 if (left != null && !Float.isNaN(at[i])) {
                     at[i] += left;
                 }
@@ -909,8 +953,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         float[] now = belongs();
         boolean still = limn.animation.Motion.reduced() || scene() == null;
         boolean any = false;
-        for (int i = 0; i < mountedCount; i++) {
-            Integer row = mountedRows[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            Integer row = engine.rowAt(i);
             if (Float.isNaN(now[i])) {
                 sliding.remove(row);
                 belonged.remove(row);
@@ -942,9 +986,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
      */
     private void rowsAreHere() {
         float[] now = belongs();
-        for (int i = 0; i < mountedCount; i++) {
+        for (int i = 0; i < engine.mountedCount(); i++) {
             if (!Float.isNaN(now[i])) {
-                belonged.put(mountedRows[i], now[i]);
+                belonged.put(engine.rowAt(i), now[i]);
             }
         }
     }
@@ -957,9 +1001,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         if (sliding.isEmpty()) {
             return;
         }
-        for (int i = 1; i < mountedCount; i++) {
-            Integer row = mountedRows[i];
-            Float above = sliding.get(mountedRows[i - 1]);
+        for (int i = 1; i < engine.mountedCount(); i++) {
+            Integer row = engine.rowAt(i);
+            Float above = sliding.get(engine.rowAt(i - 1));
             if (above != null && isPlaced(row) && !belonged.containsKey(row) && !sliding.containsKey(row)
                     && !isLifted(row)) {
                 sliding.put(row, above);
@@ -1004,9 +1048,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         }
         float[] at = drawnOffsets();
         java.util.IdentityHashMap<Object, Float> drawn = new java.util.IdentityHashMap<>();
-        for (int i = 0; i < mountedCount; i++) {
-            if (!Float.isNaN(at[i]) && isPlaced(mountedRows[i]) && mountedRows[i] < items.size()) {
-                drawn.put(items.get(mountedRows[i]), mountedCells[i].y() + at[i]);
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            if (!Float.isNaN(at[i]) && isPlaced(engine.rowAt(i)) && engine.rowAt(i) < items.size()) {
+                drawn.put(items.get(engine.rowAt(i)), engine.mountedAt(i).y() + at[i]);
             }
         }
         forgetSlides();
@@ -1028,11 +1072,11 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         }
         drawnBefore = null;
         boolean any = false;
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            int row = engine.rowAt(i);
             Float was = row < items.size() ? drawn.get(items.get(row)) : null;
-            if (was != null && Math.abs(was - mountedCells[i].y()) >= 0.5f) {
-                sliding.put(row, was - mountedCells[i].y());
+            if (was != null && Math.abs(was - engine.mountedAt(i).y()) >= 0.5f) {
+                sliding.put(row, was - engine.mountedAt(i).y());
                 any = true;
             }
         }
@@ -1049,21 +1093,21 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     private int placeAt(float localY) {
         float up = 0;
         int after = -1;
-        for (int i = 0; i < mountedCount; i++) {
-            Widget<?> cell = mountedCells[i];
-            if (!isPlaced(mountedRows[i])) {
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            Widget<?> cell = engine.mountedAt(i);
+            if (!isPlaced(engine.rowAt(i))) {
                 continue; // a row kept realized outside the viewport
             }
-            if (isLifted(mountedRows[i])) {
+            if (isLifted(engine.rowAt(i))) {
                 up += cell.height();
                 continue;
             }
             if (localY < cell.y() - up + cell.height()) {
-                return mountedRows[i];
+                return engine.rowAt(i);
             }
-            after = mountedRows[i] + 1;
+            after = engine.rowAt(i) + 1;
         }
-        return after >= 0 ? after : placedTo > placedFrom ? Math.min(items.size(), placedTo) : items.size();
+        return after >= 0 ? after : engine.placedTo() > engine.placedFrom() ? Math.min(items.size(), engine.placedTo()) : items.size();
     }
 
     @Override
@@ -1173,7 +1217,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         // After the layout the refresh asked for: the rows are unmounted now, and a reveal with
         // no row to measure takes the far jump, which put the moved row at the top of the list
         // though it had never left sight.
-        pendingEnsureVisible = cursor;
+        ensureVisible(cursor);
         announceCursor(wasCursor, Change.Origin.ADJUSTMENT);
         limn.scene.Scene scene = scene();
         if (scene != null) {
@@ -1203,11 +1247,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         lead = -1;
         cursor = -1;
         rangeAnchor = -1;
-        anchorIndex = 0;
-        anchorTop = 0;
-        // A reveal still waiting for the first layout was asked of the old items.
-        pendingEnsureVisible = -1;
-        recycleExcept(0, 0, 0);
+        engine.reset();
         markNeedsLayout();
         invalidate();
         if (had) {
@@ -1345,7 +1385,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
 
     /** @return the first fully-or-partly visible row index (tests/inspection) */
     public int firstVisibleIndex() {
-        return anchorIndex;
+        return engine.anchorIndex();
     }
 
     /**
@@ -1360,13 +1400,11 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     public void refresh() {
         Ui.checkUiThread();
         int count = items.size();
-        anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, count - 1)));
-        // Unmount every row: a mounted cell is bound to the OLD item at its index and layout
-        // reuses mounted cells without asking again, so without this the visible viewport is
-        // exactly what never refreshes. Every row, the one holding the keyboard focus included:
-        // it is bound to an item that may no longer exist, and the focus falls back to the list
-        // as it always did.
-        recycleExcept(0, 0, 0);
+        // Every realized row is let go of: each is bound to the OLD item at its index, and the
+        // pass reuses realized rows without asking again, so without this what is in sight is
+        // exactly what never refreshes. The one holding the keyboard too: it is bound to an item
+        // that may no longer exist, and the keyboard falls back to the list.
+        engine.refresh(null, -1);
         markNeedsLayout();
         invalidate();
         if (selectionMode == SelectionMode.SINGLE && lead >= count) {
@@ -1607,9 +1645,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
 
     /** Every realized selected row's band, before the selection changes under it. */
     private void damageSelected() {
-        for (int i = 0; i < mountedCount; i++) {
-            if (selected.get(mountedRows[i])) {
-                damageRow(mountedRows[i]);
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            if (selected.get(engine.rowAt(i))) {
+                damageRow(engine.rowAt(i));
             }
         }
     }
@@ -1656,41 +1694,9 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     /** Scrolls by a delta in logical points (positive = toward the end). UI thread only. */
     public void scrollBy(float dy) {
         Ui.checkUiThread();
-        SizeTokens t = tokens(); // one resolution: the clamp and the estimate must agree
-        float offset = estimatedOffset(t);
-        float max = Math.max(0, estimatedContentHeight(t) - height());
-        float applied = Math.min(Math.max(0, offset + dy), max) - offset;
-        if (applied == 0) {
-            return;
-        }
-        if (Math.abs(applied) > JUMP_VIEWPORTS * height()) {
-            // Far: land by estimate, as a drag of the bar does. Moving the anchor this far made
-            // the next layout walk and measure every row on the way, 1.35-1.95 s for 100,000
-            // rows; near, the walk is a few rows and the landing stays exact.
-            scrollToOffset(offset + applied, t);
-            return;
-        }
-        anchorTop -= applied;
-        // Move the mounted rows NOW: revealInView re-reads coordinates between
-        // nested scrollables in one pass (the Scrollable contract); the next
-        // layout renormalizes the anchor and mounts/recycles as usual.
-        //
-        // moveChild, not layoutBox: a row's own layout does not depend on where the
-        // row sits, so re-running it here computes the same answer it already had
-        // (once per mounted row, per wheel detent, per drag frame), and the pass this
-        // schedules re-runs it again anyway. ScrollView's scroll path is the same
-        // shape for the same reason.
-        for (int i = 0; i < mountedCount; i++) {
-            Widget<?> cell = mountedCells[i];
-            moveChild(cell, cell.x(), cell.y() - applied);
-        }
-        // Contained, not global: a scroll changes which rows are mounted and where they sit, and
-        // both are inside a box this widget clips and whose own size a scroll cannot move. Asking
-        // for a full layout here made every wheel detent a full-window repaint, the work the
-        // damage machinery exists to avoid, on the most common heavy interaction there is.
-        markNeedsContainedLayout();
-        invalidate();
-        vBar.onScrolled();
+        // The realized rows move NOW: revealInView re-reads coordinates between nested
+        // scrollables in one pass (the Scrollable contract); the next pass walks on from there.
+        engine.scrollBy(dy, Change.Origin.CODE);
     }
 
     /** Scrolls the minimum so the rect (in viewport coordinates) becomes visible. */
@@ -1717,40 +1723,17 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         return Theme.of(this).tokensFor(this);
     }
 
-    /**
-     * The row-height estimate every scroll number is built from: the measured mean once layout
-     * has produced one, else the step's seed. All estimates, no exception: a raw 0 here would
-     * make an empty list's intrinsic height 0 and its page size 1.
-     */
+    /** A row's height as far as is known: the mean of the rows last placed, or the step's seed. */
     private float avgRowHeight(SizeTokens t) {
-        return measuredRowHeight > 0 ? measuredRowHeight : t.listRowSeed();
+        return engine.meanHeight();
     }
 
     private float estimatedContentHeight(SizeTokens t) {
-        return items.size() * avgRowHeight(t);
+        return engine.contentHeight();
     }
 
     private float estimatedOffset(SizeTokens t) {
-        float avg = avgRowHeight(t);
-        float max = Math.max(0, estimatedContentHeight(t) - height());
-        return Math.max(0, Math.min(anchorIndex * avg - anchorTop, max));
-    }
-
-    /**
-     * How far a {@link #scrollBy} goes, in viewport heights, before it lands by estimate instead
-     * of walking the rows between.
-     */
-    private static final float JUMP_VIEWPORTS = 2;
-
-    private void scrollToOffset(float offset, SizeTokens t) {
-        float clamped = Math.max(0, offset);
-        float avg = avgRowHeight(t);
-        anchorIndex = avg > 0 ? (int) (clamped / avg) : 0;
-        anchorIndex = Math.max(0, Math.min(anchorIndex, Math.max(0, items.size() - 1)));
-        anchorTop = anchorIndex * avg - clamped;
-        markNeedsContainedLayout(); // a drag of the bar is a scroll; see scrollBy and ensureVisible
-        invalidate();
-        vBar.onScrolled();
+        return engine.offset();
     }
 
     // ---------------------------------------------------------------- layout
@@ -1777,7 +1760,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         if (box <= 0 || h <= 0) {
             return;
         }
-        // One resolution for the whole pass, as the axis requires: placeDown runs twice below
+        // One resolution for the whole pass, as the axis requires: the rows are placed twice below
         // whenever the over-scroll retry fires, and the bar's side and the row origin are two
         // halves of one answer. Two resolutions that disagreed would put the rows under the bar.
         boolean rtl = isRightToLeft();
@@ -1800,311 +1783,54 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         // `gutters.resolve` has settled it, so this cannot be hoisted above `w`.
         float rowX = rtl ? box - w : 0;
 
-        int count = items.size();
-        if (count == 0) {
-            recycleExcept(0, 0, 0);
-            anchorIndex = 0;
-            anchorTop = 0;
-            return;
-        }
-        anchorIndex = Math.min(anchorIndex, count - 1);
-
-        normalizeUp(w);
-        normalizeDown(count, w);
-        float bottom = placeDown(count, rowX, w, h);
-        // Over-scrolled past the end: close the gap at the bottom, unless the
-        // content is shorter than the viewport (then it stays top-aligned).
-        if (bottom < h && !(anchorIndex == 0 && anchorTop >= 0)) {
-            anchorTop += h - bottom;
-            normalizeUp(w);
-            normalizeDown(count, w);
-            bottom = placeDown(count, rowX, w, h);
-        }
-        recycleExcept(placedFrom, placedTo, count);
-        keepCursorRow(count, w);
-        placeKeptOutside(rowX, w, bottom);
-        updateAverageHeight();
+        passRowX = rowX;
+        passRowW = w;
+        // Past the foot by what a drag lifted out: the rows below close up, and the ones that
+        // come into view from under the edge have to be there to slide in.
+        engine.setOverscan(liftedHeight);
+        engine.layout();
         vBar.refresh();
-        if (pendingEnsureVisible >= 0) {
-            int pending = Math.min(pendingEnsureVisible, count - 1);
-            pendingEnsureVisible = -1;
-            ensureVisible(pending); // real geometry now; marks another pass if it moved
-        }
         newRowsSlideToo();
         slideToLayout();
     }
 
-    private void normalizeUp(float w) {
-        while (anchorTop > 0 && anchorIndex > 0) {
-            anchorTop -= measuredHeight(anchorIndex - 1, w);
-            anchorIndex--;
-        }
-        if (anchorIndex == 0 && anchorTop > 0) {
-            anchorTop = 0;
-        }
-    }
-
-    private void normalizeDown(int count, float w) {
-        while (anchorIndex < count - 1) {
-            float h = measuredHeight(anchorIndex, w);
-            if (anchorTop + h <= 0) {
-                anchorTop += h;
-                anchorIndex++;
-            } else {
-                break;
-            }
-        }
-    }
-
-    /**
-     * Places the rows from the anchor down, and returns the y the walk ended at.
-     *
-     * <p>{@code rowX} is the row origin the caller resolved for this pass. It is a parameter and
-     * not a read of its own because the walk runs up to twice per layout, and because the
-     * direction belongs to the pass rather than to the loop: the cursor is the {@code y}
-     * arithmetic below, which is untouched.
-     */
-    private float placeDown(int count, float rowX, float w, float viewport) {
-        float y = anchorTop;
-        int i = anchorIndex;
-        // Past the viewport by what a drag lifted out of it: the rows below close up, and the
-        // ones that come into view from under the edge have to be there to slide in.
-        while (i < count && y < viewport + liftedHeight) {
-            float h = measuredHeight(i, w);
-            cellFor(i).layoutBox(rowX, y, w, h);
-            y += h;
-            i++;
-        }
-        placedFrom = anchorIndex;
-        placedTo = i;
-        return y;
-    }
-
-    private float measuredHeight(int index, float w) {
-        Widget<?> cell = cellFor(index);
-        if (cell == null) {
-            cell = cells.cellFor(items.get(index));
-            mount(index, cell);
-            cell.setVisible(true);
-        }
-        return cell.measure(new Constraints(w, w, 0, Constraints.UNBOUNDED_LIMIT)).height();
-    }
-
-    /**
-     * Mounts {@code cell} as row {@code index}, into the position that keeps both the mounted run
-     * and {@code children()} in data order. Rows arrive in neither order: {@link #normalizeUp}
-     * walks upward from the anchor and realizes the rows above it in descending order, and a
-     * container that appended them would leave a reader and the Tab key walking the list in the
-     * order the scroll happened to realize it.
-     */
-    private void mount(int index, Widget<?> cell) {
-        int at = 0;
-        while (at < mountedCount && mountedRows[at] < index) {
-            at++;
-        }
-        // The bar is children() zero, added by the constructor before any row, and every cell goes
-        // after it: the run below is the whole of the rest, in the same order.
-        add(at + 1, cell);
-        if (mountedCount == mountedRows.length) {
-            mountedRows = Arrays.copyOf(mountedRows, mountedCount * 2);
-            mountedCells = Arrays.copyOf(mountedCells, mountedCount * 2);
-        }
-        System.arraycopy(mountedRows, at, mountedRows, at + 1, mountedCount - at);
-        System.arraycopy(mountedCells, at, mountedCells, at + 1, mountedCount - at);
-        mountedRows[at] = index;
-        mountedCells[at] = cell;
-        mountedCount++;
-    }
-
-    /**
-     * Recycles every mounted row outside {@code [from, toExclusive)}, keeping the rest in order —
-     * except the one row that holds the keyboard focus, and the selected row while this list
-     * itself does, which stay mounted while their index is still below {@code count}.
-     *
-     * <p>A scroll used to release that row with the others and move the focus up to the list,
-     * and the keyboard user never noticed: the arrows move by selection, and the selected row is
-     * always realized. A screen reader user did. A reader whose cursor follows the keyboard focus
-     * onto a focusable row — VoiceOver's does — was standing on that row when a Page Down released
-     * it, and with the node gone from the tree the reader fell back to "you are currently in a
-     * window". So the row the keyboard is in is kept alive, in data order, with its widget and its
-     * focus untouched; {@link #placeKeptOutside} puts it where it is, which is outside the
-     * viewport. It is released by the first pass that finds it outside the run and no longer
-     * holding the focus, or by any pass that releases everything.
-     *
-     * <p>The selected row is the same story one step up: while the list holds the keyboard the
-     * selected row is the reader's cursor — the one node below the focused list published
-     * {@code ACTIVE} — and a wheel or a bar drag that scrolled it away recycled it, so the cursor
-     * resolved to nothing until the next arrow key. A row that is the cursor is kept exactly as a
-     * row holding the focus is, and released by the first pass after the keyboard leaves the list.
-     *
-     * <p>{@code count} is the item count as the caller read it, and {@code 0} means
-     * spare nothing: {@link #refresh} unmounts every cell because each is bound to a datum the
-     * application may have replaced, and a row whose index the items no longer have is not a row.
-     * The cursor row comes back on the next pass, through {@link #keepCursorRow}, bound afresh.
-     *
-     * @param from        the first row to keep
-     * @param toExclusive one past the last row to keep
-     * @param count       the row count a spared row's index must be below
-     */
-    private void recycleExcept(int from, int toExclusive, int count) {
-        int kept = 0;
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
-            Widget<?> cell = mountedCells[i];
-            boolean inRun = row >= from && row < toExclusive;
-            boolean hasFocus = !inRun && containsFocus(cell);
-            boolean cursor = !inRun && row == this.cursor && isFocused();
-            if (inRun || ((hasFocus || cursor) && row < count)) {
-                mountedRows[kept] = row;
-                mountedCells[kept] = cell;
-                kept++;
-                continue;
-            }
-            remove(cell);
-            cells.recycle(cell);
-            if (hasFocus) {
-                requestFocus();
-            }
-        }
-        for (int i = kept; i < mountedCount; i++) {
-            mountedCells[i] = null; // the cell source owns it now; holding a reference would pin it
-        }
-        mountedCount = kept;
-    }
-
-    /**
-     * Realizes the selected row when this list holds the keyboard and the pass left it
-     * unrealized: after a {@link #refresh}, which releases everything, or on the first pass after
-     * the list took the focus with its selection already scrolled away. {@link #recycleExcept}
-     * keeps a cursor row that is mounted; this is what mounts one that is not, so that together
-     * they keep the cursor row while the list is focused, across a refresh too.
-     *
-     * <p>Nothing is placed here: {@link #placeKeptOutside} runs next and puts every mounted row
-     * outside the run where the scroll estimate says it is, this one included.
-     *
-     * @param count the item count as this pass read it
-     * @param w     the row width this pass resolved
-     */
-    private void keepCursorRow(int count, float w) {
-        if (cursor < 0 || cursor >= count || !isFocused()
-                || isPlaced(cursor) || cellFor(cursor) != null) {
-            return;
-        }
-        measuredHeight(cursor, w); // mounts it, in data order
-    }
-
-    /**
-     * Lays out every mounted row outside the placed run — the focused row a scroll spared, or
-     * the cursor row kept while the list holds the keyboard — wholly outside the viewport, on the
-     * side of the run its index lies, at the distance the scroll estimate puts it.
-     *
-     * <p>It has to be placed, not left: {@link #ensureVisible}'s far jump moves the anchor and
-     * not the cells, so a spared row left at its last box could sit inside the viewport on top of
-     * the row now bound there, be painted, and take the click. The estimate is the one every
-     * scroll number is built from, so the row is where the thumb says it is. Above the run the
-     * row's <b>bottom</b> edge is placed, at or above the anchor's top (which is at or above
-     * zero once normalized); below it the row's top edge, at or below where the walk ended (which
-     * is at or below the viewport's bottom whenever a row is left below it). Both put the whole
-     * box outside {@code [0, height)}, whatever the row's own height, which is what keeps
-     * {@link #paintChildren} from painting a feather of it, {@link #hitTest} from reaching it,
-     * and {@code isShowing()} answering no.
-     *
-     * @param rowX   the row origin this pass resolved
-     * @param w      the row width this pass resolved
-     * @param bottom the y {@link #placeDown} ended at
-     */
-    private void placeKeptOutside(float rowX, float w, float bottom) {
-        if (mountedCount == placedTo - placedFrom) {
-            return; // the common frame: nothing is mounted outside the run
-        }
-        float avg = avgRowHeight(tokens());
-        for (int i = 0; i < mountedCount; i++) {
-            int row = mountedRows[i];
-            if (row >= placedFrom && row < placedTo) {
-                continue;
-            }
-            float h = measuredHeight(row, w);
-            float y = row < placedFrom
-                    ? anchorTop - (placedFrom - 1 - row) * avg - h
-                    : bottom + (row - placedTo) * avg;
-            mountedCells[i].layoutBox(rowX, y, w, h);
-        }
-    }
-
-    /** Whether {@code index} is in the run the last layout placed, which is the viewport's. */
     private boolean isPlaced(int index) {
-        return index >= placedFrom && index < placedTo;
+        return engine.isPlaced(index);
     }
 
     /** The cell currently bound to a row, or {@code null} when that row is not realized. */
-    private Widget<?> cellFor(int index) {
-        for (int i = 0; i < mountedCount; i++) {
-            if (mountedRows[i] == index) {
-                return mountedCells[i];
-            }
-        }
-        return null;
+    private @Nullable Widget<?> cellFor(int index) {
+        return engine.mounted(index);
     }
 
     /** The row a cell is currently bound to, or {@code -1} when it is not one of this list's. */
     private int indexOfCell(Widget<?> cell) {
-        for (int i = 0; i < mountedCount; i++) {
-            if (mountedCells[i] == cell) {
-                return mountedRows[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            if (engine.mountedAt(i) == cell) {
+                return engine.rowAt(i);
             }
         }
         return -1;
     }
 
-    private void updateAverageHeight() {
-        float sum = 0;
-        int n = 0;
-        for (int i = 0; i < mountedCount; i++) {
-            float cellHeight = mountedCells[i].height();
-            if (cellHeight > 0) {
-                sum += cellHeight;
-                n++;
-            }
-        }
-        if (n > 0) {
-            measuredRowHeight = sum / n;
-        }
-    }
-
-    /** Reveal awaiting the first layout (selection set before the list had a size). */
-    private int pendingEnsureVisible = -1;
-
+    /**
+     * Has a row in sight after the next pass, which brings it in by the least scroll from the
+     * edge it lies beyond, by the heights it measures, and moves nothing for a row already in
+     * the box. Asked before the list has a size, it waits for the first pass like any other.
+     */
     private void ensureVisible(int index) {
-        if (height() <= 0) {
-            // Not laid out yet: dropping the reveal would open the list with
-            // the selection off-screen; consume it after the first layout.
-            pendingEnsureVisible = index;
+        Widget<?> cell = isPlaced(index) ? cellFor(index) : null;
+        if (cell != null && cell.y() >= 0 && cell.y() + cell.height() <= height()) {
+            // In the box already, by a box the last pass laid out: no pass is asked for, which
+            // would repaint the list for an arrow that moved between two rows in sight. The
+            // later of two reveals is the one kept, so one asked before this is forgotten.
+            engine.cancelReveal();
             return;
         }
-        // A spared focused row outside the run is mounted at an estimated box, and a scroll by
-        // that estimate can stop short of it under uneven heights; it takes the far jump below,
-        // which is exact, and the layout that follows finds its cell already mounted.
-        Widget<?> cell = isPlaced(index) ? cellFor(index) : null;
-        if (cell != null) {
-            float top = cell.y();
-            float bottom = top + cell.height();
-            if (top < 0) {
-                anchorTop -= top;
-            } else if (bottom > height()) {
-                anchorTop -= bottom - height();
-            } else {
-                return;
-            }
-        } else {
-            // Far away: jump so the row starts at the top; layout clamps the rest.
-            anchorIndex = index;
-            anchorTop = 0;
-        }
-        // Contained, for the reason scrollBy already gives: a reveal changes which rows are
-        // mounted and where they sit, and both are inside a box this widget clips and whose own
-        // size a reveal cannot move. Asking for a full layout here made every Page key, every
-        // End, and every arrow that ran off the edge a whole-window repaint -- the keyboard walk
-        // was paying what the wheel had already stopped paying.
+        engine.reveal(() -> Math.min(index, items.size() - 1));
+        // Contained: a reveal changes which rows are realized and where they sit, inside a box
+        // this widget clips and whose own size a reveal cannot move. A full layout here made
+        // every Page key, every End, and every arrow that ran off the edge a whole-window repaint.
         markNeedsContainedLayout();
     }
 
@@ -2170,13 +1896,13 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             // Where each row is drawn against where the layout put it: rows slide, close over
             // rows lifted out by a drag, and make room where a drop would land.
             float[] at = drawnOffsets();
-            for (int m = 0; m < mountedCount; m++) {
-                Widget<?> child = mountedCells[m];
+            for (int m = 0; m < engine.mountedCount(); m++) {
+                Widget<?> child = engine.mountedAt(m);
                 java.util.BitSet back = returning;
-                if (Float.isNaN(at[m]) || (back != null && back.get(mountedRows[m]))) {
+                if (Float.isNaN(at[m]) || (back != null && back.get(engine.rowAt(m)))) {
                     continue; // under the pointer, and not in the list; or not back in it yet
                 }
-                if (!isPlaced(mountedRows[m]) || child.y() + at[m] >= height()
+                if (!isPlaced(engine.rowAt(m)) || child.y() + at[m] >= height()
                         || child.y() + at[m] + child.height() <= 0) {
                     // A row wholly outside the viewport: the focused row a scroll spared, or one
                     // placed under the edge for a drag. Its own clip test would let it paint a
@@ -2197,10 +1923,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             float inset = Strokes.FOCUS_RING_THIN;
             // Every selected row other than the cursor's wears the resting outline. In SINGLE the
             // selection is the cursor, so this draws nothing and the list looks as it always did.
-            for (int i = 0; i < mountedCount; i++) {
-                int row = mountedRows[i];
+            for (int i = 0; i < engine.mountedCount(); i++) {
+                int row = engine.rowAt(i);
                 if (row != cursor && selected.get(row) && !Float.isNaN(at[i])) {
-                    Widget<?> cell = mountedCells[i];
+                    Widget<?> cell = engine.mountedAt(i);
                     canvas.drawRoundRect(inset, cell.y() + at[i] + inset, width() - 2 * inset,
                             cell.height() - 2 * inset, t.radiusMedium(), Strokes.FOCUS_RING_THIN,
                             theme.outline());
@@ -2208,8 +1934,8 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             }
             Widget<?> cell = cursor >= 0 ? cellFor(cursor) : null;
             float cursorAt = 0;
-            for (int i = 0; cell != null && i < mountedCount; i++) {
-                if (mountedCells[i] == cell) {
+            for (int i = 0; cell != null && i < engine.mountedCount(); i++) {
+                if (engine.mountedAt(i) == cell) {
                     cursorAt = at[i];
                 }
             }
@@ -2261,14 +1987,14 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
         float up = 0;
         float y = Float.NaN;
         float end = Float.NaN;
-        for (int i = 0; i < mountedCount && Float.isNaN(y); i++) {
-            Widget<?> cell = mountedCells[i];
-            if (!isPlaced(mountedRows[i])) {
+        for (int i = 0; i < engine.mountedCount() && Float.isNaN(y); i++) {
+            Widget<?> cell = engine.mountedAt(i);
+            if (!isPlaced(engine.rowAt(i))) {
                 continue;
             }
-            if (isLifted(mountedRows[i])) {
+            if (isLifted(engine.rowAt(i))) {
                 up += cell.height();
-            } else if (mountedRows[i] >= dropAt) {
+            } else if (engine.rowAt(i) >= dropAt) {
                 y = cell.y() - up;
             } else {
                 end = cell.y() - up + cell.height();
@@ -2383,10 +2109,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
     }
 
     private int rowAtLocalY(float localY) {
-        for (int i = 0; i < mountedCount; i++) {
-            Widget<?> cell = mountedCells[i];
+        for (int i = 0; i < engine.mountedCount(); i++) {
+            Widget<?> cell = engine.mountedAt(i);
             if (localY >= cell.y() && localY < cell.y() + cell.height()) {
-                return mountedRows[i];
+                return engine.rowAt(i);
             }
         }
         return -1;
@@ -2449,7 +2175,7 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             return;
         }
         if (cursor < 0) {
-            selectClamped(anchorIndex, false);
+            selectClamped(engine.anchorIndex(), false);
         } else {
             selectClamped(cursor + delta, extend);
         }

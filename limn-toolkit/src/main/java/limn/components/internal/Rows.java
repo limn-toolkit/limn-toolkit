@@ -623,6 +623,7 @@ public final class Rows<E> {
         refresh(null, -1);
         anchorIndex = 0;
         anchorTop = 0;
+        revealPending = null; // a reveal still waiting was asked of the old rows
     }
 
     /**

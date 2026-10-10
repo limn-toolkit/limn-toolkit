@@ -404,10 +404,11 @@ class ListViewTest extends ComponentTestBase {
             Size size = list.measure(unbounded());
             assertEquals(t.listWidth(), size.width(), EPS,
                     step + ": the unbounded width is listWidth");
-            // Six rows of the seed: the 6 is a row COUNT that must not move with the step, and
-            // the seed is a token that stands still once rows are measured (decision 44).
-            assertEquals(6 * t.listRowSeed(), size.height(), EPS,
-                    step + ": the unbounded height is 6 seed rows");
+            // Eight rows of the seed, as the table and the tree are (ADR 055 §1.3): the 8 is a row
+            // COUNT that must not move with the step, and the seed is a token that stands still
+            // once rows are measured (decision 44).
+            assertEquals(8 * t.listRowSeed(), size.height(), EPS,
+                    step + ": the unbounded height is 8 seed rows");
         }
     }
 
@@ -426,13 +427,13 @@ class ListViewTest extends ComponentTestBase {
             FakeCanvas canvas = new FakeCanvas(300, 200);
             Scene scene = scene(list, canvas);
 
-            assertEquals(6 * t.listRowSeed(), list.measure(unbounded()).height(), EPS,
+            assertEquals(8 * t.listRowSeed(), list.measure(unbounded()).height(), EPS,
                     step + ": rows of 40 and 90 were measured and the preference did not move");
 
             drive(scene).scrolled(0, -10, 10, 50);
             drive(scene).inputBatchEnded();
             scene.renderFrame(canvas);
-            assertEquals(6 * t.listRowSeed(), list.measure(unbounded()).height(), EPS,
+            assertEquals(8 * t.listRowSeed(), list.measure(unbounded()).height(), EPS,
                     step + ": nor after a scroll realized rows of the other height");
         }
     }
@@ -441,7 +442,7 @@ class ListViewTest extends ComponentTestBase {
     void setVisibleRowsChangesTheUnboundedHeightAndRefusesLessThanOne() {
         ListView<Integer> list = list(100, i -> 40);
         SizeTokens t = SizeTokens.of(ControlSize.MEDIUM);
-        assertEquals(6, list.visibleRows(), "the default");
+        assertEquals(8, list.visibleRows(), "the default");
 
         list.setVisibleRows(3);
 
@@ -477,8 +478,8 @@ class ListViewTest extends ComponentTestBase {
         Scene scene = new Scene(pane);
         scene.setTextRuler(RULER);
         scene.renderFrame(canvas);
-        float seedHeight = 6 * SizeTokens.of(ControlSize.MEDIUM).listRowSeed();
-        assertEquals(seedHeight, list.height(), EPS, "the fixture: the list is six seed rows tall");
+        float seedHeight = 8 * SizeTokens.of(ControlSize.MEDIUM).listRowSeed();
+        assertEquals(seedHeight, list.height(), EPS, "the fixture: the list is eight seed rows tall");
         float listMax = 20 * 40 - seedHeight;
 
         // Down: the list takes every detent until it rests on its last row.
