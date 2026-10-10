@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static limn.testing.SceneDriver.drive;
 
@@ -309,6 +310,34 @@ class ThemeEditorTest extends EditorTestBase {
 
         editor.setCornerScale(3f); // "24.0 pt": wider, so this one does relayout
         assertTrue(paintedTexts().contains("24.0 pt"));
+    }
+
+    /**
+     * A level's shadow set on the editor is the palette's, is what its file keeps, and is what the
+     * preview draws, from the palette being edited and not from the one the window wears.
+     */
+    @Test
+    void aLevelsShadowIsEditedKeptAndPreviewed() {
+        limn.components.ElevationShadow deep = new limn.components.ElevationShadow(20, 40, 0.5f, 4, 0.25f);
+        int[] changes = {0};
+        editor.observeChanges((widget, change) -> changes[0]++);
+        editor.setElevation(limn.components.Elevation.OVERLAY, deep);
+
+        assertEquals(deep, editor.theme().elevation(limn.components.Elevation.OVERLAY));
+        assertEquals(1, changes[0]);
+        assertTrue(limn.components.ThemeFormat.write(editor.theme())
+                .contains("elevation.overlay = 20.0 40.0 0.5 4.0 0.25\n"));
+
+        List<limn.graphics.Shadow> drawn = new ArrayList<>();
+        scene.renderFrame(new NoopCanvas(1000, 700) {
+            @Override
+            public void drawShadow(limn.graphics.RoundRect shape, limn.graphics.Shadow shadow) {
+                drawn.add(shadow);
+            }
+        });
+        assertTrue(drawn.containsAll(deep.layers()), "the preview drew " + drawn);
+        assertThrows(IllegalArgumentException.class,
+                () -> editor.setElevation(limn.components.Elevation.FLAT, deep));
     }
 
     /** Every string a full frame draws. */

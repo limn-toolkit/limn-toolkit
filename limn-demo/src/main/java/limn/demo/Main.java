@@ -94,6 +94,19 @@ public final class Main {
         };
     }
 
+    private static boolean scrollFirst(limn.scene.Widget<?> widget, float by) {
+        if (widget instanceof limn.components.ScrollView view) {
+            view.scrollBy(0, by);
+            return true;
+        }
+        for (limn.scene.Widget<?> child : widget.children()) {
+            if (scrollFirst(child, by)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** One-line summary of a display for the startup log. */
     private static String describeDisplay(limn.backend.Display d) {
         return String.format("%s [%s]%s: current %s, %d modes, work area %s, scale %.2f",
@@ -465,6 +478,13 @@ public final class Main {
                 // Partial rendering is the toolkit's default (ADR 043), so every scene here runs
                 // it without being told; the application's View menu still turns it off to compare.
                 widgetScene.bind(window); // input + invalidation
+            }
+            // The lab's: -Dlimn.demo.scroll=N scrolls the scene's first scroll view down by N points
+            // after the first layout, to photograph what a capture's window is too short to show.
+            Integer labScroll = Integer.getInteger("limn.demo.scroll");
+            if (labScroll != null && widgetScene != null && afterLayout == null) {
+                limn.scene.Scene scrolled = widgetScene;
+                afterLayout = () -> scrollFirst(scrolled.root(), labScroll);
             }
             limn.scene.Scene boundScene = widgetScene;
             Runnable afterFirstFrame = afterLayout;

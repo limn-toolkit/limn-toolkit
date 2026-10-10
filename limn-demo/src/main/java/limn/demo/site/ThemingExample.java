@@ -27,4 +27,20 @@ public final class ThemingExample {
         return picker;
     }
     // #endregion
+
+    // #region guide:elevation
+    /** A panel that lies over the page: the surface, and the shadow the theme gives one that covers. */
+    static limn.components.Surface panelOver(limn.scene.Widget<?> content) {
+        return new limn.components.Surface(new limn.scene.layout.Padding(limn.scene.Insets.all(12), content))
+                .setElevation(limn.components.Elevation.OVERLAY);
+    }
+
+    /** A palette whose menus and panels cast a deeper shadow than the built-in ones. */
+    static Theme deeper(Theme base) {
+        return base.toBuilder().name(base.name() + ", deep")
+                .elevation(limn.components.Elevation.OVERLAY,
+                        new limn.components.ElevationShadow(12, 28, 0.20f, 2, 0.12f))
+                .build();
+    }
+    // #endregion
 }

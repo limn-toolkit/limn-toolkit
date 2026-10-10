@@ -1299,6 +1299,14 @@ public final class Theme {
         }
 
         /**
+         * @param level a level
+         * @return the shadow this builder holds for it
+         */
+        public ElevationShadow elevation(Elevation level) {
+            return elevation[Objects.requireNonNull(level, "level").ordinal()];
+        }
+
+        /**
          * The shadow of a level. {@link Elevation#FLAT} casts none and cannot be given one: a
          * surface in the plane of its neighbours has nothing to cast it on.
          *

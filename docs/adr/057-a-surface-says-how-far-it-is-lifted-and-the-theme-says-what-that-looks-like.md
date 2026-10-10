@@ -1,7 +1,7 @@
 # ADR 057: A surface says how far it is lifted, and the theme says what that looks like
 
 - **Status:** Accepted, 2026-10-10, with the owner's answers in §4; being built in the four
-  steps of §5, the first two of which are done.
+  steps of §5: all four are built; what step 3 could not see, under Wayland and on Windows, is open.
 - **Date:** 2026-10-10
 - **Scope:** elevation: how a surface that lies over another is told apart from it. A small
   scale of levels, what each level draws (a shadow, a tone, an outline), where the numbers live
@@ -201,7 +201,10 @@ surface does not darken itself.
    shadow, as before. **Not seen on Windows**: the guest did not come up. A dialog that is a
    window of its own is not part of this: it is a system window with the system's shadow where
    it is decorated, and where it is not, it is still to do.
-4. **The theme editor**: a preview by level and the five numbers of each.
+4. **The theme editor** (done): a section, after the colours, with the five numbers of each
+   level, opacity in whole percent, and `ThemeEditor.setElevation` for an application that
+   drives it; its preview draws the card with `RAISED`'s shadow and two surfaces beside the
+   field with `OVERLAY`'s and `MODAL`'s, from the palette being edited.
 
 Seen on the demo's panel (macOS guest, light and dark): the shadow is there and soft, and
 faint at the side of a panel that meets the window's top and bottom, since the light is above
