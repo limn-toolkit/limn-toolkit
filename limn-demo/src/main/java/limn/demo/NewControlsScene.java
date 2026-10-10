@@ -47,7 +47,7 @@ final class NewControlsScene {
         return scene;
     }
 
-    /** Reusable subtree (kitchen-sink tab). */
+    /** Reusable subtree (a page of the showcase). */
     static Widget<?> content() {
         Theme theme = Theme.current();
         Column col = new Column();
@@ -57,7 +57,7 @@ final class NewControlsScene {
         // Role + strong, not setFont(theme.title): setStrong derives bold from whatever
         // the role resolves to, so the pair still tracks the step; setFont would pin
         // MEDIUM's 20 pt and only the weight would survive.
-        col.add(new Label("New components").setRole(Label.Role.TITLE).setStrong(true));
+        col.add(new Label("Typography").setStrong(true));
         Row typo = new Row();
         typo.gap(18).crossAlignment(Flex.CrossAlignment.CENTER);
         typo.add(new Label("Regular"));

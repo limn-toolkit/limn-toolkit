@@ -79,7 +79,7 @@ import static limn.testing.SceneDriver.drive;
  * Every component with an accessibility surface, each in a small scene built the way a screen
  * reader user would find <em>correct</em>: every focusable control named the way the toolkit
  * intends — a caption bound with {@link Label#setLabelFor}, an application name on a picture, a
- * tooltip on an icon-only button, a title on a dialog — and nothing copied from the kitchen
+ * tooltip on an icon-only button, a title on a dialog — and nothing copied from the showcase
  * sink, which is a showcase of what the widgets look like and not of what they say.
  *
  * <p>It is a reference in two directions. {@code AccessibleGalleryTest} in this module's tests

@@ -1744,7 +1744,7 @@ public final class Spinner extends Widget<Spinner> {
      * synthetic child and lets this method narrow and never widen
      * ({@link limn.accessibility.Accessibility#disabled()}), so a disabled spinner's two arrows are
      * published without {@code ENABLED} and without their {@code PRESS} whatever the value — which
-     * the kitchen dialog's transcript shows, four {@code button "Increase" [disabled, ...]} rows
+     * the demo's dialog's transcript shows, four {@code button "Increase" [disabled, ...]} rows
      * with no actions. So the two conditions agree by inheritance, not by being the same
      * expression, and this hook has only the bound to read. They are also exactly right about the verb, because
      * nothing here wraps: {@link #nudge} goes through {@link #settle}, which clamps to the bound

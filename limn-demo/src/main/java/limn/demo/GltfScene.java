@@ -63,7 +63,7 @@ final class GltfScene {
         Scene3D scene;
     }
 
-    /** A viewport hosting the bundled glTF model, reused by the kitchen "3D" showcase. */
+    /** A viewport hosting the bundled glTF model, reused by the showcase's 3D page. */
     static Viewport3D viewport(float width, float height) {
         Loading loading = new Loading();
 

@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>Everything else here reads the stream directly, which is the path a screenshot takes and is
  * therefore the path that was already covered. The path a person actually watches is not that one:
  * it is a {@link MediaPlayer} pulling on a decode thread, a ring, and a clock deciding when a
- * picture is due; the first thing that went wrong in the Kitchen Sink went wrong there and
+ * picture is due; the first thing that went wrong in the showcase went wrong there and
  * nowhere else, so it is worth its own file.
  *
  * <p>Nothing here sleeps. The player is given no decode thread and its step is turned by hand, and
@@ -150,7 +150,7 @@ class PlayerOverContainerTest {
     }
 
     /**
-     * Changing the language of a film that is playing, which is what the Kitchen Sink's audio
+     * Changing the language of a film that is playing, which is what the showcase's audio
      * button does, and which is a <em>second player over the same borrowed stream</em>, because a
      * player takes its audio track at construction and there is no swapping one under a running
      * one: handing a source to the audio engine transfers it.
@@ -224,7 +224,7 @@ class PlayerOverContainerTest {
     }
 
     /**
-     * Looping, which is what the Kitchen Sink switches on. The container has to rewind underneath a
+     * Looping, which is what the showcase switches on. The container has to rewind underneath a
      * running player and keep producing.
      */
     @Test

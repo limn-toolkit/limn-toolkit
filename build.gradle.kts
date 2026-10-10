@@ -63,7 +63,7 @@ val publishedModules = mapOf(
             "ThemeEditorApp as its Main-Class and the POM brings a backend and every fallback " +
             "face, so `jbang io.github.limn-toolkit:limn-theme-editor:<version>` opens it.",
     "limn-demo" to
-            "The kitchen sink: every widget, the charts, the media player and the 3D viewport in " +
+            "The showcase: every widget, the charts, the media player and the 3D viewport in " +
             "one window. An application, not a library — nothing should depend on it. Published " +
             "so that `jbang io.github.limn-toolkit:limn-demo:<version>` runs it from Maven " +
             "Central with nothing cloned; its POM selects the native libraries of the machine " +

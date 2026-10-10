@@ -39,7 +39,7 @@ final class SpritesScene {
         return scene;
     }
 
-    /** The subtree, reusable as a kitchen-sink tab. */
+    /** The subtree, reusable as a page of the showcase. */
     static Widget<?> content() {
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);

@@ -33,7 +33,7 @@ final class ControlsScene {
         return scene;
     }
 
-    /** Reusable subtree (kitchen-sink tab). */
+    /** Reusable subtree (a page of the showcase). */
     static Widget<?> content() {
         Column column = new Column();
         column.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);

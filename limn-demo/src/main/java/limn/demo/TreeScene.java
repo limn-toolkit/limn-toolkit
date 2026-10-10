@@ -81,7 +81,7 @@ final class TreeScene {
         return parts().scene();
     }
 
-    /** The page without a scene of its own, for the kitchen sink's Tree tab. */
+    /** The page without a scene of its own, for the showcase's Tree page. */
     static Widget<?> content() {
         return parts(false).page();
     }
@@ -311,7 +311,6 @@ final class TreeScene {
 
         Column page = new Column();
         page.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        page.add(new Label("Tree").setRole(Label.Role.TITLE));
         page.add(new Label("Arrows walk the rows; Right opens one, Left closes it.")
                 .setMuted(true));
         // A narrow box on purpose: a cell is measured at the width the indent leaves it, so

@@ -4656,7 +4656,7 @@ public final class Scene {
      * <p>It replaced an overload that took the flag and the sample and assumed the age, which every
      * such callback in the demo called: when the backend began reading the age from the driver,
      * those callbacks went on dropping it, and on Wayland, where the age is three or four, the
-     * kitchen window drew black but for the status bar that changes every frame (2026-09-25).
+     * demo's window drew black but for the status bar that changes every frame (2026-09-25).
      *
      * @param canvas the backend's canvas for this frame
      * @param frame  what the backend passed to the frame callback

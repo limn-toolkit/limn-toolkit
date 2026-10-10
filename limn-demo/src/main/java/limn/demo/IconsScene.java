@@ -95,7 +95,7 @@ final class IconsScene {
     }
 
     /**
-     * The tab's own window. The Kitchen Sink tab body is a couple of hundred points tall at
+     * The tab's own window. The showcase page body is a couple of hundred points tall at
      * the size this repository captures at, and a five-thousand-row catalogue shown five
      * rows at a time verifies nothing, so the scene that has to show the list is this one,
      * and the tab is there to prove the module composes.
@@ -148,8 +148,6 @@ final class IconsScene {
                             + (Tabler.hasFilled(icons.nameAt(index)) ? " · has a filled twin" : ""));
         });
 
-        Label heading = new Label("Tabler icons: the whole pack, virtualized")
-                .setRole(Label.Role.TITLE);
         Label blurb = new Label("Search the icon set; only the rows in view are drawn.")
                 .setWrap(true).setMuted(true);
 
@@ -160,7 +158,6 @@ final class IconsScene {
 
         TokenColumn column = new TokenColumn(Tokens.Role.MEDIUM);
         column.crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(heading);
         column.add(blurb);
         column.add(sample);
         column.add(search);

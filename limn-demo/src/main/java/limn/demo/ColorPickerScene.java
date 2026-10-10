@@ -43,7 +43,6 @@ final class ColorPickerScene {
         Theme theme = Theme.current();
         Column col = new Column();
         col.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("Colour picker").setFont(theme.title()).setStrong(true));
         col.add(new Label("Drag the field, the ramp or a rail; the arrows nudge.").setMuted(true).setWrap(true));
 
         ColorPicker inline = new ColorPicker();

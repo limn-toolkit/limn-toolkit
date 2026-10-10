@@ -15,7 +15,7 @@
 # Run it the way walk-the-table.ps1 is run: from a task with /IT, after the demo is up.
 #
 # usage: walk-the-relations.ps1 [window-name] [field-name]
-param([string]$WindowName = 'Limn UI: Kitchen Sink', [string]$FieldName = 'Email')
+param([string]$WindowName = 'Limn Showcase', [string]$FieldName = 'Email')
 
 $ErrorActionPreference = 'Stop'
 [System.Reflection.Assembly]::LoadWithPartialName('UIAutomationClient') | Out-Null

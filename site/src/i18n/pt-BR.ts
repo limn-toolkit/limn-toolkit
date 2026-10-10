@@ -196,14 +196,14 @@ export const ptBR: Catalog = {
     "Telas inteiras renderizadas pelo toolkit: a aplicação de demonstração, a mesma janela espelhada da direita para a esquerda, o viewport 3D, um formulário e uma janela com layout.",
   "showcase.rtl.heading": "A mesma janela, da direita para a esquerda",
   "showcase.rtl.body":
-    "A aplicação de demonstração sob o pacote árabe com o eixo de direção invertido: a barra de menus, as abas, os campos, as barras de rolagem e o rodapé de desempenho passam a ler a partir da direita, e o texto dentro deles se une e se reordena como o árabe pede. Nenhuma tela foi reescrita — a direção é um eixo herdado, definido como se define um tamanho de controle.",
+    "A aplicação de demonstração sob o pacote árabe com o eixo de direção invertido: a barra de menus, a navegação, os campos, as barras de rolagem e a tabela passam a ler a partir da direita, e o texto dentro deles se une e se reordena como o árabe pede. Nenhuma tela foi reescrita — a direção é um eixo herdado, definido como se define um tamanho de controle.",
   "showcase.eyebrow": "Telas inteiras",
   "showcase.heading": "Telas",
   "showcase.lede":
     "Não são recortes nem mock-ups. Cada uma delas é uma janela que o toolkit renderizou enquanto este site era construído.",
-  "showcase.kitchen.heading": "A aplicação de demonstração",
-  "showcase.kitchen.body":
-    "Todos os componentes em uma janela, com barra de menus, abas, seletor de tema e um rodapé de desempenho ao vivo.",
+  "showcase.app.heading": "A aplicação de demonstração",
+  "showcase.app.body":
+    "Uma tela de pedidos — uma tabela que ordena e filtra ao lado do formulário do pedido selecionado — e, na lateral, todos os componentes por categoria. Os quatro seletores no topo trocam idioma, direção, tamanho e tema da janela inteira.",
   "showcase.forms.heading": "Um formulário",
   "showcase.forms.body":
     "Rótulos, um campo validado, uma escolha, um switch e a linha de ações: o exemplo completo do guia de formulários.",

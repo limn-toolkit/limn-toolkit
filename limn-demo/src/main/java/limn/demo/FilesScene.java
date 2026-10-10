@@ -55,7 +55,7 @@ final class FilesScene {
         return scene;
     }
 
-    /** The subtree, reusable as a kitchen-sink tab; wires the window extras on attach. */
+    /** The subtree, reusable as a page of the showcase; wires the window extras on attach. */
     static Widget<?> content() {
         // No Theme local here on purpose: the only reads it served were the four title
         // fonts, and those are now roles resolved per widget at measure time.
@@ -113,8 +113,6 @@ final class FilesScene {
         // Role + strong, not setFont(theme.title): setStrong derives bold from whatever
         // the role resolves to, so the pair still tracks the step; setFont would pin
         // MEDIUM's 20 pt and only the weight would survive.
-        col.add(new Label("OS files: dialogs, drop, window extras")
-                .setRole(Label.Role.TITLE).setStrong(true));
 
         col.add(new Label("Native file dialogs").setRole(Label.Role.TITLE));
         col.add(new Label("The system's own chooser, owned by this window.")

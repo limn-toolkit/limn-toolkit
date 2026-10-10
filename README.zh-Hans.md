@@ -38,8 +38,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-kitchen-dark.webp">
-    <img src="media/readme/showcase-kitchen-light.webp" alt="一个 Limn 应用：菜单栏、标签页、表单、图表和主题选择器" width="900">
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-app-dark.webp">
+    <img src="media/readme/showcase-app-light.webp" alt="一个 Limn 应用：菜单栏、导航、订单表格、表单和主题选择器" width="900">
   </picture>
 </p>
 

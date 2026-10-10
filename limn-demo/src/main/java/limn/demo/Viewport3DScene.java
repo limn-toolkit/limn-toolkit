@@ -107,7 +107,7 @@ final class Viewport3DScene {
     }
 
     /**
-     * The two the kitchen sink's tab shows, in its picker's order.
+     * The two the showcase's tab shows, in its picker's order.
      *
      * <p>Two, out of the ten viewports this class builds. The other eight each have a
      * {@code --scene} of their own ({@code gltf}, {@code ibl}, {@code debugdraw},
@@ -127,7 +127,7 @@ final class Viewport3DScene {
     };
 
     /**
-     * Kitchen-sink "3D" tab: the lit pass and the shadow pass, a
+     * The showcase's 3D page: the lit pass and the shadow pass, a
      * {@link SegmentedControl} between them; only the visible viewport renders (the
      * other pauses). See {@link #SHOWCASE} for why it is these two.
      */
@@ -175,10 +175,9 @@ final class Viewport3DScene {
 
         Column col = new Column();
         col.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("3D showcase: subsystem capabilities").setFont(theme.title()).setStrong(true));
         col.add(picker);
         col.add(captionRow);
-        // Flexed, not fixed: the demos declare 560×320 but the kitchen tab body
+        // Flexed, not fixed: the demos declare 560×320 but the page's body
         // is much shorter: measured unbounded they would keep their full height
         // and the tab clip would leave only the top sliver of the 3D render
         // visible (the scene's empty sky, which reads as a solid dark rectangle).
@@ -791,7 +790,7 @@ final class Viewport3DScene {
      * and axes at the origin, every mesh's world AABB (all depth-tested), and
      * the cube's oriented bounds as X-ray. The switch toggles emission live.
      *
-     * @param fillHeight {@code true} inside the (height-bounded) kitchen tab:
+     * @param fillHeight {@code true} inside the (height-bounded) showcase page:
      *                   the viewport flexes to the leftover height. {@code false}
      *                   for the scrollable standalone scene: an {@code Expanded}
      *                   measured with unbounded height collapses to zero there.
@@ -1089,7 +1088,7 @@ final class Viewport3DScene {
      * had its own eyeball pass).
      *
      * @param fillHeight like {@link #debugViewport}: {@code true} flexes the
-     *                   viewport to the height-bounded kitchen tab, {@code false}
+     *                   viewport to the height-bounded showcase page, {@code false}
      *                   keeps its preferred size in a scrollable scene.
      */
     static Widget<?> bloomDemo(float width, float height, boolean fillHeight) {

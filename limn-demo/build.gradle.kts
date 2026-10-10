@@ -2,7 +2,7 @@ import org.gradle.kotlin.dsl.support.serviceOf
 import java.util.zip.ZipFile
 import org.gradle.language.jvm.tasks.ProcessResources
 
-// limn-demo: the "kitchen sink" application and --screenshot mode for visual verification.
+// limn-demo: the "showcase" application and --screenshot mode for visual verification.
 //
 // Published, and not as a library: nothing should depend on it, and its POM is shaped for the
 // one reader it has — a launcher resolving it to RUN it (see the publishing note at the end).
@@ -33,8 +33,8 @@ dependencies {
     // The opt-in faces, taken here for the same reason the icon pack is: the demo is an
     // APPLICATION, and this is an application's choice (ADR 036). Roboto and the complex-script
     // faces need no line — they come with the backend — but the i18n scenes draw CJK and emoji,
-    // and the fatJar is the screenshot rig for every README, so the kitchen sink opts into the
-    // whole kitchen.
+    // and the fatJar is the screenshot rig for every README, so the demo opts into every
+    // one of them.
     runtimeOnly(libs.limn.fonts.noto.cjk)
     runtimeOnly(libs.limn.fonts.noto.emoji)
     // The FFmpeg libraries for every desktop target (ADR 037). limn-video-ffmpeg brings the shim;
@@ -246,7 +246,7 @@ tasks.named<JavaExec>("run") {
 
 // ------------------------------------------------------------------ the jar a stranger can run
 //
-// One file, everything inside it, and a Main-Class: `jbang <url>` and the kitchen sink is on
+// One file, everything inside it, and a Main-Class: `jbang <url>` and the showcase is on
 // screen, with nothing cloned, nothing installed and nothing resolved. The module is published to
 // Maven Central as well, for `jbang io.github.limn-toolkit:limn-demo:<version>`, with a POM that
 // brings only the machine's own natives and a description that says no application should depend
@@ -271,7 +271,7 @@ tasks.register<Jar>("fatJar") {
             // Read by `java -jar` on JDK 24 and later, and ignored before: the jar's own answer to
             // the restricted-method warning LWJGL's System.load would otherwise print.
             "Enable-Native-Access" to "ALL-UNNAMED",
-            "Implementation-Title" to "Limn kitchen sink",
+            "Implementation-Title" to "Limn Showcase",
             "Implementation-Version" to project.version,
         )
     }
@@ -358,7 +358,7 @@ tasks.named<Jar>("jar") {
     manifest {
         attributes(
             "Main-Class" to "limn.demo.Main",
-            "Implementation-Title" to "Limn kitchen sink",
+            "Implementation-Title" to "Limn Showcase",
             "Implementation-Version" to project.version,
         )
     }

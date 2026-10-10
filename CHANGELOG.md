@@ -475,6 +475,15 @@ Maven Central say which number that was.
   jumps to its target, and menus, combo box lists, date pickers and dialogs open and close without
   fading. The indeterminate `ProgressBar` sweep and a `Tree`'s loading spinner keep moving, since
   they say that work goes on, but in steps, four times a second.
+- The demo opens on an application, Limn Showcase, where it opened on a window of sixteen tabs: a
+  screen of orders (a table that sorts and filters, the order under the cursor in a form, a
+  dialog a new one is made in, a refresh that works off the UI thread) and a navigation into a
+  gallery of every component by what it is for, the media and the 3D viewport last. Its frame,
+  its orders, its dialogs and its menus are translated into the 21 languages the old window was;
+  each page of the gallery has a button that opens where the site documents it; the performance
+  footer is shown from the View menu. `--scene app` names it, the `--scene kitchen*` names are
+  gone, and every scene of the lab is still opened alone by `--scene`. The sample film the demo
+  plays has its soundtrack.
 - The demo opened with no scene named follows the system's light or dark appearance until a theme
   is picked.
 - A chart writes values of 1e15 and more in scientific notation by default, on its value axis and

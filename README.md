@@ -38,8 +38,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-kitchen-dark.webp">
-    <img src="media/readme/showcase-kitchen-light.webp" alt="A Limn application: menu bar, tabs, forms, charts and a theme picker" width="900">
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-app-dark.webp">
+    <img src="media/readme/showcase-app-light.webp" alt="A Limn application: menu bar, navigation, a table of orders, a form and a theme picker" width="900">
   </picture>
 </p>
 
@@ -52,7 +52,7 @@ built](#how-limn-is-built)
 
 ## Try it now
 
-The kitchen sink — every widget, the charts, the media player, the 3D viewport — in one command,
+The showcase — an application, and beside it every widget, the charts, the media player, the 3D viewport — in one command,
 and the theme editor in another. Nothing to clone, and nothing to install but
 [jbang](https://www.jbang.dev/download/), which fetches a JDK too if you have none. Both come
 from Maven Central as thin artifacts: what arrives is the toolkit, the fonts and the native

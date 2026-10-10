@@ -198,14 +198,14 @@ export const de: Catalog = {
     "Ganze Oberflächen, vom Toolkit gerendert: die Demo-Anwendung, dasselbe Fenster von rechts nach links gespiegelt, der 3D-Viewport, ein Formular und ein gesetztes Fenster.",
   "showcase.rtl.heading": "Dasselbe Fenster, von rechts nach links",
   "showcase.rtl.body":
-    "Die Demo-Anwendung unter dem ar-Bündel mit umgekehrter Richtungsachse: Menüleiste, Reiter, Felder, Bildlaufleisten und die Leistungsfußzeile lesen von rechts, und der Text darin verbindet und ordnet sich, wie Arabisch es verlangt. Kein Bildschirm wurde umgeschrieben — die Richtung ist eine vererbte Achse, gesetzt wie eine Steuerelementgröße.",
+    "Die Demo-Anwendung unter dem ar-Bündel mit umgekehrter Richtungsachse: Menüleiste, Navigation, Felder, Bildlaufleisten und die Tabelle lesen von rechts, und der Text darin verbindet und ordnet sich, wie Arabisch es verlangt. Kein Bildschirm wurde umgeschrieben — die Richtung ist eine vererbte Achse, gesetzt wie eine Steuerelementgröße.",
   "showcase.eyebrow": "Ganze Oberflächen",
   "showcase.heading": "Oberflächen",
   "showcase.lede":
     "Keine Ausschnitte und keine Mock-ups. Jedes davon ist ein Fenster, das das Toolkit gerendert hat, während diese Website gebaut wurde.",
-  "showcase.kitchen.heading": "Die Demo-Anwendung",
-  "showcase.kitchen.body":
-    "Jede Komponente in einem Fenster, mit Menüleiste, Reitern, Designwahl und einer laufenden Leistungsanzeige in der Fußzeile.",
+  "showcase.app.heading": "Die Demo-Anwendung",
+  "showcase.app.body":
+    "Ein Bestellbildschirm — eine Tabelle, die sortiert und filtert, neben dem Formular der ausgewählten Bestellung — und an der Seite jede Komponente nach Kategorie. Die vier Auswahlfelder oben wechseln Sprache, Richtung, Größe und Design des ganzen Fensters.",
   "showcase.forms.heading": "Ein Formular",
   "showcase.forms.body":
     "Beschriftungen, ein validiertes Feld, eine Auswahl, ein Schalter und die Aktionszeile: das ausgearbeitete Beispiel aus der Formular-Anleitung.",

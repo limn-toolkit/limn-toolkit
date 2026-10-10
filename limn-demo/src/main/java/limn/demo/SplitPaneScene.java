@@ -38,11 +38,10 @@ final class SplitPaneScene {
         return scene;
     }
 
-    /** Reusable subtree (kitchen-sink tab). */
+    /** Reusable subtree (a page of the showcase). */
     static Widget<?> content() {
         Column col = new Column();
         col.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
-        col.add(new Label("Split pane").setRole(Label.Role.TITLE).setStrong(true));
         col.add(new Label("Drag a divider, or focus it and use the arrows.")
                 .setMuted(true).setWrap(true));
 

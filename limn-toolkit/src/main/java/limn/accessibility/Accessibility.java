@@ -71,7 +71,7 @@ public final class Accessibility {
      * rebind anyway. <b>Outside the budget</b>, and handed over after the collapse as after any
      * publish, is the reserved tail: the per-parent structure changes, the final focus change,
      * the single cursor change, the per-container selection changes and the window activation
-     * events — the events a reader is directed by, which the kitchen dialog opening was three
+     * events — the events a reader is directed by, which the demo's dialog opening was three
      * events short of losing.
      */
     public static final int EVENT_BUDGET = 256;

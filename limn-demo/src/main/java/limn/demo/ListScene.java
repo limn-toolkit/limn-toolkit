@@ -76,7 +76,7 @@ final class ListScene {
         return scene;
     }
 
-    /** Builds the list widget, routing every interaction to {@code status}. Shared with the kitchen tab. */
+    /** Builds the list widget, routing every interaction to {@code status}. Shared with the showcase. */
     static ListView<Integer> buildList(Consumer<String> status) {
         Image[] images = {
                 Images.fromResource("/limn/demo/images/icon-star.png"),

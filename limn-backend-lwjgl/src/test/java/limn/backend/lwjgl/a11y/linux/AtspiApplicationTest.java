@@ -272,7 +272,7 @@ class AtspiApplicationTest {
     void twoWindowsAreTwoFramesOfOneApplicationOnOneConnection() {
         FakeBus bus = new FakeBus();
         AtspiApplication app = anApplication(bus);
-        app.name("Kitchen Sink");
+        app.name("Showcase");
         AtspiBridge main = app.window();
         AtspiBridge popup = app.window();
         List<String> performed = new ArrayList<>();
@@ -292,7 +292,7 @@ class AtspiApplicationTest {
         Map<Object, Object> root = (Map<Object, Object>) call(app, Atspi.PATH_ROOT, Atspi.I_PROPS,
                 "GetAll", "s", Atspi.I_ACCESSIBLE).body[0];
         assertEquals(2, ((DBus.Variant) root.get("ChildCount")).value);
-        assertEquals("Kitchen Sink", ((DBus.Variant) root.get("Name")).value,
+        assertEquals("Showcase", ((DBus.Variant) root.get("Name")).value,
                 "named by the application, not by whichever window asked last");
         DBus.Msg second0 = call(app, Atspi.PATH_ROOT, Atspi.I_ACCESSIBLE, "GetChildAtIndex", "i", 1);
         assertEquals(path(second.window()), DBus.Ref.of(second0.body[0]).path);

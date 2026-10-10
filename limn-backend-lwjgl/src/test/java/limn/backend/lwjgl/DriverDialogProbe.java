@@ -65,14 +65,14 @@ public final class DriverDialogProbe {
                 var box = win32.getDeclaredMethod("showMessageBox", WindowsDriverDialog.Content.class);
                 box.setAccessible(true);
                 Object choice = box.invoke(open.invoke(null),
-                        WindowsDriverDialog.content("Limn UI: Kitchen Sink", "probe", true));
+                        WindowsDriverDialog.content("Limn Showcase", "probe", true));
                 Logger.getLogger(DriverDialogProbe.class.getName()).info("message box: " + choice);
             } catch (ReflectiveOperationException e) {
                 throw new IllegalStateException(e);
             }
             return;
         }
-        WindowsDriverDialog.offer("Limn UI: Kitchen Sink", "glfwCreateWindow failed on the Win32 "
+        WindowsDriverDialog.offer("Limn Showcase", "glfwCreateWindow failed on the Win32 "
                 + "platform: 65542 WGL: The driver does not appear to support OpenGL; Limn needs "
                 + "an OpenGL 3.3 core context (probe: " + tag + ")");
         Logger.getLogger(DriverDialogProbe.class.getName()).info("probe done: " + tag);

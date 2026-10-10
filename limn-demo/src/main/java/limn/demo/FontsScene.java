@@ -32,7 +32,7 @@ final class FontsScene {
     private FontsScene() {
     }
 
-    /** The tab/scene body (kitchen tab uses this). */
+    /** The tab/scene body (the showcase uses this). */
     static Widget<?> content() {
         return build().widget();
     }

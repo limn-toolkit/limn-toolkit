@@ -52,7 +52,6 @@ final class CombosScene {
     static Widget<?> content() {
         Column column = new Column();
         column.gap(16).crossAlignment(Flex.CrossAlignment.START);
-        column.add(new Label("Combo boxes").setStrong(true));
         Label status = new Label("Pick something: the handler's answer shows here.").setMuted(true);
 
         Grid grid = new Grid(3).gap(16).rowGap(14).crossAlignment(Flex.CrossAlignment.CENTER);

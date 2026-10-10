@@ -201,8 +201,8 @@ const MOSAIC_SEAM = 1;
  * a reader has to compare across a gap.
  *
  * <p>The top-left corner is not an arbitrary choice. It is where this screen puts its menu bar,
- * its title and the first rows of its form, which is the densest text in the window. A quadrant
- * from the middle would be mostly chart and mostly the same in every language.
+ * its title, its navigation and the head of its table, which is the densest text in the window. A
+ * quadrant from the bottom right would be mostly a form's fields and the same in every language.
  *
  * <p>Unlike the theme mosaic, these tiles are NOT palette-invariant: the quilt is composed once
  * per palette and the page swaps the two the way it swaps any other capture.
@@ -212,7 +212,7 @@ const LANGUAGE_ROWS = 2;
 /** The fraction of each capture a tile takes, from its top-left corner. */
 const LANGUAGE_TILE = 0.5;
 /** Reading order, and the order the quilt lays them out. */
-const LANGUAGE_TILES = ["kitchen-ja", "kitchen-zh-Hans", "kitchen-ko", "kitchen-ru"];
+const LANGUAGE_TILES = ["app-ja", "app-zh-Hans", "app-ko", "app-ru"];
 
 /**
  * Which part of its capture each tile shows, as a fraction of the room available: 0 is the left

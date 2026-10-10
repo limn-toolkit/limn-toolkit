@@ -13,15 +13,15 @@ import java.util.Locale;
 import java.util.function.Function;
 
 /**
- * Whole screens, as opposed to the component gallery's single widgets: the kitchen sink and
- * the 3D viewport, captured on a canvas the size of a real window.
+ * Whole screens, as opposed to the component gallery's single widgets: the demo's application
+ * and the 3D viewport among them, captured on a canvas the size of a real window.
  *
  * <p>Lives in {@code limn.demo} rather than beside the rest of the site tooling because the
- * scenes it captures ({@code KitchenSinkScene}, {@code Viewport3DScene}) are
+ * scenes it captures ({@code AppScene}, {@code Viewport3DScene}) are
  * package-private, and opening them up so a sibling package could reach them would widen
  * the demo's API for the convenience of one caller.
  *
- * <p>The kitchen sink is captured in several languages on purpose. The toolkit already ships
+ * <p>The application is captured in several languages on purpose. The toolkit already ships
  * bundles for nineteen tags, so showing a reader the toolkit rendering in <em>their</em>
  * language costs one more capture and is the most persuasive thing the site can do, and it
  * is the honest way to show the text pipeline handling CJK rather than asserting it in prose.
@@ -102,20 +102,19 @@ public final class SiteShowcase {
 
     public static List<Entry> entries() {
         List<Entry> entries = new ArrayList<>();
-        // The kitchen sink mounts a PerfFooter, so it is one of the two screens that has to
-        // wait; every other entry below photographs as soon as it has drawn.
-        entries.add(new Entry("kitchen", "The kitchen sink", Locale.ENGLISH,
-                SiteShowcase::kitchen).settling());
+        // The application the demo opens on. Its performance footer is hidden until the View
+        // menu shows it, so nothing in it waits on a clock and it photographs as soon as drawn.
+        entries.add(new Entry("app", "The demo application", Locale.ENGLISH, SiteShowcase::app));
         for (String tag : List.of("ja", "zh-Hans", "ko", "ru")) {
-            entries.add(new Entry("kitchen-" + tag, "The kitchen sink in " + tag,
-                    Locale.forLanguageTag(tag), SiteShowcase::kitchen).settling());
+            entries.add(new Entry("app-" + tag, "The demo application in " + tag,
+                    Locale.forLanguageTag(tag), SiteShowcase::app));
         }
         // The one right-to-left capture: the whole window under the Arabic bundle with the
         // direction axis flipped, which is the only honest picture of layout mirroring — a
         // mirrored screen is a property of the window, not of any crop of it. The direction
         // is stated by rtl() rather than read off the locale, the same rule the toolkit keeps.
-        entries.add(new Entry("kitchen-ar", "The kitchen sink in Arabic, right to left",
-                Locale.forLanguageTag("ar"), SiteShowcase::kitchen).rtl().settling());
+        entries.add(new Entry("app-ar", "The demo application in Arabic, right to left",
+                Locale.forLanguageTag("ar"), SiteShowcase::app).rtl());
         // Palette-invariant: the 3D scene picks its own sky, ground and materials, and the
         // window around it carries nothing else, so the two palettes render the same pixels.
         //
@@ -411,8 +410,10 @@ public final class SiteShowcase {
         return retheme(limn.demo.site.ControlSizeExample.scene(), theme);
     }
 
-    private static Scene kitchen(Theme theme) {
-        return retheme(KitchenSinkScene.create(!theme.isDark()).scene(), theme);
+    /** The application, themed before it is built, so its theme picker opens on this palette. */
+    private static Scene app(Theme theme) {
+        Theme.setCurrent(theme);
+        return retheme(AppScene.create().scene(), theme);
     }
 
     private static Scene viewport(Theme theme) {

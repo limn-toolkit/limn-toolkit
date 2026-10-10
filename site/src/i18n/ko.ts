@@ -74,7 +74,7 @@ export const ko: Catalog = {
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
   "home.try.windows": "Windows",
-  "home.try.demoComment": "키친 싱크",
+  "home.try.demoComment": "쇼케이스",
   "home.try.editorComment": "테마 편집기",
 
   "home.install.eyebrow": "5분",
@@ -196,14 +196,14 @@ export const ko: Catalog = {
     "툴킷이 그린 화면 전체: 데모 애플리케이션, 오른쪽에서 왼쪽으로 뒤집힌 같은 창, 3D 뷰포트, 폼, 배치한 창.",
   "showcase.rtl.heading": "같은 창을, 오른쪽에서 왼쪽으로",
   "showcase.rtl.body":
-    "ar 번역에 방향 축을 뒤집은 데모 애플리케이션: 메뉴 막대, 탭, 입력란, 스크롤 막대, 성능 푸터가 모두 오른쪽에서 읽히고, 그 안의 텍스트는 아랍 문자답게 결합하고 재배열됩니다. 화면을 다시 쓰지 않았습니다. 방향은 컨트롤 크기처럼 설정하는, 상속되는 하나의 축입니다.",
+    "ar 번역에 방향 축을 뒤집은 데모 애플리케이션: 메뉴 막대, 탐색, 입력란, 스크롤 막대, 표가 모두 오른쪽에서 읽히고, 그 안의 텍스트는 아랍 문자답게 결합하고 재배열됩니다. 화면을 다시 쓰지 않았습니다. 방향은 컨트롤 크기처럼 설정하는, 상속되는 하나의 축입니다.",
   "showcase.eyebrow": "화면 전체",
   "showcase.heading": "화면",
   "showcase.lede":
     "잘라낸 조각도 목업도 아닙니다. 하나하나가 이 사이트를 빌드하는 동안 툴킷이 그린 창입니다.",
-  "showcase.kitchen.heading": "데모 애플리케이션",
-  "showcase.kitchen.body":
-    "메뉴 막대, 탭, 테마 선택기, 실시간 성능 표시줄이 있는 하나의 창에 모든 컴포넌트가 들어 있습니다.",
+  "showcase.app.heading": "데모 애플리케이션",
+  "showcase.app.body":
+    "주문 화면 — 정렬하고 필터링하는 표와 선택한 주문의 폼 — 이 있고, 옆에는 모든 컴포넌트가 분류별로 놓여 있습니다. 위쪽의 네 선택기가 창 전체의 언어, 방향, 크기, 테마를 바꿉니다.",
   "showcase.forms.heading": "폼",
   "showcase.forms.body":
     "라벨, 검증되는 입력란, 선택, 스위치, 동작 줄까지, 폼 가이드의 예제 그대로입니다.",

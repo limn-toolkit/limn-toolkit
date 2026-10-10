@@ -44,7 +44,7 @@ import java.util.Locale;
  * <p>One block is a specimen of <em>resolution</em> rather than of shaping: the same bundle
  * string and the same spinner value twice, once inheriting the window's locale and once under
  * a column that declares Arabic. Every visible difference between the halves is the
- * declaration at work, and in the kitchen sink's Scripts tab the language picker makes the
+ * declaration at work, and in the showcase's Scripts page the language picker makes the
  * other half of the claim — it moves the inheriting pair and cannot reach the pinned one.
  */
 final class BidiScene {
@@ -158,7 +158,7 @@ final class BidiScene {
     }
 
     /**
-     * The same specimens as {@code --scene bidi}, as a body the kitchen sink can host in a tab.
+     * The same specimens as {@code --scene bidi}, as a body the showcase can host in a tab.
      *
      * <p>It builds its own fields rather than sharing the scene's: the standalone scene focuses one
      * of them and installs a selection across its direction boundary, and a tab that inherited that
@@ -182,7 +182,6 @@ final class BidiScene {
     private static Widget<?> page(TextField arabic, TextField hebrew) {
         Column page = new Column();
         page.gap(12).crossAlignment(Flex.CrossAlignment.START);
-        page.add(new Label("Bidi and complex scripts").setRole(Label.Role.TITLE));
         page.add(new SizedBox(SPECIMEN_COLUMN + COLUMN_GAP + PARAGRAPH_COLUMN, SizedBox.UNSET,
                 new Label("Right-to-left text, shaped and ordered, in a left-to-right screen.")
                         .setMuted(true).setWrap(true)));
@@ -255,7 +254,7 @@ final class BidiScene {
     /**
      * A locale declared on a subtree, as a widget pair: the right half sits under a column that
      * declares {@link #ARABIC}, and nothing else about it differs from the left one. The label
-     * is a kitchen-bundle string the sink already ships — this scene adds no translation of its
+     * is a string of the showcase's bundle, which already ships — this scene adds no translation of its
      * own — so الإشعارات over Notifications is the subtree's string lookup, and ٤٢ over 42
      * is the format-time digit substitution reading the effective locale instead of the process
      * one. Both spinners are live: type into the pinned one and the Arabic-Indic digits it
@@ -273,7 +272,7 @@ final class BidiScene {
     private static Widget<?> pinnedHalf(Locale pin) {
         Column half = new Column();
         half.gap(4).crossAlignment(Flex.CrossAlignment.START);
-        half.add(new Label(KitchenStrings.NOTIFICATIONS));
+        half.add(new Label(ShowcaseStrings.ORDERS_NOTES));
         half.add(new Spinner(0, 100, 1).setValue(PINNED_VALUE));
         if (pin != null) {
             half.setLocale(pin);
