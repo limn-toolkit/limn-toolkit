@@ -1,7 +1,7 @@
 # ADR 057: A surface says how far it is lifted, and the theme says what that looks like
 
 - **Status:** Accepted, 2026-10-10, with the owner's answers in §4; being built in the four
-  steps of §5, the first of which is done.
+  steps of §5, the first two of which are done.
 - **Date:** 2026-10-10
 - **Scope:** elevation: how a surface that lies over another is told apart from it. A small
   scale of levels, what each level draws (a shadow, a tone, an outline), where the numbers live
@@ -164,7 +164,11 @@ surface does not darken itself.
    a token. A shadow is drawn whole and the surface painted over it, so §2.3's "outside its
    shape only" is not what was built: a translucent surface would show its own shadow through
    itself, and none of the toolkit's is translucent.
-2. **The overlays drawn in a scene**: menu, list, calendar, tooltip, dialog.
+2. **The overlays drawn in a scene** (done): the list of a combo box, a date picker's calendar
+   and a menu, each when it is drawn in the owner's scene, and a tooltip, cast the shadow of
+   `OVERLAY`; the card of a dialog in the scene casts `MODAL`'s, fading in with it. Each counts
+   the shadow's reach in what its repaints damage, the tooltip's being the scene's to count
+   since the scene paints it. In a window of their own they draw none: that shadow is step 3.
 3. **The popup windows**, measured on the four systems before it is decided how.
 4. **The theme editor**: a preview by level and the five numbers of each.
 

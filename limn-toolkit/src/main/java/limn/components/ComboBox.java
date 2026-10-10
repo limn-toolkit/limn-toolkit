@@ -3094,6 +3094,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      */
     private final class PopupPanel extends Widget<PopupPanel> implements Scrollable {
 
+        /** The shadow the list casts while it is drawn in the scene. */
+        @Override
+        protected float paintOutset() {
+            return scenePopup != null ? Theme.of(this).elevation(Elevation.OVERLAY).reach() : 0;
+        }
+
         private final ScrollBar vBar;
         private int hoverIndex = -1;
         private float scroll;
@@ -3288,6 +3294,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // over the owner's own content instead of over the desktop, and a list you can read
             // the page through is not frosted glass: it is unreadable. So that presentation
             // paints the theme's surface as the theme wrote it.
+            if (scenePopup != null) {
+                // In the scene the list lies over the page, and says so as every surface that
+                // covers does; in a window of its own the shadow is the window's.
+                theme.drawElevation(canvas, limn.graphics.RoundRect.of(0, 0, width(), height(),
+                        t.radiusLarge()), Elevation.OVERLAY);
+            }
             canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusLarge(),
                     scenePopup != null ? theme.surfaceRaised()
                             : theme.surfaceRaised().withAlpha(0.94f),

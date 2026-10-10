@@ -1264,6 +1264,12 @@ public final class PopupMenu {
             boolean rtl = isRtl();
             float x = col.x - offsetX;
             float y = col.y - offsetY;
+            if (inScene) {
+                // In the scene a menu lies over the page; in a window of its own the shadow is
+                // the window's.
+                theme.drawElevation(canvas, limn.graphics.RoundRect.of(x, y, col.w, col.visibleH,
+                        t.radiusMedium()), Elevation.OVERLAY);
+            }
             canvas.fillRoundRectWithBorder(x, y, col.w, col.visibleH, t.radiusMedium(),
                     theme.surfaceRaised().withAlpha(0.98f), Strokes.BORDER, theme.outline());
 

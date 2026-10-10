@@ -72,6 +72,13 @@ class ElevationTest {
     }
 
     @Test
+    void aTooltipCastsTheShadowOfASurfaceThatCovers() {
+        limn.scene.TooltipStyle style = Theme.tooltipStyle(limn.scene.ControlSize.MEDIUM);
+        assertEquals(Theme.current().elevation(Elevation.OVERLAY).layers(), style.shadows());
+        assertEquals(Theme.current().elevation(Elevation.OVERLAY).reach(), style.shadowReach());
+    }
+
+    @Test
     void aMalformedShadowNamesItsLine() {
         for (String bad : List.of("elevation.overlay = 1 2 3", "elevation.overlay = a b c d e",
                 "elevation.overlay = 1 2 9 2 0.1", "elevation.flat = 0 0 0 0 0")) {

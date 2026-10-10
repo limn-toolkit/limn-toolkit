@@ -1375,7 +1375,8 @@ public final class Theme {
         Theme t = current();
         SizeTokens s = t.tokens(step);
         return new limn.scene.TooltipStyle(t.surfaceRaised, t.outline, t.text,
-                s.label(), s.radiusSmall(), s.tooltipPadH(), s.tooltipPadV());
+                s.label(), s.radiusSmall(), s.tooltipPadH(), s.tooltipPadV(),
+                t.elevation(Elevation.OVERLAY).layers());
     }
 
     static {

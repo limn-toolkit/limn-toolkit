@@ -5131,6 +5131,7 @@ public final class Scene {
     private int tooltipGeneration;
     private long lastTooltipNanos = -1;
     private Rect paintedTooltipRect; // where the last frame drew it (scene coords), null when hidden
+    private float paintedTooltipReach; // how far past it that frame's shadow went
 
     /** Installs the themed tooltip appearance (the components layer calls this once). */
     public static void installTooltipStyle(
@@ -5214,13 +5215,17 @@ public final class Scene {
      * no widget invalidates for it).
      */
     private void damageTooltip() {
+        // The panel and what its shadow reaches, the reach as last painted for where it was.
         if (paintedTooltipRect != null) {
-            addDamage(paintedTooltipRect.x() - 1, paintedTooltipRect.y() - 1,
-                    paintedTooltipRect.width() + 2, paintedTooltipRect.height() + 2);
+            float was = 1 + paintedTooltipReach;
+            addDamage(paintedTooltipRect.x() - was, paintedTooltipRect.y() - was,
+                    paintedTooltipRect.width() + 2 * was, paintedTooltipRect.height() + 2 * was);
         }
         Rect now = tooltipRect();
         if (now != null) {
-            addDamage(now.x() - 1, now.y() - 1, now.width() + 2, now.height() + 2);
+            java.util.function.Function<ControlSize, TooltipStyle> supplier = tooltipStyle;
+            float reach = 1 + (supplier == null ? 0 : supplier.apply(tooltipStep()).shadowReach());
+            addDamage(now.x() - reach, now.y() - reach, now.width() + 2 * reach, now.height() + 2 * reach);
         }
         scheduleFrame();
     }
@@ -5266,6 +5271,9 @@ public final class Scene {
         float h = rect.height();
         canvas.save();
         canvas.setOpacity(tooltipAlpha);
+        for (limn.graphics.Shadow shadow : style.shadows()) {
+            canvas.drawShadow(limn.graphics.RoundRect.of(x, y, w, h, style.radius()), shadow);
+        }
         canvas.fillRoundRectWithBorder(x, y, w, h, style.radius(), style.fill(), 1, style.border());
         // Inside the pad on the side reading starts from; the panel was sized from this very
         // line, so the two pads are equal and the run fills what is between them.
@@ -5275,6 +5283,7 @@ public final class Scene {
         canvas.drawText(line, textX, y + (h - fm.height()) / 2 + fm.ascent(), style.text());
         canvas.restore();
         paintedTooltipRect = rect;
+        paintedTooltipReach = style.shadowReach();
     }
 
     /** Advances the scrim fade, once per content frame (the paint is per-pass and pure). */

@@ -1559,6 +1559,13 @@ public final class DatePicker extends Widget<DatePicker> {
      */
     private final class PopupPanel extends Widget<PopupPanel> {
 
+        /** The shadow the card casts while it is drawn in the scene. */
+        @Override
+        protected float paintOutset() {
+            return scenePopup != null
+                    ? Theme.of(this).elevation(limn.components.Elevation.OVERLAY).reach() : 0;
+        }
+
         /** Lets go of a child a newer card is taking; the picker owns the panel's children. */
         void drop(Widget<?> child) {
             remove(child);
@@ -1629,6 +1636,10 @@ public final class DatePicker extends Widget<DatePicker> {
             // desktop shows through and the rounded corners are genuinely transparent, while in
             // the scene the same translucency would composite over the form underneath, and a
             // calendar you can read the form through is not frosted glass, it is unreadable.
+            if (scenePopup != null) {
+                theme.drawElevation(canvas, limn.graphics.RoundRect.of(0, 0, width(), height(), radius),
+                        limn.components.Elevation.OVERLAY);
+            }
             canvas.fillRoundRectWithBorder(0, 0, width(), height(), radius,
                     scenePopup != null ? theme.surfaceRaised() : theme.surfaceRaised().withAlpha(0.94f),
                     Strokes.BORDER, theme.outline());
