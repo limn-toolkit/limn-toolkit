@@ -79,8 +79,10 @@ class TooltipDamageTest {
             if (canvas.firstClip != null) {
                 sawTooltipFrame = true;
                 assertTrue(!canvas.cleared, "tooltip frames must be partial, never full");
-                assertTrue(canvas.firstClip.width() < 150 && canvas.firstClip.height() < 60,
-                        "tooltip damage must be its own rect, got " + canvas.firstClip);
+                // Its own rect and what its shadow reaches on every side, and nothing more.
+                float shadow = 2 * Theme.current().elevation(Elevation.OVERLAY).reach();
+                assertTrue(canvas.firstClip.width() < 150 + shadow && canvas.firstClip.height() < 60 + shadow,
+                        "tooltip damage must be its own rect and its shadow, got " + canvas.firstClip);
             }
             nanos.addAndGet(50_000_000L);
             runtime.drain();

@@ -18,13 +18,14 @@ twenty-minute version of everything else: the four ideas the rest of the guide b
 [Layout](/docs/layout/) and [Forms](/docs/forms/) are the two pages most applications need
 first, and both carry a complete worked example with the screenshot it produces.
 [Lists and scrolling](/docs/lists-and-scrolling/) covers long content;
-[Menus and dialogs](/docs/menus-and-dialogs/) covers the parts that leave the window;
+[Menus and dialogs](/docs/menus-and-dialogs/) covers the parts that leave the window, the
+system's file choosers and handing a link or a file to the system's own programs;
 [Drag and drop](/docs/drag-and-drop/) covers rows that rearrange, what is dragged to and from
 other programs, and the clipboard; and [Charts](/docs/charts/) covers bars, lines and donuts.
 
 ## Making it yours
 
-[Theming](/docs/theming/) is colour, shape and density, including building a palette of your own and letting your users build one. [Text and languages](/docs/text-and-languages/)
+[Theming](/docs/theming/) is colour, shape, depth and density, including building a palette of your own and letting your users build one. [Text and languages](/docs/text-and-languages/)
 is what to do when your users are not all reading English, and [Accessibility](/docs/accessibility/)
 is what a screen reader says about your window and the one call that makes it say the right
 thing. [Images and media](/docs/images-and-media/)

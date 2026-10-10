@@ -5,12 +5,15 @@ import limn.components.Checkbox;
 import limn.components.ColorPickerButton;
 import limn.components.ComboBox;
 import limn.components.DisplayMode;
+import limn.components.Elevation;
+import limn.components.ElevationShadow;
 import limn.components.Label;
 import limn.components.ScrollGutters;
 import limn.components.ScrollView;
 import limn.components.Separator;
 import limn.components.SizeTokens;
 import limn.components.Slider;
+import limn.components.Spinner;
 import limn.components.TextField;
 import limn.components.Theme;
 import limn.components.ThemeFormat;
@@ -127,6 +130,11 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
 
     private final ComboBox<I18nString> baseChoice;
     private final Slider cornerSlider = new Slider(0, Theme.MAX_CORNER_SCALE);
+    /** The levels a palette gives a shadow, in the order the editor lists them. */
+    private static final List<Elevation> LIFTED = List.of(Elevation.RAISED, Elevation.OVERLAY, Elevation.MODAL);
+    /** A level's five fields: the key layer's offset, blur and opacity, the ambient's blur and opacity. */
+    private final Map<Elevation, Spinner[]> shadowFields = new EnumMap<>(Elevation.class);
+    private boolean syncingShadows;
     private final Label cornerReadout = new Label("");
     /**
      * The font picker's row, rebuilt in place when the catalog grows. A {@link ComboBox}'s items
@@ -280,6 +288,20 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
         Objects.requireNonNull(colour, "colour");
         builder.set(token, colour);
         syncFromBuilder();
+        edited(Change.Origin.CODE);
+        return this;
+    }
+
+    /**
+     * Sets the shadow of a level (see {@link Theme#elevation}) by the same path its fields
+     * take, {@link #onChange} included.
+     *
+     * @throws IllegalArgumentException for a shadow on {@link Elevation#FLAT}
+     */
+    public ThemeEditor setElevation(Elevation level, ElevationShadow shadow) {
+        Ui.checkUiThread();
+        builder.elevation(level, shadow);
+        syncShadowControls();
         edited(Change.Origin.CODE);
         return this;
     }
@@ -583,6 +605,7 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
         }
         baseChoice.setSelectedIndex(baseIndex);
         syncCornerControl();
+        syncShadowControls();
         // The list itself can need rebuilding, not just the selection: a palette loaded from a
         // file may name a family that is not in the catalog and therefore not yet an entry.
         rebuildFontChoice();
@@ -644,7 +667,88 @@ public final class ThemeEditor extends Widget<ThemeEditor> {
                 column.add(deriveButton(section.derivation()));
             }
         }
+        // Last: the colours are what a palette is opened to change, and the shadows are fifteen
+        // numbers most palettes leave as they came.
+        column.add(new Label(ThemeEditorStrings.SECTION_ELEVATION)
+                .setRole(Label.Role.LABEL).setStrong(true));
+        for (Elevation level : LIFTED) {
+            column.add(elevationRows(level));
+        }
         return column;
+    }
+
+    /**
+     * The shadow of one level: its name over the five numbers a theme file writes for it, the
+     * key layer's offset, blur and opacity on one row and the ambient layer's blur and opacity
+     * on the next. Opacity is edited in whole percent, which is how it is spoken of.
+     */
+    private Widget<?> elevationRows(Elevation level) {
+        Spinner[] fields = {
+                new Spinner(0, ElevationShadow.MAX_POINTS, 1), new Spinner(0, ElevationShadow.MAX_POINTS, 1),
+                new Spinner(0, 100, 1),
+                new Spinner(0, ElevationShadow.MAX_POINTS, 1), new Spinner(0, 100, 1)};
+        I18nString[] captions = {ThemeEditorStrings.SHADOW_OFFSET, ThemeEditorStrings.SHADOW_BLUR,
+                ThemeEditorStrings.SHADOW_OPACITY, ThemeEditorStrings.SHADOW_EDGE_BLUR,
+                ThemeEditorStrings.SHADOW_EDGE_OPACITY};
+        shadowFields.put(level, fields);
+        for (int i = 0; i < fields.length; i++) {
+            fields[i].setAccessibleName(I18nString.literal(
+                    elevationName(level).get() + ", " + captions[i].get()));
+            fields[i].onChange(value -> {
+                if (!syncingShadows) {
+                    builder.elevation(level, shadowIn(fields));
+                    edited(Change.Origin.USER);
+                }
+            });
+        }
+        TokenColumn rows = new TokenColumn(Tokens.Role.SMALL);
+        rows.crossAlignment(Flex.CrossAlignment.STRETCH);
+        rows.add(new Label(elevationName(level)));
+        TokenRow key = new TokenRow(Tokens.Role.MEDIUM);
+        TokenRow ambient = new TokenRow(Tokens.Role.MEDIUM);
+        for (int i = 0; i < fields.length; i++) {
+            TokenColumn cell = new TokenColumn(Tokens.Role.SMALL);
+            cell.crossAlignment(Flex.CrossAlignment.STRETCH);
+            cell.add(new Label(captions[i]).setRole(Label.Role.LABEL).setMuted(true));
+            cell.add(fields[i]);
+            (i < 3 ? key : ambient).add(Expanded.of(cell, 1));
+        }
+        ambient.add(Expanded.spacer(1)); // two cells as wide as the three above them
+        rows.add(key);
+        rows.add(ambient);
+        return rows;
+    }
+
+    private static I18nString elevationName(Elevation level) {
+        return switch (level) {
+            case RAISED -> ThemeEditorStrings.ELEVATION_RAISED;
+            case OVERLAY -> ThemeEditorStrings.ELEVATION_OVERLAY;
+            default -> ThemeEditorStrings.ELEVATION_MODAL;
+        };
+    }
+
+    private static ElevationShadow shadowIn(Spinner[] fields) {
+        return new ElevationShadow((float) fields[0].value(), (float) fields[1].value(),
+                (float) fields[2].value() / 100f, (float) fields[3].value(),
+                (float) fields[4].value() / 100f);
+    }
+
+    /** Writes the fifteen fields from the builder, without reading any back as an edit. */
+    private void syncShadowControls() {
+        syncingShadows = true;
+        try {
+            for (Map.Entry<Elevation, Spinner[]> entry : shadowFields.entrySet()) {
+                ElevationShadow shadow = builder.elevation(entry.getKey());
+                Spinner[] fields = entry.getValue();
+                fields[0].setValue(shadow.keyOffset());
+                fields[1].setValue(shadow.keyBlur());
+                fields[2].setValue(Math.round(shadow.keyOpacity() * 100));
+                fields[3].setValue(shadow.ambientBlur());
+                fields[4].setValue(Math.round(shadow.ambientOpacity() * 100));
+            }
+        } finally {
+            syncingShadows = false;
+        }
     }
 
     /**

@@ -1,7 +1,7 @@
 # ADR 057: A surface says how far it is lifted, and the theme says what that looks like
 
-- **Status:** Proposed, 2026-10-10. §4 holds the questions that are the owner's; nothing is
-  built until they are answered.
+- **Status:** Accepted, 2026-10-10, with the owner's answers in §4; being built in the four
+  steps of §5: all four are built and seen on the four systems.
 - **Date:** 2026-10-10
 - **Scope:** elevation: how a surface that lies over another is told apart from it. A small
   scale of levels, what each level draws (a shadow, a tone, an outline), where the numbers live
@@ -146,14 +146,69 @@ surface does not darken itself.
   what the tone step is for.
 - Theme files gain a section; the editor needs a way to show and change it.
 
-## 4. For the owner
+## 4. The owner's answers (2026-10-10)
 
-1. **The scale**: four named levels, or the six of the two larger systems?
-2. **The panel beside the table**: a shadow is, in all three systems, for a surface that
-   covers. A panel that pushes the table aside shares the plane with it and would take a line.
-   Should the demo's panel come *over* the table, with the shadow, or keep pushing it and take
-   the shadow anyway?
-3. **How far this goes now**: the primitive, the theme tokens and the in-scene overlays; or
-   the popup windows too?
-4. **The theme editor**: shown and editable now, or tokens with defaults now and the editor
-   later?
+1. **The scale**: four named levels.
+2. **The panel beside the table**: it comes over the table, with the shadow.
+3. **How far this goes now**: the popup windows too, not only the surfaces drawn in a scene.
+   §2.5's first item is therefore in, and is the step with the most to measure.
+4. **The theme editor**: shows and edits the shadows now.
+
+## 5. Steps, and where it stands
+
+1. **The base** (done): `limn.graphics.Shadow` and `Canvas.drawShadow`, drawn by the GL canvas
+   as the error function of the shape's distance field, one quad a layer; `Elevation`;
+   `ElevationShadow`, five numbers a level, in `Theme` with a default by mode and in the theme
+   file as `elevation.raised`, `elevation.overlay` and `elevation.modal`; the `Surface`
+   container; the demo's panel over its table. The shadow is black: a colour of its own is not
+   a token. A shadow is drawn whole and the surface painted over it, so §2.3's "outside its
+   shape only" is not what was built: a translucent surface would show its own shadow through
+   itself, and none of the toolkit's is translucent.
+2. **The overlays drawn in a scene** (done): the list of a combo box, a date picker's calendar
+   and a menu, each when it is drawn in the owner's scene, and a tooltip, cast the shadow of
+   `OVERLAY`; the card of a dialog in the scene casts `MODAL`'s, fading in with it. Each counts
+   the shadow's reach in what its repaints damage, the tooltip's being the scene's to count
+   since the scene paints it. In a window of their own they draw none: that shadow is step 3.
+3. **The popup windows**, measured before it is decided how. Read on 2026-10-10 from a picture
+   of each guest's screen with the demo's size list open as a window of its own
+   (`-Dlimn.demo.popup=true`):
+
+   | system | around a popup window of ours |
+   |---|---|
+   | macOS 27 | the system's shadow, soft and whole |
+   | Ubuntu 24.04, GNOME, X11 | nothing: the list's own outline on the page |
+   | Windows 11 | nothing: the same |
+   | Fedora 44, KDE, Wayland | no such window: there a list, a menu and a calendar are drawn in the owner's scene, where step 2 gives them their shadow |
+
+   So the compositor's shadow, which §2.5 meant to keep, exists on one system of the three
+   read. Decided from that: where the compositor casts one (macOS) the toolkit draws none, or
+   there would be two; elsewhere the popup's window is made larger than its panel by the
+   shadow's reach on every side, the panel is laid out inset in it and the shadow drawn in the
+   margin, which is transparent. A backend says which case it is. A press in the margin closes
+   the popup, as a press outside it does, and is not passed to what is under it: no system
+   lets a client pass part of a window's presses on without a call of its own per system, and a
+   press beside an open list has always been one that closes it.
+
+   Built (2026-10-10): `Backend.compositorShadowsPopups()`, true by default; a frame widget of
+   `limn.components.internal` that lays a popup's panel out inset by the margin and closes the
+   popup on a press in it; and the margin in the size and the position of the windows of the
+   combo box's list (where it opens and where it is resized as it is filtered), the date
+   picker's calendar and the menu, whose one window already spanned its cascade and now spans
+   each column's shadow too. **Seen on Ubuntu under X11 and on Windows 11**, each with
+   the toolkit's shadow forced off and on (`-Dlimn.popupShadow`): a list, a menu with its check
+   and submenu arrow, and a calendar, each with its shadow and where it was without it. **Seen
+   on Fedora under Wayland**, by the desktop's own screenshot program once the guest's screen
+   was awake: the same three with their shadow, drawn in the scene, the two runs identical to
+   the byte since no window of this kind is made there. The backend answers that the compositor
+   casts none on Windows and under X11. A dialog that is a
+   window of its own is not part of this: it is a system window with the system's shadow where
+   it is decorated, and where it is not, it is still to do.
+4. **The theme editor** (done): a section, after the colours, with the five numbers of each
+   level, opacity in whole percent, and `ThemeEditor.setElevation` for an application that
+   drives it; its preview draws the card with `RAISED`'s shadow and two surfaces beside the
+   field with `OVERLAY`'s and `MODAL`'s, from the palette being edited.
+
+Seen on the demo's panel (macOS guest, light and dark): the shadow is there and soft, and
+faint at the side of a panel that meets the window's top and bottom, since the light is above
+and only the blur's spread reaches sideways. Whether the default for a surface that covers
+should be stronger is the owner's eye to say.

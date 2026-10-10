@@ -20,7 +20,27 @@ import limn.graphics.Font;
  * @param radius corner radius
  * @param padH   horizontal padding, per side
  * @param padV   vertical padding, per side
+ * @param shadows the layers of the shadow the panel casts, the widest first; empty for none
  */
 public record TooltipStyle(Color fill, Color border, Color text, Font font, float radius,
-                           float padH, float padV) {
+                           float padH, float padV, java.util.List<limn.graphics.Shadow> shadows) {
+
+    public TooltipStyle {
+        shadows = java.util.List.copyOf(shadows);
+    }
+
+    /** A tooltip that casts no shadow. */
+    public TooltipStyle(Color fill, Color border, Color text, Font font, float radius,
+                        float padH, float padV) {
+        this(fill, border, text, font, radius, padH, padV, java.util.List.of());
+    }
+
+    /** @return how far past the panel its shadow can leave ink */
+    public float shadowReach() {
+        float reach = 0;
+        for (limn.graphics.Shadow shadow : shadows) {
+            reach = Math.max(reach, shadow.reach());
+        }
+        return reach;
+    }
 }

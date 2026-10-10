@@ -144,7 +144,7 @@ answer in the exit code; they are how each line below was read (2026-10-10).
 | **macOS 27** (guest) | the browser, in front | `false`, nothing started | the file manager's window, the file selected | the text editor, in front | the mail program, in front |
 | **Fedora 44, KDE, Wayland** | the browser started, through the portal | `false`, nothing started | the file manager started, through `FileManager1` | the desktop's program for text started, by `xdg-open` | not asked |
 | **Ubuntu 24.04, GNOME, X11** | the browser started, through the portal | `false`, nothing started | the file manager started, through `FileManager1` | the text editor started, by `xdg-open` | not asked |
-| **Windows 11** | to be measured | | | | |
+| **Windows 11** (guest) | the browser, showing the page | `false`, nothing started | the file manager's window at the folder, the file selected (read from the shell's own list of its windows) | the text editor, in front | not asked |
 
 On the two Linux guests what was read is the answer and the process that started, not the
 screen: whether the program came in front of the asking window, which §5 declares open on

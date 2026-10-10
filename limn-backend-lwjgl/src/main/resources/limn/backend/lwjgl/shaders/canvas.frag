@@ -55,6 +55,8 @@ out vec4 o_color;
 //           v_misc.x = device pixels per local unit (there is no stroke here),
 //           v_colorB = (variant, param1, param2, opacity),
 //           v_grad = the copied region in texture coords, to clamp against)
+//       9 = shadow (a rounded rect blurred analytically; v_misc.x = how far
+//           the quad reaches past the shape, three deviations of the blur)
 // paintType: 0 = solid, 1 = linear gradient, 2 = radial gradient
 
 float sdRoundRect(vec2 p, vec2 halfSize, vec4 radii) {
@@ -151,6 +153,25 @@ void main() {
         }
     }
     float clipCoverage = 1.0 - smoothstep(-0.5, 0.5, dClip);
+
+    if (kind > 8.5) {
+        // Shadow: the shape blurred, with no blur pass. The blur of a straight edge is the
+        // error function of the distance to it, and a rounded rectangle's distance field is
+        // close enough to that everywhere but inside a corner tighter than the blur, where the
+        // difference is a shadow a little rounder than a kernel would leave it. v_misc.x is how
+        // far the quad reaches past the shape, three deviations of the blur.
+        float dShadow = sdRoundRect(v_local, v_halfSize, v_radii);
+        float sigma = max(v_misc.x / 3.0, fwidth(dShadow) * 0.5 + 1e-4);
+        float x = dShadow / (sigma * 1.41421356);
+        // erf by Abramowitz and Stegun 7.1.26, good to 1.5e-7: nothing in the portable subset has one.
+        float ax = abs(x);
+        float tt = 1.0 / (1.0 + 0.3275911 * ax);
+        float erfAx = 1.0 - (((((1.061405429 * tt - 1.453152027) * tt) + 1.421413741) * tt
+                - 0.284496736) * tt + 0.254829592) * tt * exp(-ax * ax);
+        float aShadow = 0.5 * (1.0 - sign(x) * erfAx) * v_colorA.a * clipCoverage;
+        o_color = vec4(v_colorA.rgb * aShadow, aShadow);
+        return;
+    }
 
     if (kind >= 7.5) {
         // Backdrop effect: the shape's own SDF gives both its coverage and, through

@@ -191,6 +191,8 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
 
     private NativeWindow popupWindow;
     private Scene popupScene;
+    /** The transparent margin around the list in its own window, for its shadow; zero for none. */
+    private int popupMargin;
     private PopupPanel popupPanel;
     /**
      * The in-scene presentation, non-null instead of {@link #popupWindow} on a platform that
@@ -1727,9 +1729,11 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         float spaceAbove = area != null ? (anchorTop - area.y()) / factor - gap - EDGE_MARGIN : contentH;
         Drop drop = dropFor(t, spaceAbove, spaceBelow);
         float ownerY = drop.above() ? localToSceneY() - gap - drop.height() : localToSceneY() + height() + gap;
-        popupWindow.setSize(Math.max(1, Math.round(width())), Math.max(1, Math.round(drop.height())));
-        popupWindow.setScreenPosition(parent.screenX() + Math.round(localToSceneX() * factor),
-                parent.screenY() + Math.round(ownerY * factor));
+        int m = popupMargin; // the shadow's, around the list: see createPopupWindow
+        popupWindow.setSize(Math.max(1, Math.round(width())) + 2 * m,
+                Math.max(1, Math.round(drop.height())) + 2 * m);
+        popupWindow.setScreenPosition(parent.screenX() + Math.round((localToSceneX() - m) * factor),
+                parent.screenY() + Math.round((ownerY - m) * factor));
         popupWindow.requestFrame();
     }
 
@@ -1953,8 +1957,13 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         float ownerY = drop.above()
                 ? localToSceneY() - gap - drop.height()
                 : localToSceneY() + height() + gap;
-        popupWindow = parent.backend().createWindow(WindowConfig.popup(parent, popupWidth, popupHeight)
-                .atInOwner(localToSceneX(), ownerY));
+        // Where the compositor casts no shadow for such a window, the window is larger than the
+        // list by the shadow's reach on every side and the list is laid out inset in it.
+        popupMargin = limn.components.internal.PopupFrame.marginFor(parent, Theme.of(this), Elevation.OVERLAY);
+        int m = popupMargin;
+        popupWindow = parent.backend().createWindow(
+                WindowConfig.popup(parent, popupWidth + 2 * m, popupHeight + 2 * m)
+                        .atInOwner(localToSceneX() - m, ownerY - m));
         popupStep = controlSize();
         popupRtl = isRightToLeft();
 
@@ -1962,10 +1971,12 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
         // Before the scene binds: binding measures the panel, and a panel that resolved the
         // process defaults there would lay rows out at one step, or in one direction, inside a
         // window sized at another.
-        popupPanel.setInheritanceHost(this);
+        Widget<?> popupRoot = m == 0 ? popupPanel
+                : new limn.components.internal.PopupFrame(popupPanel, m, () -> close(Change.Origin.USER));
+        popupRoot.setInheritanceHost(this);
         // On the owner's clock, so the fade-out that destroys this window advances with it
         // (Scene#clock).
-        popupScene = new Scene(popupPanel, scene().clock());
+        popupScene = new Scene(popupRoot, scene().clock());
         popupScene.inheritRenderingFlags(scene()); // partial/debug follow the owner window
         // Published by this window's tree, under the combo, as a native drop-down list is a child
         // of its field: a reader never leaves this window while the list is open.
@@ -3094,6 +3105,13 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
      */
     private final class PopupPanel extends Widget<PopupPanel> implements Scrollable {
 
+        /** The shadow the list casts while it is drawn in the scene. */
+        @Override
+        protected float paintOutset() {
+            return scenePopup != null || popupMargin > 0
+                    ? Theme.of(this).elevation(Elevation.OVERLAY).reach() : 0;
+        }
+
         private final ScrollBar vBar;
         private int hoverIndex = -1;
         private float scroll;
@@ -3288,6 +3306,13 @@ public final class ComboBox<T> extends Widget<ComboBox<T>> {
             // over the owner's own content instead of over the desktop, and a list you can read
             // the page through is not frosted glass: it is unreadable. So that presentation
             // paints the theme's surface as the theme wrote it.
+            if (scenePopup != null || popupMargin > 0) {
+                // In the scene the list lies over the page, and says so as every surface that
+                // covers does; in a window of its own the shadow is the compositor's, or drawn
+                // here into the window's margin where the compositor casts none.
+                theme.drawElevation(canvas, limn.graphics.RoundRect.of(0, 0, width(), height(),
+                        t.radiusLarge()), Elevation.OVERLAY);
+            }
             canvas.fillRoundRectWithBorder(0, 0, width(), height(), t.radiusLarge(),
                     scenePopup != null ? theme.surfaceRaised()
                             : theme.surfaceRaised().withAlpha(0.94f),

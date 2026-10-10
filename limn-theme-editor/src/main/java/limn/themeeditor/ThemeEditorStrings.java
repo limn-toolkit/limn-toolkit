@@ -80,6 +80,17 @@ final class ThemeEditorStrings {
     static final I18nString CORNER_SCALE_VALUE = key("cornerScaleValue", "{0} pt");
 
     static final I18nString SECTION_TYPE = key("section.type", "Typeface");
+
+    static final I18nString SECTION_ELEVATION = key("section.elevation", "Elevation");
+    static final I18nString ELEVATION_RAISED = key("elevation.raised", "Raised");
+    static final I18nString ELEVATION_OVERLAY = key("elevation.overlay", "Overlay");
+    static final I18nString ELEVATION_MODAL = key("elevation.modal", "Modal");
+    /** The five numbers of a level's shadow, in the order a theme file writes them. */
+    static final I18nString SHADOW_OFFSET = key("shadow.offset", "Offset");
+    static final I18nString SHADOW_BLUR = key("shadow.blur", "Blur");
+    static final I18nString SHADOW_OPACITY = key("shadow.opacity", "Opacity %");
+    static final I18nString SHADOW_EDGE_BLUR = key("shadow.edgeBlur", "Edge blur");
+    static final I18nString SHADOW_EDGE_OPACITY = key("shadow.edgeOpacity", "Edge opacity %");
     static final I18nString FONT_FAMILY = key("fontFamily", "Font");
     /** The first entry in the font picker: no preference, so the toolkit's own face is used. */
     static final I18nString FONT_DEFAULT = key("fontDefault", "The toolkit's own");

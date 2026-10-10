@@ -125,7 +125,9 @@ nothing but `limn-toolkit`, which is the point of the split below.
 ## Building one in the theme editor
 
 The theme editor is a program, not a dependency: it authors a palette with a live preview and
-a contrast audit beside it, and saves it as a `.limntheme` file.
+a contrast audit beside it, and saves it as a `.limntheme` file. Besides the colours it edits
+the corner roundness, the typeface and, at the end of its list, the shadow of each level of
+[elevation](#elevation).
 
 {% tabs os "Windows / Linux" macOS %}
 ```bash
@@ -152,7 +154,8 @@ loads in an application that has never heard of it.
 | `disabledFill` `disabledText` | unavailable controls |
 | `danger` `success` `warning` `info` | the four states |
 | `scrim` | the veil a modal dialog lays over what it blocks |
-| `cornerScale` | how round the corners are, the one metric a palette carries |
+| `cornerScale` | how round the corners are |
+| `elevation(level)` | the shadow of a raised surface, of one that covers and of a dialog: see [Elevation](#elevation) |
 | `fontFamily` | the face the palette prefers; applied by `apply`, or by `applyFontFamily()` |
 
 Each is an accessor on the palette. Read the palette through `Theme.of(this)` when you paint,
@@ -229,3 +232,32 @@ and menus, lists and dialogs open and close without fading.
 matters, as `label.setFont(…)` does, but reach for the theme's roles first: a `Label` set to
 `Role.TITLE` gets the right size for its control size step, in every step, without you
 picking a number.
+
+## Elevation
+
+A surface that lies over another says so with a shadow, and how deep the shadow is depends on
+what the surface is, not on a number each widget picks. There are four levels:
+
+| level | for |
+|---|---|
+| `FLAT` | a pane, the window's content: casts nothing |
+| `RAISED` | a card with no edge, a bar that floats |
+| `OVERLAY` | what covers the page for a while: a menu, a list, a calendar, a panel that slides in |
+| `MODAL` | what covers the window until answered: a dialog |
+
+The toolkit's own menus, lists, calendars, tooltips and dialogs already cast theirs. For a
+surface of your own, `Surface` draws the fill and the shadow of its level around one child,
+and a palette changes what a level looks like:
+
+{% snippet guide:elevation %}
+
+A shadow is two layers straight down, since the light is above: a wide one, offset, that says
+how far the surface is lifted, and a tight one under the surface's own edge. A palette gives
+five numbers a level, the wide layer's offset, blur and opacity and the tight layer's blur and
+opacity; the theme editor has them under Elevation, and a `.limntheme` file writes them as
+`elevation.raised`, `elevation.overlay` and `elevation.modal`. A dark palette's shadows are
+darker by default and still add little: on a dark canvas it is the surface's lighter tone
+that lifts it, so keep the step between `surface` and `surfaceRaised`.
+
+The shadow is painted outside the surface's box. Whatever holds a `Surface` has to leave it
+room: a parent that clips to the surface's own box clips the shadow away.

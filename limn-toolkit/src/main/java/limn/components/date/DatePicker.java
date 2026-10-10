@@ -116,6 +116,8 @@ public final class DatePicker extends Widget<DatePicker> {
 
     private NativeWindow popupWindow;
     private Scene popupScene;
+    /** The transparent margin around the card in its own window, for its shadow; zero for none. */
+    private int popupMargin;
     private PopupPanel popupPanel;
     private ScenePopup scenePopup;
     private float sceneFade;
@@ -1070,15 +1072,24 @@ public final class DatePicker extends Widget<DatePicker> {
         float ownerY = above
                 ? localToSceneY() - gap - content.height()
                 : localToSceneY() + height() + gap;
+        // Where the compositor casts no shadow for such a window, the window is larger than the
+        // card by the shadow's reach on every side and the card is laid out inset in it.
+        popupMargin = limn.components.internal.PopupFrame.marginFor(parent, Theme.of(this),
+                limn.components.Elevation.OVERLAY);
+        int m = popupMargin;
         popupWindow = parent.backend().createWindow(WindowConfig.popup(parent,
-                Math.max(1, Math.round(content.width())),
-                Math.max(1, Math.round(content.height()))).atInOwner(localToSceneX(), ownerY));
+                Math.max(1, Math.round(content.width())) + 2 * m,
+                Math.max(1, Math.round(content.height())) + 2 * m)
+                .atInOwner(localToSceneX() - m, ownerY - m));
         releaseCalendar();
         popupPanel = new PopupPanel();
-        popupPanel.setInheritanceHost(filling()); // the opener a reader sees: see presentInScene
+        Widget<?> popupRoot = m == 0 ? popupPanel
+                : new limn.components.internal.PopupFrame(popupPanel, m,
+                        () -> closeTo(filling(), Change.Origin.USER));
+        popupRoot.setInheritanceHost(filling()); // the opener a reader sees: see presentInScene
         // On the owner's clock, so the fade-out that destroys this window advances with it
         // (Scene#clock).
-        popupScene = new Scene(popupPanel, scene.clock());
+        popupScene = new Scene(popupRoot, scene.clock());
         popupScene.inheritRenderingFlags(scene);
         // Published by this window's tree, under the field, as a native picker's calendar is: a
         // reader never leaves this window while the calendar is open.
@@ -1559,6 +1570,13 @@ public final class DatePicker extends Widget<DatePicker> {
      */
     private final class PopupPanel extends Widget<PopupPanel> {
 
+        /** The shadow the card casts while it is drawn in the scene. */
+        @Override
+        protected float paintOutset() {
+            return scenePopup != null || popupMargin > 0
+                    ? Theme.of(this).elevation(limn.components.Elevation.OVERLAY).reach() : 0;
+        }
+
         /** Lets go of a child a newer card is taking; the picker owns the panel's children. */
         void drop(Widget<?> child) {
             remove(child);
@@ -1629,6 +1647,10 @@ public final class DatePicker extends Widget<DatePicker> {
             // desktop shows through and the rounded corners are genuinely transparent, while in
             // the scene the same translucency would composite over the form underneath, and a
             // calendar you can read the form through is not frosted glass, it is unreadable.
+            if (scenePopup != null || popupMargin > 0) {
+                theme.drawElevation(canvas, limn.graphics.RoundRect.of(0, 0, width(), height(), radius),
+                        limn.components.Elevation.OVERLAY);
+            }
             canvas.fillRoundRectWithBorder(0, 0, width(), height(), radius,
                     scenePopup != null ? theme.surfaceRaised() : theme.surfaceRaised().withAlpha(0.94f),
                     Strokes.BORDER, theme.outline());

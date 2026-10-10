@@ -713,6 +713,28 @@ public final class LwjglBackend implements BackendPeer {
         return window;
     }
 
+    /**
+     * Read from each system's screen with a list, a menu and a calendar open (2026-10-10): macOS
+     * casts a shadow around such a window; Windows 11 and GNOME under X11 cast none, and the
+     * toolkit's own was then seen around all three, each where it was before. Under Wayland these
+     * are drawn in the owner's scene, where they cast the toolkit's shadow already, so a window
+     * of this kind there, should one ever be made, keeps the answer nothing has contradicted.
+     */
+    @Override
+    public boolean compositorShadowsPopups() {
+        // For measuring a system: -Dlimn.popupShadow=toolkit or =compositor says it either way.
+        String forced = System.getProperty("limn.popupShadow");
+        if (forced != null) {
+            return !forced.equals("toolkit");
+        }
+        limn.backend.Platform platform = limn.backend.Platform.current();
+        if (platform.isWindows()) {
+            return false;
+        }
+        return !(platform.isLinux()
+                && org.lwjgl.glfw.GLFW.glfwGetPlatform() == org.lwjgl.glfw.GLFW.GLFW_PLATFORM_X11);
+    }
+
     @Override
     public limn.backend.GraphicsInfo graphicsInfo() {
         uiRuntime.checkUiThread();

@@ -212,6 +212,19 @@ Maven Central say which number that was.
 
 ### New
 
+- Elevation: a surface says how far it is lifted, `Elevation.FLAT`, `RAISED`, `OVERLAY` or
+  `MODAL`, and the theme says what that looks like. A theme holds a shadow of two layers for
+  each level (`Theme.elevation`, `Theme.Builder.elevation`, and `elevation.raised`,
+  `elevation.overlay` and `elevation.modal` in a `.limntheme` file, five numbers each), darker
+  by default in a dark palette. `Surface` is a container that draws its level's shadow under
+  its fill, for a panel that slides over content or a card with no edge, and
+  `Canvas.drawShadow` draws one layer under any rounded rectangle. The toolkit's own surfaces
+  cast theirs: a menu, the list of a combo box, a calendar and a tooltip cast `OVERLAY`'s, and
+  a dialog drawn in the scene `MODAL`'s. A popup that is a window of its own keeps the
+  system's shadow where the compositor casts one (macOS) and draws the toolkit's where it
+  casts none (Windows, X11), in a transparent margin of the window where a press closes the
+  popup. The theme
+  editor edits each level's five numbers and shows the three shadows in its preview.
 - `window.launcher()` hands an address or a file to the system: `openAddress` opens a web page
   in the browser or a `mailto:` in the mail program, `openFile` a file in the program registered
   for its type, and `showInFolder` shows a file selected in the file manager. Each returns at

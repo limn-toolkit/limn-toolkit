@@ -90,6 +90,8 @@ public final class ThemePreview extends Widget<ThemePreview> {
         float cardY = pad;
         float cardW = w - 2 * pad;
         float cardH = h - 2 * pad - row - gap;
+        theme.drawElevation(canvas, RoundRect.of(cardX, cardY, cardW, cardH, t.radiusMedium()),
+                limn.components.Elevation.RAISED);
         bordered(canvas, cardX, cardY, cardW, cardH, t.radiusMedium(), theme.surface());
 
         float textX = cardX + pad;
@@ -125,12 +127,27 @@ public final class ThemePreview extends Widget<ThemePreview> {
         // A focused field: the ring is drawn outside its box, which is the only way to see
         // whether it survives on the surface it lands on.
         float fieldY = chipY + row + gap + Strokes.FOCUS_RING_OUTSET;
-        float fieldW = Math.min(cardW - 2 * pad, 6 * row);
+        // Short enough to leave the card's trailing end to the two lifted surfaces below.
+        float fieldW = Math.min(cardW - 2 * pad, 3.5f * row);
         if (fieldY + row <= cardY + cardH - pad) {
             bordered(canvas, textX, fieldY, fieldW, row, t.radiusSmall(), theme.surfaceRaised());
             float ring = Strokes.FOCUS_GAP_BUTTON;
             canvas.drawRoundRect(textX - ring, fieldY - ring, fieldW + 2 * ring, row + 2 * ring,
                     t.radiusSmall() + ring, Strokes.FOCUS_RING, theme.focusRing());
+        }
+
+        // Two surfaces beside the field, one that covers and one that is modal, each with the
+        // shadow its level has: the card under them has the third.
+        float liftX = textX + fieldW + 2 * pad;
+        float liftW = (cardX + cardW - pad - liftX - pad) / 2;
+        if (liftW >= row && fieldY + row <= cardY + cardH - pad) {
+            limn.components.Elevation[] lifted = {limn.components.Elevation.OVERLAY,
+                    limn.components.Elevation.MODAL};
+            for (int i = 0; i < lifted.length; i++) {
+                float x = liftX + i * (liftW + pad);
+                theme.drawElevation(canvas, RoundRect.of(x, fieldY, liftW, row, t.radiusMedium()), lifted[i]);
+                bordered(canvas, x, fieldY, liftW, row, t.radiusMedium(), theme.surfaceRaised());
+            }
         }
 
         // The semantic four, on the canvas, as a strip along the bottom.

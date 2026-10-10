@@ -259,6 +259,8 @@ class DamageContractTest extends ComponentTestBase {
             natural("ComboBox", () -> new ComboBox<>(List.of("one", "two", "three")), both()),
             inert("ImageView", () -> new ImageView(new Image(8, 8, new byte[8 * 8 * 4])),
                     "a picture: nothing about it answers to a pointer or a key"),
+            inert("internal.PopupFrame", () -> new limn.components.internal.PopupFrame(new Plain(), 8, () -> { }),
+                    "a transparent margin around a popup's panel: nothing to focus or hover"),
             inert("Label", () -> new Label("Hello"), "text: nothing to press, focus or hover"),
             boxed("ListView", () -> IndexedRows.list(rows(40)), List.of(
                     focus().ceiling(0.2f), key("DOWN", Keys.DOWN).ceiling(0.2f),
@@ -302,6 +304,7 @@ class DamageContractTest extends ComponentTestBase {
             natural("Spinner", () -> new Spinner(0, 99, 1), both()),
             boxed("SplitPane", () -> SplitPane.horizontal(new Plain(), new Plain()), List.of(
                     hover().ceiling(0.15f), unhover().ceiling(0.15f))),
+            inert("Surface", () -> new Surface(new Plain()), "a fill and a shadow: nothing to press, focus or hover"),
             boxed("TabbedPane", () -> new TabbedPane().addTab("Alpha", new Plain())
                     .addTab("Beta", new Plain()).addTab("Gamma", new Plain()), List.of(
                     hoverAt("pointer onto a tab", 90, 14).ceiling(0.1f),

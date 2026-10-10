@@ -1363,6 +1363,12 @@ public final class Dialog {
      * so the push stays correct at any depth and however the tree is rebuilt.
      */
     private final class DialogPanel extends Widget<DialogPanel> {
+
+        /** The shadow the card casts while the dialog is drawn in the scene. */
+        @Override
+        protected float paintOutset() {
+            return displayMode == DisplayMode.IN_SCENE ? Theme.of(this).elevation(Elevation.MODAL).reach() : 0;
+        }
         private final Widget<?> child;
         private boolean dragging;
         private float grabX;
@@ -1511,6 +1517,15 @@ public final class Dialog {
             float inset = Strokes.HALF_PIXEL_INSET;
             // In-scene: always the glassy rounded card, composited over the scrim.
             if (displayMode == DisplayMode.IN_SCENE || style == WindowStyle.UNDECORATED_TRANSLUCENT) {
+                if (displayMode == DisplayMode.IN_SCENE) {
+                    // Over the scrim, the card of a dialog drawn in the scene is the surface
+                    // lifted furthest; it fades in with the card.
+                    canvas.save();
+                    canvas.setOpacity(fade);
+                    theme.drawElevation(canvas, limn.graphics.RoundRect.of(0, 0, w, h, t.radiusLarge()),
+                            Elevation.MODAL);
+                    canvas.restore();
+                }
                 canvas.fillRoundRectWithBorder(0, 0, w, h, t.radiusLarge(),
                         theme.surface().withAlpha(0.98f * fade),
                         Strokes.BORDER, theme.outline().withAlpha(fade));

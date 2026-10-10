@@ -181,6 +181,8 @@ public final class PopupMenu {
 
     private boolean open;
     private boolean inScene; // what this open actually did: an overlay instead of a native window
+    /** The transparent margin around the cascade in its own window, for its shadows; zero for none. */
+    private int nativeMargin;
     /** What the application asked for. The platform may override it towards IN_SCENE, never away. */
     private DisplayMode requested = defaultDisplayMode;
     // In-scene overlay opacity: 1 in native mode (the window opacity does the fade);
@@ -785,7 +787,11 @@ public final class PopupMenu {
             return;
         }
         surface.reposition();
-        float[] box = surface.boundingBox();
+        // Where the compositor casts no shadow for such a window, the window is larger than the
+        // cascade by the shadow's reach on every side, and each column draws its own into it.
+        nativeMargin = limn.components.internal.PopupFrame.marginFor(parentWindow, Theme.current(),
+                Elevation.OVERLAY);
+        float[] box = windowBox();
         int w = Math.max(1, (int) Math.ceil(box[2] - box[0]));
         int h = Math.max(1, (int) Math.ceil(box[3] - box[1]));
         surface.setRenderOffset(box[0], box[1]);
@@ -885,11 +891,21 @@ public final class PopupMenu {
      * actually changed</b>: a highlight move keeps the same bounds and just
      * repaints, so it never triggers a resize (and its HiDPI stretch flash).
      */
+    /** The cascade's bounding box, grown by the margin its window keeps for the columns' shadows. */
+    private float[] windowBox() {
+        float[] box = surface.boundingBox();
+        box[0] -= nativeMargin;
+        box[1] -= nativeMargin;
+        box[2] += nativeMargin;
+        box[3] += nativeMargin;
+        return box;
+    }
+
     private void refitNativeWindow() {
         if (popupWindow == null) {
             return;
         }
-        float[] box = surface.boundingBox();
+        float[] box = windowBox();
         int w = Math.max(1, (int) Math.ceil(box[2] - box[0]));
         int h = Math.max(1, (int) Math.ceil(box[3] - box[1]));
         int x = workAreaScreenX + Math.round(box[0] * screenFactor);
@@ -1264,6 +1280,12 @@ public final class PopupMenu {
             boolean rtl = isRtl();
             float x = col.x - offsetX;
             float y = col.y - offsetY;
+            if (inScene || nativeMargin > 0) {
+                // In the scene a menu lies over the page; in a window of its own the shadow is
+                // the compositor's, or drawn here into the window's margin where it casts none.
+                theme.drawElevation(canvas, limn.graphics.RoundRect.of(x, y, col.w, col.visibleH,
+                        t.radiusMedium()), Elevation.OVERLAY);
+            }
             canvas.fillRoundRectWithBorder(x, y, col.w, col.visibleH, t.radiusMedium(),
                     theme.surfaceRaised().withAlpha(0.98f), Strokes.BORDER, theme.outline());
 
