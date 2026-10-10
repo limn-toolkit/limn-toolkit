@@ -46,6 +46,14 @@ the shipped one, and evidence that cannot run is not evidence.
 excerpts: 640×360 to 1920×1080, 7.8 MB in total, © 2008 Blender Foundation under Creative Commons
 Attribution 3.0, redistributed with the licence text beside them and the attribution in `NOTICE`.
 
+*Amended 2026-10-10.* The corpus is now one excerpt, 640×359 (the original is a row short of its name) with its **sound**, 2.05 MB: the three
+it replaced were picture alone, as their publisher made them, so the demo's player showed a
+soundtrack switch over a file with no soundtrack, and nothing here validated a real container's
+sound against its picture (the owner: a sample of video is always there to validate both). It is
+cut from the Blender Foundation's own file with nothing encoded again; `media/README.md` has the
+provenance, the command and the digests. What is given up is the two larger sizes: the breadth
+tier decodes one real size where it decoded three.
+
 **The codec-breadth tier now points there by default**, so decoding a real file is something the
 build does rather than something a developer remembers. `-Dlimn.video.test.clips` still overrides
 it with a larger corpus for anyone who has one.

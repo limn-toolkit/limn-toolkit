@@ -26,7 +26,7 @@ class BundledSampleClipTest {
             // An ISO base media file opens with a box whose type is "ftyp".
             assertEquals("ftyp", new String(head, 4, 4, java.nio.charset.StandardCharsets.US_ASCII));
             long size = 12 + clip.transferTo(java.io.OutputStream.nullOutputStream());
-            assertTrue(size > 900_000 && size < 1_100_000, "the 360p excerpt is about 1 MB: " + size);
+            assertTrue(size > 1_900_000 && size < 2_200_000, "the excerpt is about 2 MB: " + size);
         }
         try (InputStream licence = BundledClip.class.getResourceAsStream(
                 "/limn/demo/media/LICENSE-CC-BY-3.0.txt")) {
@@ -44,12 +44,17 @@ class BundledSampleClipTest {
                      limn.video.ffmpeg.FfmpegMedia.open(BundledClip.path())) {
             limn.video.VideoStreamSource video = media.video();
             assertEquals(640, video.width());
-            assertEquals(360, video.height());
+            // 359 and not 360: the original the excerpt is cut from is a row short of its own
+            // name, and nothing was encoded again, so the excerpt is too.
+            assertEquals(359, video.height());
             limn.video.VideoStreamSource.Read read = video.readFrame();
             for (int i = 0; i < 100 && read == limn.video.VideoStreamSource.Read.PENDING; i++) {
                 read = video.readFrame();
             }
             assertEquals(limn.video.VideoStreamSource.Read.FRAME, read, "the first picture decodes");
+            // Picture and sound: a sample that validates one and not the other showed a player
+            // with a soundtrack switch and nothing to switch.
+            assertEquals(1, media.audioTracks().size(), "the excerpt carries its soundtrack");
         }
     }
 }
