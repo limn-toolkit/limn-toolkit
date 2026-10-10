@@ -45,29 +45,22 @@ final class SpritesScene {
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
 
         column.add(heading("Sprite sheet (source-rect drawImage)"));
-        column.add(new Label("Eight coin frames packed in ONE image; each sprite is "
-                + "drawImage(sheet, srcX, srcY, srcW, srcH, dst…[, tint]): one texture, one batch "
-                + "for any number of sprites. The highlight marks the frame being played.")
+        column.add(new Label("Eight frames in one image, drawn from one texture.")
                 .setMuted(true).setWrap(true));
         column.add(new SheetPlayer());
 
         column.add(heading("Pixel art: SMOOTH vs PIXELATED"));
-        column.add(new Label("The same 16×16 image scaled 6×: setSampling(PIXELATED) keeps "
-                + "the blocks crisp; SMOOTH (the default) bilinearly blurs them.")
+        column.add(new Label("The same image scaled six times: pixelated, and smooth.")
                 .setMuted(true).setWrap(true));
         column.add(new FilterCompare());
 
         column.add(heading("Blend modes"));
-        column.add(new Label("Three overlapping glows per panel: NORMAL paints over, "
-                + "ADDITIVE accumulates light (particles, lasers), MULTIPLY darkens "
-                + "(shadows, vignettes). setBlendMode applies to shapes, text and images.")
+        column.add(new Label("Three blend modes: normal, additive, multiply.")
                 .setMuted(true).setWrap(true));
         column.add(new BlendPanels());
 
         column.add(heading("Sub-pixel motion (setPixelSnap)"));
-        column.add(new Label("Both strips scroll at the same slow speed. The top one keeps "
-                + "the default pixel snapping, so it advances in whole-pixel steps. The bottom "
-                + "one disables it: sub-pixel positions filter smoothly, no stutter.")
+        column.add(new Label("Top: snapped to whole pixels. Bottom: sub-pixel, with no stutter.")
                 .setMuted(true).setWrap(true));
         column.add(new ScrollCompare());
 

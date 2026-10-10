@@ -145,7 +145,7 @@ final class AppScene {
                 new Place("Split panes", SplitPaneScene::content),
                 new Place("Motion", () -> scrolling(AnimationsScene.content())));
         Place media = new Place("Media and 3D",
-                new Place("Video", () -> scrolling(VideoScene.tabContent())),
+                new Place("Video", () -> scrolling(VideoScene.pageContent())),
                 new Place("3D viewport", () -> scrolling(Viewport3DScene.tabContent())),
                 new Place("Sound", () -> scrolling(AudioScene.content())),
                 new Place("Sprites", () -> scrolling(SpritesScene.content())),
@@ -220,7 +220,7 @@ final class AppScene {
 
         Row band = new Row();
         band.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
-        band.add(new Label("Limn").setRole(Label.Role.TITLE));
+        band.add(new Label("Limn Showcase").setRole(Label.Role.TITLE));
         band.add(Expanded.spacer(1));
         band.add(language);
         band.add(direction);
@@ -269,7 +269,90 @@ final class AppScene {
                 .addCheck("Repaint only what changed", true, scene::setPartialRendering)
                 .addCheck("Show what is repainted", false, scene::setDamageDebug));
         menuBar.addMenu("Go", goMenu(navigation, top));
+        if (Boolean.getBoolean("limn.demo.tour")) {
+            tour(scene, navigation, top);
+        }
+        lab(scene, navigation, top, performance);
         return scene;
+    }
+
+    /**
+     * {@code -Dlimn.demo.tour=true}: every page in turn, each for most of a second, and then the
+     * window closes. A lab's way of finding the page that throws once it is in this window, which
+     * its own scene never showed; what it finds is on standard error.
+     */
+    private static void tour(Scene scene, Tree<Place> navigation, List<Place> top) {
+        List<Place> pages = new ArrayList<>();
+        for (Place place : top) {
+            if (place.page != null) {
+                pages.add(place);
+            }
+            pages.addAll(place.under);
+        }
+        pages.add(top.get(0)); // and back to where it opens, so leaving a page is seen too
+        long step = Long.getLong("limn.demo.tour.ms", 800);
+        for (int i = 0; i < pages.size(); i++) {
+            Place place = pages.get(i);
+            limn.concurrent.Ui.postDelayed(() -> {
+                System.err.println("tour: " + place.name);
+                navigation.setSelected(place);
+            }, 1500 + i * step);
+            String shots = System.getProperty("limn.demo.tour.shots");
+            if (shots != null) {
+                int at = i;
+                // A picture of each page as it stands when the tour is about to leave it.
+                limn.concurrent.Ui.postDelayed(() -> {
+                    if (scene.window() != null) {
+                        scene.window().captureNextFrame(frame -> limn.graphics.Images.save(frame,
+                                limn.graphics.ImageFormat.PNG, java.nio.file.Path.of(shots, String.format(
+                                        "%02d-%s.png", at, place.name.toLowerCase(Locale.ROOT).replace(' ', '-')))));
+                        scene.root().invalidate(); // a frame to take the picture of
+                    }
+                }, 1500 + i * step + step * 4 / 5);
+            }
+        }
+        limn.concurrent.Ui.postDelayed(() -> {
+            System.err.println("tour: done");
+            if (scene.window() != null) {
+                scene.window().requestClose();
+            }
+        }, 1500 + pages.size() * step);
+    }
+
+    /**
+     * The lab's switches, none of them the application's: {@code -Dlimn.demo.page=Video} opens on
+     * that page, {@code -Dlimn.demo.perf=true} with the performance footer shown, and
+     * {@code -Dlimn.demo.film=dir} writes a picture of the window there twice a second, which is
+     * how a page is looked at while something on it moves.
+     */
+    private static void lab(Scene scene, Tree<Place> navigation, List<Place> top, Widget<?> performance) {
+        String page = System.getProperty("limn.demo.page");
+        if (page != null) {
+            for (Place place : top) {
+                for (Place each : place.under) {
+                    if (each.name.equalsIgnoreCase(page)) {
+                        navigation.setSelected(each);
+                    }
+                }
+            }
+        }
+        if (Boolean.getBoolean("limn.demo.perf")) {
+            performance.setVisible(true);
+        }
+        String film = System.getProperty("limn.demo.film");
+        if (film != null) {
+            int[] frame = {0};
+            Runnable[] take = new Runnable[1];
+            take[0] = () -> {
+                if (scene.window() != null) {
+                    int n = frame[0]++;
+                    scene.window().captureNextFrame(image -> limn.graphics.Images.save(image,
+                            limn.graphics.ImageFormat.PNG, java.nio.file.Path.of(film, String.format("f%03d.png", n))));
+                }
+                limn.concurrent.Ui.postDelayed(take[0], 500);
+            };
+            limn.concurrent.Ui.postDelayed(take[0], 1500);
+        }
     }
 
     private static Menu goMenu(Tree<Place> navigation, List<Place> top) {

@@ -84,7 +84,10 @@ final class FilesScene {
                 // Asked on the close button and when the application ends; answered from the
                 // dialog, later. A second click while it is open asks nothing new.
                 window.setCloseRequestHandler(request -> {
-                    if (!confirmClose.isChecked()) {
+                    // Asked only while this page is the one in the window: once the page has
+                    // left it there is no scene to show the question in, and a window that
+                    // could not ask could not be closed either.
+                    if (!confirmClose.isChecked() || scene() == null) {
                         request.allow();
                         return;
                     }
@@ -114,8 +117,7 @@ final class FilesScene {
                 .setRole(Label.Role.TITLE).setStrong(true));
 
         col.add(new Label("Native file dialogs").setRole(Label.Role.TITLE));
-        col.add(new Label("The platform's own chooser, owned by this window. The answer arrives "
-                + "later; the application keeps running while the chooser is open.")
+        col.add(new Label("The system's own chooser, owned by this window.")
                 .setMuted(true).setWrap(true));
 
         Label status = new Label("No dialog shown yet.").setMuted(true).setWrap(true);
@@ -138,11 +140,7 @@ final class FilesScene {
                         picked.map(p -> "Folder: " + p).orElse("Folder: cancelled"))))));
         col.add(buttons);
 
-        col.add(new Label("The sketch filter below uses a made-up extension (*.limn) that no "
-                + "installed application registers: the case that used to show every matching "
-                + "file disabled on macOS, where the panel matches types rather than names. The "
-                + "dialog opens on a generated sample folder: the .limn files are selectable, "
-                + "the decoys beside them are not.")
+        col.add(new Label("Opens on a sample folder, filtered to one made-up extension.")
                 .setMuted(true).setWrap(true));
         FileDialogs.Filter sketches = FileDialogs.Filter.of("Limn sketch", "*.limn");
         Row sketchRow = new Row();
@@ -158,15 +156,12 @@ final class FilesScene {
         col.add(status);
 
         col.add(new Label("Drag & drop from the OS").setRole(Label.Role.TITLE));
-        col.add(new Label("Drag files from Finder/Explorer onto the area below; "
-                + "the widget under the pointer accepts them in onDragOver and reads them in onDrop.")
+        col.add(new Label("Drop files from the file manager on the area below.")
                 .setMuted(true).setWrap(true));
         col.add(new DropArea());
 
         col.add(new Label("Window extras").setRole(Label.Role.TITLE));
-        col.add(new Label("This window has an icon (Windows/Linux; macOS windows use the app "
-                + "bundle's icon), a 480×360 pt minimum size, and (while the switch is on) a "
-                + "close-request veto: the OS close button asks for confirmation first.")
+        col.add(new Label("This window has an icon and a minimum size, and can ask before it closes.")
                 .setMuted(true).setWrap(true));
         col.add(confirmClose);
 

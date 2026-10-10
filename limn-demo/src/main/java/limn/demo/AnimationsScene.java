@@ -87,10 +87,7 @@ final class AnimationsScene {
 
         // --- Scene time (clamp / scale / pause) ---------------------------
         column.add(heading("Scene time"));
-        column.add(new Label("Pause and slow down what the app animates. Everything below this row "
-                + "runs on scene time and freezes; the toolkit's own chrome (hover and focus "
-                + "fades, scrollbars, popups, the window fade above) runs on wall time and keeps "
-                + "going, because a fade that never ends is what leaves a dialog half-closed.")
+        column.add(new Label("Pause or slow down everything below.")
                 .setMuted(true).setWrap(true));
         SegmentedControl speed = new SegmentedControl(List.of("0.25×", "0.5×", "1×", "2×"));
         double[] scales = {0.25, 0.5, 1, 2};
@@ -132,8 +129,7 @@ final class AnimationsScene {
 
         // --- Whole-window fade (native window appears/disappears) --------
         column.add(heading("Window (fade-in/out)"));
-        column.add(new Label("Opens a separate native window that appears and disappears "
-                + "with a fade: the same effect as dialogs and popups, applied to the whole window.")
+        column.add(new Label("A window that fades in and out.")
                 .setMuted(true).setWrap(true));
         Button openWindow = new Button("Open floating window");
         openWindow.onAction(() -> openFloatingWindow(openWindow));
@@ -329,6 +325,7 @@ final class AnimationsScene {
                         return false;
                     }
                     advance(dt);
+                    invalidate(); // a ticker brings frames, not damage: what moved has to say so
                     return true;
                 });
             }

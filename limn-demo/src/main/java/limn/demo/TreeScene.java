@@ -312,8 +312,7 @@ final class TreeScene {
         Column page = new Column();
         page.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
         page.add(new Label("Tree").setRole(Label.Role.TITLE));
-        page.add(new Label("Arrows walk it: Right opens a row and steps into it, Left closes one "
-                + "and steps out. The command modifier adds a row to the selection.")
+        page.add(new Label("Arrows walk the rows; Right opens one, Left closes it.")
                 .setMuted(true));
         // A narrow box on purpose: a cell is measured at the width the indent leaves it, so
         // this is the width at which a long name either contains itself or writes over the

@@ -157,7 +157,8 @@ public final class Main {
 
         try (Backend backend = new LwjglBackend()) {
             NativeWindow window = backend.createWindow(WindowConfig.of(
-                    "Limn UI: Kitchen Sink", scene.equals("app") ? APP_WIDTH : LOGICAL_WIDTH,
+                    scene.equals("app") ? "Limn Showcase" : "Limn UI: Kitchen Sink",
+                    scene.equals("app") ? APP_WIDTH : LOGICAL_WIDTH,
                     scene.equals("app") ? APP_HEIGHT : LOGICAL_HEIGHT).visible(!screenshotMode));
 
             float monitorScale = window.contentScale();

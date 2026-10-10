@@ -23,11 +23,11 @@
  22     tab "Controls" [disabled, selectable] item 9 of 16 unselected | controller for #219 "Controls"
  23     tab "3D" [disabled, offscreen, selectable] item 10 of 16 unselected | controller for #249 "3D"
  24     tab "Video" [disabled, offscreen, selectable] item 11 of 16 unselected | controller for #258 "Video"
- 25     tab "Charts" [disabled, offscreen, selectable] item 12 of 16 unselected | controller for #287 "Charts"
- 26     tab "Scripts" [disabled, offscreen, selectable] item 13 of 16 unselected | controller for #308 "Scripts"
- 27     tab "Icons" [disabled, offscreen, selectable] item 14 of 16 unselected | controller for #347 "Icons"
- 28     tab "Files" [disabled, offscreen, selectable] item 15 of 16 unselected | controller for #357 "Files"
- 29     tab "About" [disabled, offscreen, selectable] item 16 of 16 unselected | controller for #374 "About"
+ 25     tab "Charts" [disabled, offscreen, selectable] item 12 of 16 unselected | controller for #285 "Charts"
+ 26     tab "Scripts" [disabled, offscreen, selectable] item 13 of 16 unselected | controller for #306 "Scripts"
+ 27     tab "Icons" [disabled, offscreen, selectable] item 14 of 16 unselected | controller for #345 "Icons"
+ 28     tab "Files" [disabled, offscreen, selectable] item 15 of 16 unselected | controller for #355 "Files"
+ 29     tab "About" [disabled, offscreen, selectable] item 16 of 16 unselected | controller for #372 "About"
  30   button "Previous tabs" (tooltip) [disabled]
  31   button "Next tabs" (tooltip) [disabled]
  32   button "All tabs" (tooltip) [disabled, has-popup]
@@ -94,7 +94,7 @@
  93     label "3 selected, lead order #120460" [disabled, hidden, offscreen]
  94   scroll pane "Tree" (label) [disabled, hidden, offscreen] scroll none | labelled by #20 "Tree"
  95     heading "Tree" [disabled, hidden, offscreen]
- 96     label "Arrows walk it: Right opens a row and steps into it, Left closes one and steps out. The command modifier adds a row to the selection." [disabled, hidden, offscreen]
+ 96     label "Arrows walk the rows; Right opens one, Left closes it." [disabled, hidden, offscreen]
  97     tree "" [disabled, hidden, offscreen] selection=multiple scroll v=0% view 0%
  98       scroll bar "" [disabled, hidden, offscreen, vertical] value=0 [0..1632]
  99   scroll pane "Dates" (label) [disabled, hidden, offscreen] scroll none | labelled by #21 "Dates"
@@ -230,7 +230,7 @@
 229       slider "" [disabled, hidden, offscreen, horizontal] value=40 [0..100]
 230       label "40" [disabled, hidden, offscreen]
 231       heading "Spinner" [disabled, hidden, offscreen]
-232       label "Buttons and keyboard (arrows, PageUp/Down, Home/End), or type the value: a digit starts an edit with the old number selected, Enter commits, Escape puts it back, and copy/paste work either way. The wheel is deliberately not a value gesture." [disabled, hidden, offscreen]
+232       label "Click the arrows, use the keyboard, or type a value." [disabled, hidden, offscreen]
 233       spin button "Quantity (0–99)" (label) [disabled, hidden, offscreen] value=1 [0..99 step 1] "1" | labelled by #236 "Quantity (0–99)"
 234         button "Increase" [disabled, hidden, offscreen]
 235         button "Decrease" [disabled, hidden, offscreen]
@@ -252,12 +252,12 @@
 251     radio group "" [disabled, hidden, offscreen, horizontal] selection=single required scroll none
 252       radio button "PBR" [disabled, hidden, offscreen, selectable, selected] item 1 of 2 selected
 253       radio button "Shadows" [disabled, hidden, offscreen, selectable] item 2 of 2 unselected
-254     label "PBR metallic-roughness under 3 lights (directional + point + spot); click to select." [disabled, hidden, offscreen]
+254     label "Metal and roughness under three lights; click an object to select it, drag to orbit." [disabled, hidden, offscreen]
 255     combo box "Render 100%" desc "Renders the 3D target below device resolution and upsamples it; memory and fill cost fall with the square of the setting" [disabled, hidden, offscreen, expandable, has-popup] value=0 [0..3 step 1] "Render 100%" collapsed
 256     canvas "" desc "3D unavailable (no GPU backend)" [disabled, hidden, offscreen]
 257     canvas "" desc "3D unavailable (no GPU backend)" [disabled, hidden, offscreen]
 258   scroll pane "Video" (label) [disabled, hidden, offscreen] scroll none | labelled by #24 "Video"
-259     label "Video: decoded planes, converted on the device" [disabled, hidden, offscreen]
+259     label "Video" [disabled, hidden, offscreen]
 260     radio group "" [disabled, hidden, offscreen, horizontal] selection=single required scroll none
 261       radio button "Bars" [disabled, hidden, offscreen, selectable, selected] item 1 of 2 selected
 262       radio button "MP4" [disabled, hidden, offscreen, selectable] item 2 of 2 unselected
@@ -280,107 +280,105 @@
 279       radio button "Fill" [disabled, hidden, offscreen, selectable] item 3 of 3 unselected
 280     switch "Soundtrack" desc "Decode on a thread of its own and time the pictures by the audio" [disabled, hidden, offscreen, checked] toggle=on
 281     button "Audio" desc "Play the next audio track of this container, keeping the position" [disabled, hidden, offscreen]
-282     label "Colour bars in the studio BT.709 code table, 4:2:0. A wrong matrix or range does not read as \"slightly off\"; it reads as the wrong bars." [disabled, hidden, offscreen]
+282     label "Colour bars, generated." [disabled, hidden, offscreen]
 283     label "No VideoDecoder installed: call Videos.installDecoder before opening video (e.g. new Y4mDecoder(), which ships in this module, or new FfmpegVideoDecoder() from limn-video-ffmpeg). A backend does not supply one." [disabled, hidden, offscreen]
-284     label "Two pure-Java decoders (a YUV4MPEG2 reader and a generator whose every sample is arithmetic) and one with a trimmed FFmpeg behind a JNI shim, which is absent unless it has been built and says so rather than failing. No media file is committed here: every one of these is produced on the way in." [disabled, hidden, offscreen]
-285     label "No soundtrack: the view decodes on the UI thread and paces on the wall clock." [disabled, hidden, offscreen]
-286     label "The soundtrack clicks once a second and higher every fifth, and the counter pattern draws the picture index, so a click landing anywhere but on a multiple of thirty is audible drift, not a matter of taste. It is generated sample by sample and handed over already open, the way a container's audio track is; no file is written and none is committed." [disabled, hidden, offscreen]
-287   scroll pane "Charts" (label) [disabled, hidden, offscreen] scroll none | labelled by #25 "Charts"
-288     heading "Charts" [disabled, hidden, offscreen]
-289     label "Hover a mark for its value; click one to select it." [disabled, hidden, offscreen]
-290     chart "Revenue by quarter" [disabled, hidden, offscreen, vertical]
-291       chart series "Direct" [disabled, hidden, offscreen, checked] toggle=on
-292       chart series "Partner" [disabled, hidden, offscreen, checked] toggle=on
-293     chart "Traffic sources" desc "Sessions" [disabled, hidden, offscreen]
-294       chart series "Direct" [disabled, hidden, offscreen, checked] toggle=on
-295       chart series "Search" [disabled, hidden, offscreen, checked] toggle=on
-296       chart series "Social" [disabled, hidden, offscreen, checked] toggle=on
-297       chart series "Mail" [disabled, hidden, offscreen, checked] toggle=on
-298       heading "100" [disabled, hidden, offscreen]
-299       label "sessions" [disabled, hidden, offscreen]
-300       button "Shuffle" [disabled, hidden, offscreen]
-301     chart "Latency, last 12 hours" [disabled, hidden, offscreen, vertical]
-302       chart series "p50" [disabled, hidden, offscreen, checked] toggle=on
-303       chart series "p99" [disabled, hidden, offscreen, checked] toggle=on
-304     chart "Support load by channel" [disabled, hidden, offscreen, horizontal]
-305       chart series "Open" [disabled, hidden, offscreen, checked] toggle=on
-306       chart series "Waiting" [disabled, hidden, offscreen, checked] toggle=on
-307       chart series "Closed" [disabled, hidden, offscreen, checked] toggle=on
-308   scroll pane "Scripts" (label) [disabled, hidden, offscreen] scroll none | labelled by #26 "Scripts"
-309     heading "Bidi and complex scripts" [disabled, hidden, offscreen]
-310     label "A shaper chooses the glyphs and java.text.Bidi puts them in order. The layout is not mirrored: right-to-left text, left-to-right screen." [disabled, hidden, offscreen]
-311     label "Arabic — 7 code points, 10 glyphs, chosen by the neighbours" [disabled, hidden, offscreen]
-312     label "العربية" [disabled, hidden, offscreen]
-313     label "Arabic marks — one word vocalized and bare; the font places them" [disabled, hidden, offscreen]
-314     label "كَتَبَ   كتب" [disabled, hidden, offscreen]
-315     label "Hebrew — right to left, niqqud at zero advance" [disabled, hidden, offscreen]
-316     label "שָׁלוֹם   שלום" [disabled, hidden, offscreen]
-317     label "Bidi — one line, three runs at levels 0 / 1 / 0" [disabled, hidden, offscreen]
-318     label "Total: 42 ريال (SAR)" [disabled, hidden, offscreen]
-319     label "Bidi — an Arabic line with a Latin island inside it" [disabled, hidden, offscreen]
-320     label "مرحبا Limn UI 2026 العربية" [disabled, hidden, offscreen]
-321     label "Devanagari — ksha: 3 code points, 1 glyph" [disabled, hidden, offscreen]
-322     label "क्ष" [disabled, hidden, offscreen]
-323     label "Devanagari — the i-matra is drawn before its consonant" [disabled, hidden, offscreen]
-324     label "हिन्दी" [disabled, hidden, offscreen]
-325     label "Thai — sara am is one code point and two glyphs" [disabled, hidden, offscreen]
-326     label "น้ำ   ปิ่น   ภาษาไทย" [disabled, hidden, offscreen]
-327     label "Editable — click into it, drag a selection, walk it with the arrows" [disabled, hidden, offscreen]
-328     text field "" [disabled, hidden, offscreen, editable] text="مرحبا Limn UI 2026 العربية" caret=26
-329     text field "" [disabled, hidden, offscreen, editable] text="שלום Limn UI 2026" caret=17
-330     label "Pinned locale — the right pair declares Arabic; the window's language moves only the left" [disabled, hidden, offscreen]
-331     label "Notifications" [disabled, hidden, offscreen]
-332     spin button "" [disabled, hidden, offscreen] value=42 [0..100 step 1] "42"
-333       button "Increase" [disabled, hidden, offscreen]
-334       button "Decrease" [disabled, hidden, offscreen]
-335     label "الإشعارات" lang ar-EG [disabled, hidden, offscreen]
-336     spin button "" lang ar-EG [disabled, hidden, offscreen] value=42 [0..100 step 1] "٤٢"
-337       button "زيادة" lang ar-EG [disabled, hidden, offscreen]
-338       button "إنقاص" lang ar-EG [disabled, hidden, offscreen]
-339     label "Wrapped Arabic" [disabled, hidden, offscreen]
-340     label "هذه فقرة عربية تلتف على عدة أسطر داخل عمود ثابت، ومكان القطع تحدده حدود يونيكود لا عدُّ الحروف." [disabled, hidden, offscreen]
-341     label "Wrapped Hebrew" [disabled, hidden, offscreen]
-342     label "זו פסקה בעברית הנשברת לכמה שורות בתוך עמודה קבועה, ומקום השבירה נקבע לפי גבולות יוניקוד ולא לפי ספירת תווים." [disabled, hidden, offscreen]
-343     label "Wrapped Devanagari — conjuncts in running text" [disabled, hidden, offscreen]
-344     label "यह हिन्दी का अनुच्छेद कई पंक्तियों में लिपटता है; क्षमता और शिक्षा जैसे संयुक्ताक्षर यहाँ भी बनते हैं।" [disabled, hidden, offscreen]
-345     label "Wrapped Thai — not one space in it" [disabled, hidden, offscreen]
-346     label "ภาษาไทยไม่เว้นวรรคระหว่างคำการขึ้นบรรทัดใหม่จึงต้องอาศัยตัวแบ่งบรรทัดแทนช่องว่าง" [disabled, hidden, offscreen]
-347   tab panel "Icons" (label) [disabled, hidden, offscreen] | labelled by #27 "Icons"
-348     heading "Tabler icons: the whole pack, virtualized" [disabled, hidden, offscreen]
-349     label "Every icon of an opt-in module that nothing else depends on. The list mounts only the rows on screen, so scrolling the catalogue rasterizes what you can see and no more. Names are checked by the compiler through one enum per upstream category; this row is TablerSystem.SEARCH." [disabled, hidden, offscreen]
-350     label "TablerSystem.SEARCH" [disabled, hidden, offscreen]
-351     search field "Search…" (placeholder) [disabled, hidden, offscreen, editable] text="" caret=0
-352       button "Clear" [disabled, hidden, offscreen]
-353     label "5166 icons · tinted from the theme, so they follow light and dark" [disabled, hidden, offscreen]
-354     list "" [disabled, hidden, offscreen] selection=single scroll v=0% view 0%
-355       scroll bar "" [disabled, hidden, offscreen, vertical] value=0 [0..247968]
-356     label "Click a row for its constant." [disabled, hidden, offscreen]
-357   tab panel "Files" (label) [disabled, hidden, offscreen] | labelled by #28 "Files"
-358     scroll pane "" [disabled, hidden, offscreen] scroll none
-359       heading "OS files: dialogs, drop, window extras" [disabled, hidden, offscreen]
-360       heading "Native file dialogs" [disabled, hidden, offscreen]
-361       label "The platform's own chooser, owned by this window. The answer arrives later; the application keeps running while the chooser is open." [disabled, hidden, offscreen]
-362       button "Open file…" [disabled, hidden, offscreen]
-363       button "Open files…" [disabled, hidden, offscreen]
-364       button "Save file…" [disabled, hidden, offscreen]
-365       button "Choose folder…" [disabled, hidden, offscreen]
-366       label "The sketch filter below uses a made-up extension (*.limn) that no installed application registers: the case that used to show every matching file disabled on macOS, where the panel matches types rather than names. The dialog opens on a generated sample folder: the .limn files are selectable, the decoys beside them are not." [disabled, hidden, offscreen]
-367       button "Open sketch (*.limn)…" [disabled, hidden, offscreen]
-368       label "No dialog shown yet." [disabled, hidden, offscreen]
-369       heading "Drag & drop from the OS" [disabled, hidden, offscreen]
-370       label "Drag files from Finder/Explorer onto the area below; the widget under the pointer accepts them in onDragOver and reads them in onDrop." [disabled, hidden, offscreen]
-371       heading "Window extras" [disabled, hidden, offscreen]
-372       label "This window has an icon (Windows/Linux; macOS windows use the app bundle's icon), a 480×360 pt minimum size, and (while the switch is on) a close-request veto: the OS close button asks for confirmation first." [disabled, hidden, offscreen]
-373       switch "Confirm before closing" [disabled, hidden, offscreen, checked] toggle=on
-374   scroll pane "About" (label) [disabled, hidden, offscreen] scroll none | labelled by #29 "About"
-375     image "" [disabled, hidden, offscreen]
-376     label "Limn UI" [disabled, hidden, offscreen]
-377     label "A Java GUI toolkit built from scratch on LWJGL, without AWT, Swing or SWT." [disabled, hidden, offscreen]
-378     image "" [disabled, hidden, offscreen]
-379     image "" [disabled, hidden, offscreen]
-380     label "Icons tinted by the theme" [disabled, hidden, offscreen]
-381   label "Ready." [disabled]
-382   label "" [disabled]
+284     label "No soundtrack: the view decodes on the UI thread and paces on the wall clock." [disabled, hidden, offscreen]
+285   scroll pane "Charts" (label) [disabled, hidden, offscreen] scroll none | labelled by #25 "Charts"
+286     heading "Charts" [disabled, hidden, offscreen]
+287     label "Hover a mark for its value; click one to select it." [disabled, hidden, offscreen]
+288     chart "Revenue by quarter" [disabled, hidden, offscreen, vertical]
+289       chart series "Direct" [disabled, hidden, offscreen, checked] toggle=on
+290       chart series "Partner" [disabled, hidden, offscreen, checked] toggle=on
+291     chart "Traffic sources" desc "Sessions" [disabled, hidden, offscreen]
+292       chart series "Direct" [disabled, hidden, offscreen, checked] toggle=on
+293       chart series "Search" [disabled, hidden, offscreen, checked] toggle=on
+294       chart series "Social" [disabled, hidden, offscreen, checked] toggle=on
+295       chart series "Mail" [disabled, hidden, offscreen, checked] toggle=on
+296       heading "100" [disabled, hidden, offscreen]
+297       label "sessions" [disabled, hidden, offscreen]
+298       button "Shuffle" [disabled, hidden, offscreen]
+299     chart "Latency, last 12 hours" [disabled, hidden, offscreen, vertical]
+300       chart series "p50" [disabled, hidden, offscreen, checked] toggle=on
+301       chart series "p99" [disabled, hidden, offscreen, checked] toggle=on
+302     chart "Support load by channel" [disabled, hidden, offscreen, horizontal]
+303       chart series "Open" [disabled, hidden, offscreen, checked] toggle=on
+304       chart series "Waiting" [disabled, hidden, offscreen, checked] toggle=on
+305       chart series "Closed" [disabled, hidden, offscreen, checked] toggle=on
+306   scroll pane "Scripts" (label) [disabled, hidden, offscreen] scroll none | labelled by #26 "Scripts"
+307     heading "Bidi and complex scripts" [disabled, hidden, offscreen]
+308     label "Right-to-left text, shaped and ordered, in a left-to-right screen." [disabled, hidden, offscreen]
+309     label "Arabic — 7 code points, 10 glyphs, chosen by the neighbours" [disabled, hidden, offscreen]
+310     label "العربية" [disabled, hidden, offscreen]
+311     label "Arabic marks — one word vocalized and bare; the font places them" [disabled, hidden, offscreen]
+312     label "كَتَبَ   كتب" [disabled, hidden, offscreen]
+313     label "Hebrew — right to left, niqqud at zero advance" [disabled, hidden, offscreen]
+314     label "שָׁלוֹם   שלום" [disabled, hidden, offscreen]
+315     label "Bidi — one line, three runs at levels 0 / 1 / 0" [disabled, hidden, offscreen]
+316     label "Total: 42 ريال (SAR)" [disabled, hidden, offscreen]
+317     label "Bidi — an Arabic line with a Latin island inside it" [disabled, hidden, offscreen]
+318     label "مرحبا Limn UI 2026 العربية" [disabled, hidden, offscreen]
+319     label "Devanagari — ksha: 3 code points, 1 glyph" [disabled, hidden, offscreen]
+320     label "क्ष" [disabled, hidden, offscreen]
+321     label "Devanagari — the i-matra is drawn before its consonant" [disabled, hidden, offscreen]
+322     label "हिन्दी" [disabled, hidden, offscreen]
+323     label "Thai — sara am is one code point and two glyphs" [disabled, hidden, offscreen]
+324     label "น้ำ   ปิ่น   ภาษาไทย" [disabled, hidden, offscreen]
+325     label "Editable — click into it, drag a selection, walk it with the arrows" [disabled, hidden, offscreen]
+326     text field "" [disabled, hidden, offscreen, editable] text="مرحبا Limn UI 2026 العربية" caret=26
+327     text field "" [disabled, hidden, offscreen, editable] text="שלום Limn UI 2026" caret=17
+328     label "Pinned locale — the right pair declares Arabic; the window's language moves only the left" [disabled, hidden, offscreen]
+329     label "Notifications" [disabled, hidden, offscreen]
+330     spin button "" [disabled, hidden, offscreen] value=42 [0..100 step 1] "42"
+331       button "Increase" [disabled, hidden, offscreen]
+332       button "Decrease" [disabled, hidden, offscreen]
+333     label "الإشعارات" lang ar-EG [disabled, hidden, offscreen]
+334     spin button "" lang ar-EG [disabled, hidden, offscreen] value=42 [0..100 step 1] "٤٢"
+335       button "زيادة" lang ar-EG [disabled, hidden, offscreen]
+336       button "إنقاص" lang ar-EG [disabled, hidden, offscreen]
+337     label "Wrapped Arabic" [disabled, hidden, offscreen]
+338     label "هذه فقرة عربية تلتف على عدة أسطر داخل عمود ثابت، ومكان القطع تحدده حدود يونيكود لا عدُّ الحروف." [disabled, hidden, offscreen]
+339     label "Wrapped Hebrew" [disabled, hidden, offscreen]
+340     label "זו פסקה בעברית הנשברת לכמה שורות בתוך עמודה קבועה, ומקום השבירה נקבע לפי גבולות יוניקוד ולא לפי ספירת תווים." [disabled, hidden, offscreen]
+341     label "Wrapped Devanagari — conjuncts in running text" [disabled, hidden, offscreen]
+342     label "यह हिन्दी का अनुच्छेद कई पंक्तियों में लिपटता है; क्षमता और शिक्षा जैसे संयुक्ताक्षर यहाँ भी बनते हैं।" [disabled, hidden, offscreen]
+343     label "Wrapped Thai — not one space in it" [disabled, hidden, offscreen]
+344     label "ภาษาไทยไม่เว้นวรรคระหว่างคำการขึ้นบรรทัดใหม่จึงต้องอาศัยตัวแบ่งบรรทัดแทนช่องว่าง" [disabled, hidden, offscreen]
+345   tab panel "Icons" (label) [disabled, hidden, offscreen] | labelled by #27 "Icons"
+346     heading "Tabler icons: the whole pack, virtualized" [disabled, hidden, offscreen]
+347     label "Search the icon set; only the rows in view are drawn." [disabled, hidden, offscreen]
+348     label "TablerSystem.SEARCH" [disabled, hidden, offscreen]
+349     search field "Search…" (placeholder) [disabled, hidden, offscreen, editable] text="" caret=0
+350       button "Clear" [disabled, hidden, offscreen]
+351     label "5166 icons · tinted from the theme, so they follow light and dark" [disabled, hidden, offscreen]
+352     list "" [disabled, hidden, offscreen] selection=single scroll v=0% view 0%
+353       scroll bar "" [disabled, hidden, offscreen, vertical] value=0 [0..247968]
+354     label "Click a row for its constant." [disabled, hidden, offscreen]
+355   tab panel "Files" (label) [disabled, hidden, offscreen] | labelled by #28 "Files"
+356     scroll pane "" [disabled, hidden, offscreen] scroll none
+357       heading "OS files: dialogs, drop, window extras" [disabled, hidden, offscreen]
+358       heading "Native file dialogs" [disabled, hidden, offscreen]
+359       label "The system's own chooser, owned by this window." [disabled, hidden, offscreen]
+360       button "Open file…" [disabled, hidden, offscreen]
+361       button "Open files…" [disabled, hidden, offscreen]
+362       button "Save file…" [disabled, hidden, offscreen]
+363       button "Choose folder…" [disabled, hidden, offscreen]
+364       label "Opens on a sample folder, filtered to one made-up extension." [disabled, hidden, offscreen]
+365       button "Open sketch (*.limn)…" [disabled, hidden, offscreen]
+366       label "No dialog shown yet." [disabled, hidden, offscreen]
+367       heading "Drag & drop from the OS" [disabled, hidden, offscreen]
+368       label "Drop files from the file manager on the area below." [disabled, hidden, offscreen]
+369       heading "Window extras" [disabled, hidden, offscreen]
+370       label "This window has an icon and a minimum size, and can ask before it closes." [disabled, hidden, offscreen]
+371       switch "Confirm before closing" [disabled, hidden, offscreen, checked] toggle=on
+372   scroll pane "About" (label) [disabled, hidden, offscreen] scroll none | labelled by #29 "About"
+373     image "" [disabled, hidden, offscreen]
+374     label "Limn UI" [disabled, hidden, offscreen]
+375     label "A Java GUI toolkit built from scratch on LWJGL, without AWT, Swing or SWT." [disabled, hidden, offscreen]
+376     image "" [disabled, hidden, offscreen]
+377     image "" [disabled, hidden, offscreen]
+378     label "Icons tinted by the theme" [disabled, hidden, offscreen]
+379   label "Ready." [disabled]
+380   label "" [disabled]
 == window "Dialog: window-modal" (modal) ==
 1 window "Dialog: window-modal" (explicit) [active] window modal normal
 2   dialog "Dialog: window-modal" desc "This is a window-modal dialog. Choose an option." actions: cancel
