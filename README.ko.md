@@ -39,7 +39,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-app-dark.webp">
-    <img src="media/readme/showcase-app-light.webp" alt="Limn 애플리케이션: 메뉴 막대, 탐색, 주문 표, 폼, 테마 선택기" width="900">
+    <img src="media/readme/showcase-app-light.webp" alt="Limn 애플리케이션: 메뉴 막대, 탐색, 주문 표, 테마 선택기" width="900">
   </picture>
 </p>
 

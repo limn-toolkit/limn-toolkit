@@ -205,7 +205,7 @@ export const es: Catalog = {
     "Ni recortes ni maquetas. Cada una es una ventana que el kit renderizó mientras se construía este sitio.",
   "showcase.app.heading": "La aplicación de demostración",
   "showcase.app.body":
-    "Una pantalla de pedidos — una tabla que ordena y filtra junto al formulario del pedido seleccionado — y, en el lateral, todos los componentes por categoría. Los cuatro selectores de arriba cambian idioma, dirección, tamaño y tema de toda la ventana.",
+    "Una pantalla de pedidos — una tabla que ordena y filtra, cada pedido abierto en un panel que se desliza a su lado — y, en el lateral, todos los componentes por categoría. Los cuatro selectores de arriba cambian idioma, dirección, tamaño y tema de toda la ventana.",
   "showcase.forms.heading": "Un formulario",
   "showcase.forms.body":
     "Etiquetas, un campo validado, una elección, un interruptor y la fila de acciones: el ejemplo completo de la guía de formularios.",

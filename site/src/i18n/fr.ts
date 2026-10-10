@@ -205,7 +205,7 @@ export const fr: Catalog = {
     "Ni recadrages ni maquettes. Chacun d’eux est une fenêtre que la boîte à outils a rendue pendant la construction de ce site.",
   "showcase.app.heading": "L’application de démonstration",
   "showcase.app.body":
-    "Un écran de commandes — un tableau qui trie et filtre à côté du formulaire de la commande sélectionnée — et, sur le côté, tous les composants par catégorie. Les quatre sélecteurs du haut changent la langue, la direction, la taille et le thème de toute la fenêtre.",
+    "Un écran de commandes — un tableau qui trie et filtre, chaque commande ouverte dans un panneau qui glisse à côté — et, sur le côté, tous les composants par catégorie. Les quatre sélecteurs du haut changent la langue, la direction, la taille et le thème de toute la fenêtre.",
   "showcase.forms.heading": "Un formulaire",
   "showcase.forms.body":
     "Libellés, un champ validé, un choix, un interrupteur et la rangée d’actions : l’exemple complet du guide des formulaires.",

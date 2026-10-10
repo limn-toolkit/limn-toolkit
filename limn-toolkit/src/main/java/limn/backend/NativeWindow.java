@@ -274,6 +274,14 @@ public sealed interface NativeWindow extends AutoCloseable permits WindowPeer {
      */
     FileDialogs fileDialogs();
 
+    /**
+     * @return what hands an address or a file to the system this window is on;
+     *         {@link Launcher#NONE} for a window with no desktop under it (headless, embedded).
+     *         No default, for the reason {@link #fileDialogs()} has none: a link that silently
+     *         opens nothing. UI thread only.
+     */
+    Launcher launcher();
+
     /** @return the system clipboard */
     Clipboard clipboard();
 

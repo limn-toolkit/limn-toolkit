@@ -37,6 +37,8 @@ import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
@@ -322,14 +324,16 @@ final class AppScene {
         statusRow.add(busy);
 
         limn.scene.layout.Column page = new limn.scene.layout.Column();
-        page.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
+        // Nothing around the window's content: the menu bar and the panes go from edge to edge,
+        // as a window's do, and only the two lines of text between them are set in from it.
+        page.crossAlignment(Flex.CrossAlignment.STRETCH);
         page.add(menuBar);
-        page.add(band);
+        page.add(new Padding(Insets.symmetric(8, 12), band));
         page.add(Expanded.of(body, 1));
-        page.add(new SizedBox(SizedBox.UNSET, 18, statusRow));
+        page.add(new Padding(Insets.symmetric(6, 12), new SizedBox(SizedBox.UNSET, 18, statusRow)));
         page.add(performance);
 
-        Scene scene = new Scene(new Padding(Insets.all(16), page));
+        Scene scene = new Scene(page);
         scene.setBackground(Theme.current().background());
 
         // The call a theme picker makes: the palette becomes current, its face is applied, and
@@ -406,7 +410,7 @@ final class AppScene {
                         .addItem("1280×720", () -> fullscreen(scene, status, 1280, 720))));
         menuBar.addMenu(ShowcaseStrings.MENU_GO, goMenu(navigation, top));
         menuBar.addMenu(ShowcaseStrings.MENU_HELP, new Menu()
-                .addItem(ShowcaseStrings.MENU_DOCUMENTATION, () -> openDocumentation("docs/", status))
+                .addItem(ShowcaseStrings.MENU_DOCUMENTATION, () -> openDocumentation(status, "docs/", status))
                 .addSeparator()
                 .addItem(ShowcaseStrings.TAB_ABOUT, () -> new Dialog(I18nString.literal(TITLE),
                         ShowcaseStrings.ABOUT_BLURB)
@@ -417,6 +421,10 @@ final class AppScene {
             tour(scene, navigation, top);
         }
         lab(scene, navigation, top, performance);
+        if (Boolean.getBoolean("limn.demo.order")) {
+            // The lab's: the order under the cursor opened by itself, to photograph the panel.
+            Ui.postDelayed(() -> orders.drawer.setOpen(true), 1800);
+        }
         return new Built(scene, followSystemAppearance, () -> {
             navigation.setSelected(ordersPlace);
             return orders.openNewOrder();
@@ -440,21 +448,14 @@ final class AppScene {
     }
 
     /**
-     * Opens a page of the site in the system's browser, and says in the status line which. By the
-     * system's own command for it, the toolkit having no call for this yet; where the command is
-     * missing the address in the status line is what is left.
+     * Opens a page of the site in the system's browser, and says in the status line which: the
+     * address stays there to copy where the system opened nothing.
      */
-    private static void openDocumentation(String path, Label status) {
-        String address = SITE + path;
-        limn.backend.Platform platform = limn.backend.Platform.current();
-        List<String> command = platform.isMacOs() ? List.of("open", address)
-                : platform.isWindows() ? List.of("rundll32", "url.dll,FileProtocolHandler", address)
-                : List.of("xdg-open", address);
-        try {
-            new ProcessBuilder(command).redirectErrorStream(true)
-                    .redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
-        } catch (java.io.IOException noSuchCommand) {
-            // The address below is the answer then.
+    private static void openDocumentation(Widget<?> asker, String path, Label status) {
+        java.net.URI address = java.net.URI.create(SITE + path);
+        Scene scene = asker.scene();
+        if (scene != null && scene.window() != null) {
+            scene.window().launcher().openAddress(address);
         }
         status.setText(ShowcaseStrings.MENU_DOCUMENTATION.get() + ": " + address);
     }
@@ -471,7 +472,7 @@ final class AppScene {
         Button link = new Button(ShowcaseStrings.MENU_DOCUMENTATION).setSecondary(true);
         link.setControlSize(ControlSize.SMALL);
         link.setTooltip(SITE + place.documentation);
-        link.onAction(() -> openDocumentation(place.documentation, status));
+        link.onAction(() -> openDocumentation(link, place.documentation, status));
         Row head = new Row();
         head.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
         head.add(new Label(place.name).setRole(Label.Role.TITLE));
@@ -534,7 +535,8 @@ final class AppScene {
 
     /**
      * The lab's switches, none of them the application's: {@code -Dlimn.demo.page=Video} opens on
-     * that page, by its English name, {@code -Dlimn.demo.perf=true} with the performance footer
+     * that page, by its English name, {@code -Dlimn.demo.order=true} with the order's panel open,
+     * {@code -Dlimn.demo.perf=true} with the performance footer
      * shown, and {@code -Dlimn.demo.film=dir} writes a picture of the window there twice a
      * second, which is how a page is looked at while something on it moves.
      */
@@ -628,6 +630,122 @@ final class AppScene {
         }
     }
 
+    /**
+     * A panel that comes in beside what it is about and goes away again: the main widget has
+     * the whole box while the panel is closed, and gives up the panel's width at its trailing
+     * edge while it is open. The panel slides in at its full width, clipped by the box, so its
+     * fields are laid out once and not squeezed frame by frame; the main widget is laid out
+     * again at each frame of the slide, which takes about a fifth of a second and no time at
+     * all when the user has asked the system for less motion. Trailing is the right in a
+     * layout that reads from the left and the left in one that reads from the right. Escape,
+     * from anywhere inside the panel, closes it.
+     */
+    static final class Drawer extends Widget<Drawer> {
+        private static final float PANEL_WIDTH = 300;
+        private static final float GAP = 10;
+        private static final double SECONDS = 0.22;
+
+        private final Widget<?> main;
+        private final Widget<?> panel;
+        private boolean open;
+        /** How far in the panel is, from 0 to 1, in time; eased when it is laid out. */
+        private float progress;
+        private boolean ticking;
+
+        Drawer(Widget<?> main, Widget<?> panel) {
+            this.main = main;
+            this.panel = panel;
+            add(main);
+            add(panel);
+            panel.setVisible(false);
+        }
+
+        boolean isOpen() {
+            return open;
+        }
+
+        void setOpen(boolean value) {
+            if (open == value) {
+                return;
+            }
+            open = value;
+            if (scene() == null || limn.animation.Motion.reduced()) {
+                progress = open ? 1 : 0;
+                settle();
+                return;
+            }
+            panel.setVisible(true);
+            if (!ticking) {
+                ticking = true;
+                // On the wall clock: the panel's arrival settles what can take the keyboard.
+                scene().addRealTimeTicker(dt -> {
+                    float step = (float) (dt / SECONDS);
+                    progress = open ? Math.min(1, progress + step) : Math.max(0, progress - step);
+                    boolean arrived = progress == (open ? 1f : 0f);
+                    if (arrived) {
+                        ticking = false;
+                        settle();
+                    } else {
+                        markNeedsLayout();
+                        invalidate();
+                    }
+                    return !arrived;
+                });
+            }
+        }
+
+        private void settle() {
+            panel.setVisible(progress > 0);
+            markNeedsLayout();
+            invalidate();
+        }
+
+        @Override
+        protected limn.scene.Size onMeasure(limn.scene.Constraints constraints) {
+            return constraints.constrain(constraints.maxWidth(), constraints.maxHeight());
+        }
+
+        @Override
+        protected void onLayout() {
+            float panelWidth = Math.min(PANEL_WIDTH, width() * 0.5f);
+            float eased = limn.animation.Easing.EASE_IN_OUT.apply(progress);
+            float taken = (panelWidth + GAP) * eased;
+            float mainWidth = Math.max(0, width() - taken);
+            boolean rtl = isRightToLeft();
+            main.measure(limn.scene.Constraints.tight(mainWidth, height()));
+            main.layoutBox(rtl ? taken : 0, 0, mainWidth, height());
+            if (panel.isVisible()) {
+                panel.measure(limn.scene.Constraints.tight(panelWidth, height()));
+                panel.layoutBox(rtl ? taken - GAP - panelWidth : width() - taken + GAP, 0, panelWidth, height());
+            }
+        }
+
+        @Override
+        protected boolean clipsChildren() {
+            return true;
+        }
+
+        @Override
+        protected void paintChildren(limn.graphics.Canvas canvas) {
+            canvas.save();
+            try {
+                canvas.clipRect(0, 0, width(), height());
+                super.paintChildren(canvas);
+            } finally {
+                canvas.restore();
+            }
+        }
+
+        @Override
+        protected void onKeyEvent(limn.scene.event.KeyEvent event) {
+            if (open && event.isPressed() && event.key() == limn.input.Keys.ESCAPE) {
+                setOpen(false);
+                main.requestFocus();
+                event.consume();
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ the orders
 
     private static List<Order> sampleOrders() {
@@ -660,6 +778,7 @@ final class AppScene {
         private final Label status;
         private final ProgressBar busy;
         private final Runnable filter;
+        private final Drawer drawer;
         private boolean refreshing;
 
         Orders(Label status, ProgressBar busy) {
@@ -669,16 +788,34 @@ final class AppScene {
                     .width(98).footerCount();
             Column<Order> customer = Column.<Order>text(ShowcaseStrings.ORDERS_CUSTOMER, order -> order.customer)
                     .width(156).weight(1);
+            Column<Order> placed = Column.<Order, LocalDate>of(ShowcaseStrings.ORDERS_PLACED, order -> order.placed,
+                    (date, locale) -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)
+                            .format(date)).width(116);
             Column<Order> state = Column.<Order>text(ShowcaseStrings.ORDERS_STATUS,
                     order -> order.status.label.get()).width(108);
             Column<Order> total = Column.<Order>currency(ShowcaseStrings.ORDERS_TOTAL, order -> order.total,
-                    Currency.getInstance("USD")).width(130).weight(1).footerSum();
-            // Four columns, and the dates in the form beside them: a fifth left the customer's
-            // name half a name wide in a window of ordinary size.
-            table = new Table<>(List.of(number, customer, state, total));
+                    Currency.getInstance("USD")).width(150).footerSum();
+            // What a pointer opens an order with, where the keyboard has Enter: a button at the
+            // end of each row, named by its order for whoever hears the row instead of seeing it.
+            Drawer[] panel = new Drawer[1];
+            Column<Order> open = Column.<Order>widget(I18nString.EMPTY, order -> {
+                Button edit = new Button("").setSecondary(true)
+                        .setIcon(limn.icons.tabler.TablerDesign.PENCIL.icon());
+                edit.setControlSize(ControlSize.SMALL);
+                edit.setAccessibleName(ShowcaseStrings.ORDERS_HEADING.format(String.valueOf(order.number)));
+                edit.onAction(() -> {
+                    int row = shown.indexOf(order);
+                    if (row >= 0) {
+                        table().setSelectedRow(row);
+                        panel[0].setOpen(true);
+                    }
+                });
+                return edit;
+            }).width(72).sortable(false);
+            table = new Table<>(List.of(number, customer, placed, state, total, open));
             table.setAccessibleName(ShowcaseStrings.NAV_ORDERS);
             table.setRows(shown);
-            table.setSort(number, SortOrder.DESCENDING);
+            table.setSort(placed, SortOrder.DESCENDING);
 
             // ---- the filter: what is typed, and the statuses chosen
             SearchField search = new SearchField();
@@ -778,7 +915,15 @@ final class AppScene {
 
             limn.scene.layout.Column form = new limn.scene.layout.Column();
             form.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-            form.add(heading);
+            Button close = new Button("").setSecondary(true).setIcon(limn.icons.tabler.TablerSystem.X.icon());
+            close.setControlSize(ControlSize.SMALL);
+            close.setAccessibleName(ShowcaseStrings.ACTION_CLOSE);
+            close.setTooltip(ShowcaseStrings.ACTION_CLOSE);
+            Row head = new Row();
+            head.gap(8).crossAlignment(Flex.CrossAlignment.CENTER);
+            head.add(Expanded.of(heading, 1));
+            head.add(close);
+            form.add(head);
             form.add(Separator.horizontal());
             form.add(Labelled.above(ShowcaseStrings.ORDERS_CUSTOMER, customerField));
             form.add(Labelled.above(ShowcaseStrings.ORDERS_STATUS, statusField));
@@ -791,19 +936,30 @@ final class AppScene {
             buttons.add(save);
             form.add(buttons);
 
-            SplitPane split = SplitPane.horizontal(table, new ScrollView(new Padding(Insets.all(12), form)));
-            split.setRatio(0.66f);
-            split.setMinimums(320, 260);
-            split.setAccessibleName(ShowcaseStrings.ORDERS_ORDER);
+            // The order is opened on demand: Enter or a double click on a row brings its form in
+            // from the trailing edge, the arrows go on walking the rows with it open, and the
+            // table has the whole width back when it is closed.
+            Drawer drawer = new Drawer(table, new ScrollView(new Padding(Insets.all(12), form)));
+            table.onActivate(row -> drawer.setOpen(true));
+            close.onAction(() -> {
+                drawer.setOpen(false);
+                table.requestFocus();
+            });
+            this.drawer = drawer;
+            panel[0] = drawer;
 
             limn.scene.layout.Column column = new limn.scene.layout.Column();
             column.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
             column.add(tools);
-            column.add(Expanded.of(split, 1));
+            column.add(Expanded.of(drawer, 1));
             page = new Padding(Insets.symmetric(0, 12), column);
             filter.run();
             table.setSelectedRow(table.viewToModel(0)); // the newest, which the sort shows first
             load.run();
+        }
+
+        private Table<Order> table() {
+            return table;
         }
 
         /** Asks for a new order in a dialog over the window, and lists it when the answer is yes. */

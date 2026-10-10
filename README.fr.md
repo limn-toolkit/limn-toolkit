@@ -39,7 +39,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-app-dark.webp">
-    <img src="media/readme/showcase-app-light.webp" alt="Une application Limn : barre de menus, navigation, tableau de commandes, formulaire et sélecteur de thème" width="900">
+    <img src="media/readme/showcase-app-light.webp" alt="Une application Limn : barre de menus, navigation, tableau de commandes et sélecteur de thème" width="900">
   </picture>
 </p>
 

@@ -95,6 +95,7 @@ class ChildPopupsTest {
         @Override public limn.backend.PointerMode pointerMode() { return limn.backend.PointerMode.NORMAL; }
         /** No chooser here: every dialog answers empty, as if cancelled. */
         @Override public limn.backend.FileDialogs fileDialogs() { return limn.backend.FileDialogs.NONE; }
+        @Override public limn.backend.Launcher launcher() { return limn.backend.Launcher.NONE; }
         @Override public void setTextInput(limn.backend.spi.TextInput input) { }
         @Override public void setPreeditCaretRect(float px, float py, float w, float h) { }
         @Override public void resetPreedit() { }

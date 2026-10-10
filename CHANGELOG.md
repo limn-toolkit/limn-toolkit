@@ -212,6 +212,15 @@ Maven Central say which number that was.
 
 ### New
 
+- `window.launcher()` hands an address or a file to the system: `openAddress` opens a web page
+  in the browser or a `mailto:` in the mail program, `openFile` a file in the program registered
+  for its type, and `showInFolder` shows a file selected in the file manager. Each returns at
+  once and answers on the UI thread whether the system took it. An address must be `http`,
+  `https` or `mailto` unless the application allows another scheme once with
+  `Launcher.allowScheme`, and a `file:` address is never taken, so text that came from data
+  cannot start a program. `NativeWindow` gains `launcher()` with no default; a window of your own
+  answers `Launcher.NONE` or builds one over a `LauncherPeer`. The demo's `--open` and `--show`
+  ask it once from the command line.
 - `limn.transfer`: what a copy carries. A `Transfer` offers one item in several `DataFormat`s at
   once (`TEXT`, `HTML`, `IMAGE`, `FILES`, and formats of the application's own: `DataFormat.of`
   names one and says how it becomes bytes, `DataFormat.inProcess` carries the object itself), a
@@ -476,8 +485,8 @@ Maven Central say which number that was.
   fading. The indeterminate `ProgressBar` sweep and a `Tree`'s loading spinner keep moving, since
   they say that work goes on, but in steps, four times a second.
 - The demo opens on an application, Limn Showcase, where it opened on a window of sixteen tabs: a
-  screen of orders (a table that sorts and filters, the order under the cursor in a form, a
-  dialog a new one is made in, a refresh that works off the UI thread) and a navigation into a
+  screen of orders (a table that sorts and filters, an order opened in a panel that slides in
+  beside it, a dialog a new one is made in, a refresh that works off the UI thread) and a navigation into a
   gallery of every component by what it is for, the media and the 3D viewport last. Its frame,
   its orders, its dialogs and its menus are translated into the 21 languages the old window was;
   each page of the gallery has a button that opens where the site documents it; the performance

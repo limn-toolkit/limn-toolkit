@@ -39,7 +39,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-app-dark.webp">
-    <img src="media/readme/showcase-app-light.webp" alt="メニューバー、ナビゲーション、注文テーブル、フォーム、テーマ切り替えを備えた Limn アプリケーション" width="900">
+    <img src="media/readme/showcase-app-light.webp" alt="メニューバー、ナビゲーション、注文テーブル、テーマ切り替えを備えた Limn アプリケーション" width="900">
   </picture>
 </p>
 

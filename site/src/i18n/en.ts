@@ -182,7 +182,7 @@ export const en = {
     "Not crops and not mock-ups. Each of these is a window the toolkit rendered while this site was being built.",
   "showcase.app.heading": "The demo application",
   "showcase.app.body":
-    "A screen of orders — a table that sorts and filters beside the form of the order it is on — and, down the side, every component by category. The four pickers at the top switch language, direction, size and theme for the whole window.",
+    "A screen of orders — a table that sorts and filters, each order opened in a panel that slides in beside it — and, down the side, every component by category. The four pickers at the top switch language, direction, size and theme for the whole window.",
   "showcase.rtl.heading": "The same window, right to left",
   "showcase.rtl.body":
     "The demo application under the Arabic bundle with the direction axis flipped: the menu bar, the navigation, the fields, the scrollbars and the table all read from the right, and the text inside them joins and reorders as Arabic should. No screen was rewritten — direction is one inherited axis, set the way a control size is.",
