@@ -81,10 +81,10 @@ import java.util.List;
 /**
  * One scene per documented component, each containing <em>only</em> that component.
  *
- * <p>These are not the kitchen sink and they are not crops of it. A reference screen shows
+ * <p>These are not the showcase and they are not crops of it. A reference screen shows
  * a component surrounded by twenty others and at whatever size the surrounding layout left
  * it; a documentation page has to show the component itself, at its own size, in the states
- * worth naming. So the gallery captures these, and the kitchen sink stays what it is: a
+ * worth naming. So the gallery captures these, and the showcase stays what it is: a
  * place to try the toolkit, not the source of its documentation.
  *
  * <p><b>Every scene is inside a {@code #region} marker, and the site extracts the marked

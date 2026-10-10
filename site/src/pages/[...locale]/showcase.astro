@@ -29,11 +29,11 @@ const run = (alias: string) => (flag: string) => `jbang ${flag}${alias}@limn-too
 const source = (...regions: string[]) => regions.map(snippet).join("\n\n");
 
 const plates = [
-  { key: "kitchen", id: "kitchen", command: run("demo") },
+  { key: "app", id: "app", command: run("demo") },
   // Straight after the window it mirrors, so the two read as one before/after pair. The
   // capture is the whole window on purpose: mirroring is a property of the window, and a
   // crop of it would show a right-aligned form, not a mirrored screen.
-  { key: "rtl", id: "kitchen-ar" },
+  { key: "rtl", id: "app-ar" },
   {
     key: "forms",
     id: "form",

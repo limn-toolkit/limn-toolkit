@@ -67,7 +67,7 @@ final class TableScene {
         return scene;
     }
 
-    /** The page without a scene of its own, for the kitchen sink's Table tab. */
+    /** The page without a scene of its own, for the showcase's Table page. */
     static Widget<?> content() {
         return parts().page();
     }

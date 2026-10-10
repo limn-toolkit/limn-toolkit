@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * allocates no half-res targets and issues no fullscreen pass) and the
  * radius→iterations mapping with both of its clamps (the blocky-glow floor
  * below which the blur refuses to run, and the cost ceiling above which a
- * wider ask stops buying passes). The GL side is the Kitchen Sink's job.
+ * wider ask stops buying passes). The GL side is the showcase's job.
  */
 class BloomMathTest {
 

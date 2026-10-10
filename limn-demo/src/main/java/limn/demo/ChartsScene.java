@@ -43,7 +43,7 @@ final class ChartsScene {
         return scene;
     }
 
-    /** The subtree, reusable as a kitchen-sink tab. */
+    /** The subtree, reusable as a page of the showcase. */
     static Widget<?> content() {
         Label status = new Label("Hover a mark for its value; click one to select it.")
                 .setMuted(true);
@@ -63,7 +63,6 @@ final class ChartsScene {
 
         Column column = new Column();
         column.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(new Label("Charts").setRole(Label.Role.TITLE).setStrong(true));
         column.add(status);
         column.add(new SizedBox(SizedBox.UNSET, 260, row(revenue, traffic)));
         column.add(new SizedBox(SizedBox.UNSET, 260, row(latency, channels)));

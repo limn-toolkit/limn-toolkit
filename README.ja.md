@@ -38,8 +38,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-kitchen-dark.webp">
-    <img src="media/readme/showcase-kitchen-light.webp" alt="メニューバー、タブ、フォーム、チャート、テーマ切り替えを備えた Limn アプリケーション" width="900">
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-app-dark.webp">
+    <img src="media/readme/showcase-app-light.webp" alt="メニューバー、ナビゲーション、注文テーブル、フォーム、テーマ切り替えを備えた Limn アプリケーション" width="900">
   </picture>
 </p>
 
@@ -49,7 +49,7 @@ Limn はピクセルを自分で描きます。ウィジェット、レイアウ
 
 ## 今すぐ試す
 
-キッチンシンク——すべてのウィジェット、チャート、メディアプレーヤー、3D ビューポート——がコマンド 1 つで、テーマエディタがもう 1 つで動きます。クローンするものはなく、入れるものも [jbang](https://www.jbang.dev/download/) だけです。JDK がなければ、それも取ってきます。どちらも Maven Central から薄いアーティファクトとして届きます。手元に来るのはツールキットとフォント、そして今使っているマシンのネイティブライブラリだけで、ほかの 5 つのプラットフォームの分は来ません。
+ショーケース——すべてのウィジェット、チャート、メディアプレーヤー、3D ビューポート——がコマンド 1 つで、テーマエディタがもう 1 つで動きます。クローンするものはなく、入れるものも [jbang](https://www.jbang.dev/download/) だけです。JDK がなければ、それも取ってきます。どちらも Maven Central から薄いアーティファクトとして届きます。手元に来るのはツールキットとフォント、そして今使っているマシンのネイティブライブラリだけで、ほかの 5 つのプラットフォームの分は来ません。
 
 macOS では:
 

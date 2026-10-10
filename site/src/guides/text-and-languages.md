@@ -131,7 +131,7 @@ to break at all and is cut where it stops fitting.
   in-progress composition inside the field, underlined, with the candidate window positioned
   against the caret.
 
-{% shot kitchen-ja "The same screen in Japanese: the CJK face is resolved for the run, and the application named no font." %}
+{% shot app-ja "The same screen in Japanese: the CJK face is resolved for the run, and the application named no font." %}
 
 ## Which scripts render
 

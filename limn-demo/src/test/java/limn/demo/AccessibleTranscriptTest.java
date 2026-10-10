@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * <p>The gallery-wide invariants — no unknown role, every focusable node named — pass on a tree
  * that is uniformly wrong in a way no invariant names, because nobody had said what the demo
  * <em>should</em> sound like. These transcripts are that reference answer, for the three scenes
- * a reviewer chose: the form, the component sheet, and the kitchen sink with its dialog open as
+ * a reviewer chose: the form, the component sheet, and the application with its dialog open as
  * a window of its own, which is two trees. They are built the way {@code Main --scene} builds
  * them, bound to a window with no platform behind it, settled over the same number of frames
  * the gallery capture settles over, and read in tree order.
@@ -60,8 +60,8 @@ class AccessibleTranscriptTest {
     private static final long FRAME_NANOS = TimeUnit.MILLISECONDS.toNanos(20);
 
     /**
-     * Decodes every image into the same sixteen transparent points. The kitchen sink loads its
-     * icons and logo while it builds, decoding is the backend's, and nothing in a transcript
+     * Decodes every image into the same sixteen transparent points. A scene loads its
+     * icons and pictures while it builds, decoding is the backend's, and nothing in a transcript
      * depends on a pixel: what an image is called is what a reader hears.
      */
     private static final ImageDecoder DECODER = bytes -> new Image(16, 16, new byte[16 * 16 * 4]);
@@ -108,19 +108,19 @@ class AccessibleTranscriptTest {
     }
 
     /**
-     * The kitchen sink with its window-modal dialog open: the dialog is a window of its own with
-     * a tree of its own, and the host is the window it blocks, so both are read, host first.
+     * The demo's application with the dialog a new order is made in open over it: the dialog is
+     * a window of its own with a tree of its own, and the host is the window it blocks, so both
+     * are read, host first.
      */
     @Test
-    void theKitchenSinkWithItsDialogOpenSoundsLikeItsTranscript() {
-        KitchenSinkScene.Built built = KitchenSinkScene.create(false);
-        // Its Dates tab rings today: pinned, or the transcript is true on one day only, and on that
-        // day only in the time zone it was recorded in (the Linux runner, on UTC, failed it hours
-        // after it was written).
+    void theApplicationWithItsDialogOpenSoundsLikeItsTranscript() {
+        AppScene.Built built = AppScene.create();
+        // A date field rings today: pinned, or the transcript is true on one day only, and on
+        // that day only in the time zone it was recorded in.
         DocumentationDay.pin(built.scene().root());
-        HeadlessWindow host = show("Limn kitchen sink", built.scene());
+        HeadlessWindow host = show(AppScene.TITLE, built.scene());
 
-        Dialog dialog = built.openDialog().get();
+        Dialog dialog = built.openNewOrder().get();
         assertNotNull(dialog.modalWindow(), "the demo's default dialog is a window of its own");
         assertEquals(2, backend.windows().size(), "the host and the dialog, and nothing else");
         HeadlessWindow modal = backend.windows().get(1);
@@ -130,7 +130,7 @@ class AccessibleTranscriptTest {
         modal.desktopFocus(true);
         settle(host, modal);
 
-        Goldens.check("kitchen-dialog", transcript(host) + transcript(modal));
+        Goldens.check("app-dialog", transcript(host) + transcript(modal));
     }
 
     /**

@@ -806,7 +806,7 @@ final class VideoScene {
      * easy to make again.
      *
      * <p><b>An explanation nobody can see is not an explanation.</b> The reason a source could not be
-     * opened used to go into the caption below the picture. In this tab, inside a Kitchen Sink whose
+     * opened used to go into the caption below the picture. In this tab, inside a showcase whose
      * chrome leaves the panel a couple of hundred points tall, that line is below the fold: the
      * viewer sees an empty rectangle, no message, and no way to find out that the FFmpeg native
      * simply is not built on their machine. The message belongs where the eye already is.
@@ -815,7 +815,7 @@ final class VideoScene {
      * widget's documented contract and it is the right one (a soundtrack that stopped because
      * somebody clicked another tab is not what a player is for), but it makes starting one the
      * application's decision, and this application was making it at construction time, so the
-     * Kitchen Sink began playing a video the moment it opened, on a tab nobody had looked at. So
+     * showcase began playing a video the moment it opened, on a tab nobody had looked at. So
      * this is where the decision is made: nothing starts until the picture is actually on screen,
      * and it pauses again when it leaves. The view's own decoding already stops on its own; only the
      * player needs telling.
@@ -866,7 +866,7 @@ final class VideoScene {
                     .easing(limn.animation.Easing.EASE_OUT);
             add(view);
             if (transport != null) {
-                // Over the picture, which is where every player puts it and (in a Kitchen Sink
+                // Over the picture, which is where every player puts it and (in a showcase
                 // tab a couple of hundred points tall) the only place it is visible at all. Below
                 // the picture it lands past the fold, which is the same trap the ordering comment
                 // in tabContent() records for the prose.
@@ -1688,7 +1688,7 @@ final class VideoScene {
             this.sound = sound;
             // Two steps down for everything inside the bar. A transport is chrome over someone
             // else's content, not the content: at the default step it is a third of the picture's
-            // height in a Kitchen Sink tab, and even one step down it competes with the picture
+            // height in a showcase page, and even one step down it competes with the picture
             // for the eye. XSMALL is a compact step and not a miniature one: the hit targets are
             // still clamped to Strokes.MIN_HIT_TARGET.
             setControlSize(limn.scene.ControlSize.XSMALL);
@@ -2079,14 +2079,14 @@ final class VideoScene {
     }
 
     /**
-     * How big the picture box is inside the Kitchen Sink's Video tab.
+     * How big the picture box is inside the showcase's Video page.
      *
      * <p><b>The height is the bounded axis; the width is free.</b> The transport bar is drawn
      * over the picture's lower edge, so a taller box carries the bar further down the tab body
      * until the bar is cut in half by it, while the same box made wider costs nothing. That is
      * why this one grows sideways and the standalone scene, which has a window to itself, grows
      * both ways. A capture that cannot show a control is not a verification of it, so a change
-     * to the height is checked against the {@code kitchen-video} capture rather than guessed:
+     * to the height is checked against the video page rather than guessed:
      * the bar disappearing from that picture is the symptom, and it is silent.
      *
      * <p>Deliberately not 16:9, in both boxes: a picture whose ratio matches its box shows
@@ -2100,7 +2100,7 @@ final class VideoScene {
     private static final float SCENE_PICTURE_HEIGHT = 320;
 
     /**
-     * The two the Kitchen Sink's Video tab offers, out of the twelve
+     * The two the showcase's Video page offers, out of the twelve
      * {@code --scene video} does.
      *
      * <p>Bars first because it is the one a capture can rely on: it is generated in
@@ -2117,7 +2117,7 @@ final class VideoScene {
      */
     private static final List<String> TAB_SOURCES = List.of("Bars", "MP4");
 
-    /** The Kitchen Sink's Video tab. */
+    /** the showcase's Video page. */
     static Widget<?> tabContent() {
         return tabContent(TAB_PICTURE_WIDTH, TAB_PICTURE_HEIGHT, sourcesNamed(TAB_SOURCES), true);
     }
@@ -2302,8 +2302,6 @@ final class VideoScene {
         // still a caption, and a picture below three paragraphs is not a picture.
         Column column = new Column();
         column.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(new Label("Video")
-                .setFont(theme.title()).setStrong(true));
         column.add(picker);
         column.add(picture);
         column.add(controls);
@@ -2424,7 +2422,7 @@ final class VideoScene {
             // entry keeps working: nothing about this one has touched the facade or the view.
             //
             // The sentence goes in the PICTURE's box, not only in the caption below it. In a panel
-            // short enough that the caption is below the fold (which the Kitchen Sink's is), a
+            // short enough that the caption is below the fold (which the showcase's is), a
             // message down there is a message nobody reads, and an empty rectangle is all that is
             // left of it.
             pane.showNotice(encodedUnavailableNotice());

@@ -999,7 +999,7 @@ public final class FfmpegMedia implements AutoCloseable {
      * encoding and for decoding, so shipping one would buy patent surface for a capability
      * nothing uses. The build that carries encoders is produced by the limn-ffmpeg-natives
      * repository's {@code scripts/build-ffmpeg.sh --profile full}, never published, and picked
-     * up from a sibling clone by this module's tests and the Kitchen Sink so they can make a
+     * up from a sibling clone by this module's tests and the showcase so they can make a
      * file to read rather than commit one.
      *
      * <p>A field read, except possibly once: the first call in a process may be the one that links

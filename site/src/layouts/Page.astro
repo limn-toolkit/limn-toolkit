@@ -43,12 +43,12 @@ const msg = messages(locale);
 const siteConfigured = Boolean(process.env.SITE_URL) && !noindex;
 const links = siteConfigured ? alternates(Astro.site, base, publishedLocales(), path) : [];
 const canonical = siteConfigured ? localeUrl(Astro.site, base, locale, path) : undefined;
-// The link-unfurl image: the same kitchen-sink capture the hero shows. Absolute by
+// The link-unfurl image: the same capture of the demo application the hero shows. Absolute by
 // definition, so it exists only when the real hostname does. WebP, because the gallery
 // publishes AVIF + WebP and nothing else, so pointing this at a `.png` names a file that
 // no longer exists.
 const ogImage = siteConfigured
-  ? new URL(`${base}gallery/showcase-kitchen-dark@2x.webp`, Astro.site).href
+  ? new URL(`${base}gallery/showcase-app-dark@2x.webp`, Astro.site).href
   : undefined;
 
 // The language negotiation, and only on the default locale's routes: a prefixed URL is an

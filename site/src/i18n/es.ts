@@ -198,14 +198,14 @@ export const es: Catalog = {
     "Pantallas enteras renderizadas por el kit: la aplicación de demostración, la misma ventana reflejada de derecha a izquierda, la vista 3D, un formulario y una ventana compuesta.",
   "showcase.rtl.heading": "La misma ventana, de derecha a izquierda",
   "showcase.rtl.body":
-    "La aplicación de demostración bajo el paquete ar con el eje de dirección invertido: la barra de menús, las pestañas, los campos, las barras de desplazamiento y el pie de rendimiento se leen desde la derecha, y el texto que contienen se une y se reordena como pide el árabe. Ninguna pantalla se reescribió — la dirección es un eje heredado, que se fija como se fija un tamaño de control.",
+    "La aplicación de demostración bajo el paquete ar con el eje de dirección invertido: la barra de menús, la navegación, los campos, las barras de desplazamiento y la tabla se leen desde la derecha, y el texto que contienen se une y se reordena como pide el árabe. Ninguna pantalla se reescribió — la dirección es un eje heredado, que se fija como se fija un tamaño de control.",
   "showcase.eyebrow": "Pantallas enteras",
   "showcase.heading": "Pantallas",
   "showcase.lede":
     "Ni recortes ni maquetas. Cada una es una ventana que el kit renderizó mientras se construía este sitio.",
-  "showcase.kitchen.heading": "La aplicación de demostración",
-  "showcase.kitchen.body":
-    "Todos los componentes en una ventana, con barra de menús, pestañas, selector de tema y un pie de página de rendimiento en vivo.",
+  "showcase.app.heading": "La aplicación de demostración",
+  "showcase.app.body":
+    "Una pantalla de pedidos — una tabla que ordena y filtra junto al formulario del pedido seleccionado — y, en el lateral, todos los componentes por categoría. Los cuatro selectores de arriba cambian idioma, dirección, tamaño y tema de toda la ventana.",
   "showcase.forms.heading": "Un formulario",
   "showcase.forms.body":
     "Etiquetas, un campo validado, una elección, un interruptor y la fila de acciones: el ejemplo completo de la guía de formularios.",

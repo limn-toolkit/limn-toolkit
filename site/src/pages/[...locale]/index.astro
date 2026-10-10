@@ -31,7 +31,7 @@ const base = import.meta.env.BASE_URL;
 const shot = (id: string) => showcase.entries.find((entry) => entry.id === id)!;
 const component = (id: string) => gallery.entries.find((entry) => entry.id === id)!;
 
-const hero = shot("kitchen");
+const hero = shot("app");
 
 // The same repository the footer links to, for the design records the "built" section cites.
 const repo = process.env.REPO_SLUG ?? "limn-ui/limn";

@@ -71,7 +71,7 @@ public final class Gallery {
     /**
      * The cadence a footer-priming shot renders at: one frame per {@link Ui#postDelayed}
      * interval instead of back-to-back. A showcase capture is a whole application screen, and
-     * the kitchen sink's performance footer reports what the loop achieves; requesting the
+     * the showcase's performance footer reports what the loop achieves; requesting the
      * next frame directly lets an invisible window render thousands of frames a second, and
      * the footer then reports exactly that: a four-digit FPS and a whole core of CPU, a
      * capture advertising the spin loop rather than the toolkit. Sixteen milliseconds is a
@@ -87,13 +87,13 @@ public final class Gallery {
      * shows. The interval that reading is taken over is real, so the FPS in the picture is a
      * measurement of what the loop achieved in it. Not necessarily a paced one: a scene that
      * animates anything requests its own frames faster than this throttle, and the footer
-     * reports the busiest window in the process, so the kitchen sink published several
+     * reports the busiest window in the process, so the showcase published several
      * hundred fps under the 2.6 s wait too (762 in the capture of 2026-08-18). The pace is
      * the ceiling for a scene that has settled, not a promise about one that has not.
      *
      * <p>None of those machine readings reaches the published picture any more: the footer is
      * told to show a dash for them ({@code PerfFooter.hideMachineReadings}), because a live frame
-     * rate made the kitchen sink's captures differ on every run. The wait still settles what the
+     * rate made the showcase's captures differ on every run. The wait still settles what the
      * footer does show, the scene's own counts.
      */
     private static final long SETTLE_PACE_MS = 16;
@@ -266,14 +266,14 @@ public final class Gallery {
             List<Shot> showcase = showcaseShots(outDir, big);
             // The showcase window's FIRST capture is a warm-up, taken and thrown away.
             //
-            // Twice now (30 Aug and 2 Sep 2026) the site published the kitchen sink's dark
+            // Twice now (30 Aug and 2 Sep 2026) the site published the showcase's dark
             // capture with a menu bar, a toolbar and nothing else — no title, no tabs, no form,
             // no footer — while its light capture and every other dark capture were complete.
-            // The kitchen dark shot is the first one on this window, and the only shot that is;
+            // The application's dark shot is the first one on this window, and the only shot that is;
             // the same command on a workstation draws it whole, so what fails is the first frame
             // the showcase window ever presents under the runner's software rasteriser, not the
             // scene. The 3D entry already pays a second pass for a first frame it cannot trust
-            // (SiteShowcase.Entry.warmUpPass). Rather than mark the kitchen too and leave the
+            // (SiteShowcase.Entry.warmUpPass). Rather than mark the application too and leave the
             // next entry that lands first to rediscover this, the window itself is warmed: its
             // first shot is a copy of the first real one, written beside the real captures and
             // deleted below, so no real capture is ever the window's first.

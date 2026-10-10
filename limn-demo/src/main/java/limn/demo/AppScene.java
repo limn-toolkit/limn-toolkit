@@ -2,9 +2,11 @@ package limn.demo;
 
 import limn.components.Button;
 import limn.components.ComboBox;
+import limn.components.Dialog;
 import limn.components.Label;
 import limn.components.Menu;
 import limn.components.MenuBar;
+import limn.components.ProgressBar;
 import limn.components.ScrollView;
 import limn.components.SearchField;
 import limn.components.SelectionMode;
@@ -18,12 +20,15 @@ import limn.components.table.Column;
 import limn.components.table.SortOrder;
 import limn.components.table.Table;
 import limn.components.tree.Tree;
+import limn.concurrent.Ui;
 import limn.i18n.I18n;
+import limn.i18n.I18nString;
 import limn.scene.Change;
 import limn.scene.ControlSize;
 import limn.scene.Insets;
 import limn.scene.LayoutDirection;
 import limn.scene.Scene;
+import limn.scene.SystemPreferences;
 import limn.scene.Widget;
 import limn.scene.layout.Expanded;
 import limn.scene.layout.Flex;
@@ -32,8 +37,6 @@ import limn.scene.layout.Row;
 import limn.scene.layout.SizedBox;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.FormatStyle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
@@ -56,8 +59,26 @@ import java.util.function.Supplier;
  * <p>A page is built the first time it is chosen and kept: the video page decodes, the 3D page
  * holds a scene, and building all of them to show one would make the first frame wait for
  * every other.
+ *
+ * <p>The frame, the orders, the dialogs and the menus are translated. The pages of the gallery
+ * keep their specimens in English: what they show is the components, and the language switch
+ * is seen in the frame around them.
  */
 final class AppScene {
+
+    /** The window's name, the same in every language. */
+    static final String TITLE = "Limn Showcase";
+
+    /** Where the documentation is published; each page of the gallery links under it. */
+    static final String SITE = "https://limn-toolkit.github.io/limn-toolkit/";
+
+    /**
+     * @param followSystemAppearance has the window take the system's light or dark appearance,
+     *                               now and when it changes, until the user picks a theme
+     * @param openNewOrder           opens the dialog a new order is made in, and answers it
+     */
+    record Built(Scene scene, Runnable followSystemAppearance, Supplier<Dialog> openNewOrder) {
+    }
 
     /** An order: what the first page lists and edits. Mutable, as a record being edited is. */
     static final class Order {
@@ -83,74 +104,127 @@ final class AppScene {
 
     /** Where an order stands. */
     enum Status {
-        OPEN("Open"), SHIPPED("Shipped"), PAID("Paid"), OVERDUE("Overdue"), CANCELLED("Cancelled");
+        OPEN(ShowcaseStrings.ORDERS_OPEN), SHIPPED(ShowcaseStrings.ORDERS_SHIPPED),
+        PAID(ShowcaseStrings.ORDERS_PAID), OVERDUE(ShowcaseStrings.ORDERS_OVERDUE),
+        CANCELLED(ShowcaseStrings.ORDERS_CANCELLED);
 
-        final String label;
+        final I18nString label;
 
-        Status(String label) {
+        Status(I18nString label) {
             this.label = label;
         }
 
-        @Override
-        public String toString() {
-            return label;
+        static List<I18nString> labels() {
+            return Arrays.stream(values()).map(status -> status.label).toList();
         }
     }
 
     /** A place the navigation leads to: a page, or a heading over some. */
-    private static final class Place {
-        final String name;
+    static final class Place {
+        final I18nString name;
         final List<Place> under = new ArrayList<>();
         final Supplier<Widget<?>> page;
+        /** Where on the site this page's subject is documented, under {@link #SITE}; null for none. */
+        final String documentation;
 
-        Place(String name, Supplier<Widget<?>> page) {
+        Place(I18nString name, String documentation, Supplier<Widget<?>> page) {
             this.name = name;
+            this.documentation = documentation;
             this.page = page;
         }
 
-        Place(String name, Place... under) {
+        Place(I18nString name, Place... under) {
             this.name = name;
+            this.documentation = null;
             this.page = null;
             this.under.addAll(List.of(under));
+        }
+
+        /** The name the lab's switches know this page by: its English one. */
+        String id() {
+            return name.english();
         }
     }
 
     private AppScene() {
     }
 
-    /** Standalone {@code --scene app}. */
-    static Scene create() {
+    /**
+     * The pages, by what they are for. A list of its own so that a test can read where each
+     * links without building a window.
+     */
+    static List<Place> places(Label status, Supplier<Widget<?>> ordersPage) {
+        Place orders = new Place(ShowcaseStrings.NAV_ORDERS, null, ordersPage);
+        Place components = new Place(ShowcaseStrings.NAV_COMPONENTS,
+                new Place(ShowcaseStrings.NAV_INPUTS, "components/#button",
+                        () -> scrolling(BasicsScene.content())),
+                new Place(ShowcaseStrings.NAV_COMBOS, "components/#combo-box",
+                        () -> scrolling(CombosScene.content())),
+                new Place(ShowcaseStrings.NAV_SLIDERS, "components/#slider", () -> {
+                    limn.scene.layout.Column both = new limn.scene.layout.Column();
+                    both.gap(16).crossAlignment(Flex.CrossAlignment.STRETCH);
+                    both.add(ControlsScene.content());
+                    both.add(Separator.horizontal());
+                    both.add(NewControlsScene.content());
+                    return scrolling(both);
+                }),
+                new Place(ShowcaseStrings.TAB_DATES, "components/#date-picker",
+                        () -> scrolling(DatesScene.content())),
+                new Place(ShowcaseStrings.NAV_LISTS, "docs/lists-and-scrolling/#long-lists",
+                        () -> beside(ListScene.buildList(status::setText))),
+                new Place(ShowcaseStrings.NAV_TABLES, "docs/lists-and-scrolling/#tables",
+                        () -> beside(TableScene.content())),
+                new Place(ShowcaseStrings.NAV_TREES, "docs/lists-and-scrolling/#trees",
+                        () -> scrolling(TreeScene.content())),
+                new Place(ShowcaseStrings.NAV_DIALOGS, "docs/menus-and-dialogs/#dialogs",
+                        () -> scrolling(DialogsScene.dialogs(status))),
+                new Place(ShowcaseStrings.TAB_MENUS, "docs/menus-and-dialogs/#menus",
+                        () -> scrolling(DialogsScene.menus(status))),
+                new Place(ShowcaseStrings.NAV_DRAG_DROP, "docs/drag-and-drop/",
+                        () -> scrolling(PickerScene.content())),
+                new Place(ShowcaseStrings.NAV_CLIPBOARD, "docs/drag-and-drop/#the-clipboard",
+                        () -> scrolling(TransferScene.content())),
+                new Place(ShowcaseStrings.NAV_CHARTS, "docs/charts/", () -> scrolling(ChartsScene.content())),
+                new Place(ShowcaseStrings.NAV_TEXT, "docs/text-and-languages/",
+                        () -> scrolling(BidiScene.tabContent())),
+                new Place(ShowcaseStrings.NAV_ICONS, "docs/images-and-media/#icons",
+                        () -> beside(IconsScene.content())),
+                new Place(ShowcaseStrings.TAB_FILES, "docs/menus-and-dialogs/#native-file-dialogs",
+                        () -> beside(FilesScene.content())),
+                new Place(ShowcaseStrings.NAV_COLOURS, "components/#color-picker",
+                        () -> scrolling(ColorPickerScene.content())),
+                new Place(ShowcaseStrings.NAV_SPLIT, "docs/lists-and-scrolling/#splitting-a-window",
+                        () -> beside(SplitPaneScene.content())),
+                new Place(ShowcaseStrings.NAV_MOTION, "docs/custom-widgets/",
+                        () -> scrolling(AnimationsScene.content())));
+        Place media = new Place(ShowcaseStrings.NAV_MEDIA,
+                new Place(ShowcaseStrings.NAV_VIDEO, "docs/images-and-media/#video",
+                        () -> scrolling(VideoScene.pageContent())),
+                new Place(ShowcaseStrings.NAV_VIEWPORT, "docs/images-and-media/#3d",
+                        () -> scrolling(Viewport3DScene.tabContent())),
+                new Place(ShowcaseStrings.NAV_SOUND, "docs/images-and-media/#sound",
+                        () -> scrolling(AudioScene.content())),
+                new Place(ShowcaseStrings.NAV_SPRITES, "docs/images-and-media/#pictures",
+                        () -> scrolling(SpritesScene.content())),
+                new Place(ShowcaseStrings.NAV_GLASS, "components/#backdrop-panel",
+                        () -> scrolling(GlassScene.content())));
+        return List.of(orders, components, media);
+    }
+
+    /** Standalone {@code --scene app}, and what the demo opens on when no scene is named. */
+    static Built create() {
         MenuBar menuBar = new MenuBar();
-        Label status = new Label("Ready.").setMuted(true);
+        Label status = new Label(ShowcaseStrings.STATUS_READY).setMuted(true);
+        ProgressBar busy = new ProgressBar().setThickness(6).setPreferredWidth(120);
+        busy.setVisible(false);
+        busy.setAccessibleName(ShowcaseStrings.STATUS_LOADING);
         PerfFooter performance = new PerfFooter();
         performance.setVisible(false);
+        performance.setAccessibleName(ShowcaseStrings.MENU_PERFORMANCE);
 
-        // ---- the pages, by what they are for
-        Place orders = new Place("Orders", () -> ordersPage(status));
-        Place components = new Place("Components",
-                new Place("Buttons and inputs", () -> scrolling(ControlsScene.content())),
-                new Place("Combo boxes", () -> scrolling(CombosScene.content())),
-                new Place("Sliders and more", () -> scrolling(NewControlsScene.content())),
-                new Place("Dates", () -> scrolling(DatesScene.content())),
-                new Place("Lists", () -> ListScene.buildList(status::setText)),
-                new Place("Tables", TableScene::content),
-                new Place("Trees", () -> scrolling(TreeScene.content())),
-                new Place("Drag and drop", () -> scrolling(PickerScene.content())),
-                new Place("Clipboard", () -> scrolling(TransferScene.content())),
-                new Place("Charts", () -> scrolling(ChartsScene.content())),
-                new Place("Text and scripts", () -> scrolling(BidiScene.tabContent())),
-                new Place("Icons", IconsScene::content),
-                new Place("Files", FilesScene::content),
-                new Place("Colours", () -> scrolling(ColorPickerScene.content())),
-                new Place("Split panes", SplitPaneScene::content),
-                new Place("Motion", () -> scrolling(AnimationsScene.content())));
-        Place media = new Place("Media and 3D",
-                new Place("Video", () -> scrolling(VideoScene.pageContent())),
-                new Place("3D viewport", () -> scrolling(Viewport3DScene.tabContent())),
-                new Place("Sound", () -> scrolling(AudioScene.content())),
-                new Place("Sprites", () -> scrolling(SpritesScene.content())),
-                new Place("Glass", () -> scrolling(GlassScene.content())));
-        List<Place> top = List.of(orders, components, media);
+        Orders orders = new Orders(status, busy);
+        List<Place> top = places(status, () -> orders.page);
+        Place ordersPlace = top.get(0);
 
         Tree<Place> navigation = new Tree<>(new Tree.Model<Place>() {
             @Override
@@ -173,13 +247,22 @@ final class AppScene {
             }
 
             @Override
-            public limn.i18n.I18nString nameOf(Place place) {
-                return limn.i18n.I18nString.literal(place.name);
+            public I18nString nameOf(Place place) {
+                return place.name;
+            }
+
+            @Override
+            public float maxCellWidth() {
+                // Two levels in a narrow strip: declared narrow, so the outline is never wider
+                // than its box and choosing a page never moves it sideways; a name too long for
+                // the strip ends in an ellipsis, as a navigation's does.
+                return 96;
             }
         });
-        navigation.setAccessibleName("Pages");
-        navigation.expand(components);
-        navigation.expand(media);
+        navigation.setAccessibleName(ShowcaseStrings.NAV_PAGES);
+        for (Place place : top) {
+            navigation.expand(place);
+        }
 
         // ---- the page in view: built the first time it is chosen, and kept
         Map<Place, Widget<?>> built = new HashMap<>();
@@ -193,34 +276,35 @@ final class AppScene {
                 return; // a heading: the page in view stays
             }
             Place place = chosen.get(0);
-            holder.show(built.computeIfAbsent(place, p -> p.page.get()));
+            holder.show(built.computeIfAbsent(place, p -> framed(p, status)));
             status.setText(place.name);
         });
-        navigation.setSelected(orders);
+        navigation.setSelected(ordersPlace);
+        status.setText(ShowcaseStrings.STATUS_READY);
 
         // ---- the band: the title and the four switches that reach the whole process
         ComboBox<String> language = new ComboBox<>(Languages.NAMES);
         language.setSelectedIndex(Languages.indexOf(I18n.locale()));
         language.onSelect(() -> I18n.setLocale(Languages.LOCALES.get(language.selectedIndex())));
-        language.setAccessibleName("Language");
+        language.setAccessibleName(ShowcaseStrings.BAND_LANGUAGE);
         ComboBox<String> direction = new ComboBox<>(
                 Arrays.stream(LayoutDirection.values()).map(Enum::name).toList());
         direction.setSelectedIndex(LayoutDirection.processDefault().ordinal());
         direction.onSelect(() -> LayoutDirection.setProcessDefault(
                 LayoutDirection.values()[direction.selectedIndex()]));
-        direction.setAccessibleName("Direction");
+        direction.setAccessibleName(ShowcaseStrings.BAND_DIRECTION);
         ComboBox<String> size = new ComboBox<>(Arrays.stream(ControlSize.values()).map(Enum::name).toList());
         size.setSelectedIndex(ControlSize.processDefault().ordinal());
         size.onSelect(() -> ControlSize.setProcessDefault(ControlSize.values()[size.selectedIndex()]));
-        size.setAccessibleName("Size");
-        ComboBox<limn.i18n.I18nString> theme = ComboBox.localized(
+        size.setAccessibleName(ShowcaseStrings.BAND_SIZE);
+        ComboBox<I18nString> theme = ComboBox.localized(
                 Theme.builtins().stream().map(Theme::displayName).toList());
         theme.setSelectedIndex(Math.max(0, Theme.builtins().indexOf(Theme.current())));
-        theme.setAccessibleName("Theme");
+        theme.setAccessibleName(ShowcaseStrings.BAND_THEME);
 
         Row band = new Row();
         band.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
-        band.add(new Label("Limn Showcase").setRole(Label.Role.TITLE));
+        band.add(new Label(TITLE).setRole(Label.Role.TITLE));
         band.add(Expanded.spacer(1));
         band.add(language);
         band.add(direction);
@@ -229,55 +313,186 @@ final class AppScene {
 
         SplitPane body = SplitPane.horizontal(navigation, holder);
         body.setRatio(0.17f);
-        body.setMinimums(160, 420);
+        body.setMinimums(196, 420);
+        body.setAccessibleName(ShowcaseStrings.NAV_PAGES);
+
+        Row statusRow = new Row();
+        statusRow.gap(12).crossAlignment(Flex.CrossAlignment.CENTER);
+        statusRow.add(Expanded.of(status, 1));
+        statusRow.add(busy);
 
         limn.scene.layout.Column page = new limn.scene.layout.Column();
         page.gap(12).crossAlignment(Flex.CrossAlignment.STRETCH);
         page.add(menuBar);
         page.add(band);
         page.add(Expanded.of(body, 1));
-        page.add(status);
+        page.add(new SizedBox(SizedBox.UNSET, 18, statusRow));
         page.add(performance);
 
         Scene scene = new Scene(new Padding(Insets.all(16), page));
         scene.setBackground(Theme.current().background());
+
         // The call a theme picker makes: the palette becomes current, its face is applied, and
         // the scene clears to its background and repaints. A palette is a repaint, never a
         // re-measure; the face, when it changes, has every scene laid out again by itself.
-        theme.onSelect(() -> Theme.builtins().get(theme.selectedIndex()).apply(scene));
+        //
+        // The window follows the system's light or dark appearance until the user picks a
+        // theme; the picker following a theme applied for the system is not a pick.
+        boolean[] userPicked = {false};
+        boolean[] applyingSystem = {false};
+        theme.onSelect(() -> {
+            if (!applyingSystem[0]) {
+                userPicked[0] = true;
+            }
+            Theme.builtins().get(theme.selectedIndex()).apply(scene);
+        });
         // And when something else changes the theme, a launch option or the system's
         // appearance: the picker says which it is, and the window repaints in it.
         Theme.observeChanges(() -> {
             int now = Theme.builtins().indexOf(Theme.current());
             if (now >= 0 && now != theme.selectedIndex()) {
-                theme.setSelectedIndex(now);
+                boolean was = applyingSystem[0];
+                applyingSystem[0] = true;
+                try {
+                    theme.setSelectedIndex(now);
+                } finally {
+                    applyingSystem[0] = was;
+                }
             }
             scene.setBackground(Theme.current().background());
             scene.root().invalidate();
         });
+        Runnable applySystemAppearance = () -> {
+            SystemPreferences.ColorScheme scheme = SystemPreferences.current().colorScheme();
+            if (userPicked[0] || scheme == SystemPreferences.ColorScheme.NO_PREFERENCE) {
+                return;
+            }
+            Theme wanted = scheme == SystemPreferences.ColorScheme.DARK ? Theme.dark() : Theme.light();
+            if (wanted != Theme.current()) {
+                applyingSystem[0] = true;
+                try {
+                    wanted.apply(scene);
+                } finally {
+                    applyingSystem[0] = false;
+                }
+            }
+        };
+        Runnable followSystemAppearance = () -> {
+            applySystemAppearance.run();
+            SystemPreferences.observeChanges(applySystemAppearance); // for the life of the demo
+        };
 
-        menuBar.addMenu("File", new Menu()
-                .addItem("New order", () -> status.setText("A new order would open here."))
+        Runnable newOrder = () -> {
+            navigation.setSelected(ordersPlace);
+            orders.openNewOrder();
+        };
+        menuBar.addMenu(ShowcaseStrings.MENU_FILE, new Menu()
+                .addItem(ShowcaseStrings.MENU_NEW_ORDER, newOrder)
+                .addItem(ShowcaseStrings.ORDERS_REFRESH, orders::refresh)
                 .addSeparator()
-                .addItem("Quit", () -> {
+                .addItem(ShowcaseStrings.MENU_QUIT, () -> {
                     if (scene.window() != null) {
                         scene.window().requestClose();
                     }
                 }));
-        menuBar.addMenu("View", new Menu()
-                .addCheck("Performance", false, on -> {
-                    performance.setVisible(on);
-                    status.setText(on ? "Frame times, memory and what each frame repainted." : "Ready.");
-                })
+        menuBar.addMenu(ShowcaseStrings.MENU_VIEW, new Menu()
+                .addCheck(ShowcaseStrings.MENU_PERFORMANCE, false, performance::setVisible)
                 .addSeparator()
-                .addCheck("Repaint only what changed", true, scene::setPartialRendering)
-                .addCheck("Show what is repainted", false, scene::setDamageDebug));
-        menuBar.addMenu("Go", goMenu(navigation, top));
+                .addCheck(ShowcaseStrings.RENDER_PARTIAL, true, scene::setPartialRendering)
+                .addCheck(ShowcaseStrings.RENDER_DAMAGE, false, scene::setDamageDebug)
+                .addSeparator()
+                .addSubmenu(ShowcaseStrings.MENU_FULLSCREEN, new Menu()
+                        .addItem(ShowcaseStrings.MENU_CURRENT_RESOLUTION, () -> fullscreen(scene, status, 0, 0))
+                        .addItem("1280×720", () -> fullscreen(scene, status, 1280, 720))));
+        menuBar.addMenu(ShowcaseStrings.MENU_GO, goMenu(navigation, top));
+        menuBar.addMenu(ShowcaseStrings.MENU_HELP, new Menu()
+                .addItem(ShowcaseStrings.MENU_DOCUMENTATION, () -> openDocumentation("docs/", status))
+                .addSeparator()
+                .addItem(ShowcaseStrings.TAB_ABOUT, () -> new Dialog(I18nString.literal(TITLE),
+                        ShowcaseStrings.ABOUT_BLURB)
+                        .addPrimaryButton(ShowcaseStrings.ACTION_CLOSE, "close")
+                        .setCancelResult("close")
+                        .show(scene)));
         if (Boolean.getBoolean("limn.demo.tour")) {
             tour(scene, navigation, top);
         }
         lab(scene, navigation, top, performance);
-        return scene;
+        return new Built(scene, followSystemAppearance, () -> {
+            navigation.setSelected(ordersPlace);
+            return orders.openNewOrder();
+        });
+    }
+
+    /** Both ways toggle: into fullscreen at that resolution, or the display's own for zero, and out. */
+    private static void fullscreen(Scene scene, Label status, int width, int height) {
+        limn.backend.NativeWindow window = scene.window();
+        if (window == null) {
+            return;
+        }
+        if (window.isFullscreen()) {
+            window.exitFullscreen();
+            status.setText(ShowcaseStrings.STATUS_WINDOW_RESTORED);
+        } else {
+            window.enterFullscreen(width, height, 0);
+            status.setText(width <= 0 ? ShowcaseStrings.STATUS_FULLSCREEN_CURRENT.get()
+                    : ShowcaseStrings.STATUS_FULLSCREEN_AT.format(String.valueOf(width), String.valueOf(height)));
+        }
+    }
+
+    /**
+     * Opens a page of the site in the system's browser, and says in the status line which. By the
+     * system's own command for it, the toolkit having no call for this yet; where the command is
+     * missing the address in the status line is what is left.
+     */
+    private static void openDocumentation(String path, Label status) {
+        String address = SITE + path;
+        limn.backend.Platform platform = limn.backend.Platform.current();
+        List<String> command = platform.isMacOs() ? List.of("open", address)
+                : platform.isWindows() ? List.of("rundll32", "url.dll,FileProtocolHandler", address)
+                : List.of("xdg-open", address);
+        try {
+            new ProcessBuilder(command).redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+        } catch (java.io.IOException noSuchCommand) {
+            // The address below is the answer then.
+        }
+        status.setText(ShowcaseStrings.MENU_DOCUMENTATION.get() + ": " + address);
+    }
+
+    /**
+     * A page of the gallery in the window: its name, the link to where the site documents it, and
+     * the page under them. The orders are an application's screen and carry their own head.
+     */
+    private static Widget<?> framed(Place place, Label status) {
+        Widget<?> content = place.page.get();
+        if (place.documentation == null) {
+            return content;
+        }
+        Button link = new Button(ShowcaseStrings.MENU_DOCUMENTATION).setSecondary(true);
+        link.setControlSize(ControlSize.SMALL);
+        link.setTooltip(SITE + place.documentation);
+        link.onAction(() -> openDocumentation(place.documentation, status));
+        Row head = new Row();
+        head.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
+        head.add(new Label(place.name).setRole(Label.Role.TITLE));
+        head.add(Expanded.spacer(1));
+        head.add(link);
+        limn.scene.layout.Column framed = new limn.scene.layout.Column();
+        framed.gap(8).crossAlignment(Flex.CrossAlignment.STRETCH);
+        framed.add(new Padding(Insets.symmetric(0, 12), head));
+        framed.add(Expanded.of(content, 1));
+        return framed;
+    }
+
+    private static List<Place> pages(List<Place> top) {
+        List<Place> pages = new ArrayList<>();
+        for (Place place : top) {
+            if (place.page != null) {
+                pages.add(place);
+            }
+            pages.addAll(place.under);
+        }
+        return pages;
     }
 
     /**
@@ -286,36 +501,30 @@ final class AppScene {
      * its own scene never showed; what it finds is on standard error.
      */
     private static void tour(Scene scene, Tree<Place> navigation, List<Place> top) {
-        List<Place> pages = new ArrayList<>();
-        for (Place place : top) {
-            if (place.page != null) {
-                pages.add(place);
-            }
-            pages.addAll(place.under);
-        }
+        List<Place> pages = pages(top);
         pages.add(top.get(0)); // and back to where it opens, so leaving a page is seen too
         long step = Long.getLong("limn.demo.tour.ms", 800);
         for (int i = 0; i < pages.size(); i++) {
             Place place = pages.get(i);
-            limn.concurrent.Ui.postDelayed(() -> {
-                System.err.println("tour: " + place.name);
+            Ui.postDelayed(() -> {
+                System.err.println("tour: " + place.id());
                 navigation.setSelected(place);
             }, 1500 + i * step);
             String shots = System.getProperty("limn.demo.tour.shots");
             if (shots != null) {
                 int at = i;
                 // A picture of each page as it stands when the tour is about to leave it.
-                limn.concurrent.Ui.postDelayed(() -> {
+                Ui.postDelayed(() -> {
                     if (scene.window() != null) {
                         scene.window().captureNextFrame(frame -> limn.graphics.Images.save(frame,
                                 limn.graphics.ImageFormat.PNG, java.nio.file.Path.of(shots, String.format(
-                                        "%02d-%s.png", at, place.name.toLowerCase(Locale.ROOT).replace(' ', '-')))));
+                                        "%02d-%s.png", at, place.id().toLowerCase(Locale.ROOT).replace(' ', '-')))));
                         scene.root().invalidate(); // a frame to take the picture of
                     }
                 }, 1500 + i * step + step * 4 / 5);
             }
         }
-        limn.concurrent.Ui.postDelayed(() -> {
+        Ui.postDelayed(() -> {
             System.err.println("tour: done");
             if (scene.window() != null) {
                 scene.window().requestClose();
@@ -325,18 +534,16 @@ final class AppScene {
 
     /**
      * The lab's switches, none of them the application's: {@code -Dlimn.demo.page=Video} opens on
-     * that page, {@code -Dlimn.demo.perf=true} with the performance footer shown, and
-     * {@code -Dlimn.demo.film=dir} writes a picture of the window there twice a second, which is
-     * how a page is looked at while something on it moves.
+     * that page, by its English name, {@code -Dlimn.demo.perf=true} with the performance footer
+     * shown, and {@code -Dlimn.demo.film=dir} writes a picture of the window there twice a
+     * second, which is how a page is looked at while something on it moves.
      */
     private static void lab(Scene scene, Tree<Place> navigation, List<Place> top, Widget<?> performance) {
         String page = System.getProperty("limn.demo.page");
         if (page != null) {
-            for (Place place : top) {
-                for (Place each : place.under) {
-                    if (each.name.equalsIgnoreCase(page)) {
-                        navigation.setSelected(each);
-                    }
+            for (Place each : pages(top)) {
+                if (each.id().equalsIgnoreCase(page)) {
+                    navigation.setSelected(each);
                 }
             }
         }
@@ -353,9 +560,9 @@ final class AppScene {
                     scene.window().captureNextFrame(image -> limn.graphics.Images.save(image,
                             limn.graphics.ImageFormat.PNG, java.nio.file.Path.of(film, String.format("f%03d.png", n))));
                 }
-                limn.concurrent.Ui.postDelayed(take[0], 500);
+                Ui.postDelayed(take[0], 500);
             };
-            limn.concurrent.Ui.postDelayed(take[0], 1500);
+            Ui.postDelayed(take[0], 1500);
         }
     }
 
@@ -376,6 +583,11 @@ final class AppScene {
             go.addSubmenu(place.name, under);
         }
         return go;
+    }
+
+    /** A page that fills its place and scrolls itself, set in from the divider as the others are. */
+    private static Widget<?> beside(Widget<?> content) {
+        return new Padding(Insets.symmetric(0, 12), content);
     }
 
     private static Widget<?> scrolling(Widget<?> content) {
@@ -426,7 +638,7 @@ final class AppScene {
         LocalDate first = LocalDate.of(2026, 9, 1);
         List<Order> orders = new ArrayList<>();
         for (int i = 0; i < 48; i++) {
-            LocalDate placed = first.plusDays(i * 3L % 40);
+            LocalDate placed = first.plusDays(i * 40L / 48);
             Status status = statuses[(i * 7 + i / 5) % statuses.length];
             orders.add(new Order(1042 + i, customers[i * 5 % customers.length], placed, placed.plusDays(30),
                     status, 180 + (i * 977 % 4200) + (i % 4) * 0.25, ""));
@@ -435,136 +647,225 @@ final class AppScene {
         return orders;
     }
 
-    private static Widget<?> ordersPage(Label status) {
-        List<Order> all = sampleOrders();
-        List<Order> shown = new ArrayList<>(all);
+    /**
+     * The orders screen: a table to read, sort and filter, the order the cursor is on in a form
+     * beside it, a dialog a new one is made in, and a refresh that works off the UI thread
+     * while the screen stays alive.
+     */
+    private static final class Orders {
+        final Widget<?> page;
+        private final List<Order> all = sampleOrders();
+        private final List<Order> shown = new ArrayList<>(all);
+        private final Table<Order> table;
+        private final Label status;
+        private final ProgressBar busy;
+        private final Runnable filter;
+        private boolean refreshing;
 
-        Column<Order> number = Column.<Order>text("Order", order -> "#" + order.number).width(92)
-                .footerCount();
-        Column<Order> customer = Column.<Order>text("Customer", order -> order.customer).width(150).weight(1);
-        Column<Order> placed = Column.<Order, LocalDate>of("Placed", order -> order.placed,
-                (date, locale) -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale)
-                        .format(date)).width(104);
-        Column<Order> state = Column.<Order>text("Status", order -> order.status.label).width(104);
-        Column<Order> total = Column.<Order>currency("Total", order -> order.total,
-                Currency.getInstance("USD")).width(118).footerSum();
-        Table<Order> table = new Table<>(List.of(number, customer, placed, state, total));
-        table.setAccessibleName("Orders");
-        table.setRows(shown);
-        table.setSort(placed, SortOrder.DESCENDING);
+        Orders(Label status, ProgressBar busy) {
+            this.status = status;
+            this.busy = busy;
+            Column<Order> number = Column.<Order>text(ShowcaseStrings.ORDERS_ORDER, order -> "#" + order.number)
+                    .width(98).footerCount();
+            Column<Order> customer = Column.<Order>text(ShowcaseStrings.ORDERS_CUSTOMER, order -> order.customer)
+                    .width(156).weight(1);
+            Column<Order> state = Column.<Order>text(ShowcaseStrings.ORDERS_STATUS,
+                    order -> order.status.label.get()).width(108);
+            Column<Order> total = Column.<Order>currency(ShowcaseStrings.ORDERS_TOTAL, order -> order.total,
+                    Currency.getInstance("USD")).width(130).weight(1).footerSum();
+            // Four columns, and the dates in the form beside them: a fifth left the customer's
+            // name half a name wide in a window of ordinary size.
+            table = new Table<>(List.of(number, customer, state, total));
+            table.setAccessibleName(ShowcaseStrings.NAV_ORDERS);
+            table.setRows(shown);
+            table.setSort(number, SortOrder.DESCENDING);
 
-        // ---- the filter: what is typed, and the statuses chosen
-        SearchField search = new SearchField();
-        search.setPlaceholder("Customer or number");
-        search.setAccessibleName("Search orders");
-        ComboBox<Status> statuses = new ComboBox<>(List.of(Status.values()));
-        statuses.setSelectionMode(SelectionMode.MULTI);
-        statuses.setPlaceholder("Any status");
-        statuses.setAccessibleName("Status");
-        Label count = new Label("").setMuted(true);
-        Runnable filter = () -> {
-            String text = search.text().strip().toLowerCase(Locale.ROOT);
-            List<Status> wanted = statuses.selectedItems();
-            shown.clear();
-            for (Order order : all) {
-                boolean matches = text.isEmpty() || order.customer.toLowerCase(Locale.ROOT).contains(text)
-                        || String.valueOf(order.number).contains(text);
-                if (matches && (wanted.isEmpty() || wanted.contains(order.status))) {
-                    shown.add(order);
+            // ---- the filter: what is typed, and the statuses chosen
+            SearchField search = new SearchField();
+            search.setPlaceholder(ShowcaseStrings.ORDERS_SEARCH_HINT);
+            search.setAccessibleName(ShowcaseStrings.ORDERS_SEARCH_HINT);
+            ComboBox<I18nString> statuses = ComboBox.localized(Status.labels());
+            statuses.setSelectionMode(SelectionMode.MULTI);
+            statuses.setPlaceholder(ShowcaseStrings.ORDERS_ANY_STATUS);
+            statuses.setAccessibleName(ShowcaseStrings.ORDERS_STATUS);
+            Label count = new Label("").setMuted(true);
+            Runnable counted = () -> count.setText(ShowcaseStrings.ORDERS_COUNT.format(
+                    String.valueOf(shown.size()), String.valueOf(all.size())));
+            filter = () -> {
+                String text = search.text().strip().toLowerCase(Locale.ROOT);
+                List<Status> wanted = new ArrayList<>();
+                for (int index : statuses.selectedIndices()) {
+                    wanted.add(Status.values()[index]);
                 }
-            }
-            table.refresh();
-            count.setText(shown.size() + " of " + all.size());
-        };
-        search.onChange(text -> filter.run());
-        statuses.onSelect(filter);
+                shown.clear();
+                for (Order order : all) {
+                    boolean matches = text.isEmpty() || order.customer.toLowerCase(Locale.ROOT).contains(text)
+                            || String.valueOf(order.number).contains(text);
+                    if (matches && (wanted.isEmpty() || wanted.contains(order.status))) {
+                        shown.add(order);
+                    }
+                }
+                table.refresh();
+                counted.run();
+            };
+            search.onChange(text -> filter.run());
+            statuses.onSelect(filter);
 
-        Row tools = new Row();
-        tools.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
-        tools.add(new Label("Orders").setRole(Label.Role.TITLE));
-        tools.add(Expanded.spacer(1));
-        tools.add(count);
-        tools.add(new SizedBox(220, SizedBox.UNSET, search));
-        tools.add(new SizedBox(220, SizedBox.UNSET, statuses));
-        tools.add(new Button("New order")
-                .onAction(() -> status.setText("A new order would open here.")));
+            Row tools = new Row();
+            tools.gap(10).crossAlignment(Flex.CrossAlignment.CENTER);
+            tools.add(new Label(ShowcaseStrings.NAV_ORDERS).setRole(Label.Role.TITLE));
+            tools.add(Expanded.spacer(1));
+            tools.add(count);
+            tools.add(new SizedBox(200, SizedBox.UNSET, search));
+            tools.add(new SizedBox(200, SizedBox.UNSET, statuses));
+            tools.add(new Button(ShowcaseStrings.MENU_NEW_ORDER).onAction(this::openNewOrder));
 
-        // ---- the order the cursor is on, in a form that never moves
-        Label heading = new Label("").setStrong(true);
-        TextField customerField = new TextField();
-        ComboBox<Status> statusField = new ComboBox<>(List.of(Status.values()));
-        DatePicker placedField = new DatePicker();
-        DatePicker dueField = new DatePicker();
-        TextArea notes = new TextArea().setSoftWrap(true);
-        Button save = new Button("Save");
-        Button revert = new Button("Revert").setSecondary(true);
-        Order[] editing = {null};
-        Runnable load = () -> {
-            int row = table.selectedRow();
-            Order order = row < 0 || row >= shown.size() ? null : shown.get(row);
-            editing[0] = order;
-            boolean has = order != null;
-            heading.setText(has ? "Order #" + order.number : "No order selected");
-            customerField.setText(has ? order.customer : "");
-            statusField.setSelectedIndex(has ? order.status.ordinal() : -1);
-            placedField.setDate(has ? order.placed : null);
-            dueField.setDate(has ? order.due : null);
-            notes.setText(has ? order.notes : "");
-            for (Widget<?> field : List.of(customerField, statusField, placedField, dueField, notes, save, revert)) {
-                field.setEnabled(has);
-            }
-        };
-        table.observeChanges((widget, change) -> {
-            if (change.aspect() == Change.Aspect.SELECTION) {
-                load.run();
-            }
-        });
-        save.onAction(() -> {
-            Order order = editing[0];
-            if (order == null) {
+            // ---- the order the cursor is on, in a form that never moves
+            Label heading = new Label("").setStrong(true);
+            TextField customerField = new TextField();
+            ComboBox<I18nString> statusField = ComboBox.localized(Status.labels());
+            DatePicker placedField = new DatePicker();
+            DatePicker dueField = new DatePicker();
+            TextArea notes = new TextArea().setSoftWrap(true);
+            Button save = new Button(ShowcaseStrings.ACTION_SAVE);
+            Button revert = new Button(ShowcaseStrings.ORDERS_REVERT).setSecondary(true);
+            Order[] editing = {null};
+            Runnable headed = () -> heading.setText(editing[0] == null ? ShowcaseStrings.ORDERS_NONE.get()
+                    : ShowcaseStrings.ORDERS_HEADING.format(String.valueOf(editing[0].number)));
+            Runnable load = () -> {
+                int row = table.selectedRow();
+                Order order = row < 0 || row >= shown.size() ? null : shown.get(row);
+                editing[0] = order;
+                boolean has = order != null;
+                headed.run();
+                customerField.setText(has ? order.customer : "");
+                statusField.setSelectedIndex(has ? order.status.ordinal() : -1);
+                placedField.setDate(has ? order.placed : null);
+                dueField.setDate(has ? order.due : null);
+                notes.setText(has ? order.notes : "");
+                for (Widget<?> field : List.of(customerField, statusField, placedField, dueField, notes, save,
+                        revert)) {
+                    field.setEnabled(has);
+                }
+            };
+            table.observeChanges((widget, change) -> {
+                if (change.aspect() == Change.Aspect.SELECTION) {
+                    load.run();
+                }
+            });
+            save.onAction(() -> {
+                Order order = editing[0];
+                if (order == null) {
+                    return;
+                }
+                order.customer = customerField.text().strip();
+                int chosen = statusField.selectedIndex();
+                order.status = chosen < 0 ? order.status : Status.values()[chosen];
+                order.placed = placedField.date() == null ? order.placed : placedField.date();
+                order.due = dueField.date() == null ? order.due : dueField.date();
+                order.notes = notes.text();
+                table.refresh(); // the selection is by record, and stays on the order just saved
+                status.setText(ShowcaseStrings.ORDERS_SAVED.format(String.valueOf(order.number)));
+            });
+            revert.onAction(load);
+            // What this screen wrote out itself is in the language it was written in: the cells
+            // of the status column, the count and the form's heading are said again in the new one.
+            I18n.observeChanges(() -> {
+                table.refresh();
+                counted.run();
+                headed.run();
+            });
+
+            limn.scene.layout.Column form = new limn.scene.layout.Column();
+            form.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
+            form.add(heading);
+            form.add(Separator.horizontal());
+            form.add(Labelled.above(ShowcaseStrings.ORDERS_CUSTOMER, customerField));
+            form.add(Labelled.above(ShowcaseStrings.ORDERS_STATUS, statusField));
+            form.add(Labelled.above(ShowcaseStrings.ORDERS_PLACED, placedField));
+            form.add(Labelled.above(ShowcaseStrings.ORDERS_DUE, dueField));
+            form.add(Labelled.above(ShowcaseStrings.ORDERS_NOTES, notes, new SizedBox(SizedBox.UNSET, 84, notes)));
+            Row buttons = new Row();
+            buttons.gap(8).mainAlignment(Flex.MainAlignment.END);
+            buttons.add(revert);
+            buttons.add(save);
+            form.add(buttons);
+
+            SplitPane split = SplitPane.horizontal(table, new ScrollView(new Padding(Insets.all(12), form)));
+            split.setRatio(0.66f);
+            split.setMinimums(320, 260);
+            split.setAccessibleName(ShowcaseStrings.ORDERS_ORDER);
+
+            limn.scene.layout.Column column = new limn.scene.layout.Column();
+            column.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
+            column.add(tools);
+            column.add(Expanded.of(split, 1));
+            page = new Padding(Insets.symmetric(0, 12), column);
+            filter.run();
+            table.setSelectedRow(table.viewToModel(0)); // the newest, which the sort shows first
+            load.run();
+        }
+
+        /** Asks for a new order in a dialog over the window, and lists it when the answer is yes. */
+        Dialog openNewOrder() {
+            TextField customer = new TextField();
+            ComboBox<I18nString> state = ComboBox.localized(Status.labels());
+            state.setSelectedIndex(Status.OPEN.ordinal());
+            limn.scene.layout.Column fields = new limn.scene.layout.Column();
+            fields.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
+            fields.add(Labelled.above(ShowcaseStrings.ORDERS_CUSTOMER, customer));
+            fields.add(Labelled.above(ShowcaseStrings.ORDERS_STATUS, state));
+            Dialog dialog = new Dialog(ShowcaseStrings.MENU_NEW_ORDER, I18nString.EMPTY)
+                    .setContent(new SizedBox(320, SizedBox.UNSET, fields))
+                    .addButton(ShowcaseStrings.ACTION_CANCEL, "cancel")
+                    .addPrimaryButton(ShowcaseStrings.ORDERS_CREATE, "create")
+                    .setCancelResult("cancel");
+            dialog.show(page).thenAccept(answer -> {
+                if (!"create".equals(answer) || customer.text().isBlank()) {
+                    return;
+                }
+                int next = all.stream().mapToInt(order -> order.number).max().orElse(1041) + 1;
+                LocalDate today = LocalDate.now();
+                Order order = new Order(next, customer.text().strip(), today, today.plusDays(30),
+                        Status.values()[Math.max(0, state.selectedIndex())], 0, "");
+                all.add(order);
+                filter.run();
+                int row = shown.indexOf(order);
+                if (row >= 0) {
+                    table.setSelectedRow(row);
+                }
+                status.setText(ShowcaseStrings.ORDERS_CREATED.format(String.valueOf(next)));
+            });
+            return dialog;
+        }
+
+        /**
+         * Fetches the orders again, as a real screen would from a server: the work runs on a
+         * worker thread for a second and a half while the spinner turns and every field stays
+         * usable, and its answer comes back on the UI thread.
+         */
+        void refresh() {
+            if (refreshing) {
                 return;
             }
-            order.customer = customerField.text().strip();
-            Status chosen = statusField.selectedItem();
-            order.status = chosen == null ? order.status : chosen;
-            order.placed = placedField.date() == null ? order.placed : placedField.date();
-            order.due = dueField.date() == null ? order.due : dueField.date();
-            order.notes = notes.text();
-            table.refresh(); // the selection is by record, and stays on the order just saved
-            status.setText("Order #" + order.number + " saved.");
-        });
-        revert.onAction(load);
-
-        limn.scene.layout.Column form = new limn.scene.layout.Column();
-        form.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-        form.add(heading);
-        form.add(Separator.horizontal());
-        form.add(Labelled.above("Customer", customerField));
-        form.add(Labelled.above("Status", statusField));
-        Row dates = new Row();
-        dates.gap(10).crossAlignment(Flex.CrossAlignment.START);
-        dates.add(Expanded.of(Labelled.above("Placed", placedField), 1));
-        dates.add(Expanded.of(Labelled.above("Due", dueField), 1));
-        form.add(dates);
-        form.add(Labelled.above("Notes", new SizedBox(SizedBox.UNSET, 96, notes)));
-        Row buttons = new Row();
-        buttons.gap(8).mainAlignment(Flex.MainAlignment.END);
-        buttons.add(revert);
-        buttons.add(save);
-        form.add(buttons);
-
-        SplitPane split = SplitPane.horizontal(table, new ScrollView(new Padding(Insets.all(12), form)));
-        split.setRatio(0.64f);
-        split.setMinimums(320, 260);
-
-        limn.scene.layout.Column page = new limn.scene.layout.Column();
-        page.gap(10).crossAlignment(Flex.CrossAlignment.STRETCH);
-        page.add(tools);
-        page.add(Expanded.of(split, 1));
-        Padding padded = new Padding(Insets.symmetric(0, 12), page);
-        filter.run();
-        table.setSelectedRow(table.viewToModel(0)); // the newest, which the sort shows first
-        load.run();
-        return padded;
+            refreshing = true;
+            busy.setVisible(true);
+            busy.setIndeterminate(true);
+            status.setText(ShowcaseStrings.STATUS_LOADING);
+            int records = all.size();
+            Ui.async(() -> {
+                try {
+                    Thread.sleep(1500);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                return records;
+            }).thenAccept(count -> {
+                refreshing = false;
+                busy.setIndeterminate(false);
+                busy.setVisible(false);
+                status.setText(ShowcaseStrings.STATUS_LOADED.format(String.valueOf(count)));
+            });
+        }
     }
 }

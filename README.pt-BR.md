@@ -38,8 +38,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-kitchen-dark.webp">
-    <img src="media/readme/showcase-kitchen-light.webp" alt="Uma aplicação Limn: barra de menus, abas, formulários, gráficos e um seletor de tema" width="900">
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-app-dark.webp">
+    <img src="media/readme/showcase-app-light.webp" alt="Uma aplicação Limn: barra de menus, navegação, tabela de pedidos, formulário e um seletor de tema" width="900">
   </picture>
 </p>
 

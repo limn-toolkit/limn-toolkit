@@ -38,8 +38,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-kitchen-dark.webp">
-    <img src="media/readme/showcase-kitchen-light.webp" alt="Limn 애플리케이션: 메뉴 막대, 탭, 폼, 차트, 테마 선택기" width="900">
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-app-dark.webp">
+    <img src="media/readme/showcase-app-light.webp" alt="Limn 애플리케이션: 메뉴 막대, 탐색, 주문 표, 폼, 테마 선택기" width="900">
   </picture>
 </p>
 
@@ -51,7 +51,7 @@ Limn은 픽셀을 스스로 그립니다. 위젯, 레이아웃, 텍스트, 차�
 
 ## 지금 실행해 보기
 
-키친 싱크 — 모든 위젯, 차트, 미디어 플레이어, 3D 뷰포트 — 를 명령 하나로, 테마 편집기는 또
+쇼케이스 — 모든 위젯, 차트, 미디어 플레이어, 3D 뷰포트 — 를 명령 하나로, 테마 편집기는 또
 하나로. 클론할 것도 없고, 설치할 것도 [jbang](https://www.jbang.dev/download/) 하나뿐입니다. JDK가
 없으면 그것까지 받아 옵니다. 둘 다 Maven Central에서 얇은 아티팩트로 옵니다. 내려받는 것은 툴킷과
 폰트, 그리고 지금 쓰는 이 기계의 네이티브 라이브러리뿐이고, 나머지 다섯 플랫폼의 것은 오지 않습니다.

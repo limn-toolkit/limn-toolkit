@@ -65,7 +65,6 @@ final class PickerScene {
         boolean mac = limn.backend.Platform.current().isMacOs();
         Column column = new Column();
         column.gap(14).crossAlignment(Flex.CrossAlignment.STRETCH);
-        column.add(new Label("Lists that drag").setRole(Label.Role.TITLE));
         column.add(new Label("Drag rows within a list, to the other list, or into the outline.").setMuted(true).setWrap(true));
 
         Label status = new Label("Nothing moved yet.").setMuted(true);

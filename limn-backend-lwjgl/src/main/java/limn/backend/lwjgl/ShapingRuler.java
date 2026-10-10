@@ -52,7 +52,7 @@ final class ShapingRuler implements TextRuler, AutoCloseable {
      * {@code ShapedText} never reached it twice. {@link #measure} routing through {@link #shape}
      * changed what it is for: every layout pass of every widget now arrives here, twice per string
      * per frame (measure, then paint), and a screen's worth of captions is hundreds of distinct
-     * strings, not tens. At 64 a kitchen-sink screen evicted its own text between the measure and
+     * strings, not tens. At 64 a screen of the demo evicted its own text between the measure and
      * the paint and re-shaped both times; the working set has to fit or the memo is a counter of
      * misses.
      *

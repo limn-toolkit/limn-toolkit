@@ -21,7 +21,7 @@ import java.util.Map;
  * <p>So the entries a run drives take their captions, labels and marks from here, and the run's
  * language chooses between the English each constant carries and the {@code /i18n/gallery} bundle
  * beside it. Two languages, not twenty-one: the catalogue exists for the reader passes, which run
- * in pt-BR, and for the English every test and every site capture is taken in. {@code KitchenStrings}
+ * in pt-BR, and for the English every test and every site capture is taken in. {@code ShowcaseStrings}
  * is the shape it follows — one domain, registered where its constants are. A run asked for a third
  * language ({@code --locale fr}) hears the toolkit in it and these words in English, which is what
  * a bundle with no file for a language always does; the decision names two.

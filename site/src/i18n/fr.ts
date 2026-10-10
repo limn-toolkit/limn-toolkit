@@ -198,14 +198,14 @@ export const fr: Catalog = {
     "Des écrans entiers rendus par la boîte à outils : l’application de démonstration, la même fenêtre en miroir de droite à gauche, la vue 3D, un formulaire et une fenêtre mise en page.",
   "showcase.rtl.heading": "La même fenêtre, de droite à gauche",
   "showcase.rtl.body":
-    "L’application de démonstration sous le paquet ar, l’axe de direction inversé : la barre de menus, les onglets, les champs, les barres de défilement et le pied de performance se lisent depuis la droite, et le texte qu’ils portent se lie et se réordonne comme l’arabe l’exige. Aucun écran n’a été réécrit — la direction est un axe hérité, réglé comme on règle une taille de contrôle.",
+    "L’application de démonstration sous le paquet ar, l’axe de direction inversé : la barre de menus, la navigation, les champs, les barres de défilement et le tableau se lisent depuis la droite, et le texte qu’ils portent se lie et se réordonne comme l’arabe l’exige. Aucun écran n’a été réécrit — la direction est un axe hérité, réglé comme on règle une taille de contrôle.",
   "showcase.eyebrow": "Écrans entiers",
   "showcase.heading": "Écrans",
   "showcase.lede":
     "Ni recadrages ni maquettes. Chacun d’eux est une fenêtre que la boîte à outils a rendue pendant la construction de ce site.",
-  "showcase.kitchen.heading": "L’application de démonstration",
-  "showcase.kitchen.body":
-    "Tous les composants dans une fenêtre, avec barre de menus, onglets, sélecteur de thème et un pied de page de performance en direct.",
+  "showcase.app.heading": "L’application de démonstration",
+  "showcase.app.body":
+    "Un écran de commandes — un tableau qui trie et filtre à côté du formulaire de la commande sélectionnée — et, sur le côté, tous les composants par catégorie. Les quatre sélecteurs du haut changent la langue, la direction, la taille et le thème de toute la fenêtre.",
   "showcase.forms.heading": "Un formulaire",
   "showcase.forms.body":
     "Libellés, un champ validé, un choix, un interrupteur et la rangée d’actions : l’exemple complet du guide des formulaires.",

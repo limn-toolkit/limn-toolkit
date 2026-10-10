@@ -173,7 +173,7 @@ final class DatesScene {
         return new Built(scene, picker, grid);
     }
 
-    /** Reusable subtree, so the kitchen sink and the site gallery show the same thing. */
+    /** Reusable subtree, so the showcase and the site gallery show the same thing. */
     static Widget<?> content() {
         return content(calendarPicker(), grid());
     }

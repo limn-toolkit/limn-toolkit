@@ -340,7 +340,7 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
      * window's caption, and the {@code DIALOG} node already carries that string as its name —
      * which is the attribute every platform reads a dialog's title from. A {@code HEADING} child
      * with the same string is the same fact twice: a reader entering the dialog says the name,
-     * then reads the body and says it again, which is what the kitchen sink's transcript was
+     * then reads the body and says it again, which is what the showcase's transcript was
      * heard doing. So the painted title is the rendering of the dialog's own name and is not a
      * node, the way a title bar's caption is not a text element inside the dialog it captions;
      * the string exists in the tree exactly once, on the node that is the dialog.
@@ -419,7 +419,7 @@ class DialogPanelAccessibilityTest extends AccessibleComponentTestBase {
      * interface of enabled, focusable controls has each invocation refused with no way to say
      * why. That was true of the owner of a <em>native</em> dialog until this case: the walk
      * cleared the two bits only for what lay outside the scene's own input root, and a window
-     * whose backend says {@code isModalBlocked()} has no input root at all. The kitchen sink's
+     * whose backend says {@code isModalBlocked()} has no input root at all. The showcase's
      * transcript read {@code (blocked by a modal)} in its header and {@code [focusable]} on every
      * control underneath, which is the tree disagreeing with the keyboard. The nodes stay in the
      * tree, {@code VISIBLE} and {@code SHOWING}, because they are on screen and a user may still

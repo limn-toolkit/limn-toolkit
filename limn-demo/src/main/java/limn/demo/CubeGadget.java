@@ -46,7 +46,7 @@ import java.util.List;
  * mouse-passthrough so empty space stays click-through.
  *
  * <p>Run: {@code ./gradlew :limn-demo:run --args="--gadget [n]"}, or the
- * kitchen sink's "Launch cube" button (each click adds a cube to the shared
+ * showcase's "Launch cube" button (each click adds a cube to the shared
  * overlay). Left-drag moves a cube, right-click removes it (the last removal
  * closes the overlay), ESC closes.
  * {@code --gadget shot <file.png>} renders one cube head-on, headless, for
@@ -110,7 +110,7 @@ final class CubeGadget {
     private static Overlay sharedOverlay;
 
     /**
-     * Kitchen-sink "Launch cube": adds one cube to the shared fullscreen
+     * "Launch cube": adds one cube to the shared fullscreen
      * overlay, creating it on the first click (rendering flags inherited from
      * the launching scene so the partial/debug toggles carry over).
      */
@@ -127,7 +127,7 @@ final class CubeGadget {
     }
 
     /**
-     * Kitchen-sink "Clear cubes": closes the shared overlay (every cube at
+     * "Clear cubes": closes the shared overlay (every cube at
      * once) if one is open. (ESC or right-clicking the last cube does the
      * same from the overlay itself.)
      */
@@ -251,7 +251,7 @@ final class CubeGadget {
 
     // ------------------------------------------------- shared swarm (one viewport)
     // A cube bouncing/spinning on the z=0 plane of a shared Scene3D. Reused by
-    // the fullscreen desktop {@link Overlay} and the kitchen "Cubes" viewport:
+    // the fullscreen desktop {@link Overlay} and the "Cubes" viewport:
     // one mesh, one atlas per cube, one draw call each.
 
     /** One numbered cube: its scene node, plane position/velocity, and random spin. */

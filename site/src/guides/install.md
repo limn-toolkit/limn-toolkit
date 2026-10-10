@@ -25,13 +25,13 @@ if you have none:
 
 {% tabs os "Windows / Linux" macOS %}
 ```bash
-# the kitchen sink: every widget in one window
+# the showcase: an application, and every widget beside it
 jbang demo@limn-toolkit/limn-toolkit
 # the theme editor, which writes a theme file
 jbang theme-editor@limn-toolkit/limn-toolkit
 ```
 ```bash
-# the kitchen sink: every widget in one window
+# the showcase: an application, and every widget beside it
 jbang --java-options=-XstartOnFirstThread demo@limn-toolkit/limn-toolkit
 # the theme editor, which writes a theme file
 jbang --java-options=-XstartOnFirstThread theme-editor@limn-toolkit/limn-toolkit
@@ -153,5 +153,5 @@ Four things are happening:
 ## Where to go next
 
 [Widgets and scenes](/docs/widgets/) explains the model this program uses without saying so.
-If you would rather look around first, the toolkit ships a demo application whose kitchen
-sink screen has every component on it at once.
+If you would rather look around first, the toolkit ships a demo application: a screen of
+orders, and beside it a gallery with every component.

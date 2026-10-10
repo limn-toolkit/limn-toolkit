@@ -11,7 +11,7 @@
 #   schtasks /Run /TN LimnWalkTree
 #
 # usage: walk-the-tree.ps1 [window-name] [demo-log]
-param([string]$WindowName = 'Limn UI: Kitchen Sink',
+param([string]$WindowName = 'Limn Showcase',
       [string]$Log = "$env:USERPROFILE\tree-reader.log")
 
 $ErrorActionPreference = 'Continue'

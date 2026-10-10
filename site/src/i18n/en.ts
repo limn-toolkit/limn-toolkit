@@ -54,7 +54,7 @@ export const en = {
   "home.try.macos": "macOS",
   "home.try.linux": "Linux",
   "home.try.windows": "Windows",
-  "home.try.demoComment": "the kitchen sink",
+  "home.try.demoComment": "the showcase",
   "home.try.editorComment": "the theme editor",
 
   "home.install.eyebrow": "Five minutes",
@@ -180,12 +180,12 @@ export const en = {
   "showcase.heading": "Showcase",
   "showcase.lede":
     "Not crops and not mock-ups. Each of these is a window the toolkit rendered while this site was being built.",
-  "showcase.kitchen.heading": "The demo application",
-  "showcase.kitchen.body":
-    "Every component in one window, with a menu bar, tabs, a theme picker and a live performance footer.",
+  "showcase.app.heading": "The demo application",
+  "showcase.app.body":
+    "A screen of orders — a table that sorts and filters beside the form of the order it is on — and, down the side, every component by category. The four pickers at the top switch language, direction, size and theme for the whole window.",
   "showcase.rtl.heading": "The same window, right to left",
   "showcase.rtl.body":
-    "The demo application under the Arabic bundle with the direction axis flipped: the menu bar, the tabs, the fields, the scrollbars and the performance footer all read from the right, and the text inside them joins and reorders as Arabic should. No screen was rewritten — direction is one inherited axis, set the way a control size is.",
+    "The demo application under the Arabic bundle with the direction axis flipped: the menu bar, the navigation, the fields, the scrollbars and the table all read from the right, and the text inside them joins and reorders as Arabic should. No screen was rewritten — direction is one inherited axis, set the way a control size is.",
   "showcase.forms.heading": "A form",
   "showcase.forms.body":
     "Captions, a validated field, a choice, a switch and the actions row: the worked example from the forms guide.",

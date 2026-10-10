@@ -512,7 +512,7 @@ to the toolkit.
   looking. `--scene video` and `--scene kitchen-video` are the two that hold a view.
 - A screenshot run starts no audio device and therefore no player, because which picture a capture
   catches would otherwise depend on the mixer period and the machine's load.
-- The Kitchen Sink's Video tab is a couple of hundred points tall and its panel is the last thing
+- the showcase's Video page is a couple of hundred points tall and its panel is the last thing
   that fits. A control added below the picture lands past the fold and a capture cannot show it,
   which is why the transport is over the picture and why that tab's picture box is shorter than the
   standalone scene's.
@@ -559,7 +559,7 @@ to the toolkit.
   in two justifications, so comparing the two captures' picture areas is the check; a difference of
   any size at all is the shift being applied twice or not at all.
 - Depth is what a capture cannot show, because a window's framebuffer has eight bits of its own. The
-  Kitchen Sink's 10-bit entry therefore makes the *code space* visible rather than the precision:
+  showcase's 10-bit entry therefore makes the *code space* visible rather than the precision:
   the gradient steps one code per column and wraps at the end of it, so at eight bits it sawtooths
   back to black two and a half times across 640 columns and at ten bits it climbs once and does not
   wrap. Count the ramps; do not look for smoothness.

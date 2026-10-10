@@ -276,7 +276,7 @@ class TextFieldAccessibilityTest extends AccessibleComponentTestBase {
      * A field with no placeholder has no name, and its provenance says so. The hook hands the
      * placeholder over whether or not one is set, because an unset one is the empty string and
      * names nothing; what it must not do is leave {@code PLACEHOLDER} on a node that was named
-     * by nothing, which is what the kitchen sink's transcript read as {@code text field ""
+     * by nothing, which is what the showcase's transcript read as {@code text field ""
      * (placeholder)} — a claim about where a name came from, on a node that has none. §1.7 says
      * the provenance decides which attribute one platform publishes the name in, and there is
      * nothing to publish.

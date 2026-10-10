@@ -16,13 +16,13 @@ class ApplicationNameTest {
 
     @Test
     void aGivenNameWinsOverEveryWindowsTitle() {
-        assertEquals("Kitchen Sink", LwjglBackend.applicationNameOf("Kitchen Sink", "Splash"));
+        assertEquals("Showcase", LwjglBackend.applicationNameOf("Showcase", "Splash"));
     }
 
     @Test
     void unsetItIsTheFirstWindowsTitleAndNeverALaterOne() {
-        assertEquals("Limn UI: Kitchen Sink",
-                LwjglBackend.applicationNameOf(null, "Limn UI: Kitchen Sink"),
+        assertEquals("Limn Showcase",
+                LwjglBackend.applicationNameOf(null, "Limn Showcase"),
                 "the default is the first window's title, recorded before any popup opens");
     }
 

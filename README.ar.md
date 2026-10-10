@@ -40,8 +40,8 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-kitchen-dark.webp">
-    <img src="media/readme/showcase-kitchen-light.webp" alt="تطبيق من Limn: شريط قوائم وألسنة ونماذج ورسوم بيانية ومنتقي سمات" width="900">
+    <source media="(prefers-color-scheme: dark)" srcset="media/readme/showcase-app-dark.webp">
+    <img src="media/readme/showcase-app-light.webp" alt="تطبيق من Limn: شريط قوائم وتنقل وجدول طلبات ونموذج ومنتقي سمات" width="900">
   </picture>
 </p>
 

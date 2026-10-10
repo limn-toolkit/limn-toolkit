@@ -9,7 +9,7 @@
 # then this, the same way.
 #
 # usage: walk-the-table.ps1 [window-name]
-param([string]$WindowName = 'Limn UI: Kitchen Sink')
+param([string]$WindowName = 'Limn Showcase')
 
 $ErrorActionPreference = 'Stop'
 [System.Reflection.Assembly]::LoadWithPartialName('UIAutomationClient') | Out-Null

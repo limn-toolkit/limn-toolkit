@@ -227,7 +227,7 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
 
-      # The showcase, as one file a stranger can run: `jbang <url>` and the kitchen sink is on
+      # The demo, as one file a stranger can run: `jbang <url>` and the showcase is on
       # screen. Its FFmpeg payload for every desktop comes off the classpath now (the demo names
       # all six classifiers), so no merge step precedes this. Built HERE and not in draft-release
       # because that job deliberately has no checkout and no build.
@@ -314,7 +314,7 @@ jobs:
           The Tabler icon pack, \`limn-icons-tabler\`, versions with Tabler and is released
           from its own repository.
 
-          Nothing to install to see it: the kitchen sink and the theme editor are on Central
+          Nothing to install to see it: the showcase and the theme editor are on Central
           as runnable artifacts, and [jbang](https://www.jbang.dev/download/) starts either
           from its coordinate, fetching only this machine's native libraries.
 

@@ -11,11 +11,10 @@ import static limn.testing.SceneDriver.drive;
 import limn.backend.spi.WindowPeer;
 
 /**
- * Limn UI demo. Scenes: {@code testcard} (shapes, gradients, clip,
- * transforms through the batched SDF canvas) and {@code text} (glyph
- * atlas specimens: size ladder, metrics, kerning, Unicode, gradient/rotated/
- * scaled text), plus {@code --screenshot} with {@code --scale} forcing
- * 1.0/1.25/1.5/2.0 for HiDPI verification.
+ * The demo. With no scene named it opens the application, {@link AppScene}: a screen of orders
+ * and beside it a gallery of every component. {@code --scene} opens one scene of the lab alone
+ * in its window instead ({@code --scene ?} lists them), and {@code --screenshot} photographs
+ * it, with {@code --scale} forcing 1.0/1.25/1.5/2.0 for HiDPI verification.
  */
 public final class Main {
 
@@ -27,12 +26,10 @@ public final class Main {
      * real set. The README used to carry a third copy and now points here instead.
      */
     private static final java.util.List<String> SCENES = java.util.List.of(
-            "kitchen", "kitchen-light", "kitchen-dialog", "kitchen-dialog-inscene",
-            "kitchen-loading", "kitchen-toggle", "kitchen-3d", "kitchen-files", "kitchen-video",
-            "kitchen-icons", "video", "icons", "icons-light", "icons-search",
+            "app", "video", "icons", "icons-light", "icons-search",
             "dialog-decorated", "dialog-opaque", "dialog-glass", "textfield-selected",
             "textfield-ime", "password-ramp", "fonts", "fonts-switched", "ellipsis",
-            "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow", "combos", "transfer", "picker", "app",
+            "textarea-scroll", "textarea-ime", "tabs", "tabs-overflow", "combo-overflow", "combos", "transfer", "picker",
             "showcase", "showcase-light", "dialog-open", "forms", "forms-light", "forms-popup",
             "components", "components-light", "widgets", "list", "table", "tree", "tree-scroll", "tree-deep", "tree-reserved", "tree-loading", "dates", "dates-light", "dates-popup", "dates-months", "dates-years", "dates-months-cursor", "dates-years-cursor", "dates-month-picker", "dates-month-picker-light", "dates-time-row", "dates-time-row-light", "dates-month-range", "dates-month-range-light", "form", "animations", "cursors",
             "sprites", "audio", "controls", "control-sizes", "control-sizes-audit",
@@ -44,8 +41,9 @@ public final class Main {
             "export", "export-light", "charts", "charts-light", "theme-editor",
             "theme-editor-light", "glass", "glass-light", "bidi", "bidi-light");
 
-    private static final int LOGICAL_WIDTH = 800;
-    private static final int LOGICAL_HEIGHT = 640;
+    /** A scene of the lab, alone in its window. */
+    private static final int LAB_WIDTH = 800;
+    private static final int LAB_HEIGHT = 640;
     /** The application's own window: a table beside a form, and a navigation beside both. */
     private static final int APP_WIDTH = 1180;
     private static final int APP_HEIGHT = 740;
@@ -148,7 +146,7 @@ public final class Main {
         }
         DemoOptions options = DemoOptions.parse(args);
         boolean screenshotMode = options.screenshotFile() != null;
-        String scene = options.scene().equals("default") ? "kitchen-light" : options.scene();
+        String scene = options.scene().equals("default") ? "app" : options.scene();
         if (!SCENES.contains(scene)) {
             System.err.println("unknown scene: " + scene);
             System.err.println("available: " + String.join(", ", SCENES));
@@ -156,17 +154,17 @@ public final class Main {
         }
 
         try (Backend backend = new LwjglBackend()) {
+            int logicalWidth = scene.equals("app") ? APP_WIDTH : LAB_WIDTH;
+            int logicalHeight = scene.equals("app") ? APP_HEIGHT : LAB_HEIGHT;
             NativeWindow window = backend.createWindow(WindowConfig.of(
-                    scene.equals("app") ? "Limn Showcase" : "Limn UI: Kitchen Sink",
-                    scene.equals("app") ? APP_WIDTH : LOGICAL_WIDTH,
-                    scene.equals("app") ? APP_HEIGHT : LOGICAL_HEIGHT).visible(!screenshotMode));
+                    AppScene.TITLE, logicalWidth, logicalHeight).visible(!screenshotMode));
 
             float monitorScale = window.contentScale();
             if (options.scale() > 0) {
                 // Force the render scale: size the window so the framebuffer is
                 // exactly logical * forcedScale device pixels on this monitor.
-                window.setSize(Math.round(LOGICAL_WIDTH * options.scale() / monitorScale),
-                        Math.round(LOGICAL_HEIGHT * options.scale() / monitorScale));
+                window.setSize(Math.round(logicalWidth * options.scale() / monitorScale),
+                        Math.round(logicalHeight * options.scale() / monitorScale));
                 window.overrideContentScale(options.scale());
             }
 
@@ -229,8 +227,6 @@ public final class Main {
             limn.components.ComboBox<?> formsCombo = null;
             limn.components.date.DatePicker datesPicker = null;
             java.util.function.Supplier<limn.components.Dialog> dialogOpener = null;
-            java.util.function.Supplier<limn.components.ComboBox<?>> dialogComboRef = null;
-            Runnable loadTrigger = null;
             Runnable afterLayout = null;
             Runnable treeScroll = null;
             MenuScene.Built menuBuilt = null;
@@ -296,8 +292,15 @@ public final class Main {
                 // Every kind of combo box, enabled and disabled (ADR 051 and 052), to try by hand.
                 widgetScene = CombosScene.create();
             } else if (scene.equals("app")) {
-                // The application the demo is to open on, and the way to everything else.
-                widgetScene = AppScene.create();
+                // The application the demo opens on, and the way to everything else. Opened with
+                // no scene named it follows the system's appearance until the user picks a theme;
+                // a named scene, a capture or --theme keeps the palette it asked for, and a
+                // desktop with no preference keeps the one it opens with.
+                AppScene.Built built = AppScene.create();
+                widgetScene = built.scene();
+                if (options.scene().equals("default") && !screenshotMode && options.theme() == null) {
+                    built.followSystemAppearance().run();
+                }
             } else if (scene.equals("picker")) {
                 // The ready-made widgets that drag (ADR 054 §4): two lists and a picture.
                 widgetScene = PickerScene.create();
@@ -377,31 +380,6 @@ public final class Main {
                 ShowcaseScene.Built built = ShowcaseScene.create(scene.endsWith("-light"));
                 widgetScene = built.scene();
                 dialogOpener = built.openDialog();
-            } else if (scene.startsWith("kitchen")) {
-                KitchenSinkScene.Built built = KitchenSinkScene.create(scene.equals("kitchen-light"));
-                widgetScene = built.scene();
-                // Opened with no scene named, the kitchen follows the system's appearance until the
-                // user picks a theme; a named scene, a capture or --theme keeps the palette it asked
-                // for, and a desktop with no preference keeps the light one it opens with.
-                if (options.scene().equals("default") && !screenshotMode && options.theme() == null) {
-                    built.followSystemAppearance().run();
-                }
-                dialogOpener = built.openDialog();
-                dialogComboRef = built.dialogCombo();
-                loadTrigger = built.triggerLoad();
-                if (scene.equals("kitchen-dialog-inscene")) {
-                    afterLayout = built.useInSceneDialogs(); // flip 'Internal' before opening
-                } else if (scene.equals("kitchen-toggle")) {
-                    afterLayout = built.toggleTheme(); // toggle after first layout, then capture
-                } else if (scene.equals("kitchen-3d")) {
-                    afterLayout = built.openThreeDTab(); // open the 3D tab, then capture
-                } else if (scene.equals("kitchen-files")) {
-                    afterLayout = built.openFilesTab(); // open the Files tab, then capture
-                } else if (scene.equals("kitchen-video")) {
-                    afterLayout = built.openVideoTab(); // open the Video tab, then capture
-                } else if (scene.equals("kitchen-icons")) {
-                    afterLayout = built.openIconsTab(); // open the Icons tab, then capture
-                }
             } else if (scene.equals("textfield-selected")) {
                 CaptureScenes.Built built = CaptureScenes.textfieldSelected(false);
                 widgetScene = built.scene();
@@ -481,7 +459,7 @@ public final class Main {
             }
             if (widgetScene != null) {
                 // Partial rendering is the toolkit's default (ADR 043), so every scene here runs
-                // it without being told; the kitchen sink's switch still turns it off to compare.
+                // it without being told; the application's View menu still turns it off to compare.
                 widgetScene.bind(window); // input + invalidation
             }
             limn.scene.Scene boundScene = widgetScene;
@@ -493,20 +471,10 @@ public final class Main {
             // Modal fade / async load capture: settle over real time, so we
             // trigger and capture on a timer instead of via warmup frames.
             boolean dialogCapture = screenshotMode && dialogOpener != null
-                    && (scene.equals("kitchen-dialog") || scene.startsWith("dialog-"));
-            // The same dialog as an overlay, with its dropdown open: the card is drawn
-            // inside the host window while the dropdown is a window of its own, owned by
-            // that host, the pair a scene modal has to leave alone, or the combo opens
-            // into a window that is never shown and never takes a click.
-            boolean inSceneDialogCapture = scene.equals("kitchen-dialog-inscene")
-                    && screenshotMode && dialogOpener != null && dialogComboRef != null;
-            boolean loadingCapture = scene.equals("kitchen-loading") && screenshotMode && loadTrigger != null;
+                    && scene.startsWith("dialog-");
             // The perf footer latches its readout once per second; wait for a few
             // ticks so the capture shows populated numbers and sparklines.
             boolean perfCapture = scene.equals("perf") && screenshotMode;
-            // Kitchen 3D tab: open it, then wait like perf so the footer's 3D
-            // gauges (GPU/draws/tris) latch real values before the capture.
-            boolean threeDCapture = scene.equals("kitchen-3d") && screenshotMode;
             // Controls: inject focus + a spinner-button hover so the capture shows
             // the interaction states (slider focus ring, spinner hover/focus border).
             boolean controlsCapture = scene.equals("controls") && screenshotMode;
@@ -534,9 +502,9 @@ public final class Main {
             // back to back with no wall time between them, so a capture taken from the warmup
             // would photograph the first frame of the fade. Deferred for that reason alone.
             boolean datesCapture = screenshotMode && datesPicker != null;
-            boolean deferredCapture = datesCapture || popupCapture || dialogCapture || loadingCapture
-                    || perfCapture || threeDCapture || controlsCapture || menuCapture
-                    || tabsOverflowCapture || inSceneDialogCapture || splitCapture
+            boolean deferredCapture = datesCapture || popupCapture || dialogCapture
+                    || perfCapture || controlsCapture || menuCapture
+                    || tabsOverflowCapture || splitCapture
                     || chartsCapture || treeScrollCapture;
             AtomicInteger frames = new AtomicInteger();
             AtomicInteger frameNo = new AtomicInteger();
@@ -547,7 +515,7 @@ public final class Main {
             // them) or a timeout passes (fallback binaries not bundled → capture as-is).
             java.util.function.BooleanSupplier fontFallbacksSettled;
             // The scene list is not enough on its own, and keying only on it was a real defect:
-            // --locale turns ANY scene into one that needs a fallback face, and the kitchen sink
+            // --locale turns ANY scene into one that needs a fallback face, and the application
             // captured in ja, ar or hi came out as rows of .notdef boxes with nothing to say so.
             // It went unnoticed because the documented capture example uses fr, which is Latin.
             boolean fontFallbackScene = switch (scene) {
@@ -617,35 +585,6 @@ public final class Main {
                     }
                 }, 500); // after the fade-in settles
                 Ui.postDelayed(window::requestClose, 800);
-            }
-
-            if (inSceneDialogCapture) {
-                java.util.function.Supplier<limn.components.Dialog> opener = dialogOpener;
-                java.util.function.Supplier<limn.components.ComboBox<?>> comboRef = dialogComboRef;
-                Ui.postDelayed(opener::get, 50);
-                Ui.postDelayed(() -> {
-                    limn.components.ComboBox<?> combo = comboRef.get();
-                    if (combo != null) {
-                        combo.open();
-                    }
-                }, 350);
-                Ui.postDelayed(() -> {
-                    // Host window: the overlay, its scrim and the card with the combo in it.
-                    window.captureNextFrame(options.screenshotFile());
-                    System.out.println("In-scene dialog screenshot: "
-                            + options.screenshotFile().toAbsolutePath());
-                    limn.components.ComboBox<?> combo = comboRef.get();
-                    if (combo != null && combo.popupWindow() != null) {
-                        java.nio.file.Path popupPng = java.nio.file.Path.of(
-                                options.screenshotFile().toString().replace(".png", "-popup.png"));
-                        combo.popupWindow().captureNextFrame(popupPng);
-                        System.out.printf("Dropdown window (modal-blocked: %s): %s%n",
-                                combo.popupWindow().isModalBlocked(), popupPng.toAbsolutePath());
-                    } else {
-                        System.err.println("the dialog's dropdown did not open!");
-                    }
-                }, 700);
-                Ui.postDelayed(window::requestClose, 950);
             }
 
             if (controlsCapture && boundScene != null) {
@@ -761,25 +700,13 @@ public final class Main {
                 Ui.postDelayed(window::requestClose, 900);
             }
 
-            if (perfCapture || threeDCapture) {
+            if (perfCapture) {
                 // Let a few 1 Hz latches populate the gauges + sparklines, then capture.
                 Ui.postDelayed(() -> {
                     window.captureNextFrame(options.screenshotFile());
                     System.out.println("Perf screenshot: " + options.screenshotFile().toAbsolutePath());
                 }, 3200);
                 Ui.postDelayed(window::requestClose, 3500);
-            }
-
-            if (loadingCapture) {
-                // Trigger the async load, then capture mid-flight: the spinner
-                // animating proves the UI stays fluid during background work.
-                Runnable trigger = loadTrigger;
-                Ui.postDelayed(trigger, 50);
-                Ui.postDelayed(() -> {
-                    window.captureNextFrame(options.screenshotFile());
-                    System.out.println("Loading screenshot: " + options.screenshotFile().toAbsolutePath());
-                }, 700);
-                Ui.postDelayed(window::requestClose, 900);
             }
 
             if (datesCapture) {
