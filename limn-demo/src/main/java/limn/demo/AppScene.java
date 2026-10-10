@@ -250,6 +250,10 @@ final class AppScene {
                 theme.setSelectedIndex(now);
             }
             scene.setBackground(Theme.current().background());
+            // Sizes and faces come from the theme through the layout, and nothing lays a scene
+            // out again for a theme: the language, the direction and the size do it themselves.
+            scene.root().markNeedsLayout();
+            scene.root().invalidate();
         });
 
         menuBar.addMenu("File", new Menu()
