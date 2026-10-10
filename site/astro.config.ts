@@ -100,6 +100,7 @@ export default defineConfig({
             { slug: "docs/forms" },
             { slug: "docs/lists-and-scrolling" },
             { slug: "docs/menus-and-dialogs" },
+            { slug: "docs/drag-and-drop" },
             { slug: "docs/charts" },
           ],
         },

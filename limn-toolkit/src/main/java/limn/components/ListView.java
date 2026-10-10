@@ -1121,7 +1121,10 @@ public final class ListView<T> extends Widget<ListView<T>> implements Scrollable
             rangeAnchor = cursor;
             notifyChange(Change.of(Change.Aspect.SELECTION, Change.Origin.ADJUSTMENT));
         }
-        ensureVisible(cursor);
+        // After the layout the refresh asked for: the rows are unmounted now, and a reveal with
+        // no row to measure takes the far jump, which put the moved row at the top of the list
+        // though it had never left sight.
+        pendingEnsureVisible = cursor;
         announceCursor(wasCursor, Change.Origin.ADJUSTMENT);
         limn.scene.Scene scene = scene();
         if (scene != null) {

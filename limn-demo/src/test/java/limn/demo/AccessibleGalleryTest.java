@@ -11,6 +11,7 @@ import limn.demo.a11y.AccessibilityGallery.Entry;
 import limn.testing.HeadlessBackend;
 import limn.testing.HeadlessWindow;
 import limn.demo.a11y.Transcript;
+import limn.demo.site.DragExample;
 import limn.demo.site.FormExample;
 import limn.demo.site.LayoutExample;
 import limn.demo.site.TableExample;
@@ -143,6 +144,7 @@ class AccessibleGalleryTest {
         examples.put("A form", FormExample::scene);
         examples.put("A window laid out", LayoutExample::scene);
         examples.put("A table", TableExample::scene);
+        examples.put("Two lists that trade rows", DragExample::scene);
         List<DynamicTest> tests = new ArrayList<>();
         examples.forEach((name, example) -> {
             for (Palette palette : Palette.values()) {

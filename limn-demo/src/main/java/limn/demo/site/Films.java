@@ -88,6 +88,9 @@ final class Films {
             case "slider" -> Films::slider;
             case "spinner" -> Films::spinner;
             case "split-pane" -> Films::splitPane;
+            case "list-view" -> Films::listView;
+            case "tree" -> Films::tree;
+            case "table" -> Films::table;
             case "bar-chart" -> built -> sweep(find(built, BarChart.class, 0));
             case "line-chart" -> built -> sweep(find(built, LineChart.class, 0));
             case "donut-chart" -> Films::donutChart;
@@ -767,6 +770,77 @@ final class Films {
                 .hold(SETTLE)
                 .press().hold(8).release()
                 .hold(LOOK + 8);
+    }
+
+    /**
+     * A row moved down two places and back up one, by the keyboard: the rows around it slide to
+     * make room, which is the part a still cannot show.
+     *
+     * <p>By Alt+Shift with an arrow and not by a drag of the pointer, though a drag is what the
+     * entry's sample turns on. A drag that begins in a real window is handed to the system
+     * wherever the system takes it, and from then on it follows the machine's own pointer, which
+     * a film does not move: the script's glide would be ignored and the film would show a press
+     * that never ends. The keyboard moves the same rows through the same handler.
+     */
+    private static Motion listView(GalleryScenes.Built built) {
+        Widget<?> list = find(built, limn.components.ListView.class, 0);
+        int move = Keys.MOD_ALT | Keys.MOD_SHIFT;
+        return Motion.script()
+                .from(OFF_X, OFF_Y)
+                // The first row, and no further than the third place: the list shows three whole
+                // rows and part of a fourth, and a row moved onto the fourth scrolls the list to
+                // show it, which reads as rows vanishing.
+                .to(list, 0.3f, 0.13f, TRAVEL)
+                .hold(SETTLE)
+                .press().hold(8).release()
+                .hold(LOOK)
+                .key(Keys.DOWN, move)
+                .hold(LOOK)
+                .key(Keys.DOWN, move)
+                .hold(LOOK)
+                .key(Keys.UP, move)
+                .hold(LOOK + 8);
+    }
+
+    /**
+     * A file taken up past the folder beside it, then out of the folder they are both in: the two
+     * moves an outline has that a list does not. By the keyboard, for {@link #listView}'s reason.
+     */
+    private static Motion tree(GalleryScenes.Built built) {
+        Widget<?> tree = find(built, limn.components.tree.Tree.class, 0);
+        int move = Keys.MOD_ALT | Keys.MOD_SHIFT;
+        // The scene opens Documents and selects notes.md, its second child and the third row,
+        // Reports above it being closed.
+        return Motion.script()
+                .from(OFF_X, OFF_Y)
+                .to(tree, 0.45f, 0.375f, TRAVEL)
+                .hold(SETTLE)
+                .press().hold(8).release()
+                .hold(LOOK)
+                .key(Keys.UP, move)
+                .hold(LOOK + 4)
+                .key(Keys.LEFT, move)
+                .hold(LOOK + 12);
+    }
+
+    /**
+     * A column taken by its header past the one after it and let go. This one is the pointer's:
+     * a column header's drag never leaves its window, so the film's pointer is what drives it.
+     */
+    private static Motion table(GalleryScenes.Built built) {
+        Widget<?> table = find(built, limn.components.table.Table.class, 0);
+        // Name takes the 16 points the viewport has over the preferred widths, so Platform
+        // runs from 136 to 236 of 360 and Downloads from there to the end.
+        return Motion.script()
+                .from(OFF_X, OFF_Y)
+                .to(table, 0.52f, 0.08f, TRAVEL)
+                .hold(SETTLE)
+                .press()
+                .hold(8)
+                .to(table, 0.9f, 0.08f, 26)
+                .hold(10)
+                .release()
+                .hold(LOOK + 12);
     }
 
     /** The divider, taken both ways, which is the whole of what a split pane does. */

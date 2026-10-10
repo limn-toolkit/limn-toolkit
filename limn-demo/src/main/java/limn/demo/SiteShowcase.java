@@ -131,6 +131,8 @@ public final class SiteShowcase {
                 SiteShowcase::dates));
         entries.add(new Entry("data", "Tables, trees and dates", Locale.ENGLISH,
                 SiteShowcase::data));
+        entries.add(new Entry("picker", "Two lists that trade rows", Locale.ENGLISH,
+                SiteShowcase::picker));
         entries.add(new Entry("layout", "A window laid out", Locale.ENGLISH, SiteShowcase::layout));
         entries.add(new Entry("control-size", "Every size step", Locale.ENGLISH,
                 SiteShowcase::controlSize));
@@ -375,6 +377,12 @@ public final class SiteShowcase {
     private static Scene data(Theme theme) {
         Theme.setCurrent(theme);
         return retheme(limn.demo.site.DataExample.scene(), theme);
+    }
+
+    /** The drag-and-drop guide's picture of the two lists of a picker. */
+    private static Scene picker(Theme theme) {
+        Theme.setCurrent(theme);
+        return retheme(limn.demo.site.DragExample.scene(), theme);
     }
 
     private static Scene layout(Theme theme) {

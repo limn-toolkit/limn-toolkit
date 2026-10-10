@@ -221,6 +221,25 @@ class ListViewDragTest {
     }
 
     @Test
+    void aRowMovedByTheKeyboardWhereItIsInSightDoesNotScrollTheList() {
+        fruit.addAll(List.of("fennel", "ginger", "hazel", "iris", "juniper", "kale", "lime"));
+        left.refresh();
+        scene.layoutPass(300, 120); // six rows of twelve in sight
+        left.setSelectedIndex(0);
+        scene.requestFocus(left);
+
+        key(Keys.DOWN, Keys.MOD_ALT | Keys.MOD_SHIFT);
+        scene.layoutPass(300, 120);
+        assertEquals("banana", fruit.get(0));
+        assertEquals(0, left.firstVisibleIndex(), "the row it passed is still the first in sight");
+
+        key(Keys.DOWN, Keys.MOD_ALT | Keys.MOD_SHIFT);
+        key(Keys.UP, Keys.MOD_ALT | Keys.MOD_SHIFT);
+        scene.layoutPass(300, 120);
+        assertEquals(0, left.firstVisibleIndex(), "and after two moves between two layouts");
+    }
+
+    @Test
     void rowsDroppedOnAnotherListAreTakenThereAndTheFirstIsToldTheyLeft() {
         press(50, 30, 0); // banana
         move(60, 30);

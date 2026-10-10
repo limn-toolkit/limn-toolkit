@@ -249,6 +249,9 @@ protected void onDrop(DropEvent event) {
 }
 ```
 
+[Drag and drop](/docs/drag-and-drop/) has the rest: what else a drop can carry, and dragging
+out of your window.
+
 ## Displays and resolutions
 
 Screen information arrives as value types in `limn.backend`, so every class reads it the same way

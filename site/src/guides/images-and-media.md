@@ -34,6 +34,10 @@ of pictures bigger than that raises it, with `Images.setTextureBudget`.
 
 Going the other way, `Images.encode(…)` and `Images.saveAsync(…)` write PNG.
 
+`view.setDragEnabled(true)` lets the user drag the picture out of its view, to another part of
+your window or to another program; [Drag and drop](/docs/drag-and-drop/#a-picture-that-leaves-its-view)
+has the details, the clipboard among them.
+
 ## Icons
 
 The toolkit takes an `Icon` wherever a small vector mark belongs: a button, a text field's

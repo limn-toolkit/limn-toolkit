@@ -1,10 +1,9 @@
 # ADR 054: A drag carries a transfer between widgets, windows and applications, and the keyboard can do it too
 
-- **Status:** Accepted, 2026-10-08, with the owner's answers below. Steps 3 and 4 of §6 are
-  built: the scene's driver with the keyboard's drag, and the table's columns; §7 says where
-  they depart from the text. Steps 5 and 6 are built: the lists, the tree and the picture, and
-  the system's driver on macOS, Windows, X11 and Wayland, each measured on its system. Step 7 is
-  not.
+- **Status:** Implemented, 2026-10-10, with the owner's answers below; §7 says where the build
+  departs from the text, what was measured on each system and what was not. One thing §6 asks
+  for was measured on macOS alone, a file dragged in from another program; it is a declared
+  limit, with the others §7 ends on.
 - **Date:** 2026-10-08
 - **Scope:** drag and drop for every widget: a source, a target with feedback while the pointer is
   over it, the platform's own drag so that it leaves the window; a keyboard way of doing the same;
@@ -163,13 +162,14 @@ asks.
 4. `Table` phase 2, the first consumer.
 5. `ListView`, `Tree`, `ImageView`.
 6. The system's driver on the four systems.
-7. A demo scene, the gallery entries and reader scripts, the live runs, the guide, the CHANGELOG.
+7. A demo scene, the gallery entries, the guide, the CHANGELOG. (As first written this step
+   had reader scripts and live reader runs; §7 says why it has neither.)
 
 Done when: both records are implemented on the three platforms (four systems); a drag between two
 lists and a column move are done by keyboard; a file, a
 picture and text are dragged in from and out to a native program on each system.
 
-## 7. As built so far
+## 7. As built
 
 Step 3, the scene's driver (`Scene`, `limn.scene.event`, `limn.transfer.Drag`), with
 `SceneDragTest`:
@@ -306,8 +306,8 @@ Step 5 (`ListView`, `Tree`, `ImageView`; the demo's `--scene picker`):
 - A drag does not begin on a scroll bar, on a tree's triangle, or on a focusable control inside
   a row.
 - Strings: four in the components' catalogue and six in the tree's, in the 21 languages.
-- Not done: a target cannot yet be told which action to prefer (a list dropped on proposes what
-  the source does); the readers have not heard any of it (step 7).
+- Not done: a list or a tree dropped on cannot be told which action to prefer (it takes what
+  the source proposes; a widget of the application's own says `accept(DropAction)`).
 
 Step 5 after the owner's runs of the picker scene on his Mac (list and tree alike):
 
@@ -409,3 +409,32 @@ out; two lines of text in, which became rows. The scripts are under `.claude/pen
   or an action to the accessible tree, and what it says goes by the announcement path those
   readers were already heard on. The shapes and their contracts stand for the rest.
 
+Step 7 (2026-10-10):
+
+- **The demo scene** is `--scene picker`, which the owner's runs of steps 5 and 6 were made on.
+- **The gallery:** the list, the tree and the image view turn dragging on in the samples they
+  publish, and the list, the tree and the table are filmed. The table's film is the pointer's,
+  a column taken by its header past the next: that drag is `withinWindow()` and never leaves
+  the scene. The list's and the tree's are the keyboard's, Alt+Shift with an arrow. A pointer's
+  drag of a row is handed to the system wherever a real window has a system to hand it to, and
+  then follows the machine's own pointer, which a film does not move; the X11 driver takes
+  every drag it is offered, and the site is captured under X11.
+- **Filming the list found a defect in it.** A row moved by Alt+Shift and an arrow was put at
+  the top of the list, the rows above it scrolled out of sight, though it had never left
+  sight: the reveal ran straight after the refresh, when no row is mounted, and a reveal with
+  no row to measure jumps. It now waits for the layout the refresh asked for. The lists the
+  move had been tried on were too short to scroll. And the tree's sample had a record for a
+  node, whose equality follows its children: the folder a node was taken out of closed, being
+  no longer the node that was open. The sample's node is a class, and says why.
+- **The guide** is a page of its own, *Drag and drop, and the clipboard*, between the menus and
+  the charts: the ready-made widgets first (a list that reorders, the two lists of a picker,
+  an outline, a picture with its opt-in file and why its drag allows a move), then the
+  keyboard, a widget of the application's own as a source and as a target, files, the
+  clipboard, and the limits. Its samples are regions of `limn.demo.site.DragExample`, compiled
+  by the check and tested for what the page says of them; its picture is a capture of that
+  class's scene. The table's columns have a section in the lists page.
+- **What is left as it is**, each in the CHANGELOG's known limits: files dragged in from a file
+  manager measured on macOS alone; the modifier keys not exercised during a drag the system
+  drives; no link and a rounded picture at a fractional scale on Wayland; the pointer's shape
+  on X11; Mutter unmeasured; a list or a tree as a target taking the action proposed; the focus
+  ring of a cell under frozen columns.
